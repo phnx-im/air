@@ -1,0 +1,38 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT expiration_data AS \"expiration_data: ExpirationData\"\n            FROM as_user_handle WHERE hash = $1\n            FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "expiration_data: ExpirationData",
+        "type_info": {
+          "Custom": {
+            "name": "expiration",
+            "kind": {
+              "Composite": [
+                [
+                  "not_before",
+                  "Timestamptz"
+                ],
+                [
+                  "not_after",
+                  "Timestamptz"
+                ]
+              ]
+            }
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "77a377d96a8c95016039d5810e0ac5185382c0104cd76b4bf84801f39cd28b3e"
+}

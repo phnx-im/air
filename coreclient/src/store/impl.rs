@@ -346,8 +346,7 @@ impl Store for CoreUser {
     }
 
     async fn message_draft(&self, chat_id: ChatId) -> StoreResult<Option<MessageDraft>> {
-        let mut read = self.db().read().await?;
-        Ok(MessageDraft::load(&mut read, chat_id).await?)
+        Ok(MessageDraft::load(self.pool().acquire().await?.as_mut(), chat_id).await?)
     }
 
     async fn store_message_draft(
@@ -355,22 +354,23 @@ impl Store for CoreUser {
         chat_id: ChatId,
         message_draft: Option<&MessageDraft>,
     ) -> StoreResult<()> {
-        self.db()
-            .with_write_transaction(async move |txn| {
-                if let Some(message_draft) = message_draft {
-                    message_draft.store(txn, chat_id).await?;
-                } else {
-                    MessageDraft::delete(txn, chat_id).await?;
-                }
-                Ok(())
-            })
-            .await
+        let mut notifier = self.store_notifier();
+        if let Some(message_draft) = message_draft {
+            message_draft
+                .store(self.pool(), &mut notifier, chat_id)
+                .await?;
+        } else {
+            MessageDraft::delete(self.pool(), &mut notifier, chat_id).await?;
+        }
+        notifier.notify();
+        Ok(())
     }
 
     async fn commit_all_message_drafts(&self) -> StoreResult<()> {
-        self.db()
-            .with_write_transaction(async |txn| Ok(MessageDraft::commit_all(txn).await?))
-            .await
+        self.with_notifier(async |notifier| {
+            Ok(MessageDraft::commit_all(self.pool(), notifier).await?)
+        })
+        .await
     }
 
     async fn messages_count(&self, chat_id: ChatId) -> StoreResult<usize> {

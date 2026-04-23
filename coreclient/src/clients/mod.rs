@@ -122,7 +122,7 @@ pub struct CoreUser {
 #[derive(Debug)]
 pub(crate) struct CoreUserInner {
     pool: SqlitePool,
-    db_access: DbAccess,
+    db: DbAccess,
     api_clients: ApiClients,
     http_client: reqwest::Client,
     qs_user_id: QsUserId,
@@ -295,7 +295,7 @@ impl CoreUser {
     }
 
     pub(crate) fn db(&self) -> &DbAccess {
-        &self.inner.db_access
+        &self.inner.db
     }
 
     #[cfg(feature = "test_utils")]
@@ -541,7 +541,7 @@ impl CoreUser {
     }
 
     pub async fn username_contacts(&self) -> sqlx::Result<Vec<UsernameContact>> {
-        UsernameContact::load_all(self.pool()).await
+        UsernameContact::load_all(self.db().read().await?).await
     }
 
     pub async fn targeted_message_contacts(&self) -> sqlx::Result<Vec<TargetedMessageContact>> {

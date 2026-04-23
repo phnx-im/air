@@ -42,12 +42,9 @@ impl MessageDraft {
 }
 
 mod persistence {
-    use sqlx::{query, query_as, query_scalar};
+    use sqlx::{SqliteConnection, SqliteExecutor, query, query_as, query_scalar};
 
-    use crate::{
-        ChatId,
-        db_access::{ReadConnection, WriteConnection},
-    };
+    use crate::{ChatId, store::StoreNotifier};
 
     use super::*;
 
@@ -92,7 +89,7 @@ mod persistence {
 
     impl MessageDraft {
         pub(crate) async fn load(
-            mut executor: impl ReadConnection<'_>,
+            connection: &mut SqliteConnection,
             chat_id: ChatId,
         ) -> sqlx::Result<Option<Self>> {
             let Some(mut message_draft) = query_as!(
@@ -109,14 +106,14 @@ mod persistence {
                 "#,
                 chat_id
             )
-            .fetch_optional(executor.as_mut())
+            .fetch_optional(&mut *connection)
             .await?
             .map(MessageDraft::from) else {
                 return Ok(None);
             };
 
             if let Some((mimi_id, message)) = message_draft.in_reply_to.as_mut() {
-                *message = InReplyToMessage::load(executor.as_mut(), mimi_id).await?;
+                *message = InReplyToMessage::load(&mut *connection, mimi_id).await?;
             }
 
             Ok(Some(message_draft))
@@ -124,10 +121,10 @@ mod persistence {
 
         pub(crate) async fn store(
             &self,
-            executor: impl WriteConnection<'_>,
+            executor: impl SqliteExecutor<'_>,
+            notifier: &mut StoreNotifier,
             chat_id: ChatId,
         ) -> sqlx::Result<()> {
-            let (connection, notifier) = executor.split();
             let in_reply_to_mimi_id = self.in_reply_to.as_ref().map(|(mimi_id, _)| mimi_id);
             query!(
                 "INSERT INTO message_draft (
@@ -152,7 +149,7 @@ mod persistence {
                 self.updated_at,
                 self.is_committed,
             )
-            .execute(connection)
+            .execute(executor)
             .await?;
             if self.is_committed {
                 notifier.update(chat_id);
@@ -160,8 +157,10 @@ mod persistence {
             Ok(())
         }
 
-        pub(crate) async fn commit_all(executor: impl WriteConnection<'_>) -> sqlx::Result<()> {
-            let (executor, notifier) = executor.split();
+        pub(crate) async fn commit_all(
+            executor: impl SqliteExecutor<'_>,
+            notifier: &mut StoreNotifier,
+        ) -> sqlx::Result<()> {
             let mut chat_ids = query_scalar!(
                 r#"UPDATE message_draft SET is_committed = true
                 RETURNING chat_id AS "chat_id: ChatId""#
@@ -174,10 +173,10 @@ mod persistence {
         }
 
         pub(crate) async fn delete(
-            executor: impl WriteConnection<'_>,
+            executor: impl SqliteExecutor<'_>,
+            notifier: &mut StoreNotifier,
             chat_id: ChatId,
         ) -> sqlx::Result<()> {
-            let (executor, notifier) = executor.split();
             query!("DELETE FROM message_draft WHERE chat_id = ?", chat_id)
                 .execute(executor)
                 .await?;
@@ -195,7 +194,6 @@ mod persistence {
             chats::{
                 messages::persistence::tests::test_chat_message, persistence::tests::test_chat,
             },
-            db_access::DbAccess,
             store::StoreNotifier,
         };
 
@@ -203,14 +201,14 @@ mod persistence {
 
         #[sqlx::test]
         async fn store_load_and_delete_message_draft(pool: SqlitePool) -> anyhow::Result<()> {
-            let db = DbAccess::for_tests(pool);
-            let mut write = db.write().await?;
+            let mut notifier = StoreNotifier::noop();
 
             let chat = test_chat();
-            chat.store(&mut write).await?;
+            chat.store(pool.acquire().await?.as_mut(), &mut notifier)
+                .await?;
 
             let message = test_chat_message(chat.id());
-            message.store(&mut write).await?;
+            message.store(&pool, &mut notifier).await?;
 
             // 1. Load non-existent draft (should be None)
             let loaded_draft =
@@ -226,7 +224,7 @@ mod persistence {
                 updated_at: now,
                 is_committed: false,
             };
-            draft.store(db.write().await?, chat.id()).await?;
+            draft.store(&pool, &mut notifier, chat.id()).await?;
 
             // 3. Load the stored draft and assert its contents
             let loaded_draft =
@@ -246,7 +244,7 @@ mod persistence {
                 updated_at: updated_now,
                 is_committed: false,
             };
-            updated_draft.store(db.write().await?, chat.id()).await?;
+            updated_draft.store(&pool, &mut notifier, chat.id()).await?;
 
             // 5. Load the updated draft and assert its new contents
             let loaded_draft =
@@ -258,10 +256,11 @@ mod persistence {
             assert_eq!(loaded_draft.updated_at, updated_now);
 
             // 6. Delete the draft
-            MessageDraft::delete(db.write().await?, chat.id()).await?;
+            MessageDraft::delete(&pool, &mut notifier, chat.id()).await?;
 
             // 7. Try to load it again (should be None)
-            let loaded_draft_after_delete = MessageDraft::load(db.read().await?, chat.id()).await?;
+            let loaded_draft_after_delete =
+                MessageDraft::load(pool.acquire().await?.as_mut(), chat.id()).await?;
             assert_eq!(loaded_draft_after_delete, None);
 
             Ok(())
@@ -269,14 +268,17 @@ mod persistence {
 
         #[sqlx::test]
         async fn commit_all_drafts(pool: SqlitePool) -> anyhow::Result<()> {
-            let db = DbAccess::for_tests(pool);
-            let mut write = db.write().await?;
+            let mut notifier = StoreNotifier::noop();
 
             let chat_a = test_chat();
-            chat_a.store(&mut write).await?;
+            chat_a
+                .store(pool.acquire().await?.as_mut(), &mut notifier)
+                .await?;
 
             let chat_b = test_chat();
-            chat_b.store(&mut write).await?;
+            chat_b
+                .store(pool.acquire().await?.as_mut(), &mut notifier)
+                .await?;
 
             MessageDraft {
                 message: "Hello, world!".to_string(),
@@ -285,7 +287,7 @@ mod persistence {
                 updated_at: Utc::now(),
                 is_committed: false,
             }
-            .store(db.write().await?, chat_a.id())
+            .store(&pool, &mut notifier, chat_a.id())
             .await?;
 
             MessageDraft {
@@ -295,19 +297,19 @@ mod persistence {
                 updated_at: Utc::now(),
                 is_committed: true,
             }
-            .store(db.write().await?, chat_b.id())
+            .store(&pool, &mut notifier, chat_b.id())
             .await?;
 
-            MessageDraft::commit_all(&db).await?;
+            MessageDraft::commit_all(&pool, &mut notifier).await?;
 
             assert!(
-                MessageDraft::load(db.read().await?, chat_a.id())
+                MessageDraft::load(pool.acquire().await?.as_mut(), chat_a.id())
                     .await?
                     .unwrap()
                     .is_committed
             );
             assert!(
-                MessageDraft::load(db.read().await?, chat_b.id())
+                MessageDraft::load(pool.acquire().await?.as_mut(), chat_b.id())
                     .await?
                     .unwrap()
                     .is_committed

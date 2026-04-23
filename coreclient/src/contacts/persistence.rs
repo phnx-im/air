@@ -8,7 +8,7 @@ use aircommon::{
     messages::FriendshipToken,
 };
 use chrono::Utc;
-use sqlx::{SqliteExecutor, SqliteTransaction, query, query_as};
+use sqlx::{SqliteExecutor, query, query_as};
 use tokio_stream::StreamExt;
 use uuid::Uuid;
 
@@ -16,6 +16,7 @@ use crate::{
     ChatId, Contact,
     clients::connection_offer::FriendshipPackage,
     contacts::{PartialContact, PartialContactType, TargetedMessageContact},
+    db_access::{ReadConnection, WriteConnection, WriteTransaction},
     store::StoreNotifier,
 };
 
@@ -90,11 +91,7 @@ impl Contact {
         .await
     }
 
-    pub(crate) async fn upsert(
-        &self,
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
-    ) -> sqlx::Result<()> {
+    pub(crate) async fn upsert(&self, mut conn: impl WriteConnection) -> sqlx::Result<()> {
         let uuid = self.user_id.uuid();
         let domain = self.user_id.domain();
         query!(
@@ -111,9 +108,11 @@ impl Contact {
             self.wai_ear_key,
             self.friendship_token,
         )
-        .execute(executor)
+        .execute(conn.as_mut())
         .await?;
-        notifier.add(self.user_id.clone()).update(self.chat_id);
+        conn.notifier()
+            .add(self.user_id.clone())
+            .update(self.chat_id);
         Ok(())
     }
 }
@@ -188,7 +187,7 @@ impl UsernameContact {
         .await
     }
 
-    pub(crate) async fn load_all(executor: impl SqliteExecutor<'_>) -> sqlx::Result<Vec<Self>> {
+    pub(crate) async fn load_all(mut conn: impl ReadConnection) -> sqlx::Result<Vec<Self>> {
         query_as!(
             Self,
             r#"SELECT
@@ -198,16 +197,16 @@ impl UsernameContact {
                 connection_offer_hash AS "connection_offer_hash: _"
             FROM username_contact"#,
         )
-        .fetch_all(executor)
+        .fetch_all(conn.as_mut())
         .await
     }
 
-    async fn delete(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+    async fn delete(&self, mut conn: impl WriteConnection) -> sqlx::Result<()> {
         query!(
             "DELETE FROM username_contact WHERE chat_id = ?",
             self.chat_id
         )
-        .execute(executor)
+        .execute(conn.as_mut())
         .await?;
         Ok(())
     }
@@ -215,8 +214,7 @@ impl UsernameContact {
     /// Creates and persists a [`Contact`] from this username contact and the additional data
     pub(crate) async fn mark_as_complete(
         self,
-        txn: &mut SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
+        txn: &mut WriteTransaction<'_>,
         user_id: UserId,
         friendship_package: FriendshipPackage,
     ) -> anyhow::Result<Contact> {
@@ -227,8 +225,8 @@ impl UsernameContact {
             friendship_token: friendship_package.friendship_token,
         };
 
-        self.delete(txn.as_mut()).await?;
-        contact.upsert(txn.as_mut(), notifier).await?;
+        self.delete(&mut *txn).await?;
+        contact.upsert(txn).await?;
 
         Ok(contact)
     }
@@ -325,7 +323,7 @@ impl TargetedMessageContact {
         .map(|records| records.into_iter().map(From::from).collect())
     }
 
-    async fn delete(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+    async fn delete(&self, conn: &mut impl WriteConnection) -> sqlx::Result<()> {
         let uuid = self.user_id.uuid();
         let domain = self.user_id.domain();
         query!(
@@ -333,7 +331,7 @@ impl TargetedMessageContact {
             uuid,
             domain
         )
-        .execute(executor)
+        .execute(conn.as_mut())
         .await?;
         Ok(())
     }
@@ -341,11 +339,10 @@ impl TargetedMessageContact {
     /// Creates and persists a [`Contact`] from this username contact and the additional data
     pub(crate) async fn mark_as_complete(
         self,
-        txn: &mut SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
+        txn: &mut WriteTransaction<'_>,
         friendship_package: FriendshipPackage,
     ) -> anyhow::Result<Contact> {
-        self.delete(txn.as_mut()).await?;
+        self.delete(txn).await?;
 
         let contact = Contact {
             user_id: self.user_id,
@@ -354,7 +351,7 @@ impl TargetedMessageContact {
             friendship_token: friendship_package.friendship_token,
         };
 
-        contact.upsert(txn.as_mut(), notifier).await?;
+        contact.upsert(txn).await?;
 
         Ok(contact)
     }
@@ -394,20 +391,19 @@ impl PartialContact {
 
     pub(crate) async fn mark_as_complete(
         self,
-        txn: &mut SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
+        txn: &mut WriteTransaction<'_>,
         user_id: UserId,
         friendship_package: FriendshipPackage,
     ) -> anyhow::Result<Contact> {
         match self {
             PartialContact::Username(username_contact) => {
                 username_contact
-                    .mark_as_complete(txn, notifier, user_id, friendship_package)
+                    .mark_as_complete(txn, user_id, friendship_package)
                     .await
             }
             PartialContact::TargetedMessage(targeted_message_contact) => {
                 targeted_message_contact
-                    .mark_as_complete(txn, notifier, friendship_package)
+                    .mark_as_complete(txn, friendship_package)
                     .await
             }
         }
@@ -428,7 +424,8 @@ mod tests {
     use sqlx::SqlitePool;
 
     use crate::{
-        ChatId, chats::persistence::tests::test_chat, key_stores::indexed_keys::StorableIndexedKey,
+        ChatId, chats::persistence::tests::test_chat, db_access::DbAccess,
+        key_stores::indexed_keys::StorableIndexedKey,
     };
 
     use super::*;
@@ -451,8 +448,10 @@ mod tests {
         chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
             .await?;
 
+        let db = DbAccess::for_tests(pool.clone());
+
         let contact = test_contact(chat.id());
-        contact.upsert(&pool, &mut store_notifier).await?;
+        contact.upsert(db.write().await?).await?;
 
         let loaded = Contact::load(&pool, &contact.user_id).await?.unwrap();
         assert_eq!(loaded, contact);
@@ -508,13 +507,14 @@ mod tests {
             user_profile_base_secret: user_profile_key.base_secret().clone(),
         };
 
-        let mut txn = pool.begin().await?;
-
-        let contact = username_contact
-            .mark_as_complete(&mut txn, &mut store_notifier, user_id, friendship_package)
+        let db = DbAccess::for_tests(pool.clone());
+        let contact = db
+            .with_write_transaction(async |txn| {
+                username_contact
+                    .mark_as_complete(txn, user_id, friendship_package)
+                    .await
+            })
             .await?;
-
-        txn.commit().await?;
 
         let loaded_username_contact = UsernameContact::load(&pool, &username).await?;
         assert!(loaded_username_contact.is_none());
@@ -544,9 +544,9 @@ mod tests {
 
         username_contact.upsert(&pool, &mut store_notifier).await?;
 
-        let mut txn = pool.begin().await?;
-        username_contact.delete(txn.as_mut()).await?;
-        txn.commit().await?;
+        let db = DbAccess::for_tests(pool.clone());
+
+        username_contact.delete(&mut db.write().await?).await?;
 
         let loaded = UsernameContact::load(&pool, &username).await?;
         assert!(loaded.is_none());

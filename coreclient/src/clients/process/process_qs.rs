@@ -876,7 +876,7 @@ impl CoreUser {
 
         // Now we can turn the partial contact into a full one.
         let contact = contact
-            .mark_as_complete(txn, notifier, sender_user_id.clone(), friendship_package)
+            .mark_as_complete(todo!(), sender_user_id.clone(), friendship_package)
             .await?;
 
         // Room state update: Pretend that we just invited that user

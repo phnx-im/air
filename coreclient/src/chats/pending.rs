@@ -26,6 +26,7 @@ use crate::{
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
     },
     contacts::UsernameContact,
+    db_access::WriteConnection,
     groups::Group,
     key_stores::indexed_keys::StorableIndexedKey,
     usernames::connection_packages::StorableConnectionPackage,
@@ -229,25 +230,24 @@ impl CoreUser {
 
         // Mark the chat as an accepted connection and mark partial contact as complete, also
         // remove the pending connection info.
-        self.with_transaction_and_notifier(async |txn, notifier| {
-            chat.set_chat_type(
-                txn.as_mut(),
-                notifier,
-                &ChatType::Connection(sender_user_id.clone()),
-            )
-            .await?;
-            partial_contact
-                .mark_as_complete(
-                    txn,
+        self.db()
+            .with_write_transaction(async |txn| {
+                let (conn, notifier) = txn.split();
+
+                // old
+                chat.set_chat_type(
+                    conn,
                     notifier,
-                    sender_user_id,
-                    connection_info.friendship_package,
+                    &ChatType::Connection(sender_user_id.clone()),
                 )
                 .await?;
-            PendingConnectionInfo::delete(txn.as_mut(), chat_id).await?;
-            Ok(())
-        })
-        .await?;
+                partial_contact
+                    .mark_as_complete(txn, sender_user_id, connection_info.friendship_package)
+                    .await?;
+                PendingConnectionInfo::delete(txn.as_mut(), chat_id).await?;
+                Ok(())
+            })
+            .await?;
 
         Ok(Ok(()))
     }

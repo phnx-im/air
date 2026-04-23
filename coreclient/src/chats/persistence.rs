@@ -14,8 +14,8 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::{
-    Chat, ChatAttributes, ChatId, ChatStatus, ChatType, MessageId, db_access::WriteConnection,
-    store::StoreNotifier, utils::persistence::GroupIdWrapper,
+    Chat, ChatAttributes, ChatId, ChatStatus, ChatType, MessageId, store::StoreNotifier,
+    utils::persistence::GroupIdWrapper,
 };
 
 use super::InactiveChat;
@@ -126,7 +126,11 @@ impl Chat {
     /// Creates a new chat with the given id.
     ///
     /// On conflict, the chat is **not** removed but updated.
-    pub(crate) async fn store(&self, mut write: impl WriteConnection<'_>) -> sqlx::Result<()> {
+    pub(crate) async fn store(
+        &self,
+        conn: &mut SqliteConnection,
+        notifier: &mut StoreNotifier,
+    ) -> sqlx::Result<()> {
         info!(
             id =% self.id,
             title =% self.attributes().title(),
@@ -209,7 +213,7 @@ impl Chat {
             is_active,
             is_incoming,
         )
-        .execute(write.as_mut())
+        .execute(&mut *conn)
         .await?;
 
         for member in past_members {
@@ -225,11 +229,11 @@ impl Chat {
                 uuid,
                 domain,
             )
-            .execute(write.as_mut())
+            .execute(&mut *conn)
             .await?;
         }
 
-        write.notifier().add(self.id);
+        notifier.add(self.id);
         Ok(())
     }
 
@@ -886,11 +890,11 @@ pub mod tests {
     }
 
     #[sqlx::test]
-    async fn store_load(pool: PoolConnection<Sqlite>) -> anyhow::Result<()> {
-        let db = DbAccess::for_tests(pool);
+    async fn store_load(mut connection: PoolConnection<Sqlite>) -> anyhow::Result<()> {
+        let mut store_notifier = StoreNotifier::noop();
 
         let chat = test_chat();
-        chat.store(db.write().await?).await?;
+        chat.store(&mut connection, &mut store_notifier).await?;
         let loaded = Chat::load(&mut connection, &chat.id)
             .await?
             .expect("missing chat");

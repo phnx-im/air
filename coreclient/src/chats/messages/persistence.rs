@@ -18,9 +18,7 @@ use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::{
-    ChatId, ChatMessage, ContentMessage, Message,
-    chats::messages::InReplyToMessage,
-    db_access::{ReadConnection, WriteConnection},
+    ChatId, ChatMessage, ContentMessage, Message, chats::messages::InReplyToMessage,
     store::StoreNotifier,
 };
 
@@ -178,7 +176,7 @@ impl From<SqlChatMessage> for ChatMessage {
 
 impl ChatMessage {
     pub async fn load(
-        mut connection: impl ReadConnection<'_>,
+        connection: &mut SqliteConnection,
         message_id: MessageId,
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
@@ -203,10 +201,10 @@ impl ChatMessage {
             "#,
             message_id,
         )
-        .fetch_optional(connection.as_mut())
+        .fetch_optional(&mut *connection)
         .await?
         .map(ChatMessage::from)
-        .with_loaded_in_reply_to(connection.as_mut())
+        .with_loaded_in_reply_to(&mut *connection)
         .await
     }
 
@@ -597,8 +595,11 @@ impl ChatMessage {
         Ok(())
     }
 
-    pub(crate) async fn store(&self, write: impl WriteConnection<'_>) -> anyhow::Result<()> {
-        let (connection, notifier) = write.split();
+    pub(crate) async fn store(
+        &self,
+        executor: impl SqliteExecutor<'_>,
+        notifier: &mut StoreNotifier,
+    ) -> anyhow::Result<()> {
         let (sender_uuid, sender_domain, mimi_id) = match &self.timestamped_message.message {
             Message::Content(content_message) => (
                 Some(content_message.sender.uuid()),
@@ -654,7 +655,7 @@ impl ChatMessage {
             content,
             sent,
         )
-        .execute(connection)
+        .execute(executor)
         .await?;
 
         notifier.add(self.message_id).update(self.chat_id);
@@ -1082,10 +1083,7 @@ pub(crate) mod tests {
     use openmls::group::GroupId;
     use sqlx::SqlitePool;
 
-    use crate::{
-        ContentMessage, Message, MessageId, chats::persistence::tests::test_chat,
-        db_access::DbAccess,
-    };
+    use crate::{ContentMessage, Message, MessageId, chats::persistence::tests::test_chat};
 
     use super::*;
 
@@ -1121,20 +1119,18 @@ pub(crate) mod tests {
 
     #[sqlx::test]
     async fn store_load(pool: SqlitePool) -> anyhow::Result<()> {
-        let db = DbAccess::for_tests(pool);
-        let mut write = db.write().await?;
+        let mut store_notifier = StoreNotifier::noop();
 
         let chat = test_chat();
-        chat.store(&mut write).await?;
+        chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
+            .await?;
 
         let message = test_chat_message(chat.id());
 
-        message.store(&mut write).await?;
+        message.store(&pool, &mut store_notifier).await?;
 
-        let mut txn = write.begin().await?;
-        let loaded = ChatMessage::load(txn.as_mut(), message.id())
-            .await?
-            .unwrap();
+        let mut txn = pool.begin().await?;
+        let loaded = ChatMessage::load(&mut txn, message.id()).await?.unwrap();
 
         assert_eq!(loaded, message);
 
@@ -1143,14 +1139,19 @@ pub(crate) mod tests {
 
     #[sqlx::test]
     async fn prev_next_do_not_cross_chat_boundaries(pool: SqlitePool) -> anyhow::Result<()> {
-        let db = DbAccess::for_tests(pool);
-        let mut write = db.write().await?;
+        let mut store_notifier = StoreNotifier::noop();
+
+        let mut connection = pool.acquire().await?;
 
         let chat_a = test_chat();
-        chat_a.store(&mut write).await?;
+        chat_a
+            .store(connection.as_mut(), &mut store_notifier)
+            .await?;
 
         let chat_b = test_chat();
-        chat_b.store(&mut write).await?;
+        chat_b
+            .store(connection.as_mut(), &mut store_notifier)
+            .await?;
 
         let group_id = GroupId::from_slice(&[0]);
         let sender = UserId::random("localhost".parse().unwrap());
@@ -1166,7 +1167,7 @@ pub(crate) mod tests {
                 &group_id,
             ))),
         );
-        message_a.store(&mut write).await?;
+        message_a.store(&pool, &mut store_notifier).await?;
 
         let message_b = ChatMessage::new_for_test(
             chat_b.id(),
@@ -1179,7 +1180,7 @@ pub(crate) mod tests {
                 &group_id,
             ),
         );
-        message_b.store(&mut write).await?;
+        message_b.store(&pool, &mut store_notifier).await?;
 
         let mut txn = pool.begin().await?;
 
@@ -1200,25 +1201,22 @@ pub(crate) mod tests {
 
     #[sqlx::test]
     async fn store_load_multiple(pool: SqlitePool) -> anyhow::Result<()> {
-        let db = DbAccess::for_tests(pool);
-        db.with_write_transaction(async |txn| {
-            let chat = test_chat();
-            chat.store(&mut write).await?;
+        let mut store_notifier = StoreNotifier::noop();
+        let mut txn = pool.begin().await?;
 
-            let message_a = test_chat_message(chat.id());
-            let message_b = test_chat_message(chat.id());
+        let chat = test_chat();
+        chat.store(txn.as_mut(), &mut store_notifier).await?;
 
-            message_a.store(&mut write).await?;
-            message_b.store(&mut write).await?;
-            Ok(())
-        })
-        .await?;
+        let message_a = test_chat_message(chat.id());
+        let message_b = test_chat_message(chat.id());
 
-        let read = db.read().await?;
-        let loaded = ChatMessage::load_multiple(read.as_mut(), chat.id(), 2).await?;
+        message_a.store(txn.as_mut(), &mut store_notifier).await?;
+        message_b.store(txn.as_mut(), &mut store_notifier).await?;
+
+        let loaded = ChatMessage::load_multiple(&mut txn, chat.id(), 2).await?;
         assert_eq!(loaded, [message_a, message_b.clone()]);
 
-        let loaded = ChatMessage::load_multiple(read.as_mut(), chat.id(), 1).await?;
+        let loaded = ChatMessage::load_multiple(&mut txn, chat.id(), 1).await?;
         assert_eq!(loaded, [message_b]);
 
         Ok(())

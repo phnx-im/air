@@ -389,14 +389,12 @@ impl PersistedUserState {
             global_lock,
         );
 
-        let db_access = DbAccess::new(pool.clone(), store_notifications_tx.clone());
-
         // listen to handles and queue messages
         let (event_loop, event_loop_sender, event_loop_cancel) = EventLoop::new();
 
         let inner = Arc::new(CoreUserInner {
-            pool,
-            db_access,
+            pool: pool.clone(),
+            db: DbAccess::new(pool, store_notifications_tx.clone()),
             key_store,
             qs_user_id,
             qs_client_id,
