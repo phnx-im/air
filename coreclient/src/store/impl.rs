@@ -27,6 +27,7 @@ use crate::{
         user_settings::UserSettingRecord,
     },
     contacts::{ContactType, PartialContact, TargetedMessageContact, UsernameContact},
+    db_access::WriteExecutor,
     store::UserSetting,
     user_profiles::UserProfile,
     usernames::UsernameRecord,
@@ -354,16 +355,16 @@ impl Store for CoreUser {
         chat_id: ChatId,
         message_draft: Option<&MessageDraft>,
     ) -> StoreResult<()> {
-        let mut notifier = self.store_notifier();
-        if let Some(message_draft) = message_draft {
-            message_draft
-                .store(self.pool(), &mut notifier, chat_id)
-                .await?;
-        } else {
-            MessageDraft::delete(self.pool(), &mut notifier, chat_id).await?;
-        }
-        notifier.notify();
-        Ok(())
+        self.db()
+            .with_write_transaction(async move |txn| {
+                if let Some(message_draft) = message_draft {
+                    message_draft.store(txn, chat_id).await?;
+                } else {
+                    MessageDraft::delete(txn, chat_id).await?;
+                }
+                Ok(())
+            })
+            .await
     }
 
     async fn commit_all_message_drafts(&self) -> StoreResult<()> {

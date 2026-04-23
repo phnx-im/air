@@ -1,6 +1,5 @@
-use futures_core::{future::BoxFuture, stream::BoxStream};
 use sqlx::{
-    Connection, Executor, Sqlite, SqliteExecutor, SqlitePool, SqliteTransaction,
+    Connection, Sqlite, SqliteConnection, SqliteExecutor, SqlitePool, SqliteTransaction,
     pool::PoolConnection,
 };
 
@@ -22,10 +21,10 @@ impl DbAccess {
     }
 }
 
-pub trait ReadExecutor<'c>: Executor<'c, Database = Sqlite> {}
+pub trait ReadExecutor<'c>: AsMut<SqliteConnection> {}
 
-pub trait WriteExecutor<'c>: Executor<'c, Database = Sqlite> {
-    fn split(self) -> (impl SqliteExecutor<'c>, &'c mut StoreNotifier);
+pub trait WriteExecutor<'c>: AsMut<SqliteConnection> {
+    fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier);
 }
 
 impl DbAccess {
@@ -59,7 +58,7 @@ impl DbAccess {
         let mut txn = conn.begin().await?;
         let value = f(&mut txn).await?;
         txn.commit().await?;
-        // conn.notifier.notify();
+        conn.notifier.notify();
         Ok(value)
     }
 }
@@ -86,9 +85,9 @@ impl<'c> WriteConnection {
 }
 
 #[derive(Debug)]
-pub(crate) struct WriteTransaction<'c> {
-    txn: SqliteTransaction<'c>,
-    notifier: &'c mut StoreNotifier,
+pub(crate) struct WriteTransaction<'a> {
+    txn: SqliteTransaction<'a>,
+    notifier: &'a mut StoreNotifier,
 }
 
 impl WriteTransaction<'_> {
@@ -97,183 +96,201 @@ impl WriteTransaction<'_> {
     }
 }
 
-impl<'c> ReadExecutor<'c> for &'c mut ReadConnection {}
-impl<'c> Executor<'c> for &'c mut ReadConnection {
-    type Database = Sqlite;
-
-    fn fetch_many<'e, 'q: 'e, E>(
-        self,
-        query: E,
-    ) -> BoxStream<
-        'e,
-        Result<
-            sqlx::Either<
-                <Self::Database as sqlx::Database>::QueryResult,
-                <Self::Database as sqlx::Database>::Row,
-            >,
-            sqlx::Error,
-        >,
-    >
-    where
-        'c: 'e,
-        E: 'q + sqlx::Execute<'q, Self::Database>,
-    {
-        self.conn.fetch_many(query)
-    }
-
-    fn fetch_optional<'e, 'q: 'e, E>(
-        self,
-        query: E,
-    ) -> BoxFuture<'e, Result<Option<<Self::Database as sqlx::Database>::Row>, sqlx::Error>>
-    where
-        'c: 'e,
-        E: 'q + sqlx::Execute<'q, Self::Database>,
-    {
-        self.conn.fetch_optional(query)
-    }
-
-    fn prepare_with<'e, 'q: 'e>(
-        self,
-        sql: &'q str,
-        parameters: &'e [<Self::Database as sqlx::Database>::TypeInfo],
-    ) -> BoxFuture<'e, Result<<Self::Database as sqlx::Database>::Statement<'q>, sqlx::Error>>
-    where
-        'c: 'e,
-    {
-        self.conn.prepare_with(sql, parameters)
-    }
-
-    fn describe<'e, 'q: 'e>(
-        self,
-        sql: &'q str,
-    ) -> BoxFuture<'e, Result<sqlx::Describe<Self::Database>, sqlx::Error>>
-    where
-        'c: 'e,
-    {
-        self.conn.describe(sql)
+impl AsMut<SqliteConnection> for &mut ReadConnection {
+    fn as_mut(&mut self) -> &mut SqliteConnection {
+        &mut self.conn
     }
 }
 
+impl AsMut<SqliteConnection> for &mut WriteConnection {
+    fn as_mut(&mut self) -> &mut SqliteConnection {
+        &mut self.conn
+    }
+}
+
+impl AsMut<SqliteConnection> for &mut WriteTransaction<'_> {
+    fn as_mut(&mut self) -> &mut SqliteConnection {
+        &mut self.txn
+    }
+}
+
+impl<'c> ReadExecutor<'c> for &'c mut ReadConnection {}
 impl<'c> WriteExecutor<'c> for &'c mut WriteConnection {
-    fn split(self) -> (impl SqliteExecutor<'c>, &'c mut StoreNotifier) {
+    fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier) {
         (self.conn.as_mut(), &mut self.notifier)
     }
 }
-
-impl<'c> Executor<'c> for &'c mut WriteConnection {
-    type Database = Sqlite;
-
-    fn fetch_many<'e, 'q: 'e, E>(
-        self,
-        query: E,
-    ) -> BoxStream<
-        'e,
-        Result<
-            sqlx::Either<
-                <Self::Database as sqlx::Database>::QueryResult,
-                <Self::Database as sqlx::Database>::Row,
-            >,
-            sqlx::Error,
-        >,
-    >
-    where
-        'c: 'e,
-        E: 'q + sqlx::Execute<'q, Self::Database>,
-    {
-        self.conn.fetch_many(query)
-    }
-
-    fn fetch_optional<'e, 'q: 'e, E>(
-        self,
-        query: E,
-    ) -> BoxFuture<'e, Result<Option<<Self::Database as sqlx::Database>::Row>, sqlx::Error>>
-    where
-        'c: 'e,
-        E: 'q + sqlx::Execute<'q, Self::Database>,
-    {
-        self.conn.fetch_optional(query)
-    }
-
-    fn prepare_with<'e, 'q: 'e>(
-        self,
-        sql: &'q str,
-        parameters: &'e [<Self::Database as sqlx::Database>::TypeInfo],
-    ) -> BoxFuture<'e, Result<<Self::Database as sqlx::Database>::Statement<'q>, sqlx::Error>>
-    where
-        'c: 'e,
-    {
-        self.conn.prepare_with(sql, parameters)
-    }
-
-    fn describe<'e, 'q: 'e>(
-        self,
-        sql: &'q str,
-    ) -> BoxFuture<'e, Result<sqlx::Describe<Self::Database>, sqlx::Error>>
-    where
-        'c: 'e,
-    {
-        self.conn.describe(sql)
-    }
-}
-
 impl<'c> WriteExecutor<'c> for &'c mut WriteTransaction<'_> {
-    fn split(self) -> (impl SqliteExecutor<'c>, &'c mut StoreNotifier) {
+    fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier) {
         (self.txn.as_mut(), &mut self.notifier)
     }
 }
 
-impl<'c> Executor<'c> for &'c mut WriteTransaction<'_> {
-    type Database = Sqlite;
+// impl<'c> ReadExecutor<'c> for &'c mut ReadConnection {}
+// impl<'c> Executor<'c> for &'c mut ReadConnection {
+//     type Database = Sqlite;
 
-    fn fetch_many<'e, 'q: 'e, E>(
-        self,
-        query: E,
-    ) -> BoxStream<
-        'e,
-        Result<
-            sqlx::Either<
-                <Self::Database as sqlx::Database>::QueryResult,
-                <Self::Database as sqlx::Database>::Row,
-            >,
-            sqlx::Error,
-        >,
-    >
-    where
-        'c: 'e,
-        E: 'q + sqlx::Execute<'q, Self::Database>,
-    {
-        self.txn.fetch_many(query)
-    }
+//     fn fetch_many<'e, 'q: 'e, E>(
+//         self,
+//         query: E,
+//     ) -> BoxStream<
+//         'e,
+//         Result<
+//             sqlx::Either<
+//                 <Self::Database as sqlx::Database>::QueryResult,
+//                 <Self::Database as sqlx::Database>::Row,
+//             >,
+//             sqlx::Error,
+//         >,
+//     >
+//     where
+//         'c: 'e,
+//         E: 'q + sqlx::Execute<'q, Self::Database>,
+//     {
+//         self.conn.fetch_many(query)
+//     }
 
-    fn fetch_optional<'e, 'q: 'e, E>(
-        self,
-        query: E,
-    ) -> BoxFuture<'e, Result<Option<<Self::Database as sqlx::Database>::Row>, sqlx::Error>>
-    where
-        'c: 'e,
-        E: 'q + sqlx::Execute<'q, Self::Database>,
-    {
-        self.txn.fetch_optional(query)
-    }
+//     fn fetch_optional<'e, 'q: 'e, E>(
+//         self,
+//         query: E,
+//     ) -> BoxFuture<'e, Result<Option<<Self::Database as sqlx::Database>::Row>, sqlx::Error>>
+//     where
+//         'c: 'e,
+//         E: 'q + sqlx::Execute<'q, Self::Database>,
+//     {
+//         self.conn.fetch_optional(query)
+//     }
 
-    fn prepare_with<'e, 'q: 'e>(
-        self,
-        sql: &'q str,
-        parameters: &'e [<Self::Database as sqlx::Database>::TypeInfo],
-    ) -> BoxFuture<'e, Result<<Self::Database as sqlx::Database>::Statement<'q>, sqlx::Error>>
-    where
-        'c: 'e,
-    {
-        self.txn.prepare_with(sql, parameters)
-    }
+//     fn prepare_with<'e, 'q: 'e>(
+//         self,
+//         sql: &'q str,
+//         parameters: &'e [<Self::Database as sqlx::Database>::TypeInfo],
+//     ) -> BoxFuture<'e, Result<<Self::Database as sqlx::Database>::Statement<'q>, sqlx::Error>>
+//     where
+//         'c: 'e,
+//     {
+//         self.conn.prepare_with(sql, parameters)
+//     }
 
-    fn describe<'e, 'q: 'e>(
-        self,
-        sql: &'q str,
-    ) -> BoxFuture<'e, Result<sqlx::Describe<Self::Database>, sqlx::Error>>
-    where
-        'c: 'e,
-    {
-        self.txn.describe(sql)
-    }
-}
+//     fn describe<'e, 'q: 'e>(
+//         self,
+//         sql: &'q str,
+//     ) -> BoxFuture<'e, Result<sqlx::Describe<Self::Database>, sqlx::Error>>
+//     where
+//         'c: 'e,
+//     {
+//         self.conn.describe(sql)
+//     }
+// }
+
+// impl<'c> Executor<'c> for &'c mut WriteConnection {
+//     type Database = Sqlite;
+
+//     fn fetch_many<'e, 'q: 'e, E>(
+//         self,
+//         query: E,
+//     ) -> BoxStream<
+//         'e,
+//         Result<
+//             sqlx::Either<
+//                 <Self::Database as sqlx::Database>::QueryResult,
+//                 <Self::Database as sqlx::Database>::Row,
+//             >,
+//             sqlx::Error,
+//         >,
+//     >
+//     where
+//         'c: 'e,
+//         E: 'q + sqlx::Execute<'q, Self::Database>,
+//     {
+//         self.conn.fetch_many(query)
+//     }
+
+//     fn fetch_optional<'e, 'q: 'e, E>(
+//         self,
+//         query: E,
+//     ) -> BoxFuture<'e, Result<Option<<Self::Database as sqlx::Database>::Row>, sqlx::Error>>
+//     where
+//         'c: 'e,
+//         E: 'q + sqlx::Execute<'q, Self::Database>,
+//     {
+//         self.conn.fetch_optional(query)
+//     }
+
+//     fn prepare_with<'e, 'q: 'e>(
+//         self,
+//         sql: &'q str,
+//         parameters: &'e [<Self::Database as sqlx::Database>::TypeInfo],
+//     ) -> BoxFuture<'e, Result<<Self::Database as sqlx::Database>::Statement<'q>, sqlx::Error>>
+//     where
+//         'c: 'e,
+//     {
+//         self.conn.prepare_with(sql, parameters)
+//     }
+
+//     fn describe<'e, 'q: 'e>(
+//         self,
+//         sql: &'q str,
+//     ) -> BoxFuture<'e, Result<sqlx::Describe<Self::Database>, sqlx::Error>>
+//     where
+//         'c: 'e,
+//     {
+//         self.conn.describe(sql)
+//     }
+// }
+
+// impl<'c> Executor<'c> for &'c mut WriteTransaction<'_> {
+//     type Database = Sqlite;
+
+//     fn fetch_many<'e, 'q: 'e, E>(
+//         self,
+//         query: E,
+//     ) -> BoxStream<
+//         'e,
+//         Result<
+//             sqlx::Either<
+//                 <Self::Database as sqlx::Database>::QueryResult,
+//                 <Self::Database as sqlx::Database>::Row,
+//             >,
+//             sqlx::Error,
+//         >,
+//     >
+//     where
+//         'c: 'e,
+//         E: 'q + sqlx::Execute<'q, Self::Database>,
+//     {
+//         self.txn.fetch_many(query)
+//     }
+
+//     fn fetch_optional<'e, 'q: 'e, E>(
+//         self,
+//         query: E,
+//     ) -> BoxFuture<'e, Result<Option<<Self::Database as sqlx::Database>::Row>, sqlx::Error>>
+//     where
+//         'c: 'e,
+//         E: 'q + sqlx::Execute<'q, Self::Database>,
+//     {
+//         self.txn.fetch_optional(query)
+//     }
+
+//     fn prepare_with<'e, 'q: 'e>(
+//         self,
+//         sql: &'q str,
+//         parameters: &'e [<Self::Database as sqlx::Database>::TypeInfo],
+//     ) -> BoxFuture<'e, Result<<Self::Database as sqlx::Database>::Statement<'q>, sqlx::Error>>
+//     where
+//         'c: 'e,
+//     {
+//         self.txn.prepare_with(sql, parameters)
+//     }
+
+//     fn describe<'e, 'q: 'e>(
+//         self,
+//         sql: &'q str,
+//     ) -> BoxFuture<'e, Result<sqlx::Describe<Self::Database>, sqlx::Error>>
+//     where
+//         'c: 'e,
+//     {
+//         self.txn.describe(sql)
+//     }
+// }
