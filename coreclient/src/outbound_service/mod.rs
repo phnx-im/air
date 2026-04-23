@@ -26,7 +26,7 @@ use crate::{
     key_stores::MemoryUserKeyStore,
     outbound_service::error::OutboundServiceRunError,
     store::{StoreNotificationsSender, StoreNotifier},
-    utils::{connection_ext::StoreExt, global_lock::GlobalLock},
+    utils::global_lock::GlobalLock,
 };
 
 pub use timed_tasks::KEY_PACKAGES;
@@ -277,16 +277,6 @@ impl OutboundServiceContext {
 
     fn user_id(&self) -> &UserId {
         self.signing_key().credential().user_id()
-    }
-}
-
-impl StoreExt for OutboundServiceContext {
-    fn pool(&self) -> &SqlitePool {
-        &self.pool
-    }
-
-    fn notifier(&self) -> StoreNotifier {
-        StoreNotifier::new(self.store_notifications_tx.clone())
     }
 }
 

@@ -5,13 +5,11 @@
 use airapiclient::{ApiClientInitError, as_api::AsRequestError, ds_api::DsRequestError};
 use aircommon::codec;
 use chrono::{DateTime, Utc};
-use sqlx::SqliteConnection;
 use thiserror::Error;
 use tracing::info;
 
 use crate::{
     clients::api_clients::ApiClients, db_access::DbAccess, key_stores::MemoryUserKeyStore,
-    store::StoreNotifier,
 };
 
 pub(crate) mod chat_operation;
@@ -24,7 +22,6 @@ pub(crate) struct JobContext<'a> {
     pub api_clients: &'a ApiClients,
     pub http_client: &'a reqwest::Client,
     pub db: &'a DbAccess,
-    pub notifier: &'a mut StoreNotifier,
     pub key_store: &'a MemoryUserKeyStore,
     pub now: DateTime<Utc>,
 }

@@ -24,7 +24,7 @@ use crate::{
         error::{OutboundServiceError, classify_ds_error},
         resync::Resync,
     },
-    utils::connection_ext::StoreExt,
+    
 };
 
 use super::{OutboundService, OutboundServiceContext, receipt_queue::ReceiptQueue};

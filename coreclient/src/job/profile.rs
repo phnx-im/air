@@ -20,7 +20,6 @@ use airprotos::{
 use anyhow::Context;
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
-use sqlx::SqliteExecutor;
 use tls_codec::Serialize as _;
 use tracing::{debug, error, info};
 
@@ -32,7 +31,6 @@ use crate::{
     job::operation::OperationId,
     key_stores::indexed_keys::StorableIndexedKey,
     user_profiles::{VerifiableUserProfile, process::ExistingUserProfile},
-    utils::connection_ext::ConnectionExt,
 };
 
 use super::{
@@ -144,8 +142,7 @@ impl Job for FetchUserProfileOperation {
         let user_id = client_credential.user_id();
 
         // Phase 1: Check if the profile in the DB is up to date.
-        let existing_user_profile =
-            ExistingUserProfile::load(&mut *context.connection, user_id).await?;
+        let existing_user_profile = ExistingUserProfile::load(&mut *context.db, user_id).await?;
         if existing_user_profile.matches_index(user_profile_key.index()) {
             return Ok(());
         }

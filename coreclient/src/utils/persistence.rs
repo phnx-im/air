@@ -23,14 +23,14 @@ use sqlx::{
 };
 use tracing::{error, info};
 
-use crate::clients::store::ClientRecord;
-use crate::utils::global_lock::GlobalLock;
+use crate::{clients::store::ClientRecord, db_access::DbAccess};
+use crate::{store::StoreNotificationsSender, utils::global_lock::GlobalLock};
 
 pub(crate) const AIR_DB_NAME: &str = "air.db";
 
 /// Open a connection to the DB that contains records for all clients on this
 /// device.
-pub(crate) async fn open_air_db(db_path: &str) -> sqlx::Result<SqlitePool> {
+pub(crate) async fn open_air_db(db_path: &str) -> sqlx::Result<DbAccess> {
     let db_url = format!("sqlite://{db_path}/{AIR_DB_NAME}");
     let opts: SqliteConnectOptions = db_url.parse()?;
     let opts = opts
@@ -58,7 +58,8 @@ pub(crate) async fn open_air_db(db_path: &str) -> sqlx::Result<SqlitePool> {
 
     migrate!("migrations/air").run(&pool).await?;
 
-    Ok(pool)
+    // XXX: not sure it's the right thing to do?
+    Ok(DbAccess::new(pool, StoreNotificationsSender::new()))
 }
 
 #[cfg(feature = "test_utils")]

@@ -100,17 +100,6 @@ pub(crate) async fn clamp_pending_future(
 
 /// Updates state and sets a pending update when the token changes.
 pub(crate) async fn mark_pending_if_changed(
-    pool: &SqlitePool,
-    push_token: Option<PushToken>,
-) -> sqlx::Result<bool> {
-    let mut txn = pool.begin_with("BEGIN IMMEDIATE").await?;
-    let should_notify = mark_pending_if_changed_txn(&mut txn, push_token).await?;
-    txn.commit().await?;
-    Ok(should_notify)
-}
-
-/// Transactional helper to avoid racy read/modify/write updates.
-async fn mark_pending_if_changed_txn(
     txn: &mut WriteDbTransaction<'_>,
     push_token: Option<PushToken>,
 ) -> sqlx::Result<bool> {

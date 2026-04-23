@@ -234,7 +234,6 @@ impl AttachmentRecord {
 
     pub(crate) async fn set_content(
         mut connection: impl WriteConnection,
-        notifier: &mut StoreNotifier,
         attachment_id: AttachmentId,
         bytes: &[u8],
     ) -> sqlx::Result<()> {
@@ -246,7 +245,7 @@ impl AttachmentRecord {
         )
         .execute(connection.as_mut())
         .await?;
-        notifier.update(attachment_id);
+        connection.notifier().update(attachment_id);
         Ok(())
     }
 
@@ -304,6 +303,7 @@ impl AttachmentRecord {
 
     pub(crate) async fn delete(
         mut connection: impl WriteConnection,
+        notifier: &mut StoreNotifier,
         attachment_id: AttachmentId,
     ) -> sqlx::Result<()> {
         query!(
@@ -312,7 +312,7 @@ impl AttachmentRecord {
         )
         .execute(connection.as_mut())
         .await?;
-        connection.notifier().remove(attachment_id);
+        notifier.remove(attachment_id);
         Ok(())
     }
 

@@ -5,10 +5,7 @@
 use aircommon::identifiers::UserId;
 use chrono::{DateTime, Utc};
 
-use crate::{
-    clients::CoreUser, user_profiles::display_name::BaseDisplayName,
-    utils::connection_ext::StoreExt,
-};
+use crate::{clients::CoreUser, user_profiles::display_name::BaseDisplayName};
 
 impl CoreUser {
     pub(crate) async fn block_contact(&self, user_id: UserId) -> anyhow::Result<()> {
@@ -18,17 +15,11 @@ impl CoreUser {
             last_display_name: profile.display_name.clone(),
             blocked_at: Utc::now(),
         };
-        self.with_notifier(async |notifier| {
-            Ok(blocked_contact.store(self.pool(), notifier).await?)
-        })
-        .await
+        Ok(blocked_contact.store(self.db().write().await?).await?)
     }
 
     pub(crate) async fn unblock_contact(&self, user_id: UserId) -> anyhow::Result<()> {
-        self.with_notifier(async |notifier| {
-            Ok(BlockedContact::delete_by_id(self.pool(), notifier, user_id).await?)
-        })
-        .await
+        Ok(BlockedContact::delete_by_id(self.db().write().await?, user_id).await?)
     }
 }
 
@@ -55,12 +46,11 @@ impl BlockedContact {
 pub struct BlockedContactError;
 
 mod persistence {
-    use sqlx::{SqliteExecutor, query, query_scalar};
+    use sqlx::{query, query_scalar};
 
     use crate::{
         ChatId,
         db_access::{ReadConnection, WriteConnection},
-        store::StoreNotifier,
     };
 
     use super::*;

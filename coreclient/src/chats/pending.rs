@@ -51,25 +51,25 @@ impl CoreUser {
         let (chat, sender_user_id, pending_connection_info, partial_contact, own_user_profile_key) =
             self.db()
                 .with_write_transaction(async |txn| {
-                    let chat: Chat = Chat::load(txn, &chat_id)
+                    let chat: Chat = Chat::load(&mut *txn, &chat_id)
                         .await?
                         .with_context(|| format!("Can't find chat with id {chat_id}"))?;
                     let ChatType::PendingConnection(sender_user_id) = chat.chat_type() else {
                         bail!("Chat is not a pending connection");
                     };
-                    let pending_connection_info = PendingConnectionInfo::load(txn, chat_id)
+                    let pending_connection_info = PendingConnectionInfo::load(&mut *txn, chat_id)
                         .await?
                         .with_context(|| {
                             format!("No pending connection info found for chat: {chat_id}")
                         })?;
-                    let own_user_profile_key = UserProfileKey::load_own(txn).await?;
+                    let own_user_profile_key = UserProfileKey::load_own(&mut *txn).await?;
                     let sender_user_id = sender_user_id.clone();
 
                     // Look up partial contact:
                     // - UsernameContact: by chat_id since multiple senders can target the same username
                     // - TargetedMessageContact: by user_id (its natural key)
                     let partial_contact = if pending_connection_info.handle.is_some() {
-                        UsernameContact::load_by_chat_id(txn, chat_id)
+                        UsernameContact::load_by_chat_id(&mut *txn, chat_id)
                             .await?
                             .map(PartialContact::Username)
                     } else {
@@ -117,9 +117,12 @@ impl CoreUser {
         let result = self
             .db()
             .with_write_transaction(async |txn| -> anyhow::Result<Result<_, _>> {
-                if Group::load_with_chat_id(txn, chat_id).await?.is_some() {
+                if Group::load_with_chat_id(&mut *txn, chat_id)
+                    .await?
+                    .is_some()
+                {
                     warn!(%chat_id, "Group for pending chat already exists");
-                    Group::delete_from_db(txn, chat.group_id()).await?;
+                    Group::delete_from_db(&mut *txn, chat.group_id()).await?;
                 }
 
                 // Join group
@@ -168,7 +171,7 @@ impl CoreUser {
                 );
 
                 // Fetch and store user profile
-                Self::schedule_fetch_user_profile(txn, contact_profile_info).await?;
+                Self::schedule_fetch_user_profile(&mut *txn, contact_profile_info).await?;
 
                 group.room_state_change_role(
                     &sender_user_id,
@@ -177,7 +180,7 @@ impl CoreUser {
                 )?;
 
                 let now = TimeStamp::now();
-                group.store_update(txn, Some(now)).await?;
+                group.store_update(&mut *txn, Some(now)).await?;
 
                 // Create system messages for acceptance
                 let accepted_system_message = SystemMessage::AcceptedConnectionRequest {
@@ -187,18 +190,18 @@ impl CoreUser {
                 let accepted_message =
                     TimestampedMessage::system_message(accepted_system_message, now);
                 let chat_messages = vec![accepted_message];
-                Self::store_new_messages(txn, chat_id, chat_messages).await?;
+                Self::store_new_messages(&mut *txn, chat_id, chat_messages).await?;
 
                 if let Some(hash) = connection_package_hash {
                     // Delete the connection package if it's not last resort
                     let is_last_resort =
                         <ConnectionPackage as StorableConnectionPackage>::is_last_resort(
-                            txn, &hash,
+                            &mut *txn, &hash,
                         )
                         .await?
                         .unwrap_or(false);
                     if !is_last_resort {
-                        ConnectionPackage::delete(txn, &hash)
+                        ConnectionPackage::delete(&mut *txn, &hash)
                             .await
                             .context("Failed to delete connection package")?;
                     }
@@ -229,20 +232,18 @@ impl CoreUser {
         // Mark the chat as an accepted connection and mark partial contact as complete, also
         // remove the pending connection info.
         self.db()
-            .with_write_transaction(async |txn| {
-                let (conn, notifier) = txn.split();
-
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
                 // old
-                chat.set_chat_type(
-                    conn,
-                    notifier,
-                    &ChatType::Connection(sender_user_id.clone()),
-                )
-                .await?;
-                partial_contact
-                    .mark_as_complete(txn, sender_user_id, connection_info.friendship_package)
+                chat.set_chat_type(&mut *txn, &ChatType::Connection(sender_user_id.clone()))
                     .await?;
-                PendingConnectionInfo::delete(txn.as_mut(), chat_id).await?;
+                partial_contact
+                    .mark_as_complete(
+                        &mut *txn,
+                        sender_user_id,
+                        connection_info.friendship_package,
+                    )
+                    .await?;
+                PendingConnectionInfo::delete(&mut *txn, chat_id).await?;
                 Ok(())
             })
             .await?;
@@ -285,7 +286,7 @@ impl CoreUser {
 }
 
 mod persistence {
-    use sqlx::{SqliteExecutor, query, query_as};
+    use sqlx::{query, query_as};
 
     use crate::{db_access::ReadConnection, store::StoreNotifier};
 

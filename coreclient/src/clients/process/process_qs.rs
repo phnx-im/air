@@ -62,7 +62,7 @@ use crate::{
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::resync::Resync,
     store::{Store, StoreNotifier},
-    utils::connection_ext::StoreExt,
+    
 };
 
 use super::{Chat, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow};

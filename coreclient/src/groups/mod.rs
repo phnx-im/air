@@ -78,7 +78,7 @@ use crate::{
         targeted_message::TargetedMessageContent,
     },
     contacts::ContactAddInfos,
-    db_access::{ReadConnection, WriteDbTransaction},
+    db_access::{ReadConnection, WriteConnection, WriteDbTransaction},
     groups::client_auth_info::VerifiableClientCredentialExt,
     key_stores::as_credentials::AsCredentials,
     outbound_service::resync::Resync,
@@ -194,13 +194,13 @@ impl Group {
 
     /// Create a group.
     pub(super) fn create_group(
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         group_id: GroupId,
         group_data_bytes: GroupDataBytes,
     ) -> Result<(Self, PartialCreateGroupParams)> {
-        let provider = AirOpenMlsProvider::new(connection);
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
         let group_state_ear_key = GroupStateEarKey::random()?;
 
         let required_capabilities =
@@ -766,7 +766,7 @@ impl Group {
 
     pub(super) async fn discard_pending_commit(
         &mut self,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
     ) -> Result<()> {
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         self.pending_diff = None;
@@ -1091,10 +1091,10 @@ impl Group {
 
     pub(super) fn stage_leave_group(
         &mut self,
-        connection: &mut sqlx::SqliteConnection,
+        mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
     ) -> Result<SelfRemoveParamsOut> {
-        let provider = &AirOpenMlsProvider::new(connection);
+        let provider = &AirOpenMlsProvider::new(connection.as_mut());
         let proposal = self
             .mls_group
             .leave_group_via_self_remove(provider, signer)?;
@@ -1108,10 +1108,10 @@ impl Group {
 
     pub(super) fn store_proposal(
         &mut self,
-        connection: &mut sqlx::SqliteConnection,
+        mut connection: impl WriteConnection,
         proposal: QueuedProposal,
     ) -> Result<()> {
-        let provider = &AirOpenMlsProvider::new(connection);
+        let provider = &AirOpenMlsProvider::new(connection.as_mut());
         self.mls_group
             .store_pending_proposal(provider.storage(), proposal)?;
         Ok(())
@@ -1253,10 +1253,10 @@ impl Group {
 
     pub(crate) fn store_connection_offer_psk(
         &self,
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         connection_offer_hash: ConnectionOfferHash,
     ) -> Result<()> {
-        let provider = AirOpenMlsProvider::new(connection);
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
         let psk_value = connection_offer_hash.into_bytes();
         PreSharedKeyId::new(
             self.mls_group().ciphersuite(),
@@ -1349,7 +1349,6 @@ async fn verify_member_credentials(
 /// already gone.
 pub(crate) async fn handle_group_not_found_on_ds(
     txn: &mut WriteDbTransaction<'_>,
-    notifier: &mut crate::store::StoreNotifier,
     group_id: &GroupId,
 ) -> anyhow::Result<()> {
     // Collect past members before deleting the group.
@@ -1389,7 +1388,7 @@ mod test_utils {
             &self,
             chat_id: ChatId,
         ) -> sqlx::Result<Option<DateTime<Utc>>> {
-            Chat::self_updated_at(self.pool(), chat_id).await
+            Chat::self_updated_at(self.db().read().await?, chat_id).await
         }
 
         pub async fn set_self_updated_at(
@@ -1397,7 +1396,7 @@ mod test_utils {
             chat_id: ChatId,
             self_updated_at: DateTime<Utc>,
         ) -> sqlx::Result<()> {
-            Chat::set_self_updated_at(self.pool(), chat_id, self_updated_at).await
+            Chat::set_self_updated_at(self.db().write().await?, chat_id, self_updated_at).await
         }
     }
 }
@@ -1422,7 +1421,8 @@ mod handle_group_not_found_tests {
     async fn handle_group_not_found_marks_blocked_chat_inactive_under_block() -> anyhow::Result<()>
     {
         let pool = open_db_in_memory().await?;
-        let mut connection = pool.acquire().await?;
+        let db = DbAccess::for_tests(pool);
+        let connection = db.write().await?;
 
         let own_user_id = UserId::random("example.com".parse().unwrap());
         let blocked_user_id = UserId::random("example.com".parse().unwrap());
@@ -1440,17 +1440,18 @@ mod handle_group_not_found_tests {
         )?;
         group.store(&mut *connection).await?;
 
-        let mut notifier = StoreNotifier::noop();
+        // XXX: fixme
+        // let mut notifier = StoreNotifier::noop();
         let chat = Chat::new_targeted_message_chat(
             group_id.clone(),
             ChatAttributes::new("Blocked chat".into(), None),
             blocked_user_id.clone(),
         );
         let chat_id = chat.id();
-        chat.store(&mut connection, &mut notifier).await?;
+        chat.store(&mut connection).await?;
 
         BlockedContact::new(blocked_user_id.clone())
-            .store(&mut *connection, &mut notifier)
+            .store(&mut connection)
             .await?;
 
         assert!(matches!(
@@ -1462,7 +1463,7 @@ mod handle_group_not_found_tests {
         ));
 
         let mut txn = connection.begin().await?;
-        handle_group_not_found_on_ds(&mut txn, &mut notifier, &group_id).await?;
+        handle_group_not_found_on_ds(txn, &group_id).await?;
         txn.commit().await?;
 
         assert!(Group::load(&mut connection, &group_id).await?.is_none());

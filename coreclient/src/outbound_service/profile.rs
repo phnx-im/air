@@ -16,7 +16,7 @@ use crate::{
         profile::{FetchGroupProfileOperation, FetchUserProfileOperation},
     },
     outbound_service::OutboundServiceContext,
-    utils::connection_ext::StoreExt,
+    
 };
 
 const NUM_RETRIES: usize = 5;

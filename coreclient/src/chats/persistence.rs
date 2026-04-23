@@ -6,16 +6,14 @@ use aircommon::identifiers::{Fqdn, MimiId, UserId, Username};
 use chrono::{DateTime, Utc};
 use mimi_content::MessageStatus;
 use openmls::group::GroupId;
-use sqlx::{
-    Connection, SqliteConnection, SqliteExecutor, SqliteTransaction, query, query_as, query_scalar,
-};
+use sqlx::{Connection, SqliteConnection, SqliteTransaction, query, query_as, query_scalar};
 use tokio_stream::StreamExt;
 use tracing::info;
 use uuid::Uuid;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatStatus, ChatType, MessageId,
-    db_access::{ReadConnection, WriteConnection, WriteDbConnection},
+    db_access::{ReadConnection, WriteConnection, WriteDbConnection, WriteDbTransaction},
     store::StoreNotifier,
     utils::persistence::GroupIdWrapper,
 };
@@ -128,11 +126,7 @@ impl Chat {
     /// Creates a new chat with the given id.
     ///
     /// On conflict, the chat is **not** removed but updated.
-    pub(crate) async fn store(
-        &self,
-        conn: &mut SqliteConnection,
-        notifier: &mut StoreNotifier,
-    ) -> sqlx::Result<()> {
+    pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
         info!(
             id =% self.id,
             title =% self.attributes().title(),
@@ -215,7 +209,7 @@ impl Chat {
             is_active,
             is_incoming,
         )
-        .execute(&mut *conn)
+        .execute(connection.as_mut())
         .await?;
 
         for member in past_members {
@@ -231,11 +225,11 @@ impl Chat {
                 uuid,
                 domain,
             )
-            .execute(&mut *conn)
+            .execute(connection.as_mut())
             .await?;
         }
 
-        notifier.add(self.id);
+        connection.notifier().add(self.id);
         Ok(())
     }
 
@@ -409,7 +403,7 @@ impl Chat {
         chat_id: ChatId,
         status: &ChatStatus,
     ) -> sqlx::Result<()> {
-        let mut transaction = connection.begin().await?;
+        let mut transaction = connection.begin_immediate().await?;
         match status {
             ChatStatus::Inactive(inactive) => {
                 query!(
@@ -474,7 +468,7 @@ impl Chat {
         connection: &mut WriteDbConnection,
         mark_as_read_data: impl IntoIterator<Item = (ChatId, DateTime<Utc>)>,
     ) -> sqlx::Result<()> {
-        let mut transaction = connection.begin().await?;
+        let mut transaction = connection.begin_immediate().await?;
         let (txn, notifier) = transaction.split();
 
         for (chat_id, timestamp) in mark_as_read_data {
@@ -517,8 +511,7 @@ impl Chat {
     /// Returns whether the chat was marked as read and the mimi ids of the messages that
     /// were marked as read.
     pub(crate) async fn mark_as_read_until_message_id(
-        txn: &mut SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
+        txn: &mut WriteDbTransaction<'_>,
         chat_id: ChatId,
         until_message_id: MessageId,
         own_user: &UserId,
@@ -593,7 +586,7 @@ impl Chat {
 
         let marked_as_read = updated.rows_affected() == 1;
         if marked_as_read {
-            notifier.update(chat_id);
+            txn.notifier().update(chat_id);
         }
         Ok((marked_as_read, new_marked_as_read))
     }

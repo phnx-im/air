@@ -173,7 +173,7 @@ mod persistence {
         /// - Delete all pending attachments associated with the queued messages
         /// - Notify about all marked messages
         pub(crate) async fn remove_all_and_and_mark_as_failed(
-            txn: &mut SqliteTransaction<'_>,
+            txn: &mut WriteDbTransaction<'_>,
         ) -> sqlx::Result<()> {
             let failed_status = MessageStatus::Error.repr();
             let marked_messages: Vec<MessageId> = query_scalar!(

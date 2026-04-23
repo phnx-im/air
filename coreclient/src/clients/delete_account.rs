@@ -9,7 +9,7 @@ use tracing::{error, info, warn};
 
 use crate::{
     UsernameRecord, clients::CoreUser, delete_client_database, groups::Group, privacy_pass,
-    store::Store, utils::connection_ext::StoreExt,
+    store::Store,
 };
 
 impl CoreUser {
@@ -74,14 +74,15 @@ impl CoreUser {
         info!(num_chats = chat_ids.len(), "Leaving all chats");
 
         let removals = self
-            .with_transaction(async |txn| -> anyhow::Result<_> {
+            .db()
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
                 let mut removals = Vec::with_capacity(chat_ids.len());
                 for chat_id in chat_ids {
-                    let mut group = Group::load_with_chat_id_clean(txn, chat_id)
+                    let mut group = Group::load_with_chat_id_clean(&mut *txn, chat_id)
                         .await?
                         .with_context(|| format!("Can't find group with chat id {chat_id:?}"))?;
                     group.room_state_change_role(user_id, user_id, RoleIndex::Outsider)?;
-                    let params = group.stage_leave_group(txn.as_mut(), self.signing_key())?;
+                    let params = group.stage_leave_group(&mut *txn, self.signing_key())?;
                     let ear_key = group.group_state_ear_key().clone();
                     removals.push((params, ear_key));
                 }
@@ -116,11 +117,11 @@ impl CoreUser {
         let usernames = self.usernames().await?;
         info!(num_usernames = usernames.len(), "Deleting all usernames");
 
-        let records = UsernameRecord::load_all(self.pool()).await?;
+        let records = UsernameRecord::load_all(self.db().read().await?).await?;
         let domain = self.user_id().domain();
         for record in records {
             let (token_request, _token_state) =
-                privacy_pass::prepare_delete_token_request(self.pool(), domain)
+                privacy_pass::prepare_delete_token_request(self.db().write().await?, domain)
                     .await?
                     .context("no VOPRF keys available for delete token request")?;
             api_client

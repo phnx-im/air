@@ -113,7 +113,6 @@ mod persistence {
 
         pub(crate) async fn clear(
             mut connection: impl WriteConnection,
-            notifier: &mut crate::store::StoreNotifier,
             message_id: crate::MessageId,
         ) -> sqlx::Result<()> {
             query!(
@@ -122,7 +121,7 @@ mod persistence {
             )
             .execute(connection.as_mut())
             .await?;
-            notifier.update(message_id);
+            txn.notifier().update(message_id);
             Ok(())
         }
     }

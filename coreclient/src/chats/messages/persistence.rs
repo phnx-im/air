@@ -12,7 +12,7 @@ use aircommon::{
 use anyhow::bail;
 use mimi_content::{MessageStatus, MimiContent};
 use serde::{Deserialize, Serialize};
-use sqlx::{SqliteConnection, SqliteExecutor, query, query_as, query_scalar};
+use sqlx::{SqliteConnection, query, query_as, query_scalar};
 use tokio_stream::StreamExt;
 use tracing::{error, warn};
 use uuid::Uuid;
@@ -21,7 +21,6 @@ use crate::{
     ChatId, ChatMessage, ContentMessage, Message,
     chats::messages::InReplyToMessage,
     db_access::{ReadConnection, WriteConnection},
-    store::StoreNotifier,
 };
 
 use super::{ErrorMessage, EventMessage};
@@ -178,7 +177,7 @@ impl From<SqlChatMessage> for ChatMessage {
 
 impl ChatMessage {
     pub async fn load(
-        connection: &mut SqliteConnection,
+        mut connection: impl ReadConnection,
         message_id: MessageId,
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
@@ -203,15 +202,15 @@ impl ChatMessage {
             "#,
             message_id,
         )
-        .fetch_optional(&mut *connection)
+        .fetch_optional(connection.as_mut())
         .await?
         .map(ChatMessage::from)
-        .with_loaded_in_reply_to(&mut *connection)
+        .with_loaded_in_reply_to(connection.as_mut())
         .await
     }
 
     pub(crate) async fn load_by_mimi_id(
-        connection: &mut SqliteConnection,
+        mut connection: impl ReadConnection,
         mimi_id: &MimiId,
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
@@ -236,10 +235,10 @@ impl ChatMessage {
             "#,
             mimi_id,
         )
-        .fetch_optional(&mut *connection)
+        .fetch_optional(connection.as_mut())
         .await?
         .map(ChatMessage::from)
-        .with_loaded_in_reply_to(&mut *connection)
+        .with_loaded_in_reply_to(connection.as_mut())
         .await
     }
 
@@ -263,7 +262,7 @@ impl ChatMessage {
     }
 
     pub(crate) async fn load_multiple(
-        connection: &mut SqliteConnection,
+        mut connection: impl ReadConnection,
         chat_id: ChatId,
         number_of_messages: u32,
     ) -> sqlx::Result<Vec<ChatMessage>> {
@@ -292,13 +291,15 @@ impl ChatMessage {
             chat_id,
             number_of_messages,
         )
-        .fetch(&mut *connection)
+        .fetch(connection.as_mut())
         .filter_map(Self::decode_row)
         .collect::<sqlx::Result<Vec<_>>>()
         .await?;
 
         messages.reverse();
-        let messages = messages.with_loaded_in_reply_to(connection).await?;
+        let messages = messages
+            .with_loaded_in_reply_to(connection.as_mut())
+            .await?;
         Ok(messages)
     }
 
@@ -310,7 +311,7 @@ impl ChatMessage {
     /// Returns `(messages, has_older)` where `has_older` indicates more messages
     /// exist before the returned window.
     pub(crate) async fn load_before(
-        connection: &mut SqliteConnection,
+        mut connection: impl ReadConnection,
         chat_id: ChatId,
         before: TimeStamp,
         before_id: MessageId,
@@ -344,13 +345,15 @@ impl ChatMessage {
             before_id,
             fetch_limit,
         )
-        .fetch(&mut *connection)
+        .fetch(connection.as_mut())
         .filter_map(Self::decode_row)
         .collect::<sqlx::Result<Vec<_>>>()
         .await?;
 
         let has_older = Self::trim_sentinel(&mut messages, limit, true);
-        let messages = messages.with_loaded_in_reply_to(connection).await?;
+        let messages = messages
+            .with_loaded_in_reply_to(connection.as_mut())
+            .await?;
         Ok((messages, has_older))
     }
 
@@ -362,7 +365,7 @@ impl ChatMessage {
     /// Returns `(messages, has_newer)` where `has_newer` indicates more messages
     /// exist after the returned window.
     pub(crate) async fn load_after(
-        connection: &mut SqliteConnection,
+        mut connection: impl ReadConnection,
         chat_id: ChatId,
         after: TimeStamp,
         after_id: MessageId,
@@ -396,13 +399,15 @@ impl ChatMessage {
             after_id,
             fetch_limit,
         )
-        .fetch(&mut *connection)
+        .fetch(connection.as_mut())
         .filter_map(Self::decode_row)
         .collect::<sqlx::Result<Vec<_>>>()
         .await?;
 
         let has_newer = Self::trim_sentinel(&mut messages, limit, false);
-        let messages = messages.with_loaded_in_reply_to(connection).await?;
+        let messages = messages
+            .with_loaded_in_reply_to(connection.as_mut())
+            .await?;
         Ok((messages, has_newer))
     }
 

@@ -23,7 +23,6 @@ use crate::{
     },
     privacy_pass::RequestTokensError,
     usernames::UsernameRecord,
-    utils::connection_ext::StoreExt,
 };
 
 use super::OutboundServiceContext;
@@ -327,19 +326,20 @@ impl OutboundServiceContext {
 
         if !*loaded_credentials {
             let credentials_response = api_client.as_as_credentials().await?;
-            self.with_transaction(async move |txn| {
-                privacy_pass::store_batched_token_keys(
-                    txn,
-                    &credentials_response.batched_token_keys,
-                )
-                .await
-            })
-            .await?;
+            self.db()
+                .with_write_transaction(async move |txn| {
+                    privacy_pass::store_batched_token_keys(
+                        txn,
+                        &credentials_response.batched_token_keys,
+                    )
+                    .await
+                })
+                .await?;
             *loaded_credentials = true;
         }
 
         match privacy_pass::request_and_store_tokens(
-            self.pool(),
+            self.db(),
             &api_client,
             self.user_id().clone(),
             self.signing_key(),

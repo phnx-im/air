@@ -151,8 +151,8 @@ impl From<SqlClientRecord> for ClientRecord {
 
 impl ClientRecord {
     pub async fn load_all_from_air_db(air_db_path: &str) -> sqlx::Result<Vec<Self>> {
-        let pool = open_air_db(air_db_path).await?;
-        Self::load_all(&pool).await
+        let db = open_air_db(air_db_path).await?;
+        Self::load_all(db.read().await?).await
     }
 
     pub async fn load_all(mut connection: impl ReadConnection) -> sqlx::Result<Vec<Self>> {

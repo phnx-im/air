@@ -39,11 +39,11 @@ impl NewUserProfile {
 
     pub(crate) async fn store(
         self,
-        mut connection: impl WriteConnection,
+        connection: impl WriteConnection,
         notifier: &mut StoreNotifier,
     ) -> sqlx::Result<EncryptableUserProfile> {
         let NewUserProfile(profile) = self;
-        profile.tbs.store(connection).await?;
+        profile.tbs.store(connection, notifier).await?;
         Ok(EncryptableUserProfile(profile))
     }
 

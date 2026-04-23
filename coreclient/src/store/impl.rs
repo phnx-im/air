@@ -30,7 +30,6 @@ use crate::{
     store::UserSetting,
     user_profiles::UserProfile,
     usernames::UsernameRecord,
-    utils::connection_ext::StoreExt,
 };
 
 use super::{Store, StoreNotification, StoreResult};
@@ -57,7 +56,11 @@ impl Store for CoreUser {
     }
 
     async fn user_setting<T: UserSetting>(&self) -> Option<T> {
-        match UserSettingRecord::load(self.pool(), T::KEY).await {
+        let connection = self.db().read().await.inspect_err(|error| {
+                error!(%error, "Failed to acquire read connection while loading user settings; resetting to default");
+            }).ok()?;
+
+        match UserSettingRecord::load(connection, T::KEY).await {
             Ok(Some(bytes)) => match T::decode(bytes) {
                 Ok(value) => Some(value),
                 Err(error) => {
@@ -74,7 +77,7 @@ impl Store for CoreUser {
     }
 
     async fn set_user_setting<T: UserSetting>(&self, value: &T) -> StoreResult<()> {
-        UserSettingRecord::store(self.pool(), T::KEY, T::encode(value)?).await?;
+        UserSettingRecord::store(self.db().write().await?, T::KEY, T::encode(value)?).await?;
         Ok(())
     }
 
@@ -85,11 +88,11 @@ impl Store for CoreUser {
     }
 
     async fn usernames(&self) -> StoreResult<Vec<Username>> {
-        Ok(UsernameRecord::load_all_usernames(self.pool()).await?)
+        Ok(UsernameRecord::load_all_usernames(self.db().read().await?).await?)
     }
 
     async fn username_records(&self) -> StoreResult<Vec<UsernameRecord>> {
-        Ok(UsernameRecord::load_all(self.pool()).await?)
+        Ok(UsernameRecord::load_all(self.db().read().await?).await?)
     }
 
     async fn add_username(&self, username: Username) -> StoreResult<Option<UsernameRecord>> {
@@ -113,7 +116,7 @@ impl Store for CoreUser {
     }
 
     async fn ordered_chat_ids(&self) -> StoreResult<Vec<ChatId>> {
-        Ok(Chat::load_ordered_ids(self.pool()).await?)
+        Ok(Chat::load_ordered_ids(self.db().read().await?).await?)
     }
 
     async fn chat(&self, chat_id: ChatId) -> StoreResult<Option<Chat>> {
@@ -354,23 +357,25 @@ impl Store for CoreUser {
         chat_id: ChatId,
         message_draft: Option<&MessageDraft>,
     ) -> StoreResult<()> {
-        let mut notifier = self.store_notifier();
-        if let Some(message_draft) = message_draft {
-            message_draft
-                .store(self.pool(), &mut notifier, chat_id)
-                .await?;
-        } else {
-            MessageDraft::delete(self.pool(), &mut notifier, chat_id).await?;
-        }
-        notifier.notify();
-        Ok(())
+        self.db()
+            .with_write_transaction(async |txn| {
+                // XXX: maybe we should notify with notifier on Drop of WriteDbConnection?
+                if let Some(message_draft) = message_draft {
+                    message_draft
+                        .store(self.db().write().await?, chat_id)
+                        .await?;
+                } else {
+                    MessageDraft::delete(self.db().write().await?, chat_id).await?;
+                }
+                Ok(())
+            })
+            .await
     }
 
     async fn commit_all_message_drafts(&self) -> StoreResult<()> {
-        self.with_notifier(async |notifier| {
-            Ok(MessageDraft::commit_all(self.pool(), notifier).await?)
-        })
-        .await
+        self.db()
+            .with_write_transaction(async |txn| Ok(MessageDraft::commit_all(txn).await?))
+            .await
     }
 
     async fn messages_count(&self, chat_id: ChatId) -> StoreResult<usize> {
@@ -391,7 +396,7 @@ impl Store for CoreUser {
         until: MessageId,
     ) -> StoreResult<(bool, Vec<(MessageId, MimiId)>)> {
         self.with_transaction_and_notifier(async |txn, notifier| {
-            Chat::mark_as_read_until_message_id(txn, notifier, chat_id, until, self.user_id())
+            Chat::mark_as_read_until_message_id(txn, chat_id, until, self.user_id())
                 .await
                 .map_err(From::from)
         })
@@ -463,7 +468,7 @@ impl Store for CoreUser {
     }
 
     async fn load_attachment(&self, attachment_id: AttachmentId) -> StoreResult<AttachmentContent> {
-        Ok(AttachmentRecord::load_content(self.pool(), attachment_id).await?)
+        Ok(AttachmentRecord::load_content(self.db().read().await?, attachment_id).await?)
     }
 
     async fn attachment_status(

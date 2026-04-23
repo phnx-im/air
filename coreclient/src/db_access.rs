@@ -48,12 +48,10 @@ pub trait WriteConnection: ReadConnection + AsMut<SqliteConnection> {
     fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier);
     fn notifier(&mut self) -> &mut StoreNotifier;
 
-    async fn begin(&mut self) -> sqlx::Result<WriteDbTransaction<'_>> {
-        let txn = self.as_mut().begin_with("BEGIN IMMEDIATE").await?;
-        Ok(WriteDbTransaction {
-            txn,
-            notifier: &mut self.notifier,
-        })
+    async fn begin_immediate(&mut self) -> sqlx::Result<WriteDbTransaction<'_>> {
+        let (connection, notifier) = self.split();
+        let txn = connection.begin_with("BEGIN IMMEDIATE").await?;
+        Ok(WriteDbTransaction { txn, notifier })
     }
 }
 
@@ -100,7 +98,7 @@ impl DbAccess {
         E: From<sqlx::Error>,
     {
         let mut conn = self.write().await?;
-        let mut txn = conn.begin().await?;
+        let mut txn = conn.begin_immediate().await?;
         let value = f(&mut txn).await?;
         txn.commit().await?;
         conn.notifier.notify();
@@ -152,6 +150,7 @@ impl AsMut<SqliteConnection> for WriteDbTransaction<'_> {
 }
 
 impl ReadConnection for ReadDbConnection {}
+impl ReadConnection for &mut ReadDbConnection {}
 impl ReadConnection for ReadDbTransaction<'_> {}
 impl ReadConnection for &mut ReadDbTransaction<'_> {}
 
@@ -170,7 +169,7 @@ impl WriteConnection for WriteDbConnection {
         &mut self.notifier
     }
 
-    async fn begin(&mut self) -> sqlx::Result<WriteDbTransaction<'_>> {
+    async fn begin_immediate(&mut self) -> sqlx::Result<WriteDbTransaction<'_>> {
         let txn = self.conn.begin_with("BEGIN IMMEDIATE").await?;
         Ok(WriteDbTransaction {
             txn,

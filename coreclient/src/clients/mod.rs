@@ -57,7 +57,6 @@ use crate::{
     outbound_service::OutboundService,
     store::Store,
     utils::{
-        connection_ext::StoreExt,
         global_lock::GlobalLock,
         image::resize_profile_image,
         persistence::{delete_client_database, open_lock_file},
@@ -121,7 +120,6 @@ pub struct CoreUser {
 
 #[derive(Debug)]
 pub(crate) struct CoreUserInner {
-    pool: SqlitePool,
     db: DbAccess,
     api_clients: ApiClients,
     http_client: reqwest::Client,
@@ -290,10 +288,6 @@ impl CoreUser {
         Ok(())
     }
 
-    pub(crate) fn pool(&self) -> &SqlitePool {
-        &self.inner.pool
-    }
-
     pub(crate) fn db(&self) -> &DbAccess {
         &self.inner.db
     }
@@ -356,10 +350,6 @@ impl CoreUser {
         &self,
     ) -> impl Iterator<Item = Arc<StoreNotification>> + Send + 'static {
         self.inner.store_notifications_tx.subscribe_iter()
-    }
-
-    pub(crate) fn store_notifier(&self) -> StoreNotifier {
-        StoreNotifier::new(self.inner.store_notifications_tx.clone())
     }
 
     pub(crate) async fn enqueue_store_notification(
@@ -710,8 +700,13 @@ impl CoreUser {
 
     /// Schedules the client's push token update on the QS.
     pub async fn update_push_token(&self, push_token: Option<PushToken>) -> Result<()> {
-        let should_notify =
-            push_token_state::mark_pending_if_changed(self.pool(), push_token).await?;
+        let should_notify = self
+            .db()
+            .with_write_transaction(async |txn| {
+                push_token_state::mark_pending_if_changed(txn, push_token).await
+            })
+            .await?;
+
         if should_notify {
             info!("Scheduling push token update");
             self.outbound_service().notify_push_token_update();
@@ -834,16 +829,6 @@ impl CoreUser {
         let value = job.execute(&mut context).await?;
         notifier.notify();
         Ok(value)
-    }
-}
-
-impl StoreExt for CoreUser {
-    fn pool(&self) -> &SqlitePool {
-        &self.inner.pool
-    }
-
-    fn notifier(&self) -> StoreNotifier {
-        StoreNotifier::new(self.inner.store_notifications_tx.clone())
     }
 }
 

@@ -65,7 +65,7 @@ pub(crate) trait StorableIndexedKey<KT: IndexedKeyType + Send + Unpin + Debug>:
         let key = self.key();
         let index = self.index();
         let key_type = KeyTypeInstance::<KT>::new();
-        let mut transaction = connection.begin().await?;
+        let mut transaction = connection.begin_immediate().await?;
         // Delete the old own key
         query!(
             "DELETE FROM indexed_key

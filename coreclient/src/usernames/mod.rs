@@ -24,7 +24,7 @@ use crate::{
     privacy_pass,
     store::StoreResult,
     usernames::connection_packages::StorableConnectionPackage,
-    utils::connection_ext::StoreExt,
+    
 };
 
 pub(crate) mod connection_packages;

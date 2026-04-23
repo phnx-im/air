@@ -23,13 +23,13 @@ use crate::{
     chats::{GroupDataExt, messages::TimestampedMessage},
     clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
     contacts::ContactAddInfos,
+    db_access::WriteConnection,
     groups::{
         Group, VerifiedGroup, client_auth_info::StorableClientCredential,
         handle_group_not_found_on_ds,
     },
     job::{Job, JobContext, JobError, chat_operation::ChatOperationError},
     store::StoreNotifier,
-    utils::connection_ext::ConnectionExt,
 };
 
 // Having separate retry intervals for test and non-test is a hack until we can
@@ -103,7 +103,7 @@ impl Job for PendingChatOperation {
                 let retry_due = context.now + RETRY_INTERVAL;
                 #[cfg(any(test, feature = "test_utils"))]
                 let retry_due = context.now + RETRY_INTERVAL;
-                self.update_retry_due_at(&mut *context.connection, retry_due)
+                self.update_retry_due_at(&mut *context.db.write().await?, retry_due)
                     .await?;
                 let group_id = self.group.group_id();
                 info!(
@@ -119,7 +119,7 @@ impl Job for PendingChatOperation {
                 context
                     .db
                     .with_write_transaction(async |txn| {
-                        handle_group_not_found_on_ds(txn, context.notifier, &group_id).await
+                        handle_group_not_found_on_ds(txn, &group_id).await
                     })
                     .await?;
                 Err(JobError::NotFound)
@@ -163,8 +163,7 @@ impl PendingChatOperation {
 
         let JobContext {
             api_clients,
-            connection,
-            notifier,
+            db,
             key_store,
             now,
             ..
@@ -190,8 +189,10 @@ impl PendingChatOperation {
             && message_epoch != self.group.mls_group().epoch()
             && self.number_of_attempts > 0
         {
-            *leave_params = connection
-                .with_transaction(async |txn| self.group.group_mut().stage_leave_group(txn, signer))
+            *leave_params = self
+                .group
+                .group_mut()
+                .stage_leave_group(db.write().await?, signer)
                 .await?;
         }
 
@@ -346,7 +347,7 @@ impl PendingChatOperation {
 
     async fn handle_error(
         &mut self,
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         error: DsRequestError,
     ) -> Result<JobError<ChatOperationError>, JobError<ChatOperationError>> {
         debug!(?error, "DS request failed");
@@ -903,6 +904,8 @@ mod persistence {
 #[cfg(any(test, feature = "test_utils"))]
 pub mod test_utils {
 
+    use crate::db_access::ReadConnection;
+
     use super::*;
 
     pub struct PendingChatOperationInfo {
@@ -913,16 +916,16 @@ pub mod test_utils {
 
     impl PendingChatOperationInfo {
         pub async fn load(
-            txn: &mut SqliteTransaction<'_>,
+            mut connection: impl ReadConnection,
             chat_id: &ChatId,
         ) -> anyhow::Result<Option<Self>> {
-            let pco = PendingChatOperation::load(txn, chat_id).await?.map(|pco| {
-                PendingChatOperationInfo {
+            let pco = PendingChatOperation::load(connection, chat_id)
+                .await?
+                .map(|pco| PendingChatOperationInfo {
                     operation_type: pco.operation.to_string(),
                     request_status: pco.status.to_string(),
                     number_of_attempts: pco.number_of_attempts,
-                }
-            });
+                });
 
             Ok(pco)
         }

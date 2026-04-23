@@ -28,7 +28,6 @@ use crate::{
         OutboundServiceContext,
         error::{OutboundServiceError, classify_ds_error, is_ds_not_found_error},
     },
-    utils::connection_ext::StoreExt,
 };
 
 pub(crate) struct Resync {
