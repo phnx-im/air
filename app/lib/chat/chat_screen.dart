@@ -169,19 +169,19 @@ class _ChatScreenViewState extends State<ChatScreenView> {
     }
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: _ChatHeader(),
-      body: SafeArea(
-        minimum: const EdgeInsets.only(bottom: Spacings.xs),
-        child: Stack(
-          children: [
-            MessageListView(
-              createMessageCubit: widget.createMessageCubit,
-              scrollToBottomController: _scrollToBottomController,
-            ),
-            Positioned(
-              left: 0,
-              right: 0,
-              bottom: 0,
+      body: Stack(
+        children: [
+          MessageListView(
+            createMessageCubit: widget.createMessageCubit,
+            scrollToBottomController: _scrollToBottomController,
+          ),
+          Positioned.fill(
+            top: null,
+            child: SafeArea(
+              top: false,
+              minimum: const EdgeInsets.only(bottom: Spacings.xs),
               child: _MeasureHeight(
                 onChange: (height) {
                   _scrollToBottomController.composerHeight.value = height;
@@ -189,8 +189,8 @@ class _ChatScreenViewState extends State<ChatScreenView> {
                 child: footer,
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -218,7 +218,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       key: _key,
       automaticallyImplyLeading: false,
-      backgroundColor: CustomColorScheme.of(context).backgroundBase.primary,
+      backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       scrolledUnderElevation: 0,
       elevation: 0,
@@ -239,7 +239,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
             mainAxisSize: MainAxisSize.min,
             spacing: Spacings.xs,
             children: [
-              ChatAvatar(chatId: chatId, size: Spacings.l),
+              ChatAvatar(chatId: chatId, size: 40),
               Flexible(
                 child: Text(
                   title ?? "",
@@ -247,7 +247,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextTheme.of(context).labelMedium!.copyWith(
-                    color: CustomColorScheme.of(context).text.tertiary,
+                    color: CustomColorScheme.of(context).text.primary,
                   ),
                 ),
               ),
