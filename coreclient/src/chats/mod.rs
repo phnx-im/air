@@ -346,7 +346,7 @@ pub(crate) trait GroupDataExt {
 
     /// Returns the chat title and the external group profile.
     ///
-    /// The title is decrypted from the external group profile if it is present.
+    /// The title is decrypted from the group context if it is present.
     fn into_parts(
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
