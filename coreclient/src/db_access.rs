@@ -6,17 +6,13 @@ use crate::store::{StoreNotificationsSender, StoreNotifier};
 
 #[derive(Debug, Clone)]
 pub(crate) struct DbAccess {
-    notifier_tx: StoreNotificationsSender,
     pool: SqlitePool,
+    notifier_tx: StoreNotificationsSender,
 }
 
 impl DbAccess {
-    #[cfg(test)]
-    pub(crate) fn new(pool: SqlitePool) -> Self {
-        Self {
-            notifier_tx: StoreNotificationsSender::new(),
-            pool,
-        }
+    pub(crate) fn new(pool: SqlitePool, notifier_tx: StoreNotificationsSender) -> Self {
+        Self { pool, notifier_tx }
     }
 }
 

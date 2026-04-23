@@ -5,9 +5,9 @@
 use aircommon::messages::client_as::SerializedToken;
 use airprotos::auth_service::v1::OperationType;
 use chrono::{DateTime, Utc};
-use sqlx::{SqliteExecutor, SqlitePool};
+use sqlx::SqliteExecutor;
 
-use crate::{db_access::ReadExecutor, privacy_pass::TokenId};
+use crate::privacy_pass::TokenId;
 
 pub(crate) async fn load_token_ids(
     executor: impl SqliteExecutor<'_>,

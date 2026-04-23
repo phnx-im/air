@@ -42,7 +42,7 @@ impl MessageDraft {
 }
 
 mod persistence {
-    use sqlx::{SqliteConnection, query, query_as, query_scalar};
+    use sqlx::{query, query_as, query_scalar};
 
     use crate::{
         ChatId,
@@ -175,7 +175,7 @@ mod persistence {
         }
 
         pub(crate) async fn delete(
-            mut executor: impl WriteExecutor<'_>,
+            executor: impl WriteExecutor<'_>,
             chat_id: ChatId,
         ) -> sqlx::Result<()> {
             let (executor, notifier) = executor.split();
