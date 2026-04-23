@@ -1,5 +1,6 @@
 use sqlx::{
-    Connection, Sqlite, SqliteConnection, SqlitePool, SqliteTransaction, pool::PoolConnection,
+    Connection, Executor, Sqlite, SqliteConnection, SqlitePool, SqliteTransaction,
+    pool::PoolConnection,
 };
 
 use crate::store::{StoreNotificationsSender, StoreNotifier};
@@ -11,6 +12,14 @@ pub(crate) struct DbAccess {
 }
 
 impl DbAccess {
+    #[cfg(test)]
+    pub(crate) fn for_tests(pool: SqlitePool) -> Self {
+        Self {
+            pool,
+            notifier_tx: StoreNotificationsSender::new(),
+        }
+    }
+
     pub(crate) fn new(pool: SqlitePool, notifier_tx: StoreNotificationsSender) -> Self {
         Self { pool, notifier_tx }
     }
@@ -70,7 +79,7 @@ pub(crate) struct WriteConnection {
 }
 
 impl<'c> WriteConnection {
-    async fn begin(&'c mut self) -> sqlx::Result<WriteTransaction<'c>> {
+    pub(crate) async fn begin(&'c mut self) -> sqlx::Result<WriteTransaction<'c>> {
         let txn = self.conn.begin_with("BEGIN IMMEDIATE").await?;
         Ok(WriteTransaction {
             txn,
@@ -118,177 +127,9 @@ impl<'c> WriteExecutor<'c> for &'c mut WriteConnection {
         (self.conn.as_mut(), &mut self.notifier)
     }
 }
+
 impl<'c> WriteExecutor<'c> for &'c mut WriteTransaction<'_> {
     fn split(self) -> (&'c mut SqliteConnection, &'c mut StoreNotifier) {
         (self.txn.as_mut(), &mut self.notifier)
     }
 }
-
-// impl<'c> ReadExecutor<'c> for &'c mut ReadConnection {}
-// impl<'c> Executor<'c> for &'c mut ReadConnection {
-//     type Database = Sqlite;
-
-//     fn fetch_many<'e, 'q: 'e, E>(
-//         self,
-//         query: E,
-//     ) -> BoxStream<
-//         'e,
-//         Result<
-//             sqlx::Either<
-//                 <Self::Database as sqlx::Database>::QueryResult,
-//                 <Self::Database as sqlx::Database>::Row,
-//             >,
-//             sqlx::Error,
-//         >,
-//     >
-//     where
-//         'c: 'e,
-//         E: 'q + sqlx::Execute<'q, Self::Database>,
-//     {
-//         self.conn.fetch_many(query)
-//     }
-
-//     fn fetch_optional<'e, 'q: 'e, E>(
-//         self,
-//         query: E,
-//     ) -> BoxFuture<'e, Result<Option<<Self::Database as sqlx::Database>::Row>, sqlx::Error>>
-//     where
-//         'c: 'e,
-//         E: 'q + sqlx::Execute<'q, Self::Database>,
-//     {
-//         self.conn.fetch_optional(query)
-//     }
-
-//     fn prepare_with<'e, 'q: 'e>(
-//         self,
-//         sql: &'q str,
-//         parameters: &'e [<Self::Database as sqlx::Database>::TypeInfo],
-//     ) -> BoxFuture<'e, Result<<Self::Database as sqlx::Database>::Statement<'q>, sqlx::Error>>
-//     where
-//         'c: 'e,
-//     {
-//         self.conn.prepare_with(sql, parameters)
-//     }
-
-//     fn describe<'e, 'q: 'e>(
-//         self,
-//         sql: &'q str,
-//     ) -> BoxFuture<'e, Result<sqlx::Describe<Self::Database>, sqlx::Error>>
-//     where
-//         'c: 'e,
-//     {
-//         self.conn.describe(sql)
-//     }
-// }
-
-// impl<'c> Executor<'c> for &'c mut WriteConnection {
-//     type Database = Sqlite;
-
-//     fn fetch_many<'e, 'q: 'e, E>(
-//         self,
-//         query: E,
-//     ) -> BoxStream<
-//         'e,
-//         Result<
-//             sqlx::Either<
-//                 <Self::Database as sqlx::Database>::QueryResult,
-//                 <Self::Database as sqlx::Database>::Row,
-//             >,
-//             sqlx::Error,
-//         >,
-//     >
-//     where
-//         'c: 'e,
-//         E: 'q + sqlx::Execute<'q, Self::Database>,
-//     {
-//         self.conn.fetch_many(query)
-//     }
-
-//     fn fetch_optional<'e, 'q: 'e, E>(
-//         self,
-//         query: E,
-//     ) -> BoxFuture<'e, Result<Option<<Self::Database as sqlx::Database>::Row>, sqlx::Error>>
-//     where
-//         'c: 'e,
-//         E: 'q + sqlx::Execute<'q, Self::Database>,
-//     {
-//         self.conn.fetch_optional(query)
-//     }
-
-//     fn prepare_with<'e, 'q: 'e>(
-//         self,
-//         sql: &'q str,
-//         parameters: &'e [<Self::Database as sqlx::Database>::TypeInfo],
-//     ) -> BoxFuture<'e, Result<<Self::Database as sqlx::Database>::Statement<'q>, sqlx::Error>>
-//     where
-//         'c: 'e,
-//     {
-//         self.conn.prepare_with(sql, parameters)
-//     }
-
-//     fn describe<'e, 'q: 'e>(
-//         self,
-//         sql: &'q str,
-//     ) -> BoxFuture<'e, Result<sqlx::Describe<Self::Database>, sqlx::Error>>
-//     where
-//         'c: 'e,
-//     {
-//         self.conn.describe(sql)
-//     }
-// }
-
-// impl<'c> Executor<'c> for &'c mut WriteTransaction<'_> {
-//     type Database = Sqlite;
-
-//     fn fetch_many<'e, 'q: 'e, E>(
-//         self,
-//         query: E,
-//     ) -> BoxStream<
-//         'e,
-//         Result<
-//             sqlx::Either<
-//                 <Self::Database as sqlx::Database>::QueryResult,
-//                 <Self::Database as sqlx::Database>::Row,
-//             >,
-//             sqlx::Error,
-//         >,
-//     >
-//     where
-//         'c: 'e,
-//         E: 'q + sqlx::Execute<'q, Self::Database>,
-//     {
-//         self.txn.fetch_many(query)
-//     }
-
-//     fn fetch_optional<'e, 'q: 'e, E>(
-//         self,
-//         query: E,
-//     ) -> BoxFuture<'e, Result<Option<<Self::Database as sqlx::Database>::Row>, sqlx::Error>>
-//     where
-//         'c: 'e,
-//         E: 'q + sqlx::Execute<'q, Self::Database>,
-//     {
-//         self.txn.fetch_optional(query)
-//     }
-
-//     fn prepare_with<'e, 'q: 'e>(
-//         self,
-//         sql: &'q str,
-//         parameters: &'e [<Self::Database as sqlx::Database>::TypeInfo],
-//     ) -> BoxFuture<'e, Result<<Self::Database as sqlx::Database>::Statement<'q>, sqlx::Error>>
-//     where
-//         'c: 'e,
-//     {
-//         self.txn.prepare_with(sql, parameters)
-//     }
-
-//     fn describe<'e, 'q: 'e>(
-//         self,
-//         sql: &'q str,
-//     ) -> BoxFuture<'e, Result<sqlx::Describe<Self::Database>, sqlx::Error>>
-//     where
-//         'c: 'e,
-//     {
-//         self.txn.describe(sql)
-//     }
-// }

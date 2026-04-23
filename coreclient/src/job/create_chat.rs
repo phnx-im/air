@@ -144,7 +144,8 @@ impl CreateChat {
                 group.store(txn.as_mut()).await?;
 
                 let chat = Chat::new_group_chat(partial_params.group_id.clone(), chat_attributes);
-                chat.store(txn.as_mut(), notifier).await?;
+                todo!();
+                // chat.store(txn.as_mut(), notifier).await?;
                 Ok((group, chat, partial_params, encrypted_user_profile_key))
             })
             .await?;
