@@ -484,13 +484,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Embed Pods Frameworks";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-frameworks-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -505,13 +501,9 @@
 			inputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-input-files.xcfilelist",
 			);
-			inputPaths = (
-			);
 			name = "[CP] Copy Pods Resources";
 			outputFileListPaths = (
 				"${PODS_ROOT}/Target Support Files/Pods-Runner/Pods-Runner-resources-${CONFIGURATION}-output-files.xcfilelist",
-			);
-			outputPaths = (
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 			shellPath = /bin/sh;
@@ -1630,7 +1622,7 @@
 		};
 		C0B339CC2F87D29D00025B8A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 1149AE4B9DF536F19A99B6D5 /* Pods-RunnerTests.debug-production.xcconfig */;
+			baseConfigurationReference = 63AE49791692EBD244B0A391 /* Pods-RunnerTests.debug.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -1649,7 +1641,7 @@
 		};
 		C0B339CD2F87D29D00025B8A /* Debug */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = C31FABB901F96BC8508966DF /* Pods-NotificationService.debug-production.xcconfig */;
+			baseConfigurationReference = 64E0E4899AA05276CC72A03F /* Pods-NotificationService.debug.xcconfig */;
 			buildSettings = {
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -1783,7 +1775,7 @@
 		};
 		C0B339D02F87D2A200025B8A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 83F955ABEAA7FF9C3BD91CDE /* Pods-RunnerTests.release-production.xcconfig */;
+			baseConfigurationReference = B210A044BC2958FABAA73733 /* Pods-RunnerTests.release.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -1800,7 +1792,7 @@
 		};
 		C0B339D12F87D2A200025B8A /* Release */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 971F4BC659D82402E6BDF0C4 /* Pods-NotificationService.release-production.xcconfig */;
+			baseConfigurationReference = 1BFBC6ADD4C4AA48537DDAFD /* Pods-NotificationService.release.xcconfig */;
 			buildSettings = {
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
@@ -1930,7 +1922,7 @@
 		};
 		C0B339D42F87D2A700025B8A /* Profile */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = 0DAAE2AA368A29FAE38F07B1 /* Pods-RunnerTests.profile-production.xcconfig */;
+			baseConfigurationReference = 73572DE98D7B3F85AE607F69 /* Pods-RunnerTests.profile.xcconfig */;
 			buildSettings = {
 				BUNDLE_LOADER = "$(TEST_HOST)";
 				CODE_SIGN_STYLE = Automatic;
@@ -1947,7 +1939,7 @@
 		};
 		C0B339D52F87D2A700025B8A /* Profile */ = {
 			isa = XCBuildConfiguration;
-			baseConfigurationReference = ABC5D999CF03FEE5BF7E0045 /* Pods-NotificationService.profile-production.xcconfig */;
+			baseConfigurationReference = 911FDDCDFEC4CA58501B5616 /* Pods-NotificationService.profile.xcconfig */;
 			buildSettings = {
 				CLANG_ANALYZER_NUMBER_OBJECT_CONVERSION = YES_AGGRESSIVE;
 				CLANG_CXX_LANGUAGE_STANDARD = "gnu++20";
