@@ -27,7 +27,6 @@ use crate::{
         user_settings::UserSettingRecord,
     },
     contacts::{ContactType, PartialContact, TargetedMessageContact, UsernameContact},
-    db_access::WriteExecutor,
     store::UserSetting,
     user_profiles::UserProfile,
     usernames::UsernameRecord,
@@ -347,7 +346,8 @@ impl Store for CoreUser {
     }
 
     async fn message_draft(&self, chat_id: ChatId) -> StoreResult<Option<MessageDraft>> {
-        Ok(MessageDraft::load(self.pool().acquire().await?.as_mut(), chat_id).await?)
+        let mut read = self.db().read().await?;
+        Ok(MessageDraft::load(&mut read, chat_id).await?)
     }
 
     async fn store_message_draft(

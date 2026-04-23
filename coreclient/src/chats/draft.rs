@@ -44,7 +44,10 @@ impl MessageDraft {
 mod persistence {
     use sqlx::{SqliteConnection, query, query_as, query_scalar};
 
-    use crate::{ChatId, db_access::WriteExecutor};
+    use crate::{
+        ChatId,
+        db_access::{ReadExecutor, WriteExecutor},
+    };
 
     use super::*;
 
@@ -89,9 +92,10 @@ mod persistence {
 
     impl MessageDraft {
         pub(crate) async fn load(
-            connection: &mut SqliteConnection,
+            mut executor: impl ReadExecutor<'_>,
             chat_id: ChatId,
         ) -> sqlx::Result<Option<Self>> {
+            let connection = executor.as_mut();
             let Some(mut message_draft) = query_as!(
                 SqlMessageDraft,
                 r#"
@@ -121,9 +125,10 @@ mod persistence {
 
         pub(crate) async fn store(
             &self,
-            mut executor: impl WriteExecutor<'_>,
+            executor: impl WriteExecutor<'_>,
             chat_id: ChatId,
         ) -> sqlx::Result<()> {
+            let (connection, notifier) = executor.split();
             let in_reply_to_mimi_id = self.in_reply_to.as_ref().map(|(mimi_id, _)| mimi_id);
             query!(
                 "INSERT INTO message_draft (
@@ -148,15 +153,15 @@ mod persistence {
                 self.updated_at,
                 self.is_committed,
             )
-            .execute(executor.as_mut())
+            .execute(connection)
             .await?;
             if self.is_committed {
-                // notifier.update(chat_id);
+                notifier.update(chat_id);
             }
             Ok(())
         }
 
-        pub(crate) async fn commit_all(mut executor: impl WriteExecutor<'_>) -> sqlx::Result<()> {
+        pub(crate) async fn commit_all(executor: impl WriteExecutor<'_>) -> sqlx::Result<()> {
             let (executor, notifier) = executor.split();
             let mut chat_ids = query_scalar!(
                 r#"UPDATE message_draft SET is_committed = true

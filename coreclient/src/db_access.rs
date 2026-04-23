@@ -1,6 +1,5 @@
 use sqlx::{
-    Connection, Sqlite, SqliteConnection, SqliteExecutor, SqlitePool, SqliteTransaction,
-    pool::PoolConnection,
+    Connection, Sqlite, SqliteConnection, SqlitePool, SqliteTransaction, pool::PoolConnection,
 };
 
 use crate::store::{StoreNotificationsSender, StoreNotifier};
@@ -24,7 +23,7 @@ impl DbAccess {
 pub trait ReadExecutor<'c>: AsMut<SqliteConnection> {}
 
 pub trait WriteExecutor<'c>: AsMut<SqliteConnection> {
-    fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier);
+    fn split(self) -> (&'c mut SqliteConnection, &'c mut StoreNotifier);
 }
 
 impl DbAccess {
@@ -115,13 +114,16 @@ impl AsMut<SqliteConnection> for &mut WriteTransaction<'_> {
 }
 
 impl<'c> ReadExecutor<'c> for &'c mut ReadConnection {}
+impl<'c> ReadExecutor<'c> for &'c mut WriteConnection {}
+impl<'c> ReadExecutor<'c> for &'c mut WriteTransaction<'_> {}
+
 impl<'c> WriteExecutor<'c> for &'c mut WriteConnection {
-    fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier) {
+    fn split(self) -> (&'c mut SqliteConnection, &'c mut StoreNotifier) {
         (self.conn.as_mut(), &mut self.notifier)
     }
 }
 impl<'c> WriteExecutor<'c> for &'c mut WriteTransaction<'_> {
-    fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier) {
+    fn split(self) -> (&'c mut SqliteConnection, &'c mut StoreNotifier) {
         (self.txn.as_mut(), &mut self.notifier)
     }
 }
