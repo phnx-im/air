@@ -530,7 +530,7 @@ impl CoreUser {
     }
 
     pub async fn try_contact(&self, user_id: &UserId) -> sqlx::Result<Option<Contact>> {
-        Contact::load(self.pool(), user_id).await
+        Contact::load(self.db().read().await?, user_id).await
     }
 
     pub async fn try_targeted_message_contact(

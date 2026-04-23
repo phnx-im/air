@@ -1,6 +1,5 @@
 use sqlx::{
-    Connection, Executor, Sqlite, SqliteConnection, SqlitePool, SqliteTransaction,
-    pool::PoolConnection,
+    Connection, Sqlite, SqliteConnection, SqlitePool, SqliteTransaction, pool::PoolConnection,
 };
 
 use crate::store::{StoreNotificationsSender, StoreNotifier};

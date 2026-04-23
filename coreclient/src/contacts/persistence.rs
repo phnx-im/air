@@ -51,7 +51,7 @@ impl From<SqlContact> for Contact {
 
 impl Contact {
     pub(crate) async fn load(
-        executor: impl SqliteExecutor<'_>,
+        mut executor: impl ReadConnection,
         user_id: &UserId,
     ) -> sqlx::Result<Option<Self>> {
         let uuid = user_id.uuid();
@@ -69,7 +69,7 @@ impl Contact {
             uuid,
             domain
         )
-        .fetch_optional(executor)
+        .fetch_optional(executor.as_mut())
         .await
         .map(|res| res.map(From::from))
     }
@@ -453,7 +453,9 @@ mod tests {
         let contact = test_contact(chat.id());
         contact.upsert(db.write().await?).await?;
 
-        let loaded = Contact::load(&pool, &contact.user_id).await?.unwrap();
+        let loaded = Contact::load(db.read().await?, &contact.user_id)
+            .await?
+            .unwrap();
         assert_eq!(loaded, contact);
 
         Ok(())
@@ -519,7 +521,11 @@ mod tests {
         let loaded_username_contact = UsernameContact::load(&pool, &username).await?;
         assert!(loaded_username_contact.is_none());
 
-        let loaded_contact = Contact::load(&pool, &contact.user_id).await?.unwrap();
+        let db = DbAccess::for_tests(pool);
+
+        let loaded_contact = Contact::load(db.read().await?, &contact.user_id)
+            .await?
+            .unwrap();
         assert_eq!(loaded_contact, contact);
 
         Ok(())

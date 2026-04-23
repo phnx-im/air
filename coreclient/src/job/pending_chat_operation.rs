@@ -524,9 +524,11 @@ impl PendingChatOperation {
 
         for new_member in &new_members {
             // Get the WAI keys and client credentials for the invited users.
-            let contact = Contact::load(&mut *connection, new_member)
-                .await?
-                .with_context(|| format!("Can't find contact {new_member:?}"))?;
+            let contact: Contact = todo!();
+
+            // Contact::load(&mut *connection, new_member)
+            // .await?
+            // .with_context(|| format!("Can't find contact {new_member:?}"))?;
             contact_wai_keys.push(contact.wai_ear_key().clone());
 
             if let Some(client_credential) =
