@@ -295,7 +295,6 @@ impl Job for FetchGroupProfileOperation {
                 );
                 update_chat_attributes(
                     txn.as_mut(),
-                    context.notifier,
                     &mut chat,
                     sender_id,
                     chat_attributes,

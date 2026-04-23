@@ -65,7 +65,6 @@ use mls_assist::{components::ComponentsList, messages::AssistedMessageOut};
 use openmls_provider::AirOpenMlsProvider;
 use openmls_traits::storage::StorageProvider;
 use serde::Serialize;
-use sqlx::{SqliteConnection, SqliteTransaction};
 use tls_codec::DeserializeBytes;
 use tracing::{Level, debug, enabled, error};
 
@@ -581,7 +580,7 @@ impl Group {
     /// Returns the [`AddUserParamsOut`] as input for the API client.
     pub(super) async fn stage_invite(
         &mut self,
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
         // The following three vectors have to be in sync, i.e. of the same length
         // and refer to the same contacts in order.
@@ -613,7 +612,7 @@ impl Group {
 
         // Set Aad to contain the encrypted client credentials.
         let (mls_commit, welcome_option, group_info_option) = {
-            let provider = AirOpenMlsProvider::new(&mut *connection);
+            let provider = AirOpenMlsProvider::new(connection.as_mut());
             self.mls_group
                 .set_aad(aad_message.tls_serialize_detached()?);
             let res = self
@@ -672,7 +671,7 @@ impl Group {
 
     pub(super) async fn stage_remove(
         &mut self,
-        connection: &mut sqlx::SqliteConnection,
+        mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
         mut members: Vec<UserId>,
     ) -> Result<GroupOperationParamsOut> {
@@ -696,7 +695,7 @@ impl Group {
         });
         let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
         self.mls_group.set_aad(aad);
-        let provider = AirOpenMlsProvider::new(&mut *connection);
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
 
         let (mls_message, _welcome_option, group_info_option) = self
             .mls_group
@@ -723,10 +722,10 @@ impl Group {
 
     pub(super) async fn stage_delete(
         &mut self,
-        connection: &mut sqlx::SqliteConnection,
+        mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
     ) -> anyhow::Result<DeleteGroupParamsOut> {
-        let provider = &AirOpenMlsProvider::new(&mut *connection);
+        let provider = &AirOpenMlsProvider::new(connection.as_mut());
         let remove_indices = self
             .mls_group()
             .members()
@@ -799,7 +798,7 @@ impl Group {
     /// extracted from the staged commit.
     pub(in crate::groups) async fn merge_pending_commit(
         &mut self,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         verified: &impl GroupStorageWitness,
         staged_commit_option: impl Into<Option<StagedCommit>>,
         ds_timestamp: TimeStamp,
@@ -820,7 +819,7 @@ impl Group {
 
             let group_data = GroupDataBytes::from_staged_commit(&staged_commit);
 
-            let provider = AirOpenMlsProvider::new(&mut *txn);
+            let provider = AirOpenMlsProvider::new(txn.as_mut());
             self.mls_group
                 .merge_staged_commit(&provider, staged_commit)?;
             (staged_commit_messages, group_data)
@@ -841,7 +840,7 @@ impl Group {
                 } else {
                     (vec![], None)
                 };
-            let provider = AirOpenMlsProvider::new(&mut *txn);
+            let provider = AirOpenMlsProvider::new(txn.as_mut());
             self.mls_group.merge_pending_commit(&provider)?;
             (staged_commit_messages, group_data)
         };
@@ -951,7 +950,7 @@ impl Group {
 
     pub(super) async fn update(
         &mut self,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         signer: &ClientSigningKey,
         new_group_data: Option<GroupDataBytes>,
     ) -> Result<GroupOperationParamsOut> {

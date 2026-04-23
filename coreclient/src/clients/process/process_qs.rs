@@ -62,7 +62,6 @@ use crate::{
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::resync::Resync,
     store::{Store, StoreNotifier},
-    
 };
 
 use super::{Chat, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow};
@@ -224,7 +223,6 @@ impl CoreUser {
             // profile data is already available locally.
             update_chat_attributes(
                 txn,
-                notifier,
                 &mut chat,
                 self.user_id().clone(),
                 chat_attributes,
@@ -794,7 +792,6 @@ impl CoreUser {
             // Update chat attributes according to new group data
             update_chat_attributes(
                 txn,
-                &mut notifier,
                 &mut chat,
                 sender_client_credential.user_id().clone(),
                 chat_attributes,

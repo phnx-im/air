@@ -119,7 +119,7 @@ impl VerifiedGroup {
     /// `&mut self` (for the group) and `&self` (for the witness) borrow conflict.
     pub(crate) async fn merge_pending_commit(
         &mut self,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         staged_commit_option: impl Into<Option<StagedCommit>>,
         ds_timestamp: TimeStamp,
     ) -> Result<(Vec<TimestampedMessage>, Option<GroupDataBytes>)> {

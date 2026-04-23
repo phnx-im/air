@@ -16,15 +16,13 @@ use aircommon::{
     },
     identifiers::Fqdn,
 };
-use serde_json::de::Read;
 use sqlx::{
-    Database, Encode, Sqlite, SqliteConnection, SqliteExecutor, Type, encode::IsNull,
-    error::BoxDynError, query, query_scalar,
+    Database, Encode, Sqlite, Type, encode::IsNull, error::BoxDynError, query, query_scalar,
 };
 use thiserror::Error;
 use tracing::info;
 
-use crate::db_access::{ReadConnection, WriteConnection};
+use crate::db_access::{ReadConnection, WriteConnection, WriteDbConnection};
 
 use super::*;
 
@@ -167,7 +165,7 @@ impl AsCredentials {
     }
 
     pub(crate) async fn fetch_for_verification(
-        mut connection: impl ReadConnection,
+        connection: &mut impl ReadConnection,
         api_clients: &ApiClients,
         verifiable_credentials: impl Iterator<Item = &VerifiableClientCredential>,
     ) -> Result<HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>> {
@@ -192,7 +190,7 @@ impl AsCredentials {
     /// Fetches the credentials of the AS with the given `domain` if they are
     /// not already present in the store.
     pub(crate) async fn get(
-        connection: impl WriteConnection,
+        connection: &mut WriteDbConnection,
         api_clients: &ApiClients,
         domain: &Fqdn,
         fingerprint: &Hash<AsIntermediateCredentialBody>,

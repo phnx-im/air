@@ -189,10 +189,10 @@ mod tests {
 
     #[sqlx::test]
     async fn update_load(pool: SqlitePool) -> anyhow::Result<()> {
-        let mut notifier = StoreNotifier::noop();
+        let db = DbAccess::for_tests(pool);
 
         let (profile, key) = test_profile();
-        key.store(&pool).await?;
+        key.store(db.write().await?).await?;
 
         profile.store(&pool, &mut notifier).await?;
         let loaded = IndexedUserProfile::load(&pool, &profile.user_id)
@@ -204,7 +204,7 @@ mod tests {
         new_profile.display_name = "Alice In Wonderland".parse()?;
         new_profile.profile_picture = None;
 
-        new_profile.update(&pool, &mut notifier).await?;
+        new_profile.update(db.write().await?).await?;
         let loaded = IndexedUserProfile::load(&pool, &profile.user_id)
             .await?
             .expect("profile exists");

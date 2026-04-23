@@ -108,7 +108,7 @@ pub async fn delete_databases(client_db_path: &str) -> anyhow::Result<()> {
 
 async fn delete_client_databases(client_db_path: &str) -> anyhow::Result<()> {
     let air_db_connection = open_air_db(client_db_path).await?;
-    if let Ok(client_records) = ClientRecord::load_all(&air_db_connection).await {
+    if let Ok(client_records) = ClientRecord::load_all(air_db_connection.read().await?).await {
         for client_record in client_records {
             let client_db_name = client_db_name(&client_record.user_id);
             let client_db_path = format!("{client_db_path}/{client_db_name}");
@@ -135,7 +135,7 @@ pub async fn delete_client_database(db_path: &str, user_id: &UserId) -> anyhow::
         bail!("air.db does not exist")
     }
     let air_db = open_air_db(db_path).await?;
-    ClientRecord::delete(&air_db, user_id).await?;
+    ClientRecord::delete(air_db.write().await?, user_id).await?;
 
     Ok(())
 }
@@ -144,7 +144,7 @@ fn client_db_name(user_id: &UserId) -> String {
     format!("{}@{}.db", user_id.uuid(), user_id.domain())
 }
 
-pub async fn open_client_db(user_id: &UserId, client_db_path: &str) -> sqlx::Result<SqlitePool> {
+pub async fn open_client_db(user_id: &UserId, client_db_path: &str) -> sqlx::Result<DbAccess> {
     let client_db_name = client_db_name(user_id);
     let db_url = format!("sqlite://{client_db_path}/{client_db_name}");
     let opts: SqliteConnectOptions = db_url.parse()?;
@@ -169,7 +169,7 @@ pub async fn open_client_db(user_id: &UserId, client_db_path: &str) -> sqlx::Res
 
     migrate!().run(&pool).await?;
 
-    Ok(pool)
+    Ok(DbAccess::new(pool, StoreNotificationsSender::new()))
 }
 
 pub(crate) fn open_lock_file(db_path: &str) -> std::io::Result<GlobalLock> {

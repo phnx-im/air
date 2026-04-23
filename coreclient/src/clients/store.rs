@@ -40,7 +40,7 @@ impl UserCreationState {
     }
 
     pub(super) async fn new(
-        client_db: &SqlitePool,
+        client_db: &DbAccess,
         air_db: &DbAccess,
         user_id: UserId,
         push_token: Option<PushToken>,

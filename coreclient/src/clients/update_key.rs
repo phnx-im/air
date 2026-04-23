@@ -7,7 +7,7 @@ use sqlx::SqliteConnection;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage, chats::messages::TimestampedMessage,
-    job::chat_operation::ChatOperation, store::StoreNotifier,
+    db_access::WriteConnection, job::chat_operation::ChatOperation, store::StoreNotifier,
 };
 
 use super::CoreUser;
@@ -31,8 +31,7 @@ impl CoreUser {
 }
 
 pub(crate) async fn update_chat_attributes(
-    connection: &mut SqliteConnection,
-    notifier: &mut StoreNotifier,
+    connection: &mut impl WriteConnection,
     chat: &mut Chat,
     sender_id: UserId,
     new_chat_attributes: ChatAttributes,
@@ -42,8 +41,7 @@ pub(crate) async fn update_chat_attributes(
     let new_title = new_chat_attributes.title;
     let old_title = chat.attributes.title.clone();
     if chat.attributes.title != new_title {
-        chat.set_title(&mut *connection, notifier, new_title.clone())
-            .await?;
+        chat.set_title(&mut *connection, new_title.clone()).await?;
         let system_message = SystemMessage::ChangeTitle {
             user_id: sender_id.clone(),
             old_title,
@@ -53,7 +51,7 @@ pub(crate) async fn update_chat_attributes(
         message_buffer.push(group_message);
     }
     if chat.attributes.picture != new_chat_attributes.picture {
-        chat.set_picture(connection, notifier, new_chat_attributes.picture)
+        chat.set_picture(connection, new_chat_attributes.picture)
             .await?;
         let system_message = SystemMessage::ChangePicture(sender_id);
         let group_message = TimestampedMessage::system_message(system_message, ds_timestamp);

@@ -21,10 +21,10 @@ use airapiclient::ApiClient;
 
 use crate::{
     clients::{CONNECTION_PACKAGES, CoreUser},
+    db_access::{WriteConnection, WriteDbConnection},
     privacy_pass,
     store::StoreResult,
     usernames::connection_packages::StorableConnectionPackage,
-    
 };
 
 pub(crate) mod connection_packages;
@@ -71,10 +71,10 @@ impl CoreUser {
 
         let record = UsernameRecord::new(username.clone(), hash, signing_key);
 
-        let rollback = async |delete_locally: bool| {
+        let rollback = async |mut connection: WriteDbConnection, delete_locally: bool| {
             let domain = self.user_id().domain();
             if let Ok(Some((token_req, _))) =
-                privacy_pass::prepare_delete_token_request(self.pool(), domain).await
+                privacy_pass::prepare_delete_token_request(&mut connection, domain).await
             {
                 api_client
                     .as_delete_username(record.hash, &record.signing_key, token_req)
@@ -87,7 +87,7 @@ impl CoreUser {
                 error!("failed to prepare token request for rollback delete");
             }
             if delete_locally {
-                UsernameRecord::delete(self.pool(), &record.username)
+                UsernameRecord::delete(&mut connection, &record.username)
                     .await
                     .inspect_err(|error| {
                         error!(%error, "failed to delete username locally in rollback");
@@ -96,10 +96,12 @@ impl CoreUser {
             }
         };
 
-        let mut txn = self.pool().begin().await?;
-        if let Err(error) = record.store(&mut *txn).await {
+        let mut write = self.db().write().await?;
+        let mut txn = write.begin_immediate().await?;
+        if let Err(error) = record.store(&mut txn).await {
             error!(%error, "failed to store username; rollback");
-            rollback(false).await;
+            drop(txn);
+            rollback(write, false).await;
             return Err(error.into());
         }
 
@@ -126,7 +128,7 @@ impl CoreUser {
             .await
         {
             error!(%error, "failed to publish connection packages; rollback");
-            rollback(true).await;
+            rollback(write, true).await;
             return Err(error.into());
         }
 
@@ -138,13 +140,13 @@ impl CoreUser {
         &self,
         username: &Username,
     ) -> StoreResult<UsernameDeleteResponse> {
-        let record = UsernameRecord::load(self.pool(), username)
+        let record = UsernameRecord::load(self.db().read().await?, username)
             .await?
             .context("no username found")?;
 
         let domain = self.user_id().domain();
         let (token_request_bytes, token_state) =
-            privacy_pass::prepare_delete_token_request(self.pool(), domain)
+            privacy_pass::prepare_delete_token_request(self.db().write().await?, domain)
                 .await
                 .inspect_err(
                     |e| warn!(%e, "failed to prepare privacy pass token for username deletion"),
@@ -159,7 +161,7 @@ impl CoreUser {
         // Finalize the refund token if we got one back.
         if let Some(response) = token_response_bytes
             && let Err(e) =
-                privacy_pass::finalize_delete_token_response(self.pool(), &response, token_state)
+                privacy_pass::finalize_delete_token_response(self.db(), &response, token_state)
                     .await
         {
             warn!("failed to finalize delete refund token: {e}");

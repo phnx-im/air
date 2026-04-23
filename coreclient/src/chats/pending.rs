@@ -288,7 +288,7 @@ impl CoreUser {
 mod persistence {
     use sqlx::{query, query_as};
 
-    use crate::{db_access::ReadConnection, store::StoreNotifier};
+    use crate::db_access::ReadConnection;
 
     use super::*;
 
@@ -314,11 +314,7 @@ mod persistence {
             .await
         }
 
-        pub(crate) async fn store(
-            &self,
-            mut connection: impl WriteConnection,
-            notifier: &mut StoreNotifier,
-        ) -> sqlx::Result<()> {
+        pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
             query!(
                 "INSERT OR REPLACE INTO pending_connection_info (
                     chat_id,
@@ -338,7 +334,7 @@ mod persistence {
             )
             .execute(connection.as_mut())
             .await?;
-            notifier.update(self.chat_id);
+            connection.notifier().update(self.chat_id);
             Ok(())
         }
 

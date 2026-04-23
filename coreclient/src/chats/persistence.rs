@@ -465,12 +465,9 @@ impl Chat {
     /// [`chatId`]s to the given timestamps. This is used to mark all
     /// messages up to this timestamp as read.
     pub(crate) async fn mark_as_read(
-        connection: &mut WriteDbConnection,
+        txn: &mut WriteDbTransaction<'_>,
         mark_as_read_data: impl IntoIterator<Item = (ChatId, DateTime<Utc>)>,
     ) -> sqlx::Result<()> {
-        let mut transaction = connection.begin_immediate().await?;
-        let (txn, notifier) = transaction.split();
-
         for (chat_id, timestamp) in mark_as_read_data {
             let unread_messages: Vec<MessageId> = query_scalar!(
                 r#"SELECT
@@ -481,11 +478,11 @@ impl Chat {
                 chat_id,
                 timestamp,
             )
-            .fetch_all(&mut *txn)
+            .fetch_all(txn.as_mut())
             .await?;
 
             for message_id in unread_messages {
-                notifier.update(message_id);
+                txn.notifier().update(message_id);
             }
 
             let updated = query!(
@@ -495,14 +492,12 @@ impl Chat {
                 timestamp,
                 chat_id,
             )
-            .execute(&mut *txn)
+            .execute(txn.as_mut())
             .await?;
             if updated.rows_affected() == 1 {
-                notifier.update(chat_id);
+                txn.notifier().update(chat_id);
             }
         }
-
-        transaction.commit().await?;
         Ok(())
     }
 

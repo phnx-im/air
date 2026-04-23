@@ -22,7 +22,6 @@ use privacypass::{
     common::private::{PublicKey, deserialize_public_key},
     private_tokens::Ristretto255,
 };
-use sqlx::SqlitePool;
 use tls_codec::{Deserialize, Serialize};
 use tokio::time;
 use tracing::{debug, info, warn};
@@ -114,7 +113,7 @@ pub(crate) async fn request_and_store_tokens(
         let res = db
             .with_write_transaction(async |txn| -> sqlx::Result<()> {
                 for token_bytes in &serialized_tokens {
-                    persistence::store_token(txn, operation_type, token_bytes).await?;
+                    persistence::store_token(&mut *txn, operation_type, token_bytes).await?;
                 }
                 Ok(())
             })
@@ -153,7 +152,7 @@ pub(crate) async fn request_and_store_tokens(
 
 /// Consumes one token from local storage.
 pub(crate) async fn consume_token(
-    mut connection: impl WriteConnection,
+    connection: impl WriteConnection,
     operation_type: OperationType,
 ) -> anyhow::Result<Option<SerializedToken>> {
     Ok(persistence::consume_token(connection, operation_type)
@@ -248,7 +247,7 @@ pub(crate) async fn prepare_delete_token_request(
 /// Finalizes a token response from a `DeleteHandle` response and stores the
 /// token locally.
 pub(crate) async fn finalize_delete_token_response(
-    pool: &SqlitePool,
+    db: &DbAccess,
     response: &SerializedTokenResponse,
     token_state: TokenState,
 ) -> anyhow::Result<()> {
@@ -258,16 +257,17 @@ pub(crate) async fn finalize_delete_token_response(
     let tokens = token_response.issue_tokens(&token_state.0)?;
     for token in tokens {
         let token_bytes = token.tls_serialize_detached()?;
-        persistence::store_token(pool, OperationType::AddUsername, &token_bytes).await?;
+        persistence::store_token(db.write().await?, OperationType::AddUsername, &token_bytes)
+            .await?;
     }
     Ok(())
 }
 
 pub(crate) async fn needs_replenishment(
-    pool: &SqlitePool,
+    connection: impl ReadConnection,
     operation_type: OperationType,
 ) -> anyhow::Result<Option<u16>> {
-    let count = persistence::token_count(pool, operation_type).await?;
+    let count = persistence::token_count(connection, operation_type).await?;
     let max_tokens = operation_type.max_tokens_allowance();
     let replenish_count =
         (count < operation_type.low_tokens_threshold()).then_some(max_tokens.saturating_sub(count));
@@ -287,8 +287,8 @@ pub(crate) async fn purge_and_replenish(
 ) -> anyhow::Result<()> {
     let discarded = persistence::token_count(db.read().await?, operation_type).await?;
     info!(%discarded, "purging stale tokens after server rejected key");
-    persistence::delete_all_tokens(db.read().await?, operation_type).await?;
-    persistence::delete_all_batched_token_keys(db.read().await?, operation_type).await?;
+    persistence::delete_all_tokens(db.write().await?, operation_type).await?;
+    persistence::delete_all_batched_token_keys(db.write().await?, operation_type).await?;
     request_and_store_tokens(
         db,
         api_client,

@@ -15,11 +15,11 @@ use aircommon::{
 };
 use openmls::{prelude::KeyPackage, versions::ProtocolVersion};
 use openmls_rust_crypto::RustCrypto;
-use sqlx::SqliteConnection;
 
 use crate::{
     ChatId,
     clients::api_clients::ApiClients,
+    db_access::WriteDbConnection,
     groups::client_auth_info::StorableClientCredential,
     key_stores::{as_credentials::AsCredentials, indexed_keys::StorableIndexedKey},
     user_profiles::IndexedUserProfile,
@@ -47,7 +47,7 @@ pub(crate) struct ContactAddInfos {
 impl Contact {
     pub(crate) async fn fetch_add_infos(
         &self,
-        connection: &mut SqliteConnection,
+        connection: &mut WriteDbConnection,
         api_clients: &ApiClients,
     ) -> Result<ContactAddInfos> {
         let invited_user_domain = self.user_id.domain();
@@ -67,7 +67,7 @@ impl Contact {
         )?;
 
         let as_credential = AsCredentials::fetch_for_verification(
-            connection,
+            &mut *connection,
             api_clients,
             iter::once(&verifiable_client_credential),
         )

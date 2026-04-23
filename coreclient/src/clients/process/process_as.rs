@@ -19,7 +19,6 @@ use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use chrono::Utc;
 use openmls::group::GroupId;
-use sqlx::SqliteConnection;
 use tls_codec::DeserializeBytes;
 use tracing::{error, warn};
 
@@ -35,10 +34,10 @@ use crate::{
         },
     },
     contacts::UsernameContact,
+    db_access::{ReadConnection, WriteDbConnection},
     groups::ProfileInfo,
     job::{Job, JobContext},
     usernames::connection_packages::StorableConnectionPackage,
-    utils::connection_ext::ConnectionExt,
 };
 
 use super::{AsCredentials, Chat, ChatAttributes, ChatId, CoreUser, FriendshipPackage};
@@ -72,7 +71,7 @@ struct UsernameConnectionInfo {
 impl ConnectionInfoSource {
     async fn into_parts(
         self,
-        connection: &mut SqliteConnection,
+        connection: &mut WriteDbConnection,
         api_clients: &ApiClients,
     ) -> Result<(
         ConnectionInfo,
@@ -150,19 +149,16 @@ impl CoreUser {
                         username: username.clone(),
                         sent_at,
                     }));
-                let mut notifier = self.store_notifier();
-                let mut connection = self.pool().acquire().await?;
                 let mut context = JobContext {
                     api_clients: &self.inner.api_clients,
                     http_client: &self.inner.http_client,
-                    connection: &mut connection,
-                    notifier: &mut notifier,
+                    db: self.db(),
                     key_store: &self.inner.key_store,
                     now: Utc::now(),
                 };
                 let chat_id =
                     Self::process_connection_offer(&mut context, connection_info_source).await?;
-                notifier.notify();
+                // notifier.notify(); // XXX: notify only at the end of the job? what about the transaction helper?
                 Ok(chat_id)
             }
         }
@@ -172,7 +168,7 @@ impl CoreUser {
         context: &mut JobContext<'_>,
         connection_info_source: ConnectionInfoSource,
     ) -> anyhow::Result<ChatId> {
-        let connection = &mut *context.connection;
+        let db = context.db;
 
         let (
             connection_info,
@@ -181,13 +177,13 @@ impl CoreUser {
             username_connection_info,
             sent_at,
         ) = connection_info_source
-            .into_parts(&mut *connection, context.api_clients)
+            .into_parts(&mut db.write().await?, context.api_clients)
             .await?;
         // Use the server's timestamp if available, otherwise fall back to current time
         let message_timestamp = sent_at.unwrap_or_else(TimeStamp::now);
 
         // Deny connection from blocked users
-        if BlockedContact::check_blocked(&mut *connection, sender_client_credential.user_id())
+        if BlockedContact::check_blocked(&mut db.write().await?, sender_client_credential.user_id())
             .await?
         {
             bail!(BlockedContactError);
@@ -197,7 +193,10 @@ impl CoreUser {
         // ChatId is deterministic from the group_id, so a duplicate offer will
         // produce the same chat_id and we can safely return early.
         let chat_id = ChatId::try_from(&connection_info.connection_group_id)?;
-        if Chat::load(&mut *connection, &chat_id).await?.is_some() {
+        if Chat::load(&mut db.write().await?, &chat_id)
+            .await?
+            .is_some()
+        {
             return Ok(chat_id);
         }
 
@@ -256,13 +255,13 @@ impl CoreUser {
         }
 
         context
-            .connection
-            .with_transaction(async |txn| {
+            .db
+            .with_write_transaction(async |txn| {
                 let sender_user_id = sender_client_credential.user_id();
 
                 // Create pending unconfirmed chat
                 let (chat, partial_contact) = Self::create_pending_connection_chat(
-                    txn.as_mut(),
+                    &mut *txn,
                     &connection_info.connection_group_id,
                     sender_user_id.clone(),
                     connection_info.friendship_package.clone(),
@@ -308,7 +307,7 @@ impl CoreUser {
                         // Connection via targeted message
                         let origin_chat_id =
                             origin_chat_id.context("logic error: no origin chat id")?;
-                        let origin_chat = Chat::load(txn.as_mut(), &origin_chat_id)
+                        let origin_chat = Chat::load(&mut *txn, &origin_chat_id)
                             .await?
                             .context("no origin chat")?;
                         SystemMessage::ReceivedDirectConnectionRequest {
@@ -323,13 +322,10 @@ impl CoreUser {
 
                 // Store chat, pending connection info, partial contact and system message
                 // Note: Group is not created here!
-                chat.store(txn.as_mut(), context.notifier).await?;
-                pending_chat.store(txn.as_mut(), context.notifier).await?;
-                partial_contact
-                    .upsert(txn.as_mut(), context.notifier)
-                    .await?;
-                Self::store_new_messages(txn.as_mut(), context.notifier, chat.id(), chat_messages)
-                    .await?;
+                chat.store(&mut *txn).await?;
+                pending_chat.store(&mut *txn).await?;
+                partial_contact.upsert(&mut *txn).await?;
+                Self::store_new_messages(&mut txn, chat.id(), chat_messages).await?;
 
                 Ok(chat.id)
             })
@@ -338,7 +334,7 @@ impl CoreUser {
 
     /// Parse and verify the connection offer
     async fn parse_and_verify_connection_offer(
-        connection: &mut SqliteConnection,
+        connection: &mut WriteDbConnection,
         api_clients: &ApiClients,
         com: ConnectionOfferMessage,
         user_handle: Username,
@@ -376,7 +372,7 @@ impl CoreUser {
     }
 
     async fn create_pending_connection_chat(
-        connection: &mut SqliteConnection,
+        connection: impl ReadConnection,
         group_id: &GroupId,
         sender_user_id: UserId,
         _friendship_package: FriendshipPackage,

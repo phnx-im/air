@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{borrow::Cow, collections::BTreeMap, fmt::Write};
+use std::{borrow::Cow, collections::BTreeMap};
 
 use aircommon::{
     codec::PersistenceCodec,
@@ -10,10 +10,7 @@ use aircommon::{
 };
 use enumset::EnumSet;
 use serde::{Deserialize, Serialize};
-use sqlx::{
-    Acquire, Decode, Encode, Sqlite, SqliteExecutor, Type, encode::IsNull, error::BoxDynError,
-    query, query_as,
-};
+use sqlx::{Decode, Encode, Sqlite, Type, encode::IsNull, error::BoxDynError, query, query_as};
 use tokio_stream::StreamExt;
 use tracing::error;
 use uuid::Uuid;
@@ -121,11 +118,8 @@ impl SqlStoreNotification {
 }
 
 impl StoreNotification {
-    pub(crate) async fn enqueue(
-        &self,
-        connection: &mut sqlx::SqliteConnection,
-    ) -> sqlx::Result<()> {
-        let mut transaction = connection.begin().await?;
+    pub(crate) async fn enqueue(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
+        let mut transaction = connection.begin_immediate().await?;
         for (entity_id, operation) in &self.ops {
             let kind = entity_id.kind();
             let added = operation.contains(StoreOperation::Add);
@@ -144,7 +138,7 @@ impl StoreNotification {
                 updated,
                 removed,
             )
-            .execute(&mut *transaction)
+            .execute(transaction.as_mut())
             .await?;
         }
         transaction.commit().await?;
