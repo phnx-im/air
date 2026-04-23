@@ -70,10 +70,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get userSettingsScreen_accountSection => 'Konto';
 
   @override
-  String get userSettingsScreen_usernamePlaceholder => 'Benutzername';
-
-  @override
-  String get userSettingsScreen_inviteCodes => 'Invite codes';
+  String get userSettingsScreen_inviteCodes => 'Einladungscodes';
 
   @override
   String get settingsScreen_copiedToClipboard => 'In Zwischenablage kopiert';
@@ -90,6 +87,9 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get removeUsernameDialog_remove => 'Entfernen';
+
+  @override
+  String get userSettingsScreen_usernamePlaceholder => 'Benutzername';
 
   @override
   String get addMembersScreen_addMembers => 'Mitglieder hinzufügen';
@@ -275,38 +275,41 @@ class AppLocalizationsDe extends AppLocalizations {
       'Ungültiger Einladungscode. Prüfe den Code und versuche es erneut.';
 
   @override
-  String get invitationCodesScreen_title => 'Invite codes';
+  String get invitationCodesScreen_title => 'Einladungscodes';
 
   @override
-  String get invitationCodesScreen_copyAll => 'Copy all';
+  String get invitationCodesScreen_copyAll => 'Alle kopieren';
 
   @override
-  String get invitationCodesScreen_tapToGetCode => 'Tap to get code';
+  String get invitationCodesScreen_tapToGetCode =>
+      'Tippen, um einen Code zu erhalten';
 
   @override
-  String get invitationCodesScreen_removeUnusedCodes => 'Remove used codes';
+  String get invitationCodesScreen_removeUsedCodes =>
+      'Verwendete Codes entfernen';
 
   @override
-  String get invitationCodesScreen_empty => 'No invitation codes available';
+  String get invitationCodesScreen_empty => 'Keine Einladungscodes verfügbar';
 
   @override
   String get invitationCodesScreen_infoText1 =>
-      'Air is in a limited access phase. Everyone who wants to join needs an invite code.';
+      'Air befindet sich in einer Phase mit eingeschränktem Zugang. Jeder, der beitreten möchte, braucht einen Einladungscode.';
 
   @override
   String get invitationCodesScreen_infoText2 =>
-      'Share these codes with your friends or anyone else who wants to join Air! New codes will be added periodically.';
+      'Teile diese Codes mit Freunden oder anderen, die Air beitreten möchten! Neue Codes werden regelmäßig hinzugefügt.';
 
   @override
   String get invitationCodesScreen_global_quota_exceeded =>
-      'Wir haben im Moment keine Einladungenscode mehr, versuch es bitte später nochmal.';
+      'Wir haben im Moment keine Einladungscodes mehr, versuch es bitte später nochmal.';
 
   @override
   String get invitationCodesScreen_errorRequestingCode =>
-      'Something went wrong. Try again.';
+      'Etwas ist schiefgelaufen. Versuche es erneut.';
 
   @override
-  String get invitationCodesScreen_copiedToClipboard => 'Copied to clipboard';
+  String get invitationCodesScreen_copiedToClipboard =>
+      'In Zwischenablage kopiert';
 
   @override
   String get signUpScreen_header => 'Erstelle dein Profil';

@@ -70,10 +70,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get userSettingsScreen_accountSection => 'Konto';
 
   @override
-  String get userSettingsScreen_usernamePlaceholder => 'Användarnamn';
-
-  @override
-  String get userSettingsScreen_inviteCodes => 'Invite codes';
+  String get userSettingsScreen_inviteCodes => 'Inbjudningskoder';
 
   @override
   String get settingsScreen_copiedToClipboard => 'Kopierat till urklipp';
@@ -90,6 +87,9 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get removeUsernameDialog_remove => 'Ta bort';
+
+  @override
+  String get userSettingsScreen_usernamePlaceholder => 'Användarnamn';
 
   @override
   String get addMembersScreen_addMembers => 'Lägg till medlemmar';
@@ -273,38 +273,39 @@ class AppLocalizationsSv extends AppLocalizations {
       'Ogiltig inbjudningskod. Kontrollera koden och försök igen.';
 
   @override
-  String get invitationCodesScreen_title => 'Invite codes';
+  String get invitationCodesScreen_title => 'Inbjudningskoder';
 
   @override
-  String get invitationCodesScreen_copyAll => 'Copy all';
+  String get invitationCodesScreen_copyAll => 'Kopiera alla';
 
   @override
-  String get invitationCodesScreen_tapToGetCode => 'Tap to get code';
+  String get invitationCodesScreen_tapToGetCode => 'Tryck för att få en kod';
 
   @override
-  String get invitationCodesScreen_removeUnusedCodes => 'Remove used codes';
+  String get invitationCodesScreen_removeUsedCodes => 'Ta bort använda koder';
 
   @override
-  String get invitationCodesScreen_empty => 'No invitation codes available';
+  String get invitationCodesScreen_empty =>
+      'Inga inbjudningskoder tillgängliga';
 
   @override
   String get invitationCodesScreen_infoText1 =>
-      'Air is in a limited access phase. Everyone who wants to join needs an invite code.';
+      'Air är i en fas med begränsad tillgång. Alla som vill gå med behöver en inbjudningskod.';
 
   @override
   String get invitationCodesScreen_infoText2 =>
-      'Share these codes with your friends or anyone else who wants to join Air! New codes will be added periodically.';
+      'Dela dessa koder med dina vänner eller andra som vill gå med i Air! Nya koder läggs till regelbundet.';
 
   @override
   String get invitationCodesScreen_global_quota_exceeded =>
-      'We\'re out of invites for now, please try again later.';
+      'Vi har inga fler inbjudningar för tillfället, försök igen senare.';
 
   @override
   String get invitationCodesScreen_errorRequestingCode =>
-      'Something went wrong. Try again.';
+      'Något gick fel. Försök igen.';
 
   @override
-  String get invitationCodesScreen_copiedToClipboard => 'Copied to clipboard';
+  String get invitationCodesScreen_copiedToClipboard => 'Kopierat till urklipp';
 
   @override
   String get signUpScreen_header => 'Skapa din profil';
@@ -358,7 +359,7 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get usernameOnboarding_error =>
-      'Something went wrong on our end. Wait a moment, then try again.';
+      'Något gick fel hos oss. Vänta en stund och försök igen.';
 
   @override
   String get usernameOnboarding_next => 'Nästa';
