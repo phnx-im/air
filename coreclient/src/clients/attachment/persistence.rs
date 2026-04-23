@@ -6,11 +6,15 @@ use aircommon::identifiers::AttachmentId;
 use chrono::{DateTime, Utc};
 use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
 use sqlx::{
-    Database, Decode, Encode, Sqlite, SqliteExecutor, Type, encode::IsNull, error::BoxDynError,
-    query, query_as, query_scalar,
+    Database, Decode, Encode, Sqlite, Type, encode::IsNull, error::BoxDynError, query, query_as,
+    query_scalar,
 };
 
-use crate::{ChatId, MessageId, store::StoreNotifier};
+use crate::{
+    ChatId, MessageId,
+    db_access::{ReadConnection, WriteConnection},
+    store::StoreNotifier,
+};
 
 /// A record of an attachment.
 ///
@@ -136,8 +140,7 @@ impl<'r> Decode<'r, Sqlite> for AttachmentStatus {
 impl AttachmentRecord {
     pub(crate) async fn store(
         &self,
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
+        mut connection: impl WriteConnection,
         content: Option<&[u8]>,
     ) -> sqlx::Result<()> {
         query!(
@@ -158,14 +161,14 @@ impl AttachmentRecord {
             self.status,
             self.created_at,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
-        notifier.add(self.attachment_id);
+        connection.notifier().add(self.attachment_id);
         Ok(())
     }
 
     pub(crate) async fn load_all_pending(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
     ) -> sqlx::Result<Vec<AttachmentId>> {
         query_scalar!(
             r#"SELECT
@@ -175,12 +178,12 @@ impl AttachmentRecord {
             ORDER BY created_at ASC"#,
             AttachmentStatus::Pending
         )
-        .fetch_all(executor)
+        .fetch_all(connection.as_mut())
         .await
     }
 
     pub(crate) async fn load(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         attachment_id: AttachmentId,
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
@@ -197,12 +200,12 @@ impl AttachmentRecord {
                 WHERE attachment_id = ?"#,
             attachment_id
         )
-        .fetch_optional(executor)
+        .fetch_optional(connection.as_mut())
         .await
     }
 
     pub(crate) async fn status(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         attachment_id: AttachmentId,
     ) -> sqlx::Result<Option<AttachmentStatus>> {
         query_scalar!(
@@ -210,12 +213,12 @@ impl AttachmentRecord {
             FROM attachment WHERE attachment_id = ?"#,
             attachment_id,
         )
-        .fetch_optional(executor)
+        .fetch_optional(connection.as_mut())
         .await
     }
 
     pub(crate) async fn update_status(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl WriteConnection,
         attachment_id: AttachmentId,
         status: AttachmentStatus,
     ) -> sqlx::Result<()> {
@@ -224,13 +227,13 @@ impl AttachmentRecord {
             status,
             attachment_id,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
         Ok(())
     }
 
     pub(crate) async fn set_content(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl WriteConnection,
         notifier: &mut StoreNotifier,
         attachment_id: AttachmentId,
         bytes: &[u8],
@@ -241,14 +244,14 @@ impl AttachmentRecord {
             bytes,
             attachment_id,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
         notifier.update(attachment_id);
         Ok(())
     }
 
     pub(crate) async fn load_content(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         attachment_id: AttachmentId,
     ) -> sqlx::Result<AttachmentContent> {
         struct SqlParts {
@@ -263,7 +266,7 @@ impl AttachmentRecord {
             FROM attachment WHERE attachment_id = ?"#,
             attachment_id
         )
-        .fetch_optional(executor)
+        .fetch_optional(connection.as_mut())
         .await?;
         match record {
             Some(record) => Ok(AttachmentContent::from_parts(record.content, record.status)),
@@ -272,7 +275,7 @@ impl AttachmentRecord {
     }
 
     pub(crate) async fn copy(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl WriteConnection,
         notifier: &mut StoreNotifier,
         src_id: AttachmentId,
         dst_id: AttachmentId,
@@ -293,24 +296,23 @@ impl AttachmentRecord {
             src_id,
             dst_id,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
         notifier.add(dst_id);
         Ok(())
     }
 
     pub(crate) async fn delete(
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
+        mut connection: impl WriteConnection,
         attachment_id: AttachmentId,
     ) -> sqlx::Result<()> {
         query!(
             "DELETE FROM attachment WHERE attachment_id = ?",
             attachment_id
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
-        notifier.remove(attachment_id);
+        connection.notifier().remove(attachment_id);
         Ok(())
     }
 
@@ -319,8 +321,7 @@ impl AttachmentRecord {
     /// This is used for network deletions where the message content becomes NullPart
     /// but the message row remains (so FK cascade doesn't apply).
     pub(crate) async fn delete_by_message_id(
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
+        mut connection: impl WriteConnection,
         message_id: MessageId,
     ) -> sqlx::Result<()> {
         // Load attachment_ids and delete in one query with RETURNING
@@ -329,12 +330,12 @@ impl AttachmentRecord {
             RETURNING attachment_id AS "attachment_id: AttachmentId""#,
             message_id
         )
-        .fetch_all(executor)
+        .fetch_all(connection.as_mut())
         .await?;
 
         // Notify for each deleted attachment
         for id in attachment_ids {
-            notifier.remove(id);
+            connection.notifier().remove(id);
         }
         Ok(())
     }
@@ -343,7 +344,7 @@ impl AttachmentRecord {
     ///
     /// This is primarily used for test verification.
     pub(crate) async fn load_ids_by_message_id(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         message_id: MessageId,
     ) -> sqlx::Result<Vec<AttachmentId>> {
         query_scalar!(
@@ -352,7 +353,7 @@ impl AttachmentRecord {
             WHERE message_id = ?"#,
             message_id
         )
-        .fetch_all(executor)
+        .fetch_all(connection.as_mut())
         .await
     }
 }
@@ -371,11 +372,7 @@ pub(crate) struct PendingAttachmentRecord {
 }
 
 impl PendingAttachmentRecord {
-    pub(crate) async fn store(
-        &self,
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
-    ) -> sqlx::Result<()> {
+    pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
         let size = self.size as i64;
         let enc_alg: i64 = self.enc_alg.repr().into();
         let hash_alg: i64 = self.hash_alg.repr().into();
@@ -399,14 +396,14 @@ impl PendingAttachmentRecord {
             hash_alg,
             self.hash,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
-        notifier.add(self.attachment_id);
+        connection.notifier().add(self.attachment_id);
         Ok(())
     }
 
     pub(crate) async fn load_pending(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         attachment_id: AttachmentId,
     ) -> sqlx::Result<Option<Self>> {
         struct SqlPendingAttachmentRecord {
@@ -436,7 +433,7 @@ impl PendingAttachmentRecord {
             "#,
             attachment_id
         )
-        .fetch_optional(executor)
+        .fetch_optional(connection.as_mut())
         .await?;
         Ok(record.map(
             |SqlPendingAttachmentRecord {
@@ -463,14 +460,14 @@ impl PendingAttachmentRecord {
     }
 
     pub(crate) async fn delete(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl WriteConnection,
         attachment_id: AttachmentId,
     ) -> sqlx::Result<()> {
         query!(
             "DELETE FROM pending_attachment WHERE attachment_id = ?",
             attachment_id
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
         Ok(())
     }

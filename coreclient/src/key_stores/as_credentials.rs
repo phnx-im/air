@@ -16,12 +16,15 @@ use aircommon::{
     },
     identifiers::Fqdn,
 };
+use serde_json::de::Read;
 use sqlx::{
     Database, Encode, Sqlite, SqliteConnection, SqliteExecutor, Type, encode::IsNull,
     error::BoxDynError, query, query_scalar,
 };
 use thiserror::Error;
 use tracing::info;
+
+use crate::db_access::{ReadConnection, WriteConnection};
 
 use super::*;
 
@@ -90,7 +93,7 @@ impl AsCredentials {
         }
     }
 
-    async fn store(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+    async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
         let fingerprint = self.fingerprint();
         let domain = self.domain();
         let credential_type = self.credential_type();
@@ -103,13 +106,13 @@ impl AsCredentials {
             credential_type,
             body,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
         Ok(())
     }
 
     async fn load_intermediate(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         fingerprint_option: Option<&Hash<AsIntermediateCredentialBody>>,
         domain: &Fqdn,
     ) -> sqlx::Result<Option<AsIntermediateCredential>> {
@@ -125,7 +128,7 @@ impl AsCredentials {
                     domain,
                     fingerprint,
                 )
-                .fetch_optional(executor)
+                .fetch_optional(connection.as_mut())
                 .await?
             } else {
                 query_scalar!(
@@ -136,7 +139,7 @@ impl AsCredentials {
                     AND credential_type = 'as_intermediate_credential'"#,
                     domain
                 )
-                .fetch_optional(executor)
+                .fetch_optional(connection.as_mut())
                 .await?
             };
         Ok(body.map(AsIntermediateCredential::from))
@@ -164,7 +167,7 @@ impl AsCredentials {
     }
 
     pub(crate) async fn fetch_for_verification(
-        connection: &mut SqliteConnection,
+        mut connection: impl ReadConnection,
         api_clients: &ApiClients,
         verifiable_credentials: impl Iterator<Item = &VerifiableClientCredential>,
     ) -> Result<HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>> {
@@ -189,14 +192,14 @@ impl AsCredentials {
     /// Fetches the credentials of the AS with the given `domain` if they are
     /// not already present in the store.
     pub(crate) async fn get(
-        connection: &mut SqliteConnection,
+        connection: impl WriteConnection,
         api_clients: &ApiClients,
         domain: &Fqdn,
         fingerprint: &Hash<AsIntermediateCredentialBody>,
     ) -> Result<AsIntermediateCredential, AsCredentialStoreError> {
         // Phase 1: Check if there is a credential in the database.
         let credential_option =
-            AsCredentials::load_intermediate(&mut *connection, Some(fingerprint), domain).await?;
+            AsCredentials::load_intermediate(connection, Some(fingerprint), domain).await?;
 
         // Phase 2: If there is no credential in the database, fetch it from the AS.
         let credential = if let Some(credential) = credential_option {
@@ -212,7 +215,7 @@ impl AsCredentials {
 
             // Phase 2b: Store it in the database.
             let credential_type = AsCredentials::AsIntermediateCredential(credential);
-            credential_type.store(&mut *connection).await?;
+            credential_type.store(connection).await?;
             let AsCredentials::AsIntermediateCredential(credential) = credential_type else {
                 unreachable!()
             };
@@ -225,11 +228,11 @@ impl AsCredentials {
     }
 
     pub(crate) async fn get_intermediate_credential(
-        executor: impl SqliteExecutor<'_>,
+        connection: impl ReadConnection,
         api_clients: &ApiClients,
         domain: &Fqdn,
     ) -> Result<AsIntermediateCredential, AsCredentialStoreError> {
-        let credential_option = AsCredentials::load_intermediate(executor, None, domain).await?;
+        let credential_option = AsCredentials::load_intermediate(connection, None, domain).await?;
         match credential_option {
             Some(credential) => Ok(credential),
             None => {

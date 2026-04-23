@@ -7,7 +7,9 @@ use aircommon::{
     time::{Duration, TimeStamp},
 };
 use anyhow::{Result, bail};
-use sqlx::{SqliteExecutor, SqlitePool, SqliteTransaction, query, query_as};
+use sqlx::{SqlitePool, query, query_as};
+
+use crate::db_access::{ReadConnection, WriteConnection, WriteDbTransaction};
 
 const STATE_ID: i64 = 1;
 pub(crate) const PUSH_TOKEN_PENDING_MAX_FUTURE_SECS: i64 = 300;
@@ -40,7 +42,7 @@ impl PushTokenState {
 
 /// Loads the current persisted push token state, if any.
 pub(crate) async fn load_state(
-    executor: impl SqliteExecutor<'_>,
+    mut connection: impl ReadConnection,
 ) -> sqlx::Result<Option<PushTokenState>> {
     query_as!(
         PushTokenState,
@@ -52,13 +54,13 @@ pub(crate) async fn load_state(
         WHERE id = ?1"#,
         STATE_ID,
     )
-    .fetch_optional(executor)
+    .fetch_optional(connection.as_mut())
     .await
 }
 
 /// Loads the state only when a pending update is due.
 pub(crate) async fn load_pending(
-    executor: impl SqliteExecutor<'_>,
+    mut connection: impl ReadConnection,
     now: TimeStamp,
 ) -> sqlx::Result<Option<PushTokenState>> {
     query_as!(
@@ -74,13 +76,13 @@ pub(crate) async fn load_pending(
         STATE_ID,
         now,
     )
-    .fetch_optional(executor)
+    .fetch_optional(connection.as_mut())
     .await
 }
 
 /// Clamps any far-future pending timestamp back to the allowed window.
 pub(crate) async fn clamp_pending_future(
-    executor: impl SqliteExecutor<'_>,
+    mut connection: impl WriteConnection,
     now: TimeStamp,
 ) -> sqlx::Result<()> {
     let max_pending = max_pending_update(now);
@@ -91,7 +93,7 @@ pub(crate) async fn clamp_pending_future(
         max_pending,
         STATE_ID,
     )
-    .execute(executor)
+    .execute(connection.as_mut())
     .await?;
     Ok(())
 }
@@ -109,10 +111,10 @@ pub(crate) async fn mark_pending_if_changed(
 
 /// Transactional helper to avoid racy read/modify/write updates.
 async fn mark_pending_if_changed_txn(
-    txn: &mut SqliteTransaction<'_>,
+    txn: &mut WriteDbTransaction<'_>,
     push_token: Option<PushToken>,
 ) -> sqlx::Result<bool> {
-    let existing = load_state(txn.as_mut()).await?;
+    let existing = load_state(&mut *txn).await?;
 
     let (operator, token) = match push_token {
         Some(push_token) => (
@@ -152,19 +154,19 @@ async fn mark_pending_if_changed_txn(
 }
 
 /// Clears pending state after a successful update or a terminal failure.
-pub(crate) async fn clear_pending(executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+pub(crate) async fn clear_pending(mut connection: impl WriteConnection) -> sqlx::Result<()> {
     query!(
         "UPDATE push_token_state SET pending_update = NULL WHERE id = ?1",
         STATE_ID,
     )
-    .execute(executor)
+    .execute(connection.as_mut())
     .await?;
     Ok(())
 }
 
 /// Schedules a retry, clamped to the max future window.
 pub(crate) async fn schedule_retry(
-    executor: impl SqliteExecutor<'_>,
+    mut connection: impl WriteConnection,
     retry_at: TimeStamp,
 ) -> sqlx::Result<()> {
     let max_pending = max_pending_update(TimeStamp::now());
@@ -178,7 +180,7 @@ pub(crate) async fn schedule_retry(
         retry_at,
         STATE_ID,
     )
-    .execute(executor)
+    .execute(connection.as_mut())
     .await?;
     Ok(())
 }

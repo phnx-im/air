@@ -54,20 +54,21 @@ impl CoreUser {
     }
 
     pub(crate) async fn erase_chat(&self, chat_id: ChatId) -> Result<()> {
-        self.with_transaction_and_notifier(async |txn, notifier| {
-            let chat = Chat::load(txn.as_mut(), &chat_id)
-                .await?
-                .context("missing chat for deletion")?;
-            Group::delete_from_db(txn, chat.group_id())
-                .await
-                .inspect_err(|error| {
-                    error!(%error, "failed to delete group; skipping");
-                })
-                .ok();
-            Chat::delete(txn.as_mut(), notifier, chat.id()).await?;
-            Ok(())
-        })
-        .await
+        self.db
+            .with_write_transaction(async |txn| {
+                let chat = Chat::load(txn, &chat_id)
+                    .await?
+                    .context("missing chat for deletion")?;
+                Group::delete_from_db(txn, chat.group_id())
+                    .await
+                    .inspect_err(|error| {
+                        error!(%error, "failed to delete group; skipping");
+                    })
+                    .ok();
+                Chat::delete(txn, chat.id()).await?;
+                Ok(())
+            })
+            .await
     }
 
     pub(crate) async fn leave_chat(&self, chat_id: ChatId) -> Result<()> {

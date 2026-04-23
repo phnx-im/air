@@ -113,12 +113,14 @@ impl CoreUser {
 }
 
 mod persistence {
+    use crate::db_access::{ReadConnection, WriteConnection};
+
     use super::InvitationCode;
 
     use sqlx::{SqliteExecutor, query, query_as};
 
     impl InvitationCode {
-        pub(crate) async fn store(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+        pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
             query!(
                 "INSERT INTO invitation_code (
                     code, created_at, copied
@@ -127,39 +129,39 @@ mod persistence {
                 self.created_at,
                 self.copied
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             Ok(())
         }
 
         pub async fn load_all(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl ReadConnection,
         ) -> sqlx::Result<Vec<InvitationCode>> {
             query_as!(
                 InvitationCode,
                 r#"SELECT code, copied, created_at AS "created_at: _"
                 FROM invitation_code"#
             )
-            .fetch_all(executor)
+            .fetch_all(connection.as_mut())
             .await
         }
 
         pub async fn mark_as_copied(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl WriteConnection,
             code: &str,
         ) -> sqlx::Result<()> {
             query!(
                 "UPDATE invitation_code SET copied = TRUE WHERE code = ?",
                 code
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             Ok(())
         }
 
-        pub async fn delete_all_copied(executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+        pub async fn delete_all_copied(mut connection: impl WriteConnection) -> sqlx::Result<()> {
             query!("DELETE FROM invitation_code WHERE copied = TRUE",)
-                .execute(executor)
+                .execute(connection.as_mut())
                 .await?;
             Ok(())
         }

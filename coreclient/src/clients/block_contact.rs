@@ -57,16 +57,16 @@ pub struct BlockedContactError;
 mod persistence {
     use sqlx::{SqliteExecutor, query, query_scalar};
 
-    use crate::{ChatId, store::StoreNotifier};
+    use crate::{
+        ChatId,
+        db_access::{ReadConnection, WriteConnection},
+        store::StoreNotifier,
+    };
 
     use super::*;
 
     impl BlockedContact {
-        pub(crate) async fn store(
-            &self,
-            executor: impl SqliteExecutor<'_>,
-            notifier: &mut StoreNotifier,
-        ) -> sqlx::Result<()> {
+        pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
             let uuid = self.user_id.uuid();
             let domain = self.user_id.domain();
             query!(
@@ -81,16 +81,16 @@ mod persistence {
                 self.last_display_name,
                 self.blocked_at,
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
 
-            notifier.add(self.user_id.clone());
+            connection.notifier().add(self.user_id.clone());
 
             Ok(())
         }
 
         pub(crate) async fn check_blocked(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl ReadConnection,
             user_id: &UserId,
         ) -> sqlx::Result<bool> {
             let user_uuid = user_id.uuid();
@@ -103,7 +103,7 @@ mod persistence {
                 user_uuid,
                 user_domain,
             )
-            .fetch_one(executor)
+            .fetch_one(connection.as_mut())
             .await
         }
 
@@ -112,7 +112,7 @@ mod persistence {
         /// Note: Group chats that contain a blocked contact are not considered as blocked.
         /// Therefore, this function returns `false` in this case.
         pub(crate) async fn check_blocked_chat(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl ReadConnection,
             chat_id: ChatId,
         ) -> sqlx::Result<bool> {
             query_scalar!(
@@ -125,13 +125,12 @@ mod persistence {
                 ) AS "exists: _""#,
                 chat_id,
             )
-            .fetch_one(executor)
+            .fetch_one(connection.as_mut())
             .await
         }
 
         pub(super) async fn delete_by_id(
-            executor: impl SqliteExecutor<'_>,
-            notifier: &mut StoreNotifier,
+            mut connection: impl WriteConnection,
             user_id: UserId,
         ) -> sqlx::Result<()> {
             let uuid = user_id.uuid();
@@ -141,10 +140,10 @@ mod persistence {
                 uuid,
                 domain,
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
 
-            notifier.add(user_id.clone());
+            connection.notifier().add(user_id.clone());
 
             Ok(())
         }

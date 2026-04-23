@@ -14,7 +14,9 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::{
-    Chat, ChatAttributes, ChatId, ChatStatus, ChatType, MessageId, store::StoreNotifier,
+    Chat, ChatAttributes, ChatId, ChatStatus, ChatType, MessageId,
+    db_access::{ReadConnection, WriteConnection, WriteDbConnection},
+    store::StoreNotifier,
     utils::persistence::GroupIdWrapper,
 };
 
@@ -97,7 +99,7 @@ impl SqlChat {
 
     async fn load_past_members(
         &self,
-        connection: &mut SqliteConnection,
+        connection: impl ReadConnection,
     ) -> sqlx::Result<Vec<SqlPastMember>> {
         if self.is_active {
             return Ok(Vec::new());
@@ -238,7 +240,7 @@ impl Chat {
     }
 
     pub(crate) async fn load(
-        connection: &mut SqliteConnection,
+        mut connection: impl ReadConnection,
         chat_id: &ChatId,
     ) -> sqlx::Result<Option<Chat>> {
         let mut transaction = connection.begin().await?;
@@ -268,18 +270,17 @@ impl Chat {
             WHERE chat_id = ?"#,
             chat_id
         )
-        .fetch_optional(&mut *transaction)
+        .fetch_optional(transaction.as_mut())
         .await?;
         let Some(chat) = chat else {
             return Ok(None);
         };
-        let members = chat.load_past_members(&mut transaction).await?;
-        transaction.commit().await?;
+        let members = chat.load_past_members(transaction).await?;
         Ok(chat.convert(members))
     }
 
     pub(crate) async fn load_ordered_ids(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
     ) -> sqlx::Result<Vec<ChatId>> {
         // Note: Sqlite considers NULL values as the smallest value.
         // Note: A draft is empty <=> trimmed text is empty AND editing_id is null.
@@ -302,7 +303,7 @@ impl Chat {
                 c.chat_id
             "#,
         )
-        .fetch_all(executor)
+        .fetch_all(connection.as_mut())
         .await
     }
 
@@ -311,7 +312,7 @@ impl Chat {
     /// Returns all chat ids that have a group attached with `self_updated_at` < `until_due_at`
     /// ordered by `self_updated_at`. Inactive chats are excluded.
     pub(crate) async fn load_ids_for_self_update(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         until_due_at: DateTime<Utc>,
     ) -> sqlx::Result<Vec<ChatId>> {
         query_scalar!(
@@ -324,12 +325,12 @@ impl Chat {
             ORDER BY g.self_updated_at ASC"#,
             until_due_at as _,
         )
-        .fetch_all(executor)
+        .fetch_all(connection.as_mut())
         .await
     }
 
     pub(crate) async fn load_by_group_id(
-        connection: &mut SqliteConnection,
+        mut connection: impl ReadConnection,
         group_id: &GroupId,
     ) -> sqlx::Result<Option<Chat>> {
         let group_id = group_id.as_slice();
@@ -361,7 +362,7 @@ impl Chat {
             WHERE group_id = ?"#,
             group_id
         )
-        .fetch_optional(&mut *transaction)
+        .fetch_optional(transaction.as_mut())
         .await?;
         let Some(chat) = chat else {
             return Ok(None);
@@ -372,8 +373,7 @@ impl Chat {
     }
 
     pub(super) async fn update_picture(
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
+        mut connection: impl WriteConnection,
         chat_id: ChatId,
         chat_picture: Option<&[u8]>,
     ) -> sqlx::Result<()> {
@@ -382,15 +382,14 @@ impl Chat {
             chat_picture,
             chat_id,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
-        notifier.update(chat_id);
+        connection.notifier().update(chat_id);
         Ok(())
     }
 
     pub(super) async fn update_title(
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
+        mut connection: impl WriteConnection,
         chat_id: ChatId,
         chat_title: &str,
     ) -> sqlx::Result<()> {
@@ -399,15 +398,14 @@ impl Chat {
             chat_title,
             chat_id,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
-        notifier.update(chat_id);
+        connection.notifier().update(chat_id);
         Ok(())
     }
 
     pub(super) async fn update_status(
-        connection: &mut SqliteConnection,
-        notifier: &mut StoreNotifier,
+        mut connection: impl WriteConnection,
         chat_id: ChatId,
         status: &ChatStatus,
     ) -> sqlx::Result<()> {
@@ -418,10 +416,10 @@ impl Chat {
                     "UPDATE chat SET is_active = false WHERE chat_id = ?",
                     chat_id,
                 )
-                .execute(&mut *transaction)
+                .execute(transaction.as_mut())
                 .await?;
                 query!("DELETE FROM chat_past_member WHERE chat_id = ?", chat_id,)
-                    .execute(&mut *transaction)
+                    .execute(transaction.as_mut())
                     .await?;
                 for member in inactive.past_members() {
                     let uuid = member.uuid();
@@ -437,7 +435,7 @@ impl Chat {
                         uuid,
                         domain,
                     )
-                    .execute(&mut *transaction)
+                    .execute(transaction.as_mut())
                     .await?;
                 }
             }
@@ -446,7 +444,7 @@ impl Chat {
                     "UPDATE chat SET is_active = true WHERE chat_id = ?",
                     chat_id,
                 )
-                .execute(&mut *transaction)
+                .execute(transaction.as_mut())
                 .await?;
             }
             ChatStatus::Blocked => {
@@ -454,19 +452,18 @@ impl Chat {
             }
         }
         transaction.commit().await?;
-        notifier.update(chat_id);
+        connection.notifier().update(chat_id);
         Ok(())
     }
 
     pub(crate) async fn delete(
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
+        mut connection: impl WriteConnection,
         chat_id: ChatId,
     ) -> sqlx::Result<()> {
         query!("DELETE FROM chat WHERE chat_id = ?", chat_id)
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
-        notifier.remove(chat_id);
+        connection.notifier().remove(chat_id);
         Ok(())
     }
 
@@ -474,11 +471,11 @@ impl Chat {
     /// [`chatId`]s to the given timestamps. This is used to mark all
     /// messages up to this timestamp as read.
     pub(crate) async fn mark_as_read(
-        connection: &mut sqlx::SqliteConnection,
-        notifier: &mut StoreNotifier,
+        connection: &mut WriteDbConnection,
         mark_as_read_data: impl IntoIterator<Item = (ChatId, DateTime<Utc>)>,
     ) -> sqlx::Result<()> {
         let mut transaction = connection.begin().await?;
+        let (txn, notifier) = transaction.split();
 
         for (chat_id, timestamp) in mark_as_read_data {
             let unread_messages: Vec<MessageId> = query_scalar!(
@@ -490,7 +487,7 @@ impl Chat {
                 chat_id,
                 timestamp,
             )
-            .fetch_all(&mut *transaction)
+            .fetch_all(&mut *txn)
             .await?;
 
             for message_id in unread_messages {
@@ -504,7 +501,7 @@ impl Chat {
                 timestamp,
                 chat_id,
             )
-            .execute(&mut *transaction)
+            .execute(&mut *txn)
             .await?;
             if updated.rows_affected() == 1 {
                 notifier.update(chat_id);
@@ -602,7 +599,7 @@ impl Chat {
     }
 
     pub(crate) async fn global_unread_message_count(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
     ) -> sqlx::Result<usize> {
         // We exclude deleted messages from the unread count.
         let excluded_status = MessageStatus::Deleted.repr();
@@ -621,13 +618,13 @@ impl Chat {
                 AND m.status != ?1"#,
             excluded_status
         )
-        .fetch_one(executor)
+        .fetch_one(connection.as_mut())
         .await
         .map(|n: u32| n.try_into().expect("usize overflow"))
     }
 
     pub(crate) async fn messages_count(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         chat_id: ChatId,
     ) -> sqlx::Result<usize> {
         query_scalar!(
@@ -641,13 +638,13 @@ impl Chat {
                 AND m.sender_user_domain IS NOT NULL"#,
             chat_id
         )
-        .fetch_one(executor)
+        .fetch_one(connection.as_mut())
         .await
         .map(|n: u32| n.try_into().expect("usize overflow"))
     }
 
     pub(crate) async fn unread_messages_count(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         chat_id: ChatId,
     ) -> sqlx::Result<usize> {
         // We exclude deleted messages from the unread count.
@@ -674,15 +671,14 @@ impl Chat {
             chat_id,
             excluded_status
         )
-        .fetch_one(executor)
+        .fetch_one(connection.as_mut())
         .await
         .map(|n: Option<u32>| n.unwrap_or(0).try_into().expect("usize overflow"))
     }
 
     pub(super) async fn set_chat_type(
         &self,
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
+        mut connection: impl WriteConnection,
         chat_type: &ChatType,
     ) -> sqlx::Result<()> {
         match chat_type {
@@ -698,7 +694,7 @@ impl Chat {
                     username,
                     self.id,
                 )
-                .execute(executor)
+                .execute(connection.as_mut())
                 .await?;
             }
             ChatType::Connection(user_id) => {
@@ -714,7 +710,7 @@ impl Chat {
                     domain,
                     self.id,
                 )
-                .execute(executor)
+                .execute(connection.as_mut())
                 .await?;
             }
             ChatType::Group => {
@@ -725,7 +721,7 @@ impl Chat {
                     WHERE chat_id = ?",
                     self.id,
                 )
-                .execute(executor)
+                .execute(connection.as_mut())
                 .await?;
             }
             ChatType::TargetedMessageConnection(user_id) => {
@@ -742,7 +738,7 @@ impl Chat {
                     domain,
                     self.id,
                 )
-                .execute(executor)
+                .execute(connection.as_mut())
                 .await?;
             }
             ChatType::PendingConnection(user_id) => {
@@ -759,16 +755,17 @@ impl Chat {
                     domain,
                     self.id,
                 )
-                .execute(executor)
+                .execute(connection.as_mut())
                 .await?;
             }
         }
-        notifier.update(self.id);
+        connection.notifier().update(self.id);
+
         Ok(())
     }
 
     async fn load_past_members(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         chat_id: ChatId,
     ) -> sqlx::Result<Vec<SqlPastMember>> {
         let mut members = query_as!(
@@ -780,7 +777,7 @@ impl Chat {
             WHERE chat_id = ?"#,
             chat_id
         )
-        .fetch_all(executor)
+        .fetch_all(connection.as_mut())
         .await?;
         // make the order deterministic
         members.sort_unstable_by(|a, b| {
@@ -793,7 +790,7 @@ impl Chat {
 
     #[cfg(feature = "test_utils")]
     pub async fn self_updated_at(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         chat_id: ChatId,
     ) -> sqlx::Result<Option<DateTime<Utc>>> {
         sqlx::query_scalar(
@@ -804,14 +801,14 @@ impl Chat {
             WHERE c.chat_id = ?"#,
         )
         .bind(chat_id)
-        .fetch_optional(executor)
+        .fetch_optional(connection.as_mut())
         .await
         .map(Option::flatten)
     }
 
     #[cfg(feature = "test_utils")]
     pub async fn set_self_updated_at(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl WriteConnection,
         chat_id: ChatId,
         self_updated_at: DateTime<Utc>,
     ) -> sqlx::Result<()> {
@@ -825,7 +822,7 @@ impl Chat {
         )
         .bind(self_updated_at)
         .bind(chat_id)
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
         Ok(())
     }
@@ -834,7 +831,7 @@ impl Chat {
     ///
     /// If the chat does not exist, returns `false`.
     pub(crate) async fn is_blocked(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         chat_id: ChatId,
     ) -> sqlx::Result<bool> {
         let is_blocked = query_scalar!(
@@ -848,7 +845,7 @@ impl Chat {
             "#,
             chat_id,
         )
-        .fetch_optional(executor)
+        .fetch_optional(connection.as_mut())
         .await?;
         Ok(is_blocked.unwrap_or(false))
     }

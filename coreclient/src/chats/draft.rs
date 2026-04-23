@@ -42,9 +42,12 @@ impl MessageDraft {
 }
 
 mod persistence {
-    use sqlx::{SqliteConnection, SqliteExecutor, query, query_as, query_scalar};
+    use sqlx::{query, query_as, query_scalar};
 
-    use crate::{ChatId, store::StoreNotifier};
+    use crate::{
+        ChatId,
+        db_access::{ReadConnection, WriteConnection},
+    };
 
     use super::*;
 
@@ -89,7 +92,7 @@ mod persistence {
 
     impl MessageDraft {
         pub(crate) async fn load(
-            connection: &mut SqliteConnection,
+            mut connection: impl ReadConnection,
             chat_id: ChatId,
         ) -> sqlx::Result<Option<Self>> {
             let Some(mut message_draft) = query_as!(
@@ -106,14 +109,14 @@ mod persistence {
                 "#,
                 chat_id
             )
-            .fetch_optional(&mut *connection)
+            .fetch_optional(connection.as_mut())
             .await?
             .map(MessageDraft::from) else {
                 return Ok(None);
             };
 
             if let Some((mimi_id, message)) = message_draft.in_reply_to.as_mut() {
-                *message = InReplyToMessage::load(&mut *connection, mimi_id).await?;
+                *message = InReplyToMessage::load(connection.as_mut(), mimi_id).await?;
             }
 
             Ok(Some(message_draft))
@@ -121,8 +124,7 @@ mod persistence {
 
         pub(crate) async fn store(
             &self,
-            executor: impl SqliteExecutor<'_>,
-            notifier: &mut StoreNotifier,
+            mut connection: impl WriteConnection,
             chat_id: ChatId,
         ) -> sqlx::Result<()> {
             let in_reply_to_mimi_id = self.in_reply_to.as_ref().map(|(mimi_id, _)| mimi_id);
@@ -149,23 +151,21 @@ mod persistence {
                 self.updated_at,
                 self.is_committed,
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             if self.is_committed {
-                notifier.update(chat_id);
+                connection.notifier().update(chat_id);
             }
             Ok(())
         }
 
-        pub(crate) async fn commit_all(
-            executor: impl SqliteExecutor<'_>,
-            notifier: &mut StoreNotifier,
-        ) -> sqlx::Result<()> {
+        pub(crate) async fn commit_all(mut connection: impl WriteConnection) -> sqlx::Result<()> {
+            let (connection, notifier) = connection.split();
             let mut chat_ids = query_scalar!(
                 r#"UPDATE message_draft SET is_committed = true
                 RETURNING chat_id AS "chat_id: ChatId""#
             )
-            .fetch(executor);
+            .fetch(connection);
             while let Some(Ok(chat_id)) = chat_ids.next().await {
                 notifier.update(chat_id);
             }
@@ -173,14 +173,13 @@ mod persistence {
         }
 
         pub(crate) async fn delete(
-            executor: impl SqliteExecutor<'_>,
-            notifier: &mut StoreNotifier,
+            mut connection: impl WriteConnection,
             chat_id: ChatId,
         ) -> sqlx::Result<()> {
             query!("DELETE FROM message_draft WHERE chat_id = ?", chat_id)
-                .execute(executor)
+                .execute(connection.as_mut())
                 .await?;
-            notifier.update(chat_id);
+            connection.notifier().update(chat_id);
             Ok(())
         }
     }

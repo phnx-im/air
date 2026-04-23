@@ -53,6 +53,7 @@ use crate::{
         user_settings::ReadReceiptsSetting,
     },
     contacts::{PartialContact, PartialContactType},
+    db_access::WriteDbTransaction,
     groups::{
         Group, VerifiedGroup, client_auth_info::StorableClientCredential,
         process::ProcessMessageResult,
@@ -811,7 +812,7 @@ impl CoreUser {
     #[expect(clippy::too_many_arguments)]
     async fn handle_unconfirmed_chat(
         &self,
-        txn: &mut sqlx::Transaction<'_, sqlx::Sqlite>,
+        txn: &mut WriteDbTransaction<'_>,
         notifier: &mut StoreNotifier,
         aad: Vec<u8>,
         ds_timestamp: TimeStamp,
@@ -841,7 +842,7 @@ impl CoreUser {
 
         // UnconfirmedConnection Phase 1: Load up the partial contact and decrypt the
         // friendship package
-        let contact = PartialContact::load(txn.as_mut(), &contact_type)
+        let contact = PartialContact::load(&mut *txn, &contact_type)
             .await?
             .context("No contact found: {contact:?}")?;
 
@@ -869,22 +870,21 @@ impl CoreUser {
 
         // UnconfirmedConnection Phase 2: Fetch the user profile.
         Self::schedule_fetch_user_profile(
-            txn.as_mut(),
+            &mut *txn,
             (sender_client_credential.clone(), user_profile_key),
         )
         .await?;
 
         // Now we can turn the partial contact into a full one.
         let contact = contact
-            .mark_as_complete(todo!(), sender_user_id.clone(), friendship_package)
+            .mark_as_complete(&mut *txn, sender_user_id.clone(), friendship_package)
             .await?;
 
         // Room state update: Pretend that we just invited that user
         // We do that now, because we didn't know that user id when we created the room.
         group.room_state_change_role(self.user_id(), sender_user_id, RoleIndex::Regular)?;
 
-        chat.confirm(txn.as_mut(), notifier, contact.user_id)
-            .await?;
+        chat.confirm(txn, contact.user_id).await?;
 
         let user_handle = if let PartialContactType::Handle(handle) = contact_type {
             Some(handle.clone())
@@ -903,17 +903,17 @@ impl CoreUser {
 
     async fn handle_user_profile_key_update(
         &self,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         params: UserProfileKeyUpdateParams,
     ) -> anyhow::Result<ProcessQsMessageResult> {
         // Don't update the profile if the chat is blocked
         let chat_id = ChatId::try_from(&params.group_id)?;
-        if BlockedContact::check_blocked_chat(txn.as_mut(), chat_id).await? {
+        if BlockedContact::check_blocked_chat(&mut *txn, chat_id).await? {
             bail!(BlockedContactError);
         }
 
         // Phase 1: Load the group and the sender.
-        let group = Group::load_verified(txn.as_mut(), &params.group_id)
+        let group = Group::load_verified(&mut *txn, &params.group_id)
             .await?
             .context("No group found")?;
         let sender_credential = group
@@ -929,8 +929,7 @@ impl CoreUser {
         )?;
 
         // Phase 3: Fetch and store the (new) user profile and key
-        Self::schedule_fetch_user_profile(txn.as_mut(), (sender_credential, new_user_profile_key))
-            .await?;
+        Self::schedule_fetch_user_profile(txn, (sender_credential, new_user_profile_key)).await?;
 
         Ok(ProcessQsMessageResult::None)
     }

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{borrow::Cow, collections::BTreeMap};
+use std::{borrow::Cow, collections::BTreeMap, fmt::Write};
 
 use aircommon::{
     codec::PersistenceCodec,
@@ -18,7 +18,7 @@ use tokio_stream::StreamExt;
 use tracing::error;
 use uuid::Uuid;
 
-use crate::{ChatId, MessageId};
+use crate::{ChatId, MessageId, db_access::WriteConnection};
 
 use super::{StoreEntityId, StoreNotification, StoreOperation, notification::StoreEntityKind};
 
@@ -152,7 +152,7 @@ impl StoreNotification {
     }
 
     pub(crate) async fn dequeue(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl WriteConnection,
     ) -> sqlx::Result<StoreNotification> {
         let mut records = query_as!(
             SqlStoreNotification,
@@ -164,7 +164,7 @@ impl StoreNotification {
                 removed
             "#
         )
-        .fetch(executor);
+        .fetch(connection.as_mut());
 
         let mut ops = BTreeMap::new();
         while let Some(record) = records.next().await {

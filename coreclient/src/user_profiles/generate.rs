@@ -7,9 +7,8 @@ use aircommon::{
     credentials::keys::PreliminaryClientSigningKey,
     crypto::{indexed_aead::keys::UserProfileKeyIndex, signatures::signable::Signable as _},
 };
-use sqlx::SqliteExecutor;
 
-use crate::store::StoreNotifier;
+use crate::{db_access::WriteConnection, store::StoreNotifier};
 
 use super::{
     Asset, DisplayName, EncryptableUserProfile, IndexedUserProfile, SignedUserProfile, UserId,
@@ -40,11 +39,11 @@ impl NewUserProfile {
 
     pub(crate) async fn store(
         self,
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl WriteConnection,
         notifier: &mut StoreNotifier,
     ) -> sqlx::Result<EncryptableUserProfile> {
         let NewUserProfile(profile) = self;
-        profile.tbs.store(executor, notifier).await?;
+        profile.tbs.store(connection).await?;
         Ok(EncryptableUserProfile(profile))
     }
 

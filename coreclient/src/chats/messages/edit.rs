@@ -32,14 +32,20 @@ impl<'a> MessageEdit<'a> {
 
 mod persistence {
     use aircommon::codec::BlobEncoded;
-    use sqlx::{SqliteExecutor, query, query_scalar};
+    use sqlx::{query, query_scalar};
 
-    use crate::chats::messages::persistence::VersionedMessage;
+    use crate::{
+        chats::messages::persistence::VersionedMessage,
+        db_access::{ReadConnection, WriteConnection},
+    };
 
     use super::*;
 
     impl MessageEdit<'_> {
-        pub(crate) async fn store(&self, executor: impl SqliteExecutor<'_>) -> anyhow::Result<()> {
+        pub(crate) async fn store(
+            &self,
+            mut connection: impl WriteConnection,
+        ) -> anyhow::Result<()> {
             let versioned_message =
                 BlobEncoded(VersionedMessage::from_mimi_content(self.mimi_content)?);
             query!(
@@ -54,13 +60,13 @@ mod persistence {
                 self.created_at,
                 versioned_message,
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             Ok(())
         }
 
         pub(crate) async fn find_message_id(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl ReadConnection,
             mimi_id: &MimiId,
         ) -> sqlx::Result<Option<MessageId>> {
             query_scalar!(
@@ -69,17 +75,17 @@ mod persistence {
                 WHERE mimi_id = ?"#,
                 mimi_id,
             )
-            .fetch_optional(executor)
+            .fetch_optional(connection.as_mut())
             .await
         }
 
         /// Delete all edit history for a message.
         pub(crate) async fn delete_by_message_id(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl WriteConnection,
             message_id: MessageId,
         ) -> sqlx::Result<()> {
             query!("DELETE FROM message_edit WHERE message_id = ?", message_id,)
-                .execute(executor)
+                .execute(connection.as_mut())
                 .await?;
             Ok(())
         }

@@ -5,12 +5,14 @@
 use aircommon::messages::client_as::SerializedToken;
 use airprotos::auth_service::v1::OperationType;
 use chrono::{DateTime, Utc};
-use sqlx::SqliteExecutor;
 
-use crate::privacy_pass::TokenId;
+use crate::{
+    db_access::{ReadConnection, WriteConnection},
+    privacy_pass::TokenId,
+};
 
 pub(crate) async fn load_token_ids(
-    executor: impl SqliteExecutor<'_>,
+    mut connection: impl ReadConnection,
     operation_type: OperationType,
 ) -> sqlx::Result<Vec<TokenId>> {
     let operation_type = i32::from(operation_type);
@@ -20,13 +22,13 @@ pub(crate) async fn load_token_ids(
          FROM privacy_pass_token WHERE operation_type = ?",
         operation_type,
     )
-    .fetch_all(executor)
+    .fetch_all(connection.as_mut())
     .await
 }
 
 /// Stores a serialized Privacy Pass token.
 pub(crate) async fn store_token(
-    executor: impl SqliteExecutor<'_>,
+    mut connection: impl WriteConnection,
     operation_type: OperationType,
     token: &[u8],
 ) -> Result<(), sqlx::Error> {
@@ -41,31 +43,31 @@ pub(crate) async fn store_token(
         token,
         now
     )
-    .execute(executor)
+    .execute(connection.as_mut())
     .await?;
     Ok(())
 }
 
 impl TokenId {
     pub(crate) async fn load(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         token_id: &TokenId,
     ) -> sqlx::Result<Option<SerializedToken>> {
         sqlx::query_scalar!(
             "SELECT token FROM privacy_pass_token WHERE id = ?",
             token_id.id
         )
-        .fetch_optional(executor)
+        .fetch_optional(connection.as_mut())
         .await
         .map(|bytes| bytes.map(SerializedToken::new))
     }
 
     pub(crate) async fn delete(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl WriteConnection,
         token_id: &TokenId,
     ) -> Result<(), sqlx::Error> {
         sqlx::query!("DELETE FROM privacy_pass_token WHERE id = ?", token_id.id)
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
         Ok(())
     }
@@ -73,7 +75,7 @@ impl TokenId {
 
 /// Loads and deletes one token (FIFO order).
 pub(crate) async fn consume_token(
-    executor: impl SqliteExecutor<'_>,
+    mut connection: impl WriteConnection,
     operation_type: OperationType,
 ) -> Result<Option<Vec<u8>>, sqlx::Error> {
     let operation_type = i32::from(operation_type);
@@ -87,14 +89,14 @@ pub(crate) async fn consume_token(
          RETURNING token",
         operation_type
     )
-    .fetch_optional(executor)
+    .fetch_optional(connection.as_mut())
     .await?;
     Ok(row)
 }
 
 /// Returns the number of stored tokens.
 pub(crate) async fn token_count(
-    executor: impl SqliteExecutor<'_>,
+    mut connection: impl ReadConnection,
     operation_type: OperationType,
 ) -> sqlx::Result<u16> {
     let operation_type = i32::from(operation_type);
@@ -102,7 +104,7 @@ pub(crate) async fn token_count(
         "SELECT COUNT(*) FROM privacy_pass_token WHERE operation_type = ?",
         operation_type
     )
-    .fetch_one(executor)
+    .fetch_one(connection.as_mut())
     .await?
     .try_into()
     .map_err(|error| sqlx::Error::Decode(Box::new(error)))
@@ -110,7 +112,7 @@ pub(crate) async fn token_count(
 
 /// Stores or updates a batched token public key.
 pub(crate) async fn store_batched_token_key(
-    executor: impl SqliteExecutor<'_>,
+    mut connection: impl WriteConnection,
     token_key_id: u8,
     operation_type: OperationType,
     public_key: &[u8],
@@ -127,14 +129,14 @@ pub(crate) async fn store_batched_token_key(
         operation_type,
         public_key
     )
-    .execute(executor)
+    .execute(connection.as_mut())
     .await?;
     Ok(())
 }
 
 /// Deletes all stored tokens.
 pub(crate) async fn delete_all_tokens(
-    executor: impl SqliteExecutor<'_>,
+    mut connection: impl WriteConnection,
     operation_type: OperationType,
 ) -> Result<(), sqlx::Error> {
     let operation_type = i32::from(operation_type);
@@ -142,14 +144,14 @@ pub(crate) async fn delete_all_tokens(
         "DELETE FROM privacy_pass_token WHERE operation_type = ?",
         operation_type
     )
-    .execute(executor)
+    .execute(connection.as_mut())
     .await?;
     Ok(())
 }
 
 /// Deletes all stored batched token keys.
 pub(crate) async fn delete_all_batched_token_keys(
-    executor: impl SqliteExecutor<'_>,
+    mut connection: impl WriteConnection,
     operation_type: OperationType,
 ) -> Result<(), sqlx::Error> {
     let operation_type = i32::from(operation_type);
@@ -157,14 +159,14 @@ pub(crate) async fn delete_all_batched_token_keys(
         "DELETE FROM batched_token_key WHERE operation_type = ?",
         operation_type
     )
-    .execute(executor)
+    .execute(connection.as_mut())
     .await?;
     Ok(())
 }
 
 /// Loads all batched token public keys for a specific operation type.
 pub(crate) async fn load_batched_token_keys(
-    executor: impl SqliteExecutor<'_>,
+    mut connection: impl ReadConnection,
     operation_type: OperationType,
 ) -> Result<Vec<(u8, Vec<u8>)>, sqlx::Error> {
     let operation_type = i32::from(operation_type);
@@ -177,7 +179,7 @@ pub(crate) async fn load_batched_token_keys(
         ",
         operation_type,
     )
-    .fetch_all(executor)
+    .fetch_all(connection.as_mut())
     .await?;
     Ok(rows
         .into_iter()

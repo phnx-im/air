@@ -170,7 +170,8 @@ impl OutboundServiceContext {
             let now = Utc::now();
 
             let Some(mut op) = self
-                .with_transaction(async |txn| {
+                .db
+                .with_write_transaction(async |txn| {
                     Operation::<TimedTask>::dequeue(txn, task_id, now).await
                 })
                 .await?
@@ -193,27 +194,28 @@ impl OutboundServiceContext {
             };
 
             // Schedule next run
-            op.reschedule(&self.pool, Utc::now() + interval).await?;
+            op.reschedule(self.db.write().await?, Utc::now() + interval)
+                .await?;
         }
     }
 
     async fn ensure_timed_tasks_exist(&self) -> Result<(), anyhow::Error> {
         TimedTask::new(TimedTaskKind::KeyPackageUpload)
             .into_operation()
-            .enqueue_if_not_exists(&self.pool)
+            .enqueue_if_not_exists(self.db.write().await?)
             .await?;
         TimedTask::new(TimedTaskKind::UsernameRefresh)
             .into_operation()
-            .enqueue_if_not_exists(&self.pool)
+            .enqueue_if_not_exists(self.db.write().await?)
             .await?;
         TimedTask::new(TimedTaskKind::SelfUpdate)
             .into_operation()
-            .enqueue_if_not_exists(&self.pool)
+            .enqueue_if_not_exists(self.db.write().await?)
             .await?;
         for operation_type in OperationType::all() {
             TimedTask::new(TimedTaskKind::TokenReplenishment { operation_type })
                 .into_operation()
-                .enqueue_if_not_exists(&self.pool)
+                .enqueue_if_not_exists(self.db.write().await?)
                 .await?;
         }
         Ok(())
@@ -248,24 +250,28 @@ impl OutboundServiceContext {
 
         let now = Utc::now();
         let threshold = now - USERNAME_REFRESH_THRESHOLD;
-        let usernames = UsernameRecord::load_needing_refresh(&self.pool, threshold).await?;
+        let usernames =
+            UsernameRecord::load_needing_refresh(self.db.read().await?, threshold).await?;
 
         if !usernames.is_empty() {
             let api_client = self.api_clients.default_client()?;
             for username_record in usernames {
-                let token =
-                    match privacy_pass::consume_token(&self.pool, OperationType::AddUsername).await
-                    {
-                        Ok(Some(t)) => t,
-                        Ok(None) => {
-                            info!("skipping username refresh: no tokens available");
-                            break;
-                        }
-                        Err(e) => {
-                            error!(%e, "failed to consume token for username refresh");
-                            break;
-                        }
-                    };
+                let token = match privacy_pass::consume_token(
+                    self.db.write().await?,
+                    OperationType::AddUsername,
+                )
+                .await
+                {
+                    Ok(Some(t)) => t,
+                    Ok(None) => {
+                        info!("skipping username refresh: no tokens available");
+                        break;
+                    }
+                    Err(e) => {
+                        error!(%e, "failed to consume token for username refresh");
+                        break;
+                    }
+                };
                 info!("refreshing username");
                 let result = api_client
                     .as_refresh_username(username_record.hash, &username_record.signing_key, token)

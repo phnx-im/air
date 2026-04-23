@@ -21,6 +21,7 @@ use tracing::{debug, error, info};
 
 use crate::{
     clients::api_clients::ApiClients,
+    db_access::DbAccess,
     job::{Job, JobContext, JobError},
     key_stores::MemoryUserKeyStore,
     outbound_service::error::OutboundServiceRunError,
@@ -74,7 +75,7 @@ impl OutboundServiceWork for OutboundServiceContext {
 
 impl OutboundService<OutboundServiceContext> {
     pub(crate) fn new(
-        pool: SqlitePool,
+        db: DbAccess,
         api_clients: ApiClients,
         http_client: reqwest::Client,
         key_store: MemoryUserKeyStore,
@@ -83,7 +84,7 @@ impl OutboundService<OutboundServiceContext> {
         global_lock: GlobalLock,
     ) -> Self {
         let context = OutboundServiceContext {
-            pool,
+            db,
             api_clients,
             http_client,
             key_store,
@@ -208,7 +209,7 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
 
 #[derive(Debug, Clone)]
 pub struct OutboundServiceContext {
-    pool: SqlitePool,
+    db: DbAccess,
     api_clients: ApiClients,
     http_client: reqwest::Client,
     key_store: MemoryUserKeyStore,
@@ -224,11 +225,10 @@ impl OutboundServiceContext {
         JobType: Job<Output = T, DomainError = E>,
     {
         let mut notifier = self.notifier();
-        let mut connection = self.pool().acquire().await?;
         let mut context = JobContext {
             api_clients: &self.api_clients,
             http_client: &self.http_client,
-            connection: &mut connection,
+            db: &self.db,
             notifier: &mut notifier,
             key_store: &self.key_store,
             now: Utc::now(),

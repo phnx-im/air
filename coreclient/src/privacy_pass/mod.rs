@@ -27,7 +27,7 @@ use tls_codec::{Deserialize, Serialize};
 use tokio::time;
 use tracing::{debug, info, warn};
 
-use crate::utils::connection_ext::ConnectionExt;
+use crate::{db_access::WriteConnection, utils::connection_ext::ConnectionExt};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct TokenId {
@@ -153,10 +153,10 @@ pub(crate) async fn request_and_store_tokens(
 
 /// Consumes one token from local storage.
 pub(crate) async fn consume_token(
-    executor: impl SqliteExecutor<'_>,
+    mut connection: impl WriteConnection,
     operation_type: OperationType,
 ) -> anyhow::Result<Option<SerializedToken>> {
-    Ok(persistence::consume_token(executor, operation_type)
+    Ok(persistence::consume_token(connection, operation_type)
         .await?
         .map(SerializedToken::new))
 }

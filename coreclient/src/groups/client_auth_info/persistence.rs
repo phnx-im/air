@@ -3,13 +3,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::UserId;
-use sqlx::{SqliteExecutor, query, query_scalar};
+use sqlx::{query, query_scalar};
+
+use crate::db_access::{ReadConnection, WriteConnection};
 
 use super::StorableClientCredential;
 
 impl StorableClientCredential {
     pub(crate) async fn load_by_user_id(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         user_id: &UserId,
     ) -> sqlx::Result<Option<Self>> {
         let uuid = user_id.uuid();
@@ -22,13 +24,13 @@ impl StorableClientCredential {
             uuid,
             domain,
         )
-        .fetch_optional(executor)
+        .fetch_optional(connection.as_mut())
         .await
         .map(|res| res.map(StorableClientCredential::new))
     }
 
     /// Stores the client credential in the database if it does not already exist.
-    pub(crate) async fn store(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+    pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
         let fingerprint = self.fingerprint();
         let user_id = self.client_credential.user_id();
         let uuid = user_id.uuid();
@@ -41,7 +43,7 @@ impl StorableClientCredential {
             domain,
             self.client_credential,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
         Ok(())
     }

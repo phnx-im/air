@@ -8,7 +8,9 @@ use aircommon::{
     identifiers::{Username, UsernameHash},
 };
 use chrono::{DateTime, Utc};
-use sqlx::{SqliteExecutor, query, query_as, query_scalar};
+use sqlx::{query, query_as, query_scalar};
+
+use crate::db_access::{ReadConnection, WriteConnection};
 
 /// A username record stored in the client database.
 ///
@@ -56,7 +58,7 @@ impl UsernameRecord {
     }
 
     pub(super) async fn load(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         username: &Username,
     ) -> sqlx::Result<Option<Self>> {
         let record = query_as!(
@@ -71,12 +73,12 @@ impl UsernameRecord {
             "#,
             username
         )
-        .fetch_optional(executor)
+        .fetch_optional(connection.as_mut())
         .await?;
         Ok(record.map(From::from))
     }
 
-    pub(crate) async fn load_all(executor: impl SqliteExecutor<'_>) -> sqlx::Result<Vec<Self>> {
+    pub(crate) async fn load_all(mut connection: impl ReadConnection) -> sqlx::Result<Vec<Self>> {
         let records = query_as!(
             SqlUsernameRecord,
             r#"
@@ -88,13 +90,13 @@ impl UsernameRecord {
                 ORDER BY created_at ASC
             "#,
         )
-        .fetch_all(executor)
+        .fetch_all(connection.as_mut())
         .await?;
         Ok(records.into_iter().map(From::from).collect())
     }
 
     pub(crate) async fn load_all_usernames(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
     ) -> sqlx::Result<Vec<Username>> {
         query_scalar!(
             r#"
@@ -103,11 +105,11 @@ impl UsernameRecord {
                 ORDER BY created_at ASC
             "#
         )
-        .fetch_all(executor)
+        .fetch_all(connection.as_mut())
         .await
     }
 
-    pub(super) async fn store(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+    pub(super) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
         let signing_key = BlobEncoded(&self.signing_key);
         let created_at = Utc::now();
         let refreshed_at = created_at;
@@ -127,14 +129,14 @@ impl UsernameRecord {
             created_at,
             refreshed_at,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
         Ok(())
     }
 
     /// Load usernames where `refreshed_at` is older than the given threshold.
     pub(crate) async fn load_needing_refresh(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         threshold: DateTime<Utc>,
     ) -> sqlx::Result<Vec<Self>> {
         let records = query_as!(
@@ -149,14 +151,14 @@ impl UsernameRecord {
             "#,
             threshold
         )
-        .fetch_all(executor)
+        .fetch_all(connection.as_mut())
         .await?;
         Ok(records.into_iter().map(From::from).collect())
     }
 
     /// Update `refreshed_at` for a username identified by its hash.
     pub(crate) async fn update_refreshed_at(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl WriteConnection,
         hash: &UsernameHash,
         refreshed_at: DateTime<Utc>,
     ) -> sqlx::Result<()> {
@@ -169,13 +171,13 @@ impl UsernameRecord {
             refreshed_at,
             hash,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
         Ok(())
     }
 
     pub(super) async fn delete(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl WriteConnection,
         username: &Username,
     ) -> sqlx::Result<()> {
         query!(
@@ -185,7 +187,7 @@ impl UsernameRecord {
             "#,
             username,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
         Ok(())
     }

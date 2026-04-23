@@ -121,10 +121,12 @@ mod persistence {
     use aircommon::codec::{BlobEncoded, PersistenceCodec};
     use serde::{Serialize, de::DeserializeOwned};
     use sqlx::{
-        Database, Decode, Encode, Sqlite, SqliteExecutor, SqliteTransaction, Type, encode::IsNull,
-        error::BoxDynError, query, query_as, query_scalar,
+        Database, Decode, Encode, Sqlite, Type, encode::IsNull, error::BoxDynError, query,
+        query_as, query_scalar,
     };
     use tracing::warn;
+
+    use crate::db_access::{WriteConnection, WriteDbTransaction};
 
     use super::*;
 
@@ -134,7 +136,7 @@ mod persistence {
         /// If an operation with the same id is already enqueued, it is overwritten.
         pub(crate) async fn enqueue<'a>(
             &self,
-            executor: impl SqliteExecutor<'a>,
+            mut connection: impl WriteConnection,
         ) -> sqlx::Result<()>
         where
             T: OperationData + Serialize,
@@ -166,7 +168,7 @@ mod persistence {
                 self.scheduled_at,
                 retries,
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             Ok(())
         }
@@ -174,7 +176,7 @@ mod persistence {
         /// Enqueue an operation if it doesn't exist
         pub(crate) async fn enqueue_if_not_exists(
             &self,
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl WriteConnection,
         ) -> sqlx::Result<()>
         where
             T: OperationData + Serialize,
@@ -201,14 +203,14 @@ mod persistence {
                 self.scheduled_at,
                 retries,
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             Ok(())
         }
 
         /// Dequeue an operation for retry
         pub(crate) async fn dequeue(
-            txn: &mut SqliteTransaction<'_>,
+            txn: &mut WriteDbTransaction<'_>,
             task_id: Uuid,
             now: DateTime<Utc>,
         ) -> sqlx::Result<Option<Self>>
@@ -296,12 +298,12 @@ mod persistence {
         }
 
         /// Delete an operation
-        pub(crate) async fn delete(self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+        pub(crate) async fn delete(self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
             query!(
                 "DELETE FROM operation WHERE operation_id = ?",
                 self.operation_id.0,
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             Ok(())
         }
@@ -309,7 +311,7 @@ mod persistence {
         /// Increase the number of retries and set the retry due at
         pub(crate) async fn reschedule(
             &mut self,
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl WriteConnection,
             schedule_at: DateTime<Utc>,
         ) -> sqlx::Result<()> {
             self.scheduled_at = schedule_at;
@@ -324,7 +326,7 @@ mod persistence {
                 retries,
                 self.operation_id.0,
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             Ok(())
         }

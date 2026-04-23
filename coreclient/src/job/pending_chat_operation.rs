@@ -117,8 +117,8 @@ impl Job for PendingChatOperation {
                 let group_id = self.group.group_id().clone();
                 error!(?group_id, "Group not found on DS; cleaning up local state");
                 context
-                    .connection
-                    .with_transaction(async |txn| {
+                    .db
+                    .with_write_transaction(async |txn| {
                         handle_group_not_found_on_ds(txn, context.notifier, &group_id).await
                     })
                     .await?;
@@ -507,7 +507,7 @@ impl PendingChatOperation {
     }
 
     pub(crate) async fn create_add(
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         api_clients: &ApiClients,
         signer: &ClientSigningKey,
         chat_id: ChatId,
@@ -524,11 +524,9 @@ impl PendingChatOperation {
 
         for new_member in &new_members {
             // Get the WAI keys and client credentials for the invited users.
-            let contact: Contact = todo!();
-
-            // Contact::load(&mut *connection, new_member)
-            // .await?
-            // .with_context(|| format!("Can't find contact {new_member:?}"))?;
+            let contact = Contact::load(&mut *connection, new_member)
+                .await?
+                .with_context(|| format!("Can't find contact {new_member:?}"))?;
             contact_wai_keys.push(contact.wai_ear_key().clone());
 
             if let Some(client_credential) =
@@ -593,6 +591,8 @@ mod persistence {
     use sqlx::SqliteExecutor;
     use thiserror::Error;
     use uuid::Uuid;
+
+    use crate::db_access::{ReadConnection, WriteConnection, WriteDbTransaction};
 
     use super::*;
 
@@ -673,7 +673,7 @@ mod persistence {
     impl SqlPendingChatOperation {
         async fn into_pending_chat_operation(
             self,
-            connection: &mut SqliteConnection,
+            connection: impl ReadConnection,
         ) -> sqlx::Result<PendingChatOperation> {
             let group_id = GroupId::from_slice(&self.group_id);
             let group = Group::load_verified(connection, &group_id)
@@ -692,7 +692,7 @@ mod persistence {
     }
 
     impl PendingChatOperation {
-        pub(super) async fn store(&self, connection: &mut SqliteConnection) -> sqlx::Result<()> {
+        pub(super) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
             let operation_data = BlobEncoded(&self.operation);
             let group_id = self.group.group_id().as_slice();
             let operation_string = self.operation.to_string();
@@ -707,7 +707,7 @@ mod persistence {
                 self.retry_due_at,
                 PendingChatOperationStatus::ReadyToRetry as _
             )
-            .execute(connection)
+            .execute(connection.as_mut())
             .await?;
 
             Ok(())
@@ -715,7 +715,7 @@ mod persistence {
 
         pub(super) async fn update_retry_due_at(
             &mut self,
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl WriteConnection,
             retry_due: DateTime<Utc>,
         ) -> sqlx::Result<()> {
             let group_id = self.group.group_id().as_slice();
@@ -729,7 +729,7 @@ mod persistence {
                 number_of_attempts_i64,
                 group_id
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
 
             self.retry_due_at = Some(retry_due);
@@ -739,7 +739,7 @@ mod persistence {
 
         pub(super) async fn mark_as_waiting_for_queue_response(
             &self,
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl WriteConnection,
         ) -> sqlx::Result<()> {
             let group_id = self.group.group_id().as_slice();
             query!(
@@ -747,14 +747,14 @@ mod persistence {
                 PendingChatOperationStatus::WaitingForQueueResponse as _,
                 group_id
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
 
             Ok(())
         }
 
         pub(crate) async fn load_by_group_id(
-            connection: &mut SqliteConnection,
+            mut connection: impl ReadConnection,
             group_id: &GroupId,
         ) -> sqlx::Result<Option<Self>> {
             let group_id = group_id.as_slice();
@@ -770,7 +770,7 @@ mod persistence {
                 WHERE group_id = ?"#,
                 group_id
             )
-            .fetch_optional(&mut *connection)
+            .fetch_optional(connection.as_mut())
             .await?;
 
             let Some(sql_pending_operation) = sql_pending_operation else {
@@ -784,7 +784,7 @@ mod persistence {
         }
 
         pub(crate) async fn load(
-            txn: &mut SqliteTransaction<'_>,
+            mut connection: impl ReadConnection,
             chat_id: &ChatId,
         ) -> sqlx::Result<Option<Self>> {
             // Get the group id from the chat table and then load the pending operation.
@@ -801,7 +801,7 @@ mod persistence {
                 WHERE c.chat_id = ?"#,
                 chat_id
             )
-            .fetch_optional(txn.as_mut())
+            .fetch_optional(connection.as_mut())
             .await?;
 
             let Some(sql_pending_operation) = sql_pending_operation else {
@@ -809,13 +809,13 @@ mod persistence {
             };
 
             sql_pending_operation
-                .into_pending_chat_operation(txn)
+                .into_pending_chat_operation(connection)
                 .await
                 .map(Some)
         }
 
         pub(crate) async fn is_pending_for_chat(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl ReadConnection,
             chat_id: ChatId,
         ) -> sqlx::Result<bool> {
             let record = query!(
@@ -825,14 +825,14 @@ mod persistence {
             WHERE c.chat_id = ? LIMIT 1) AS row_exists",
                 chat_id,
             )
-            .fetch_one(executor)
+            .fetch_one(connection.as_mut())
             .await?;
             Ok(record.row_exists == 1)
         }
 
         /// Dequeue a PendingChatOperation for retry by the OutboundService.
         pub(crate) async fn dequeue(
-            txn: &mut SqliteTransaction<'_>,
+            txn: &mut WriteDbTransaction<'_>,
             task_id: Uuid,
             now: DateTime<Utc>,
         ) -> anyhow::Result<Option<Self>> {
@@ -884,7 +884,7 @@ mod persistence {
         }
 
         pub(crate) async fn delete(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl WriteConnection,
             group_id: &GroupId,
         ) -> sqlx::Result<()> {
             let group_id = group_id.as_slice();
@@ -893,7 +893,7 @@ mod persistence {
                 "DELETE FROM pending_chat_operation WHERE group_id = ?",
                 group_id
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             Ok(())
         }

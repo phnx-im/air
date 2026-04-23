@@ -17,9 +17,9 @@ mod persistence {
     use std::collections::HashSet;
 
     use mimi_content::PerMessageStatus;
-    use sqlx::{SqliteExecutor, SqliteTransaction, query, query_scalar};
+    use sqlx::{SqliteTransaction, query, query_scalar};
 
-    use crate::{MessageId, store::StoreNotifier};
+    use crate::{MessageId, db_access::WriteConnection, store::StoreNotifier};
 
     use super::*;
 
@@ -112,7 +112,7 @@ mod persistence {
         }
 
         pub(crate) async fn clear(
-            txn: impl SqliteExecutor<'_>,
+            mut connection: impl WriteConnection,
             notifier: &mut crate::store::StoreNotifier,
             message_id: crate::MessageId,
         ) -> sqlx::Result<()> {
@@ -120,7 +120,7 @@ mod persistence {
                 "DELETE FROM message_status WHERE message_id = ?",
                 message_id,
             )
-            .execute(txn)
+            .execute(connection.as_mut())
             .await?;
             notifier.update(message_id);
             Ok(())

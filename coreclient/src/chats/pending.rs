@@ -30,7 +30,6 @@ use crate::{
     groups::Group,
     key_stores::indexed_keys::StorableIndexedKey,
     usernames::connection_packages::StorableConnectionPackage,
-    utils::connection_ext::StoreExt,
 };
 
 pub(crate) struct PendingConnectionInfo {
@@ -50,46 +49,47 @@ impl CoreUser {
     ) -> anyhow::Result<Result<(), AcceptContactRequestError>> {
         // Load needed data
         let (chat, sender_user_id, pending_connection_info, partial_contact, own_user_profile_key) =
-            self.with_transaction(async |txn| {
-                let chat = Chat::load(txn.as_mut(), &chat_id)
-                    .await?
-                    .with_context(|| format!("Can't find chat with id {chat_id}"))?;
-                let ChatType::PendingConnection(sender_user_id) = chat.chat_type() else {
-                    bail!("Chat is not a pending connection");
-                };
-                let pending_connection_info = PendingConnectionInfo::load(txn.as_mut(), chat_id)
-                    .await?
-                    .with_context(|| {
-                        format!("No pending connection info found for chat: {chat_id}")
-                    })?;
-                let own_user_profile_key = UserProfileKey::load_own(txn.as_mut()).await?;
-                let sender_user_id = sender_user_id.clone();
-
-                // Look up partial contact:
-                // - UsernameContact: by chat_id since multiple senders can target the same username
-                // - TargetedMessageContact: by user_id (its natural key)
-                let partial_contact = if pending_connection_info.handle.is_some() {
-                    UsernameContact::load_by_chat_id(txn.as_mut(), chat_id)
+            self.db()
+                .with_write_transaction(async |txn| {
+                    let chat: Chat = Chat::load(txn, &chat_id)
                         .await?
-                        .map(PartialContact::Username)
-                } else {
-                    TargetedMessageContact::load(txn.as_mut(), &sender_user_id)
+                        .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+                    let ChatType::PendingConnection(sender_user_id) = chat.chat_type() else {
+                        bail!("Chat is not a pending connection");
+                    };
+                    let pending_connection_info = PendingConnectionInfo::load(txn, chat_id)
                         .await?
-                        .map(PartialContact::TargetedMessage)
-                };
+                        .with_context(|| {
+                            format!("No pending connection info found for chat: {chat_id}")
+                        })?;
+                    let own_user_profile_key = UserProfileKey::load_own(txn).await?;
+                    let sender_user_id = sender_user_id.clone();
 
-                let partial_contact = partial_contact
-                    .with_context(|| format!("No partial contact found for chat: {chat_id}"))?;
+                    // Look up partial contact:
+                    // - UsernameContact: by chat_id since multiple senders can target the same username
+                    // - TargetedMessageContact: by user_id (its natural key)
+                    let partial_contact = if pending_connection_info.handle.is_some() {
+                        UsernameContact::load_by_chat_id(txn, chat_id)
+                            .await?
+                            .map(PartialContact::Username)
+                    } else {
+                        TargetedMessageContact::load(txn, &sender_user_id)
+                            .await?
+                            .map(PartialContact::TargetedMessage)
+                    };
 
-                Ok((
-                    chat,
-                    sender_user_id,
-                    pending_connection_info,
-                    partial_contact,
-                    own_user_profile_key,
-                ))
-            })
-            .await?;
+                    let partial_contact = partial_contact
+                        .with_context(|| format!("No partial contact found for chat: {chat_id}"))?;
+
+                    Ok((
+                        chat,
+                        sender_user_id,
+                        pending_connection_info,
+                        partial_contact,
+                        own_user_profile_key,
+                    ))
+                })
+                .await?;
 
         let PendingConnectionInfo {
             chat_id: _,
@@ -115,11 +115,9 @@ impl CoreUser {
 
         // Create a new group by joining it (if group already exists, it will be replaced)
         let result = self
-            .with_transaction_and_notifier(async |txn, notifier| -> anyhow::Result<Result<_, _>> {
-                if Group::load_with_chat_id(txn.as_mut(), chat_id)
-                    .await?
-                    .is_some()
-                {
+            .db()
+            .with_write_transaction(async |txn| -> anyhow::Result<Result<_, _>> {
+                if Group::load_with_chat_id(txn, chat_id).await?.is_some() {
                     warn!(%chat_id, "Group for pending chat already exists");
                     Group::delete_from_db(txn, chat.group_id()).await?;
                 }
@@ -170,7 +168,7 @@ impl CoreUser {
                 );
 
                 // Fetch and store user profile
-                Self::schedule_fetch_user_profile(txn.as_mut(), contact_profile_info).await?;
+                Self::schedule_fetch_user_profile(txn, contact_profile_info).await?;
 
                 group.room_state_change_role(
                     &sender_user_id,
@@ -179,7 +177,7 @@ impl CoreUser {
                 )?;
 
                 let now = TimeStamp::now();
-                group.store_update(txn.as_mut(), Some(now)).await?;
+                group.store_update(txn, Some(now)).await?;
 
                 // Create system messages for acceptance
                 let accepted_system_message = SystemMessage::AcceptedConnectionRequest {
@@ -189,7 +187,7 @@ impl CoreUser {
                 let accepted_message =
                     TimestampedMessage::system_message(accepted_system_message, now);
                 let chat_messages = vec![accepted_message];
-                Self::store_new_messages(txn.as_mut(), notifier, chat_id, chat_messages).await?;
+                Self::store_new_messages(txn, chat_id, chat_messages).await?;
 
                 if let Some(hash) = connection_package_hash {
                     // Delete the connection package if it's not last resort
@@ -289,13 +287,13 @@ impl CoreUser {
 mod persistence {
     use sqlx::{SqliteExecutor, query, query_as};
 
-    use crate::store::StoreNotifier;
+    use crate::{db_access::ReadConnection, store::StoreNotifier};
 
     use super::*;
 
     impl PendingConnectionInfo {
         pub(super) async fn load(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl ReadConnection,
             chat_id: ChatId,
         ) -> sqlx::Result<Option<PendingConnectionInfo>> {
             query_as!(
@@ -311,13 +309,13 @@ mod persistence {
                 WHERE chat_id = ?"#,
                 chat_id,
             )
-            .fetch_optional(executor)
+            .fetch_optional(connection.as_mut())
             .await
         }
 
         pub(crate) async fn store(
             &self,
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl WriteConnection,
             notifier: &mut StoreNotifier,
         ) -> sqlx::Result<()> {
             query!(
@@ -337,21 +335,21 @@ mod persistence {
                 self.connection_offer_hash,
                 self.connection_package_hash,
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             notifier.update(self.chat_id);
             Ok(())
         }
 
         pub(super) async fn delete(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl WriteConnection,
             chat_id: ChatId,
         ) -> sqlx::Result<()> {
             query!(
                 "DELETE FROM pending_connection_info WHERE chat_id = ?",
                 chat_id
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             Ok(())
         }

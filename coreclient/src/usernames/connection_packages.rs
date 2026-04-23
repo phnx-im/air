@@ -9,7 +9,9 @@ use aircommon::{
     identifiers::Username,
     messages::connection_package::{ConnectionPackage, ConnectionPackageHash},
 };
-use sqlx::{Result, SqliteConnection, SqliteExecutor, query, query_scalar};
+use sqlx::{Result, query, query_scalar};
+
+use crate::db_access::{ReadConnection, WriteConnection};
 
 pub(crate) trait StorableConnectionPackage: Sized + Borrow<ConnectionPackage> {
     /// Store the connection package in the database.
@@ -17,7 +19,7 @@ pub(crate) trait StorableConnectionPackage: Sized + Borrow<ConnectionPackage> {
     /// Returns an error if the storage fails.
     async fn store_for_username(
         &self,
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         username: &Username,
         decryption_key: &ConnectionDecryptionKey,
     ) -> Result<()> {
@@ -35,14 +37,14 @@ pub(crate) trait StorableConnectionPackage: Sized + Borrow<ConnectionPackage> {
             not_after,
             is_last_resort
         )
-        .execute(connection)
+        .execute(connection.as_mut())
         .await?;
 
         Ok(())
     }
 
     async fn load_decryption_key(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         hash: &ConnectionPackageHash,
     ) -> Result<Option<ConnectionDecryptionKey>> {
         query_scalar!(
@@ -52,22 +54,25 @@ pub(crate) trait StorableConnectionPackage: Sized + Borrow<ConnectionPackage> {
             WHERE connection_package_hash = $1"#,
             hash
         )
-        .fetch_optional(executor)
+        .fetch_optional(connection.as_mut())
         .await
     }
 
-    async fn delete(connection: &mut SqliteConnection, hash: &ConnectionPackageHash) -> Result<()> {
+    async fn delete(
+        mut connection: impl WriteConnection,
+        hash: &ConnectionPackageHash,
+    ) -> Result<()> {
         query!(
             "DELETE FROM connection_package WHERE connection_package_hash = $1",
             hash
         )
-        .execute(connection)
+        .execute(connection.as_mut())
         .await?;
         Ok(())
     }
 
     async fn is_last_resort(
-        connection: &mut SqliteConnection,
+        mut connection: impl ReadConnection,
         hash: &ConnectionPackageHash,
     ) -> Result<Option<bool>> {
         query_scalar!(
@@ -76,7 +81,7 @@ pub(crate) trait StorableConnectionPackage: Sized + Borrow<ConnectionPackage> {
             WHERE connection_package_hash = $1"#,
             hash
         )
-        .fetch_one(connection)
+        .fetch_one(connection.as_mut())
         .await
     }
 }

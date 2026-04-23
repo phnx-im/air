@@ -267,12 +267,18 @@ mod persistence {
     use tracing::debug;
     use uuid::Uuid;
 
-    use crate::ChatId;
+    use crate::{
+        ChatId,
+        db_access::{ReadConnection, WriteConnection, WriteDbTransaction},
+    };
 
     use super::*;
 
     impl Resync {
-        pub(crate) async fn enqueue(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+        pub(crate) async fn enqueue(
+            &self,
+            mut connection: impl WriteConnection,
+        ) -> sqlx::Result<()> {
             debug!(
                 ?self.group_id,
                 ?self.chat_id,
@@ -292,7 +298,7 @@ mod persistence {
                 self.identity_link_wrapper_key,
                 original_leaf_index
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             Ok(())
         }
@@ -300,7 +306,7 @@ mod persistence {
         /// Dequeue a resync operation for processing that has not been locked
         /// by this task.
         pub(crate) async fn dequeue(
-            txn: &mut SqliteTransaction<'_>,
+            txn: &mut WriteDbTransaction<'_>,
             task_id: Uuid,
         ) -> anyhow::Result<Option<Resync>> {
             struct ResyncRecord {
@@ -355,20 +361,20 @@ mod persistence {
         }
 
         pub(crate) async fn is_pending_for_chat(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl ReadConnection,
             chat_id: &ChatId,
         ) -> sqlx::Result<bool> {
             let record = query!(
                 "SELECT EXISTS(SELECT 1 FROM resync_queue WHERE chat_id = ? LIMIT 1) AS row_exists",
                 chat_id,
             )
-            .fetch_one(executor)
+            .fetch_one(connection.as_mut())
             .await?;
             Ok(record.row_exists == 1)
         }
 
         pub(crate) async fn remove(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl WriteConnection,
             group_id: &GroupId,
         ) -> sqlx::Result<()> {
             let group_id_bytes = group_id.as_slice();
@@ -376,7 +382,7 @@ mod persistence {
                 "DELETE FROM resync_queue WHERE group_id = ?",
                 group_id_bytes
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             Ok(())
         }

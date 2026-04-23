@@ -27,6 +27,7 @@ use tracing::{debug, error, info};
 use crate::{
     Chat, ChatAttributes, ChatStatus,
     clients::{CoreUser, update_key::update_chat_attributes},
+    db_access::WriteConnection,
     groups::{Group, ProfileInfo},
     job::operation::OperationId,
     key_stores::indexed_keys::StorableIndexedKey,
@@ -44,7 +45,7 @@ impl CoreUser {
     ///
     /// This will be executed on the next run of the outbound service.
     pub(crate) async fn schedule_fetch_user_profile(
-        executor: impl SqliteExecutor<'_>,
+        connection: impl WriteConnection,
         profile_info: impl Into<ProfileInfo>,
     ) -> sqlx::Result<()> {
         let ProfileInfo {
@@ -53,7 +54,7 @@ impl CoreUser {
         } = profile_info.into();
         FetchUserProfileOperation::new(client_credential, user_profile_key)
             .into_operation()
-            .enqueue(executor)
+            .enqueue(connection)
             .await
     }
 
@@ -74,7 +75,7 @@ impl CoreUser {
     ///
     /// This will be executed on the next run of the outbound service.
     pub(crate) async fn schedule_fetch_group_profile(
-        executor: impl SqliteExecutor<'_>,
+        connection: impl WriteConnection,
         group_id: GroupId,
         sender_id: UserId,
         uploaded_at: TimeStamp,
@@ -87,7 +88,7 @@ impl CoreUser {
             external_group_profile,
         }
         .into_operation()
-        .enqueue(executor)
+        .enqueue(connection)
         .await
     }
 }

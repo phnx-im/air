@@ -78,6 +78,7 @@ use crate::{
         targeted_message::TargetedMessageContent,
     },
     contacts::ContactAddInfos,
+    db_access::{ReadConnection, WriteDbTransaction},
     groups::client_auth_info::VerifiableClientCredentialExt,
     key_stores::as_credentials::AsCredentials,
     outbound_service::resync::Resync,
@@ -264,7 +265,7 @@ impl Group {
         // This is our own key that the sender uses to encrypt to us. We should
         // be able to retrieve it from the client's key store.
         welcome_attribution_info_ear_key: &WelcomeAttributionInfoEarKey,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         signer: &ClientSigningKey,
     ) -> Result<(Self, UserId, Vec<ProfileInfo>)> {
@@ -312,7 +313,7 @@ impl Group {
 
             // Phase 3: Check if there is already a group with the same ID.
             let group_id = processed_welcome.unverified_group_info().group_id().clone();
-            if let Some(group) = Self::load(txn.as_mut(), &group_id).await? {
+            if let Some(group) = Self::load(&mut *txn, &group_id).await? {
                 // If the group is active, we can't join it.
                 if group.mls_group().is_active() {
                     bail!("We can't join a group that is still active.");
@@ -363,13 +364,13 @@ impl Group {
 
             let sender_user_id = verifiable_attribution_info.sender();
             let sender_client_credential =
-                StorableClientCredential::load_by_user_id(txn.as_mut(), &sender_user_id)
+                StorableClientCredential::load_by_user_id(&mut *txn, &sender_user_id)
                     .await?
                     .ok_or_else(|| {
                         anyhow!("Could not find client credential of sender in database.")
                     })?;
 
-            if BlockedContact::check_blocked(txn.as_mut(), &sender_user_id).await? {
+            if BlockedContact::check_blocked(&mut *txn, &sender_user_id).await? {
                 bail!(BlockedContactError);
             }
 
@@ -384,7 +385,7 @@ impl Group {
             )
         };
 
-        let credentials = verify_member_credentials(txn, api_clients, &mls_group).await?;
+        let credentials = verify_member_credentials(&mut *txn, api_clients, &mls_group).await?;
 
         let group = Self {
             group_id: mls_group.group_id().clone(),
@@ -397,9 +398,9 @@ impl Group {
         };
 
         // Phase 7: Store the group and client credentials.
-        group.store(txn.as_mut()).await?;
+        group.store(&mut *txn).await?;
         for credential in &credentials {
-            credential.store(txn.as_mut()).await?;
+            credential.store(&mut *txn).await?;
         }
 
         // Phase 8: Decrypt profile keys
@@ -425,7 +426,7 @@ impl Group {
     /// Join a group using an external commit.
     #[allow(clippy::too_many_arguments)]
     pub(super) async fn join_group_externally(
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         external_commit_info: ExternalCommitInfoIn,
         signer: &ClientSigningKey,
@@ -475,7 +476,7 @@ impl Group {
         // Let's create the group first so that we can access the GroupId.
         // Phase 1: Create and store the group
         let (mls_group, commit, group_info) = {
-            let provider = AirOpenMlsProvider::new(&mut *txn);
+            let provider = AirOpenMlsProvider::new(txn.as_mut());
             // Prepare PSK proposal if we have a connection offer hash.
             let psk_proposal = match connection_offer_hash {
                 Some(co_hash) => {
@@ -543,15 +544,15 @@ impl Group {
 
         // Phase 4: Store the group and client auth info.
         // If the group previously existed, delete it first.
-        Group::delete_from_db(&mut *txn, &group.group_id).await?;
-        group.store(txn.as_mut()).await?;
+        Group::delete_from_db(txn, &group.group_id).await?;
+        group.store(&mut *txn).await?;
         for credential in &credentials {
-            credential.store(txn.as_mut()).await?;
+            credential.store(&mut *txn).await?;
         }
         // Also store own credential
         let own_credential = signer.credential().clone();
         StorableClientCredential::from(own_credential)
-            .store(txn.as_mut())
+            .store(&mut *txn)
             .await?;
 
         // Compile a list of user profile keys for the members.
@@ -1303,7 +1304,7 @@ impl Group {
 ///
 /// Returns the credentials of the group members.
 async fn verify_member_credentials(
-    txn: &mut SqliteTransaction<'_>,
+    connection: impl ReadConnection,
     api_clients: &ApiClients,
     mls_group: &MlsGroup,
 ) -> anyhow::Result<Vec<StorableClientCredential>> {
@@ -1318,7 +1319,7 @@ async fn verify_member_credentials(
         .collect::<anyhow::Result<Vec<_>>>()?;
 
     let as_credentials = AsCredentials::fetch_for_verification(
-        txn.as_mut(),
+        connection,
         api_clients,
         unverified_credentials.iter().map(|(c, _)| c),
     )
@@ -1347,12 +1348,12 @@ async fn verify_member_credentials(
 /// This function is idempotent — safe to call even if the group or chat is
 /// already gone.
 pub(crate) async fn handle_group_not_found_on_ds(
-    txn: &mut SqliteTransaction<'_>,
+    txn: &mut WriteDbTransaction<'_>,
     notifier: &mut crate::store::StoreNotifier,
     group_id: &GroupId,
 ) -> anyhow::Result<()> {
     // Collect past members before deleting the group.
-    let past_members = match Group::load(txn.as_mut(), group_id).await? {
+    let past_members = match Group::load(&mut *txn, group_id).await? {
         Some(group) => group.members().collect(),
         None => Vec::new(),
     };
@@ -1360,16 +1361,15 @@ pub(crate) async fn handle_group_not_found_on_ds(
     // Mark the chat as inactive so the user sees it's dead. We do this even
     // for blocked chats so they stay inactive if the user later unblocks the
     // contact.
-    if let Some(mut chat) = crate::Chat::load_by_group_id(txn.as_mut(), group_id).await?
+    if let Some(mut chat) = crate::Chat::load_by_group_id(&mut *txn, group_id).await?
         && !matches!(chat.status(), crate::ChatStatus::Inactive(_))
     {
-        chat.set_inactive(txn.as_mut(), notifier, past_members)
-            .await?;
+        chat.set_inactive(&mut *txn, past_members).await?;
     }
 
     // Remove any pending resync for this group (FK is on chat_id, not
     // group_id, so it won't cascade from Group::delete_from_db).
-    Resync::remove(txn.as_mut(), group_id).await?;
+    Resync::remove(&mut *txn, group_id).await?;
 
     // Delete the MLS group. This cascades to pending_chat_operation and
     // group_membership via FK.

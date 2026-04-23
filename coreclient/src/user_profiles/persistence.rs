@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{crypto::indexed_aead::keys::UserProfileKeyIndex, identifiers::UserId};
-use sqlx::{SqliteExecutor, query, query_as};
+use sqlx::{query, query_as};
 
-use crate::store::StoreNotifier;
+use crate::db_access::{ReadConnection, WriteConnection};
 
 use super::{Asset, IndexedUserProfile, UserProfile, display_name::BaseDisplayName};
 
@@ -13,11 +13,7 @@ impl IndexedUserProfile {
     /// Stores this [`BaseIndexedUserProfile`].
     ///
     /// Will return an error if there already exists a user profile with the same user id.
-    pub(super) async fn store(
-        &self,
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
-    ) -> sqlx::Result<()> {
+    pub(super) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
         let uuid = self.user_id.uuid();
         let domain = self.user_id.domain();
         let epoch = self.epoch as i64;
@@ -37,18 +33,14 @@ impl IndexedUserProfile {
             self.display_name,
             self.profile_picture,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
-        notifier.update(self.user_id.clone());
+        connection.notifier().update(self.user_id.clone());
         Ok(())
     }
 
     /// Update the user's display name and profile picture in the database.
-    pub(crate) async fn update(
-        &self,
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
-    ) -> sqlx::Result<()> {
+    pub(crate) async fn update(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
         let uuid = self.user_id.uuid();
         let domain = self.user_id.domain();
         let epoch = self.epoch as i64;
@@ -66,9 +58,9 @@ impl IndexedUserProfile {
             self.display_name,
             self.profile_picture
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
-        notifier.update(self.user_id.clone());
+        connection.notifier().update(self.user_id.clone());
         Ok(())
     }
 }
@@ -104,7 +96,7 @@ impl From<(UserId, SqlUser)> for IndexedUserProfile {
 
 impl IndexedUserProfile {
     pub(crate) async fn load(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         user_id: &UserId,
     ) -> sqlx::Result<Option<Self>> {
         let uuid = user_id.uuid();
@@ -121,7 +113,7 @@ impl IndexedUserProfile {
             uuid,
             domain,
         )
-        .fetch_optional(executor)
+        .fetch_optional(connection.as_mut())
         .await
         .map(|res| res.map(|user| (user_id.clone(), user).into()))
     }
@@ -129,10 +121,10 @@ impl IndexedUserProfile {
 
 impl UserProfile {
     pub async fn load(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         user_id: &UserId,
     ) -> sqlx::Result<Option<Self>> {
-        IndexedUserProfile::load(executor, user_id)
+        IndexedUserProfile::load(connection, user_id)
             .await
             .map(|res| res.map(From::from))
     }

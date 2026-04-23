@@ -28,20 +28,22 @@ pub(crate) struct UserSettingRecord {}
 mod persistence {
     use sqlx::SqliteExecutor;
 
+    use crate::db_access::{ReadConnection, WriteConnection};
+
     use super::UserSettingRecord;
 
     impl UserSettingRecord {
         pub(crate) async fn load(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl ReadConnection,
             setting: &'static str,
         ) -> sqlx::Result<Option<Vec<u8>>> {
             sqlx::query_scalar!("SELECT value FROM user_setting WHERE setting = ?", setting)
-                .fetch_optional(executor)
+                .fetch_optional(connection.as_mut())
                 .await
         }
 
         pub(crate) async fn store(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl WriteConnection,
             setting: &str,
             value: Vec<u8>,
         ) -> sqlx::Result<()> {
@@ -50,7 +52,7 @@ mod persistence {
                 setting,
                 value
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             Ok(())
         }

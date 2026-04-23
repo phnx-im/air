@@ -9,6 +9,8 @@ use aircommon::crypto::indexed_aead::keys::{
 };
 use sqlx::{Connection, SqliteConnection, SqliteExecutor, query, query_as};
 
+use crate::db_access::{ReadConnection, WriteConnection};
+
 pub(crate) struct SqlIndexedAeadKey<KT> {
     base_secret: BaseSecret<KT>,
     key: Key<KT>,
@@ -42,7 +44,7 @@ pub(crate) trait StorableIndexedKey<KT: IndexedKeyType + Send + Unpin + Debug>:
     fn key(&self) -> &Key<KT>;
     fn index(&self) -> &Index<KT>;
 
-    async fn store(&self, connection: impl SqliteExecutor<'_>) -> Result<(), sqlx::Error> {
+    async fn store(&self, mut connection: impl WriteConnection) -> Result<(), sqlx::Error> {
         let base_secret = self.base_secret();
         let key = self.key();
         let index = self.index();
@@ -53,12 +55,12 @@ pub(crate) trait StorableIndexedKey<KT: IndexedKeyType + Send + Unpin + Debug>:
             key,
             index
         )
-        .execute(connection)
+        .execute(connection.as_mut())
         .await?;
         Ok(())
     }
 
-    async fn store_own(&self, connection: &mut SqliteConnection) -> Result<(), sqlx::Error> {
+    async fn store_own(&self, mut connection: impl WriteConnection) -> Result<(), sqlx::Error> {
         let base_secret = self.base_secret();
         let key = self.key();
         let index = self.index();
@@ -72,10 +74,10 @@ pub(crate) trait StorableIndexedKey<KT: IndexedKeyType + Send + Unpin + Debug>:
                )",
             key_type
         )
-        .execute(&mut *transaction)
+        .execute(transaction.as_mut())
         .await?;
         query!("DELETE FROM own_key_index WHERE key_type = ?", key_type)
-            .execute(&mut *transaction)
+            .execute(transaction.as_mut())
             .await?;
         query!(
             "INSERT OR REPLACE INTO indexed_key (base_secret, key_value, key_index)
@@ -84,21 +86,21 @@ pub(crate) trait StorableIndexedKey<KT: IndexedKeyType + Send + Unpin + Debug>:
             key,
             index
         )
-        .execute(&mut *transaction)
+        .execute(transaction.as_mut())
         .await?;
         query!(
             "INSERT OR REPLACE INTO own_key_index (key_index, key_type) VALUES ($1, $2)",
             index,
             key_type
         )
-        .execute(&mut *transaction)
+        .execute(transaction.as_mut())
         .await?;
         transaction.commit().await?;
         Ok(())
     }
 
     async fn load(
-        connection: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         index: &Index<KT>,
     ) -> Result<Self, sqlx::Error> {
         query_as!(
@@ -113,12 +115,12 @@ pub(crate) trait StorableIndexedKey<KT: IndexedKeyType + Send + Unpin + Debug>:
                 LIMIT 1"#,
             index,
         )
-        .fetch_one(connection)
+        .fetch_one(connection.as_mut())
         .await
         .map(From::from)
     }
 
-    async fn load_own(connection: impl SqliteExecutor<'_>) -> Result<Self, sqlx::Error> {
+    async fn load_own(mut connection: impl ReadConnection) -> Result<Self, sqlx::Error> {
         let key_type = KeyTypeInstance::<KT>::new();
         query_as!(
             SqlIndexedAeadKey,
@@ -131,17 +133,17 @@ pub(crate) trait StorableIndexedKey<KT: IndexedKeyType + Send + Unpin + Debug>:
                 WHERE oki.key_type = ?"#,
             key_type
         )
-        .fetch_one(connection)
+        .fetch_one(connection.as_mut())
         .await
         .map(From::from)
     }
 
     async fn delete(
-        connection: impl SqliteExecutor<'_>,
+        mut connection: impl WriteConnection,
         index: &Index<KT>,
     ) -> Result<(), sqlx::Error> {
         query!("DELETE FROM indexed_key WHERE key_index = ?", index)
-            .execute(connection)
+            .execute(connection.as_mut())
             .await?;
         Ok(())
     }

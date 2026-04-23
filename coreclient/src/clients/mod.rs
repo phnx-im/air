@@ -50,7 +50,7 @@ use crate::{
     Asset, UsernameRecord,
     clients::event_loop::{EventLoop, EventLoopSender},
     contacts::{TargetedMessageContact, UsernameContact},
-    db_access::DbAccess,
+    db_access::{DbAccess, WriteConnection},
     groups::Group,
     job::{Job, JobContext, JobError},
     key_stores::queue_ratchets::StorableQsQueueRatchet,
@@ -724,8 +724,7 @@ impl CoreUser {
     }
 
     pub(crate) async fn store_new_messages(
-        connection: &mut sqlx::SqliteConnection,
-        notifier: &mut StoreNotifier,
+        connection: &mut impl WriteConnection,
         chat_id: ChatId,
         group_messages: Vec<TimestampedMessage>,
     ) -> Result<Vec<ChatMessage>> {
@@ -734,13 +733,13 @@ impl CoreUser {
             let message_id = MessageId::random();
             let mut message = ChatMessage::new(chat_id, message_id, timestamped_message);
             let attachment_records = Self::extract_attachments(&mut message);
-            message.store(&mut *connection, notifier).await?;
+            message.store(&mut *connection).await?;
             for (record, pending_record) in attachment_records {
-                if let Err(error) = record.store(&mut *connection, notifier, None).await {
+                if let Err(error) = record.store(&mut *connection, None).await {
                     error!(%error, "Failed to store attachment");
                     continue;
                 }
-                if let Err(error) = pending_record.store(&mut *connection, notifier).await {
+                if let Err(error) = pending_record.store(&mut *connection).await {
                     error!(%error, "Failed to store pending attachment");
                 }
             }

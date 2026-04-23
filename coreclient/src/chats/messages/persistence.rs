@@ -18,7 +18,9 @@ use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::{
-    ChatId, ChatMessage, ContentMessage, Message, chats::messages::InReplyToMessage,
+    ChatId, ChatMessage, ContentMessage, Message,
+    chats::messages::InReplyToMessage,
+    db_access::{ReadConnection, WriteConnection},
     store::StoreNotifier,
 };
 
@@ -595,11 +597,7 @@ impl ChatMessage {
         Ok(())
     }
 
-    pub(crate) async fn store(
-        &self,
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
-    ) -> anyhow::Result<()> {
+    pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> anyhow::Result<()> {
         let (sender_uuid, sender_domain, mimi_id) = match &self.timestamped_message.message {
             Message::Content(content_message) => (
                 Some(content_message.sender.uuid()),
@@ -655,18 +653,17 @@ impl ChatMessage {
             content,
             sent,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
 
-        notifier.add(self.message_id).update(self.chat_id);
+        connection
+            .notifier()
+            .add(self.message_id)
+            .update(self.chat_id);
         Ok(())
     }
 
-    pub(crate) async fn update(
-        &self,
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
-    ) -> anyhow::Result<()> {
+    pub(crate) async fn update(&self, mut connection: impl WriteConnection) -> anyhow::Result<()> {
         let mimi_id = self.message().mimi_id();
         let content = match &self.timestamped_message.message {
             Message::Content(content_message) => {
@@ -701,11 +698,11 @@ impl ChatMessage {
             status,
             message_id,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
 
-        notifier.update(self.id());
-        notifier.update(self.chat_id);
+        connection.notifier().update(self.id());
+        connection.notifier().update(self.chat_id);
         Ok(())
     }
 
@@ -714,8 +711,7 @@ impl ChatMessage {
     /// This removes the message row entirely. This will also remove associated
     /// edit history and status records via foreign key cascade.
     pub(crate) async fn delete(
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
+        mut connection: impl WriteConnection,
         message_id: MessageId,
     ) -> sqlx::Result<()> {
         let chat_id = query_as!(
@@ -723,9 +719,10 @@ impl ChatMessage {
             "DELETE FROM message WHERE message_id = ? RETURNING chat_id AS 'uuid: _'",
             message_id
         )
-        .fetch_optional(executor)
+        .fetch_optional(connection.as_mut())
         .await?;
 
+        let notifier = connection.notifier();
         if let Some(chat_id) = chat_id {
             notifier.remove(message_id);
             notifier.update(chat_id);
@@ -735,8 +732,7 @@ impl ChatMessage {
 
     /// Set the message's sent status in the database and update the message's timestamp.
     pub(super) async fn update_sent_status(
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
+        mut connection: impl WriteConnection,
         message_id: MessageId,
         timestamp: TimeStamp,
         sent: bool,
@@ -747,17 +743,17 @@ impl ChatMessage {
             sent,
             message_id,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
         if res.rows_affected() == 1 {
-            notifier.update(message_id);
+            connection.notifier().update(message_id);
         }
         Ok(())
     }
 
     /// Get the last message in the chat.
     pub(crate) async fn last_message(
-        connection: &mut SqliteConnection,
+        mut connection: impl ReadConnection,
         chat_id: ChatId,
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
@@ -782,16 +778,16 @@ impl ChatMessage {
             ORDER BY timestamp DESC LIMIT 1"#,
             chat_id,
         )
-        .fetch_optional(&mut *connection)
+        .fetch_optional(connection.as_mut())
         .await?
         .map(ChatMessage::from)
-        .with_loaded_in_reply_to(connection)
+        .with_loaded_in_reply_to(connection.as_mut())
         .await
     }
 
     /// Get the last content message in the chat which is owned by the given user.
     pub(crate) async fn last_content_message_by_user(
-        connection: &mut SqliteConnection,
+        mut connection: impl ReadConnection,
         chat_id: ChatId,
         user_id: &UserId,
     ) -> sqlx::Result<Option<Self>> {
@@ -823,15 +819,15 @@ impl ChatMessage {
             user_uuid,
             user_domain,
         )
-        .fetch_optional(&mut *connection)
+        .fetch_optional(connection.as_mut())
         .await?
         .map(ChatMessage::from)
-        .with_loaded_in_reply_to(connection)
+        .with_loaded_in_reply_to(connection.as_mut())
         .await
     }
 
     pub(crate) async fn prev_message(
-        connection: &mut SqliteConnection,
+        mut connection: impl ReadConnection,
         chat_id: ChatId,
         message_id: MessageId,
     ) -> sqlx::Result<Option<ChatMessage>> {
@@ -861,15 +857,15 @@ impl ChatMessage {
             message_id,
             chat_id,
         )
-        .fetch_optional(&mut *connection)
+        .fetch_optional(connection.as_mut())
         .await?
         .map(ChatMessage::from)
-        .with_loaded_in_reply_to(connection)
+        .with_loaded_in_reply_to(connection.as_mut())
         .await
     }
 
     pub(crate) async fn next_message(
-        connection: &mut SqliteConnection,
+        mut connection: impl ReadConnection,
         chat_id: ChatId,
         message_id: MessageId,
     ) -> sqlx::Result<Option<ChatMessage>> {
@@ -899,15 +895,15 @@ impl ChatMessage {
             message_id,
             chat_id,
         )
-        .fetch_optional(&mut *connection)
+        .fetch_optional(connection.as_mut())
         .await?
         .map(ChatMessage::from)
-        .with_loaded_in_reply_to(connection)
+        .with_loaded_in_reply_to(connection.as_mut())
         .await
     }
 
     pub(crate) async fn redact_all_in_reply_to_mimi_ids(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl WriteConnection,
         original_message_id: &MessageId,
         original_mimi_id: &MimiId,
         replaces: &MimiId,
@@ -928,12 +924,12 @@ impl ChatMessage {
             original_mimi_id,
             replaces
         )
-        .fetch_all(executor)
+        .fetch_all(connection.as_mut())
         .await
     }
 
     pub(crate) async fn load_message_ids_in_reply_to_mimi_id(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         mimi_id: &MimiId,
     ) -> sqlx::Result<Vec<MessageId>> {
         query_as!(
@@ -941,7 +937,7 @@ impl ChatMessage {
             r#"SELECT message_id AS 'uuid: _' FROM message WHERE in_reply_to_mimi_id = ?"#,
             mimi_id
         )
-        .fetch_all(executor)
+        .fetch_all(connection.as_mut())
         .await
     }
 }
@@ -976,8 +972,7 @@ trait SqlChatMessageExt
 where
     Self: Sized,
 {
-    async fn with_loaded_in_reply_to(self, connection: &mut SqliteConnection)
-    -> sqlx::Result<Self>;
+    async fn with_loaded_in_reply_to(self, c: &mut SqliteConnection) -> sqlx::Result<Self>;
 }
 
 impl SqlChatMessageExt for &mut ChatMessage {
