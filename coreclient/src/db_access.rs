@@ -11,6 +11,29 @@ pub(crate) struct DbAccess {
     notifier_tx: StoreNotificationsSender,
 }
 
+#[derive(Debug)]
+pub(crate) struct ReadPoolConnection {
+    conn: PoolConnection<Sqlite>,
+}
+
+#[derive(Debug)]
+pub(crate) struct WritePoolConnection {
+    conn: PoolConnection<Sqlite>,
+    notifier: StoreNotifier,
+}
+
+#[derive(Debug)]
+pub(crate) struct WriteTransaction<'a> {
+    txn: SqliteTransaction<'a>,
+    notifier: &'a mut StoreNotifier,
+}
+
+pub trait ReadConnection: AsMut<SqliteConnection> {}
+
+pub trait WriteConnection: AsMut<SqliteConnection> {
+    fn notifier(&mut self) -> &mut StoreNotifier;
+}
+
 impl DbAccess {
     #[cfg(test)]
     pub(crate) fn for_tests(pool: SqlitePool) -> Self {
@@ -23,27 +46,19 @@ impl DbAccess {
     pub(crate) fn new(pool: SqlitePool, notifier_tx: StoreNotificationsSender) -> Self {
         Self { pool, notifier_tx }
     }
-}
 
-pub trait ReadExecutor<'c>: AsMut<SqliteConnection> {}
-
-pub trait WriteExecutor<'c>: AsMut<SqliteConnection> {
-    fn split(self) -> (&'c mut SqliteConnection, &'c mut StoreNotifier);
-}
-
-impl DbAccess {
     fn notifier(&self) -> StoreNotifier {
         StoreNotifier::new(self.notifier_tx.clone())
     }
 
-    pub(crate) async fn read(&self) -> sqlx::Result<ReadConnection> {
+    pub(crate) async fn read(&self) -> sqlx::Result<ReadPoolConnection> {
         let conn = self.pool.acquire().await?;
-        Ok(ReadConnection { conn })
+        Ok(ReadPoolConnection { conn })
     }
 
-    pub(crate) async fn write(&self) -> sqlx::Result<WriteConnection> {
+    pub(crate) async fn write(&self) -> sqlx::Result<WritePoolConnection> {
         let conn = self.pool.acquire().await?;
-        Ok(WriteConnection {
+        Ok(WritePoolConnection {
             conn,
             notifier: self.notifier(),
         })
@@ -67,19 +82,8 @@ impl DbAccess {
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct ReadConnection {
-    conn: PoolConnection<Sqlite>,
-}
-
-#[derive(Debug)]
-pub(crate) struct WriteConnection {
-    conn: PoolConnection<Sqlite>,
-    notifier: StoreNotifier,
-}
-
-impl<'c> WriteConnection {
-    pub(crate) async fn begin(&'c mut self) -> sqlx::Result<WriteTransaction<'c>> {
+impl WritePoolConnection {
+    pub(crate) async fn begin(&mut self) -> sqlx::Result<WriteTransaction<'_>> {
         let txn = self.conn.begin_with("BEGIN IMMEDIATE").await?;
         Ok(WriteTransaction {
             txn,
@@ -88,25 +92,19 @@ impl<'c> WriteConnection {
     }
 }
 
-#[derive(Debug)]
-pub(crate) struct WriteTransaction<'a> {
-    txn: SqliteTransaction<'a>,
-    notifier: &'a mut StoreNotifier,
-}
-
 impl WriteTransaction<'_> {
     async fn commit(self) -> sqlx::Result<()> {
         self.txn.commit().await
     }
 }
 
-impl AsMut<SqliteConnection> for &mut ReadConnection {
+impl AsMut<SqliteConnection> for &mut ReadPoolConnection {
     fn as_mut(&mut self) -> &mut SqliteConnection {
         &mut self.conn
     }
 }
 
-impl AsMut<SqliteConnection> for &mut WriteConnection {
+impl AsMut<SqliteConnection> for &mut WritePoolConnection {
     fn as_mut(&mut self) -> &mut SqliteConnection {
         &mut self.conn
     }
@@ -118,18 +116,19 @@ impl AsMut<SqliteConnection> for &mut WriteTransaction<'_> {
     }
 }
 
-impl<'c> ReadExecutor<'c> for &'c mut ReadConnection {}
-impl<'c> ReadExecutor<'c> for &'c mut WriteConnection {}
-impl<'c> ReadExecutor<'c> for &'c mut WriteTransaction<'_> {}
+// write connections can be also use to read
+impl ReadConnection for &mut ReadPoolConnection {}
+impl ReadConnection for &mut WritePoolConnection {}
+impl ReadConnection for &mut WriteTransaction<'_> {}
 
-impl<'c> WriteExecutor<'c> for &'c mut WriteConnection {
-    fn split(self) -> (&'c mut SqliteConnection, &'c mut StoreNotifier) {
-        (self.conn.as_mut(), &mut self.notifier)
+impl WriteConnection for &mut WritePoolConnection {
+    fn notifier(&mut self) -> &mut StoreNotifier {
+        &mut self.notifier
     }
 }
 
-impl<'c> WriteExecutor<'c> for &'c mut WriteTransaction<'_> {
-    fn split(self) -> (&'c mut SqliteConnection, &'c mut StoreNotifier) {
-        (self.txn.as_mut(), &mut self.notifier)
+impl WriteConnection for &mut WriteTransaction<'_> {
+    fn notifier(&mut self) -> &mut StoreNotifier {
+        &mut self.notifier
     }
 }

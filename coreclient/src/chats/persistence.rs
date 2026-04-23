@@ -14,7 +14,7 @@ use tracing::info;
 use uuid::Uuid;
 
 use crate::{
-    Chat, ChatAttributes, ChatId, ChatStatus, ChatType, MessageId, db_access::WriteExecutor,
+    Chat, ChatAttributes, ChatId, ChatStatus, ChatType, MessageId, db_access::WriteConnection,
     store::StoreNotifier, utils::persistence::GroupIdWrapper,
 };
 
@@ -126,13 +126,12 @@ impl Chat {
     /// Creates a new chat with the given id.
     ///
     /// On conflict, the chat is **not** removed but updated.
-    pub(crate) async fn store(&self, write: impl WriteExecutor<'_>) -> sqlx::Result<()> {
+    pub(crate) async fn store(&self, mut write: impl WriteConnection<'_>) -> sqlx::Result<()> {
         info!(
             id =% self.id,
             title =% self.attributes().title(),
             "Storing chat"
         );
-        let (connection, notifier) = write.split();
         let title = self.attributes().title();
         let picture = self.attributes().picture();
         let group_id = self.group_id.as_slice();
@@ -210,7 +209,7 @@ impl Chat {
             is_active,
             is_incoming,
         )
-        .execute(&mut *connection)
+        .execute(write.as_mut())
         .await?;
 
         for member in past_members {
@@ -226,11 +225,11 @@ impl Chat {
                 uuid,
                 domain,
             )
-            .execute(&mut *connection)
+            .execute(write.as_mut())
             .await?;
         }
 
-        notifier.add(self.id);
+        write.notifier().add(self.id);
         Ok(())
     }
 

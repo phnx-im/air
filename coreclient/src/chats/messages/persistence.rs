@@ -18,8 +18,10 @@ use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::{
-    ChatId, ChatMessage, ContentMessage, Message, chats::messages::InReplyToMessage,
-    db_access::WriteExecutor, store::StoreNotifier,
+    ChatId, ChatMessage, ContentMessage, Message,
+    chats::messages::InReplyToMessage,
+    db_access::{ReadConnection, WriteConnection},
+    store::StoreNotifier,
 };
 
 use super::{ErrorMessage, EventMessage};
@@ -176,7 +178,7 @@ impl From<SqlChatMessage> for ChatMessage {
 
 impl ChatMessage {
     pub async fn load(
-        connection: &mut SqliteConnection,
+        mut connection: impl ReadConnection<'_>,
         message_id: MessageId,
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
@@ -201,10 +203,10 @@ impl ChatMessage {
             "#,
             message_id,
         )
-        .fetch_optional(&mut *connection)
+        .fetch_optional(connection.as_mut())
         .await?
         .map(ChatMessage::from)
-        .with_loaded_in_reply_to(&mut *connection)
+        .with_loaded_in_reply_to(connection.as_mut())
         .await
     }
 
@@ -595,7 +597,7 @@ impl ChatMessage {
         Ok(())
     }
 
-    pub(crate) async fn store(&self, write: impl WriteExecutor<'_>) -> anyhow::Result<()> {
+    pub(crate) async fn store(&self, write: impl WriteConnection<'_>) -> anyhow::Result<()> {
         let (connection, notifier) = write.split();
         let (sender_uuid, sender_domain, mimi_id) = match &self.timestamped_message.message {
             Message::Content(content_message) => (

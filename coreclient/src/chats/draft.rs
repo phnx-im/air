@@ -46,7 +46,7 @@ mod persistence {
 
     use crate::{
         ChatId,
-        db_access::{ReadExecutor, WriteExecutor},
+        db_access::{ReadConnection, WriteConnection},
     };
 
     use super::*;
@@ -92,7 +92,7 @@ mod persistence {
 
     impl MessageDraft {
         pub(crate) async fn load(
-            mut executor: impl ReadExecutor<'_>,
+            mut executor: impl ReadConnection<'_>,
             chat_id: ChatId,
         ) -> sqlx::Result<Option<Self>> {
             let Some(mut message_draft) = query_as!(
@@ -124,7 +124,7 @@ mod persistence {
 
         pub(crate) async fn store(
             &self,
-            mut executor: impl WriteExecutor<'_>,
+            executor: impl WriteConnection<'_>,
             chat_id: ChatId,
         ) -> sqlx::Result<()> {
             let (connection, notifier) = executor.split();
@@ -160,7 +160,7 @@ mod persistence {
             Ok(())
         }
 
-        pub(crate) async fn commit_all(executor: impl WriteExecutor<'_>) -> sqlx::Result<()> {
+        pub(crate) async fn commit_all(executor: impl WriteConnection<'_>) -> sqlx::Result<()> {
             let (executor, notifier) = executor.split();
             let mut chat_ids = query_scalar!(
                 r#"UPDATE message_draft SET is_committed = true
@@ -174,7 +174,7 @@ mod persistence {
         }
 
         pub(crate) async fn delete(
-            mut executor: impl WriteExecutor<'_>,
+            executor: impl WriteConnection<'_>,
             chat_id: ChatId,
         ) -> sqlx::Result<()> {
             let (executor, notifier) = executor.split();
@@ -210,7 +210,7 @@ mod persistence {
             chat.store(&mut write).await?;
 
             let message = test_chat_message(chat.id());
-            message.store(executor, notifier).await?;
+            message.store(&mut write).await?;
 
             // 1. Load non-existent draft (should be None)
             let loaded_draft =
