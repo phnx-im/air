@@ -17,6 +17,7 @@
   "userSettingsScreen_helpSection": "Hilfe",
   "userSettingsScreen_accountSection": "Konto",
   "userSettingsScreen_usernamePlaceholder": "Benutzername",
+  "userSettingsScreen_inviteCodes": "Einladungscodes",
   "settingsScreen_copiedToClipboard": "In Zwischenablage kopiert",
   "removeUsernameDialog_title": "Benutzername entfernen",
   "removeUsernameDialog_content": "Wenn du fortfährst, wird dein Benutzername entfernt und kann von jemand anderem beansprucht werden. Du wirst über ihn nicht mehr erreichbar sein.",
@@ -78,8 +79,17 @@
   "invitationCodeScreen_error_internal": "Einladungscode konnte nicht überprüft werden: {error}",
   "invitationCodeScreen_error_missing": "Einladungscode fehlt",
   "invitationCodeScreen_error_invalid": "Ungültiger Einladungscode. Prüfe den Code und versuche es erneut.",
-  
-  "invitationCodesScreen_global_quota_exceeded": "Wir haben im Moment keine Einladungenscode mehr, versuch es bitte später nochmal.",
+
+  "invitationCodesScreen_title": "Einladungscodes",
+  "invitationCodesScreen_copyAll": "Alle kopieren",
+  "invitationCodesScreen_tapToGetCode": "Tippen, um einen Code zu erhalten",
+  "invitationCodesScreen_removeUsedCodes": "Verwendete Codes entfernen",
+  "invitationCodesScreen_empty": "Keine Einladungscodes verfügbar",
+  "invitationCodesScreen_infoText1": "Air befindet sich in einer Phase mit eingeschränktem Zugang. Jeder, der beitreten möchte, braucht einen Einladungscode.",
+  "invitationCodesScreen_infoText2": "Teile diese Codes mit Freunden oder anderen, die Air beitreten möchten! Neue Codes werden regelmäßig hinzugefügt.",
+  "invitationCodesScreen_global_quota_exceeded": "Wir haben im Moment keine Einladungscodes mehr, versuch es bitte später nochmal.",
+  "invitationCodesScreen_errorRequestingCode": "Etwas ist schiefgelaufen. Versuche es erneut.",
+  "invitationCodesScreen_copiedToClipboard": "In Zwischenablage kopiert",
 
   "signUpScreen_header": "Erstelle dein Profil",
   "signUpScreen_subheader": "Dein Profil ist für Personen sichtbar, mit denen du dich verbindest, und für Mitglieder deiner Gruppen. Air benötigt einen Anzeigenamen, ein Bild ist optional.",

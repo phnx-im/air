@@ -20,8 +20,6 @@
   "userSettingsScreen_helpSection": "Help",
   "userSettingsScreen_accountSection": "Account",
 
-  "userSettingsScreen_usernamePlaceholder": "Add another username...",
-
   "userSettingsScreen_inviteCodes": "Invite codes",
 
   "settingsScreen_copiedToClipboard": "Copied to clipboard",
@@ -105,7 +103,7 @@
   "invitationCodesScreen_title": "Invite codes",
   "invitationCodesScreen_copyAll": "Copy all",
   "invitationCodesScreen_tapToGetCode": "Tap to get code",
-  "invitationCodesScreen_removeUnusedCodes": "Remove used codes",
+  "invitationCodesScreen_removeUsedCodes": "Remove used codes",
   "invitationCodesScreen_empty": "No invitation codes available",
   "invitationCodesScreen_infoText1": "Air is in a limited access phase. Everyone who wants to join needs an invite code.",
   "invitationCodesScreen_infoText2": "Share these codes with your friends or anyone else who wants to join Air! New codes will be added periodically.",
