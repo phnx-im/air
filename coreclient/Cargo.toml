@@ -39,6 +39,7 @@ rand.workspace = true                                              # TODO: Repla
 rand_chacha.workspace = true
 reqwest = { workspace = true, features = ["stream", "multipart"] }
 serde.workspace = true
+serde_bytes.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 sqlx = { workspace = true, features = ["chrono", "sqlite"] }
@@ -69,4 +70,5 @@ test_utils = ["tempfile"]
 [package.metadata.cargo-machete]
 ignored = [
     "kamadak-exif", # false positive due to a different crate name: exif
+    "serde_bytes",  # false positive because used as a field attribute
 ]

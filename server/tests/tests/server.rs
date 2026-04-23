@@ -620,7 +620,7 @@ async fn resync_valid_group_succeeds() {
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Key Package Upload", skip_all)]
 async fn key_package_upload() {
-    let mut setup = TestBackend::single().await;
+    let mut setup = TestBackend::single_with_params(TestBackendParams::no_rate_limits()).await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;

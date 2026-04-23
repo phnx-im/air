@@ -278,32 +278,19 @@ class ExternalGroupProfileDebugInfo {
 }
 
 class GroupDataDebugInfo {
-  final String title;
-  final bool hasPicture;
   final EncryptedGroupTitleDebugInfo? encryptedTitle;
   final ExternalGroupProfileDebugInfo? externalGroupProfile;
 
-  const GroupDataDebugInfo({
-    required this.title,
-    required this.hasPicture,
-    this.encryptedTitle,
-    this.externalGroupProfile,
-  });
+  const GroupDataDebugInfo({this.encryptedTitle, this.externalGroupProfile});
 
   @override
-  int get hashCode =>
-      title.hashCode ^
-      hasPicture.hashCode ^
-      encryptedTitle.hashCode ^
-      externalGroupProfile.hashCode;
+  int get hashCode => encryptedTitle.hashCode ^ externalGroupProfile.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is GroupDataDebugInfo &&
           runtimeType == other.runtimeType &&
-          title == other.title &&
-          hasPicture == other.hasPicture &&
           encryptedTitle == other.encryptedTitle &&
           externalGroupProfile == other.externalGroupProfile;
 }
