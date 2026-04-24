@@ -299,10 +299,9 @@ impl ChatType {
 
 /// Attributes of a chat.
 ///
-/// This type is an in-memory representation of the chat attributes and is only persisted in the
-/// local database. It is not used to be communicated with other clients. For that, see its
-/// counterpart [`GroupData`].
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+/// This type is only an in-memory representation of the chat attributes. It is not used to be
+/// communicated with other clients. For that, see its counterpart [`GroupData`].
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct ChatAttributes {
     pub title: String,
     pub picture: Option<Vec<u8>>,
@@ -340,10 +339,13 @@ pub(crate) trait GroupDataExt {
     /// Encodes the group data as bytes to be stored in the group data extension.
     fn encode(&self) -> Result<GroupDataBytes, codec::Error>;
 
+    /// Returns the chat title and the external group profile.
+    ///
+    /// The title is decrypted from the group context if it is present.
     fn into_parts(
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> (ChatAttributes, Option<ExternalGroupProfile>);
+    ) -> (Option<String>, Option<ExternalGroupProfile>);
 }
 
 impl GroupDataExt for GroupData {
@@ -358,25 +360,23 @@ impl GroupDataExt for GroupData {
     fn into_parts(
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> (ChatAttributes, Option<ExternalGroupProfile>) {
+    ) -> (Option<String>, Option<ExternalGroupProfile>) {
         let Self {
-            title,
-            picture,
+            legacy_title,
             encrypted_title,
             external_group_profile,
         } = self;
 
-        // Always prefer the encrypted title over the plaintext title
         let title = if let Some(encrypted_title) = encrypted_title
             && let Ok(decrypted_title) = encrypted_title
                 .decrypt(identity_link_wrapper_key)
                 .inspect_err(|error| {
                     error!(%error, "Failed to decrypt group title; fallback to plaintext");
                 }) {
-            decrypted_title
+            Some(decrypted_title)
         } else {
-            title
+            legacy_title
         };
-        (ChatAttributes { title, picture }, external_group_profile)
+        (title, external_group_profile)
     }
 }

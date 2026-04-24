@@ -295,7 +295,7 @@ impl Job for FetchGroupProfileOperation {
                 update_chat_attributes(
                     &mut *txn,
                     &mut chat,
-                    sender_id,
+                    &sender_id,
                     chat_attributes,
                     uploaded_at,
                     &mut messages,

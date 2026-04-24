@@ -7,7 +7,7 @@ private let kStoreNotificationsPendingName =
     "ms.air.store-notifications-pending" as CFString
 
 @main
-@objc class AppDelegate: FlutterAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
     private var deviceToken: String?
     private let notificationChannelName: String = "ms.air/channel"
     private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
@@ -18,8 +18,6 @@ private let kStoreNotificationsPendingName =
         didFinishLaunchingWithOptions launchOptions: [UIApplication
             .LaunchOptionsKey: Any]?
     ) -> Bool {
-        GeneratedPluginRegistrant.register(with: self)
-
         if #available(iOS 10.0, *) {
             UNUserNotificationCenter.current().delegate = self
         }
@@ -27,11 +25,30 @@ private let kStoreNotificationsPendingName =
         // Register for push notifications
         UIApplication.shared.registerForRemoteNotifications()
 
+        // Clear any lingering "blocked" notifications at launch
+        clearProtectedBlockedNotifications()
+
+        // When protected data becomes available (e.g. first unlock after reboot), clear again
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(handleProtectedDataAvailable(_:)),
+            name: UIApplication.protectedDataDidBecomeAvailableNotification,
+            object: nil
+        )
+
+        return super.application(
+            application, didFinishLaunchingWithOptions: launchOptions)
+    }
+
+    func didInitializeImplicitFlutterEngine(
+        _ engineBridge: FlutterImplicitEngineBridge
+    ) {
+        GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+
         // Set up the method channel to retrieve the token from Flutter
-        let controller = window?.rootViewController as! FlutterViewController
         let methodChannel = FlutterMethodChannel(
             name: notificationChannelName,
-            binaryMessenger: controller.binaryMessenger)
+            binaryMessenger: engineBridge.applicationRegistrar.messenger())
 
         // Set the handler function for the method channel
         methodChannel.setMethodCallHandler(handleMethodCall)
@@ -54,20 +71,6 @@ private let kStoreNotificationsPendingName =
             kStoreNotificationsPendingName,
             nil,
             .deliverImmediately)
-
-        // Clear any lingering "blocked" notifications at launch
-        clearProtectedBlockedNotifications()
-
-        // When protected data becomes available (e.g. first unlock after reboot), clear again
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(handleProtectedDataAvailable(_:)),
-            name: UIApplication.protectedDataDidBecomeAvailableNotification,
-            object: nil
-        )
-
-        return super.application(
-            application, didFinishLaunchingWithOptions: launchOptions)
     }
 
     override func application(
@@ -142,11 +145,7 @@ private let kStoreNotificationsPendingName =
 
     // Call Flutter by passing a method and customData as payload
     private func notifyFlutter(method: String, arguments: [String: Any?]) {
-        let controller = window?.rootViewController as! FlutterViewController
-        let channel = FlutterMethodChannel(
-            name: notificationChannelName,
-            binaryMessenger: controller.binaryMessenger)
-        channel.invokeMethod(method, arguments: arguments)
+        storeNotificationsChannel?.invokeMethod(method, arguments: arguments)
     }
 
     // Define the handler function

@@ -216,12 +216,11 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
         let encrypted_title = EncryptedGroupTitle::encrypt(&title, &identity_link_wrapper_key)?;
         let group_data_bytes = GroupData {
-            title,
             encrypted_title: Some(encrypted_title),
-            picture: None,
             // No group profile is uploaded, because there is no additational data except for the
             // title.
             external_group_profile: None,
+            legacy_title: None,
         }
         .encode()?;
 

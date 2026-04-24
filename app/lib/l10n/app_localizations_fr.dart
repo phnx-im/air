@@ -70,10 +70,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get userSettingsScreen_accountSection => 'Compte';
 
   @override
-  String get userSettingsScreen_usernamePlaceholder => 'Nom d\'utilisateur';
-
-  @override
-  String get userSettingsScreen_inviteCodes => 'Invite codes';
+  String get userSettingsScreen_inviteCodes => 'Codes d\'invitation';
 
   @override
   String get settingsScreen_copiedToClipboard => 'Copié dans le presse-papiers';
@@ -90,6 +87,9 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get removeUsernameDialog_remove => 'Supprimer';
+
+  @override
+  String get userSettingsScreen_usernamePlaceholder => 'Nom d\'utilisateur';
 
   @override
   String get addMembersScreen_addMembers => 'Ajouter des membres';
@@ -278,27 +278,30 @@ class AppLocalizationsFr extends AppLocalizations {
       'Code d\'invitation invalide. Vérifiez votre code et réessayez.';
 
   @override
-  String get invitationCodesScreen_title => 'Invite codes';
+  String get invitationCodesScreen_title => 'Codes d\'invitation';
 
   @override
-  String get invitationCodesScreen_copyAll => 'Copy all';
+  String get invitationCodesScreen_copyAll => 'Tout copier';
 
   @override
-  String get invitationCodesScreen_tapToGetCode => 'Tap to get code';
+  String get invitationCodesScreen_tapToGetCode =>
+      'Touchez pour obtenir un code';
 
   @override
-  String get invitationCodesScreen_removeUnusedCodes => 'Remove used codes';
+  String get invitationCodesScreen_removeUsedCodes =>
+      'Supprimer les codes utilisés';
 
   @override
-  String get invitationCodesScreen_empty => 'No invitation codes available';
+  String get invitationCodesScreen_empty =>
+      'Aucun code d\'invitation disponible';
 
   @override
   String get invitationCodesScreen_infoText1 =>
-      'Air is in a limited access phase. Everyone who wants to join needs an invite code.';
+      'Air est dans une phase d\'accès limité. Toute personne qui souhaite nous rejoindre a besoin d\'un code d\'invitation.';
 
   @override
   String get invitationCodesScreen_infoText2 =>
-      'Share these codes with your friends or anyone else who wants to join Air! New codes will be added periodically.';
+      'Partagez ces codes avec vos amis ou toute personne qui souhaite rejoindre Air ! De nouveaux codes seront ajoutés régulièrement.';
 
   @override
   String get invitationCodesScreen_global_quota_exceeded =>
@@ -306,10 +309,11 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get invitationCodesScreen_errorRequestingCode =>
-      'Something went wrong. Try again.';
+      'Un problème est survenu. Veuillez réessayer.';
 
   @override
-  String get invitationCodesScreen_copiedToClipboard => 'Copied to clipboard';
+  String get invitationCodesScreen_copiedToClipboard =>
+      'Copié dans le presse-papiers';
 
   @override
   String get signUpScreen_header => 'Créez votre profil';

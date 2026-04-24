@@ -68,9 +68,15 @@ class ChatListContent extends StatelessWidget {
   const ChatListContent({
     super.key,
     this.createChatDetailsCubit = ChatDetailsCubit.new,
+    this.topPadding = 0,
+    this.bottomPadding = 0,
+    this.scrollController,
   });
 
   final ChatDetailsCubitCreate createChatDetailsCubit;
+  final double topPadding;
+  final double bottomPadding;
+  final ScrollController? scrollController;
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +89,8 @@ class ChatListContent extends StatelessWidget {
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.all(0),
+      controller: scrollController,
+      padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
       itemCount: chatIds.length,
       separatorBuilder: (context, index) => Divider(
         height: 1,

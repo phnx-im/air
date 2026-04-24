@@ -99,7 +99,7 @@ impl CoreUser {
         let new_attributes = ChatAttributes::new(chat.attributes.title, resized_picture_option);
 
         // Update the group and send out the update
-        self.update_key(chat_id, Some(&new_attributes)).await?;
+        self.update_key(chat_id, Some(new_attributes)).await?;
 
         Ok(())
     }
@@ -118,7 +118,7 @@ impl CoreUser {
         let new_attributes = ChatAttributes::new(title, chat.attributes.picture);
 
         // Update the group and send out the update
-        self.update_key(chat_id, Some(&new_attributes)).await?;
+        self.update_key(chat_id, Some(new_attributes)).await?;
 
         Ok(())
     }
