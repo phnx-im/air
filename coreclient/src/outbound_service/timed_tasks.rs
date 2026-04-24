@@ -127,7 +127,7 @@ mod test_utils {
             TimedTask::new(TimedTaskKind::KeyPackageUpload)
                 .into_operation()
                 .schedule_at(due_at)
-                .enqueue(&self.context.pool)
+                .enqueue(self.context.db.write().await?)
                 .await
         }
 
@@ -135,7 +135,7 @@ mod test_utils {
             TimedTask::new(TimedTaskKind::SelfUpdate)
                 .into_operation()
                 .schedule_at(due_at)
-                .enqueue(&self.context.pool)
+                .enqueue(self.context.db.write().await?)
                 .await
         }
     }
@@ -280,7 +280,7 @@ impl OutboundServiceContext {
                     if e.is_unknown_token_key_id() {
                         warn!("unknown token key ID, purging stale tokens");
                         privacy_pass::purge_and_replenish(
-                            &self.pool,
+                            &self.db,
                             &api_client,
                             self.user_id().clone(),
                             OperationType::AddUsername,
@@ -296,7 +296,12 @@ impl OutboundServiceContext {
                     result?;
                 }
 
-                UsernameRecord::update_refreshed_at(&self.pool, &username_record.hash, now).await?;
+                UsernameRecord::update_refreshed_at(
+                    self.db.write().await?,
+                    &username_record.hash,
+                    now,
+                )
+                .await?;
             }
         }
 
@@ -319,14 +324,14 @@ impl OutboundServiceContext {
         let api_client = self.api_clients.default_client()?;
 
         let Some(replenish_count) =
-            privacy_pass::needs_replenishment(self.pool(), operation_type).await?
+            privacy_pass::needs_replenishment(self.db.read().await?, operation_type).await?
         else {
             return Ok(Duration::hours(6));
         };
 
         if !*loaded_credentials {
             let credentials_response = api_client.as_as_credentials().await?;
-            self.db()
+            self.db
                 .with_write_transaction(async move |txn| {
                     privacy_pass::store_batched_token_keys(
                         txn,
@@ -339,7 +344,7 @@ impl OutboundServiceContext {
         }
 
         match privacy_pass::request_and_store_tokens(
-            self.db(),
+            &self.db,
             &api_client,
             self.user_id().clone(),
             self.signing_key(),
@@ -367,7 +372,8 @@ impl OutboundServiceContext {
     /// 5. Marks the uploaded key packages as live in the database
     async fn upload_key_packages(&self) -> anyhow::Result<Duration> {
         let key_packages = self
-            .with_transaction(async |txn| {
+            .db
+            .with_write_transaction(async |txn| {
                 let mut key_packages = Vec::with_capacity(KEY_PACKAGES);
                 for _ in 0..KEY_PACKAGES {
                     let kp = self.key_store.generate_key_package(
@@ -380,7 +386,7 @@ impl OutboundServiceContext {
 
                 let last_resort_kp =
                     self.key_store
-                        .generate_key_package(&mut *txn, &self.qs_client_id, true)?;
+                        .generate_key_package(txn, &self.qs_client_id, true)?;
                 key_packages.push(last_resort_kp);
 
                 Ok::<_, anyhow::Error>(key_packages)
@@ -422,10 +428,11 @@ impl OutboundServiceContext {
 
         // If the upload was successful, we mark the uploaded ones as live and
         // mark the others as stale.
-        self.with_transaction(async |txn| {
-            persistence::mark_key_packages_as_live(txn, &key_package_refs).await
-        })
-        .await?;
+        self.db
+            .with_write_transaction(async |txn| {
+                persistence::mark_key_packages_as_live(txn, &key_package_refs).await
+            })
+            .await?;
 
         Ok(Duration::weeks(1))
     }
@@ -524,12 +531,12 @@ impl OutboundServiceContext {
 
 mod persistence {
     use openmls::prelude::KeyPackageRef;
-    use sqlx::{QueryBuilder, SqliteTransaction};
+    use sqlx::QueryBuilder;
 
-    use crate::groups::openmls_provider::KeyRefWrapper;
+    use crate::{db_access::WriteDbTransaction, groups::openmls_provider::KeyRefWrapper};
 
     pub(super) async fn mark_key_packages_as_live(
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         key_package_refs: &[KeyPackageRef],
     ) -> anyhow::Result<()> {
         // Delete all key packages that are not marked as live

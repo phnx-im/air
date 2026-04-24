@@ -36,7 +36,7 @@ use openmls::prelude::Ciphersuite;
 use own_client_info::OwnClientInfo;
 
 use serde::{Deserialize, Serialize};
-use sqlx::{Row, SqlitePool, query};
+use sqlx::{Row, query};
 use store::ClientRecord;
 use tls_codec::DeserializeBytes;
 use tokio::sync::Notify;
@@ -290,11 +290,6 @@ impl CoreUser {
 
     pub(crate) fn db(&self) -> &DbAccess {
         &self.inner.db
-    }
-
-    #[cfg(feature = "test_utils")]
-    pub fn pool_for_tests(&self) -> &SqlitePool {
-        &self.inner.pool
     }
 
     pub(crate) fn signing_key(&self) -> &ClientSigningKey {
@@ -676,8 +671,17 @@ impl CoreUser {
 
     /// Returns how many messages in the chat with the given ID are
     /// marked as unread.
+    /// XXX: why is this not anyhow::Result<>??
     pub async fn unread_messages_count(&self, chat_id: ChatId) -> usize {
-        Chat::unread_messages_count(self.db().read().await?, chat_id)
+        let Ok(connection) = self
+            .db()
+            .read()
+            .await
+            .inspect_err(|error| error!(%error, "Failed to get read connection"))
+        else {
+            return 0;
+        };
+        Chat::unread_messages_count(connection, chat_id)
             .await
             .inspect_err(|error| error!(%error, "Error while fetching unread messages count"))
             .unwrap_or(0)
@@ -759,48 +763,49 @@ impl CoreUser {
 
     /// This function goes through all tables of the database and returns all columns that contain the query.
     pub async fn scan_database(&self, query: &str, strict: bool) -> anyhow::Result<Vec<String>> {
-        self.with_transaction(async |txn| {
-            let tables = query!("SELECT name FROM sqlite_schema WHERE type='table'")
-                .fetch_all(&mut **txn)
-                .await?;
+        self.db()
+            .with_write_transaction(async |txn| {
+                let tables = query!("SELECT name FROM sqlite_schema WHERE type='table'")
+                    .fetch_all(txn.as_mut())
+                    .await?;
 
-            let mut result = Vec::new();
+                let mut result = Vec::new();
 
-            for table in tables {
-                for row in sqlx::query(&format!("SELECT * FROM '{}'", table.name.unwrap()))
-                    .fetch_all(&mut **txn)
-                    .await?
-                {
-                    for i in 0..row.len() {
-                        let string = if let Ok(column) = row.try_get::<String, _>(i) {
-                            column
-                        } else if let Ok(column) = row.try_get::<Vec<u8>, _>(i) {
-                            String::from_utf8_lossy(&column).to_string()
-                        } else {
-                            // Unable to decode this type
-                            continue;
-                        };
+                for table in tables {
+                    for row in sqlx::query(&format!("SELECT * FROM '{}'", table.name.unwrap()))
+                        .fetch_all(txn.as_mut())
+                        .await?
+                    {
+                        for i in 0..row.len() {
+                            let string = if let Ok(column) = row.try_get::<String, _>(i) {
+                                column
+                            } else if let Ok(column) = row.try_get::<Vec<u8>, _>(i) {
+                                String::from_utf8_lossy(&column).to_string()
+                            } else {
+                                // Unable to decode this type
+                                continue;
+                            };
 
-                        if string.contains(query) {
-                            result.push(string.to_string());
-                            continue;
-                        }
-
-                        if !strict {
-                            // Try again without 0x18, because that's the CBOR unsigned byte indicator for Vec<u8>
-                            let string2 = string.replace('\x18', "");
-                            if string2.contains(query) {
+                            if string.contains(query) {
                                 result.push(string.to_string());
                                 continue;
+                            }
+
+                            if !strict {
+                                // Try again without 0x18, because that's the CBOR unsigned byte indicator for Vec<u8>
+                                let string2 = string.replace('\x18', "");
+                                if string2.contains(query) {
+                                    result.push(string.to_string());
+                                    continue;
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            Ok(result)
-        })
-        .await
+                Ok(result)
+            })
+            .await
     }
 
     pub(crate) async fn execute_job<T, E, JobType>(&self, job: JobType) -> Result<T, JobError<E>>
@@ -809,19 +814,14 @@ impl CoreUser {
         E: std::error::Error + Send + Sync + 'static,
         JobType: Job<Output = T, DomainError = E>,
     {
-        let mut notifier = self.store_notifier();
-        let mut connection = self.pool().acquire().await?;
         let mut context = JobContext {
             api_clients: &self.inner.api_clients,
             http_client: &self.inner.http_client,
-            connection: &mut connection,
-            notifier: &mut notifier,
+            db: &self.inner.db,
             key_store: &self.inner.key_store,
             now: Utc::now(),
         };
-        let value = job.execute(&mut context).await?;
-        notifier.notify();
-        Ok(value)
+        Ok(job.execute(&mut context).await?)
     }
 }
 

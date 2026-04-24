@@ -343,7 +343,7 @@ impl PendingChatOperation {
 
     async fn handle_error(
         &mut self,
-        mut connection: impl WriteConnection,
+        connection: impl WriteConnection,
         error: DsRequestError,
     ) -> Result<JobError<ChatOperationError>, JobError<ChatOperationError>> {
         debug!(?error, "DS request failed");
@@ -547,7 +547,7 @@ impl PendingChatOperation {
         let group_id = chat.group_id();
         connection
             .with_transaction(async |txn| {
-                let mut group = Group::load_clean_verified(txn, group_id)
+                let mut group = Group::load_clean_verified(&mut *txn, group_id)
                     .await
                     .map_err(JobError::fatal)?
                     .with_context(|| format!("Can't find group with id {group_id:?}"))
@@ -564,7 +564,7 @@ impl PendingChatOperation {
                 let params = group
                     .group_mut()
                     .stage_invite(
-                        txn,
+                        &mut *txn,
                         signer,
                         contact_add_infos,
                         contact_wai_keys,

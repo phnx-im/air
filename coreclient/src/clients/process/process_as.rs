@@ -325,7 +325,7 @@ impl CoreUser {
                 chat.store(&mut *txn).await?;
                 pending_chat.store(&mut *txn).await?;
                 partial_contact.upsert(&mut *txn).await?;
-                Self::store_new_messages(&mut txn, chat.id(), chat_messages).await?;
+                Self::store_new_messages(txn, chat.id(), chat_messages).await?;
 
                 Ok(chat.id)
             })

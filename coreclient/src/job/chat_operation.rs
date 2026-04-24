@@ -190,7 +190,7 @@ impl ChatOperation {
             ..
         } = context;
         let job = PendingChatOperation::create_add(
-            db.write().await?,
+            &mut db.write().await?,
             api_clients,
             &key_store.signing_key,
             self.chat_id,
@@ -228,13 +228,9 @@ impl ChatOperation {
         &mut self,
         context: &mut JobContext<'_>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
-        let JobContext {
-            connection,
-            key_store,
-            ..
-        } = context;
-        let job = connection
-            .with_transaction(async |txn| {
+        let JobContext { db, key_store, .. } = context;
+        let job = db
+            .with_write_transaction(async |txn| {
                 PendingChatOperation::create_leave(txn, &key_store.signing_key, self.chat_id).await
             })
             .await?;

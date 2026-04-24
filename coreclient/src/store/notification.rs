@@ -81,7 +81,7 @@ impl StoreNotifier {
     }
 
     /// Send collected notifications to the subscribers, if there are any.
-    pub(crate) fn notify(mut self) {
+    pub(crate) fn notify(&mut self) {
         if let Some(tx) = self.tx.as_ref()
             && !self.notification.ops.is_empty()
         {

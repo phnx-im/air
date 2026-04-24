@@ -165,7 +165,7 @@ impl AsCredentials {
     }
 
     pub(crate) async fn fetch_for_verification(
-        connection: &mut impl ReadConnection,
+        mut connection: impl WriteConnection,
         api_clients: &ApiClients,
         verifiable_credentials: impl Iterator<Item = &VerifiableClientCredential>,
     ) -> Result<HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>> {
@@ -176,7 +176,7 @@ impl AsCredentials {
             }
 
             let as_credential = AsCredentials::get(
-                connection,
+                &mut connection,
                 api_clients,
                 verifiable_credential.domain(),
                 verifiable_credential.signer_fingerprint(),
@@ -190,14 +190,14 @@ impl AsCredentials {
     /// Fetches the credentials of the AS with the given `domain` if they are
     /// not already present in the store.
     pub(crate) async fn get(
-        connection: &mut WriteDbConnection,
+        mut connection: impl WriteConnection,
         api_clients: &ApiClients,
         domain: &Fqdn,
         fingerprint: &Hash<AsIntermediateCredentialBody>,
     ) -> Result<AsIntermediateCredential, AsCredentialStoreError> {
         // Phase 1: Check if there is a credential in the database.
         let credential_option =
-            AsCredentials::load_intermediate(connection, Some(fingerprint), domain).await?;
+            AsCredentials::load_intermediate(&mut connection, Some(fingerprint), domain).await?;
 
         // Phase 2: If there is no credential in the database, fetch it from the AS.
         let credential = if let Some(credential) = credential_option {

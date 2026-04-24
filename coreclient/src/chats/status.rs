@@ -17,9 +17,12 @@ mod persistence {
     use std::collections::HashSet;
 
     use mimi_content::PerMessageStatus;
-    use sqlx::{SqliteTransaction, query, query_scalar};
+    use sqlx::{query, query_scalar};
 
-    use crate::{MessageId, db_access::WriteConnection, store::StoreNotifier};
+    use crate::{
+        MessageId,
+        db_access::{WriteConnection, WriteDbTransaction},
+    };
 
     use super::*;
 
@@ -38,8 +41,7 @@ mod persistence {
 
         pub(crate) async fn store_report(
             &self,
-            txn: &mut SqliteTransaction<'_>,
-            notifier: &mut StoreNotifier,
+            txn: &mut WriteDbTransaction<'_>,
         ) -> sqlx::Result<()> {
             let sender_uuid = self.sender.uuid();
             let sender_domain = self.sender.domain();
@@ -63,7 +65,7 @@ mod persistence {
                         WHERE mimi_id = ?"#,
                     mimi_id,
                 )
-                .fetch_optional(&mut **txn)
+                .fetch_optional(txn.as_mut())
                 .await?
                 else {
                     continue;
@@ -82,7 +84,7 @@ mod persistence {
                     status,
                     self.created_at,
                 )
-                .execute(&mut **txn)
+                .execute(txn.as_mut())
                 .await?;
 
                 // Now we go through statuses from all other users as well to build the final aggregated message status
@@ -93,7 +95,7 @@ mod persistence {
                     WHERE message_id = ?1 AND (status = 1 OR status = 2)",
                     message_id,
                 )
-                .fetch_one(&mut **txn)
+                .fetch_one(txn.as_mut())
                 .await?;
 
                 // Aggregate the status for the message
@@ -102,10 +104,10 @@ mod persistence {
                     final_status,
                     message_id,
                 )
-                .execute(&mut **txn)
+                .execute(txn.as_mut())
                 .await?;
 
-                notifier.update(message_id);
+                txn.notifier().update(message_id);
             }
 
             Ok(())
@@ -121,7 +123,7 @@ mod persistence {
             )
             .execute(connection.as_mut())
             .await?;
-            txn.notifier().update(message_id);
+            connection.notifier().update(message_id);
             Ok(())
         }
     }

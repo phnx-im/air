@@ -153,7 +153,7 @@ impl OutboundServiceContext {
         }
     }
 
-    async fn send_chat_message(&self, message_id: MessageId) -> Result<(), anyhow::Error> {
+    async fn send_chat_message(&self, message_id: MessageId) -> anyhow::Result<()> {
         debug!(?message_id, "sending message");
 
         // load chat and message
@@ -216,7 +216,7 @@ impl OutboundServiceContext {
 
         // post-processing:
         self.db
-            .with_write_transaction(async |txn| {
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
                 // adjust message status and edited_at timestamp
                 if message.edited_at().is_some() {
                     message

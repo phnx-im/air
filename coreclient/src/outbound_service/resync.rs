@@ -119,7 +119,7 @@ impl OutboundServiceContext {
                 }
             };
 
-            let connection = self.db.write().await?;
+            let mut connection = self.db.write().await?;
             for ProfileInfo {
                 client_credential,
                 user_profile_key,
@@ -128,7 +128,7 @@ impl OutboundServiceContext {
                 if let Err(error) =
                     FetchUserProfileOperation::new(client_credential, user_profile_key)
                         .into_operation()
-                        .enqueue(&mut *connection)
+                        .enqueue(&mut connection)
                         .await
                 {
                     error!(%error, "Failed to enqueue fetch profile operation");

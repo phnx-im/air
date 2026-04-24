@@ -16,7 +16,6 @@ use crate::{
         profile::{FetchGroupProfileOperation, FetchUserProfileOperation},
     },
     outbound_service::OutboundServiceContext,
-    
 };
 
 const NUM_RETRIES: usize = 5;
@@ -51,7 +50,8 @@ impl OutboundServiceContext {
 
         // fetch user profiles
         while let Some(op) = self
-            .with_transaction(async |txn| {
+            .db
+            .with_write_transaction(async |txn| {
                 Operation::<FetchUserProfileOperation>::dequeue(txn, task_id, now).await
             })
             .await?
@@ -64,7 +64,8 @@ impl OutboundServiceContext {
 
         // fetch group profiles
         while let Some(op) = self
-            .with_transaction(async |txn| {
+            .db
+            .with_write_transaction(async |txn| {
                 Operation::<FetchGroupProfileOperation>::dequeue(txn, task_id, now).await
             })
             .await?
@@ -94,7 +95,7 @@ impl OutboundServiceContext {
         match self.execute_job(data).await {
             Ok(()) => {
                 debug!(?operation_id, "fetched profile");
-                op.delete(&self.pool).await?;
+                op.delete(self.db.write().await?).await?;
             }
             Err(JobError::NetworkError) => {
                 debug!(
@@ -102,7 +103,8 @@ impl OutboundServiceContext {
                     "Failed to fetch profile due to network error"
                 );
                 if op.retries + 1 < NUM_RETRIES {
-                    op.reschedule(&self.pool, now + RETRY_AFTER).await?;
+                    op.reschedule(self.db.write().await?, now + RETRY_AFTER)
+                        .await?;
                     return Ok(ControlFlow::Break(()));
                 } else {
                     let retries = op.retries;
@@ -110,7 +112,7 @@ impl OutboundServiceContext {
                         ?operation_id,
                         retries, "Reached max number of retries; giving up"
                     );
-                    op.delete(&self.pool).await?;
+                    op.delete(self.db.write().await?).await?;
                     return Ok(ControlFlow::Continue(()));
                 }
             }
@@ -122,7 +124,7 @@ impl OutboundServiceContext {
             ) => {
                 // These error cases must not happen when fetching profiles.
                 error!(?operation_id, %error, "Failed to fetch profile; deleting operation");
-                op.delete(&self.pool).await?;
+                op.delete(self.db.write().await?).await?;
             }
         }
 

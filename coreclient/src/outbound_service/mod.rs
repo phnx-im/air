@@ -14,7 +14,6 @@ use aircommon::{
 };
 use chrono::Utc;
 use pin_project::pin_project;
-use sqlx::SqlitePool;
 use tokio::sync::watch;
 use tokio_util::sync::{CancellationToken, WaitForCancellationFutureOwned};
 use tracing::{debug, error, info};
@@ -25,7 +24,7 @@ use crate::{
     job::{Job, JobContext, JobError},
     key_stores::MemoryUserKeyStore,
     outbound_service::error::OutboundServiceRunError,
-    store::{StoreNotificationsSender, StoreNotifier},
+    store::StoreNotificationsSender,
     utils::global_lock::GlobalLock,
 };
 
@@ -224,17 +223,14 @@ impl OutboundServiceContext {
         E: std::error::Error + Send + Sync + 'static,
         JobType: Job<Output = T, DomainError = E>,
     {
-        let mut notifier = self.notifier();
         let mut context = JobContext {
             api_clients: &self.api_clients,
             http_client: &self.http_client,
             db: &self.db,
-            notifier: &mut notifier,
             key_store: &self.key_store,
             now: Utc::now(),
         };
         let value = job.execute(&mut context).await?;
-        notifier.notify();
         Ok(value)
     }
 

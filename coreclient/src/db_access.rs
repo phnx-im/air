@@ -1,6 +1,8 @@
 use sqlx::{
-    Connection, Sqlite, SqliteConnection, SqlitePool, SqliteTransaction, pool::PoolConnection,
+    Connection, Sqlite, SqliteConnection, SqlitePool, SqliteTransaction, TransactionManager,
+    pool::PoolConnection, sqlite::SqliteTransactionManager,
 };
+use tracing::debug;
 
 use crate::store::{StoreNotificationsSender, StoreNotifier};
 
@@ -53,6 +55,36 @@ pub trait WriteConnection: ReadConnection + AsMut<SqliteConnection> {
         let txn = connection.begin_with("BEGIN IMMEDIATE").await?;
         Ok(WriteDbTransaction { txn, notifier })
     }
+
+    /// Executes a function with a transaction and a [`StoreNotifier`].
+    ///
+    /// The transaction is committed if the function returns `Ok`, and rolled
+    /// back if the function returns `Err`. The [`StoreNotifier`] is notified
+    /// after the transaction is committed successfully.
+    async fn with_transaction<U: Send, E>(
+        mut self,
+        f: impl AsyncFnOnce(&mut WriteDbTransaction<'_>) -> Result<U, E>,
+    ) -> Result<U, E>
+    where
+        Self: Sized,
+        E: From<sqlx::Error>,
+    {
+        let (conn, notifier) = self.split();
+        let txn_depth = SqliteTransactionManager::get_transaction_depth(conn);
+        let mut txn = WriteDbTransaction {
+            txn: if txn_depth == 0 {
+                conn.begin_with("BEGIN IMMEDIATE").await?
+            } else {
+                debug!("Nested transaction detected; making a savepoint inside");
+                conn.begin().await?
+            },
+            notifier,
+        };
+        let value = f(&mut txn).await?;
+        txn.commit().await?;
+        self.notifier().notify();
+        Ok(value)
+    }
 }
 
 impl DbAccess {
@@ -97,12 +129,7 @@ impl DbAccess {
     where
         E: From<sqlx::Error>,
     {
-        let mut conn = self.write().await?;
-        let mut txn = conn.begin_immediate().await?;
-        let value = f(&mut txn).await?;
-        txn.commit().await?;
-        conn.notifier.notify();
-        Ok(value)
+        self.write().await?.with_transaction(f).await
     }
 }
 
@@ -113,9 +140,16 @@ impl ReadDbConnection {
     }
 }
 
+impl WriteDbConnection {
+    pub(crate) fn notify(mut self) {
+        self.notifier.notify();
+    }
+}
+
 impl WriteDbTransaction<'_> {
     pub(crate) async fn commit(self) -> sqlx::Result<()> {
-        self.txn.commit().await
+        self.txn.commit().await?;
+        Ok(())
     }
 }
 
@@ -155,10 +189,9 @@ impl ReadConnection for ReadDbTransaction<'_> {}
 impl ReadConnection for &mut ReadDbTransaction<'_> {}
 
 // write connections can be also use to read
+impl<T> ReadConnection for &mut T where T: WriteConnection {}
 impl ReadConnection for WriteDbConnection {}
-impl ReadConnection for &mut WriteDbConnection {}
 impl ReadConnection for WriteDbTransaction<'_> {}
-impl ReadConnection for &mut WriteDbTransaction<'_> {}
 
 impl WriteConnection for WriteDbConnection {
     fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier) {

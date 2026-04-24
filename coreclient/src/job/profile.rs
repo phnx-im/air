@@ -142,7 +142,8 @@ impl Job for FetchUserProfileOperation {
         let user_id = client_credential.user_id();
 
         // Phase 1: Check if the profile in the DB is up to date.
-        let existing_user_profile = ExistingUserProfile::load(&mut *context.db, user_id).await?;
+        let existing_user_profile =
+            ExistingUserProfile::load(context.db.read().await?, user_id).await?;
         if existing_user_profile.matches_index(user_profile_key.index()) {
             return Ok(());
         }
@@ -165,15 +166,13 @@ impl Job for FetchUserProfileOperation {
 
         // Phase 4: Store the user profile and key in the database
         context
-            .connection
-            .with_transaction(async |txn| -> anyhow::Result<()> {
-                user_profile_key.store(txn.as_mut()).await?;
-                persistable_user_profile
-                    .persist(txn.as_mut(), context.notifier)
-                    .await?;
+            .db
+            .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                user_profile_key.store(&mut *txn).await?;
+                persistable_user_profile.persist(&mut *txn).await?;
                 if let Some(old_user_profile_index) = persistable_user_profile.old_profile_index() {
                     // Delete the old user profile key
-                    UserProfileKey::delete(txn.as_mut(), old_user_profile_index).await?;
+                    UserProfileKey::delete(txn, old_user_profile_index).await?;
                 }
                 Ok(())
             })
@@ -229,15 +228,15 @@ impl Job for FetchGroupProfileOperation {
 
         // Load chat and group
         let Some((mut chat, group)) = context
-            .connection
-            .with_transaction(async |txn| -> anyhow::Result<_> {
-                let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
+            .db
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                let chat = Chat::load_by_group_id(&mut *txn, &group_id)
                     .await?
                     .context("Missing chat")?;
                 if let ChatStatus::Blocked = chat.status() {
                     return Ok(None);
                 }
-                let group = Group::load_verified(txn.as_mut(), &group_id)
+                let group = Group::load_verified(txn, &group_id)
                     .await?
                     .context("Missing group")?;
                 Ok(Some((chat, group)))
@@ -285,8 +284,8 @@ impl Job for FetchGroupProfileOperation {
 
         // Update chat attributes and store new messages
         context
-            .connection
-            .with_transaction(async |txn| -> anyhow::Result<()> {
+            .db
+            .with_write_transaction(async |txn| -> anyhow::Result<()> {
                 let mut messages = Vec::new();
 
                 let chat_attributes = ChatAttributes::new(
@@ -294,7 +293,7 @@ impl Job for FetchGroupProfileOperation {
                     group_profile.picture.map(|p| p.into()),
                 );
                 update_chat_attributes(
-                    txn.as_mut(),
+                    &mut *txn,
                     &mut chat,
                     sender_id,
                     chat_attributes,
@@ -303,7 +302,7 @@ impl Job for FetchGroupProfileOperation {
                 )
                 .await?;
 
-                CoreUser::store_new_messages(txn, context.notifier, chat.id(), messages).await?;
+                CoreUser::store_new_messages(txn, chat.id(), messages).await?;
 
                 debug!(?group_id, chat_id = %chat.id(), "Updated chat attributes");
 

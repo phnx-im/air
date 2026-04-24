@@ -42,8 +42,7 @@ impl UserProfileUpdate {
 
     pub(crate) async fn store(
         self,
-        mut connection: impl WriteConnection,
-        notifier: &mut crate::store::StoreNotifier,
+        connection: impl WriteConnection,
     ) -> sqlx::Result<EncryptableUserProfile> {
         self.0.tbs.update(connection).await?;
         Ok(EncryptableUserProfile(self.0))

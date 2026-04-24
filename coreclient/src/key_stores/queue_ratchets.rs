@@ -99,7 +99,7 @@ pub(crate) type StorableQsQueueRatchet =
 
 impl StorableQsQueueRatchet {
     pub(crate) async fn initialize(
-        mut connection: impl WriteConnection,
+        connection: impl WriteConnection,
         ratcht_secret: RatchetSecret,
     ) -> sqlx::Result<()> {
         Self {
@@ -121,7 +121,7 @@ impl StorableQsQueueRatchet {
         txn: &mut WriteDbTransaction<'_>,
         qs_message_ciphertext: QueueMessage,
     ) -> Result<QsQueueMessagePayload, DecryptQsQueueMessageError> {
-        let mut qs_queue_ratchet = StorableQsQueueRatchet::load(txn).await?;
+        let mut qs_queue_ratchet = StorableQsQueueRatchet::load(&mut *txn).await?;
 
         let message_seq_nr = qs_message_ciphertext.sequence_number;
         let ratchet_seq_nr = qs_queue_ratchet.sequence_number();

@@ -359,13 +359,10 @@ impl Store for CoreUser {
     ) -> StoreResult<()> {
         self.db()
             .with_write_transaction(async |txn| {
-                // XXX: maybe we should notify with notifier on Drop of WriteDbConnection?
                 if let Some(message_draft) = message_draft {
-                    message_draft
-                        .store(self.db().write().await?, chat_id)
-                        .await?;
+                    message_draft.store(txn, chat_id).await?;
                 } else {
-                    MessageDraft::delete(self.db().write().await?, chat_id).await?;
+                    MessageDraft::delete(txn, chat_id).await?;
                 }
                 Ok(())
             })

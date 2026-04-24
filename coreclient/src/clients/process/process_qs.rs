@@ -36,7 +36,6 @@ use openmls::{
         ProtocolMessage, Sender, StagedCommit,
     },
 };
-use sqlx::{Acquire, SqliteTransaction};
 use tls_codec::DeserializeBytes;
 use tracing::{debug, error, info, warn};
 
@@ -53,7 +52,7 @@ use crate::{
         user_settings::ReadReceiptsSetting,
     },
     contacts::{PartialContact, PartialContactType},
-    db_access::WriteDbTransaction,
+    db_access::{WriteConnection, WriteDbTransaction},
     groups::{
         Group, VerifiedGroup, client_auth_info::StorableClientCredential,
         process::ProcessMessageResult,
@@ -61,7 +60,7 @@ use crate::{
     job::{JobContext, pending_chat_operation::PendingChatOperation},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::resync::Resync,
-    store::{Store, StoreNotifier},
+    store::Store,
 };
 
 use super::{Chat, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyhow};
@@ -120,8 +119,7 @@ impl CoreUser {
     ///   received from the QS as part of the AddInfo download.
     async fn process_qs_message(
         &self,
-        txn: &mut SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
+        txn: &mut WriteDbTransaction<'_>,
         qs_queue_message: ExtractedQsQueueMessage,
         read_receipts_enabled: bool,
     ) -> Result<ProcessQsMessageResult> {
@@ -135,18 +133,11 @@ impl CoreUser {
         let ds_timestamp = qs_queue_message.timestamp;
         let res = match qs_queue_message.payload {
             ExtractedQsQueueMessagePayload::WelcomeBundle(welcome_bundle) => {
-                Box::pin(self.handle_welcome_bundle(txn, notifier, welcome_bundle, ds_timestamp))
-                    .await
+                Box::pin(self.handle_welcome_bundle(txn, welcome_bundle, ds_timestamp)).await
             }
             ExtractedQsQueueMessagePayload::MlsMessage(mls_message) => {
-                self.handle_mls_message(
-                    txn,
-                    notifier,
-                    *mls_message,
-                    ds_timestamp,
-                    read_receipts_enabled,
-                )
-                .await
+                self.handle_mls_message(txn, *mls_message, ds_timestamp, read_receipts_enabled)
+                    .await
             }
             ExtractedQsQueueMessagePayload::UserProfileKeyUpdate(
                 user_profile_key_update_params,
@@ -159,12 +150,11 @@ impl CoreUser {
             ) => {
                 let mls_message = MlsMessageIn::tls_deserialize_exact_bytes(&mls_message_bytes)
                     .context("Failed to deserialize targeted MLS message")?;
-                self.handle_targeted_application_message(txn, notifier, mls_message, ds_timestamp)
+                self.handle_targeted_application_message(txn, mls_message, ds_timestamp)
                     .await
             }
             ExtractedQsQueueMessagePayload::DsCommitResponse(ds_commit_response) => {
-                self.handle_commit_response(txn, notifier, ds_commit_response)
-                    .await
+                self.handle_commit_response(txn, ds_commit_response).await
             }
         };
 
@@ -174,8 +164,7 @@ impl CoreUser {
 
     async fn handle_commit_response(
         &self,
-        txn: &mut SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
+        txn: &mut WriteDbTransaction<'_>,
         commit_response: DsCommitResponse,
     ) -> Result<ProcessQsMessageResult> {
         let DsCommitResponse {
@@ -185,7 +174,7 @@ impl CoreUser {
         } = commit_response;
 
         // Load the group by group_id
-        let mut group = Group::load_verified(txn, &group_id)
+        let mut group = Group::load_verified(&mut *txn, &group_id)
             .await?
             .context("Can't find group for commit response")?;
 
@@ -207,10 +196,10 @@ impl CoreUser {
             group.merge_pending_commit(txn, None, timestamp).await?;
         group
             .group_mut()
-            .store_update(txn.as_mut(), Some(timestamp))
+            .store_update(&mut *txn, Some(timestamp))
             .await?;
 
-        let mut chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
+        let mut chat = Chat::load_by_group_id(&mut *txn, &group_id)
             .await?
             .context("Can't find chat for commit response")?;
 
@@ -231,18 +220,17 @@ impl CoreUser {
             )
             .await?;
         }
-        CoreUser::store_new_messages(txn, notifier, chat.id(), group_messages).await?;
+        CoreUser::store_new_messages(&mut *txn, chat.id(), group_messages).await?;
 
         // Delete the pending chat operation
-        PendingChatOperation::delete(txn.as_mut(), &group_id).await?;
+        PendingChatOperation::delete(txn, &group_id).await?;
 
         Ok(ProcessQsMessageResult::None)
     }
 
     async fn handle_welcome_bundle(
         &self,
-        txn: &mut SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
+        txn: &mut WriteDbTransaction<'_>,
         welcome_bundle: WelcomeBundle,
         ds_timestamp: TimeStamp,
     ) -> Result<ProcessQsMessageResult> {
@@ -252,7 +240,7 @@ impl CoreUser {
         let (group, sender_user_id, member_profile_info) = Group::join_group(
             welcome_bundle,
             &self.inner.key_store.wai_ear_key,
-            txn,
+            &mut *txn,
             &self.inner.api_clients,
             self.signing_key(),
         )
@@ -272,7 +260,7 @@ impl CoreUser {
                 own_profile_key_in_group = Some(profile_info.user_profile_key);
                 continue;
             }
-            Self::schedule_fetch_user_profile(txn.as_mut(), profile_info).await?;
+            Self::schedule_fetch_user_profile(&mut *txn, profile_info).await?;
         }
 
         let Some(own_profile_key_in_group) = own_profile_key_in_group else {
@@ -291,7 +279,7 @@ impl CoreUser {
             group_data.into_parts(group.identity_link_wrapper_key());
         if let Some(external_group_profile) = external_group_profile {
             Self::schedule_fetch_group_profile(
-                txn.as_mut(),
+                &mut *txn,
                 group_id.clone(),
                 sender_user_id.clone(),
                 ds_timestamp,
@@ -301,11 +289,11 @@ impl CoreUser {
         }
 
         let chat = Chat::new_group_chat(group_id.clone(), attributes);
-        let own_profile_key = UserProfileKey::load_own(txn.as_mut()).await?;
+        let own_profile_key = UserProfileKey::load_own(&mut *txn).await?;
         // If we've been in that chat before, we delete the old chat
         // first and then create a new one. We do leave the messages
         // intact, though.
-        chat.store(txn.as_mut(), notifier).await?;
+        chat.store(&mut *txn).await?;
 
         // Add system message who added us to the group.
         let system_message = ChatMessage::new_system_message(
@@ -313,7 +301,7 @@ impl CoreUser {
             ds_timestamp,
             SystemMessage::Add(sender_user_id, self.user_id().clone()),
         );
-        system_message.store(txn.as_mut(), notifier).await?;
+        system_message.store(&mut *txn).await?;
 
         // WelcomeBundle Phase 4: Check whether our user profile key is up to
         // date and if not, update it.
@@ -341,8 +329,7 @@ impl CoreUser {
 
     async fn handle_targeted_application_message(
         &self,
-        txn: &mut SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
+        txn: &mut WriteDbTransaction<'_>,
         mls_message: MlsMessageIn,
         ds_timestamp: TimeStamp,
     ) -> Result<ProcessQsMessageResult> {
@@ -354,10 +341,10 @@ impl CoreUser {
         // MLSMessage Phase 1: Load the chat and the group.
         let group_id = protocol_message.group_id().clone();
 
-        let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
+        let chat = Chat::load_by_group_id(&mut *txn, &group_id)
             .await?
             .ok_or_else(|| anyhow!("No chat found for group ID {:?}", group_id))?;
-        let mut group = Group::load_verified(txn, &group_id)
+        let mut group = Group::load_verified(&mut *txn, &group_id)
             .await?
             .ok_or_else(|| anyhow!("No group found for group ID {:?}", group_id))?;
 
@@ -366,7 +353,7 @@ impl CoreUser {
             processed_message, ..
         }) = group
             .group_mut()
-            .process_message(txn, &self.inner.api_clients, protocol_message)
+            .process_message(&mut *txn, &self.inner.api_clients, protocol_message)
             .await?
         else {
             // TODO: Once we have a UX for resyncs, we should schedule one
@@ -409,11 +396,12 @@ impl CoreUser {
         let mut context = JobContext {
             api_clients: &self.inner.api_clients,
             http_client: &self.inner.http_client,
-            connection: txn.as_mut(),
-            notifier,
+            db: self.db(),
             key_store: &self.inner.key_store,
             now: Utc::now(),
         };
+
+        // XXX: we will deadlock here if we take again the write :(
         let chat_id =
             CoreUser::process_connection_offer(&mut context, connection_info_source).await?;
 
@@ -422,8 +410,7 @@ impl CoreUser {
 
     async fn handle_mls_message(
         &self,
-        txn: &mut SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
+        txn: &mut WriteDbTransaction<'_>,
         mls_message: MlsMessageIn,
         ds_timestamp: TimeStamp,
         read_receipts_enabled: bool,
@@ -441,13 +428,13 @@ impl CoreUser {
         // MLSMessage Phase 1: Load the chat and the group.
         let group_id = protocol_message.group_id().clone();
 
-        let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
+        let chat = Chat::load_by_group_id(&mut *txn, &group_id)
             .await?
             .ok_or_else(|| anyhow!("No chat found for group ID {:?}", group_id))?;
         let chat_id = chat.id();
 
         // Load the group regardless of whether it has a pending commit or not.
-        let mut group = Group::load_verified(txn, &group_id)
+        let mut group = Group::load_verified(&mut *txn, &group_id)
             .await?
             .ok_or_else(|| anyhow!("No group found for group ID {:?}", group_id))?;
 
@@ -459,7 +446,7 @@ impl CoreUser {
             profile_infos,
         }) = group
             .group_mut()
-            .process_message(txn, &self.inner.api_clients, protocol_message)
+            .process_message(&mut *txn, &self.inner.api_clients, protocol_message)
             .await?
         else {
             // TODO: Once we have a UX for resyncs, we should schedule one
@@ -498,8 +485,7 @@ impl CoreUser {
                     chat_changed,
                 } = self
                     .handle_application_message(
-                        txn,
-                        notifier,
+                        &mut *txn,
                         &group,
                         application_message,
                         ds_timestamp,
@@ -511,20 +497,20 @@ impl CoreUser {
             }
             ProcessedMessageContent::ProposalMessage(proposal) => {
                 let (new_messages, updated) = self
-                    .handle_proposal_message(txn, &mut group, *proposal, ds_timestamp)
+                    .handle_proposal_message(&mut *txn, &mut group, *proposal, ds_timestamp)
                     .await?;
-                group.group_mut().store_update(txn.as_mut(), None).await?;
+                group.group_mut().store_update(&mut *txn, None).await?;
                 (new_messages, Vec::new(), updated)
             }
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
                 let sender_client_credential =
-                    StorableClientCredential::load_by_user_id(txn.as_mut(), &sender_user_id)
+                    StorableClientCredential::load_by_user_id(&mut *txn, &sender_user_id)
                         .await?
                         .ok_or_else(|| anyhow!("No sender client credential found"))?
                         .into();
                 let (new_messages, updated) = self
                     .handle_staged_commit_message(
-                        txn,
+                        &mut *txn,
                         &mut group,
                         chat,
                         *staged_commit,
@@ -535,7 +521,7 @@ impl CoreUser {
                         we_were_removed,
                     )
                     .await?;
-                group.group_mut().store_update(txn.as_mut(), None).await?;
+                group.group_mut().store_update(&mut *txn, None).await?;
                 (new_messages, Vec::new(), updated)
             }
             ProcessedMessageContent::ExternalJoinProposalMessage(_) => {
@@ -544,9 +530,9 @@ impl CoreUser {
             }
         };
 
-        let mut messages = Self::store_new_messages(txn, notifier, chat_id, new_messages).await?;
+        let mut messages = Self::store_new_messages(&mut *txn, chat_id, new_messages).await?;
         for updated_message in updated_messages {
-            updated_message.update(txn.as_mut(), notifier).await?;
+            updated_message.update(&mut *txn).await?;
             messages.push(updated_message);
         }
 
@@ -564,7 +550,7 @@ impl CoreUser {
         });
 
         self.outbound_service()
-            .schedule_receipts(txn.as_mut(), chat_id, delivery_receipts)
+            .schedule_receipts(&mut *txn, chat_id, delivery_receipts)
             .await?;
 
         let res = match (messages, chat_changed) {
@@ -574,7 +560,7 @@ impl CoreUser {
 
         // MLSMessage Phase 4: Fetch user profiles of new clients and store them.
         for profile_info in profile_infos {
-            Self::schedule_fetch_user_profile(txn.as_mut(), profile_info).await?;
+            Self::schedule_fetch_user_profile(&mut *txn, profile_info).await?;
         }
 
         Ok(res)
@@ -586,8 +572,7 @@ impl CoreUser {
     #[allow(clippy::too_many_arguments)]
     async fn handle_application_message(
         &self,
-        txn: &mut SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
+        txn: &mut WriteDbTransaction<'_>,
         group: &Group,
         application_message: ApplicationMessage,
         ds_timestamp: TimeStamp,
@@ -615,7 +600,7 @@ impl CoreUser {
                 }
             }
             StatusRecord::borrowed(sender, report, ds_timestamp)
-                .store_report(txn, notifier)
+                .store_report(txn)
                 .await?;
             // Delivery receipt messages are not stored
             return Ok(Default::default());
@@ -627,10 +612,9 @@ impl CoreUser {
             && let Ok(mimi_id) = MimiId::from_slice(replaces)
         {
             // Don't fail here, otherwise message processing of other messages will fail.
-            let mut savepoint_txn = txn.begin().await?;
+            let mut savepoint_txn = txn.begin_immediate().await?;
             let message = handle_message_edit(
                 &mut savepoint_txn,
-                notifier,
                 group.group_id(),
                 ds_timestamp,
                 sender,
@@ -676,7 +660,7 @@ impl CoreUser {
 
     async fn handle_proposal_message(
         &self,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         group: &mut VerifiedGroup,
         proposal: QueuedProposal,
         ds_timestamp: TimeStamp,
@@ -719,7 +703,7 @@ impl CoreUser {
         // For now, we don't to anything here. The proposal
         // was processed by the MLS group and will be
         // committed with the next commit.
-        group.group_mut().store_proposal(txn.as_mut(), proposal)?;
+        group.group_mut().store_proposal(txn, proposal)?;
 
         Ok((messages, false))
     }
@@ -727,7 +711,7 @@ impl CoreUser {
     #[expect(clippy::too_many_arguments)]
     async fn handle_staged_commit_message(
         &self,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         group: &mut VerifiedGroup,
         mut chat: Chat,
         staged_commit: StagedCommit,
@@ -741,13 +725,11 @@ impl CoreUser {
         // group belongs to an unconfirmed chat.
 
         // StagedCommitMessage Phase 1: Confirm the chat if unconfirmed
-        let mut notifier = self.store_notifier();
 
         let (chat_changed, mut group_messages) = if chat.is_unconfirmed() {
             let group_messages = self
                 .handle_unconfirmed_chat(
                     txn,
-                    &mut notifier,
                     aad,
                     ds_timestamp,
                     sender,
@@ -766,11 +748,10 @@ impl CoreUser {
         // If we were removed, we set the group to inactive.
         if we_were_removed {
             let past_members = group.members().collect();
-            chat.set_inactive(txn.as_mut(), &mut notifier, past_members)
-                .await?;
+            chat.set_inactive(&mut *txn, past_members).await?;
         }
         let (messages_from_commit, group_data_bytes) = group
-            .merge_pending_commit(txn, staged_commit, ds_timestamp)
+            .merge_pending_commit(&mut *txn, staged_commit, ds_timestamp)
             .await?;
 
         group_messages.extend(messages_from_commit);
@@ -781,7 +762,7 @@ impl CoreUser {
                 group_data.into_parts(group.identity_link_wrapper_key());
             if let Some(external_group_profile) = external_group_profile {
                 Self::schedule_fetch_group_profile(
-                    txn.as_mut(),
+                    &mut *txn,
                     chat.group_id().clone(),
                     sender_client_credential.user_id().clone(),
                     ds_timestamp,
@@ -801,8 +782,6 @@ impl CoreUser {
             .await?;
         }
 
-        notifier.notify();
-
         Ok((group_messages, chat_changed))
     }
 
@@ -810,7 +789,6 @@ impl CoreUser {
     async fn handle_unconfirmed_chat(
         &self,
         txn: &mut WriteDbTransaction<'_>,
-        notifier: &mut StoreNotifier,
         aad: Vec<u8>,
         ds_timestamp: TimeStamp,
         sender: &Sender,
@@ -959,7 +937,16 @@ impl CoreUser {
             // the ratchet is loaded is passed to the processing of the QS message. This savepoint
             // can be rolled back but this transaction MUST be committed. It is needed to make sure
             // that processing is cancel-safe.
-            let mut txn = match self.pool().begin_with("BEGIN IMMEDIATE").await {
+            let mut connection = match self.db().write().await {
+                Ok(c) => c,
+                Err(error) => {
+                    error!(%error, "Failed to start the ratchet transaction");
+                    result.processed = idx;
+                    return result;
+                }
+            };
+
+            let mut txn = match connection.begin_immediate().await {
                 Ok(txn) => txn,
                 Err(error) => {
                     error!(%error, "Failed to start the ratchet transaction");
@@ -969,10 +956,8 @@ impl CoreUser {
             };
 
             // Decrypt and process the message (and Box the large future)
-            let mut notifier = self.notifier();
             if let Err(error) = Box::pin(self.decrypt_and_process_qs_message(
                 &mut txn,
-                &mut notifier,
                 qs_message,
                 &mut result,
                 read_receipts_enabled,
@@ -992,7 +977,7 @@ impl CoreUser {
                 })
                 .ok();
 
-            notifier.notify();
+            connection.notify();
         }
 
         debug!(elapsed = ?started.elapsed(), num_messages, "Processed QS messages");
@@ -1005,8 +990,7 @@ impl CoreUser {
     /// should be aborted.
     async fn decrypt_and_process_qs_message(
         &self,
-        txn: &mut SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
+        txn: &mut WriteDbTransaction<'_>,
         qs_message: QueueMessage,
         result: &mut ProcessedQsMessages,
         read_receipts_enabled: bool,
@@ -1027,11 +1011,10 @@ impl CoreUser {
         //
         // If the handler fails, we want to *silently* rollback this savepoint, while always
         // committing the parent one.
-        let mut savepoint_txn = txn.begin().await?;
+        let mut savepoint_txn = txn.begin_immediate().await?;
 
         let processed = match Box::pin(self.process_qs_message(
             &mut savepoint_txn,
-            notifier,
             qs_message_plaintext,
             read_receipts_enabled,
         ))
@@ -1081,8 +1064,7 @@ impl CoreUser {
 }
 
 async fn handle_message_edit(
-    txn: &mut SqliteTransaction<'_>,
-    notifier: &mut StoreNotifier,
+    txn: &mut WriteDbTransaction<'_>,
     group_id: &GroupId,
     ds_timestamp: TimeStamp,
     sender: &UserId,
@@ -1093,18 +1075,20 @@ async fn handle_message_edit(
 
     // First try to directly load the original message by mimi id (non-edited message) and fallback
     // to the history of edits otherwise.
-    let mut message = match ChatMessage::load_by_mimi_id(txn, &replaces).await? {
+    let mut message = match ChatMessage::load_by_mimi_id(&mut *txn, &replaces).await? {
         Some(message) => message,
         None => {
-            let message_id = MessageEdit::find_message_id(txn.as_mut(), &replaces)
+            let message_id = MessageEdit::find_message_id(&mut *txn, &replaces)
                 .await?
                 .with_context(|| {
                     format!("Original message id not found for editing; mimi_id = {replaces:?}")
                 })?;
 
-            ChatMessage::load(txn, message_id).await?.with_context(|| {
-                format!("Original message not found for editing; message_id = {message_id:?}")
-            })?
+            ChatMessage::load(&mut *txn, message_id)
+                .await?
+                .with_context(|| {
+                    format!("Original message not found for editing; message_id = {message_id:?}")
+                })?
         }
     };
 
@@ -1134,7 +1118,7 @@ async fn handle_message_edit(
             && let Ok(redacted_mimi_id) = MimiId::from_slice(&redacted_mimi_id_bytes)
         {
             let updated_message_ids = ChatMessage::redact_all_in_reply_to_mimi_ids(
-                txn.as_mut(),
+                &mut *txn,
                 &original_message_id,
                 original_mimi_id,
                 &redacted_mimi_id,
@@ -1142,14 +1126,14 @@ async fn handle_message_edit(
             .await?;
 
             for message_id in updated_message_ids {
-                notifier.add(message_id);
+                txn.notifier().add(message_id);
             }
         }
 
         // Delete edit history when message is deleted
-        MessageEdit::delete_by_message_id(txn.as_mut(), message.id()).await?;
+        MessageEdit::delete_by_message_id(&mut *txn, message.id()).await?;
         // Delete attachments for this message
-        AttachmentRecord::delete_by_message_id(txn.as_mut(), notifier, message.id()).await?;
+        AttachmentRecord::delete_by_message_id(&mut *txn, message.id()).await?;
     } else {
         // Store message edit
         MessageEdit::new(
@@ -1158,7 +1142,7 @@ async fn handle_message_edit(
             ds_timestamp,
             original_mimi_content,
         )
-        .store(txn.as_mut())
+        .store(&mut *txn)
         .await?;
     }
 
@@ -1178,7 +1162,7 @@ async fn handle_message_edit(
     }
 
     // Clear the status of the message
-    StatusRecord::clear(txn.as_mut(), notifier, message.id()).await?;
+    StatusRecord::clear(txn, message.id()).await?;
 
     Ok(message)
 }
