@@ -1,5 +1,3 @@
-Air is a free and easy-to-use secure messaging app created by Phoenix R&D, a research & development company.
-
 • Send end-to-end encrypted texts, photos, videos, and documents.
 • Create group chats with friends and family. Feel free to bring your coworkers too.
 • Air doesn’t collect sensitive information like your phone number or email address, and doesn’t store metadata, like who you talk to and when.
