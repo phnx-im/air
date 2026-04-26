@@ -119,7 +119,7 @@ impl SqlStoreNotification {
 
 impl StoreNotification {
     pub(crate) async fn enqueue(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
-        let mut transaction = connection.begin_immediate().await?;
+        let mut transaction = connection.begin().await?;
         for (entity_id, operation) in &self.ops {
             let kind = entity_id.kind();
             let added = operation.contains(StoreOperation::Add);
@@ -181,12 +181,13 @@ mod tests {
     use sqlx::SqlitePool;
     use uuid::Uuid;
 
-    use crate::{ChatId, MessageId};
+    use crate::{ChatId, MessageId, db_access::DbAccess};
 
     use super::*;
 
     #[sqlx::test]
     async fn queue_dequeue_notification(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         let mut notification = StoreNotification::default();
         notification.ops.insert(
             StoreEntityId::User(UserId::random("localhost".parse()?)),
@@ -205,12 +206,12 @@ mod tests {
             StoreOperation::Remove | StoreOperation::Update,
         );
 
-        notification.enqueue(pool.acquire().await?.as_mut()).await?;
+        notification.enqueue(pool.write().await?).await?;
 
-        let dequeued_notification = StoreNotification::dequeue(&pool).await?;
+        let dequeued_notification = StoreNotification::dequeue(pool.write().await?).await?;
         assert_eq!(notification, dequeued_notification);
 
-        let dequeued_notification = StoreNotification::dequeue(&pool).await?;
+        let dequeued_notification = StoreNotification::dequeue(pool.write().await?).await?;
         assert!(dequeued_notification.is_empty());
 
         Ok(())
@@ -218,27 +219,28 @@ mod tests {
 
     #[sqlx::test]
     async fn queue_notification_with_conflict(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         let chat_id = ChatId::new(Uuid::new_v4());
 
         let mut notification = StoreNotification::default();
         notification
             .ops
             .insert(StoreEntityId::Chat(chat_id), StoreOperation::Add.into());
-        notification.enqueue(pool.acquire().await?.as_mut()).await?;
+        notification.enqueue(pool.write().await?).await?;
 
         let mut notification = StoreNotification::default();
         notification
             .ops
             .insert(StoreEntityId::Chat(chat_id), StoreOperation::Update.into());
-        notification.enqueue(pool.acquire().await?.as_mut()).await?;
+        notification.enqueue(pool.write().await?).await?;
 
         let mut notification = StoreNotification::default();
         notification
             .ops
             .insert(StoreEntityId::Chat(chat_id), StoreOperation::Remove.into());
-        notification.enqueue(pool.acquire().await?.as_mut()).await?;
+        notification.enqueue(pool.write().await?).await?;
 
-        let dequeued_notification = StoreNotification::dequeue(&pool).await?;
+        let dequeued_notification = StoreNotification::dequeue(pool.write().await?).await?;
         let expected = StoreNotification {
             ops: [(
                 StoreEntityId::Chat(chat_id),

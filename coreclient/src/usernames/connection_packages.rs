@@ -104,7 +104,7 @@ mod tests {
         let signing_key = UsernameSigningKey::generate().unwrap();
         let hash = username.calculate_hash().unwrap();
         let record = UsernameRecord::new(username, hash, signing_key);
-        record.store(&pool).await.unwrap();
+        record.store(pool.write().await?).await.unwrap();
         let (decryption_key, connection_package) =
             ConnectionPackage::new(record.hash, &record.signing_key, false).unwrap();
 

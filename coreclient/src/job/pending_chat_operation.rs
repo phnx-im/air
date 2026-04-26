@@ -972,11 +972,10 @@ mod tests {
         identifiers::{QualifiedGroupId, UserId},
     };
     use chrono::{Duration, Utc};
-    use sqlx::SqlitePool;
     use uuid::Uuid;
 
     use crate::{
-        ChatAttributes, db_access::DbAccess, groups::GroupDataBytes, store::StoreNotifier,
+        ChatAttributes, db_access::DbAccess, groups::GroupDataBytes,
         utils::persistence::open_db_in_memory,
     };
 
@@ -984,9 +983,8 @@ mod tests {
 
     async fn setup_group_and_chat()
     -> anyhow::Result<(DbAccess, VerifiedGroup, ChatId, ClientSigningKey)> {
-        let pool = open_db_in_memory().await?;
-        let db = DbAccess::for_tests(pool);
-        let mut connection = db.write().await?;
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let mut connection = pool.write().await?;
 
         let user_id = UserId::random("example.com".parse().unwrap());
         let (_aic_sk, signing_key) = create_test_credentials(user_id.clone());
@@ -1004,7 +1002,7 @@ mod tests {
             group_id.clone(),
             group_data_bytes,
         )?;
-        group.store(&mut *connection).await?;
+        group.store(&mut connection).await?;
         let group = VerifiedGroup::new_for_test(group);
 
         let chat = Chat::new_group_chat(
@@ -1014,23 +1012,22 @@ mod tests {
         let chat_id = chat.id();
         chat.store(&mut connection).await?;
 
-        Ok((db, group, chat_id, signing_key))
+        Ok((pool, group, chat_id, signing_key))
     }
 
     #[tokio::test(flavor = "multi_thread")]
     async fn store_and_load_roundtrip() -> anyhow::Result<()> {
         let (pool, mut group, chat_id, signing_key) = setup_group_and_chat().await?;
-        let mut connection = pool.acquire().await?;
+        let mut connection = pool.read().await?;
 
         let leave_params = group
             .group_mut()
-            .stage_leave_group(&mut connection, &signing_key)?;
+            .stage_leave_group(pool.write().await?, &signing_key)?;
         let pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
 
-        pending.store(&mut connection).await?;
+        pending.store(pool.write().await?).await?;
 
-        let loaded = connection
-            .with_transaction(async |txn| PendingChatOperation::load(txn, &chat_id).await)
+        let loaded = PendingChatOperation::load(&mut connection, &chat_id)
             .await?
             .expect("Loading stored operation failed");
 
@@ -1044,7 +1041,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn update_retry_due_at_persists() -> anyhow::Result<()> {
         let (pool, mut group, chat_id, signing_key) = setup_group_and_chat().await?;
-        let mut connection = pool.acquire().await?;
+        let mut connection = pool.write().await?;
 
         let leave_params = group
             .group_mut()
@@ -1054,11 +1051,10 @@ mod tests {
 
         let new_timestamp = Utc::now() + Duration::seconds(30);
         pending
-            .update_retry_due_at(connection.as_mut(), new_timestamp)
+            .update_retry_due_at(&mut connection, new_timestamp)
             .await?;
 
-        let reloaded = connection
-            .with_transaction(async |txn| PendingChatOperation::load(txn, &chat_id).await)
+        let reloaded = PendingChatOperation::load(&mut connection, &chat_id)
             .await?
             .expect("should load");
         assert_eq!(reloaded.retry_due_at, Some(new_timestamp));
@@ -1069,7 +1065,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn mark_as_waiting_for_queue_response_updates_status() -> anyhow::Result<()> {
         let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
-        let mut connection = pool.acquire().await?;
+        let mut connection = pool.write().await?;
 
         let leave_params = group
             .group_mut()
@@ -1085,9 +1081,7 @@ mod tests {
                 let ready = PendingChatOperation::dequeue(txn, uuid, now).await?;
                 assert!(ready.is_some());
 
-                pending
-                    .mark_as_waiting_for_queue_response(txn.as_mut())
-                    .await?;
+                pending.mark_as_waiting_for_queue_response(txn).await?;
 
                 // After marking, it should no longer be returned for retries.
                 let uuid = Uuid::new_v4();
@@ -1102,7 +1096,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn delete_removes_pending_operation() -> anyhow::Result<()> {
         let (pool, mut group, chat_id, signing_key) = setup_group_and_chat().await?;
-        let mut connection = pool.acquire().await?;
+        let mut connection = pool.write().await?;
 
         let leave_params = group
             .group_mut()
@@ -1113,7 +1107,7 @@ mod tests {
         // Delete and ensure the row is gone.
         connection
             .with_transaction(async |txn| {
-                PendingChatOperation::delete(txn.as_mut(), pending.group.group_id()).await?;
+                PendingChatOperation::delete(txn, pending.group.group_id()).await?;
 
                 let loaded = PendingChatOperation::load(txn, &chat_id).await?;
                 assert!(loaded.is_none());

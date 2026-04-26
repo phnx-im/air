@@ -358,6 +358,8 @@ mod persistence {
 
 #[cfg(test)]
 mod tests {
+    use crate::db_access::{DbAccess, WriteConnection};
+
     use super::*;
     use serde::{Deserialize, Serialize};
     use sqlx::SqlitePool;
@@ -380,12 +382,15 @@ mod tests {
 
     #[sqlx::test]
     async fn test_dequeue_locking(pool: SqlitePool) {
-        let mut txn = pool.begin().await.unwrap();
+        let pool = DbAccess::for_tests(pool);
+
+        let mut connection = pool.write().await.unwrap();
+        let mut txn = connection.begin().await.unwrap();
         let data = MockData {
             payload: "lock_test".to_string(),
         };
         let op = Operation::new(data);
-        op.enqueue(txn.as_mut()).await.unwrap();
+        op.enqueue(&mut txn).await.unwrap();
 
         let worker_a = Uuid::new_v4();
         let worker_b = Uuid::new_v4();
@@ -412,15 +417,18 @@ mod tests {
 
     #[sqlx::test]
     async fn test_reschedule_logic(pool: SqlitePool) {
-        let mut txn = pool.begin().await.unwrap();
+        let pool = DbAccess::for_tests(pool);
+
+        let mut connection = pool.write().await.unwrap();
+        let mut txn = connection.begin().await.unwrap();
         let data = MockData {
             payload: "retry_test".to_string(),
         };
         let mut op = Operation::new(data);
-        op.enqueue(txn.as_mut()).await.unwrap();
+        op.enqueue(&mut txn).await.unwrap();
 
         let retry_time = Utc::now() + chrono::Duration::minutes(5);
-        op.reschedule(txn.as_mut(), retry_time).await.unwrap();
+        op.reschedule(&mut txn, retry_time).await.unwrap();
 
         let op = Operation::<MockData>::dequeue(&mut txn, Uuid::new_v4(), retry_time)
             .await
@@ -433,7 +441,10 @@ mod tests {
 
     #[sqlx::test]
     async fn test_upsert_behavior(pool: SqlitePool) {
-        let mut txn = pool.begin().await.unwrap();
+        let pool = DbAccess::for_tests(pool);
+
+        let mut connection = pool.write().await.unwrap();
+        let mut txn = connection.begin().await.unwrap();
         let data = MockData {
             payload: "stable_id".to_string(),
         };
@@ -442,8 +453,8 @@ mod tests {
         op2.retries = 5;
 
         // Inserting the same ID twice (due to "INSERT OR REPLACE")
-        op1.enqueue(txn.as_mut()).await.unwrap();
-        op2.enqueue(txn.as_mut()).await.unwrap();
+        op1.enqueue(&mut txn).await.unwrap();
+        op2.enqueue(&mut txn).await.unwrap();
 
         let op = Operation::<MockData>::dequeue(&mut txn, Uuid::new_v4(), Utc::now())
             .await
@@ -455,6 +466,8 @@ mod tests {
 
     #[sqlx::test]
     async fn test_dequeue_deletes_undeserializable_operation(pool: SqlitePool) {
+        let pool = DbAccess::for_tests(pool);
+
         // Shares `OperationKind` with `MockData` but has an incompatible serialized shape, so
         // decoding an enqueued `MockData` as this type fails at the codec layer.
         #[derive(Serialize, Deserialize, Debug)]
@@ -472,11 +485,12 @@ mod tests {
             }
         }
 
-        let mut txn = pool.begin().await.unwrap();
+        let mut connection = pool.write().await.unwrap();
+        let mut txn = connection.begin().await.unwrap();
         let data = MockData {
             payload: "undeserializable".to_string(),
         };
-        Operation::new(data).enqueue(txn.as_mut()).await.unwrap();
+        Operation::new(data).enqueue(&mut txn).await.unwrap();
 
         // Dequeueing with a type that can't deserialize the payload returns None and deletes the
         // offending row instead of surfacing an error.
@@ -494,13 +508,16 @@ mod tests {
 
     #[sqlx::test]
     async fn test_delete_persistence(pool: SqlitePool) {
-        let mut txn = pool.begin().await.unwrap();
+        let pool = DbAccess::for_tests(pool);
+
+        let mut connection = pool.write().await.unwrap();
+        let mut txn = connection.begin().await.unwrap();
         let data = MockData {
             payload: "delete_me".to_string(),
         };
         let op_id = data.generate_id();
         let op = Operation::new(data);
-        op.enqueue(txn.as_mut()).await.unwrap();
+        op.enqueue(&mut txn).await.unwrap();
 
         let now = Utc::now();
         let op = Operation::<MockData>::dequeue(&mut txn, Uuid::new_v4(), now)
@@ -510,7 +527,7 @@ mod tests {
         assert_eq!(op.operation_id, op_id);
 
         // Delete and verify
-        op.delete(txn.as_mut()).await.unwrap();
+        op.delete(&mut txn).await.unwrap();
         let op = Operation::<MockData>::dequeue(&mut txn, Uuid::new_v4(), now)
             .await
             .unwrap();

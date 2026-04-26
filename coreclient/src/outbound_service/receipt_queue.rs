@@ -68,7 +68,7 @@ mod persistence {
             mut connection: impl WriteConnection,
             task_id: Uuid,
         ) -> anyhow::Result<Option<(ChatId, Vec<(MimiId, MessageStatus)>)>> {
-            let mut txn = connection.begin_immediate().await?;
+            let mut txn = connection.begin().await?;
 
             let now = TimeStamp::now();
             let locked_before = *now - LOCKED_THRESHOLD;

@@ -134,28 +134,30 @@ mod persistence {
         use mimi_content::MessageStatus;
         use sqlx::{SqlitePool, query_scalar};
 
-        use crate::chats::{
-            messages::persistence::tests::test_chat_message_with_salt,
-            persistence::tests::test_chat,
+        use crate::{
+            chats::{
+                messages::persistence::tests::test_chat_message_with_salt,
+                persistence::tests::test_chat,
+            },
+            db_access::DbAccess,
         };
 
         use super::*;
 
         #[sqlx::test]
         async fn store_report(pool: SqlitePool) -> anyhow::Result<()> {
-            let mut notifier = StoreNotifier::noop();
+            let pool = DbAccess::for_tests(pool);
 
             let alice = UserId::random("localhost".parse().unwrap());
 
             let chat = test_chat();
-            chat.store(pool.acquire().await?.as_mut(), &mut notifier)
-                .await?;
+            chat.store(pool.write().await?).await?;
 
             let message_a = test_chat_message_with_salt(chat.id(), [0; 16]);
-            message_a.store(&pool, &mut notifier).await?;
+            message_a.store(pool.write().await?).await?;
             let mimi_id_a = message_a.message().mimi_id().unwrap();
             let message_b = test_chat_message_with_salt(chat.id(), [1; 16]);
-            message_b.store(&pool, &mut notifier).await?;
+            message_b.store(pool.write().await?).await?;
             let mimi_id_b = message_b.message().mimi_id().unwrap();
             assert_ne!(mimi_id_a, mimi_id_b);
 
@@ -176,22 +178,23 @@ mod persistence {
                 status: MessageStatus::Deleted,
             });
 
-            let mut txn = pool.begin().await?;
+            let mut connection = pool.write().await?;
+            let mut txn = connection.begin().await?;
             StatusRecord::borrowed(&alice, report, Utc::now().into())
-                .store_report(&mut txn, &mut notifier)
+                .store_report(&mut txn)
                 .await?;
             txn.commit().await?;
 
             let status_a: i64 =
                 query_scalar("SELECT status FROM message_status WHERE message_id = ?")
                     .bind(message_a.id())
-                    .fetch_one(&mut *pool.acquire().await?)
+                    .fetch_one(pool.read().await?.as_mut())
                     .await?;
 
             let status_b: i64 =
                 query_scalar("SELECT status FROM message_status WHERE message_id = ?")
                     .bind(message_b.id())
-                    .fetch_one(&mut *pool.acquire().await?)
+                    .fetch_one(pool.read().await?.as_mut())
                     .await?;
 
             assert_eq!(status_a, i64::from(MessageStatus::Read.repr()));
@@ -204,17 +207,16 @@ mod persistence {
         async fn clear_status_records(pool: SqlitePool) -> anyhow::Result<()> {
             use crate::ChatMessage;
 
-            let mut notifier = StoreNotifier::noop();
+            let pool = DbAccess::for_tests(pool);
 
             let alice = UserId::random("localhost".parse().unwrap());
             let bob = UserId::random("localhost".parse().unwrap());
 
             let chat = test_chat();
-            chat.store(pool.acquire().await?.as_mut(), &mut notifier)
-                .await?;
+            chat.store(pool.write().await?).await?;
 
             let message = test_chat_message_with_salt(chat.id(), [0; 16]);
-            message.store(&pool, &mut notifier).await?;
+            message.store(pool.write().await?).await?;
             let mimi_id = message.message().mimi_id().unwrap();
 
             // Create status records from multiple users
@@ -231,12 +233,13 @@ mod persistence {
                 }],
             };
 
-            let mut txn = pool.begin().await?;
+            let mut connection = pool.write().await?;
+            let mut txn = connection.begin().await?;
             StatusRecord::borrowed(&alice, report_alice, Utc::now().into())
-                .store_report(&mut txn, &mut notifier)
+                .store_report(&mut txn)
                 .await?;
             StatusRecord::borrowed(&bob, report_bob, Utc::now().into())
-                .store_report(&mut txn, &mut notifier)
+                .store_report(&mut txn)
                 .await?;
             txn.commit().await?;
 
@@ -244,23 +247,23 @@ mod persistence {
             let count: i64 =
                 query_scalar("SELECT COUNT(*) FROM message_status WHERE message_id = ?")
                     .bind(message.id())
-                    .fetch_one(&pool)
+                    .fetch_one(pool.read().await?.as_mut())
                     .await?;
             assert_eq!(count, 2);
 
             // Clear status records
-            StatusRecord::clear(&pool, &mut notifier, message.id()).await?;
+            StatusRecord::clear(pool.write().await?, message.id()).await?;
 
             // Verify status records are gone
             let count: i64 =
                 query_scalar("SELECT COUNT(*) FROM message_status WHERE message_id = ?")
                     .bind(message.id())
-                    .fetch_one(&pool)
+                    .fetch_one(pool.read().await?.as_mut())
                     .await?;
             assert_eq!(count, 0);
 
             // Verify message still exists
-            let loaded = ChatMessage::load(pool.acquire().await?.as_mut(), message.id()).await?;
+            let loaded = ChatMessage::load(pool.read().await?, message.id()).await?;
             assert!(loaded.is_some());
 
             Ok(())

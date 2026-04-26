@@ -1420,8 +1420,7 @@ mod handle_group_not_found_tests {
     async fn handle_group_not_found_marks_blocked_chat_inactive_under_block() -> anyhow::Result<()>
     {
         let pool = open_db_in_memory().await?;
-        let db = DbAccess::for_tests(pool);
-        let connection = db.write().await?;
+        let connection = pool.write().await?;
 
         let own_user_id = UserId::random("example.com".parse().unwrap());
         let blocked_user_id = UserId::random("example.com".parse().unwrap());

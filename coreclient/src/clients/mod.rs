@@ -217,7 +217,7 @@ impl CoreUser {
             qs_client_id: *final_state.qs_client_id(),
             user_id: final_state.user_id().clone(),
         }
-        .store(client_db.write().await?.as_mut())
+        .store(client_db.write().await?)
         .await?;
 
         let self_user = final_state.into_self_user(client_db, api_clients, global_lock);
@@ -697,12 +697,8 @@ impl CoreUser {
 
     /// Schedules the client's push token update on the QS.
     pub async fn update_push_token(&self, push_token: Option<PushToken>) -> Result<()> {
-        let should_notify = self
-            .db()
-            .with_write_transaction(async |txn| {
-                push_token_state::mark_pending_if_changed(txn, push_token).await
-            })
-            .await?;
+        let should_notify =
+            push_token_state::mark_pending_if_changed(self.db().write().await?, push_token).await?;
 
         if should_notify {
             info!("Scheduling push token update");

@@ -595,7 +595,9 @@ mod persistence {
         use sqlx::{Row, SqlitePool, query, query_scalar};
         use url::Host;
 
-        use crate::{clients::CIPHERSUITE, groups::openmls_provider::AirOpenMlsProvider};
+        use crate::{
+            clients::CIPHERSUITE, db_access::DbAccess, groups::openmls_provider::AirOpenMlsProvider,
+        };
 
         use super::*;
 
@@ -607,8 +609,10 @@ mod persistence {
             let pool = SqlitePool::connect("sqlite://:memory:").await?;
             sqlx::migrate!("./migrations").run(&pool).await?;
 
-            let mut connection = pool.acquire().await?;
-            let provider = AirOpenMlsProvider::new(&mut connection);
+            let pool = DbAccess::for_tests(pool);
+
+            let mut connection = pool.write().await?;
+            let provider = AirOpenMlsProvider::new(connection.as_mut());
 
             let user_id = UserId::random(Host::Domain("example.com".to_string()).into());
             let (_aic_sk, client_sk) = create_test_credentials(user_id);
@@ -640,11 +644,11 @@ mod persistence {
 
             query("INSERT INTO key_package_refs (key_package_ref, is_live) VALUES (?1, 1)")
                 .bind(KeyRefWrapper(&live_key_package_ref))
-                .execute(&pool)
+                .execute(pool.write().await?.as_mut())
                 .await?;
             query("INSERT INTO key_package_refs (key_package_ref, is_live) VALUES (?1, 0)")
                 .bind(KeyRefWrapper(&stale_key_package_ref))
-                .execute(&pool)
+                .execute(pool.write().await?.as_mut())
                 .await?;
 
             let mut txn = pool.begin().await?;
@@ -657,7 +661,7 @@ mod persistence {
                 LEFT JOIN key_package_refs kpr USING (key_package_ref)
                 ORDER BY is_live ASC",
             )
-            .fetch_all(&pool)
+            .fetch_all(pool.read().await?.as_mut())
             .await?;
 
             let key_packages: Vec<(KeyPackageRef, Option<bool>)> = rows
@@ -682,7 +686,7 @@ mod persistence {
             assert_eq!(is_live, &Some(true));
 
             let num_refs: i32 = query_scalar("SELECT COUNT(*) FROM key_package_refs")
-                .fetch_one(&pool)
+                .fetch_one(pool.read().await?.as_mut())
                 .await?;
             assert_eq!(num_refs, 2);
 

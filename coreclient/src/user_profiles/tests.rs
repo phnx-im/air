@@ -144,7 +144,7 @@ fn profile_deletion_trigger(pool: SqlitePool) {
         ClientCredentialCsr::new(user_id.clone(), SignatureScheme::ED25519).unwrap();
 
     let user_profile_key = UserProfileKey::random(&user_id).unwrap();
-    user_profile_key.store(&pool).await.unwrap();
+    user_profile_key.store(pool.write().await?).await.unwrap();
 
     let _user_profile = NewUserProfile::new(
         &signing_key,
@@ -154,7 +154,7 @@ fn profile_deletion_trigger(pool: SqlitePool) {
         profile_picture.clone(),
     )
     .unwrap()
-    .store(&pool, &mut StoreNotifier::noop())
+    .store(pool.write().await?, &mut StoreNotifier::noop())
     .await
     .unwrap();
 
@@ -163,7 +163,7 @@ fn profile_deletion_trigger(pool: SqlitePool) {
     // when the user is removed from the last shared group. This is tested in the
     // integration test called `user_deletion_triggers`.)
     delete_user_profile(&pool).await.unwrap();
-    let loaded_key = UserProfileKey::load(&pool, user_profile_key.index()).await;
+    let loaded_key = UserProfileKey::load(pool.read().await?, user_profile_key.index()).await;
     assert!(matches!(loaded_key, Err(sqlx::Error::RowNotFound)));
 }
 

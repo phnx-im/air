@@ -428,18 +428,15 @@ mod tests {
 
     #[sqlx::test]
     async fn contact_store_load(pool: SqlitePool) -> anyhow::Result<()> {
-        let mut store_notifier = StoreNotifier::noop();
+        let pool = DbAccess::for_tests(pool);
 
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
-            .await?;
-
-        let db = DbAccess::for_tests(pool.clone());
+        chat.store(pool.write().await?).await?;
 
         let contact = test_contact(chat.id());
-        contact.upsert(db.write().await?).await?;
+        contact.upsert(pool.write().await?).await?;
 
-        let loaded = Contact::load(db.read().await?, &contact.user_id)
+        let loaded = Contact::load(pool.read().await?, &contact.user_id)
             .await?
             .unwrap();
         assert_eq!(loaded, contact);
@@ -449,10 +446,10 @@ mod tests {
 
     #[sqlx::test]
     async fn handle_contact_upsert_load(pool: SqlitePool) -> anyhow::Result<()> {
-        let mut store_notifier = StoreNotifier::noop();
+        let pool = DbAccess::for_tests(pool);
+
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
-            .await?;
+        chat.store(pool.write().await?).await?;
 
         let username = Username::new("ellie-".to_owned()).unwrap();
         let username_contact = UsernameContact {
@@ -462,9 +459,11 @@ mod tests {
             connection_offer_hash: ConnectionOfferHash::new_for_test(vec![1, 2, 3, 4, 5]),
         };
 
-        username_contact.upsert(&pool, &mut store_notifier).await?;
+        username_contact.upsert(pool.write().await?).await?;
 
-        let loaded = UsernameContact::load(&pool, &username).await?.unwrap();
+        let loaded = UsernameContact::load(pool.read().await?, &username)
+            .await?
+            .unwrap();
         assert_eq!(loaded, username_contact);
 
         Ok(())
@@ -472,10 +471,9 @@ mod tests {
 
     #[sqlx::test]
     async fn handle_contact_mark_as_complete(pool: SqlitePool) -> anyhow::Result<()> {
-        let mut store_notifier = StoreNotifier::noop();
+        let pool = DbAccess::for_tests(pool);
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
-            .await?;
+        chat.store(pool.write().await?).await?;
 
         let username = Username::new("ellie-".to_owned()).unwrap();
         let username_contact = UsernameContact {
@@ -487,7 +485,7 @@ mod tests {
 
         let user_id = UserId::random("localhost".parse().unwrap());
         let user_profile_key = UserProfileKey::random(&user_id)?;
-        user_profile_key.store(&pool).await?;
+        user_profile_key.store(pool.write().await?).await?;
 
         let friendship_package = FriendshipPackage {
             friendship_token: FriendshipToken::random().unwrap(),
@@ -495,8 +493,7 @@ mod tests {
             user_profile_base_secret: user_profile_key.base_secret().clone(),
         };
 
-        let db = DbAccess::for_tests(pool.clone());
-        let contact = db
+        let contact = pool
             .with_write_transaction(async |txn| {
                 username_contact
                     .mark_as_complete(txn, user_id, friendship_package)
@@ -504,12 +501,10 @@ mod tests {
             })
             .await?;
 
-        let loaded_username_contact = UsernameContact::load(&pool, &username).await?;
+        let loaded_username_contact = UsernameContact::load(pool.read().await?, &username).await?;
         assert!(loaded_username_contact.is_none());
 
-        let db = DbAccess::for_tests(pool);
-
-        let loaded_contact = Contact::load(db.read().await?, &contact.user_id)
+        let loaded_contact = Contact::load(pool.read().await?, &contact.user_id)
             .await?
             .unwrap();
         assert_eq!(loaded_contact, contact);
@@ -519,12 +514,11 @@ mod tests {
 
     #[sqlx::test]
     async fn handle_contact_delete(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         tracing_subscriber::fmt::try_init().ok();
 
-        let mut store_notifier = StoreNotifier::noop();
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
-            .await?;
+        chat.store(pool.write().await?).await?;
 
         let username = Username::new("ellie-".to_owned()).unwrap();
         let username_contact = UsernameContact {
@@ -534,13 +528,10 @@ mod tests {
             connection_offer_hash: ConnectionOfferHash::new_for_test(vec![1, 2, 3, 4, 5]),
         };
 
-        username_contact.upsert(&pool, &mut store_notifier).await?;
+        username_contact.upsert(pool.write().await?).await?;
+        username_contact.delete(pool.write().await?).await?;
 
-        let db = DbAccess::for_tests(pool.clone());
-
-        username_contact.delete(&mut db.write().await?).await?;
-
-        let loaded = UsernameContact::load(&pool, &username).await?;
+        let loaded = UsernameContact::load(pool.read().await?, &username).await?;
         assert!(loaded.is_none());
 
         Ok(())
@@ -548,10 +539,9 @@ mod tests {
 
     #[sqlx::test]
     async fn handle_contact_upsert_idempotent(pool: SqlitePool) -> anyhow::Result<()> {
-        let mut store_notifier = StoreNotifier::noop();
+        let pool = DbAccess::for_tests(pool);
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut store_notifier)
-            .await?;
+        chat.store(pool.write().await?).await?;
 
         let username = Username::new("ellie-".to_owned()).unwrap();
         let username_contact = UsernameContact {
@@ -561,10 +551,12 @@ mod tests {
             connection_offer_hash: ConnectionOfferHash::new_for_test(vec![1, 2, 3, 4, 5]),
         };
 
-        username_contact.upsert(&pool, &mut store_notifier).await?;
-        username_contact.upsert(&pool, &mut store_notifier).await?; // Upsert again
+        username_contact.upsert(pool.write().await?).await?;
+        username_contact.upsert(pool.write().await?).await?; // Upsert again
 
-        let loaded = UsernameContact::load(&pool, &username).await?.unwrap();
+        let loaded = UsernameContact::load(pool.read().await?, &username)
+            .await?
+            .unwrap();
         assert_eq!(loaded, username_contact);
 
         Ok(())
@@ -574,17 +566,13 @@ mod tests {
     async fn username_contact_multiple_senders_same_username(
         pool: SqlitePool,
     ) -> anyhow::Result<()> {
-        let mut store_notifier = StoreNotifier::noop();
+        let pool = DbAccess::for_tests(pool);
 
         // Create two chats
         let chat_a = test_chat();
         let chat_b = test_chat();
-        chat_a
-            .store(pool.acquire().await?.as_mut(), &mut store_notifier)
-            .await?;
-        chat_b
-            .store(pool.acquire().await?.as_mut(), &mut store_notifier)
-            .await?;
+        chat_a.store(pool.write().await?).await?;
+        chat_b.store(pool.write().await?).await?;
 
         let username = Username::new("alice".to_owned()).unwrap();
 
@@ -595,10 +583,12 @@ mod tests {
             friendship_package_ear_key: FriendshipPackageEarKey::random().unwrap(),
             connection_offer_hash: ConnectionOfferHash::new_for_test(vec![1, 2, 3]),
         };
-        contact_a.upsert(&pool, &mut store_notifier).await?;
+        contact_a.upsert(pool.write().await?).await?;
 
         // Verify A's UsernameContact exists
-        let loaded_a = UsernameContact::load(&pool, &username).await?.unwrap();
+        let loaded_a = UsernameContact::load(pool.read().await?, &username)
+            .await?
+            .unwrap();
         assert_eq!(loaded_a.chat_id, chat_a.id());
 
         // Sender B sends connection request to same username "alice"
@@ -608,13 +598,15 @@ mod tests {
             friendship_package_ear_key: FriendshipPackageEarKey::random().unwrap(),
             connection_offer_hash: ConnectionOfferHash::new_for_test(vec![4, 5, 6]),
         };
-        contact_b.upsert(&pool, &mut store_notifier).await?;
+        contact_b.upsert(pool.write().await?).await?;
 
         // Both contacts should exist (each has unique chat_id)
-        let loaded_a_by_chat = UsernameContact::load_by_chat_id(&pool, chat_a.id()).await?;
+        let loaded_a_by_chat =
+            UsernameContact::load_by_chat_id(pool.read().await?, chat_a.id()).await?;
         assert!(loaded_a_by_chat.is_some());
 
-        let loaded_b_by_chat = UsernameContact::load_by_chat_id(&pool, chat_b.id()).await?;
+        let loaded_b_by_chat =
+            UsernameContact::load_by_chat_id(pool.read().await?, chat_b.id()).await?;
         assert!(loaded_b_by_chat.is_some());
 
         Ok(())

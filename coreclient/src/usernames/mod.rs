@@ -97,7 +97,7 @@ impl CoreUser {
         };
 
         let mut write = self.db().write().await?;
-        let mut txn = write.begin_immediate().await?;
+        let mut txn = write.begin().await?;
         if let Err(error) = record.store(&mut txn).await {
             error!(%error, "failed to store username; rollback");
             drop(txn);

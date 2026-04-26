@@ -65,7 +65,7 @@ pub(crate) trait StorableIndexedKey<KT: IndexedKeyType + Send + Unpin + Debug>:
         let key = self.key();
         let index = self.index();
         let key_type = KeyTypeInstance::<KT>::new();
-        let mut transaction = connection.begin_immediate().await?;
+        let mut transaction = connection.begin().await?;
         // Delete the old own key
         query!(
             "DELETE FROM indexed_key
@@ -154,39 +154,39 @@ mod tests {
     use aircommon::{crypto::indexed_aead::keys::UserProfileKey, identifiers::UserId};
     use sqlx::SqlitePool;
 
-    use crate::key_stores::indexed_keys::StorableIndexedKey;
+    use crate::{db_access::DbAccess, key_stores::indexed_keys::StorableIndexedKey};
 
     #[sqlx::test]
     fn user_profile_key_storage(pool: SqlitePool) {
-        let mut connection = pool.acquire().await.unwrap();
+        let pool = DbAccess::for_tests(pool);
+
+        let mut connection = pool.write().await.unwrap();
         let user_id = UserId::random("example.com".parse().unwrap());
         let key = UserProfileKey::random(&user_id).unwrap();
         let index = key.index().clone();
         key.store_own(&mut connection).await.unwrap();
 
-        let loaded_key = UserProfileKey::load_own(connection.as_mut()).await.unwrap();
+        let loaded_key = UserProfileKey::load_own(&mut connection).await.unwrap();
         assert_eq!(key, loaded_key);
 
-        let loaded_key = UserProfileKey::load(connection.as_mut(), &index)
-            .await
-            .unwrap();
+        let loaded_key = UserProfileKey::load(&mut connection, &index).await.unwrap();
         assert_eq!(key, loaded_key);
 
         // Update key
         let new_key = UserProfileKey::random(&user_id).unwrap();
         new_key.store_own(&mut connection).await.unwrap();
-        let loaded_key = UserProfileKey::load_own(connection.as_mut()).await.unwrap();
+        let loaded_key = UserProfileKey::load_own(&mut connection).await.unwrap();
         assert_eq!(new_key, loaded_key);
-        let loaded_key = UserProfileKey::load(connection.as_mut(), new_key.index())
+        let loaded_key = UserProfileKey::load(&mut connection, new_key.index())
             .await
             .unwrap();
         assert_eq!(new_key, loaded_key);
 
         // Delete key
-        UserProfileKey::delete(connection.as_mut(), new_key.index())
+        UserProfileKey::delete(&mut connection, new_key.index())
             .await
             .unwrap();
-        let loaded_key = UserProfileKey::load(connection.as_mut(), new_key.index())
+        let loaded_key = UserProfileKey::load(&mut connection, new_key.index())
             .await
             .unwrap_err();
         assert!(matches!(loaded_key, sqlx::Error::RowNotFound));

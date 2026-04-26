@@ -197,36 +197,42 @@ impl UsernameRecord {
 mod test {
     use sqlx::SqlitePool;
 
+    use crate::db_access::DbAccess;
+
     use super::*;
 
     #[sqlx::test]
     async fn user_handle_record_store_load(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         let username = Username::new("ellie-03".to_owned())?;
         let hash = username.calculate_hash()?;
         let signing_key = UsernameSigningKey::generate()?;
         let record = UsernameRecord::new(username.clone(), hash, signing_key);
-        record.store(&pool).await?;
+        record.store(pool.write().await?).await?;
 
-        let loaded_record = UsernameRecord::load(&pool, &username).await?.unwrap();
+        let loaded_record = UsernameRecord::load(pool.read().await?, &username)
+            .await?
+            .unwrap();
         assert_eq!(loaded_record, record);
         Ok(())
     }
 
     #[sqlx::test]
     async fn user_handle_record_load_all(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         let username1 = Username::new("ellie-03".to_owned())?;
         let hash1 = username1.calculate_hash()?;
         let signing_key1 = UsernameSigningKey::generate()?;
         let record1 = UsernameRecord::new(username1.clone(), hash1, signing_key1);
-        record1.store(&pool).await?;
+        record1.store(pool.write().await?).await?;
 
         let username2 = Username::new("joel-03".to_owned())?;
         let hash2 = username2.calculate_hash()?;
         let signing_key2 = UsernameSigningKey::generate()?;
         let record2 = UsernameRecord::new(username2.clone(), hash2, signing_key2);
-        record2.store(&pool).await?;
+        record2.store(pool.write().await?).await?;
 
-        let loaded_records = UsernameRecord::load_all(&pool).await?;
+        let loaded_records = UsernameRecord::load_all(pool.read().await?).await?;
         assert_eq!(loaded_records.len(), 2);
         assert!(loaded_records.contains(&record1));
         assert!(loaded_records.contains(&record2));
@@ -235,17 +241,18 @@ mod test {
 
     #[sqlx::test]
     async fn username_record_load_all_usernames(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         let username1 = Username::new("ellie-03".to_owned())?;
         let hash1 = username1.calculate_hash()?;
         let signing_key1 = UsernameSigningKey::generate()?;
         let record1 = UsernameRecord::new(username1.clone(), hash1, signing_key1);
-        record1.store(&pool).await?;
+        record1.store(pool.write().await?).await?;
 
         let username2 = Username::new("joel-03".to_owned())?;
         let hash2 = username2.calculate_hash()?;
         let signing_key2 = UsernameSigningKey::generate()?;
         let record2 = UsernameRecord::new(username2.clone(), hash2, signing_key2);
-        record2.store(&pool).await?;
+        record2.store(pool.write().await?).await?;
 
         let loaded_usernames = UsernameRecord::load_all_usernames(&pool).await?;
         assert_eq!(loaded_usernames.len(), 2);
@@ -256,6 +263,7 @@ mod test {
 
     #[sqlx::test]
     async fn user_handle_record_load_needing_refresh(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         use chrono::Duration;
 
         // Create a username with old refreshed_at (> 90 days ago)
@@ -263,7 +271,7 @@ mod test {
         let hash_old = username_old.calculate_hash()?;
         let signing_key_old = UsernameSigningKey::generate()?;
         let record_old = UsernameRecord::new(username_old.clone(), hash_old, signing_key_old);
-        record_old.store(&pool).await?;
+        record_old.store(pool.write().await?).await?;
 
         // Manually set refreshed_at to 100 days ago
         let old_time = Utc::now() - Duration::days(100);
@@ -278,7 +286,7 @@ mod test {
         let hash_new = username_new.calculate_hash()?;
         let signing_key_new = UsernameSigningKey::generate()?;
         let record_new = UsernameRecord::new(username_new.clone(), hash_new, signing_key_new);
-        record_new.store(&pool).await?;
+        record_new.store(pool.write().await?).await?;
 
         // Query usernames needing refresh (threshold = now - 90 days)
         let threshold = Utc::now() - Duration::days(90);
@@ -299,14 +307,15 @@ mod test {
 
     #[sqlx::test]
     async fn user_handle_record_delete(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         let username = Username::new("ellie-03".to_owned())?;
         let hash = username.calculate_hash()?;
         let signing_key = UsernameSigningKey::generate()?;
         let record = UsernameRecord::new(username.clone(), hash, signing_key);
-        record.store(&pool).await?;
+        record.store(pool.write().await?).await?;
 
-        UsernameRecord::delete(&pool, &username).await?;
-        let loaded_record = UsernameRecord::load(&pool, &username).await?;
+        UsernameRecord::delete(pool.write().await?, &username).await?;
+        let loaded_record = UsernameRecord::load(pool.read().await?, &username).await?;
         assert!(loaded_record.is_none());
         Ok(())
     }

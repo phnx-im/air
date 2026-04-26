@@ -236,7 +236,7 @@ impl Chat {
         mut connection: impl ReadConnection,
         chat_id: &ChatId,
     ) -> sqlx::Result<Option<Chat>> {
-        let mut transaction = connection.begin().await?;
+        let mut transaction = connection.begin_read_tx().await?;
         let chat = query_as!(
             SqlChat,
             r#"SELECT
@@ -327,7 +327,7 @@ impl Chat {
         group_id: &GroupId,
     ) -> sqlx::Result<Option<Chat>> {
         let group_id = group_id.as_slice();
-        let mut transaction = connection.begin().await?;
+        let mut transaction = connection.begin_read_tx().await?;
         let chat = query_as!(
             SqlChat,
             r#"SELECT
@@ -402,7 +402,7 @@ impl Chat {
         chat_id: ChatId,
         status: &ChatStatus,
     ) -> sqlx::Result<()> {
-        let mut transaction = connection.begin_immediate().await?;
+        let mut transaction = connection.begin().await?;
         match status {
             ChatStatus::Inactive(inactive) => {
                 query!(
@@ -844,13 +844,14 @@ pub mod tests {
 
     use aircommon::time::TimeStamp;
     use chrono::{Days, Duration};
-    use sqlx::{Sqlite, pool::PoolConnection};
+    use sqlx::SqlitePool;
     use uuid::Uuid;
 
     use crate::{
         InactiveChat, MessageDraft,
         chats::messages::persistence::tests::{test_chat_message, test_chat_message_at},
         clients::block_contact::BlockedContact,
+        db_access::DbAccess,
     };
 
     use super::*;
@@ -874,11 +875,12 @@ pub mod tests {
     }
 
     #[sqlx::test]
-    async fn store_load(mut connection: PoolConnection<Sqlite>) -> anyhow::Result<()> {
-        let mut store_notifier = StoreNotifier::noop();
+    async fn store_load(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
 
         let chat = test_chat();
-        chat.store(&mut connection, &mut store_notifier).await?;
+        chat.store(&mut connection).await?;
         let loaded = Chat::load(&mut connection, &chat.id)
             .await?
             .expect("missing chat");
@@ -888,11 +890,12 @@ pub mod tests {
     }
 
     #[sqlx::test]
-    async fn store_load_by_group_id(mut connection: PoolConnection<Sqlite>) -> anyhow::Result<()> {
-        let mut store_notifier = StoreNotifier::noop();
+    async fn store_load_by_group_id(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
 
         let chat = test_chat();
-        chat.store(&mut connection, &mut store_notifier).await?;
+        chat.store(&mut connection).await?;
         let loaded = Chat::load_by_group_id(&mut connection, &chat.group_id)
             .await?
             .expect("missing chat");
@@ -902,16 +905,17 @@ pub mod tests {
     }
 
     #[sqlx::test]
-    async fn store_load_all(mut connection: PoolConnection<Sqlite>) -> anyhow::Result<()> {
-        let mut store_notifier = StoreNotifier::noop();
+    async fn store_load_all(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
 
         let mut chat_a = test_chat();
-        chat_a.store(&mut connection, &mut store_notifier).await?;
+        chat_a.store(&mut connection).await?;
 
         let mut chat_b = test_chat();
-        chat_b.store(&mut connection, &mut store_notifier).await?;
+        chat_b.store(&mut connection).await?;
 
-        let chat_ids = Chat::load_ordered_ids(connection.as_mut()).await?;
+        let chat_ids = Chat::load_ordered_ids(&mut connection).await?;
         let mut loaded = Vec::with_capacity(chat_ids.len());
         for chat_id in chat_ids {
             loaded.push(Chat::load(&mut connection, &chat_id).await?.unwrap());
@@ -928,32 +932,33 @@ pub mod tests {
     }
 
     #[sqlx::test]
-    async fn load_ordered_ids(mut connection: PoolConnection<Sqlite>) -> anyhow::Result<()> {
-        let mut store_notifier = StoreNotifier::noop();
+    async fn load_ordered_ids(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
 
         // Chat without a message
         let chat_1 = test_chat();
-        chat_1.store(&mut connection, &mut store_notifier).await?;
+        chat_1.store(&mut connection).await?;
 
         // Chat with a message
         let chat_2 = test_chat();
-        chat_2.store(&mut connection, &mut store_notifier).await?;
+        chat_2.store(&mut connection).await?;
         let message = test_chat_message(chat_2.id());
-        message.store(&mut *connection, &mut store_notifier).await?;
+        message.store(&mut connection).await?;
 
         // Chat with another more recent message
         let chat_3 = test_chat();
-        chat_3.store(&mut connection, &mut store_notifier).await?;
+        chat_3.store(&mut connection).await?;
         let mut message = test_chat_message(chat_3.id());
         message.set_timestamp(Utc::now().checked_add_days(Days::new(1)).unwrap().into());
-        message.store(&mut *connection, &mut store_notifier).await?;
+        message.store(&mut connection).await?;
 
         // Chat with an empty draft message
         let chat_4 = test_chat();
-        chat_4.store(&mut connection, &mut store_notifier).await?;
+        chat_4.store(&mut connection).await?;
         let mut message = test_chat_message(chat_4.id());
         message.set_timestamp(Utc::now().checked_add_days(Days::new(2)).unwrap().into());
-        message.store(&mut *connection, &mut store_notifier).await?;
+        message.store(&mut connection).await?;
         MessageDraft {
             message: "    ".into(), // Whitespace only
             editing_id: None,
@@ -961,14 +966,14 @@ pub mod tests {
             in_reply_to: None,
             is_committed: false,
         }
-        .store(&mut *connection, &mut store_notifier, chat_4.id())
+        .store(&mut connection, chat_4.id())
         .await?;
 
         // Chat with a draft message
         let chat_5 = test_chat();
-        chat_5.store(&mut connection, &mut store_notifier).await?;
+        chat_5.store(&mut connection).await?;
         let message = test_chat_message(chat_5.id());
-        message.store(&mut *connection, &mut store_notifier).await?;
+        message.store(&mut connection).await?;
         MessageDraft {
             message: "Hello, world!".to_string(),
             editing_id: Some(message.id()),
@@ -976,14 +981,14 @@ pub mod tests {
             updated_at: Utc::now(),
             is_committed: true,
         }
-        .store(&mut *connection, &mut store_notifier, chat_5.id())
+        .store(&mut connection, chat_5.id())
         .await?;
 
         // Chat with a more recent draft message
         let chat_6 = test_chat();
-        chat_6.store(&mut connection, &mut store_notifier).await?;
+        chat_6.store(&mut connection).await?;
         let message = test_chat_message(chat_6.id());
-        message.store(&mut *connection, &mut store_notifier).await?;
+        message.store(&mut connection).await?;
         MessageDraft {
             message: "Hello, world!".to_string(),
             editing_id: Some(message.id()),
@@ -991,10 +996,10 @@ pub mod tests {
             updated_at: Utc::now().checked_add_days(Days::new(1)).unwrap(),
             is_committed: true,
         }
-        .store(&mut *connection, &mut store_notifier, chat_6.id())
+        .store(&mut connection, chat_6.id())
         .await?;
 
-        let loaded = Chat::load_ordered_ids(&mut *connection).await?;
+        let loaded = Chat::load_ordered_ids(&mut connection).await?;
         assert_eq!(
             loaded,
             [
@@ -1011,20 +1016,15 @@ pub mod tests {
     }
 
     #[sqlx::test]
-    async fn update_chat_picture(mut connection: PoolConnection<Sqlite>) -> anyhow::Result<()> {
-        let mut store_notifier = StoreNotifier::noop();
+    async fn update_chat_picture(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
 
         let mut chat = test_chat();
-        chat.store(&mut connection, &mut store_notifier).await?;
+        chat.store(&mut connection).await?;
 
         let new_picture = [1, 2, 3];
-        Chat::update_picture(
-            &mut *connection,
-            &mut store_notifier,
-            chat.id,
-            Some(&new_picture),
-        )
-        .await?;
+        Chat::update_picture(&mut connection, chat.id, Some(&new_picture)).await?;
 
         chat.attributes.picture = Some(new_picture.to_vec());
 
@@ -1035,11 +1035,12 @@ pub mod tests {
     }
 
     #[sqlx::test]
-    async fn update_chat_status(mut connection: PoolConnection<Sqlite>) -> anyhow::Result<()> {
-        let mut store_notifier = StoreNotifier::noop();
+    async fn update_chat_status(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
 
         let mut chat = test_chat();
-        chat.store(&mut connection, &mut store_notifier).await?;
+        chat.store(&mut connection).await?;
 
         let mut past_members = vec![
             UserId::random("localhost".parse().unwrap()),
@@ -1049,7 +1050,7 @@ pub mod tests {
         past_members.sort_unstable();
 
         let status = ChatStatus::Inactive(InactiveChat::new(past_members));
-        Chat::update_status(&mut connection, &mut store_notifier, chat.id, &status).await?;
+        Chat::update_status(&mut connection, chat.id, &status).await?;
 
         chat.status = status;
         let loaded = Chat::load(&mut connection, &chat.id).await?.unwrap();
@@ -1059,15 +1060,16 @@ pub mod tests {
     }
 
     #[sqlx::test]
-    async fn delete(mut connection: PoolConnection<Sqlite>) -> anyhow::Result<()> {
-        let mut store_notifier = StoreNotifier::noop();
+    async fn delete(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
 
         let chat = test_chat();
-        chat.store(&mut connection, &mut store_notifier).await?;
+        chat.store(&mut connection).await?;
         let loaded = Chat::load(&mut connection, &chat.id).await?.unwrap();
         assert_eq!(loaded, chat);
 
-        Chat::delete(&mut *connection, &mut store_notifier, chat.id).await?;
+        Chat::delete(&mut connection, chat.id).await?;
         let loaded = Chat::load(&mut connection, &chat.id).await?;
         assert!(loaded.is_none());
 
@@ -1075,133 +1077,130 @@ pub mod tests {
     }
 
     #[sqlx::test]
-    async fn is_blocked_nonexistent_chat(
-        mut connection: PoolConnection<Sqlite>,
-    ) -> anyhow::Result<()> {
+    async fn is_blocked_nonexistent_chat(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
+
         let nonexistent_id = ChatId {
             uuid: Uuid::new_v4(),
         };
-        let result = Chat::is_blocked(&mut *connection, nonexistent_id).await?;
+        let result = Chat::is_blocked(&mut connection, nonexistent_id).await?;
         assert!(!result);
         Ok(())
     }
 
     #[sqlx::test]
-    async fn is_blocked_group_chat(mut connection: PoolConnection<Sqlite>) -> anyhow::Result<()> {
-        let mut notifier = StoreNotifier::noop();
+    async fn is_blocked_group_chat(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
+
         let chat = test_chat(); // ChatType::Group, no connection_user
-        chat.store(&mut connection, &mut notifier).await?;
-        let result = Chat::is_blocked(&mut *connection, chat.id).await?;
+        chat.store(&mut connection).await?;
+        let result = Chat::is_blocked(&mut connection, chat.id).await?;
         assert!(!result);
         Ok(())
     }
 
     #[sqlx::test]
-    async fn is_blocked_unblocked_connection(
-        mut connection: PoolConnection<Sqlite>,
-    ) -> anyhow::Result<()> {
-        let mut notifier = StoreNotifier::noop();
+    async fn is_blocked_unblocked_connection(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
+
         let user_id = UserId::random("localhost".parse().unwrap());
         let mut chat = test_chat();
         chat.chat_type = ChatType::Connection(user_id.clone());
-        chat.store(&mut connection, &mut notifier).await?;
-        let result = Chat::is_blocked(&mut *connection, chat.id).await?;
+        chat.store(&mut connection).await?;
+        let result = Chat::is_blocked(&mut connection, chat.id).await?;
         assert!(!result);
         Ok(())
     }
 
     #[sqlx::test]
-    async fn is_blocked_blocked_connection(
-        mut connection: PoolConnection<Sqlite>,
-    ) -> anyhow::Result<()> {
-        let mut notifier = StoreNotifier::noop();
+    async fn is_blocked_blocked_connection(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
+
         let user_id = UserId::random("localhost".parse().unwrap());
         let mut chat = test_chat();
         chat.chat_type = ChatType::Connection(user_id.clone());
-        chat.store(&mut connection, &mut notifier).await?;
+        chat.store(&mut connection).await?;
 
         BlockedContact::new(user_id.clone())
-            .store(&mut *connection, &mut notifier)
+            .store(&mut connection)
             .await?;
 
-        let result = Chat::is_blocked(&mut *connection, chat.id).await?;
+        let result = Chat::is_blocked(&mut connection, chat.id).await?;
         assert!(result);
         Ok(())
     }
 
     #[sqlx::test]
-    async fn counters(mut connection: PoolConnection<Sqlite>) -> anyhow::Result<()> {
-        let mut store_notifier = StoreNotifier::noop();
+    async fn counters(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
 
         let chat_a = test_chat();
-        chat_a.store(&mut connection, &mut store_notifier).await?;
+        chat_a.store(&mut connection).await?;
 
         let chat_b = test_chat();
-        chat_b.store(&mut connection, &mut store_notifier).await?;
+        chat_b.store(&mut connection).await?;
 
         let message_a = test_chat_message(chat_a.id());
         let message_b = test_chat_message(chat_b.id());
 
-        message_a
-            .store(&mut *connection, &mut store_notifier)
-            .await?;
-        message_b
-            .store(&mut *connection, &mut store_notifier)
-            .await?;
+        message_a.store(&mut connection).await?;
+        message_b.store(&mut connection).await?;
 
-        let n = Chat::messages_count(&mut *connection, chat_a.id()).await?;
+        let n = Chat::messages_count(&mut connection, chat_a.id()).await?;
         assert_eq!(n, 1);
 
-        let n = Chat::messages_count(&mut *connection, chat_b.id()).await?;
+        let n = Chat::messages_count(&mut connection, chat_b.id()).await?;
         assert_eq!(n, 1);
 
-        let n = Chat::global_unread_message_count(&mut *connection).await?;
+        let n = Chat::global_unread_message_count(&mut connection).await?;
         assert_eq!(n, 2);
 
         let mut txn = connection.begin().await?;
         Chat::mark_as_read(
             &mut txn,
-            &mut store_notifier,
             [(chat_a.id(), message_a.timestamp() - Duration::seconds(1))],
         )
         .await?;
         txn.commit().await?;
-        let n = Chat::unread_messages_count(&mut *connection, chat_a.id()).await?;
+        let n = Chat::unread_messages_count(&mut connection, chat_a.id()).await?;
         assert_eq!(n, 1);
 
         let mut txn = connection.begin().await?;
-        Chat::mark_as_read(&mut txn, &mut store_notifier, [(chat_a.id(), Utc::now())]).await?;
+        Chat::mark_as_read(&mut txn, [(chat_a.id(), Utc::now())]).await?;
         txn.commit().await?;
-        let n = Chat::unread_messages_count(&mut *connection, chat_a.id()).await?;
+        let n = Chat::unread_messages_count(&mut connection, chat_a.id()).await?;
         assert_eq!(n, 0);
 
         let mut txn = connection.begin().await?;
         Chat::mark_as_read_until_message_id(
             &mut txn,
-            &mut store_notifier,
             chat_b.id(),
             MessageId::random(),
             &UserId::random("localhost".parse().unwrap()),
         )
         .await?;
         txn.commit().await?;
-        let n = Chat::unread_messages_count(&mut *connection, chat_b.id()).await?;
+        let n = Chat::unread_messages_count(&mut connection, chat_b.id()).await?;
         assert_eq!(n, 1);
 
         let mut txn = connection.begin().await?;
         Chat::mark_as_read_until_message_id(
             &mut txn,
-            &mut store_notifier,
             chat_b.id(),
             message_b.id(),
             &UserId::random("localhost".parse().unwrap()),
         )
         .await?;
         txn.commit().await?;
-        let n = Chat::unread_messages_count(&mut *connection, chat_b.id()).await?;
+        let n = Chat::unread_messages_count(&mut connection, chat_b.id()).await?;
         assert_eq!(n, 0);
 
-        let n = Chat::global_unread_message_count(&mut *connection).await?;
+        let n = Chat::global_unread_message_count(&mut connection).await?;
         assert_eq!(n, 0);
 
         Ok(())
@@ -1210,10 +1209,10 @@ pub mod tests {
     /// Regression test: `mark_as_read_until_message_id` must never move
     /// `last_read` backwards.
     #[sqlx::test]
-    async fn last_read_never_goes_backwards(
-        mut connection: PoolConnection<Sqlite>,
-    ) -> anyhow::Result<()> {
-        let mut store_notifier = StoreNotifier::noop();
+    async fn last_read_never_goes_backwards(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
+
         let own_user = UserId::random("localhost".parse().unwrap());
 
         let mut chat = test_chat();
@@ -1227,51 +1226,37 @@ pub mod tests {
             .unwrap()
             .into();
         chat.last_read = t0;
-        chat.store(&mut connection, &mut store_notifier).await?;
+        chat.store(&mut connection).await?;
 
         let older_message = test_chat_message_at(chat.id(), [0; 16], t1);
-        older_message
-            .store(&mut *connection, &mut store_notifier)
-            .await?;
+        older_message.store(&mut connection).await?;
 
         let newer_message = test_chat_message_at(chat.id(), [1; 16], t2);
-        newer_message
-            .store(&mut *connection, &mut store_notifier)
-            .await?;
+        newer_message.store(&mut connection).await?;
 
         // Advance last_read to the newer message (simulating the send
         // transaction calling mark_as_read_until_message_id).
         let mut txn = connection.begin().await?;
-        let (marked, _) = Chat::mark_as_read_until_message_id(
-            &mut txn,
-            &mut store_notifier,
-            chat.id(),
-            newer_message.id(),
-            &own_user,
-        )
-        .await?;
+        let (marked, _) =
+            Chat::mark_as_read_until_message_id(&mut txn, chat.id(), newer_message.id(), &own_user)
+                .await?;
         txn.commit().await?;
         assert!(marked);
 
-        let n = Chat::unread_messages_count(&mut *connection, chat.id()).await?;
+        let n = Chat::unread_messages_count(&mut connection, chat.id()).await?;
         assert_eq!(n, 0, "both messages should be read");
 
         // Now attempt to mark as read with the older message (simulating a
         // stale debounced mark-as-read arriving late). This must NOT move
         // last_read backwards.
         let mut txn = connection.begin().await?;
-        let (marked, _) = Chat::mark_as_read_until_message_id(
-            &mut txn,
-            &mut store_notifier,
-            chat.id(),
-            older_message.id(),
-            &own_user,
-        )
-        .await?;
+        let (marked, _) =
+            Chat::mark_as_read_until_message_id(&mut txn, chat.id(), older_message.id(), &own_user)
+                .await?;
         txn.commit().await?;
         assert!(!marked, "last_read must not go backwards");
 
-        let n = Chat::unread_messages_count(&mut *connection, chat.id()).await?;
+        let n = Chat::unread_messages_count(&mut connection, chat.id()).await?;
         assert_eq!(n, 0, "messages must still be read after stale mark-as-read");
 
         Ok(())

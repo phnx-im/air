@@ -135,7 +135,7 @@ mod tests {
     use aircommon::crypto::indexed_aead::keys::UserProfileKey;
     use sqlx::SqlitePool;
 
-    use crate::{Asset, key_stores::indexed_keys::StorableIndexedKey};
+    use crate::{Asset, db_access::DbAccess, key_stores::indexed_keys::StorableIndexedKey};
 
     use super::*;
 
@@ -154,14 +154,13 @@ mod tests {
 
     #[sqlx::test]
     async fn store_load(pool: SqlitePool) -> anyhow::Result<()> {
-        let mut notifier = StoreNotifier::noop();
-
+        let pool = DbAccess::for_tests(pool);
         let (profile, key) = test_profile();
 
-        key.store(&pool).await?;
+        key.store(pool.write().await?).await?;
 
-        profile.store(&pool, &mut notifier).await?;
-        let loaded = IndexedUserProfile::load(&pool, &profile.user_id)
+        profile.store(pool.write().await?).await?;
+        let loaded = IndexedUserProfile::load(pool.read().await?, &profile.user_id)
             .await?
             .expect("profile exists");
         assert_eq!(loaded, profile);
@@ -172,7 +171,7 @@ mod tests {
 
         // store again doesn't work
         let store_err = new_profile
-            .store(&pool, &mut notifier)
+            .store(pool.write().await?)
             .await
             .expect_err("profile does not exist");
         assert!(matches!(store_err, sqlx::Error::Database(_)));
@@ -182,13 +181,13 @@ mod tests {
 
     #[sqlx::test]
     async fn update_load(pool: SqlitePool) -> anyhow::Result<()> {
-        let db = DbAccess::for_tests(pool);
+        let pool = DbAccess::for_tests(pool);
 
         let (profile, key) = test_profile();
-        key.store(db.write().await?).await?;
+        key.store(pool.write().await?).await?;
 
-        profile.store(&pool, &mut notifier).await?;
-        let loaded = IndexedUserProfile::load(&pool, &profile.user_id)
+        profile.store(pool.write().await?).await?;
+        let loaded = IndexedUserProfile::load(pool.read().await?, &profile.user_id)
             .await?
             .expect("profile exists");
         assert_eq!(loaded, profile);
@@ -197,8 +196,8 @@ mod tests {
         new_profile.display_name = "Alice In Wonderland".parse()?;
         new_profile.profile_picture = None;
 
-        new_profile.update(db.write().await?).await?;
-        let loaded = IndexedUserProfile::load(&pool, &profile.user_id)
+        new_profile.update(pool.write().await?).await?;
+        let loaded = IndexedUserProfile::load(pool.read().await?, &profile.user_id)
             .await?
             .expect("profile exists");
         assert_ne!(loaded, profile);

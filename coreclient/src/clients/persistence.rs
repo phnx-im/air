@@ -259,7 +259,7 @@ mod tests {
     use sqlx::SqlitePool;
     use uuid::Uuid;
 
-    use crate::clients::create_user::BasicUserData;
+    use crate::{clients::create_user::BasicUserData, db_access::DbAccess};
 
     use super::*;
 
@@ -279,32 +279,33 @@ mod tests {
 
     #[sqlx::test]
     async fn persistence(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         let mut alice_record = test_client_record();
         let mut bob_record = test_client_record();
 
         // Storing and loading client records works
-        alice_record.store(&pool).await?;
-        bob_record.store(&pool).await?;
-        let records = ClientRecord::load_all(&pool).await?;
+        alice_record.store(pool.write().await?).await?;
+        bob_record.store(pool.write().await?).await?;
+        let records = ClientRecord::load_all(pool.read().await?).await?;
         assert_eq!(records, [alice_record.clone(), bob_record.clone()]);
 
         // Set default to alice set alice is_default
         alice_record.is_default = true;
-        ClientRecord::set_default(&pool, &alice_record.user_id).await?;
-        let records = ClientRecord::load_all(&pool).await?;
+        ClientRecord::set_default(pool.write().await?, &alice_record.user_id).await?;
+        let records = ClientRecord::load_all(pool.read().await?).await?;
         assert_eq!(records, [alice_record.clone(), bob_record.clone()]);
 
         // Set default to bob clears alice is_default
         alice_record.is_default = false;
         bob_record.is_default = true;
-        ClientRecord::set_default(&pool, &bob_record.user_id).await?;
-        let records = ClientRecord::load_all(&pool).await?;
+        ClientRecord::set_default(pool.write().await?, &bob_record.user_id).await?;
+        let records = ClientRecord::load_all(pool.read().await?).await?;
         assert_eq!(records, [alice_record.clone(), bob_record.clone()]);
 
         // Delete client records
-        ClientRecord::delete(&pool, &alice_record.user_id).await?;
-        ClientRecord::delete(&pool, &bob_record.user_id).await?;
-        let records = ClientRecord::load_all(&pool).await?;
+        ClientRecord::delete(pool.write().await?, &alice_record.user_id).await?;
+        ClientRecord::delete(pool.write().await?, &bob_record.user_id).await?;
+        let records = ClientRecord::load_all(pool.read().await?).await?;
         assert_eq!(records, []);
 
         Ok(())

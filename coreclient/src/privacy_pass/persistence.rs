@@ -191,6 +191,8 @@ pub(crate) async fn load_batched_token_keys(
 mod tests {
     use sqlx::SqlitePool;
 
+    use crate::db_access::DbAccess;
+
     use super::*;
 
     const OP1: OperationType = OperationType::AddUsername;
@@ -199,6 +201,7 @@ mod tests {
     /// Tokens are consumed in FIFO order.
     #[sqlx::test]
     async fn store_and_consume_fifo(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         let token_a = b"token_aaa".to_vec();
         let token_b = b"token_bbb".to_vec();
 
@@ -227,6 +230,7 @@ mod tests {
     /// Consuming from an empty store returns `None`.
     #[sqlx::test]
     async fn consume_from_empty(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         assert!(consume_token(&pool, OP1).await?.is_none());
         assert_eq!(token_count(&pool, OP1).await?, 0);
         Ok(())
@@ -235,6 +239,7 @@ mod tests {
     /// Store and load multiple batched token public keys.
     #[sqlx::test]
     async fn batched_key_store_load(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         let pk_a = b"public_key_a_32_bytes_padding!!".to_vec();
         let pk_b = b"public_key_b_32_bytes_padding!!".to_vec();
 
@@ -252,6 +257,7 @@ mod tests {
     /// `delete_all_tokens` removes every stored token.
     #[sqlx::test]
     async fn delete_all_tokens_clears_store(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         store_token(&pool, OP1, b"aaa").await?;
         store_token(&pool, OP1, b"bbb").await?;
         assert_eq!(token_count(&pool, OP1).await?, 2);
@@ -266,6 +272,7 @@ mod tests {
     /// `delete_all_batched_token_keys` removes every stored key.
     #[sqlx::test]
     async fn delete_all_keys_clears_store(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         store_batched_token_key(&pool, 1, OP1, b"pk1").await?;
         store_batched_token_key(&pool, 2, OP1, b"pk2").await?;
         assert_eq!(load_batched_token_keys(&pool, OP1).await?.len(), 2);
@@ -279,6 +286,7 @@ mod tests {
     /// Re-inserting a key with the same ID updates the public key (upsert).
     #[sqlx::test]
     async fn batched_key_upsert(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         let pk_old = b"old_key_padded_to_32_bytes!!!!!".to_vec();
         let pk_new = b"new_key_padded_to_32_bytes!!!!!".to_vec();
 
@@ -295,6 +303,7 @@ mod tests {
     /// Tokens stored under OP1 are not visible to OP2 and vice-versa.
     #[sqlx::test]
     async fn tokens_are_isolated_between_operation_types(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         let token_op1 = b"token_op1".to_vec();
         let token_op2 = b"token_op2".to_vec();
 

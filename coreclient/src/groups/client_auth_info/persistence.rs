@@ -66,6 +66,8 @@ mod tests {
     use tls_codec::Serialize;
     use uuid::Uuid;
 
+    use crate::db_access::DbAccess;
+
     use super::*;
 
     /// Returns test credential with a fixed identity but random payload.
@@ -84,12 +86,14 @@ mod tests {
 
     #[sqlx::test]
     async fn client_credential_store_load(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         let credential = test_client_credential(Uuid::new_v4());
 
-        credential.store(&pool).await?;
-        let loaded = StorableClientCredential::load_by_user_id(&pool, credential.user_id())
-            .await?
-            .expect("missing credential");
+        credential.store(pool.write().await?).await?;
+        let loaded =
+            StorableClientCredential::load_by_user_id(pool.read().await?, credential.user_id())
+                .await?
+                .expect("missing credential");
         assert_eq!(
             loaded.client_credential.tls_serialize_detached(),
             credential.client_credential.tls_serialize_detached()
@@ -100,12 +104,14 @@ mod tests {
 
     #[sqlx::test]
     async fn client_credential_store_load_by_id(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         let credential = test_client_credential(Uuid::new_v4());
 
-        credential.store(&pool).await?;
-        let loaded = StorableClientCredential::load_by_user_id(&pool, credential.user_id())
-            .await?
-            .expect("missing credential");
+        credential.store(pool.write().await?).await?;
+        let loaded =
+            StorableClientCredential::load_by_user_id(pool.read().await?, credential.user_id())
+                .await?
+                .expect("missing credential");
         assert_eq!(
             loaded.client_credential.tls_serialize_detached(),
             credential.client_credential.tls_serialize_detached()
@@ -116,6 +122,7 @@ mod tests {
 
     #[sqlx::test]
     async fn store_idempotent(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         let id = Uuid::new_v4();
         let credential_1 = test_client_credential(id);
         let credential_2 = test_client_credential(id);
@@ -127,12 +134,13 @@ mod tests {
             credential_2.tls_serialize_detached()
         );
 
-        credential_1.store(&pool).await?;
-        credential_2.store(&pool).await?;
+        credential_1.store(pool.write().await?).await?;
+        credential_2.store(pool.write().await?).await?;
 
-        let loaded = StorableClientCredential::load_by_user_id(&pool, credential_1.user_id())
-            .await?
-            .expect("missing credential");
+        let loaded =
+            StorableClientCredential::load_by_user_id(pool.read().await?, credential_1.user_id())
+                .await?
+                .expect("missing credential");
         assert_eq!(
             loaded.client_credential.tls_serialize_detached(),
             credential_1.client_credential.tls_serialize_detached()

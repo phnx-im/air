@@ -379,7 +379,6 @@ mod tests {
             CoreUser,
             attachment::{AttachmentRecord, persistence::test::test_attachment_record},
         },
-        store::StoreNotifier,
     };
 
     #[tokio::test(flavor = "multi_thread")]
@@ -394,13 +393,13 @@ mod tests {
 
         // Set up test data: chat -> message -> attachment
         let chat = test_chat();
-        chat.store(db.read().await?).await?;
+        chat.store(db.write().await?).await?;
 
         let message = test_chat_message(chat.id());
         message.store(db.write().await?).await?;
 
         let attachment = test_attachment_record(chat.id(), message.id());
-        attachment.store(pool, None).await?;
+        attachment.store(db.write().await?, None).await?;
 
         // Verify attachment exists before deletion
         let ids = AttachmentRecord::load_ids_by_message_id(db.read().await?, message.id()).await?;

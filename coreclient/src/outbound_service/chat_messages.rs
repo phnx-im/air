@@ -66,7 +66,7 @@ impl OutboundService {
         Ok(())
     }
 
-    pub(crate) async fn fail_enqueued_chat_message(
+    pub async fn fail_enqueued_chat_message(
         &self,
         message_id: MessageId,
         attachment_id: Option<AttachmentId>,

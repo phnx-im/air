@@ -154,7 +154,7 @@ impl Resync {
         let original_leaf_index = self.original_leaf_index;
 
         let mut txn = connection
-            .begin_immediate()
+            .begin()
             .await
             .map_err(OutboundServiceError::recoverable)?;
         let (group, commit, group_info, member_profile_infos) = self
