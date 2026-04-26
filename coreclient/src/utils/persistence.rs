@@ -12,6 +12,8 @@ use std::{
 use aircommon::identifiers::UserId;
 use anyhow::bail;
 use openmls::group::GroupId;
+#[cfg(feature = "test_utils")]
+use sqlx::SqlitePool;
 use sqlx::{
     Database, Encode, Sqlite, TransactionManager, Type,
     encode::IsNull,

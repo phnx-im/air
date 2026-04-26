@@ -17,6 +17,7 @@ use super::*;
 impl CoreUser {
     /// The same as [`Self::new()`], except that databases are ephemeral and are
     /// dropped together with this instance of [`CoreUser`].
+    #[cfg(any(test, feature = "test_utils"))]
     pub async fn new_ephemeral(
         user_id: UserId,
         server_url: Url,
@@ -27,11 +28,13 @@ impl CoreUser {
 
         info!(?user_id, "creating new ephemeral user");
 
+        let notifier_tx = StoreNotificationsSender::new();
+
         // Open the air db to store the client record
-        let air_db = DbAccess::new(open_db_in_memory().await?);
+        let air_db = DbAccess::new(open_db_in_memory().await?, notifier_tx.clone());
 
         // Open client specific db
-        let client_db = open_db_in_memory().await?;
+        let client_db = DbAccess::new(open_db_in_memory().await?, notifier_tx);
 
         let temp_file = tempfile::NamedTempFile::new()?;
         let global_lock = GlobalLock::from_path(temp_file.path())?;

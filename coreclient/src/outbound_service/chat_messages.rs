@@ -27,7 +27,7 @@ impl OutboundService {
     ///
     /// If an attachment ID is provided, the corresponding pending attachment
     /// record will be deleted if the message fails to send.
-    pub(crate) async fn enqueue_chat_message(
+    pub async fn enqueue_chat_message(
         &self,
         message_id: MessageId,
         attachment_id: Option<AttachmentId>,
