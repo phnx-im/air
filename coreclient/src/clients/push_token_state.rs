@@ -7,7 +7,7 @@ use aircommon::{
     time::{Duration, TimeStamp},
 };
 use anyhow::{Result, bail};
-use sqlx::{SqlitePool, query, query_as};
+use sqlx::{query, query_as};
 
 use crate::db_access::{ReadConnection, WriteConnection, WriteDbTransaction};
 

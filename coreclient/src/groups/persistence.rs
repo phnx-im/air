@@ -15,7 +15,7 @@ use mimi_room_policy::{RoomState, VerifiedRoomState};
 use openmls::group::{GroupId, MlsGroup};
 use openmls::prelude::{LeafNodeIndex, StagedCommit};
 use openmls_traits::OpenMlsProvider;
-use sqlx::{SqliteTransaction, query, query_as};
+use sqlx::{query, query_as};
 use tls_codec::Serialize as _;
 use tracing::error;
 
@@ -181,7 +181,7 @@ impl Group {
     }
 
     pub(crate) async fn load_clean(
-        mut connection: impl ReadConnection,
+        connection: impl ReadConnection,
         group_id: &GroupId,
     ) -> anyhow::Result<Option<Self>> {
         let Some(group) = Group::load(connection, group_id).await? else {
@@ -343,7 +343,7 @@ impl Group {
     }
 
     pub(crate) async fn load_all_group_ids(
-        connection: &mut sqlx::SqliteConnection,
+        mut connection: impl ReadConnection,
     ) -> sqlx::Result<Vec<GroupId>> {
         struct SqlGroupId {
             group_id: GroupIdWrapper,
@@ -352,7 +352,7 @@ impl Group {
             SqlGroupId,
             r#"SELECT group_id AS "group_id: _" FROM "group""#,
         )
-        .fetch_all(connection)
+        .fetch_all(connection.as_mut())
         .await?;
 
         Ok(group_ids

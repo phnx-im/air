@@ -29,7 +29,7 @@ impl CoreUser {
         // Phase 1: Store the new user profile key in the database
         let encryptable_user_profile = self
             .db()
-            .with_write_transaction(async |txn| {
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
                 let current_profile = IndexedUserProfile::load(&mut *txn, self.user_id())
                     .await?
                     .context("Failed to load own user profile")?;
@@ -65,10 +65,10 @@ impl CoreUser {
 
         // Phase 4: Send a notification to all groups
         let own_user_id = self.user_id();
-        let mut connection = self.pool().acquire().await?;
+        let mut connection = self.db().read().await?;
 
         let groups_ids = Group::load_all_group_ids(&mut connection).await?;
-        let mut chat_ids = Chat::load_ordered_ids(connection.as_mut()).await?;
+        let mut chat_ids = Chat::load_ordered_ids(&mut connection).await?;
         chat_ids.sort_unstable();
 
         for group_id in groups_ids {
@@ -83,7 +83,7 @@ impl CoreUser {
                 continue; // Skip groups without a chat
             }
 
-            if BlockedContact::check_blocked_chat(&mut *connection, chat_id).await? {
+            if BlockedContact::check_blocked_chat(&mut connection, chat_id).await? {
                 continue; // Skip blocked chats
             }
 

@@ -7,9 +7,9 @@ use tracing::debug;
 use crate::store::{StoreNotificationsSender, StoreNotifier};
 
 #[derive(Debug, Clone)]
-pub(crate) struct DbAccess {
+pub struct DbAccess {
     pool: SqlitePool,
-    notifier_tx: StoreNotificationsSender,
+    notifier_tx: Option<StoreNotificationsSender>,
 }
 
 #[derive(Debug)]
@@ -50,6 +50,7 @@ pub trait WriteConnection: ReadConnection + AsMut<SqliteConnection> {
     fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier);
     fn notifier(&mut self) -> &mut StoreNotifier;
 
+    #[deprecated]
     async fn begin_immediate(&mut self) -> sqlx::Result<WriteDbTransaction<'_>> {
         let (connection, notifier) = self.split();
         let txn = connection.begin_with("BEGIN IMMEDIATE").await?;
@@ -92,16 +93,19 @@ impl DbAccess {
     pub(crate) fn for_tests(pool: SqlitePool) -> Self {
         Self {
             pool,
-            notifier_tx: StoreNotificationsSender::new(),
+            notifier_tx: None,
         }
     }
 
     pub(crate) fn new(pool: SqlitePool, notifier_tx: StoreNotificationsSender) -> Self {
-        Self { pool, notifier_tx }
+        Self {
+            pool,
+            notifier_tx: Some(notifier_tx),
+        }
     }
 
     fn notifier(&self) -> StoreNotifier {
-        StoreNotifier::new(self.notifier_tx.clone())
+        StoreNotifier::new(self.notifier_tx.clone().unwrap_or_default())
     }
 
     pub(crate) async fn read(&self) -> sqlx::Result<ReadDbConnection> {
@@ -130,13 +134,6 @@ impl DbAccess {
         E: From<sqlx::Error>,
     {
         self.write().await?.with_transaction(f).await
-    }
-}
-
-impl ReadDbConnection {
-    pub(crate) async fn begin(&mut self) -> sqlx::Result<ReadDbTransaction<'_>> {
-        let txn = self.conn.begin().await?;
-        Ok(ReadDbTransaction { txn })
     }
 }
 

@@ -19,7 +19,7 @@ use openmls_rust_crypto::RustCrypto;
 use crate::{
     ChatId,
     clients::api_clients::ApiClients,
-    db_access::WriteDbConnection,
+    db_access::{WriteConnection, WriteDbConnection},
     groups::client_auth_info::StorableClientCredential,
     key_stores::{as_credentials::AsCredentials, indexed_keys::StorableIndexedKey},
     user_profiles::IndexedUserProfile,
@@ -66,12 +66,16 @@ impl Contact {
             verified_key_package.leaf_node().credential(),
         )?;
 
-        let as_credential = AsCredentials::fetch_for_verification(
-            &mut *connection,
-            api_clients,
-            iter::once(&verifiable_client_credential),
-        )
-        .await?;
+        let as_credential = connection
+            .with_transaction(async |txn| {
+                AsCredentials::fetch_for_verification(
+                    txn,
+                    api_clients,
+                    iter::once(&verifiable_client_credential),
+                )
+                .await
+            })
+            .await?;
 
         // Verify the client credential
         let incoming_client_credential =

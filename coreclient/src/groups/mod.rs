@@ -77,7 +77,7 @@ use crate::{
         targeted_message::TargetedMessageContent,
     },
     contacts::ContactAddInfos,
-    db_access::{ReadConnection, WriteConnection, WriteDbTransaction},
+    db_access::{WriteConnection, WriteDbTransaction},
     groups::client_auth_info::VerifiableClientCredentialExt,
     key_stores::as_credentials::AsCredentials,
     outbound_service::resync::Resync,
@@ -1303,7 +1303,7 @@ impl Group {
 ///
 /// Returns the credentials of the group members.
 async fn verify_member_credentials(
-    connection: impl ReadConnection,
+    txn: &mut WriteDbTransaction<'_>,
     api_clients: &ApiClients,
     mls_group: &MlsGroup,
 ) -> anyhow::Result<Vec<StorableClientCredential>> {
@@ -1318,7 +1318,7 @@ async fn verify_member_credentials(
         .collect::<anyhow::Result<Vec<_>>>()?;
 
     let as_credentials = AsCredentials::fetch_for_verification(
-        connection,
+        txn,
         api_clients,
         unverified_credentials.iter().map(|(c, _)| c),
     )

@@ -72,7 +72,7 @@ use crate::{
     clients::connection_offer::FriendshipPackage,
     contacts::Contact,
     key_stores::MemoryUserKeyStore,
-    store::{StoreNotification, StoreNotifier},
+    store::StoreNotification,
     user_profiles::IndexedUserProfile,
     utils::persistence::{open_air_db, open_client_db},
 };

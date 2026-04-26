@@ -418,7 +418,7 @@ impl ChatMessage {
     ///
     /// Returns `(messages, has_newer)`.
     pub(crate) async fn load_starting_from(
-        connection: &mut SqliteConnection,
+        mut connection: impl ReadConnection,
         chat_id: ChatId,
         from: TimeStamp,
         from_id: MessageId,
@@ -452,13 +452,15 @@ impl ChatMessage {
             from_id,
             fetch_limit,
         )
-        .fetch(&mut *connection)
+        .fetch(connection.as_mut())
         .filter_map(Self::decode_row)
         .collect::<sqlx::Result<Vec<_>>>()
         .await?;
 
         let has_newer = Self::trim_sentinel(&mut messages, limit, false);
-        let messages = messages.with_loaded_in_reply_to(connection).await?;
+        let messages = messages
+            .with_loaded_in_reply_to(connection.as_mut())
+            .await?;
         Ok((messages, has_newer))
     }
 
@@ -469,7 +471,7 @@ impl ChatMessage {
     ///
     /// Returns `(messages, has_older, has_newer)`.
     pub(crate) async fn load_around(
-        connection: &mut SqliteConnection,
+        mut connection: impl ReadConnection,
         chat_id: ChatId,
         anchor: TimeStamp,
         anchor_id: MessageId,
@@ -505,7 +507,7 @@ impl ChatMessage {
             anchor_id,
             fetch_half,
         )
-        .fetch(&mut *connection)
+        .fetch(connection.as_mut())
         .filter_map(Self::decode_row)
         .collect::<sqlx::Result<Vec<_>>>()
         .await?;
@@ -540,7 +542,7 @@ impl ChatMessage {
             anchor_id,
             fetch_half,
         )
-        .fetch(&mut *connection)
+        .fetch(connection.as_mut())
         .filter_map(Self::decode_row)
         .collect::<sqlx::Result<Vec<_>>>()
         .await?;
@@ -548,7 +550,9 @@ impl ChatMessage {
         let has_newer = Self::trim_sentinel(&mut forward, half_limit, false);
 
         backward.append(&mut forward);
-        let messages = backward.with_loaded_in_reply_to(connection).await?;
+        let messages = backward
+            .with_loaded_in_reply_to(connection.as_mut())
+            .await?;
         Ok((messages, has_older, has_newer))
     }
 
@@ -556,7 +560,7 @@ impl ChatMessage {
     ///
     /// Only considers messages with a sender (excludes system/event messages).
     pub(crate) async fn first_unread_message(
-        connection: &mut SqliteConnection,
+        mut connection: impl ReadConnection,
         chat_id: ChatId,
         last_read: TimeStamp,
     ) -> sqlx::Result<Option<ChatMessage>> {
@@ -586,10 +590,10 @@ impl ChatMessage {
             chat_id,
             last_read,
         )
-        .fetch_optional(&mut *connection)
+        .fetch_optional(connection.as_mut())
         .await?
         .map(ChatMessage::from)
-        .with_loaded_in_reply_to(connection)
+        .with_loaded_in_reply_to(connection.as_mut())
         .await
     }
 

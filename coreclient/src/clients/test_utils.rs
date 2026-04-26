@@ -28,7 +28,7 @@ impl CoreUser {
         info!(?user_id, "creating new ephemeral user");
 
         // Open the air db to store the client record
-        let air_db = open_db_in_memory().await?;
+        let air_db = DbAccess::new(open_db_in_memory().await?);
 
         // Open client specific db
         let client_db = open_db_in_memory().await?;

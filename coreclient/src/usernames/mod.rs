@@ -172,9 +172,7 @@ impl CoreUser {
     }
 
     pub(crate) async fn remove_username_locally(&self, username: &Username) -> StoreResult<()> {
-        let mut txn = self.pool().begin().await?;
-        UsernameRecord::delete(txn.as_mut(), username).await?;
-        txn.commit().await?;
+        UsernameRecord::delete(self.db().write().await?, username).await?;
         Ok(())
     }
 
@@ -191,28 +189,35 @@ impl CoreUser {
         api_client: &ApiClient,
         operation_type: OperationType,
     ) -> anyhow::Result<SerializedToken> {
-        if let Some(token) = privacy_pass::consume_token(self.pool(), operation_type).await? {
+        if let Some(token) =
+            privacy_pass::consume_token(self.db().write().await?, operation_type).await?
+        {
             return Ok(token);
         }
 
         let Some(replenish_count) =
-            privacy_pass::needs_replenishment(self.pool(), operation_type).await?
+            privacy_pass::needs_replenishment(self.db().read().await?, operation_type).await?
         else {
             bail!("no tokens available to replenish");
         };
 
         let credentials_response = api_client.as_as_credentials().await?;
-        self.with_transaction(async move |txn| {
-            privacy_pass::store_batched_token_keys(txn, &credentials_response.batched_token_keys)
+
+        self.db()
+            .with_write_transaction(async |txn| {
+                privacy_pass::store_batched_token_keys(
+                    txn,
+                    &credentials_response.batched_token_keys,
+                )
                 .await
-        })
-        .await?;
+            })
+            .await?;
 
         // Cache empty — replenish for future attempts but don't consume
         // immediately. The caller should propagate this error and retry,
         // providing a natural timing gap between issuance and redemption.
         privacy_pass::request_and_store_tokens(
-            self.pool(),
+            self.db(),
             api_client,
             self.user_id().clone(),
             self.signing_key(),
@@ -237,7 +242,7 @@ impl CoreUser {
         operation_type: OperationType,
     ) -> anyhow::Result<()> {
         privacy_pass::purge_and_replenish(
-            self.pool(),
+            self.db(),
             api_client,
             self.user_id().clone(),
             operation_type,

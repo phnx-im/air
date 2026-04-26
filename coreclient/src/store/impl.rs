@@ -120,7 +120,7 @@ impl Store for CoreUser {
     }
 
     async fn chat(&self, chat_id: ChatId) -> StoreResult<Option<Chat>> {
-        Ok(Chat::load(self.pool().acquire().await?.as_mut(), &chat_id).await?)
+        Ok(Chat::load(self.db().read().await?, &chat_id).await?)
     }
 
     async fn chat_participants(&self, chat_id: ChatId) -> StoreResult<Option<HashSet<UserId>>> {
@@ -238,7 +238,7 @@ impl Store for CoreUser {
         limit: usize,
     ) -> StoreResult<(Vec<ChatMessage>, bool)> {
         Ok(ChatMessage::load_before(
-            self.pool().acquire().await?.as_mut(),
+            self.db().read().await?,
             chat_id,
             before,
             before_id,
@@ -255,7 +255,7 @@ impl Store for CoreUser {
         limit: usize,
     ) -> StoreResult<(Vec<ChatMessage>, bool)> {
         Ok(ChatMessage::load_after(
-            self.pool().acquire().await?.as_mut(),
+            self.db().read().await?,
             chat_id,
             after,
             after_id,
@@ -272,7 +272,7 @@ impl Store for CoreUser {
         limit: usize,
     ) -> StoreResult<(Vec<ChatMessage>, bool)> {
         Ok(ChatMessage::load_starting_from(
-            self.pool().acquire().await?.as_mut(),
+            self.db().read().await?,
             chat_id,
             from,
             from_id,
@@ -289,7 +289,7 @@ impl Store for CoreUser {
         half_limit: usize,
     ) -> StoreResult<(Vec<ChatMessage>, bool, bool)> {
         Ok(ChatMessage::load_around(
-            self.pool().acquire().await?.as_mut(),
+            self.db().read().await?,
             chat_id,
             anchor,
             anchor_id,
@@ -299,16 +299,11 @@ impl Store for CoreUser {
     }
 
     async fn first_unread_message(&self, chat_id: ChatId) -> StoreResult<Option<ChatMessage>> {
-        self.with_transaction(async |txn| {
-            let chat = Chat::load(txn.as_mut(), &chat_id)
-                .await?
-                .with_context(|| format!("chat not found: {chat_id}"))?;
-            Ok(
-                ChatMessage::first_unread_message(txn.as_mut(), chat_id, chat.last_read.into())
-                    .await?,
-            )
-        })
-        .await
+        let mut connection = self.db().read().await?;
+        let chat = Chat::load(&mut connection, &chat_id)
+            .await?
+            .with_context(|| format!("chat not found: {chat_id}"))?;
+        Ok(ChatMessage::first_unread_message(connection, chat_id, chat.last_read.into()).await?)
     }
 
     async fn message(&self, message_id: MessageId) -> StoreResult<Option<ChatMessage>> {
@@ -332,7 +327,7 @@ impl Store for CoreUser {
     }
 
     async fn last_message(&self, chat_id: ChatId) -> StoreResult<Option<ChatMessage>> {
-        Ok(ChatMessage::last_message(self.pool().acquire().await?.as_mut(), chat_id).await?)
+        Ok(ChatMessage::last_message(self.db().read().await?, chat_id).await?)
     }
 
     async fn last_message_by_user(
@@ -340,16 +335,14 @@ impl Store for CoreUser {
         chat_id: ChatId,
         user_id: &UserId,
     ) -> StoreResult<Option<ChatMessage>> {
-        Ok(ChatMessage::last_content_message_by_user(
-            self.pool().acquire().await?.as_mut(),
-            chat_id,
-            user_id,
+        Ok(
+            ChatMessage::last_content_message_by_user(self.db().read().await?, chat_id, user_id)
+                .await?,
         )
-        .await?)
     }
 
     async fn message_draft(&self, chat_id: ChatId) -> StoreResult<Option<MessageDraft>> {
-        Ok(MessageDraft::load(self.pool().acquire().await?.as_mut(), chat_id).await?)
+        Ok(MessageDraft::load(self.db().read().await?, chat_id).await?)
     }
 
     async fn store_message_draft(
@@ -392,12 +385,13 @@ impl Store for CoreUser {
         chat_id: ChatId,
         until: MessageId,
     ) -> StoreResult<(bool, Vec<(MessageId, MimiId)>)> {
-        self.with_transaction_and_notifier(async |txn, notifier| {
-            Chat::mark_as_read_until_message_id(txn, chat_id, until, self.user_id())
-                .await
-                .map_err(From::from)
-        })
-        .await
+        self.db()
+            .with_write_transaction(async |txn| {
+                Chat::mark_as_read_until_message_id(txn, chat_id, until, self.user_id())
+                    .await
+                    .map_err(From::from)
+            })
+            .await
     }
 
     async fn send_message(
@@ -461,7 +455,7 @@ impl Store for CoreUser {
     }
 
     async fn pending_attachments(&self) -> StoreResult<Vec<AttachmentId>> {
-        Ok(AttachmentRecord::load_all_pending(self.pool()).await?)
+        Ok(AttachmentRecord::load_all_pending(self.db().read().await?).await?)
     }
 
     async fn load_attachment(&self, attachment_id: AttachmentId) -> StoreResult<AttachmentContent> {
@@ -472,14 +466,14 @@ impl Store for CoreUser {
         &self,
         attachment_id: AttachmentId,
     ) -> StoreResult<Option<AttachmentStatus>> {
-        Ok(AttachmentRecord::status(self.pool(), attachment_id).await?)
+        Ok(AttachmentRecord::status(self.db().read().await?, attachment_id).await?)
     }
 
     async fn attachment_ids_for_message(
         &self,
         message_id: MessageId,
     ) -> StoreResult<Vec<AttachmentId>> {
-        Ok(AttachmentRecord::load_ids_by_message_id(self.pool(), message_id).await?)
+        Ok(AttachmentRecord::load_ids_by_message_id(self.db().read().await?, message_id).await?)
     }
 
     async fn resend_message(&self, local_message_id: Uuid) -> StoreResult<()> {

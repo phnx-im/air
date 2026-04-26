@@ -18,7 +18,7 @@ pub(crate) struct ExistingUserProfile(Option<IndexedUserProfile>);
 
 impl ExistingUserProfile {
     pub(crate) async fn load(
-        mut connection: impl ReadConnection,
+        connection: impl ReadConnection,
         user_id: &UserId,
     ) -> sqlx::Result<Self> {
         let existing_user_profile = IndexedUserProfile::load(connection, user_id).await?;
@@ -70,7 +70,7 @@ pub(crate) struct PersistableUserProfile {
 }
 
 impl PersistableUserProfile {
-    pub(crate) async fn persist(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
+    pub(crate) async fn persist(&self, connection: impl WriteConnection) -> sqlx::Result<()> {
         if self.is_update() {
             self.user_profile.update(connection).await
         } else {

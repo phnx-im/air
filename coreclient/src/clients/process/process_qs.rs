@@ -213,8 +213,7 @@ impl CoreUser {
             // profile data is already available locally.
             if let Some(title) = chat_title {
                 update_chat_title(
-                    txn,
-                    notifier,
+                    &mut *txn,
                     &mut chat,
                     self.user_id(),
                     title,
@@ -783,7 +782,6 @@ impl CoreUser {
                 // Update chat title according to new group data
                 update_chat_title(
                     txn,
-                    &mut notifier,
                     &mut chat,
                     sender_client_credential.user_id(),
                     title,

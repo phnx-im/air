@@ -6,15 +6,14 @@ use aircommon::identifiers::{Fqdn, MimiId, UserId, Username};
 use chrono::{DateTime, Utc};
 use mimi_content::MessageStatus;
 use openmls::group::GroupId;
-use sqlx::{Connection, SqliteConnection, SqliteTransaction, query, query_as, query_scalar};
+use sqlx::{query, query_as, query_scalar};
 use tokio_stream::StreamExt;
 use tracing::info;
 use uuid::Uuid;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatStatus, ChatType, MessageId,
-    db_access::{ReadConnection, WriteConnection, WriteDbConnection, WriteDbTransaction},
-    store::StoreNotifier,
+    db_access::{ReadConnection, WriteConnection, WriteDbTransaction},
     utils::persistence::GroupIdWrapper,
 };
 

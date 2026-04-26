@@ -8,7 +8,7 @@ use aircommon::{
     messages::FriendshipToken,
 };
 use chrono::Utc;
-use sqlx::{SqliteExecutor, query, query_as};
+use sqlx::{query, query_as};
 use tokio_stream::StreamExt;
 use uuid::Uuid;
 
@@ -17,7 +17,6 @@ use crate::{
     clients::connection_offer::FriendshipPackage,
     contacts::{PartialContact, PartialContactType, TargetedMessageContact},
     db_access::{ReadConnection, WriteConnection, WriteDbTransaction},
-    store::StoreNotifier,
 };
 
 use super::UsernameContact;

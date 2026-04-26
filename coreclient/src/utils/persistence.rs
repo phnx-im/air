@@ -13,7 +13,7 @@ use aircommon::identifiers::UserId;
 use anyhow::bail;
 use openmls::group::GroupId;
 use sqlx::{
-    Database, Encode, Sqlite, SqlitePool, TransactionManager, Type,
+    Database, Encode, Sqlite, TransactionManager, Type,
     encode::IsNull,
     error::BoxDynError,
     migrate,

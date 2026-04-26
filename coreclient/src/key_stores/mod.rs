@@ -18,12 +18,11 @@ use openmls::prelude::{
     SignaturePublicKey, UnknownExtension,
 };
 use openmls_traits::storage::StorageProvider;
-use sqlx::SqliteConnection;
 use tls_codec::Serialize as TlsSerializeTrait;
 
 use crate::{
     clients::{CIPHERSUITE, api_clients::ApiClients},
-    db_access::{WriteConnection, WriteDbTransaction},
+    db_access::WriteConnection,
     groups::openmls_provider::AirOpenMlsProvider,
 };
 

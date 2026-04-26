@@ -7,7 +7,7 @@ use std::fmt::Debug;
 use aircommon::crypto::indexed_aead::keys::{
     BaseSecret, Index, IndexedAeadKey, IndexedKeyType, Key, KeyTypeInstance,
 };
-use sqlx::{Connection, SqliteConnection, SqliteExecutor, query, query_as};
+use sqlx::{query, query_as};
 
 use crate::db_access::{ReadConnection, WriteConnection};
 

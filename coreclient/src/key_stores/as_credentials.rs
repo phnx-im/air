@@ -22,7 +22,7 @@ use sqlx::{
 use thiserror::Error;
 use tracing::info;
 
-use crate::db_access::{ReadConnection, WriteConnection, WriteDbConnection};
+use crate::db_access::{ReadConnection, WriteConnection, WriteDbTransaction};
 
 use super::*;
 
@@ -165,7 +165,7 @@ impl AsCredentials {
     }
 
     pub(crate) async fn fetch_for_verification(
-        mut connection: impl WriteConnection,
+        connection: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         verifiable_credentials: impl Iterator<Item = &VerifiableClientCredential>,
     ) -> Result<HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>> {
@@ -176,7 +176,7 @@ impl AsCredentials {
             }
 
             let as_credential = AsCredentials::get(
-                &mut connection,
+                &mut *connection,
                 api_clients,
                 verifiable_credential.domain(),
                 verifiable_credential.signer_fingerprint(),

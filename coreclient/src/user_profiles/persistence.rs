@@ -5,10 +5,7 @@
 use aircommon::{crypto::indexed_aead::keys::UserProfileKeyIndex, identifiers::UserId};
 use sqlx::{query, query_as};
 
-use crate::{
-    db_access::{ReadConnection, WriteConnection},
-    store::StoreNotifier,
-};
+use crate::db_access::{ReadConnection, WriteConnection};
 
 use super::{Asset, IndexedUserProfile, UserProfile, display_name::BaseDisplayName};
 
@@ -16,11 +13,7 @@ impl IndexedUserProfile {
     /// Stores this [`BaseIndexedUserProfile`].
     ///
     /// Will return an error if there already exists a user profile with the same user id.
-    pub(super) async fn store(
-        &self,
-        mut connection: impl WriteConnection,
-        notifier: &mut StoreNotifier,
-    ) -> sqlx::Result<()> {
+    pub(super) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
         let uuid = self.user_id.uuid();
         let domain = self.user_id.domain();
         let epoch = self.epoch as i64;
@@ -42,7 +35,7 @@ impl IndexedUserProfile {
         )
         .execute(connection.as_mut())
         .await?;
-        notifier.update(self.user_id.clone());
+        connection.notifier().update(self.user_id.clone());
         Ok(())
     }
 
@@ -128,7 +121,7 @@ impl IndexedUserProfile {
 
 impl UserProfile {
     pub async fn load(
-        mut connection: impl ReadConnection,
+        connection: impl ReadConnection,
         user_id: &UserId,
     ) -> sqlx::Result<Option<Self>> {
         IndexedUserProfile::load(connection, user_id)

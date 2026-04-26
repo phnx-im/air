@@ -450,7 +450,7 @@ impl PendingChatOperation {
             .await?;
 
         let job = Self::new(group, OperationType::other(params));
-        job.store(txn.as_mut()).await?;
+        job.store(txn).await?;
         Ok(job)
     }
 
@@ -472,7 +472,7 @@ impl PendingChatOperation {
         let params = group.group_mut().stage_leave_group(&mut *txn, signer)?;
 
         let job = Self::new(group, OperationType::Leave(params));
-        job.store(txn.as_mut()).await?;
+        job.store(txn).await?;
         Ok(job)
     }
 
@@ -501,7 +501,7 @@ impl PendingChatOperation {
             group,
             OperationType::other_with_picture(params, new_chat_picture),
         );
-        job.store(txn.as_mut()).await?;
+        job.store(txn).await?;
 
         Ok(job)
     }
@@ -532,7 +532,7 @@ impl PendingChatOperation {
             let message = group.group_mut().stage_delete(&mut *txn, signer).await?;
 
             let job = Self::new(group, OperationType::Delete(message));
-            job.store(txn.as_mut()).await?;
+            job.store(txn).await?;
             Ok(Some(job))
         }
     }

@@ -29,7 +29,7 @@ impl ChatMessageQueue {
 mod persistence {
     use aircommon::time::TimeStamp;
     use mimi_content::MessageStatus;
-    use sqlx::{SqliteTransaction, query, query_as, query_scalar};
+    use sqlx::{query, query_as, query_scalar};
     use tracing::debug;
     use uuid::Uuid;
 

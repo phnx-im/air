@@ -26,8 +26,6 @@ impl UserSetting for ReadReceiptsSetting {
 pub(crate) struct UserSettingRecord {}
 
 mod persistence {
-    use sqlx::SqliteExecutor;
-
     use crate::db_access::{ReadConnection, WriteConnection};
 
     use super::UserSettingRecord;

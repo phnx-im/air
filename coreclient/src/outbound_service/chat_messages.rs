@@ -27,7 +27,7 @@ impl OutboundService {
     ///
     /// If an attachment ID is provided, the corresponding pending attachment
     /// record will be deleted if the message fails to send.
-    pub async fn enqueue_chat_message(
+    pub(crate) async fn enqueue_chat_message(
         &self,
         message_id: MessageId,
         attachment_id: Option<AttachmentId>,
@@ -41,7 +41,7 @@ impl OutboundService {
             .await
     }
 
-    pub async fn enqueue_chat_message_in_transaction(
+    pub(crate) async fn enqueue_chat_message_in_transaction(
         &self,
         txn: &mut WriteDbTransaction<'_>,
         message_id: MessageId,
@@ -66,7 +66,7 @@ impl OutboundService {
         Ok(())
     }
 
-    pub async fn fail_enqueued_chat_message(
+    pub(crate) async fn fail_enqueued_chat_message(
         &self,
         message_id: MessageId,
         attachment_id: Option<AttachmentId>,

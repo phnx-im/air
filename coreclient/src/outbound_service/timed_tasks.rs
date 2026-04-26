@@ -412,11 +412,10 @@ impl OutboundServiceContext {
         {
             error!(%error, "Failed to upload key packages");
             // Clean up previously created key packages
-            let connection = &mut self.pool.acquire().await?;
             for key_package_ref in key_package_refs {
                 if let Err(error) = self
                     .key_store
-                    .delete_key_package(connection, key_package_ref)
+                    .delete_key_package(self.db.write().await?, key_package_ref)
                 {
                     error!(%error, "Failed to delete key package after upload failure");
                 }
@@ -444,7 +443,7 @@ impl OutboundServiceContext {
         let now = Utc::now();
         let threshold = now - SELF_UPDATE_INTERVAL;
 
-        let chat_ids = Chat::load_ids_for_self_update(&self.pool, threshold).await?;
+        let chat_ids = Chat::load_ids_for_self_update(self.db.read().await?, threshold).await?;
         let num_chats = chat_ids.len();
 
         info!(num_chats, "Running self-updates");
@@ -476,9 +475,7 @@ impl OutboundServiceContext {
     async fn self_update_in_chat(&self, chat_id: ChatId) -> anyhow::Result<bool> {
         debug!(?chat_id, "Self-update in chat");
 
-        let Some(group) =
-            Group::load_with_chat_id(self.pool.acquire().await?.as_mut(), chat_id).await?
-        else {
+        let Some(group) = Group::load_with_chat_id(self.db.read().await?, chat_id).await? else {
             debug!(
                 ?chat_id,
                 "Skipping self-update in chat because group is not found"
@@ -509,7 +506,7 @@ impl OutboundServiceContext {
         }
 
         // If a chat operation is pending, we skip updating this chat
-        if PendingChatOperation::is_pending_for_chat(&self.pool, chat_id).await? {
+        if PendingChatOperation::is_pending_for_chat(self.db.read().await?, chat_id).await? {
             return Ok(false);
         }
 
