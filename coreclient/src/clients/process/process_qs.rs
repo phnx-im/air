@@ -58,7 +58,7 @@ use crate::{
         Group, VerifiedGroup, client_auth_info::StorableClientCredential,
         process::ProcessMessageResult,
     },
-    job::{JobContext, pending_chat_operation::PendingChatOperation},
+    job::{JobContext, JobContextDb, pending_chat_operation::PendingChatOperation},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::resync::Resync,
     store::Store,
@@ -404,12 +404,11 @@ impl CoreUser {
         let mut context = JobContext {
             api_clients: &self.inner.api_clients,
             http_client: &self.inner.http_client,
-            db: self.db(),
+            db: JobContextDb::Transaction(txn),
             key_store: &self.inner.key_store,
             now: Utc::now(),
         };
 
-        // XXX: we will deadlock here if we take again the write :(
         let chat_id =
             CoreUser::process_connection_offer(&mut context, connection_info_source).await?;
 

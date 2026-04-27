@@ -16,6 +16,7 @@ use tracing::error;
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage,
     chats::GroupDataExt,
+    db_access::WriteConnection,
     groups::Group,
     job::{Job, JobContext, JobError},
     key_stores::indexed_keys::StorableIndexedKey,
@@ -125,7 +126,9 @@ impl CreateChat {
         // Create the group. If the query to the DS fails later on, we just
         // clean up the group, so this is repeatable.
         let (group, chat, partial_params, encrypted_user_profile_key) = db
-            .with_write_transaction(async |txn| -> anyhow::Result<_> {
+            .write()
+            .await?
+            .with_transaction(async |txn| -> anyhow::Result<_> {
                 let (group, partial_params) = Group::create_group(
                     &mut *txn,
                     &key_store.signing_key,
@@ -151,12 +154,14 @@ impl CreateChat {
             .ds_create_group(params, &key_store.signing_key, group.group_state_ear_key())
             .await
         {
-            db.with_write_transaction(async |txn| -> Result<_, JobError<_>> {
-                Group::delete_from_db(&mut *txn, group.group_id()).await?;
-                Chat::delete(txn, chat.id()).await?;
-                Ok(())
-            })
-            .await?;
+            db.write()
+                .await?
+                .with_transaction(async |txn| -> Result<_, JobError<_>> {
+                    Group::delete_from_db(&mut *txn, group.group_id()).await?;
+                    Chat::delete(txn, chat.id()).await?;
+                    Ok(())
+                })
+                .await?;
 
             return Err(e.into());
         }

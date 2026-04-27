@@ -167,7 +167,9 @@ impl Job for FetchUserProfileOperation {
         // Phase 4: Store the user profile and key in the database
         context
             .db
-            .with_write_transaction(async |txn| -> anyhow::Result<()> {
+            .write()
+            .await?
+            .with_transaction(async |txn| -> anyhow::Result<()> {
                 user_profile_key.store(&mut *txn).await?;
                 persistable_user_profile.persist(&mut *txn).await?;
                 if let Some(old_user_profile_index) = persistable_user_profile.old_profile_index() {
@@ -229,7 +231,9 @@ impl Job for FetchGroupProfileOperation {
         // Load chat and group
         let Some((mut chat, group)) = context
             .db
-            .with_write_transaction(async |txn| -> anyhow::Result<_> {
+            .write()
+            .await?
+            .with_transaction(async |txn| -> anyhow::Result<_> {
                 let chat = Chat::load_by_group_id(&mut *txn, &group_id)
                     .await?
                     .context("Missing chat")?;
@@ -285,7 +289,9 @@ impl Job for FetchGroupProfileOperation {
         // Update chat attributes and store new messages
         context
             .db
-            .with_write_transaction(async |txn| -> anyhow::Result<()> {
+            .write()
+            .await?
+            .with_transaction(async |txn| -> anyhow::Result<()> {
                 let mut messages = Vec::new();
 
                 let chat_attributes = ChatAttributes::new(

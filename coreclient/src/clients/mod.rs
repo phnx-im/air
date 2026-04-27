@@ -52,7 +52,7 @@ use crate::{
     contacts::{TargetedMessageContact, UsernameContact},
     db_access::{DbAccess, ReadConnection, WriteDbTransaction},
     groups::Group,
-    job::{Job, JobContext, JobError},
+    job::{Job, JobContext, JobContextDb, JobError},
     key_stores::queue_ratchets::StorableQsQueueRatchet,
     outbound_service::OutboundService,
     store::Store,
@@ -653,7 +653,7 @@ impl CoreUser {
 
     /// Mark all messages in the chat with the given chat id and
     /// with a timestamp older than the given timestamp as read.
-    pub async fn mark_as_read<T: IntoIterator<Item = (ChatId, DateTime<Utc>)>>(
+    pub async fn mark_as_read<T: IntoIterator<Item = (ChatId, DateTime<Utc>)> + Send>(
         &self,
         mark_as_read_data: T,
     ) -> anyhow::Result<()> {
@@ -811,7 +811,7 @@ impl CoreUser {
         let mut context = JobContext {
             api_clients: &self.inner.api_clients,
             http_client: &self.inner.http_client,
-            db: &self.inner.db,
+            db: JobContextDb::Db(self.inner.db.clone()),
             key_store: &self.inner.key_store,
             now: Utc::now(),
         };

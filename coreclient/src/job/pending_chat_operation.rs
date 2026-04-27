@@ -139,7 +139,9 @@ impl Job for PendingChatOperation {
                 error!(?group_id, "Group not found on DS; cleaning up local state");
                 context
                     .db
-                    .with_write_transaction(async |txn| {
+                    .write()
+                    .await?
+                    .with_transaction(async |txn| {
                         handle_group_not_found_on_ds(txn, &group_id).await
                     })
                     .await?;
@@ -266,7 +268,9 @@ impl PendingChatOperation {
 
         // If any of the following fails, something is very wrong.
         let messages = db
-            .with_write_transaction(async |txn| {
+            .write()
+            .await?
+            .with_transaction(async |txn| {
                 let Some(mut chat) =
                     Chat::load_by_group_id(&mut *txn, self.group.group_id()).await?
                 else {
@@ -538,14 +542,14 @@ impl PendingChatOperation {
     }
 
     pub(crate) async fn create_add(
-        connection: &mut WriteDbConnection,
+        mut connection: impl WriteConnection,
         api_clients: &ApiClients,
         signer: &ClientSigningKey,
         chat_id: ChatId,
         new_members: Vec<UserId>,
     ) -> Result<Self, JobError<ChatOperationError>> {
         // Load local data to prepare add operation
-        let chat = Chat::load(&mut *connection, &chat_id)
+        let chat = Chat::load(&mut connection, &chat_id)
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))?;
 
@@ -555,13 +559,13 @@ impl PendingChatOperation {
 
         for new_member in &new_members {
             // Get the WAI keys and client credentials for the invited users.
-            let contact = Contact::load(&mut *connection, new_member)
+            let contact = Contact::load(&mut connection, new_member)
                 .await?
                 .with_context(|| format!("Can't find contact {new_member:?}"))?;
             contact_wai_keys.push(contact.wai_ear_key().clone());
 
             if let Some(client_credential) =
-                StorableClientCredential::load_by_user_id(&mut *connection, new_member).await?
+                StorableClientCredential::load_by_user_id(&mut connection, new_member).await?
             {
                 client_credentials.push(ClientCredential::from(client_credential));
             }
@@ -573,7 +577,7 @@ impl PendingChatOperation {
         let mut contact_add_infos: Vec<ContactAddInfos> = Vec::with_capacity(contacts.len());
         for contact in contacts {
             let add_info = contact
-                .fetch_add_infos(&mut *connection, api_clients)
+                .fetch_add_infos(&mut connection, api_clients)
                 .await?;
             contact_add_infos.push(add_info);
         }

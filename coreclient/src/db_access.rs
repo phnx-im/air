@@ -40,7 +40,7 @@ pub struct WriteDbTransaction<'a> {
     notifier: &'a mut StoreNotifier,
 }
 
-pub trait ReadConnection: AsMut<SqliteConnection> {
+pub trait ReadConnection: AsMut<SqliteConnection> + Send {
     fn begin_read_tx(&mut self) -> impl Future<Output = sqlx::Result<ReadDbTransaction<'_>>> {
         async {
             let txn = self.as_mut().begin().await?;
@@ -49,7 +49,7 @@ pub trait ReadConnection: AsMut<SqliteConnection> {
     }
 }
 
-pub trait WriteConnection: ReadConnection + AsMut<SqliteConnection> {
+pub trait WriteConnection: ReadConnection + AsMut<SqliteConnection> + Send {
     fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier);
     fn notifier(&mut self) -> &mut StoreNotifier;
 
@@ -77,11 +77,11 @@ pub trait WriteConnection: ReadConnection + AsMut<SqliteConnection> {
     /// after the transaction is committed successfully.
     fn with_transaction<U: Send, E>(
         &mut self,
-        f: impl AsyncFnOnce(&mut WriteDbTransaction<'_>) -> Result<U, E>,
-    ) -> impl Future<Output = Result<U, E>>
+        f: impl AsyncFnOnce(&mut WriteDbTransaction<'_>) -> Result<U, E> + Send,
+    ) -> impl Future<Output = Result<U, E>> + Send
     where
-        Self: Sized,
-        E: From<sqlx::Error>,
+        Self: Sized + Send,
+        E: From<sqlx::Error> + Send,
     {
         async move {
             let (connection, notifier) = self.split();
@@ -140,10 +140,10 @@ impl DbAccess {
     /// after the transaction is committed successfully.
     pub(crate) async fn with_write_transaction<U: Send, E>(
         &self,
-        f: impl AsyncFnOnce(&mut WriteDbTransaction<'_>) -> Result<U, E>,
+        f: impl AsyncFnOnce(&mut WriteDbTransaction<'_>) -> Result<U, E> + Send,
     ) -> Result<U, E>
     where
-        E: From<sqlx::Error>,
+        E: From<sqlx::Error> + Send,
     {
         self.write().await?.with_transaction(f).await
     }
@@ -204,6 +204,19 @@ impl ReadConnection for &mut ReadDbTransaction<'_> {}
 
 // write connections can be also use to read
 impl<T> ReadConnection for &mut T where T: WriteConnection {}
+impl<T> WriteConnection for &mut T
+where
+    T: WriteConnection,
+{
+    fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier) {
+        (*self).split()
+    }
+
+    fn notifier(&mut self) -> &mut StoreNotifier {
+        (*self).notifier()
+    }
+}
+
 impl ReadConnection for WriteDbConnection {}
 impl ReadConnection for WriteDbTransaction<'_> {}
 
@@ -225,15 +238,15 @@ impl WriteConnection for WriteDbConnection {
     }
 }
 
-impl WriteConnection for &mut WriteDbConnection {
-    fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier) {
-        (&mut self.conn, &mut self.notifier)
-    }
+// impl WriteConnection for &mut WriteDbConnection {
+//     fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier) {
+//         (&mut self.conn, &mut self.notifier)
+//     }
 
-    fn notifier(&mut self) -> &mut StoreNotifier {
-        &mut self.notifier
-    }
-}
+//     fn notifier(&mut self) -> &mut StoreNotifier {
+//         &mut self.notifier
+//     }
+// }
 
 impl WriteConnection for WriteDbTransaction<'_> {
     fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier) {
@@ -245,12 +258,12 @@ impl WriteConnection for WriteDbTransaction<'_> {
     }
 }
 
-impl WriteConnection for &mut WriteDbTransaction<'_> {
-    fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier) {
-        (self.txn.as_mut(), self.notifier)
-    }
+// impl WriteConnection for &mut WriteDbTransaction<'_> {
+//     fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier) {
+//         (self.txn.as_mut(), self.notifier)
+//     }
 
-    fn notifier(&mut self) -> &mut StoreNotifier {
-        self.notifier
-    }
-}
+//     fn notifier(&mut self) -> &mut StoreNotifier {
+//         self.notifier
+//     }
+// }

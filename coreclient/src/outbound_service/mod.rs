@@ -21,7 +21,7 @@ use tracing::{debug, error, info};
 use crate::{
     clients::api_clients::ApiClients,
     db_access::DbAccess,
-    job::{Job, JobContext, JobError},
+    job::{Job, JobContext, JobContextDb, JobError},
     key_stores::MemoryUserKeyStore,
     outbound_service::error::OutboundServiceRunError,
     utils::global_lock::GlobalLock,
@@ -222,7 +222,7 @@ impl OutboundServiceContext {
         let mut context = JobContext {
             api_clients: &self.api_clients,
             http_client: &self.http_client,
-            db: &self.db,
+            db: JobContextDb::Db(self.db.clone()),
             key_store: &self.key_store,
             now: Utc::now(),
         };

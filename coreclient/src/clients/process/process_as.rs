@@ -34,9 +34,9 @@ use crate::{
         },
     },
     contacts::UsernameContact,
-    db_access::{ReadConnection, WriteConnection, WriteDbConnection},
+    db_access::{ReadConnection, WriteConnection},
     groups::ProfileInfo,
-    job::{Job, JobContext},
+    job::{Job, JobContext, JobContextDb},
     usernames::connection_packages::StorableConnectionPackage,
 };
 
@@ -71,7 +71,7 @@ struct UsernameConnectionInfo {
 impl ConnectionInfoSource {
     async fn into_parts(
         self,
-        connection: &mut WriteDbConnection,
+        connection: impl WriteConnection,
         api_clients: &ApiClients,
     ) -> Result<(
         ConnectionInfo,
@@ -152,7 +152,7 @@ impl CoreUser {
                 let mut context = JobContext {
                     api_clients: &self.inner.api_clients,
                     http_client: &self.inner.http_client,
-                    db: self.db(),
+                    db: JobContextDb::Db(self.inner.db.clone()),
                     key_store: &self.inner.key_store,
                     now: Utc::now(),
                 };
@@ -168,8 +168,7 @@ impl CoreUser {
         context: &mut JobContext<'_>,
         connection_info_source: ConnectionInfoSource,
     ) -> anyhow::Result<ChatId> {
-        let db = context.db;
-
+        let api_clients = context.api_clients.clone();
         let (
             connection_info,
             sender_client_credential,
@@ -177,15 +176,18 @@ impl CoreUser {
             username_connection_info,
             sent_at,
         ) = connection_info_source
-            .into_parts(&mut db.write().await?, context.api_clients)
+            .into_parts(context.db.write().await?, &api_clients)
             .await?;
 
         // Use the server's timestamp if available, otherwise fall back to current time
         let message_timestamp = sent_at.unwrap_or_else(TimeStamp::now);
 
         // Deny connection from blocked users
-        if BlockedContact::check_blocked(db.read().await?, sender_client_credential.user_id())
-            .await?
+        if BlockedContact::check_blocked(
+            context.db.read().await?,
+            sender_client_credential.user_id(),
+        )
+        .await?
         {
             bail!(BlockedContactError);
         }
@@ -194,7 +196,10 @@ impl CoreUser {
         // ChatId is deterministic from the group_id, so a duplicate offer will
         // produce the same chat_id and we can safely return early.
         let chat_id = ChatId::try_from(&connection_info.connection_group_id)?;
-        if Chat::load(db.read().await?, &chat_id).await?.is_some() {
+        if Chat::load(context.db.read().await?, &chat_id)
+            .await?
+            .is_some()
+        {
             return Ok(chat_id);
         }
 
@@ -254,7 +259,9 @@ impl CoreUser {
 
         context
             .db
-            .with_write_transaction(async |txn| {
+            .write()
+            .await?
+            .with_transaction(async |txn| {
                 let sender_user_id = sender_client_credential.user_id();
 
                 // Create pending unconfirmed chat

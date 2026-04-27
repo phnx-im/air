@@ -15,9 +15,9 @@ use thiserror::Error;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus,
-    db_access::DbAccess,
+    db_access::{DbAccess, WriteConnection},
     groups::Group,
-    job::{Job, JobContext, JobError, pending_chat_operation::PendingChatOperation},
+    job::{Job, JobContext, JobContextDb, JobError, pending_chat_operation::PendingChatOperation},
 };
 
 #[derive(Debug, Clone)]
@@ -60,9 +60,9 @@ impl Job for ChatOperation {
         // Execute any pending operation for this chat first.
         let pending_operation = context
             .db
-            .with_write_transaction(async |txn| {
-                PendingChatOperation::load(txn, &self.chat_id).await
-            })
+            .write()
+            .await?
+            .with_transaction(async |txn| PendingChatOperation::load(txn, &self.chat_id).await)
             .await?;
 
         if let Some(pending_operation) = pending_operation {
@@ -117,7 +117,7 @@ impl ChatOperation {
     /// parts.
     ///
     /// Returns an error if the operation is no longer valid.
-    async fn check_validity_and_refine(&mut self, db: &DbAccess) -> anyhow::Result<()> {
+    async fn check_validity_and_refine(&mut self, db: &mut JobContextDb<'_>) -> anyhow::Result<()> {
         let chat = Chat::load(db.read().await?, &self.chat_id)
             .await?
             .ok_or(anyhow!("No chat found for ID {}", self.chat_id))?;
@@ -155,7 +155,7 @@ impl ChatOperation {
         // group state has changed, either due to a PendingChatOperation
         // executed as a dependency, or one or more commits arriving from the
         // QS.
-        self.check_validity_and_refine(context.db).await?;
+        self.check_validity_and_refine(&mut context.db).await?;
 
         match self.operation.clone() {
             ChatOperationType::AddMembers(user_ids) => {
@@ -190,7 +190,7 @@ impl ChatOperation {
             ..
         } = context;
         let job = PendingChatOperation::create_add(
-            &mut db.write().await?,
+            db.write().await?,
             api_clients,
             &key_store.signing_key,
             self.chat_id,
@@ -209,7 +209,9 @@ impl ChatOperation {
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext { db, key_store, .. } = context;
         let job = db
-            .with_write_transaction(async |txn| {
+            .write()
+            .await?
+            .with_transaction(async |txn| {
                 PendingChatOperation::create_remove(
                     txn,
                     &key_store.signing_key,
@@ -230,7 +232,9 @@ impl ChatOperation {
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext { db, key_store, .. } = context;
         let job = db
-            .with_write_transaction(async |txn| {
+            .write()
+            .await?
+            .with_transaction(async |txn| {
                 PendingChatOperation::create_leave(txn, &key_store.signing_key, self.chat_id).await
             })
             .await?;
@@ -316,7 +320,9 @@ impl ChatOperation {
         };
 
         let job = db
-            .with_write_transaction(async |txn| {
+            .write()
+            .await?
+            .with_transaction(async |txn| {
                 PendingChatOperation::create_update(
                     txn,
                     &key_store.signing_key,
@@ -337,7 +343,9 @@ impl ChatOperation {
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext { db, key_store, .. } = context;
         let job = db
-            .with_write_transaction(async |txn| {
+            .write()
+            .await?
+            .with_transaction(async |txn| {
                 PendingChatOperation::create_delete(txn, &key_store.signing_key, self.chat_id).await
             })
             .await?;

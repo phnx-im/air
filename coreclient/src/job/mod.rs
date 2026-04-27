@@ -5,11 +5,17 @@
 use airapiclient::{ApiClientInitError, as_api::AsRequestError, ds_api::DsRequestError};
 use aircommon::codec;
 use chrono::{DateTime, Utc};
+use sqlx::SqliteConnection;
 use thiserror::Error;
 use tracing::info;
 
 use crate::{
-    clients::api_clients::ApiClients, db_access::DbAccess, key_stores::MemoryUserKeyStore,
+    clients::api_clients::ApiClients,
+    db_access::{
+        DbAccess, ReadConnection, ReadDbConnection, ReadDbTransaction, WriteConnection,
+        WriteDbConnection, WriteDbTransaction,
+    },
+    key_stores::MemoryUserKeyStore,
 };
 
 pub(crate) mod chat_operation;
@@ -21,9 +27,86 @@ pub(crate) mod profile;
 pub(crate) struct JobContext<'a> {
     pub api_clients: &'a ApiClients,
     pub http_client: &'a reqwest::Client,
-    pub db: &'a DbAccess,
+    pub db: JobContextDb<'a>,
     pub key_store: &'a MemoryUserKeyStore,
     pub now: DateTime<Utc>,
+}
+
+pub(crate) enum JobContextDb<'a> {
+    Db(DbAccess),
+    Transaction(&'a mut WriteDbTransaction<'a>),
+}
+
+impl JobContextDb<'_> {
+    pub(crate) async fn read(&mut self) -> sqlx::Result<impl ReadConnection> {
+        enum JobContextReadConnection<'a> {
+            Connection(ReadDbConnection),
+            Transaction(&'a mut WriteDbTransaction<'a>),
+        }
+
+        impl<'a> ReadConnection for JobContextReadConnection<'a> {
+            fn begin_read_tx(
+                &mut self,
+            ) -> impl Future<Output = sqlx::Result<ReadDbTransaction<'_>>> {
+                async { todo!() }
+            }
+        }
+
+        impl<'a> AsMut<SqliteConnection> for JobContextReadConnection<'a> {
+            fn as_mut(&mut self) -> &mut SqliteConnection {
+                match self {
+                    JobContextReadConnection::Connection(db) => db.as_mut(),
+                    JobContextReadConnection::Transaction(txn) => txn.as_mut(),
+                }
+            }
+        }
+
+        match self {
+            JobContextDb::Db(db) => db.read().await.map(JobContextReadConnection::Connection),
+            JobContextDb::Transaction(txn) => Ok(JobContextReadConnection::Transaction(txn)),
+        }
+    }
+
+    pub(crate) async fn write<'s: 'a, 'a>(
+        &'s mut self,
+    ) -> sqlx::Result<impl WriteConnection + Send + 'a> {
+        enum JobContextWriteConnection<'a> {
+            Connection(WriteDbConnection),
+            Transaction(&'a mut WriteDbTransaction<'a>),
+        }
+
+        impl<'a> ReadConnection for JobContextWriteConnection<'a> {
+            fn begin_read_tx(
+                &mut self,
+            ) -> impl Future<Output = sqlx::Result<ReadDbTransaction<'_>>> {
+                async { todo!() }
+            }
+        }
+
+        impl<'a> WriteConnection for JobContextWriteConnection<'a> {
+            fn split(&mut self) -> (&mut SqliteConnection, &mut crate::store::StoreNotifier) {
+                todo!()
+            }
+
+            fn notifier(&mut self) -> &mut crate::store::StoreNotifier {
+                todo!()
+            }
+        }
+
+        impl<'a> AsMut<SqliteConnection> for JobContextWriteConnection<'a> {
+            fn as_mut(&mut self) -> &mut SqliteConnection {
+                match self {
+                    JobContextWriteConnection::Connection(db) => db.as_mut(),
+                    JobContextWriteConnection::Transaction(txn) => txn.as_mut(),
+                }
+            }
+        }
+
+        match self {
+            JobContextDb::Db(db) => db.write().await.map(JobContextWriteConnection::Connection),
+            JobContextDb::Transaction(txn) => Ok(JobContextWriteConnection::Transaction(txn)),
+        }
+    }
 }
 
 #[derive(Debug, Error)]

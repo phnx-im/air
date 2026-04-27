@@ -19,7 +19,7 @@ use openmls_rust_crypto::RustCrypto;
 use crate::{
     ChatId,
     clients::api_clients::ApiClients,
-    db_access::{WriteConnection, WriteDbConnection},
+    db_access::WriteConnection,
     groups::client_auth_info::StorableClientCredential,
     key_stores::{as_credentials::AsCredentials, indexed_keys::StorableIndexedKey},
     user_profiles::IndexedUserProfile,
@@ -47,7 +47,7 @@ pub(crate) struct ContactAddInfos {
 impl Contact {
     pub(crate) async fn fetch_add_infos(
         &self,
-        connection: &mut WriteDbConnection,
+        mut connection: impl WriteConnection,
         api_clients: &ApiClients,
     ) -> Result<ContactAddInfos> {
         let invited_user_domain = self.user_id.domain();
@@ -83,7 +83,7 @@ impl Contact {
 
         // Check that the client credential is the same as the one we have on file.
         let current_client_credential = StorableClientCredential::load_by_user_id(
-            &mut *connection,
+            &mut connection,
             incoming_client_credential.user_id(),
         )
         .await?
@@ -92,11 +92,11 @@ impl Contact {
             bail!("Client credential does not match");
         }
 
-        let user_profile = IndexedUserProfile::load(&mut *connection, &self.user_id)
+        let user_profile = IndexedUserProfile::load(&mut connection, &self.user_id)
             .await?
             .context("User profile not found")?;
         let user_profile_key =
-            UserProfileKey::load(&mut *connection, user_profile.decryption_key_index()).await?;
+            UserProfileKey::load(connection, user_profile.decryption_key_index()).await?;
 
         let add_info = ContactAddInfos {
             key_package: verified_key_package,
