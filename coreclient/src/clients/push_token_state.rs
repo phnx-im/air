@@ -214,7 +214,7 @@ mod tests {
 
         // First token write should set pending_update and persist state.
         let should_notify = mark_pending_if_changed(
-            &pool,
+            pool.write().await?,
             Some(PushToken::new(
                 PushTokenOperator::Apple,
                 "token-a".to_string(),
@@ -232,7 +232,7 @@ mod tests {
 
         // Same token while pending should keep returning true.
         let should_notify = mark_pending_if_changed(
-            &pool,
+            pool.write().await?,
             Some(PushToken::new(
                 PushTokenOperator::Apple,
                 "token-a".to_string(),
@@ -242,7 +242,7 @@ mod tests {
         assert!(should_notify);
 
         // Clearing pending should keep the state but drop the pending flag.
-        clear_pending(&pool).await?;
+        clear_pending(pool.write().await?).await?;
         let state = load_state(pool.read().await?)
             .await?
             .expect("state should exist");
@@ -250,7 +250,7 @@ mod tests {
 
         // Same token after clearing should not trigger a pending update.
         let should_notify = mark_pending_if_changed(
-            &pool,
+            pool.write().await?,
             Some(PushToken::new(
                 PushTokenOperator::Apple,
                 "token-a".to_string(),
@@ -276,7 +276,7 @@ mod tests {
     async fn pending_due_and_clamping(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
         mark_pending_if_changed(
-            &pool,
+            pool.write().await?,
             Some(PushToken::new(
                 PushTokenOperator::Google,
                 "token-b".to_string(),
@@ -293,7 +293,7 @@ mod tests {
             due_at,
             STATE_ID,
         )
-        .execute(&pool)
+        .execute(pool.write().await?.as_mut())
         .await?;
         assert!(load_pending(pool.read().await?, now).await?.is_none());
         assert!(load_pending(pool.read().await?, due_at).await?.is_some());
@@ -307,9 +307,9 @@ mod tests {
             far_future,
             STATE_ID,
         )
-        .execute(&pool)
+        .execute(pool.write().await?.as_mut())
         .await?;
-        clamp_pending_future(&pool, now).await?;
+        clamp_pending_future(pool.write().await?, now).await?;
         let state = load_state(pool.read().await?)
             .await?
             .expect("state should exist");
@@ -321,7 +321,7 @@ mod tests {
         let far_retry = TimeStamp::from(
             *now.as_ref() + Duration::seconds(PUSH_TOKEN_PENDING_MAX_FUTURE_SECS + 1000),
         );
-        schedule_retry(&pool, far_retry).await?;
+        schedule_retry(pool.write().await?, far_retry).await?;
         let state = load_state(pool.read().await?)
             .await?
             .expect("state should exist");

@@ -380,14 +380,12 @@ impl PersistedUserState {
             qs_client_id,
         } = self.state;
         let http_client = reqwest::Client::new();
-        let store_notifications_tx = StoreNotificationsSender::new();
         let outbound_service = outbound_service::OutboundService::new(
             db.clone(),
             api_clients.clone(),
             http_client.clone(),
             key_store.clone(),
             qs_client_id,
-            store_notifications_tx.clone(),
             global_lock,
         );
 
@@ -401,7 +399,6 @@ impl PersistedUserState {
             qs_client_id,
             api_clients,
             http_client,
-            store_notifications_tx,
             store_notifications_pending: Arc::new(Notify::new()),
             outbound_service,
             event_loop_sender,

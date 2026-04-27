@@ -90,7 +90,7 @@ impl StorableConnectionPackage for ConnectionPackage {}
 
 #[cfg(test)]
 mod tests {
-    use crate::UsernameRecord;
+    use crate::{UsernameRecord, db_access::DbAccess};
 
     use super::*;
 
@@ -100,22 +100,24 @@ mod tests {
 
     #[sqlx::test]
     async fn test_store_and_load_connection_package(pool: SqlitePool) {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await.unwrap();
+
         let username = Username::new("test-handle".to_string()).unwrap();
         let signing_key = UsernameSigningKey::generate().unwrap();
         let hash = username.calculate_hash().unwrap();
         let record = UsernameRecord::new(username, hash, signing_key);
-        record.store(pool.write().await?).await.unwrap();
+        record.store(&mut connection).await.unwrap();
         let (decryption_key, connection_package) =
             ConnectionPackage::new(record.hash, &record.signing_key, false).unwrap();
 
-        let mut connection = pool.acquire().await.unwrap();
         connection_package
             .store_for_username(&mut connection, &record.username, &decryption_key)
             .await
             .unwrap();
 
         let loaded_decryption_key =
-            ConnectionPackage::load_decryption_key(&mut *connection, &connection_package.hash())
+            ConnectionPackage::load_decryption_key(&mut connection, &connection_package.hash())
                 .await
                 .unwrap()
                 .unwrap();
@@ -124,7 +126,7 @@ mod tests {
             .await
             .unwrap();
         let loaded_decryption_key_after_delete =
-            ConnectionPackage::load_decryption_key(&mut *connection, &connection_package.hash())
+            ConnectionPackage::load_decryption_key(&mut connection, &connection_package.hash())
                 .await
                 .unwrap();
         assert!(loaded_decryption_key_after_delete.is_none());

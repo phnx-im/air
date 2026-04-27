@@ -126,7 +126,6 @@ pub(crate) struct CoreUserInner {
     qs_user_id: QsUserId,
     qs_client_id: QsClientId,
     key_store: MemoryUserKeyStore,
-    store_notifications_tx: StoreNotificationsSender,
     store_notifications_pending: Arc<Notify>,
     outbound_service: OutboundService,
     event_loop_sender: EventLoopSender,
@@ -323,7 +322,7 @@ impl CoreUser {
 
     pub(crate) fn send_store_notification(&self, notification: StoreNotification) {
         if !notification.is_empty() {
-            self.inner.store_notifications_tx.notify(notification);
+            self.inner.db.notifier_tx.notify(notification);
         }
     }
 
@@ -334,7 +333,7 @@ impl CoreUser {
     pub(crate) fn subscribe_to_store_notifications(
         &self,
     ) -> impl Stream<Item = Arc<StoreNotification>> + Send + 'static {
-        self.inner.store_notifications_tx.subscribe()
+        self.inner.db.notifier_tx.subscribe()
     }
 
     /// Subscribes to pending store notifications.
@@ -344,7 +343,7 @@ impl CoreUser {
     pub(crate) fn subscribe_iter_to_store_notifications(
         &self,
     ) -> impl Iterator<Item = Arc<StoreNotification>> + Send + 'static {
-        self.inner.store_notifications_tx.subscribe_iter()
+        self.inner.db.notifier_tx.subscribe_iter()
     }
 
     pub(crate) async fn enqueue_store_notification(

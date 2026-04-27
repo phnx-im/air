@@ -1325,7 +1325,6 @@ mod tests {
         chats::persistence::tests::test_chat,
         clients::process::process_qs::handle_message_edit,
         db_access::{DbAccess, WriteConnection},
-        store::StoreNotifier,
     };
 
     /// Editing a message (without deleting) should not update any `in_reply_to` references.
@@ -1404,7 +1403,6 @@ mod tests {
     #[sqlx::test]
     async fn test_handle_message_delete_without_replies(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
-        let mut notifier = StoreNotifier::noop();
 
         let chat = test_chat();
         chat.store(pool.write().await?).await?;

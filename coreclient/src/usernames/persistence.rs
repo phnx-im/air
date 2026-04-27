@@ -254,7 +254,7 @@ mod test {
         let record2 = UsernameRecord::new(username2.clone(), hash2, signing_key2);
         record2.store(pool.write().await?).await?;
 
-        let loaded_usernames = UsernameRecord::load_all_usernames(&pool).await?;
+        let loaded_usernames = UsernameRecord::load_all_usernames(pool.read().await?).await?;
         assert_eq!(loaded_usernames.len(), 2);
         assert!(loaded_usernames.contains(&username1));
         assert!(loaded_usernames.contains(&username2));
@@ -278,7 +278,7 @@ mod test {
         sqlx::query("UPDATE user_handle SET refreshed_at = ? WHERE handle = ?")
             .bind(old_time)
             .bind(&username_old)
-            .execute(&pool)
+            .execute(pool.read().await?.as_mut())
             .await?;
 
         // Create a username with recent refreshed_at
@@ -290,16 +290,18 @@ mod test {
 
         // Query usernames needing refresh (threshold = now - 90 days)
         let threshold = Utc::now() - Duration::days(90);
-        let needing_refresh = UsernameRecord::load_needing_refresh(&pool, threshold).await?;
+        let needing_refresh =
+            UsernameRecord::load_needing_refresh(pool.read().await?, threshold).await?;
         assert_eq!(needing_refresh.len(), 1);
         assert_eq!(needing_refresh[0].username, username_old);
 
         // Update refreshed_at for the old username
         let now = Utc::now();
-        UsernameRecord::update_refreshed_at(&pool, &hash_old, now).await?;
+        UsernameRecord::update_refreshed_at(pool.write().await?, &hash_old, now).await?;
 
         // Now it should no longer need refresh
-        let needing_refresh = UsernameRecord::load_needing_refresh(&pool, threshold).await?;
+        let needing_refresh =
+            UsernameRecord::load_needing_refresh(pool.read().await?, threshold).await?;
         assert!(needing_refresh.is_empty());
 
         Ok(())

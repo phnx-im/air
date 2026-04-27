@@ -21,8 +21,8 @@ use sqlx::SqlitePool;
 
 use crate::{
     DisplayName, UserProfile,
+    db_access::{DbAccess, WriteConnection},
     key_stores::indexed_keys::StorableIndexedKey,
-    store::StoreNotifier,
     user_profiles::{IndexedUserProfile, update::UserProfileUpdate},
 };
 
@@ -136,6 +136,8 @@ fn backend_interaction() {
 
 #[sqlx::test]
 fn profile_deletion_trigger(pool: SqlitePool) {
+    let pool = DbAccess::for_tests(pool);
+
     // Create a user profile
     let user_id = UserId::random("localhost".parse().unwrap());
     let display_name = DisplayName::from_str("Alice").unwrap();
@@ -144,7 +146,10 @@ fn profile_deletion_trigger(pool: SqlitePool) {
         ClientCredentialCsr::new(user_id.clone(), SignatureScheme::ED25519).unwrap();
 
     let user_profile_key = UserProfileKey::random(&user_id).unwrap();
-    user_profile_key.store(pool.write().await?).await.unwrap();
+    user_profile_key
+        .store(pool.write().await.unwrap())
+        .await
+        .unwrap();
 
     let _user_profile = NewUserProfile::new(
         &signing_key,
@@ -154,7 +159,7 @@ fn profile_deletion_trigger(pool: SqlitePool) {
         profile_picture.clone(),
     )
     .unwrap()
-    .store(pool.write().await?, &mut StoreNotifier::noop())
+    .store(pool.write().await.unwrap())
     .await
     .unwrap();
 
@@ -162,14 +167,18 @@ fn profile_deletion_trigger(pool: SqlitePool) {
     // (We delete directly here. In practice, profiles are deleted via a trigger
     // when the user is removed from the last shared group. This is tested in the
     // integration test called `user_deletion_triggers`.)
-    delete_user_profile(&pool).await.unwrap();
-    let loaded_key = UserProfileKey::load(pool.read().await?, user_profile_key.index()).await;
+    delete_user_profile(pool.write().await.unwrap())
+        .await
+        .unwrap();
+
+    let loaded_key =
+        UserProfileKey::load(pool.read().await.unwrap(), user_profile_key.index()).await;
     assert!(matches!(loaded_key, Err(sqlx::Error::RowNotFound)));
 }
 
-async fn delete_user_profile(
-    executor: impl sqlx::Executor<'_, Database = sqlx::Sqlite>,
-) -> anyhow::Result<()> {
-    sqlx::query("DELETE FROM user").execute(executor).await?;
+async fn delete_user_profile(mut connection: impl WriteConnection) -> anyhow::Result<()> {
+    sqlx::query("DELETE FROM user")
+        .execute(connection.as_mut())
+        .await?;
     Ok(())
 }

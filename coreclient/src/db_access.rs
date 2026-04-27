@@ -9,7 +9,7 @@ use crate::store::{StoreNotificationsSender, StoreNotifier};
 #[derive(Debug, Clone)]
 pub struct DbAccess {
     pool: SqlitePool,
-    notifier_tx: Option<StoreNotificationsSender>,
+    pub(crate) notifier_tx: StoreNotificationsSender,
 }
 
 #[derive(Debug)]
@@ -75,7 +75,7 @@ pub trait WriteConnection: ReadConnection + AsMut<SqliteConnection> {
     /// back if the function returns `Err`. The [`StoreNotifier`] is notified
     /// after the transaction is committed successfully.
     fn with_transaction<U: Send, E>(
-        mut self,
+        &mut self,
         f: impl AsyncFnOnce(&mut WriteDbTransaction<'_>) -> Result<U, E>,
     ) -> impl Future<Output = Result<U, E>>
     where
@@ -103,23 +103,20 @@ pub trait WriteConnection: ReadConnection + AsMut<SqliteConnection> {
 }
 
 impl DbAccess {
+    pub(crate) fn new(pool: SqlitePool, notifier_tx: StoreNotificationsSender) -> Self {
+        Self { pool, notifier_tx }
+    }
+
     #[cfg(test)]
     pub(crate) fn for_tests(pool: SqlitePool) -> Self {
         Self {
             pool,
-            notifier_tx: None,
-        }
-    }
-
-    pub(crate) fn new(pool: SqlitePool, notifier_tx: StoreNotificationsSender) -> Self {
-        Self {
-            pool,
-            notifier_tx: Some(notifier_tx),
+            notifier_tx: StoreNotificationsSender::new(),
         }
     }
 
     fn notifier(&self) -> StoreNotifier {
-        StoreNotifier::new(self.notifier_tx.clone().unwrap_or_default())
+        StoreNotifier::new(self.notifier_tx.clone())
     }
 
     pub async fn read(&self) -> sqlx::Result<ReadDbConnection> {

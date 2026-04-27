@@ -20,8 +20,8 @@ const NOTIFICATION_CHANNEL_SIZE: usize = 1024;
 ///
 /// Used to collect all notifications and eventually send them all at once.
 #[derive(Debug)]
-pub(crate) struct StoreNotifier {
-    tx: Option<StoreNotificationsSender>, // None if the notifier is a noop
+pub struct StoreNotifier {
+    tx: StoreNotificationsSender,
     notification: StoreNotification,
 }
 
@@ -29,17 +29,17 @@ impl StoreNotifier {
     /// Creates a new notifier which will send all notifications with the given sender.
     pub(crate) fn new(tx: StoreNotificationsSender) -> Self {
         Self {
-            tx: Some(tx),
+            tx,
             notification: StoreNotification::empty(),
         }
     }
 
     /// Creates a new notifier which will just drop all notifications.
     ///
-    /// Useful when a notifier is required, but no notifications are actually should be emitted.
+    /// Useful when a notifier is required, but no notifications should be emitted.
     pub(crate) fn noop() -> Self {
         Self {
-            tx: None,
+            tx: StoreNotificationsSender::new(),
             notification: StoreNotification::empty(),
         }
     }
@@ -82,18 +82,16 @@ impl StoreNotifier {
 
     /// Send collected notifications to the subscribers, if there are any.
     pub(crate) fn notify(&mut self) {
-        if let Some(tx) = self.tx.as_ref()
-            && !self.notification.ops.is_empty()
-        {
+        if !self.notification.ops.is_empty() {
             let notification = mem::take(&mut self.notification);
-            tx.notify(Arc::new(notification));
+            self.tx.notify(Arc::new(notification));
         }
     }
 }
 
 impl Drop for StoreNotifier {
     fn drop(&mut self) {
-        if !self.notification.ops.is_empty() && self.tx.is_some() {
+        if !self.notification.ops.is_empty() {
             // Note: This might be ok. E.g. an error might happen after some notifications were
             // added to the notifier.
             warn!(

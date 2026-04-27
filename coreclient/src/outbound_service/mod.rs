@@ -24,7 +24,6 @@ use crate::{
     job::{Job, JobContext, JobError},
     key_stores::MemoryUserKeyStore,
     outbound_service::error::OutboundServiceRunError,
-    store::StoreNotificationsSender,
     utils::global_lock::GlobalLock,
 };
 
@@ -79,7 +78,6 @@ impl OutboundService<OutboundServiceContext> {
         http_client: reqwest::Client,
         key_store: MemoryUserKeyStore,
         qs_client_id: QsClientId,
-        store_notifications_tx: StoreNotificationsSender,
         global_lock: GlobalLock,
     ) -> Self {
         let context = OutboundServiceContext {
@@ -88,7 +86,6 @@ impl OutboundService<OutboundServiceContext> {
             http_client,
             key_store,
             qs_client_id,
-            store_notifications_tx,
         };
         Self::with_context(context, global_lock)
     }
@@ -213,7 +210,6 @@ pub struct OutboundServiceContext {
     http_client: reqwest::Client,
     key_store: MemoryUserKeyStore,
     qs_client_id: QsClientId,
-    store_notifications_tx: StoreNotificationsSender,
 }
 
 impl OutboundServiceContext {

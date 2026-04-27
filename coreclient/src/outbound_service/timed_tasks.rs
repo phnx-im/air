@@ -651,9 +651,10 @@ mod persistence {
                 .execute(pool.write().await?.as_mut())
                 .await?;
 
-            let mut txn = pool.begin().await?;
-            mark_key_packages_as_live(&mut txn, slice::from_ref(&new_key_package_ref)).await?;
-            txn.commit().await?;
+            pool.with_write_transaction(async |txn| {
+                mark_key_packages_as_live(txn, slice::from_ref(&new_key_package_ref)).await
+            })
+            .await?;
 
             let rows = query(
                 "SELECT key_package_ref, is_live \

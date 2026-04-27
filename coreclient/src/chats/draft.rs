@@ -265,7 +265,6 @@ mod persistence {
         #[sqlx::test]
         async fn commit_all_drafts(pool: SqlitePool) -> anyhow::Result<()> {
             let pool = DbAccess::for_tests(pool);
-            let mut notifier = StoreNotifier::noop();
 
             let chat_a = test_chat();
             chat_a.store(pool.write().await?).await?;

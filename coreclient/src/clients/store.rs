@@ -57,7 +57,7 @@ impl UserCreationState {
 
         let user_creation_state = UserCreationState::BasicUserData(basic_user_data);
 
-        user_creation_state.store(air_db.write().await?).await?;
+        user_creation_state.store(client_db.write().await?).await?;
 
         Ok(user_creation_state)
     }

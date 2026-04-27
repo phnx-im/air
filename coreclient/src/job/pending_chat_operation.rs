@@ -373,7 +373,7 @@ impl PendingChatOperation {
 
     async fn handle_error(
         &mut self,
-        connection: impl WriteConnection,
+        mut connection: impl WriteConnection,
         error: DsRequestError,
     ) -> Result<JobError<ChatOperationError>, JobError<ChatOperationError>> {
         debug!(?error, "DS request failed");
@@ -1078,10 +1078,12 @@ mod tests {
         let now = Utc::now();
         connection
             .with_transaction(async |txn| {
-                let ready = PendingChatOperation::dequeue(txn, uuid, now).await?;
+                let ready = PendingChatOperation::dequeue(&mut *txn, uuid, now).await?;
                 assert!(ready.is_some());
 
-                pending.mark_as_waiting_for_queue_response(txn).await?;
+                pending
+                    .mark_as_waiting_for_queue_response(&mut *txn)
+                    .await?;
 
                 // After marking, it should no longer be returned for retries.
                 let uuid = Uuid::new_v4();
@@ -1107,9 +1109,9 @@ mod tests {
         // Delete and ensure the row is gone.
         connection
             .with_transaction(async |txn| {
-                PendingChatOperation::delete(txn, pending.group.group_id()).await?;
+                PendingChatOperation::delete(&mut *txn, pending.group.group_id()).await?;
 
-                let loaded = PendingChatOperation::load(txn, &chat_id).await?;
+                let loaded = PendingChatOperation::load(&mut *txn, &chat_id).await?;
                 assert!(loaded.is_none());
 
                 let uuid = Uuid::new_v4();

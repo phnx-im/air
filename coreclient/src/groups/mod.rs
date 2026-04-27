@@ -1406,12 +1406,12 @@ mod handle_group_not_found_tests {
         credentials::test_utils::create_test_credentials,
         identifiers::{QualifiedGroupId, UserId},
     };
-    use sqlx::{Connection, query};
+    use sqlx::query;
     use uuid::Uuid;
 
     use crate::{
         Chat, ChatAttributes, ChatStatus, clients::block_contact::BlockedContact,
-        groups::GroupDataBytes, store::StoreNotifier, utils::persistence::open_db_in_memory,
+        db_access::DbAccess, groups::GroupDataBytes, utils::persistence::open_db_in_memory,
     };
 
     use super::*;
@@ -1419,8 +1419,8 @@ mod handle_group_not_found_tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn handle_group_not_found_marks_blocked_chat_inactive_under_block() -> anyhow::Result<()>
     {
-        let pool = open_db_in_memory().await?;
-        let connection = pool.write().await?;
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let mut connection = pool.write().await?;
 
         let own_user_id = UserId::random("example.com".parse().unwrap());
         let blocked_user_id = UserId::random("example.com".parse().unwrap());
@@ -1436,7 +1436,7 @@ mod handle_group_not_found_tests {
             group_id.clone(),
             GroupDataBytes::from(b"test-group-data".to_vec()),
         )?;
-        group.store(&mut *connection).await?;
+        group.store(&mut connection).await?;
 
         // XXX: fixme
         // let mut notifier = StoreNotifier::noop();
@@ -1460,9 +1460,9 @@ mod handle_group_not_found_tests {
             ChatStatus::Blocked
         ));
 
-        let mut txn = connection.begin().await?;
-        handle_group_not_found_on_ds(txn, &group_id).await?;
-        txn.commit().await?;
+        connection
+            .with_transaction(async |txn| handle_group_not_found_on_ds(txn, &group_id).await)
+            .await?;
 
         assert!(Group::load(&mut connection, &group_id).await?.is_none());
         assert!(matches!(
@@ -1476,7 +1476,7 @@ mod handle_group_not_found_tests {
         query("DELETE FROM blocked_contact WHERE user_uuid = ?1 AND user_domain = ?2")
             .bind(blocked_user_id.uuid())
             .bind(blocked_user_id.domain().to_string())
-            .execute(&mut *connection)
+            .execute(connection.as_mut())
             .await?;
 
         assert!(matches!(
