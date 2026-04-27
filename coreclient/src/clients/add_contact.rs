@@ -36,6 +36,7 @@ use crate::{
     groups::{Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider},
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
     store::Store,
+    user_profiles::IndexedUserProfile,
 };
 
 use super::{CoreUser, connection_offer::payload::ConnectionOfferPayload};
@@ -284,9 +285,10 @@ impl VerifiedConnectionPackagesWithGroupId<UserId> {
         signing_key: &ClientSigningKey,
     ) -> anyhow::Result<LocalGroup<UserId>> {
         info!("Creating local connection group");
-        let user_profile = UserProfile::load(&mut *txn, &self.payload)
+        let user_profile: UserProfile = IndexedUserProfile::load(&mut *txn, &self.payload)
             .await?
-            .context("Can't find user profile for target user")?;
+            .context("Can't find user profile for target user")?
+            .into();
         let title = format!("Connection group: {}", user_profile.display_name);
         let attributes = ChatAttributes::new(title, None);
 

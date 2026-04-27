@@ -23,7 +23,7 @@ use crate::{
     chats::{GroupDataExt, messages::TimestampedMessage},
     clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
     contacts::ContactAddInfos,
-    db_access::{WriteConnection, WriteDbConnection, WriteDbTransaction},
+    db_access::{WriteConnection, WriteDbTransaction},
     groups::{
         Group, VerifiedGroup, client_auth_info::StorableClientCredential,
         handle_group_not_found_on_ds,
@@ -115,7 +115,7 @@ impl Job for PendingChatOperation {
 
     async fn execute_logic(
         mut self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         match self.execute_internal(context).await {
             // Update retry_due at on network errors
@@ -173,7 +173,7 @@ impl PendingChatOperation {
 
     pub async fn execute_internal(
         &mut self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         if let PendingChatOperationStatus::WaitingForQueueResponse = self.status {
             info!(
@@ -951,7 +951,7 @@ pub mod test_utils {
     }
 
     impl PendingChatOperationInfo {
-        pub async fn load(
+        pub(crate) async fn load(
             connection: impl ReadConnection,
             chat_id: &ChatId,
         ) -> anyhow::Result<Option<Self>> {

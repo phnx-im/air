@@ -36,7 +36,7 @@ impl Job for CreateChat {
 
     async fn execute_logic(
         self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<ChatId, JobError<Self::DomainError>> {
         self.execute_internal(context).await
     }
@@ -52,7 +52,7 @@ impl CreateChat {
 
     async fn execute_internal(
         self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<ChatId, JobError<DomainError>> {
         let Self {
             chat_attributes,

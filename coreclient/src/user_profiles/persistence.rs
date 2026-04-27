@@ -5,7 +5,7 @@
 use aircommon::{crypto::indexed_aead::keys::UserProfileKeyIndex, identifiers::UserId};
 use sqlx::{query, query_as};
 
-use crate::db_access::{ReadConnection, WriteConnection};
+use crate::db_access::{DbAccess, ReadConnection, WriteConnection};
 
 use super::{Asset, IndexedUserProfile, UserProfile, display_name::BaseDisplayName};
 
@@ -120,11 +120,8 @@ impl IndexedUserProfile {
 }
 
 impl UserProfile {
-    pub async fn load(
-        connection: impl ReadConnection,
-        user_id: &UserId,
-    ) -> sqlx::Result<Option<Self>> {
-        IndexedUserProfile::load(connection, user_id)
+    pub async fn load(db_access: &DbAccess, user_id: &UserId) -> sqlx::Result<Option<Self>> {
+        IndexedUserProfile::load(db_access.read().await?, user_id)
             .await
             .map(|res| res.map(From::from))
     }

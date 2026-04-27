@@ -137,7 +137,7 @@ mod persistence {
             Ok(())
         }
 
-        pub async fn load_all(
+        pub(crate) async fn load_all(
             mut connection: impl ReadConnection,
         ) -> sqlx::Result<Vec<InvitationCode>> {
             query_as!(
@@ -149,7 +149,7 @@ mod persistence {
             .await
         }
 
-        pub async fn mark_as_copied(
+        pub(crate) async fn mark_as_copied(
             mut connection: impl WriteConnection,
             code: &str,
         ) -> sqlx::Result<()> {
@@ -162,7 +162,9 @@ mod persistence {
             Ok(())
         }
 
-        pub async fn delete_all_copied(mut connection: impl WriteConnection) -> sqlx::Result<()> {
+        pub(crate) async fn delete_all_copied(
+            mut connection: impl WriteConnection,
+        ) -> sqlx::Result<()> {
             query!("DELETE FROM invitation_code WHERE copied = TRUE",)
                 .execute(connection.as_mut())
                 .await?;

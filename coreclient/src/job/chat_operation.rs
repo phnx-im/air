@@ -15,7 +15,7 @@ use thiserror::Error;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus,
-    db_access::{DbAccess, WriteConnection},
+    db_access::WriteConnection,
     groups::Group,
     job::{Job, JobContext, JobContextDb, JobError, pending_chat_operation::PendingChatOperation},
 };
@@ -48,14 +48,14 @@ impl Job for ChatOperation {
 
     async fn execute_logic(
         self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<Self::DomainError>> {
         self.execute_internal(context).await
     }
 
     async fn execute_dependencies(
         &mut self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<(), JobError<Self::DomainError>> {
         // Execute any pending operation for this chat first.
         let pending_operation = context
@@ -117,7 +117,10 @@ impl ChatOperation {
     /// parts.
     ///
     /// Returns an error if the operation is no longer valid.
-    async fn check_validity_and_refine(&mut self, db: &mut JobContextDb<'_>) -> anyhow::Result<()> {
+    async fn check_validity_and_refine(
+        &mut self,
+        db: &mut JobContextDb<'_, '_>,
+    ) -> anyhow::Result<()> {
         let chat = Chat::load(db.read().await?, &self.chat_id)
             .await?
             .ok_or(anyhow!("No chat found for ID {}", self.chat_id))?;
@@ -149,7 +152,7 @@ impl ChatOperation {
 
     async fn execute_internal(
         mut self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         // Check whether our operation is still. It may be refined in case the
         // group state has changed, either due to a PendingChatOperation
@@ -180,7 +183,7 @@ impl ChatOperation {
 
     async fn execute_add_members(
         &mut self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
         users: Vec<UserId>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext {
@@ -204,7 +207,7 @@ impl ChatOperation {
     /// Remove users from the chat
     async fn execute_remove_members(
         &mut self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
         users: Vec<UserId>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext { db, key_store, .. } = context;
@@ -228,7 +231,7 @@ impl ChatOperation {
     /// Leave the chat
     async fn execute_leave_chat(
         &mut self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext { db, key_store, .. } = context;
         let job = db
@@ -245,7 +248,7 @@ impl ChatOperation {
     /// Update the chat
     async fn execute_update(
         self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
         chat_attributes: Option<ChatAttributes>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext {
@@ -339,7 +342,7 @@ impl ChatOperation {
 
     async fn execute_delete(
         self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext { db, key_store, .. } = context;
         let job = db

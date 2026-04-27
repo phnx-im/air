@@ -776,7 +776,7 @@ impl Chat {
     }
 
     #[cfg(feature = "test_utils")]
-    pub async fn self_updated_at(
+    pub(crate) async fn self_updated_at(
         mut connection: impl ReadConnection,
         chat_id: ChatId,
     ) -> sqlx::Result<Option<DateTime<Utc>>> {
@@ -794,7 +794,7 @@ impl Chat {
     }
 
     #[cfg(feature = "test_utils")]
-    pub async fn set_self_updated_at(
+    pub(crate) async fn set_self_updated_at(
         mut connection: impl WriteConnection,
         chat_id: ChatId,
         self_updated_at: DateTime<Utc>,

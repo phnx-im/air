@@ -132,7 +132,7 @@ impl Job for FetchUserProfileOperation {
 
     async fn execute_logic(
         self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<Self::Output, JobError<Self::DomainError>> {
         let Self {
             client_credential,
@@ -165,10 +165,8 @@ impl Job for FetchUserProfileOperation {
             .map_err(JobError::fatal)?;
 
         // Phase 4: Store the user profile and key in the database
-        context
-            .db
-            .write()
-            .await?
+        let mut write = context.db.write().await?;
+        write
             .with_transaction(async |txn| -> anyhow::Result<()> {
                 user_profile_key.store(&mut *txn).await?;
                 persistable_user_profile.persist(&mut *txn).await?;
@@ -212,7 +210,7 @@ impl Job for FetchGroupProfileOperation {
 
     async fn execute_logic(
         self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<Self::Output, JobError<Self::DomainError>> {
         let Self {
             group_id,

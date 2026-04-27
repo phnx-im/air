@@ -815,7 +815,7 @@ impl CoreUser {
             key_store: &self.inner.key_store,
             now: Utc::now(),
         };
-        Ok(job.execute(&mut context).await?)
+        job.execute(&mut context).await
     }
 }
 

@@ -114,9 +114,8 @@ impl CoreUser {
             .await?;
 
         // Create a new group by joining it (if group already exists, it will be replaced)
-        let result = self
-            .db()
-            .with_write_transaction(async |txn| -> anyhow::Result<Result<_, _>> {
+        let result = Box::pin(self.db().with_write_transaction(
+            async |txn| -> anyhow::Result<Result<_, _>> {
                 if Group::load_with_chat_id(&mut *txn, chat_id)
                     .await?
                     .is_some()
@@ -208,8 +207,9 @@ impl CoreUser {
                 }
 
                 Ok(Ok((commit, group_info)))
-            })
-            .await?;
+            },
+        ))
+        .await?;
 
         // Propagate the error to the caller if it is a leaf node validation error.
         let (commit, group_info) = match result {

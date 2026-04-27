@@ -165,7 +165,7 @@ impl CoreUser {
     }
 
     pub(crate) async fn process_connection_offer(
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
         connection_info_source: ConnectionInfoSource,
     ) -> anyhow::Result<ChatId> {
         let api_clients = context.api_clients.clone();

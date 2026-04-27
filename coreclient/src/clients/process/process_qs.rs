@@ -118,9 +118,9 @@ impl CoreUser {
     /// * get a QS verifying key from the QS. This also happens when a user
     ///   externally joins a connection group to verify the KeyPackageBatches
     ///   received from the QS as part of the AddInfo download.
-    async fn process_qs_message(
-        &self,
-        txn: &mut WriteDbTransaction<'_>,
+    async fn process_qs_message<'a>(
+        &'a self,
+        txn: &'a mut WriteDbTransaction<'_>,
         qs_queue_message: ExtractedQsQueueMessage,
         read_receipts_enabled: bool,
     ) -> Result<ProcessQsMessageResult> {
@@ -335,9 +335,9 @@ impl CoreUser {
         Ok(ProcessQsMessageResult::NewChat(chat.id(), messages))
     }
 
-    async fn handle_targeted_application_message(
-        &self,
-        txn: &mut WriteDbTransaction<'_>,
+    async fn handle_targeted_application_message<'a>(
+        &'a self,
+        txn: &'a mut WriteDbTransaction<'_>,
         mls_message: MlsMessageIn,
         ds_timestamp: TimeStamp,
     ) -> Result<ProcessQsMessageResult> {

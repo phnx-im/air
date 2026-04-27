@@ -155,7 +155,7 @@ impl ClientRecord {
         Self::load_all(db.read().await?).await
     }
 
-    pub async fn load_all(mut connection: impl ReadConnection) -> sqlx::Result<Vec<Self>> {
+    pub(crate) async fn load_all(mut connection: impl ReadConnection) -> sqlx::Result<Vec<Self>> {
         let records = query_as!(
             SqlClientRecord,
             r#"
@@ -217,7 +217,7 @@ impl ClientRecord {
         Ok(())
     }
 
-    pub async fn set_default(
+    pub(crate) async fn set_default(
         mut connection: impl WriteConnection,
         user_id: &UserId,
     ) -> sqlx::Result<()> {

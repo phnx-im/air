@@ -134,10 +134,7 @@ mod persistence {
         /// Enqueue an operation
         ///
         /// If an operation with the same id is already enqueued, it is overwritten.
-        pub(crate) async fn enqueue<'a>(
-            &self,
-            mut connection: impl WriteConnection,
-        ) -> sqlx::Result<()>
+        pub(crate) async fn enqueue(&self, mut connection: impl WriteConnection) -> sqlx::Result<()>
         where
             T: OperationData + Serialize,
         {

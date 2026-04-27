@@ -176,7 +176,7 @@ impl From<SqlChatMessage> for ChatMessage {
 }
 
 impl ChatMessage {
-    pub async fn load(
+    pub(crate) async fn load(
         mut connection: impl ReadConnection,
         message_id: MessageId,
     ) -> sqlx::Result<Option<Self>> {
