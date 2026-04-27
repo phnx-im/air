@@ -39,7 +39,7 @@ mod receipt_queue;
 mod receipts;
 pub(crate) mod resync;
 mod retry_pending_chat_operations;
-mod timed_tasks;
+pub(crate) mod timed_tasks;
 
 /// A service which is responsible for processing outbound messages.
 ///
