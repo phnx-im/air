@@ -1438,8 +1438,6 @@ mod handle_group_not_found_tests {
         )?;
         group.store(&mut connection).await?;
 
-        // XXX: fixme
-        // let mut notifier = StoreNotifier::noop();
         let chat = Chat::new_targeted_message_chat(
             group_id.clone(),
             ChatAttributes::new("Blocked chat".into(), None),

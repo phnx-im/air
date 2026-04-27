@@ -81,7 +81,7 @@ impl StoreNotifier {
     }
 
     /// Send collected notifications to the subscribers, if there are any.
-    pub(crate) fn notify(&mut self) {
+    pub(crate) fn notify(mut self) {
         if !self.notification.ops.is_empty() {
             let notification = mem::take(&mut self.notification);
             self.tx.notify(Arc::new(notification));

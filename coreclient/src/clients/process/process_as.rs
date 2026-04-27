@@ -34,7 +34,7 @@ use crate::{
         },
     },
     contacts::UsernameContact,
-    db_access::{ReadConnection, WriteDbConnection},
+    db_access::{ReadConnection, WriteConnection, WriteDbConnection},
     groups::ProfileInfo,
     job::{Job, JobContext},
     usernames::connection_packages::StorableConnectionPackage,
@@ -158,7 +158,7 @@ impl CoreUser {
                 };
                 let chat_id =
                     Self::process_connection_offer(&mut context, connection_info_source).await?;
-                // notifier.notify(); // XXX: notify only at the end of the job? what about the transaction helper?
+
                 Ok(chat_id)
             }
         }
@@ -179,11 +179,12 @@ impl CoreUser {
         ) = connection_info_source
             .into_parts(&mut db.write().await?, context.api_clients)
             .await?;
+
         // Use the server's timestamp if available, otherwise fall back to current time
         let message_timestamp = sent_at.unwrap_or_else(TimeStamp::now);
 
         // Deny connection from blocked users
-        if BlockedContact::check_blocked(&mut db.write().await?, sender_client_credential.user_id())
+        if BlockedContact::check_blocked(db.read().await?, sender_client_credential.user_id())
             .await?
         {
             bail!(BlockedContactError);
@@ -193,10 +194,7 @@ impl CoreUser {
         // ChatId is deterministic from the group_id, so a duplicate offer will
         // produce the same chat_id and we can safely return early.
         let chat_id = ChatId::try_from(&connection_info.connection_group_id)?;
-        if Chat::load(&mut db.write().await?, &chat_id)
-            .await?
-            .is_some()
-        {
+        if Chat::load(db.read().await?, &chat_id).await?.is_some() {
             return Ok(chat_id);
         }
 
@@ -334,14 +332,14 @@ impl CoreUser {
 
     /// Parse and verify the connection offer
     async fn parse_and_verify_connection_offer(
-        connection: &mut WriteDbConnection,
+        mut connection: impl WriteConnection,
         api_clients: &ApiClients,
         com: ConnectionOfferMessage,
         user_handle: Username,
     ) -> Result<(ConnectionOfferPayload, ConnectionPackageHash)> {
         let (eco, hash) = com.into_parts();
 
-        let decryption_key = ConnectionPackage::load_decryption_key(&mut *connection, &hash)
+        let decryption_key = ConnectionPackage::load_decryption_key(&mut connection, &hash)
             .await?
             .context("No decryption key found for incoming connection offer")?;
 

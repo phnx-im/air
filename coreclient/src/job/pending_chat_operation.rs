@@ -1018,7 +1018,6 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn store_and_load_roundtrip() -> anyhow::Result<()> {
         let (pool, mut group, chat_id, signing_key) = setup_group_and_chat().await?;
-        let mut connection = pool.read().await?;
 
         let leave_params = group
             .group_mut()
@@ -1027,7 +1026,7 @@ mod tests {
 
         pending.store(pool.write().await?).await?;
 
-        let loaded = PendingChatOperation::load(&mut connection, &chat_id)
+        let loaded = PendingChatOperation::load(pool.read().await?, &chat_id)
             .await?
             .expect("Loading stored operation failed");
 

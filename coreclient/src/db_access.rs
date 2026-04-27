@@ -30,6 +30,7 @@ pub(crate) struct ReadDbTransaction<'a> {
 #[derive(Debug)]
 pub(crate) struct WriteDbConnection {
     conn: PoolConnection<Sqlite>,
+    notifier_tx: StoreNotificationsSender,
     notifier: StoreNotifier,
 }
 
@@ -96,7 +97,6 @@ pub trait WriteConnection: ReadConnection + AsMut<SqliteConnection> {
             };
             let value = f(&mut txn).await?;
             txn.commit().await?;
-            self.notifier().notify();
             Ok(value)
         }
     }
@@ -128,6 +128,7 @@ impl DbAccess {
         let conn = self.pool.acquire().await?;
         Ok(WriteDbConnection {
             conn,
+            notifier_tx: self.notifier_tx.clone(),
             notifier: self.notifier(),
         })
     }
@@ -149,8 +150,13 @@ impl DbAccess {
 }
 
 impl WriteDbConnection {
-    pub(crate) fn notify(mut self) {
-        self.notifier.notify();
+    /// Send all accumulated notifications until this point manually.
+    pub(crate) fn notify(&mut self) {
+        let notifier = std::mem::replace(
+            &mut self.notifier,
+            StoreNotifier::new(self.notifier_tx.clone()),
+        );
+        drop(notifier);
     }
 }
 

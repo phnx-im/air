@@ -194,7 +194,6 @@ mod persistence {
                 messages::persistence::tests::test_chat_message, persistence::tests::test_chat,
             },
             db_access::DbAccess,
-            store::StoreNotifier,
         };
 
         use super::*;

@@ -60,7 +60,6 @@ pub(crate) async fn open_air_db(db_path: &str) -> sqlx::Result<DbAccess> {
 
     migrate!("migrations/air").run(&pool).await?;
 
-    // XXX: not sure it's the right thing to do?
     Ok(DbAccess::new(pool, StoreNotificationsSender::new()))
 }
 

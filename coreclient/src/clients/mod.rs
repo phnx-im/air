@@ -670,7 +670,6 @@ impl CoreUser {
 
     /// Returns how many messages in the chat with the given ID are
     /// marked as unread.
-    /// XXX: why is this not anyhow::Result<>??
     pub async fn unread_messages_count(&self, chat_id: ChatId) -> usize {
         let Ok(connection) = self
             .db()
