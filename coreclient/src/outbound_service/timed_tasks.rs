@@ -355,7 +355,7 @@ impl OutboundServiceContext {
             }) => {
                 warn!(
                     %operation_type,
-                    retry_after_sec = retry_after.num_seconds(),
+                    retry_after_secs = retry_after.num_seconds(),
                     tokens_available,
                     "quota exceeded"
                 );

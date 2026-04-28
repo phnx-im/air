@@ -60,7 +60,7 @@ impl AuthService {
         if let OperationType::AddUsername = operation_type {
             // Token allowance is not yet enforced for AddUsername
         } else if token_allowance.remaining < tokens_requested {
-            let (retry_after_sec, tokens_available) = if token_allowance.remaining > 0 {
+            let (retry_after_secs, tokens_available) = if token_allowance.remaining > 0 {
                 (0, token_allowance.remaining)
             } else {
                 let secs = token_allowance
@@ -71,7 +71,7 @@ impl AuthService {
                 (secs, operation_type.max_tokens_allowance())
             };
             return Err(IssueTokensError::TooManyTokensRequested {
-                retry_after_sec,
+                retry_after_secs,
                 tokens_available,
             });
         }
@@ -345,7 +345,7 @@ mod tests {
         Ok(())
     }
 
-    /// When the quota is fully exhausted the error carries a non-zero retry_after_sec and the full
+    /// When the quota is fully exhausted the error carries a non-zero retry_after_secs and the full
     /// allowance as tokens_available.
     #[sqlx::test]
     async fn quota_exhausted_returns_retry_after(pool: PgPool) -> anyhow::Result<()> {
@@ -383,13 +383,13 @@ mod tests {
             .unwrap_err();
 
         let IssueTokensError::TooManyTokensRequested {
-            retry_after_sec,
+            retry_after_secs,
             tokens_available,
         } = err
         else {
             panic!("expected TooManyTokensRequested, got {err:?}");
         };
-        assert!(retry_after_sec > 0, "should have a non-zero retry delay");
+        assert!(retry_after_secs > 0, "should have a non-zero retry delay");
         assert_eq!(
             tokens_available, max,
             "should advertise the full allowance after reset"
@@ -399,7 +399,7 @@ mod tests {
     }
 
     /// When some tokens remain but fewer than requested, the error signals they are available
-    /// immediately with retry_after_sec == 0.
+    /// immediately with retry_after_secs == 0.
     #[sqlx::test]
     async fn quota_partial_returns_remaining_tokens_now(pool: PgPool) -> anyhow::Result<()> {
         let (service, public_keys) = setup_with_keypair(&pool).await?;
@@ -425,13 +425,16 @@ mod tests {
             .unwrap_err();
 
         let IssueTokensError::TooManyTokensRequested {
-            retry_after_sec,
+            retry_after_secs,
             tokens_available,
         } = err
         else {
             panic!("expected TooManyTokensRequested, got {err:?}");
         };
-        assert_eq!(retry_after_sec, 0, "token is available now, no wait needed");
+        assert_eq!(
+            retry_after_secs, 0,
+            "token is available now, no wait needed"
+        );
         assert_eq!(
             tokens_available, 5,
             "one token remains in the current epoch"

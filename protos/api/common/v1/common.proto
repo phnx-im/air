@@ -111,7 +111,7 @@ message AttachmentTooLargeDetail {
 }
 
 message TokenQuotaExceededDetail {
-  uint64 retry_after_sec = 1;
+  uint64 retry_after_secs = 1;
   uint32 tokens_available = 2;
 }
 

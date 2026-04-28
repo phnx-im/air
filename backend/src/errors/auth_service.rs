@@ -97,7 +97,7 @@ pub(crate) enum IssueTokensError {
     /// Too many tokens requested
     #[error("Too many tokens requested")]
     TooManyTokensRequested {
-        retry_after_sec: u64,
+        retry_after_secs: u64,
         tokens_available: u16,
     },
     /// PrivacyPass protocol error
@@ -126,7 +126,7 @@ impl From<IssueTokensError> for Status {
                 Status::internal(msg)
             }
             IssueTokensError::TooManyTokensRequested {
-                retry_after_sec,
+                retry_after_secs,
                 tokens_available,
             } => Status::with_details(
                 tonic::Code::ResourceExhausted,
@@ -135,7 +135,7 @@ impl From<IssueTokensError> for Status {
                     code: StatusDetailsCode::TokenQuotaExceeded.into(),
                     detail: Some(status_details::Detail::TokenQuotaExceeded(
                         TokenQuotaExceededDetail {
-                            retry_after_sec,
+                            retry_after_secs,
                             tokens_available: tokens_available.into(),
                         },
                     )),

@@ -97,7 +97,7 @@ pub(crate) async fn request_and_store_tokens(
                 .token_quota_exceeded_detail()
                 .and_then(|d| {
                     Some((
-                        chrono::Duration::seconds(i64::try_from(d.retry_after_sec).ok()?),
+                        chrono::Duration::seconds(i64::try_from(d.retry_after_secs).ok()?),
                         u16::try_from(d.tokens_available).ok()?,
                     ))
                 })
