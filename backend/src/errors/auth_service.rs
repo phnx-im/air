@@ -94,9 +94,12 @@ pub(crate) enum IssueTokensError {
     /// Storage provider error
     #[error("Storage provider error")]
     StorageError(#[from] StorageError),
-    /// Too many tokens
+    /// Too many tokens requested
     #[error("Too many tokens requested")]
-    TooManyTokensRequested,
+    TooManyTokensRequested {
+        retry_after_secs: u64,
+        tokens_available: u16,
+    },
     /// PrivacyPass protocol error
     #[error("PrivacyPass protocol error")]
     PrivacyPassError(#[from] IssueTokenResponseError),
@@ -110,6 +113,11 @@ impl From<sqlx::Error> for IssueTokensError {
 
 impl From<IssueTokensError> for Status {
     fn from(e: IssueTokensError) -> Self {
+        use airprotos::common::v1::{
+            StatusDetails, StatusDetailsCode, TokenQuotaExceededDetail, status_details,
+        };
+        use prost::Message;
+
         let msg = e.to_string();
         match e {
             IssueTokensError::BadRequest(msg) => Status::invalid_argument(msg),
@@ -117,7 +125,24 @@ impl From<IssueTokensError> for Status {
                 error!(%error, "storage error while issuing tokens");
                 Status::internal(msg)
             }
-            IssueTokensError::TooManyTokensRequested => Status::resource_exhausted(msg),
+            IssueTokensError::TooManyTokensRequested {
+                retry_after_secs,
+                tokens_available,
+            } => Status::with_details(
+                tonic::Code::ResourceExhausted,
+                msg,
+                StatusDetails {
+                    code: StatusDetailsCode::TokenQuotaExceeded.into(),
+                    detail: Some(status_details::Detail::TokenQuotaExceeded(
+                        TokenQuotaExceededDetail {
+                            retry_after_secs,
+                            tokens_available: tokens_available.into(),
+                        },
+                    )),
+                }
+                .encode_to_vec()
+                .into(),
+            ),
             IssueTokensError::PrivacyPassError(error) => {
                 error!(%error, "failed to issue tokens");
                 Status::internal(msg)

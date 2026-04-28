@@ -39,8 +39,17 @@ pub(crate) mod persistence;
 
 #[derive(Debug, thiserror::Error)]
 pub enum RequestTokensError {
-    #[error("quota exceeded")]
-    QuotaExceeded,
+    #[error("quota exceeded: {tokens_available} tokens available in {retry_after:?}")]
+    QuotaExceeded {
+        /// How long until the quota resets.
+        ///
+        /// Zero means tokens are available now.
+        retry_after: chrono::Duration,
+        /// How many tokens will be available.
+        ///
+        /// Now if retry_after is zero, or after the reset if retry_after is non-zero.
+        tokens_available: u16,
+    },
 }
 
 /// Requests a batch of Privacy Pass tokens from the AS and stores them locally.
@@ -84,7 +93,19 @@ pub(crate) async fn request_and_store_tokens(
     {
         Ok(response) => response,
         Err(error) if error.is_resource_exhausted() => {
-            return Ok(Err(RequestTokensError::QuotaExceeded));
+            let (retry_after, tokens_available) = error
+                .token_quota_exceeded_detail()
+                .and_then(|d| {
+                    Some((
+                        chrono::Duration::seconds(i64::try_from(d.retry_after_secs).ok()?),
+                        u16::try_from(d.tokens_available).ok()?,
+                    ))
+                })
+                .unwrap_or((chrono::Duration::zero(), 0));
+            return Ok(Err(RequestTokensError::QuotaExceeded {
+                retry_after,
+                tokens_available,
+            }));
         }
         Err(error) => return Err(error.into()),
     };
