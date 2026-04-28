@@ -312,6 +312,16 @@ class AppLocalizationsDe extends AppLocalizations {
       'In Zwischenablage kopiert';
 
   @override
+  String invitationCodesScreen_codeClipboardMessage(Object code) {
+    return 'Lass uns auf Air chatten: https://air.ms/install. Verwende den Einladungscode $code.';
+  }
+
+  @override
+  String invitationCodesScreen_codesClipboardMessage(Object codes) {
+    return 'Lass uns auf Air chatten: https://air.ms/install. Verwende einen dieser Einladungscodes:\n\n$codes';
+  }
+
+  @override
   String get signUpScreen_header => 'Erstelle dein Profil';
 
   @override

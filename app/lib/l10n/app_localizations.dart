@@ -618,6 +618,18 @@ abstract class AppLocalizations {
   /// **'Copied to clipboard'**
   String get invitationCodesScreen_copiedToClipboard;
 
+  /// No description provided for @invitationCodesScreen_codeClipboardMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Let\'s chat on Air: https://air.ms/install. Use invite code {code}.'**
+  String invitationCodesScreen_codeClipboardMessage(Object code);
+
+  /// No description provided for @invitationCodesScreen_codesClipboardMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Let\'s chat on Air: https://air.ms/install. Use one of these invite codes to join:\n\n{codes}'**
+  String invitationCodesScreen_codesClipboardMessage(Object codes);
+
   /// No description provided for @signUpScreen_header.
   ///
   /// In en, this message translates to:
