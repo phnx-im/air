@@ -222,7 +222,7 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
             // No group profile is uploaded, because there is no additational data except for the
             // title.
             external_group_profile: None,
-            legacy_title: None,
+            legacy_title: Some(title),
         }
         .encode()?;
 
