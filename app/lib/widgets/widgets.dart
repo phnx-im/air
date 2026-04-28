@@ -9,6 +9,7 @@ export 'app_bar_back_button.dart';
 export 'app_bar_plus_button.dart';
 export 'avatar.dart';
 export 'edge_fade.dart';
+export 'faded_scroll_frame.dart';
 export 'message_status_icon.dart';
 export 'progress_button.dart';
 export 'username_input_formatter.dart';

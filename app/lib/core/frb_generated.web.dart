@@ -805,6 +805,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   HomeNavigationState dco_decode_home_navigation_state(dynamic raw);
 
   @protected
+  HomeTab dco_decode_home_tab(dynamic raw);
+
+  @protected
   int dco_decode_i_32(dynamic raw);
 
   @protected
@@ -1971,6 +1974,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   HomeNavigationState sse_decode_home_navigation_state(
     SseDeserializer deserializer,
   );
+
+  @protected
+  HomeTab sse_decode_home_tab(SseDeserializer deserializer);
 
   @protected
   int sse_decode_i_32(SseDeserializer deserializer);
@@ -3401,6 +3407,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     HomeNavigationState self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_home_tab(HomeTab self, SseSerializer serializer);
 
   @protected
   void sse_encode_i_32(int self, SseSerializer serializer);

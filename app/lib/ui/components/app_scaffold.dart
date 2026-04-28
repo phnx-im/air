@@ -27,6 +27,7 @@ class AppScaffold extends StatelessWidget {
       appBar: AppBar(
         elevation: 0,
         scrolledUnderElevation: 0,
+        clipBehavior: Clip.none,
         backgroundColor: backgroundColor,
         leading: const AppBarBackButton(),
         title: title != null

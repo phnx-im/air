@@ -1043,6 +1043,12 @@ class AppLocalizationsFr extends AppLocalizations {
   String get errorBanner_ok => 'OK';
 
   @override
+  String get homeTab_chats => 'Discussions';
+
+  @override
+  String get homeTab_profile => 'Profil';
+
+  @override
   String messageList_unreadMessages(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

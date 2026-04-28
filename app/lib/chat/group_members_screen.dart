@@ -106,6 +106,7 @@ class GroupMembersView extends HookWidget {
       appBar: AppBar(
         elevation: 0,
         scrolledUnderElevation: 0,
+        clipBehavior: Clip.none,
         leading: const AppBarBackButton(),
         title: Text(loc.groupMembersScreen_title),
         actions: [

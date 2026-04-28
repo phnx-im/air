@@ -5,6 +5,7 @@
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/spacings.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/components/button/glass_circle_button.dart';
 import 'package:air/ui/icons/app_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -22,41 +23,25 @@ class AppBarBackButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
-    final foregroundColor = this.foregroundColor ?? colors.text.primary;
-    final backgroundColor =
-        this.backgroundColor ?? colors.backgroundBase.secondary;
 
     return Padding(
       padding: const EdgeInsets.only(left: Spacings.s),
       child: Align(
         alignment: Alignment.centerLeft,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onTap: () async {
+        child: GlassCircleButton(
+          icon: AppIcon.arrowLeft(
+            size: 20,
+            color: foregroundColor ?? colors.text.primary,
+          ),
+          color: backgroundColor,
+          hitTargetSize: 48,
+          onPressed: () async {
             final navigator = Navigator.of(context);
             final popped = await navigator.maybePop();
             if (!popped && context.mounted) {
               context.read<NavigationCubit>().pop();
             }
           },
-          child: SizedBox(
-            width: 48,
-            height: 48,
-            child: Align(
-              alignment: Alignment.centerLeft,
-              child: Container(
-                width: 32,
-                height: 32,
-                decoration: BoxDecoration(
-                  color: backgroundColor,
-                  shape: BoxShape.circle,
-                ),
-                child: Center(
-                  child: AppIcon.arrowLeft(size: 16, color: foregroundColor),
-                ),
-              ),
-            ),
-          ),
         ),
       ),
     );

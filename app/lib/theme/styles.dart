@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/theme/responsive_screen.dart';
 import 'package:air/theme/spacings.dart';
 import 'package:air/ui/theme/font.dart';
 import 'package:flutter/material.dart';
@@ -11,11 +12,11 @@ import 'dart:io' show Platform;
 // === Devices ===
 
 bool isSmallScreen(BuildContext context) {
-  return MediaQuery.sizeOf(context).width <= 600;
+  return MediaQuery.sizeOf(context).width < kMobileBreakpoint;
 }
 
 bool isLargeScreen(BuildContext context) {
-  return MediaQuery.sizeOf(context).width > 600;
+  return MediaQuery.sizeOf(context).width >= kMobileBreakpoint;
 }
 
 bool isTouch() {

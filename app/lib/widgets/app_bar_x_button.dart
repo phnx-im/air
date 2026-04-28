@@ -4,6 +4,7 @@
 
 import 'package:air/theme/spacings.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/components/button/glass_circle_button.dart';
 import 'package:air/ui/icons/app_icons.dart';
 import 'package:flutter/material.dart';
 
@@ -25,28 +26,14 @@ class AppBarXButton extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.only(right: Spacings.m),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
-          customBorder: const CircleBorder(),
-          overlayColor: WidgetStateProperty.all(Colors.transparent),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: backgroundColor ?? colors.backgroundBase.secondary,
-              shape: BoxShape.circle,
-            ),
-            child: SizedBox.square(
-              dimension: 24,
-              child: Center(
-                child: AppIcon.x(
-                  size: 16,
-                  color: foregroundColor ?? colors.text.primary,
-                ),
-              ),
-            ),
-          ),
+      child: GlassCircleButton(
+        icon: AppIcon.x(
+          size: 20,
+          color: foregroundColor ?? colors.text.primary,
         ),
+        color: backgroundColor,
+        hitTargetSize: 48,
+        onPressed: onPressed,
       ),
     );
   }

@@ -1803,6 +1803,18 @@ abstract class AppLocalizations {
   /// **'OK'**
   String get errorBanner_ok;
 
+  /// No description provided for @homeTab_chats.
+  ///
+  /// In en, this message translates to:
+  /// **'Chats'**
+  String get homeTab_chats;
+
+  /// No description provided for @homeTab_profile.
+  ///
+  /// In en, this message translates to:
+  /// **'You'**
+  String get homeTab_profile;
+
   /// No description provided for @messageList_unreadMessages.
   ///
   /// In en, this message translates to:
