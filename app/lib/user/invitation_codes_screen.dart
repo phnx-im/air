@@ -116,13 +116,19 @@ class InvitationCodesView extends StatelessWidget {
   }
 
   void _handleCopyAll(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final invitationCodesCubit = context.read<InvitationCodesCubit>();
     final codes = invitationCodesCubit.state.codes
         .whereType<UiInvitationCode_Code>()
         .where((code) => !code.field0.copied)
         .map((code) => code.field0.code)
         .toList();
-    Clipboard.setData(ClipboardData(text: codes.join("\n")));
+
+    Clipboard.setData(
+      ClipboardData(
+        text: loc.invitationCodesScreen_codesClipboardMessage(codes.join("\n")),
+      ),
+    );
 
     for (final code in codes) {
       invitationCodesCubit.markInvitationCodeAsCopied(copiedCode: code);
@@ -220,7 +226,14 @@ class _InvitationCodeItem extends StatelessWidget {
   }
 
   void _handleCopy(BuildContext context) {
-    Clipboard.setData(ClipboardData(text: code.code));
+    final loc = AppLocalizations.of(context);
+
+    Clipboard.setData(
+      ClipboardData(
+        text: loc.invitationCodesScreen_codeClipboardMessage(code.code),
+      ),
+    );
+
     showSnackBarStandalone(
       (loc) =>
           SnackBar(content: Text(loc.invitationCodesScreen_copiedToClipboard)),

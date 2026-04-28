@@ -316,6 +316,16 @@ class AppLocalizationsFr extends AppLocalizations {
       'Copié dans le presse-papiers';
 
   @override
+  String invitationCodesScreen_codeClipboardMessage(Object code) {
+    return 'Téléchargez Air et rejoignez-nous : https://air.ms/install. Utilises le code d\'invitation $code.';
+  }
+
+  @override
+  String invitationCodesScreen_codesClipboardMessage(Object codes) {
+    return 'Téléchargez Air et rejoignez-nous : https://air.ms/install. Utilises l\'un de ces codes d\'invitation pour rejoindre:\n\n$codes';
+  }
+
+  @override
   String get signUpScreen_header => 'Créez votre profil';
 
   @override

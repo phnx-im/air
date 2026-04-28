@@ -308,6 +308,16 @@ class AppLocalizationsSv extends AppLocalizations {
   String get invitationCodesScreen_copiedToClipboard => 'Kopierat till urklipp';
 
   @override
+  String invitationCodesScreen_codeClipboardMessage(Object code) {
+    return 'Låt oss chatta på Air: https://air.ms/install. Använd inbjudningskoden $code.';
+  }
+
+  @override
+  String invitationCodesScreen_codesClipboardMessage(Object codes) {
+    return 'Låt oss chatta på Air: https://air.ms/install. Använd en av dessa inbjudningskoder för att gå med:\n$codes';
+  }
+
+  @override
   String get signUpScreen_header => 'Skapa din profil';
 
   @override
