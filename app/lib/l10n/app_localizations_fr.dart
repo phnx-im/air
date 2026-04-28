@@ -1033,6 +1033,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get errorBanner_ok => 'OK';
 
   @override
+  String get memberSelectionList_client_not_supported =>
+      'This contact has an incompatible client which needs to be updated.';
+
+  @override
   String messageList_unreadMessages(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

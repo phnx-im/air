@@ -380,6 +380,8 @@
 
   "errorBanner_ok": "OK",
 
+  "memberSelectionList_client_not_supported": "This contact has an incompatible client which needs to be updated.",
+
   "messageList_unreadMessages": "{count, plural, one {{count} unread message} other {{count} unread messages}}",
   "@messageList_unreadMessages": {
     "placeholders": {

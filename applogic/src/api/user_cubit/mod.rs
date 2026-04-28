@@ -292,7 +292,11 @@ impl UserCubitBase {
 
     #[frb(getter)]
     pub async fn contacts(&self) -> anyhow::Result<Vec<UiContact>> {
-        let contacts = self.context.core_user.contacts().await?;
+        let contacts = self
+            .context
+            .core_user
+            .contacts_with_supported_features()
+            .await?;
         Ok(contacts.into_iter().map(From::from).collect())
     }
 

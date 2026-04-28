@@ -1791,6 +1791,12 @@ abstract class AppLocalizations {
   /// **'OK'**
   String get errorBanner_ok;
 
+  /// No description provided for @memberSelectionList_client_not_supported.
+  ///
+  /// In en, this message translates to:
+  /// **'This contact has an incompatible client which needs to be updated.'**
+  String get memberSelectionList_client_not_supported;
+
   /// No description provided for @messageList_unreadMessages.
   ///
   /// In en, this message translates to:

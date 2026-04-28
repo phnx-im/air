@@ -8050,14 +8050,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AirComponentDebugInfo dco_decode_air_component_debug_info(dynamic raw) {
+  AirComponent dco_decode_air_component(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
     if (arr.length != 1)
       throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
-    return AirComponentDebugInfo(
-      encryptedGroupProfiles: dco_decode_bool(arr[0]),
-    );
+    return AirComponent(features: dco_decode_air_features(arr[0]));
+  }
+
+  @protected
+  AirFeatures dco_decode_air_features(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 1)
+      throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
+    return AirFeatures(encryptedGroupProfiles: dco_decode_bool(arr[0]));
   }
 
   @protected
@@ -8068,7 +8075,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
     return AppDataDebugInfo(
       components: dco_decode_list_String(arr[0]),
-      airComponent: dco_decode_opt_box_autoadd_air_component_debug_info(arr[1]),
+      airComponent: dco_decode_opt_box_autoadd_air_component(arr[1]),
     );
   }
 
@@ -8184,11 +8191,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AirComponentDebugInfo dco_decode_box_autoadd_air_component_debug_info(
-    dynamic raw,
-  ) {
+  AirComponent dco_decode_box_autoadd_air_component(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_air_component_debug_info(raw);
+    return dco_decode_air_component(raw);
+  }
+
+  @protected
+  AirFeatures dco_decode_box_autoadd_air_features(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_air_features(raw);
   }
 
   @protected
@@ -9142,13 +9153,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AirComponentDebugInfo? dco_decode_opt_box_autoadd_air_component_debug_info(
-    dynamic raw,
-  ) {
+  AirComponent? dco_decode_opt_box_autoadd_air_component(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw == null
-        ? null
-        : dco_decode_box_autoadd_air_component_debug_info(raw);
+    return raw == null ? null : dco_decode_box_autoadd_air_component(raw);
+  }
+
+  @protected
+  AirFeatures? dco_decode_opt_box_autoadd_air_features(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_air_features(raw);
   }
 
   @protected
@@ -9663,11 +9676,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiContact dco_decode_ui_contact(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 2)
-      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    if (arr.length != 3)
+      throw Exception('unexpected arr length: expect 3 but see ${arr.length}');
     return UiContact(
       userId: dco_decode_ui_user_id(arr[0]),
       chatId: dco_decode_chat_id(arr[1]),
+      supportedFeatures: dco_decode_opt_box_autoadd_air_features(arr[2]),
     );
   }
 
@@ -10869,14 +10883,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AirComponentDebugInfo sse_decode_air_component_debug_info(
-    SseDeserializer deserializer,
-  ) {
+  AirComponent sse_decode_air_component(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_features = sse_decode_air_features(deserializer);
+    return AirComponent(features: var_features);
+  }
+
+  @protected
+  AirFeatures sse_decode_air_features(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_encryptedGroupProfiles = sse_decode_bool(deserializer);
-    return AirComponentDebugInfo(
-      encryptedGroupProfiles: var_encryptedGroupProfiles,
-    );
+    return AirFeatures(encryptedGroupProfiles: var_encryptedGroupProfiles);
   }
 
   @protected
@@ -10885,7 +10902,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_components = sse_decode_list_String(deserializer);
-    var var_airComponent = sse_decode_opt_box_autoadd_air_component_debug_info(
+    var var_airComponent = sse_decode_opt_box_autoadd_air_component(
       deserializer,
     );
     return AppDataDebugInfo(
@@ -11009,11 +11026,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AirComponentDebugInfo sse_decode_box_autoadd_air_component_debug_info(
+  AirComponent sse_decode_box_autoadd_air_component(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_air_component_debug_info(deserializer));
+    return (sse_decode_air_component(deserializer));
+  }
+
+  @protected
+  AirFeatures sse_decode_box_autoadd_air_features(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_air_features(deserializer));
   }
 
   @protected
@@ -12232,13 +12257,26 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AirComponentDebugInfo? sse_decode_opt_box_autoadd_air_component_debug_info(
+  AirComponent? sse_decode_opt_box_autoadd_air_component(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_air_component_debug_info(deserializer));
+      return (sse_decode_box_autoadd_air_component(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  AirFeatures? sse_decode_opt_box_autoadd_air_features(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_air_features(deserializer));
     } else {
       return null;
     }
@@ -12936,7 +12974,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_userId = sse_decode_ui_user_id(deserializer);
     var var_chatId = sse_decode_chat_id(deserializer);
-    return UiContact(userId: var_userId, chatId: var_chatId);
+    var var_supportedFeatures = sse_decode_opt_box_autoadd_air_features(
+      deserializer,
+    );
+    return UiContact(
+      userId: var_userId,
+      chatId: var_chatId,
+      supportedFeatures: var_supportedFeatures,
+    );
   }
 
   @protected
@@ -14404,10 +14449,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_air_component_debug_info(
-    AirComponentDebugInfo self,
-    SseSerializer serializer,
-  ) {
+  void sse_encode_air_component(AirComponent self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_air_features(self.features, serializer);
+  }
+
+  @protected
+  void sse_encode_air_features(AirFeatures self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_bool(self.encryptedGroupProfiles, serializer);
   }
@@ -14419,10 +14467,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_String(self.components, serializer);
-    sse_encode_opt_box_autoadd_air_component_debug_info(
-      self.airComponent,
-      serializer,
-    );
+    sse_encode_opt_box_autoadd_air_component(self.airComponent, serializer);
   }
 
   @protected
@@ -14536,12 +14581,21 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_box_autoadd_air_component_debug_info(
-    AirComponentDebugInfo self,
+  void sse_encode_box_autoadd_air_component(
+    AirComponent self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_air_component_debug_info(self, serializer);
+    sse_encode_air_component(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_air_features(
+    AirFeatures self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_air_features(self, serializer);
   }
 
   @protected
@@ -15695,15 +15749,28 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_opt_box_autoadd_air_component_debug_info(
-    AirComponentDebugInfo? self,
+  void sse_encode_opt_box_autoadd_air_component(
+    AirComponent? self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     sse_encode_bool(self != null, serializer);
     if (self != null) {
-      sse_encode_box_autoadd_air_component_debug_info(self, serializer);
+      sse_encode_box_autoadd_air_component(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_box_autoadd_air_features(
+    AirFeatures? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_air_features(self, serializer);
     }
   }
 
@@ -16344,6 +16411,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_ui_user_id(self.userId, serializer);
     sse_encode_chat_id(self.chatId, serializer);
+    sse_encode_opt_box_autoadd_air_features(self.supportedFeatures, serializer);
   }
 
   @protected
