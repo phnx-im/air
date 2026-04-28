@@ -84,6 +84,7 @@ message StatusDetails {
     VersionUnsupportedDetail version_unsupported = 2;
     AttachmentTooLargeDetail attachment_too_large = 3;
     WrongEpochDetail wrong_epoch = 4;
+    TokenQuotaExceededDetail token_quota_exceeded = 5;
   }
 }
 
@@ -95,6 +96,8 @@ enum StatusDetailsCode {
   STATUS_DETAILS_CODE_WRONG_EPOCH = 3;
   // Token key ID not recognized
   STATUS_DETAILS_CODE_UNKNOWN_TOKEN_KEY_ID = 4;
+  // Token quota exceeded; retry after the indicated number of seconds
+  STATUS_DETAILS_CODE_TOKEN_QUOTA_EXCEEDED = 5;
 }
 
 message VersionUnsupportedDetail {
@@ -109,6 +112,7 @@ message AttachmentTooLargeDetail {
 
 message TokenQuotaExceededDetail {
   uint64 retry_after_sec = 1;
+  uint32 tokens_available = 2;
 }
 
 message WrongEpochDetail {}

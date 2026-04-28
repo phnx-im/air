@@ -342,13 +342,44 @@ impl OutboundServiceContext {
         )
         .await?
         {
-            Ok(count) if count < usize::from(operation_type.low_tokens_threshold()) => {
-                Ok(Duration::minutes(5))
+            Ok(count) => {
+                if count < usize::from(operation_type.low_tokens_threshold()) {
+                    Ok(Duration::minutes(5))
+                } else {
+                    Ok(Duration::hours(6))
+                }
             }
-            Ok(_) => Ok(Duration::hours(6)),
-            Err(RequestTokensError::QuotaExceeded) => {
-                warn!(%operation_type, "quota exceeded");
-                Ok(Duration::hours(6))
+            Err(RequestTokensError::QuotaExceeded {
+                retry_after,
+                tokens_available,
+            }) => {
+                warn!(
+                    %operation_type,
+                    retry_after_sec = retry_after.num_seconds(),
+                    tokens_available,
+                    "quota exceeded"
+                );
+                if tokens_available > 0 && retry_after.is_zero() {
+                    // Partial quota: some tokens are available right now. Retry immediately with
+                    // the reduced count.
+                    match privacy_pass::request_and_store_tokens(
+                        self.pool(),
+                        &api_client,
+                        self.user_id().clone(),
+                        self.signing_key(),
+                        operation_type,
+                        tokens_available,
+                    )
+                    .await?
+                    {
+                        Ok(_) => Ok(Duration::hours(6)),
+                        Err(RequestTokensError::QuotaExceeded { retry_after, .. }) => {
+                            Ok(retry_after.max(Duration::minutes(5)))
+                        }
+                    }
+                } else {
+                    Ok(retry_after.max(Duration::minutes(5)))
+                }
             }
         }
     }

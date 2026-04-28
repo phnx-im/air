@@ -38,7 +38,7 @@ use airprotos::{
         RefreshUsernamePayload, RegisterUserRequest, ReportSpamPayload, StageUserProfilePayload,
         UsernameQueueMessage, connect_request, connect_response, listen_username_request,
     },
-    common::v1::{StatusDetails, StatusDetailsCode},
+    common::v1::{StatusDetails, StatusDetailsCode, TokenQuotaExceededDetail, status_details},
 };
 use futures_util::{FutureExt, future::BoxFuture};
 use thiserror::Error;
@@ -114,6 +114,22 @@ impl AsRequestError {
             matches!(status.code(), Code::ResourceExhausted)
         } else {
             false
+        }
+    }
+
+    /// Returns the token quota details when the server rejected the request due
+    /// to quota exhaustion, or `None` for any other error.
+    pub fn token_quota_exceeded_detail(&self) -> Option<TokenQuotaExceededDetail> {
+        let Self::Tonic(status) = self else {
+            return None;
+        };
+        if status.code() != Code::ResourceExhausted {
+            return None;
+        }
+        let details = StatusDetails::from_status(status)?;
+        match details.detail? {
+            status_details::Detail::TokenQuotaExceeded(detail) => Some(detail),
+            _ => None,
         }
     }
 }
