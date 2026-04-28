@@ -64,12 +64,7 @@ class _HomeScreenMobileLayout extends StatelessWidget {
             },
           ),
         ),
-        const Positioned(
-          left: 0,
-          right: 0,
-          bottom: 0,
-          child: AppTabBar(),
-        ),
+        const Positioned(left: 0, right: 0, bottom: 0, child: AppTabBar()),
       ],
     );
   }
