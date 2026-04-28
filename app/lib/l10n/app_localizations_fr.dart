@@ -18,6 +18,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get appTitle => 'Air';
 
   @override
+  String get languageName => 'Français';
+
+  @override
   String get userSettingsScreen_title => 'Profil et paramètres';
 
   @override

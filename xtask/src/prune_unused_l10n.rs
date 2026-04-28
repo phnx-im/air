@@ -19,7 +19,10 @@ const DEFAULT_ARB: &str = "lib/l10n/app_en.arb";
 const DEFAULT_SEARCH_ROOTS: &[&str] = &["lib", "test"];
 const DEFAULT_EXTENSIONS: &[&str] = &[".dart", ".kt", ".swift", ".java", ".m", ".mm"];
 const DEFAULT_EXCLUDE_DIRS: &[&str] = &["lib/l10n"];
-const DEFAULT_INCLUDE_FILES: &[&str] = &["lib/l10n/app_localizations_extension.dart"];
+const DEFAULT_INCLUDE_FILES: &[&str] = &[
+    "lib/l10n/app_localizations_extension.dart",
+    "lib/l10n/language_options.dart",
+];
 
 #[derive(Args, Debug)]
 pub(crate) struct PruneArgs {

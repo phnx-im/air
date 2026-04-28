@@ -18,6 +18,9 @@ class AppLocalizationsSv extends AppLocalizations {
   String get appTitle => 'Air';
 
   @override
+  String get languageName => 'Svenska';
+
+  @override
   String get userSettingsScreen_title => 'Profil och inställningar';
 
   @override
