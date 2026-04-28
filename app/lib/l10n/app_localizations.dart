@@ -165,7 +165,7 @@ abstract class AppLocalizations {
   /// No description provided for @userSettingsScreen_sendWithEnterDescription.
   ///
   /// In en, this message translates to:
-  /// **'If disabled, pressing the Enter key won’t send a message.'**
+  /// **'If turned on, the keyboard\'s \"Enter\" key sends the message.'**
   String get userSettingsScreen_sendWithEnterDescription;
 
   /// No description provided for @userSettingsScreen_readReceipts.
@@ -177,7 +177,7 @@ abstract class AppLocalizations {
   /// No description provided for @userSettingsScreen_readReceiptsDescription.
   ///
   /// In en, this message translates to:
-  /// **'If disabled, others won’t be able to see when you’ve read their messages and you won’t be able to see when they’ve read yours.'**
+  /// **'If turned on, others will see if you’ve read their messages and you\'ll see if they’ve read yours.'**
   String get userSettingsScreen_readReceiptsDescription;
 
   /// No description provided for @userSettingsScreen_displayNameLabel.

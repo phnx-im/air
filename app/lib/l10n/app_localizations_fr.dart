@@ -45,14 +45,14 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get userSettingsScreen_sendWithEnterDescription =>
-      'Si cette option est désactivée, la touche Entrée n\'enverra pas de message.';
+      'Si activée, la touche « Entrée » du clavier envoie le message.';
 
   @override
   String get userSettingsScreen_readReceipts => 'Accusés de lecture';
 
   @override
   String get userSettingsScreen_readReceiptsDescription =>
-      'Si vous les désactivez, les autres ne verront pas quand vous aurez lu leurs messages et vous ne verrez pas quand ils auront lu les vôtres.';
+      'Si activés, les autres verront si vous avez lu leurs messages et vous verrez s\'ils ont lu les vôtres.';
 
   @override
   String get userSettingsScreen_displayNameLabel => 'Nom d\'affichage';
