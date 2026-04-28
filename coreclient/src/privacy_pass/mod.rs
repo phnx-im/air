@@ -41,10 +41,13 @@ pub(crate) mod persistence;
 pub enum RequestTokensError {
     #[error("quota exceeded: {tokens_available} tokens available in {retry_after:?}")]
     QuotaExceeded {
-        /// How long until the quota resets. Zero means tokens are available now.
+        /// How long until the quota resets.
+        ///
+        /// Zero means tokens are available now.
         retry_after: chrono::Duration,
-        /// How many tokens will be available (now if retry_after is zero, or after the reset if
-        /// retry_after is non-zero).
+        /// How many tokens will be available.
+        ///
+        /// Now if retry_after is zero, or after the reset if retry_after is non-zero.
         tokens_available: u16,
     },
 }

@@ -136,7 +136,7 @@ impl From<IssueTokensError> for Status {
                     detail: Some(status_details::Detail::TokenQuotaExceeded(
                         TokenQuotaExceededDetail {
                             retry_after_sec,
-                            tokens_available: tokens_available as u32,
+                            tokens_available: tokens_available.into(),
                         },
                     )),
                 }

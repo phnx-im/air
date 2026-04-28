@@ -117,8 +117,8 @@ impl AsRequestError {
         }
     }
 
-    /// Returns the token quota details when the server rejected the request due
-    /// to quota exhaustion, or `None` for any other error.
+    /// Returns the token quota details when the server rejected the request due to quota
+    /// exhaustion, or `None` for any other error.
     pub fn token_quota_exceeded_detail(&self) -> Option<TokenQuotaExceededDetail> {
         let Self::Tonic(status) = self else {
             return None;
