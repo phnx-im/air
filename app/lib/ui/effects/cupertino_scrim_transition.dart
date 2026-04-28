@@ -5,7 +5,7 @@
 import 'package:flutter/material.dart';
 
 /// [PageTransitionsBuilder] that mirrors [CupertinoPageTransitionsBuilder] and
-/// adds a translucent scrim over the outgoing route, bacause Cupertino's native
+/// adds a translucent scrim over the outgoing route, because Cupertino's native
 /// parallax does not dim the underlying page. We need this because we use the
 /// same background color on e.g. the chat list and the message list.
 class CupertinoScrimPageTransitionsBuilder extends PageTransitionsBuilder {
