@@ -1,6 +1,5 @@
 {
   "appTitle": "Air",
-  "languageName": "Français",
   "userSettingsScreen_title": "Profil et paramètres",
   "userSettingsScreen_profileDescription": "Votre nom d'affichage et votre photo de profil sont visibles pour vos contacts Air et les membres de vos groupes.",
   "userSettingsScreen_userNamesDescription": "Partagez des noms d'utilisateur avec d'autres pour qu'ils puissent se connecter avec vous. Après la connexion, les noms d'utilisateur ne sont plus visibles aux autres. Vous pouvez avoir jusqu'à 5 noms d'utilisateur.",
@@ -8,9 +7,9 @@
   "userSettingsScreen_help": "Aide",
   "userSettingsScreen_deleteAccount": "Supprimer le compte Air",
   "userSettingsScreen_sendWithEnter": "Envoyer avec Entrée",
-  "userSettingsScreen_sendWithEnterDescription": "Si cette option est désactivée, la touche Entrée n'enverra pas de message.",
+  "userSettingsScreen_sendWithEnterDescription": "Si activée, la touche « Entrée » du clavier envoie le message.",
   "userSettingsScreen_readReceipts": "Accusés de lecture",
-  "userSettingsScreen_readReceiptsDescription": "Si vous les désactivez, les autres ne verront pas quand vous aurez lu leurs messages et vous ne verrez pas quand ils auront lu les vôtres.",
+  "userSettingsScreen_readReceiptsDescription": "Si activés, les autres verront si vous avez lu leurs messages et vous verrez s'ils ont lu les vôtres.",
   "userSettingsScreen_displayNameLabel": "Nom d'affichage",
   "userSettingsScreen_usernamesSection": "Noms d'utilisateur",
   "userSettingsScreen_settingsSection": "Paramètres",

@@ -1,6 +1,5 @@
 {
   "appTitle": "Air",
-  "languageName": "Deutsch",
   "userSettingsScreen_title": "Profil und Einstellungen",
   "userSettingsScreen_profileDescription": "Dein Anzeigename und dein Profilbild sind für deine Air-Kontakte und Mitglieder deiner Gruppen sichtbar.",
   "userSettingsScreen_userNamesDescription": "Teile Benutzernamen mit anderen, damit sie sich mit dir verbinden können. Nach der Verbindung sind Benutzernamen für andere nicht mehr sichtbar. Du kannst bis zu 5 Benutzernamen haben.",
@@ -8,9 +7,9 @@
   "userSettingsScreen_help": "Hilfe",
   "userSettingsScreen_deleteAccount": "Air-Konto löschen",
   "userSettingsScreen_sendWithEnter": "Mit Eingabetaste senden",
-  "userSettingsScreen_sendWithEnterDescription": "Wenn deaktiviert, wir die Nachricht beim Drücken der Entertaste nicht versendet.",
+  "userSettingsScreen_sendWithEnterDescription": "Wenn aktiviert, sendet die \"Enter\"-Taste die Nachricht.",
   "userSettingsScreen_readReceipts": "Lesebestätigungen",
-  "userSettingsScreen_readReceiptsDescription": "Wenn deaktiviert, sehen andere nicht, wann du ihre Nachrichten gelesen hast, und du siehst nicht, wann sie deine gelesen haben.",
+  "userSettingsScreen_readReceiptsDescription": "Wenn aktiviert, sehen andere, ob du ihre Nachrichten gelesen hast, und du siehst, ob sie deine gelesen haben.",
   "userSettingsScreen_displayNameLabel": "Anzeigename",
   "userSettingsScreen_usernamesSection": "Benutzernamen",
   "userSettingsScreen_settingsSection": "Einstellungen",

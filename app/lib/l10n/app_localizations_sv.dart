@@ -18,9 +18,6 @@ class AppLocalizationsSv extends AppLocalizations {
   String get appTitle => 'Air';
 
   @override
-  String get languageName => 'Svenska';
-
-  @override
   String get userSettingsScreen_title => 'Profil och inställningar';
 
   @override
@@ -45,14 +42,14 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get userSettingsScreen_sendWithEnterDescription =>
-      'Om detta är avstängt skickas inget meddelande när du trycker på Enter.';
+      'Om detta är aktiverat skickar tangentbordets \"Enter\"-tangent meddelandet.';
 
   @override
   String get userSettingsScreen_readReceipts => 'Läskvitton';
 
   @override
   String get userSettingsScreen_readReceiptsDescription =>
-      'Om detta är avstängt kan andra inte se när du har läst deras meddelanden och du kan inte se när de har läst dina.';
+      'Om detta är aktiverat kan andra se om du har läst deras meddelanden och du kan se om de har läst dina.';
 
   @override
   String get userSettingsScreen_displayNameLabel => 'Visningsnamn';

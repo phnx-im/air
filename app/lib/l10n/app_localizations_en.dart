@@ -18,9 +18,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get appTitle => 'Air';
 
   @override
-  String get languageName => 'English';
-
-  @override
   String get userSettingsScreen_title => 'Profile and Settings';
 
   @override
@@ -45,14 +42,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get userSettingsScreen_sendWithEnterDescription =>
-      'If disabled, pressing the Enter key won’t send a message.';
+      'If turned on, the keyboard\'s \"Enter\" key sends the message.';
 
   @override
   String get userSettingsScreen_readReceipts => 'Read receipts';
 
   @override
   String get userSettingsScreen_readReceiptsDescription =>
-      'If disabled, others won’t be able to see when you’ve read their messages and you won’t be able to see when they’ve read yours.';
+      'If turned on, others will see if you’ve read their messages and you\'ll see if they’ve read yours.';
 
   @override
   String get userSettingsScreen_displayNameLabel => 'Display name';

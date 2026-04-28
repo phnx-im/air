@@ -18,9 +18,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get appTitle => 'Air';
 
   @override
-  String get languageName => 'Deutsch';
-
-  @override
   String get userSettingsScreen_title => 'Profil und Einstellungen';
 
   @override
@@ -45,14 +42,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get userSettingsScreen_sendWithEnterDescription =>
-      'Wenn deaktiviert, wir die Nachricht beim Drücken der Entertaste nicht versendet.';
+      'Wenn aktiviert, sendet die \"Enter\"-Taste die Nachricht.';
 
   @override
   String get userSettingsScreen_readReceipts => 'Lesebestätigungen';
 
   @override
   String get userSettingsScreen_readReceiptsDescription =>
-      'Wenn deaktiviert, sehen andere nicht, wann du ihre Nachrichten gelesen hast, und du siehst nicht, wann sie deine gelesen haben.';
+      'Wenn aktiviert, sehen andere, ob du ihre Nachrichten gelesen hast, und du siehst, ob sie deine gelesen haben.';
 
   @override
   String get userSettingsScreen_displayNameLabel => 'Anzeigename';

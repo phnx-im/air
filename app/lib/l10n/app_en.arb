@@ -1,6 +1,5 @@
 {
   "appTitle": "Air",
-  "languageName": "English",
 
   "userSettingsScreen_title": "Profile and Settings",
   "userSettingsScreen_profileDescription": "Your display name and profile picture are visible to your Air contacts and members of groups you’re in.",
@@ -9,9 +8,9 @@
   "userSettingsScreen_help": "Help",
   "userSettingsScreen_deleteAccount": "Delete Air account",
   "userSettingsScreen_sendWithEnter": "Send with Enter",
-  "userSettingsScreen_sendWithEnterDescription": "If disabled, pressing the Enter key won’t send a message.",
+  "userSettingsScreen_sendWithEnterDescription": "If turned on, the keyboard's \"Enter\" key sends the message.",
   "userSettingsScreen_readReceipts": "Read receipts",
-  "userSettingsScreen_readReceiptsDescription": "If disabled, others won’t be able to see when you’ve read their messages and you won’t be able to see when they’ve read yours.",
+  "userSettingsScreen_readReceiptsDescription": "If turned on, others will see if you’ve read their messages and you'll see if they’ve read yours.",
 
   "userSettingsScreen_displayNameLabel": "Display name",
 
