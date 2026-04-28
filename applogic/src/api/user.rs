@@ -6,6 +6,9 @@
 
 use std::cmp::Reverse;
 
+pub(crate) use aircommon::messages::push_token::PushToken;
+pub(crate) use aircoreclient::{TimedTaskDebugInfo, UserDebugInfo};
+
 use aircommon::{
     identifiers::{Fqdn, UserId},
     messages::push_token::PushTokenOperator,
@@ -21,8 +24,6 @@ use aircoreclient::{
 use anyhow::Result;
 use flutter_rust_bridge::frb;
 use tracing::error;
-
-pub(crate) use aircommon::messages::push_token::PushToken;
 use uuid::Uuid;
 
 use super::types::{UiClientRecord, UiUserId, UiUserProfile};
@@ -184,6 +185,24 @@ impl User {
     pub fn user_id(&self) -> UiUserId {
         self.user.user_id().clone().into()
     }
+
+    pub async fn user_debug_info(&self) -> Result<UserDebugInfo> {
+        self.user.user_debug_info().await
+    }
+}
+
+#[frb(mirror(UserDebugInfo))]
+pub struct _UserDebugInfo {
+    pub user_id: String,
+    pub timed_tasks: Vec<TimedTaskDebugInfo>,
+    pub add_username_token_count: u32,
+    pub invitation_code_token_count: u32,
+}
+
+#[frb(mirror(TimedTaskDebugInfo))]
+pub struct _TimedTaskDebugInfo {
+    pub name: String,
+    pub scheduled_at: chrono::DateTime<chrono::Utc>,
 }
 
 async fn load_ui_record(db_path: &str, record: &ClientRecord) -> anyhow::Result<UiClientRecord> {
