@@ -318,7 +318,7 @@ impl ChatOperation {
             let group_data = GroupData {
                 encrypted_title: Some(encrypted_title),
                 external_group_profile: Some(external),
-                legacy_title: None,
+                legacy_title: Some(group_profile.title),
             };
             (Some(group_data), attributes.picture)
         } else {

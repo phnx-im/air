@@ -27,7 +27,9 @@ use uuid::Uuid;
 /// from `serde`.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GroupData {
-    /// Only set by older clients and deserialized as a fallback
+    /// Set for the clients with version <= 0.14.0
+    ///
+    /// Can be removed once all such clients have been updated.
     #[serde(rename = "title", skip_serializing_if = "Option::is_none")]
     pub legacy_title: Option<String>,
     /// Encrypted group title

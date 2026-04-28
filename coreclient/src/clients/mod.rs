@@ -87,6 +87,7 @@ pub(crate) mod block_contact;
 pub mod chats;
 pub(crate) mod connection_offer;
 mod create_user;
+pub mod debug_info;
 mod delete_account;
 mod event_loop;
 pub(crate) mod invitation_code;
