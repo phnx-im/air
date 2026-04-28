@@ -19,26 +19,21 @@ class MessageListStateWrapper {
     required this.state,
     required this.messageData,
     required Set<MessageId> loadedMessages,
-    required Set<MessageId> newMessages,
-  }) : loadedMessages = Set.unmodifiable(loadedMessages),
-       newMessages = Set.unmodifiable(newMessages);
+  }) : loadedMessages = Set.unmodifiable(loadedMessages);
 
   factory MessageListStateWrapper.test({
     required MessageListState state,
     required AnchoredListData<UiChatMessage> messageData,
     Set<MessageId> loadedMessages = const {},
-    Set<MessageId> newMessages = const {},
   }) => MessageListStateWrapper._(
     state: state,
     messageData: messageData,
     loadedMessages: loadedMessages,
-    newMessages: newMessages,
   );
 
   final MessageListState state;
   final AnchoredListData<UiChatMessage> messageData; // reference, not value
   final Set<MessageId> loadedMessages;
-  final Set<MessageId> newMessages;
 
   // Delegate Rust state fields
   bool get hasOlder => state.hasOlder;
@@ -47,8 +42,6 @@ class MessageListStateWrapper {
   bool? get isConnectionChat => state.isConnectionChat;
   int? get firstUnreadIndex => state.firstUnreadIndex;
 
-  // State queries
-  bool isNewMessage(MessageId id) => newMessages.contains(id);
   UiChatMessage? messageAt(int oldestFirstIndex) {
     final idx = messageData.length - oldestFirstIndex - 1;
     return (idx >= 0 && idx < messageData.length) ? messageData[idx] : null;
@@ -76,7 +69,6 @@ class MessageListCubit extends StateStreamableSource<MessageListStateWrapper> {
       state: _impl.state,
       messageData: messageData,
       loadedMessages: HashSet(),
-      newMessages: HashSet(),
     );
     _appliedRevision = _state.state.revision;
     _transitionSubscription = _impl.transitions().listen(_handleTransition);
@@ -89,18 +81,26 @@ class MessageListCubit extends StateStreamableSource<MessageListStateWrapper> {
       StreamController<MessageListStateWrapper>.broadcast(sync: true);
   final StreamController<MessageListCommand> _commandController =
       StreamController<MessageListCommand>.broadcast(sync: true);
+  final StreamController<Set<MessageId>> _incomingMessagesController =
+      StreamController<Set<MessageId>>.broadcast(sync: true);
 
   // Cubit Data
 
   late MessageListStateWrapper _state;
   final Set<MessageId> _loadedMessages = HashSet<MessageId>();
-  final Set<MessageId> _newMessages = HashSet<MessageId>();
 
   int _appliedRevision = 0;
   int? _lastCommandRevision;
 
   late final AnchoredListData<UiChatMessage> messageData;
   Stream<MessageListCommand> get commands => _commandController.stream;
+
+  /// Emits each batch of messages that have just been appended to the
+  /// newest end of the list (via a `NewerPageLoaded` transition) and
+  /// weren't in the window before. The view subscribes to this to drive
+  /// the entrance animation, gated by live scroll position at arrival.
+  Stream<Set<MessageId>> get incomingMessages =>
+      _incomingMessagesController.stream;
 
   // Public API
 
@@ -133,14 +133,15 @@ class MessageListCubit extends StateStreamableSource<MessageListStateWrapper> {
 
   void _applyTransition(MessageListTransition transition) {
     if (transition.changes.isEmpty) return;
+    final incoming = <MessageId>{};
     messageData.batch(() {
       for (final change in transition.changes) {
         switch (change) {
           case MessageListChange_Reload(:final messages):
             messageData.reload(messages);
-            _loadedMessages.clear();
-            _loadedMessages.addAll(messages.map((m) => m.id));
-            _newMessages.clear();
+            _loadedMessages
+              ..clear()
+              ..addAll(messages.map((m) => m.id));
 
           case MessageListChange_Splice(
             :final index,
@@ -156,13 +157,11 @@ class MessageListCubit extends StateStreamableSource<MessageListStateWrapper> {
               messageData.removeRange(start, count);
             }
             if (messages.isNotEmpty) {
-              // Track entrance animations: new = not already loaded
               if (transition.kind ==
-                      MessageListTransitionKind.newerPageLoaded &&
-                  _state.isAtBottom) {
+                  MessageListTransitionKind.newerPageLoaded) {
                 for (final m in messages) {
                   if (!_loadedMessages.contains(m.id)) {
-                    _newMessages.add(m.id);
+                    incoming.add(m.id);
                   }
                 }
               }
@@ -174,6 +173,9 @@ class MessageListCubit extends StateStreamableSource<MessageListStateWrapper> {
         }
       }
     });
+    if (incoming.isNotEmpty && !_incomingMessagesController.isClosed) {
+      _incomingMessagesController.add(incoming);
+    }
   }
 
   void _emitState(MessageListState state) {
@@ -181,7 +183,6 @@ class MessageListCubit extends StateStreamableSource<MessageListStateWrapper> {
       state: state,
       messageData: messageData,
       loadedMessages: _loadedMessages, // takes a snapshot
-      newMessages: _newMessages, // takes a snapshot
     );
     if (!_stateController.isClosed) {
       _stateController.add(_state);
@@ -203,6 +204,7 @@ class MessageListCubit extends StateStreamableSource<MessageListStateWrapper> {
     await _transitionSubscription.cancel();
     await _stateController.close();
     await _commandController.close();
+    await _incomingMessagesController.close();
     messageData.dispose();
     await _impl.close();
   }

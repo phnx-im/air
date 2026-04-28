@@ -39,6 +39,7 @@ use serde::{Deserialize, Serialize};
 use sqlx::{Row, SqliteConnection, SqlitePool, query};
 use store::ClientRecord;
 use tls_codec::DeserializeBytes;
+use tokio::sync::Notify;
 use tokio::task::spawn_blocking;
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::DropGuard;
@@ -86,6 +87,7 @@ pub(crate) mod block_contact;
 pub mod chats;
 pub(crate) mod connection_offer;
 mod create_user;
+pub mod debug_info;
 mod delete_account;
 mod event_loop;
 pub(crate) mod invitation_code;
@@ -126,6 +128,7 @@ pub(crate) struct CoreUserInner {
     qs_client_id: QsClientId,
     key_store: MemoryUserKeyStore,
     store_notifications_tx: StoreNotificationsSender,
+    store_notifications_pending: Arc<Notify>,
     outbound_service: OutboundService,
     event_loop_sender: EventLoopSender,
     _event_loop_cancel: DropGuard,
@@ -366,6 +369,16 @@ impl CoreUser {
 
     pub(crate) async fn dequeue_store_notification(&self) -> Result<StoreNotification> {
         Ok(StoreNotification::dequeue(self.pool()).await?)
+    }
+
+    /// Signals that new store notifications were persisted and should be drained.
+    pub fn signal_pending_store_notifications(&self) {
+        self.inner.store_notifications_pending.notify_one();
+    }
+
+    /// Notify handle.
+    pub fn store_notifications_pending(&self) -> Arc<Notify> {
+        self.inner.store_notifications_pending.clone()
     }
 
     pub async fn set_own_user_profile(&self, mut user_profile: UserProfile) -> Result<UserProfile> {

@@ -308,7 +308,7 @@ InlineSpan buildInlineElement(
               context,
               child,
               isSender,
-              destUrl: Uri.tryParse(destUrl),
+              destUrl: _parseLinkDest(destUrl),
             ),
           )
           .toList(),
@@ -384,6 +384,14 @@ InlineSpan buildInlineElement(
       ),
     ),
   };
+}
+
+Uri? _parseLinkDest(String dest) {
+  final uri = Uri.tryParse(dest);
+  if (uri == null) return null;
+  if (uri.hasScheme) return uri;
+  // If the link doesn't have a scheme, try parsing it as https.
+  return Uri.tryParse('https://$dest');
 }
 
 TapGestureRecognizer openLinkRecognizer(

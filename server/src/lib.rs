@@ -52,6 +52,7 @@ mod grpc_metrics;
 pub mod logging;
 pub mod network_provider;
 pub mod push_notification_provider;
+pub mod username_command;
 
 pub struct ServerRunParams<Qc, Listener> {
     pub listener: Listener,

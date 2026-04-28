@@ -480,31 +480,42 @@ impl CubitContext {
         });
     }
 
-    /// Emit persisted store notifications when the app goes in the foreground.
+    /// Emit persisted store notifications.
     ///
-    /// Store notification is stored in the database in the background process.
+    /// Background push handlers (iOS NSE, Android WorkManager) persist store
+    /// notifications to the database. We drain them on two triggers:
+    /// - when the app goes into the foreground, and
+    /// - when we got a signal from the push handler.
     async fn emit_stored_notifications(
         core_user: CoreUser,
         mut app_state: watch::Receiver<AppState>,
         cancel: CancellationToken,
     ) -> anyhow::Result<()> {
+        let pending = core_user.store_notifications_pending();
         loop {
-            tokio::select! {
+            let should_drain = tokio::select! {
+                // We got cancelled, let's abort
                 _ = cancel.cancelled() => return Ok(()),
-                _ = app_state.changed() => {}
+                // State change, we only want to drain when we go into foreground
+                _ = app_state.changed() => {
+                    matches!(*app_state.borrow_and_update(), AppState::Foreground)
+                }
+                // We got a signal from the push handler that there are pending
+                // notifications, let's drain
+                _ = pending.notified() => true,
             };
-
-            let state = *app_state.borrow_and_update();
-            if let AppState::Foreground = state {
-                match core_user.dequeue_notification().await {
-                    Ok(store_notification) => {
-                        if !store_notification.is_empty() {
-                            core_user.notify(store_notification);
-                        }
-                    }
-                    Err(error) => {
-                        error!(%error, "Failed to dequeue stored notifications");
-                    }
+            if !should_drain {
+                // Nothing to do, wait for the next trigger
+                continue;
+            }
+            // Finally eat these yummy notifications! Nom nom nom
+            match core_user.dequeue_notification().await {
+                Ok(store_notification) if !store_notification.is_empty() => {
+                    core_user.notify(store_notification);
+                }
+                Ok(_) => {}
+                Err(error) => {
+                    error!(%error, "Failed to dequeue stored notifications");
                 }
             }
         }

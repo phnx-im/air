@@ -96,7 +96,7 @@ class InvitationCodesView extends StatelessWidget {
                         return AppButton(
                           size: AppButtonSize.small,
                           type: AppButtonType.secondary,
-                          label: loc.invitationCodesScreen_removeUnusedCodes,
+                          label: loc.invitationCodesScreen_removeUsedCodes,
                           state: anyCopiedCode ? .active : .inactive,
                           onPressed: () => _handleClearCopied(context),
                         );

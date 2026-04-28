@@ -65,8 +65,14 @@ abstract class User implements RustOpaqueInterface {
   /// Stop background work gracefully and wait for completion.
   Future<void> prepareForBackground();
 
+  /// Signals the foreground drainer that background push handlers have
+  /// persisted new store notifications.
+  void signalPendingStoreNotifications();
+
   /// Update the push token.
   Future<void> updatePushToken(PlatformPushToken? pushToken);
+
+  Future<UserDebugInfo> userDebugInfo();
 
   /// The unique identifier of the logged in user
   UiUserId get userId;
@@ -80,4 +86,53 @@ sealed class PlatformPushToken with _$PlatformPushToken {
       PlatformPushToken_Apple;
   const factory PlatformPushToken.google(String field0) =
       PlatformPushToken_Google;
+}
+
+class TimedTaskDebugInfo {
+  final String name;
+  final DateTime scheduledAt;
+
+  const TimedTaskDebugInfo({required this.name, required this.scheduledAt});
+
+  @override
+  int get hashCode => name.hashCode ^ scheduledAt.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TimedTaskDebugInfo &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          scheduledAt == other.scheduledAt;
+}
+
+class UserDebugInfo {
+  final String userId;
+  final List<TimedTaskDebugInfo> timedTasks;
+  final int addUsernameTokenCount;
+  final int invitationCodeTokenCount;
+
+  const UserDebugInfo({
+    required this.userId,
+    required this.timedTasks,
+    required this.addUsernameTokenCount,
+    required this.invitationCodeTokenCount,
+  });
+
+  @override
+  int get hashCode =>
+      userId.hashCode ^
+      timedTasks.hashCode ^
+      addUsernameTokenCount.hashCode ^
+      invitationCodeTokenCount.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UserDebugInfo &&
+          runtimeType == other.runtimeType &&
+          userId == other.userId &&
+          timedTasks == other.timedTasks &&
+          addUsernameTokenCount == other.addUsernameTokenCount &&
+          invitationCodeTokenCount == other.invitationCodeTokenCount;
 }

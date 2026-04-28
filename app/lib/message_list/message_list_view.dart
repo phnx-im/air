@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
+import 'dart:math';
 
+import 'package:air/ui/effects/motion.dart';
 import 'package:air/theme/spacings.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -14,6 +16,7 @@ import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/anchored_list/anchored_list.dart';
 import 'package:air/widgets/anchored_list/controller.dart';
+import 'package:air/widgets/widgets.dart';
 
 import 'chat_tile.dart';
 import 'message_cubit.dart';
@@ -50,8 +53,11 @@ class MessageListView extends StatefulWidget {
 ///  - Routes cubit scroll-to-index commands to the [AnchoredListController].
 class _MessageListViewState extends State<MessageListView>
     with WidgetsBindingObserver {
-  /// Messages that have already played their entrance animation.
-  final _animatedMessages = <MessageId>{};
+  /// Messages eligible for an entrance animation. Admitted at arrival time
+  /// when the user was visually at the bottom, then evicted after
+  /// [_animationWindow] so the set stays bounded and a tile that remounts
+  /// later (e.g. after scroll-out-and-back) no longer replays the animation.
+  final _animatingMessages = <MessageId>{};
 
   final _listController = AnchoredListController();
 
@@ -61,6 +67,7 @@ class _MessageListViewState extends State<MessageListView>
 
   MessageListCubit? _commandsCubit;
   StreamSubscription<MessageListCommand>? _commandSubscription;
+  StreamSubscription<Set<MessageId>>? _incomingMessagesSubscription;
   bool _initialUnreadScrollHandled = false;
 
   @override
@@ -82,8 +89,12 @@ class _MessageListViewState extends State<MessageListView>
     final cubit = context.read<MessageListCubit>();
     if (identical(cubit, _commandsCubit)) return;
     _commandSubscription?.cancel();
+    _incomingMessagesSubscription?.cancel();
     _commandsCubit = cubit;
     _commandSubscription = cubit.commands.listen(_handleCommand);
+    _incomingMessagesSubscription = cubit.incomingMessages.listen(
+      _admitIncomingAnimations,
+    );
   }
 
   @override
@@ -91,12 +102,28 @@ class _MessageListViewState extends State<MessageListView>
     WidgetsBinding.instance.removeObserver(this);
     widget.scrollToBottomController?.onScrollToBottom = null;
     _commandSubscription?.cancel();
+    _incomingMessagesSubscription?.cancel();
     _listController.isAtBottom.removeListener(_updateShowButton);
     _listController.newestVisibleId.removeListener(
       _markCurrentVisibleMessageAsRead,
     );
     _listController.dispose();
     super.dispose();
+  }
+
+  /// Admits freshly-arrived messages to the entrance-animation set iff the
+  /// user is visually at the bottom right now. Messages that don't qualify
+  /// are not tracked at all — no exclusion bookkeeping needed.
+  ///
+  /// Evicts ids after [_animationWindow]: by then the animation has either
+  /// played or the tile was never built, and either way further tracking
+  /// would only grow the set for the lifetime of the view.
+  void _admitIncomingAnimations(Set<MessageId> ids) {
+    if (!_listController.isAtBottom.value) return;
+    _animatingMessages.addAll(ids);
+    Future.delayed(_animationWindow, () {
+      _animatingMessages.removeAll(ids);
+    });
   }
 
   @override
@@ -211,11 +238,25 @@ class _MessageListViewState extends State<MessageListView>
     ValueListenable<double>? composerHeightListenable,
     MessageListStateWrapper state,
   ) {
+    // Height of safe area + tool bar
+    final mediaPadding = MediaQuery.paddingOf(context);
+    // Height of the tail of the fade beyon the toolbar
+    const fadeBleeding = Spacings.xl;
+    // How much the list should be inset
+    final topInset = mediaPadding.top + fadeBleeding;
+    // Height of the safe area above the toolbar
+    final statusBarHeight = max(mediaPadding.top - kToolbarHeight, 0.0);
+    // Total height of the fade
+    const fadeHeight = kToolbarHeight + fadeBleeding;
+    // Solid color for the safe area
+    final bgColor = CustomColorScheme.of(context).backgroundBase.primary;
+
     Widget buildAnchoredList({double bottomPadding = 0.0}) {
       return AnchoredList<UiChatMessage>(
         data: context.read<MessageListCubit>().messageData,
         controller: _listController,
         idExtractor: (msg) => msg.id,
+        topPadding: topInset,
         bottomPadding: bottomPadding,
         canLoadOlder: state.hasOlder,
         canLoadNewer: state.hasNewer,
@@ -236,8 +277,30 @@ class _MessageListViewState extends State<MessageListView>
       );
     }
 
+    // Status bar cover: solid block above the toolbar.
+    final statusBarCover = Positioned.fill(
+      bottom: null,
+      child: Container(color: bgColor, height: statusBarHeight),
+    );
+    // Header gradient, bleeding into the list
+    final headerFade = Positioned(
+      top: statusBarHeight,
+      left: 0,
+      right: 0,
+      child: EdgeFade(
+        edge: FadeEdge.top,
+        height: fadeHeight,
+        color: bgColor,
+        curve: Curves.easeInOutQuad,
+        solidStop: 0.2,
+      ),
+    );
+
     if (composerHeightListenable == null) {
-      return buildAnchoredList();
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [buildAnchoredList(), statusBarCover, headerFade],
+      );
     }
     // Layer the list, a bottom fade gradient, and a manual scrollbar so that:
     //  - Messages fade out as they approach the composer
@@ -247,14 +310,38 @@ class _MessageListViewState extends State<MessageListView>
     return ValueListenableBuilder<double>(
       valueListenable: composerHeightListenable,
       builder: (context, composerHeight, _) {
-        final safeBottom = MediaQuery.of(context).padding.bottom;
-        final fadeTotal = composerHeight + _fadeHeight + safeBottom;
+        const fadeBleeding = 40;
+        final bottomInset = max(mediaPadding.bottom, Spacings.xs);
+        final listBottomPadding = composerHeight + bottomInset + _bottomGap;
+        final fadeHeight = composerHeight + fadeBleeding;
 
         // Override MediaQuery padding so the Scrollbar's track ends above
         // the composer and fade zone.
-        final scrollbarPadding = MediaQuery.paddingOf(
-          context,
-        ).copyWith(bottom: composerHeight + _bottomGap);
+        final scrollbarPadding = mediaPadding.copyWith(
+          bottom: listBottomPadding,
+        );
+        // Solid cover below the composer
+        final bottomSafeCover = Positioned.fill(
+          top: null,
+          child: Container(
+            color: bgColor,
+            height:
+                bottomInset +
+                1, // We need this because there can be a small gap sometimes
+          ),
+        );
+        // Fade sitting behind the composer and bleeding into the list
+        final composerFade = Positioned.fill(
+          top: null,
+          bottom: bottomInset,
+          child: EdgeFade(
+            edge: FadeEdge.bottom,
+            height: fadeHeight,
+            color: bgColor,
+            curve: Curves.easeInOutQuad,
+            solidStop: 0.3,
+          ),
+        );
         return MediaQuery(
           data: MediaQuery.of(context).copyWith(padding: scrollbarPadding),
           child: Scrollbar(
@@ -267,18 +354,12 @@ class _MessageListViewState extends State<MessageListView>
                   behavior: ScrollConfiguration.of(
                     context,
                   ).copyWith(scrollbars: false),
-                  child: buildAnchoredList(
-                    bottomPadding: composerHeight + _bottomGap,
-                  ),
+                  child: buildAnchoredList(bottomPadding: listBottomPadding),
                 ),
-                // Gradient fade from transparent to the background color,
-                // from 40px above the composer to the screen bottom.
-                Positioned(
-                  left: 0,
-                  right: 0,
-                  bottom: -safeBottom,
-                  child: _BottomFade(height: fadeTotal),
-                ),
+                composerFade,
+                bottomSafeCover,
+                statusBarCover,
+                headerFade,
               ],
             ),
           ),
@@ -292,10 +373,7 @@ class _MessageListViewState extends State<MessageListView>
     MessageListStateWrapper state,
     UiChatMessage message,
   ) {
-    final isNew = state.isNewMessage(message.id);
-    // We only want to animate a message if it's new and hasn't already played
-    // its animation.
-    final shouldAnimate = isNew && _animatedMessages.add(message.id);
+    final animated = _animatingMessages.contains(message.id);
 
     final isFirstUnread =
         state.firstUnreadIndex != null &&
@@ -308,8 +386,7 @@ class _MessageListViewState extends State<MessageListView>
       createMessageCubit: widget.createMessageCubit,
       child: ChatTile(
         isConnectionChat: state.isConnectionChat ?? false,
-        animated: isNew,
-        shouldAnimate: shouldAnimate,
+        animated: animated,
       ),
     );
 
@@ -328,32 +405,12 @@ class _MessageListViewState extends State<MessageListView>
   }
 }
 
-const double _fadeHeight = 40;
 const double _bottomGap = Spacings.s;
 
-class _BottomFade extends StatelessWidget {
-  const _BottomFade({required this.height});
-
-  final double height;
-
-  @override
-  Widget build(BuildContext context) {
-    final bgColor = CustomColorScheme.of(context).backgroundBase.primary;
-    return IgnorePointer(
-      child: Container(
-        height: height,
-        decoration: BoxDecoration(
-          gradient: LinearGradient(
-            begin: Alignment.bottomCenter,
-            end: Alignment.topCenter,
-            colors: [bgColor, bgColor.withValues(alpha: 0)],
-            stops: const [0.2, 1.0],
-          ),
-        ),
-      ),
-    );
-  }
-}
+/// How long an incoming message id stays eligible for the entrance animation.
+/// Chosen comfortably larger than the animation duration so the tile always
+/// has time to mount and play the animation once.
+const Duration _animationWindow = motionLong;
 
 /// Owns a [MessageCubit] for a single message tile.
 ///

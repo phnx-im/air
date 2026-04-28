@@ -886,6 +886,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<TimedTaskDebugInfo> dco_decode_list_timed_task_debug_info(dynamic raw);
+
+  @protected
   List<UiAttachment> dco_decode_list_ui_attachment(dynamic raw);
 
   @protected
@@ -1128,6 +1131,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   RequiredDebugCapabilities dco_decode_required_debug_capabilities(dynamic raw);
 
   @protected
+  TimedTaskDebugInfo dco_decode_timed_task_debug_info(dynamic raw);
+
+  @protected
   TokenId dco_decode_token_id(dynamic raw);
 
   @protected
@@ -1225,6 +1231,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UploadAttachmentError dco_decode_upload_attachment_error(dynamic raw);
+
+  @protected
+  UserDebugInfo dco_decode_user_debug_info(dynamic raw);
 
   @protected
   UserSettings dco_decode_user_settings(dynamic raw);
@@ -2066,6 +2075,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<TimedTaskDebugInfo> sse_decode_list_timed_task_debug_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<UiAttachment> sse_decode_list_ui_attachment(
     SseDeserializer deserializer,
   );
@@ -2378,6 +2392,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  TimedTaskDebugInfo sse_decode_timed_task_debug_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   TokenId sse_decode_token_id(SseDeserializer deserializer);
 
   @protected
@@ -2481,6 +2500,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UploadAttachmentError sse_decode_upload_attachment_error(
     SseDeserializer deserializer,
   );
+
+  @protected
+  UserDebugInfo sse_decode_user_debug_info(SseDeserializer deserializer);
 
   @protected
   UserSettings sse_decode_user_settings(SseDeserializer deserializer);
@@ -3521,6 +3543,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_timed_task_debug_info(
+    List<TimedTaskDebugInfo> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_ui_attachment(
     List<UiAttachment> self,
     SseSerializer serializer,
@@ -3908,6 +3936,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_timed_task_debug_info(
+    TimedTaskDebugInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_token_id(TokenId self, SseSerializer serializer);
 
   @protected
@@ -4050,6 +4084,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     UploadAttachmentError self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_user_debug_info(UserDebugInfo self, SseSerializer serializer);
 
   @protected
   void sse_encode_user_settings(UserSettings self, SseSerializer serializer);

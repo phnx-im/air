@@ -210,12 +210,6 @@ abstract class AppLocalizations {
   /// **'Account'**
   String get userSettingsScreen_accountSection;
 
-  /// No description provided for @userSettingsScreen_usernamePlaceholder.
-  ///
-  /// In en, this message translates to:
-  /// **'Username'**
-  String get userSettingsScreen_usernamePlaceholder;
-
   /// No description provided for @userSettingsScreen_inviteCodes.
   ///
   /// In en, this message translates to:
@@ -251,6 +245,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Remove'**
   String get removeUsernameDialog_remove;
+
+  /// No description provided for @userSettingsScreen_usernamePlaceholder.
+  ///
+  /// In en, this message translates to:
+  /// **'Username'**
+  String get userSettingsScreen_usernamePlaceholder;
 
   /// No description provided for @addMembersScreen_addMembers.
   ///
@@ -576,11 +576,11 @@ abstract class AppLocalizations {
   /// **'Tap to get code'**
   String get invitationCodesScreen_tapToGetCode;
 
-  /// No description provided for @invitationCodesScreen_removeUnusedCodes.
+  /// No description provided for @invitationCodesScreen_removeUsedCodes.
   ///
   /// In en, this message translates to:
   /// **'Remove used codes'**
-  String get invitationCodesScreen_removeUnusedCodes;
+  String get invitationCodesScreen_removeUsedCodes;
 
   /// No description provided for @invitationCodesScreen_empty.
   ///

@@ -30,34 +30,49 @@ import android.provider.MediaStore
 import androidx.core.net.toUri
 import java.io.File
 import java.io.IOException
+import java.lang.ref.WeakReference
 
 class MainActivity : FlutterActivity() {
     companion object {
         private const val CHANNEL_NAME: String = "ms.air/channel"
         private const val REQUEST_CODE_POST_NOTIFICATIONS = 1000
         private const val APP_DIR_NAME: String = "Air"
+
+        @Volatile
+        private var activeChannelRef: WeakReference<MethodChannel>? = null
+
+        fun activeChannel(): MethodChannel? = activeChannelRef?.get()
     }
 
     private var channel: MethodChannel? = null
 
+
+    private var pendingInitialNotification: Map<String, String?>? = null
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         requestNotificationPermissionIfNeeded()
+
+        // We store a potential notification tap event, so it can be delivered
+        // once the Flutter engine is ready.
+        readNotificationPayload(intent)?.let { pendingInitialNotification = it }
     }
 
     override fun onNewIntent(intent: Intent) {
         super.onNewIntent(intent)
 
-        if (intent.action == Notifications.SELECT_NOTIFICATION) {
-            val notificationId = intent.extras?.getString(Notifications.EXTRAS_NOTIFICATION_ID_KEY)
-            val chatId = intent.extras?.getString(Notifications.EXTRAS_CHAT_ID_KEY)
-            if (notificationId != null) {
-                val arguments = mapOf(
-                    "identifier" to notificationId, "chatId" to chatId
-                )
-                channel?.invokeMethod("openedNotification", arguments)
-            }
-        }
+        // Send the notification tap event to Dart directly
+        val payload = readNotificationPayload(intent) ?: return
+        channel?.invokeMethod("openedNotification", payload)
+    }
+
+    private fun readNotificationPayload(intent: Intent): Map<String, String?>? {
+        // We only care about intents that represent notification taps
+        if (intent.action != Notifications.SELECT_NOTIFICATION) return null
+        val notificationId =
+            intent.extras?.getString(Notifications.EXTRAS_NOTIFICATION_ID_KEY) ?: return null
+        val chatId = intent.extras?.getString(Notifications.EXTRAS_CHAT_ID_KEY)
+        return mapOf("identifier" to notificationId, "chatId" to chatId)
     }
 
     override fun detachFromFlutterEngine() {
@@ -65,6 +80,7 @@ class MainActivity : FlutterActivity() {
 
         channel?.setMethodCallHandler(null)
         channel = null
+        activeChannelRef = null
     }
 
     // Configures the Method Channel to communicate with Flutter
@@ -74,6 +90,7 @@ class MainActivity : FlutterActivity() {
         channel = MethodChannel(
             flutterEngine.dartExecutor.binaryMessenger, CHANNEL_NAME
         )
+        activeChannelRef = WeakReference(channel)
         channel?.setMethodCallHandler { call, result ->
             when (call.method) {
                 "getDeviceToken" -> {
@@ -86,6 +103,12 @@ class MainActivity : FlutterActivity() {
                             result.error("NoDeviceToken", "Device token not available", "")
                         }
                     }
+                }
+
+                "getInitialNotification" -> {
+                    val payload = pendingInitialNotification
+                    pendingInitialNotification = null
+                    result.success(payload)
                 }
 
                 "getDatabasesDirectory" -> {

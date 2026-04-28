@@ -3,34 +3,27 @@ import UIKit
 
 private let kProtectedBlockedCategory = "protected-blocked"
 
+private let kStoreNotificationsPendingName =
+    "ms.air.store-notifications-pending" as CFString
+
 @main
-@objc class AppDelegate: FlutterAppDelegate {
+@objc class AppDelegate: FlutterAppDelegate, FlutterImplicitEngineDelegate {
     private var deviceToken: String?
     private let notificationChannelName: String = "ms.air/channel"
     private var backgroundTaskId: UIBackgroundTaskIdentifier = .invalid
+    private var storeNotificationsChannel: FlutterMethodChannel?
 
     override func application(
         _ application: UIApplication,
         didFinishLaunchingWithOptions launchOptions: [UIApplication
             .LaunchOptionsKey: Any]?
     ) -> Bool {
-        GeneratedPluginRegistrant.register(with: self)
-
         if #available(iOS 10.0, *) {
             UNUserNotificationCenter.current().delegate = self
         }
 
         // Register for push notifications
         UIApplication.shared.registerForRemoteNotifications()
-
-        // Set up the method channel to retrieve the token from Flutter
-        let controller = window?.rootViewController as! FlutterViewController
-        let methodChannel = FlutterMethodChannel(
-            name: notificationChannelName,
-            binaryMessenger: controller.binaryMessenger)
-
-        // Set the handler function for the method channel
-        methodChannel.setMethodCallHandler(handleMethodCall)
 
         // Clear any lingering "blocked" notifications at launch
         clearProtectedBlockedNotifications()
@@ -45,6 +38,39 @@ private let kProtectedBlockedCategory = "protected-blocked"
 
         return super.application(
             application, didFinishLaunchingWithOptions: launchOptions)
+    }
+
+    func didInitializeImplicitFlutterEngine(
+        _ engineBridge: FlutterImplicitEngineBridge
+    ) {
+        GeneratedPluginRegistrant.register(with: engineBridge.pluginRegistry)
+
+        // Set up the method channel to retrieve the token from Flutter
+        let methodChannel = FlutterMethodChannel(
+            name: notificationChannelName,
+            binaryMessenger: engineBridge.applicationRegistrar.messenger())
+
+        // Set the handler function for the method channel
+        methodChannel.setMethodCallHandler(handleMethodCall)
+
+        storeNotificationsChannel = methodChannel
+        let observer = Unmanaged.passUnretained(self).toOpaque()
+        CFNotificationCenterAddObserver(
+            CFNotificationCenterGetDarwinNotifyCenter(),
+            observer,
+            { (_, observer, _, _, _) in
+                guard let observer = observer else { return }
+                let appDelegate = Unmanaged<AppDelegate>
+                    .fromOpaque(observer).takeUnretainedValue()
+                // Fire away on the main channel, since that's where Flutter will listen
+                DispatchQueue.main.async {
+                    appDelegate.storeNotificationsChannel?.invokeMethod(
+                        "processStoreNotifications", arguments: nil)
+                }
+            },
+            kStoreNotificationsPendingName,
+            nil,
+            .deliverImmediately)
     }
 
     override func application(
@@ -72,9 +98,10 @@ private let kProtectedBlockedCategory = "protected-blocked"
     override func userNotificationCenter(
         _ center: UNUserNotificationCenter,
         willPresent notification: UNNotification,
-        withCompletionHandler completionHandler: @escaping (
-            UNNotificationPresentationOptions
-        ) -> Void
+        withCompletionHandler completionHandler:
+            @escaping (
+                UNNotificationPresentationOptions
+            ) -> Void
     ) {
         NSLog("Foreground notification received")
         if let handle = NotificationHandle.init(notification: notification) {
@@ -118,11 +145,7 @@ private let kProtectedBlockedCategory = "protected-blocked"
 
     // Call Flutter by passing a method and customData as payload
     private func notifyFlutter(method: String, arguments: [String: Any?]) {
-        let controller = window?.rootViewController as! FlutterViewController
-        let channel = FlutterMethodChannel(
-            name: notificationChannelName,
-            binaryMessenger: controller.binaryMessenger)
-        channel.invokeMethod(method, arguments: arguments)
+        storeNotificationsChannel?.invokeMethod(method, arguments: arguments)
     }
 
     // Define the handler function

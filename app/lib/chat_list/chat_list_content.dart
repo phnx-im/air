@@ -68,9 +68,15 @@ class ChatListContent extends StatelessWidget {
   const ChatListContent({
     super.key,
     this.createChatDetailsCubit = ChatDetailsCubit.new,
+    this.topPadding = 0,
+    this.bottomPadding = 0,
+    this.scrollController,
   });
 
   final ChatDetailsCubitCreate createChatDetailsCubit;
+  final double topPadding;
+  final double bottomPadding;
+  final ScrollController? scrollController;
 
   @override
   Widget build(BuildContext context) {
@@ -83,7 +89,8 @@ class ChatListContent extends StatelessWidget {
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.all(0),
+      controller: scrollController,
+      padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
       itemCount: chatIds.length,
       separatorBuilder: (context, index) => Divider(
         height: 1,
@@ -139,11 +146,10 @@ class _ListTile extends StatelessWidget {
     );
     final isSelected = currentChatId == chatId;
 
-    return ListTile(
-      horizontalTitleGap: 0,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
-      minVerticalPadding: 0,
-      title: Container(
+    return GestureDetector(
+      onTap: () => context.read<NavigationCubit>().openChat(chatId),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
         padding: const EdgeInsets.fromLTRB(
           Spacings.s,
           Spacings.s,
@@ -189,8 +195,6 @@ class _ListTile extends StatelessWidget {
           },
         ),
       ),
-      selected: isSelected,
-      onTap: () => context.read<NavigationCubit>().openChat(chatId),
     );
   }
 }

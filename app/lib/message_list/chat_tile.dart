@@ -4,6 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/theme/theme.dart';
+import 'package:air/ui/effects/motion.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -17,16 +18,15 @@ class ChatTile extends StatelessWidget {
     super.key,
     required this.isConnectionChat,
     required this.animated,
-    this.shouldAnimate = false,
   });
 
   final bool isConnectionChat;
 
-  /// Whether to wrap in [_AnimatedMessage] and keep widget tree stable.
+  /// Wraps the tile in [_AnimatedMessage] to play the entrance animation on
+  /// mount. Rebuilds within the same mount preserve the controller's progress;
+  /// flipping back to `false` (or never entering `true`) renders the tile
+  /// directly.
   final bool animated;
-
-  /// Tells us whether we should animate the message.
-  final bool shouldAnimate;
 
   @override
   Widget build(BuildContext context) {
@@ -87,12 +87,7 @@ class ChatTile extends StatelessWidget {
     );
 
     return animated
-        ? _AnimatedMessage(
-            position: position,
-            isSender: isSender,
-            shouldAnimate: shouldAnimate,
-            child: tile,
-          )
+        ? _AnimatedMessage(position: position, isSender: isSender, child: tile)
         : tile;
   }
 }
@@ -101,15 +96,11 @@ class _AnimatedMessage extends StatefulWidget {
   const _AnimatedMessage({
     required this.position,
     required this.isSender,
-    required this.shouldAnimate,
     required this.child,
   });
 
   final UiFlightPosition position;
   final bool isSender;
-
-  /// Tells us whether we should animate the message.
-  final bool shouldAnimate;
   final Widget child;
 
   @override
@@ -123,14 +114,8 @@ class _AnimatedMessageState extends State<_AnimatedMessage>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-      value: widget.shouldAnimate ? 0.0 : 1.0,
-    );
-    if (widget.shouldAnimate) {
-      _controller.forward();
-    }
+    _controller = AnimationController(vsync: this, duration: motionShort);
+    _controller.forward();
   }
 
   @override
@@ -149,10 +134,7 @@ class _AnimatedMessageState extends State<_AnimatedMessage>
       UiFlightPosition.single || UiFlightPosition.end => 27.0,
     };
 
-    final animation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOutQuart,
-    );
+    final animation = CurvedAnimation(parent: _controller, curve: motionEasing);
 
     return Container(
       constraints: BoxConstraints(minHeight: fixedStartHeight),

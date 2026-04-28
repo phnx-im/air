@@ -70,9 +70,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get userSettingsScreen_accountSection => 'Account';
 
   @override
-  String get userSettingsScreen_usernamePlaceholder => 'Username';
-
-  @override
   String get userSettingsScreen_inviteCodes => 'Invite codes';
 
   @override
@@ -90,6 +87,9 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get removeUsernameDialog_remove => 'Remove';
+
+  @override
+  String get userSettingsScreen_usernamePlaceholder => 'Username';
 
   @override
   String get addMembersScreen_addMembers => 'Add members';
@@ -281,7 +281,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get invitationCodesScreen_tapToGetCode => 'Tap to get code';
 
   @override
-  String get invitationCodesScreen_removeUnusedCodes => 'Remove used codes';
+  String get invitationCodesScreen_removeUsedCodes => 'Remove used codes';
 
   @override
   String get invitationCodesScreen_empty => 'No invitation codes available';
