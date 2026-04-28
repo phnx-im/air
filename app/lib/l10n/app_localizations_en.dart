@@ -306,6 +306,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get invitationCodesScreen_copiedToClipboard => 'Copied to clipboard';
 
   @override
+  String invitationCodesScreen_codeClipboardMessage(Object code) {
+    return 'Let\'s chat on Air: https://air.ms/install. Use invite code $code.';
+  }
+
+  @override
+  String invitationCodesScreen_codesClipboardMessage(Object codes) {
+    return 'Let\'s chat on Air: https://air.ms/install. Use one of these invite codes to join:\n\n$codes';
+  }
+
+  @override
   String get signUpScreen_header => 'Create your profile';
 
   @override

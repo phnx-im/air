@@ -110,7 +110,8 @@
   "invitationCodesScreen_global_quota_exceeded": "We're out of invites for now, please try again later.",
   "invitationCodesScreen_errorRequestingCode": "Something went wrong. Try again.",
   "invitationCodesScreen_copiedToClipboard": "Copied to clipboard",
-
+  "invitationCodesScreen_codeClipboardMessage": "Let's chat on Air: https://air.ms/install. Use invite code {code}.",
+  "invitationCodesScreen_codesClipboardMessage": "Let's chat on Air: https://air.ms/install. Use one of these invite codes to join:\n\n{codes}",
 
   "signUpScreen_header": "Create your profile",
   "signUpScreen_subheader": "Your profile is visible to people you connect with and members of groups you’re in. Air requires a display name, but a picture is optional.",
