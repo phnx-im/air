@@ -316,5 +316,7 @@
   "contactRequestDialog_error_fatal": "Kontaktanfrage konnte nicht angenommen werden",
   "contactRequestDialog_error_incompatibleClient": "Kontaktanfrage konnte nicht angenommen werden. Aktualisiere Air auf die neueste Version und versuche es dann erneut.",
   "errorBanner_ok": "OK",
+  "homeTab_chats": "Chats",
+  "homeTab_profile": "Du",
   "messageList_unreadMessages": "{count, plural, one {{count} ungelesene Nachricht} other {{count} ungelesene Nachrichten}}"
 }

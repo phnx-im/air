@@ -15,7 +15,7 @@ import 'types.dart';
 part 'navigation_cubit.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `home`, `intro`, `subscribe`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NavigationCubitBase>>
 abstract class NavigationCubitBase implements RustOpaqueInterface {
@@ -53,13 +53,13 @@ abstract class NavigationCubitBase implements RustOpaqueInterface {
 
   Future<void> openMemberDetails({required UiUserId member});
 
-  Future<void> openUserProfile();
-
   bool pop();
 
   NavigationState get state;
 
   Stream<NavigationState> stream();
+
+  Future<void> switchTab({required HomeTab tab});
 }
 
 enum DeveloperSettingsScreenType { root, changeUser, logs }
@@ -78,7 +78,7 @@ sealed class HomeNavigationState with _$HomeNavigationState {
     ChatId? chatId,
     DeveloperSettingsScreenType? developerSettingsScreen,
     UiUserId? memberDetails,
-    @Default(false) bool userProfileOpen,
+    @Default(HomeTab.chats) HomeTab activeTab,
     @Default(false) bool chatDetailsOpen,
     @Default(false) bool addMembersOpen,
     @Default(false) bool groupMembersOpen,
@@ -86,6 +86,15 @@ sealed class HomeNavigationState with _$HomeNavigationState {
   }) = _HomeNavigationState;
   static Future<HomeNavigationState> default_() =>
       RustLib.instance.api.crateApiNavigationCubitHomeNavigationStateDefault();
+}
+
+/// Primary destinations exposed in the mobile tab bar and desktop sidebar.
+enum HomeTab {
+  chats,
+  profile;
+
+  static Future<HomeTab> default_() =>
+      RustLib.instance.api.crateApiNavigationCubitHomeTabDefault();
 }
 
 @freezed

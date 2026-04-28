@@ -315,5 +315,7 @@
   "contactRequestDialog_error_fatal": "Impossible d'accepter la demande de contact",
   "contactRequestDialog_error_incompatibleClient": "Impossible d'accepter la demande de contact. Mettez Air à jour vers la dernière version, puis réessayez.",
   "errorBanner_ok": "OK",
+  "homeTab_chats": "Discussions",
+  "homeTab_profile": "Profil",
   "messageList_unreadMessages": "{count, plural, one {{count} message non lu} other {{count} messages non lus}}"
 }

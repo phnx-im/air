@@ -10,7 +10,9 @@ import 'package:air/attachments/attachments.dart';
 import 'package:air/l10n/app_localizations_extension.dart';
 import 'package:air/message_list/emoji_repository.dart';
 import 'package:air/message_list/emoji_autocomplete.dart';
+import 'package:air/ui/components/button/glass_circle_button.dart';
 import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
+import 'package:air/ui/effects/material.dart';
 import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/message_list/scroll_to_bottom_controller.dart';
 import 'package:air/user/user_settings_cubit.dart';
@@ -200,28 +202,13 @@ class _MessageComposerState extends State<MessageComposer>
     final materialColor = color.material.tertiary;
 
     Widget composerButton({required Widget icon, VoidCallback? onPressed}) {
-      return SizedBox(
-        width: _buttonSize,
-        height: _buttonSize,
-        child: ClipOval(
-          child: Container(
-            decoration: BoxDecoration(
-              color: materialColor,
-              shape: BoxShape.circle,
-            ),
-            child: IconButton(
-              icon: icon,
-              color: color.text.primary,
-              hoverColor: const Color(0x00FFFFFF),
-              padding: EdgeInsets.zero,
-              constraints: BoxConstraints.tightFor(
-                width: _buttonSize,
-                height: _buttonSize,
-              ),
-              onPressed: onPressed,
-            ),
-          ),
-        ),
+      return GlassCircleButton(
+        icon: icon,
+        size: _buttonSize,
+        color: materialColor,
+        enableBackdropBlur: false,
+        shadows: const [],
+        onPressed: onPressed,
       );
     }
 
@@ -332,8 +319,8 @@ class _MessageComposerState extends State<MessageComposer>
                       clipper: clipper,
                       child: BackdropFilter(
                         filter: ImageFilter.blur(
-                          sigmaX: 40,
-                          sigmaY: 40,
+                          sigmaX: kMaterialBlurMedium,
+                          sigmaY: kMaterialBlurMedium,
                           bounds: clipBounds,
                         ),
                         child: const SizedBox.expand(),

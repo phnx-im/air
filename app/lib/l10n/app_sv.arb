@@ -314,5 +314,7 @@
   "contactRequestDialog_error_fatal": "Kunde inte acceptera kontaktförfrågan",
   "contactRequestDialog_error_incompatibleClient": "Kunde inte acceptera kontaktförfrågan. Uppdatera Air till den senaste versionen och försök sedan igen.",
   "errorBanner_ok": "OK",
+  "homeTab_chats": "Chattar",
+  "homeTab_profile": "Du",
   "messageList_unreadMessages": "{count, plural, one {{count} oläst meddelande} other {{count} olästa meddelanden}}"
 }

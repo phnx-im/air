@@ -90,7 +90,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => -1248812929;
+  int get rustContentHash => 1538501782;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -473,10 +473,6 @@ abstract class RustLibApi extends BaseApi {
     required UiUserId member,
   });
 
-  Future<void> crateApiNavigationCubitNavigationCubitBaseOpenUserProfile({
-    required NavigationCubitBase that,
-  });
-
   bool crateApiNavigationCubitNavigationCubitBasePop({
     required NavigationCubitBase that,
   });
@@ -487,6 +483,11 @@ abstract class RustLibApi extends BaseApi {
 
   Stream<NavigationState> crateApiNavigationCubitNavigationCubitBaseStream({
     required NavigationCubitBase that,
+  });
+
+  Future<void> crateApiNavigationCubitNavigationCubitBaseSwitchTab({
+    required NavigationCubitBase that,
+    required HomeTab tab,
   });
 
   bool crateApiMemberDetailsCubitUiRoomStateCanKick({
@@ -758,6 +759,8 @@ abstract class RustLibApi extends BaseApi {
 
   Future<HomeNavigationState>
   crateApiNavigationCubitHomeNavigationStateDefault();
+
+  Future<HomeTab> crateApiNavigationCubitHomeTabDefault();
 
   String crateApiTypesImageDataComputeHash({required List<int> bytes});
 
@@ -3970,44 +3973,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<void> crateApiNavigationCubitNavigationCubitBaseOpenUserProfile({
-    required NavigationCubitBase that,
-  }) {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
-            that,
-            serializer,
-          );
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 79,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_unit,
-          decodeErrorData: null,
-        ),
-        constMeta:
-            kCrateApiNavigationCubitNavigationCubitBaseOpenUserProfileConstMeta,
-        argValues: [that],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta
-  get kCrateApiNavigationCubitNavigationCubitBaseOpenUserProfileConstMeta =>
-      const TaskConstMeta(
-        debugName: "NavigationCubitBase_open_user_profile",
-        argNames: ["that"],
-      );
-
-  @override
   bool crateApiNavigationCubitNavigationCubitBasePop({
     required NavigationCubitBase that,
   }) {
@@ -4019,7 +3984,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 80)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 79)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_bool,
@@ -4050,7 +4015,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 81)!;
+          return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 80)!;
         },
         codec: SseCodec(
           decodeSuccessData: sse_decode_navigation_state,
@@ -4087,7 +4052,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             pdeCallFfi(
               generalizedFrbRustBinding,
               serializer,
-              funcId: 82,
+              funcId: 81,
               port: port_,
             );
           },
@@ -4109,6 +4074,46 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "NavigationCubitBase_stream",
         argNames: ["that", "sink"],
+      );
+
+  @override
+  Future<void> crateApiNavigationCubitNavigationCubitBaseSwitchTab({
+    required NavigationCubitBase that,
+    required HomeTab tab,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
+            that,
+            serializer,
+          );
+          sse_encode_home_tab(tab, serializer);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 82,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: null,
+        ),
+        constMeta:
+            kCrateApiNavigationCubitNavigationCubitBaseSwitchTabConstMeta,
+        argValues: [that, tab],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiNavigationCubitNavigationCubitBaseSwitchTabConstMeta =>
+      const TaskConstMeta(
+        debugName: "NavigationCubitBase_switch_tab",
+        argNames: ["that", "tab"],
       );
 
   @override
@@ -6487,6 +6492,33 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
+  Future<HomeTab> crateApiNavigationCubitHomeTabDefault() {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 148,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_home_tab,
+          decodeErrorData: null,
+        ),
+        constMeta: kCrateApiNavigationCubitHomeTabDefaultConstMeta,
+        argValues: [],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta get kCrateApiNavigationCubitHomeTabDefaultConstMeta =>
+      const TaskConstMeta(debugName: "home_tab_default", argNames: []);
+
+  @override
   String crateApiTypesImageDataComputeHash({required List<int> bytes}) {
     return handler.executeSync(
       SyncTask(
@@ -6496,7 +6528,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 148,
+            funcId: 149,
           )!;
         },
         codec: SseCodec(
@@ -6526,7 +6558,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 149,
+            funcId: 150,
           )!;
         },
         codec: SseCodec(
@@ -6557,7 +6589,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 150,
+            funcId: 151,
             port: port_,
           );
         },
@@ -6590,7 +6622,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 151,
+            funcId: 152,
             port: port_,
           );
         },
@@ -6618,7 +6650,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 152,
+            funcId: 153,
             port: port_,
           );
         },
@@ -6653,7 +6685,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 153,
+            funcId: 154,
             port: port_,
           );
         },
@@ -6686,7 +6718,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 154,
+            funcId: 155,
             port: port_,
           );
         },
@@ -6719,7 +6751,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 155,
+            funcId: 156,
           )!;
         },
         codec: SseCodec(
@@ -6748,7 +6780,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 156,
+            funcId: 157,
             port: port_,
           );
         },
@@ -6778,7 +6810,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 157,
+            funcId: 158,
             port: port_,
           );
         },
@@ -6806,7 +6838,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 158,
+            funcId: 159,
             port: port_,
           );
         },
@@ -6836,7 +6868,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 159,
+            funcId: 160,
             port: port_,
           );
         },
@@ -6863,7 +6895,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 160,
+            funcId: 161,
             port: port_,
           );
         },
@@ -6891,7 +6923,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 161,
+            funcId: 162,
             port: port_,
           );
         },
@@ -6921,7 +6953,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 162,
+            funcId: 163,
           )!;
         },
         codec: SseCodec(
@@ -6954,7 +6986,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 163,
+            funcId: 164,
           )!;
         },
         codec: SseCodec(
@@ -8559,12 +8591,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       developerSettingsScreen:
           dco_decode_opt_box_autoadd_developer_settings_screen_type(arr[2]),
       memberDetails: dco_decode_opt_box_autoadd_ui_user_id(arr[3]),
-      userProfileOpen: dco_decode_bool(arr[4]),
+      activeTab: dco_decode_home_tab(arr[4]),
       chatDetailsOpen: dco_decode_bool(arr[5]),
       addMembersOpen: dco_decode_bool(arr[6]),
       groupMembersOpen: dco_decode_bool(arr[7]),
       createGroupOpen: dco_decode_bool(arr[8]),
     );
+  }
+
+  @protected
+  HomeTab dco_decode_home_tab(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return HomeTab.values[raw as int];
   }
 
   @protected
@@ -11421,7 +11459,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_developerSettingsScreen =
         sse_decode_opt_box_autoadd_developer_settings_screen_type(deserializer);
     var var_memberDetails = sse_decode_opt_box_autoadd_ui_user_id(deserializer);
-    var var_userProfileOpen = sse_decode_bool(deserializer);
+    var var_activeTab = sse_decode_home_tab(deserializer);
     var var_chatDetailsOpen = sse_decode_bool(deserializer);
     var var_addMembersOpen = sse_decode_bool(deserializer);
     var var_groupMembersOpen = sse_decode_bool(deserializer);
@@ -11431,12 +11469,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       chatId: var_chatId,
       developerSettingsScreen: var_developerSettingsScreen,
       memberDetails: var_memberDetails,
-      userProfileOpen: var_userProfileOpen,
+      activeTab: var_activeTab,
       chatDetailsOpen: var_chatDetailsOpen,
       addMembersOpen: var_addMembersOpen,
       groupMembersOpen: var_groupMembersOpen,
       createGroupOpen: var_createGroupOpen,
     );
+  }
+
+  @protected
+  HomeTab sse_decode_home_tab(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return HomeTab.values[inner];
   }
 
   @protected
@@ -14924,11 +14969,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       serializer,
     );
     sse_encode_opt_box_autoadd_ui_user_id(self.memberDetails, serializer);
-    sse_encode_bool(self.userProfileOpen, serializer);
+    sse_encode_home_tab(self.activeTab, serializer);
     sse_encode_bool(self.chatDetailsOpen, serializer);
     sse_encode_bool(self.addMembersOpen, serializer);
     sse_encode_bool(self.groupMembersOpen, serializer);
     sse_encode_bool(self.createGroupOpen, serializer);
+  }
+
+  @protected
+  void sse_encode_home_tab(HomeTab self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
   }
 
   @protected
@@ -17161,9 +17212,6 @@ class NavigationCubitBaseImpl extends RustOpaque
         member: member,
       );
 
-  Future<void> openUserProfile() => RustLib.instance.api
-      .crateApiNavigationCubitNavigationCubitBaseOpenUserProfile(that: this);
-
   bool pop() => RustLib.instance.api
       .crateApiNavigationCubitNavigationCubitBasePop(that: this);
 
@@ -17172,6 +17220,12 @@ class NavigationCubitBaseImpl extends RustOpaque
 
   Stream<NavigationState> stream() => RustLib.instance.api
       .crateApiNavigationCubitNavigationCubitBaseStream(that: this);
+
+  Future<void> switchTab({required HomeTab tab}) =>
+      RustLib.instance.api.crateApiNavigationCubitNavigationCubitBaseSwitchTab(
+        that: this,
+        tab: tab,
+      );
 }
 
 @sealed

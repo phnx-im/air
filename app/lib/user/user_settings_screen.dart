@@ -47,15 +47,40 @@ class UserSettingsView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-
-    final isMobilePlatform = Platform.isAndroid || Platform.isIOS;
-    final isDesktopPlatform =
-        Platform.isMacOS || Platform.isWindows || Platform.isLinux;
-
     final colors = CustomColorScheme.of(context);
+    final bgColor = colors.backgroundBase.primary;
+
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Container(
+          constraints: isPointer() ? const BoxConstraints(maxWidth: 800) : null,
+          child: const _Sections(),
+        ),
+      ),
+    );
+
+    if (isSmallScreen(context)) {
+      return Scaffold(
+        backgroundColor: bgColor,
+        body: SafeArea(
+          bottom: false,
+          child: FadedScrollFrame(
+            backgroundColor: bgColor,
+            header: _MobileHeader(title: loc.userSettingsScreen_title),
+            builder: (topPadding, bottomPadding) => SingleChildScrollView(
+              padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
+              child: content,
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
+        clipBehavior: Clip.none,
         title: Text(
           loc.userSettingsScreen_title,
           style: TextStyle(
@@ -66,61 +91,80 @@ class UserSettingsView extends StatelessWidget {
         leading: AppBarBackButton(
           backgroundColor: colors.backgroundElevated.primary,
         ),
+        automaticallyImplyLeading: false,
         actions: null,
-        backgroundColor: colors.backgroundBase.secondary,
-        toolbarHeight: isPointer() ? 100 : null,
+        backgroundColor: bgColor,
         centerTitle: true,
         scrolledUnderElevation: 0,
       ),
-      backgroundColor: colors.backgroundBase.secondary,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: Container(
-                constraints: isPointer()
-                    ? const BoxConstraints(maxWidth: 800)
-                    : null,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 18),
+      backgroundColor: bgColor,
+      body: SafeArea(child: SingleChildScrollView(child: content)),
+    );
+  }
+}
 
-                    const _UserAvatar(),
+class _Sections extends StatelessWidget {
+  const _Sections();
 
-                    const SizedBox(height: Spacings.xs),
-                    const _DisplayName(),
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final isMobilePlatform = Platform.isAndroid || Platform.isIOS;
+    final isDesktopPlatform =
+        Platform.isMacOS || Platform.isWindows || Platform.isLinux;
 
-                    const SizedBox(height: Spacings.m),
-                    const _UsernamesSection(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 18),
 
-                    const SizedBox(height: Spacings.m),
-                    _SectionHeader(
-                      text: loc.userSettingsScreen_settingsSection,
-                    ),
+        const _UserAvatar(),
 
-                    const SizedBox(height: Spacings.xs),
-                    const _CommonSettings(),
+        const SizedBox(height: Spacings.xs),
+        const _DisplayName(),
 
-                    if (isMobilePlatform) const SizedBox(height: Spacings.xs),
-                    if (isMobilePlatform) _MobileSettings(),
+        const SizedBox(height: Spacings.m),
+        const _UsernamesSection(),
 
-                    if (isDesktopPlatform) const SizedBox(height: Spacings.xs),
-                    if (isDesktopPlatform) const _DesktopSettings(),
+        const SizedBox(height: Spacings.m),
+        _SectionHeader(text: loc.userSettingsScreen_settingsSection),
 
-                    const SizedBox(height: Spacings.m),
-                    const _HelpSection(),
+        const SizedBox(height: Spacings.xs),
+        const _CommonSettings(),
 
-                    const SizedBox(height: Spacings.m),
-                    const _AccountSection(),
+        if (isMobilePlatform) const SizedBox(height: Spacings.xs),
+        if (isMobilePlatform) _MobileSettings(),
 
-                    const SizedBox(height: Spacings.l + Spacings.xxs),
-                  ],
-                ),
-              ),
-            ),
+        if (isDesktopPlatform) const SizedBox(height: Spacings.xs),
+        if (isDesktopPlatform) const _DesktopSettings(),
+
+        const SizedBox(height: Spacings.m),
+        const _HelpSection(),
+
+        const SizedBox(height: Spacings.m),
+        const _AccountSection(),
+
+        const SizedBox(height: Spacings.l + Spacings.xxs),
+      ],
+    );
+  }
+}
+
+class _MobileHeader extends StatelessWidget {
+  const _MobileHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: kToolbarHeight,
+      child: Center(
+        child: Text(
+          title,
+          style: TextStyle(
+            fontSize: LabelFontSize.base.size,
+            fontWeight: FontWeight.bold,
           ),
         ),
       ),
@@ -139,7 +183,7 @@ class _UserAvatar extends StatelessWidget {
     return Center(
       child: UserAvatar(
         profile: profile,
-        size: 96,
+        size: 192,
         onPressed: () => _pickAvatar(context),
       ),
     );
@@ -728,7 +772,7 @@ class _FieldContainer extends StatelessWidget {
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            color: colors.backgroundBase.tertiary,
+            color: colors.backgroundBase.secondary,
             borderRadius: BorderRadius.circular(Spacings.s),
           ),
           padding: const EdgeInsets.symmetric(horizontal: Spacings.xs),

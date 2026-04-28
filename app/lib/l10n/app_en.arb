@@ -380,6 +380,9 @@
 
   "errorBanner_ok": "OK",
 
+  "homeTab_chats": "Chats",
+  "homeTab_profile": "You",
+
   "messageList_unreadMessages": "{count, plural, one {{count} unread message} other {{count} unread messages}}",
   "@messageList_unreadMessages": {
     "placeholders": {

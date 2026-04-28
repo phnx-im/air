@@ -99,6 +99,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
+        clipBehavior: Clip.none,
         title: const Text('Developer Settings'),
         leading: const AppBarBackButton(),
       ),

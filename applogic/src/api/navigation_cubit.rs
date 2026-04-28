@@ -43,6 +43,15 @@ pub enum IntroScreenType {
     DeveloperSettings(DeveloperSettingsScreenType),
 }
 
+/// Primary destinations exposed in the mobile tab bar and desktop sidebar.
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+#[frb(dart_metadata = ("freezed"))]
+pub enum HomeTab {
+    #[default]
+    Chats,
+    Profile,
+}
+
 /// Chats screen: main screen of the app
 ///
 /// Note: this can be represented in a better way disallowing invalid states.
@@ -64,8 +73,8 @@ pub struct HomeNavigationState {
     pub developer_settings_screen: Option<DeveloperSettingsScreenType>,
     /// User name of the member that details are currently open
     pub member_details: Option<UiUserId>,
-    #[frb(default = false)]
-    pub user_profile_open: bool,
+    #[frb(default = "HomeTab.chats")]
+    pub active_tab: HomeTab,
     #[frb(default = false)]
     pub chat_details_open: bool,
     #[frb(default = false)]
@@ -267,10 +276,10 @@ impl NavigationCubitBase {
         });
     }
 
-    pub fn open_user_profile(&self) {
+    pub fn switch_tab(&self, tab: HomeTab) {
         self.core.state_tx().send_if_modified(|state| match state {
             NavigationState::Intro { .. } => false,
-            NavigationState::Home { home } => !mem::replace(&mut home.user_profile_open, true),
+            NavigationState::Home { home } => mem::replace(&mut home.active_tab, tab) != tab,
         });
     }
 
@@ -342,8 +351,8 @@ impl NavigationCubitBase {
                     .replace(DeveloperSettingsScreenType::Root);
                 true
             }
-            NavigationState::Home { home } if home.user_profile_open => {
-                home.user_profile_open = false;
+            NavigationState::Home { home } if home.active_tab != HomeTab::Chats => {
+                home.active_tab = HomeTab::Chats;
                 true
             }
             NavigationState::Home { home } if home.member_details.is_some() => {

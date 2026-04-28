@@ -36,6 +36,7 @@ class SignUpScreen extends HookWidget {
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
         automaticallyImplyLeading: false,
+        clipBehavior: Clip.none,
         leading: AppBarBackButton(
           backgroundColor: colors.backgroundElevated.primary,
         ),
