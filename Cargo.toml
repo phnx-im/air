@@ -47,7 +47,6 @@ camino = "1.1"
 cargo_metadata = "0.23"
 cbor-diag = "0.1.12"
 chrono = { version = "0.4.38", features = ["serde"] }
-ciborium = "0.2"
 clap = { version = "4.5", features = ["derive"] }
 config = { version = "0.15", default-features = false, features = ["yaml"] }
 criterion = { version = "0.6.0", features = ["html_reports", "async", "async_tokio"] }
@@ -75,7 +74,10 @@ memmap2 = "0.9.5"
 metrics = "0.24.2"
 metrics-exporter-prometheus = { version = "0.17.2", default-features = false }
 mimi-room-policy = { git = "https://github.com/phnx-im/mimi-room-policy", rev = "6406e6d84c1219da3afcccb91007f2fdaaf61193" }
-mimi_content = { git = "https://github.com/phnx-im/mimi-content", rev = "9189ef0b350576e6edd130e43d281c8eb9bfe452" }
+minicbor = { version = "2.2.1", features = ["std"] }
+minicbor-derive = "0.19.3"
+minicbor-serde = { version = "0.6", features = ["std"] }
+mimi_content = { git = "https://github.com/phnx-im/mimi-content", rev = "c6e5ab7a7ede126906961332551c5e67c1081d3a", features = ["serde"] }
 mockall = "0.13.1"
 mockito = "1.7.0"
 openmls = { version = "0.8.1", features = ["extensions-draft-08"] }

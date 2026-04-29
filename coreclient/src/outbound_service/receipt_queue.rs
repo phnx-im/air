@@ -45,7 +45,7 @@ mod persistence {
                 ?self.message_id, ?mimi_id, ?self.message_status, "Enqueueing receipt"
             );
 
-            let status = self.message_status.repr();
+            let status: u8 = self.message_status.into();
             let now = TimeStamp::now();
 
             query!(
@@ -108,9 +108,7 @@ mod persistence {
                 locked_before,
             )
             .fetch(txn.as_mut())
-            .map(|record| {
-                record.map(|record| (record.mimi_id, MessageStatus::from_repr(record.status)))
-            })
+            .map(|record| record.map(|record| (record.mimi_id, MessageStatus::from(record.status))))
             .collect::<Result<Vec<_>, _>>()
             .await?;
 

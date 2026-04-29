@@ -8,8 +8,7 @@ use aircommon::{
 };
 use anyhow::Context;
 use mimi_content::{
-    ByteBuf, Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPart,
-    NestedPartContent, PerMessageStatus,
+    Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPart, PerMessageStatus,
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
@@ -231,7 +230,7 @@ impl UnsentReceipt {
             statuses: statuses
                 .into_iter()
                 .map(|(id, status)| PerMessageStatus {
-                    mimi_id: id.as_ref().to_vec().into(),
+                    mimi_id: id.as_ref().to_vec(),
                     status,
                 })
                 .collect(),
@@ -242,14 +241,14 @@ impl UnsentReceipt {
         }
 
         let content = MimiContent {
-            salt: ByteBuf::from(aircommon::crypto::secrets::Secret::<16>::random()?.secret()),
-            nested_part: NestedPart {
+            salt: aircommon::crypto::secrets::Secret::<16>::random()?
+                .secret()
+                .to_vec(),
+            nested_part: NestedPart::SinglePart {
                 disposition: Disposition::Unspecified,
-                part: NestedPartContent::SinglePart {
-                    content_type: "application/mimi-message-status".to_owned(),
-                    content: report.serialize()?.into(),
-                },
-                ..Default::default()
+                content_type: "application/mimi-message-status".to_owned(),
+                content: report.serialize()?,
+                language: Default::default(),
             },
             ..Default::default()
         };
