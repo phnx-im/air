@@ -147,6 +147,7 @@ openmls_rust_crypto = { path = "../openmls/openmls_rust_crypto" }
 openmls_traits = { path = "../openmls/traits" }
 openmls_memory_storage = { path = "../openmls/memory_storage" }
 openmls_sqlite_storage = { path = "../openmls/sqlite_storage" }
+openmls_basic_credential = { path = "../openmls/basic_credential" }
 
 # feat: add p384 support
 # <https://github.com/cryspen/hpke-rs/pull/150>
@@ -158,7 +159,7 @@ hpke-rs-crypto = { path = "../hpke-rs/traits/" }
 hpke-rs-rust-crypto = { path = "../hpke-rs/rust_crypto_provider/" }
 
 [patch."https://github.com/phnx-im/apqmls"]
-# apqmls = { path = "../hpqmls" }
+apqmls = { path = "../apqmls" }
 
 
 [profile.release]

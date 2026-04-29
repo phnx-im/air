@@ -4,6 +4,7 @@
 
 //! Configuration for MLS groups.
 
+use apqmls::ApqCiphersuite;
 use mls_assist::{
     components::ComponentsList,
     openmls::{
@@ -52,6 +53,9 @@ const DEFAULT_MLS_VERSION: ProtocolVersion = ProtocolVersion::Mls10;
 const DEFAULT_CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
 const PQ_CIPHERSUITE: Ciphersuite = Ciphersuite::AIR_128_MLKEM768_AES256GCM_SHA384_Ed25519;
+
+pub const APQ_CIPHERSUITE: ApqCiphersuite =
+    ApqCiphersuite::new(DEFAULT_CIPHERSUITE, PQ_CIPHERSUITE);
 
 // Required capabilities
 const REQUIRED_PROTOCOL_VERSIONS: &[ProtocolVersion] = &[DEFAULT_MLS_VERSION];

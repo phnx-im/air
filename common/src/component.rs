@@ -43,7 +43,7 @@ impl AirComponent {
         Self {
             features: AirFeatures {
                 encrypted_group_profiles: true,
-                pq_groups: false,
+                pq_groups: true,
             },
         }
     }

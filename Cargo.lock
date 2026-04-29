@@ -193,6 +193,7 @@ version = "0.14.0"
 dependencies = [
  "aes-gcm",
  "airmacros",
+ "apqmls",
  "argon2",
  "cbor-diag",
  "chrono",
@@ -534,12 +535,9 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 [[package]]
 name = "apqmls"
 version = "0.1.0"
-source = "git+https://github.com/phnx-im/apqmls?rev=e0dcefa4527a5e80683f830f7f50659153f9afd0#e0dcefa4527a5e80683f830f7f50659153f9afd0"
 dependencies = [
  "openmls",
- "openmls_basic_credential 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
- "openmls_memory_storage",
- "openmls_rust_crypto",
+ "openmls_basic_credential",
  "openmls_traits",
  "serde",
  "tap",
@@ -4969,7 +4967,7 @@ name = "openmls"
 version = "0.8.1"
 dependencies = [
  "log",
- "openmls_basic_credential 0.5.0",
+ "openmls_basic_credential",
  "openmls_libcrux_crypto",
  "openmls_memory_storage",
  "openmls_rust_crypto",
@@ -4996,20 +4994,6 @@ dependencies = [
  "serde",
  "tls_codec",
  "zeroize",
-]
-
-[[package]]
-name = "openmls_basic_credential"
-version = "0.5.0"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "983e8be1457dd6f316f409292cec334af3b57b49a19deadc925c83c3c35e15b6"
-dependencies = [
- "ed25519-dalek",
- "openmls_traits",
- "p256",
- "rand 0.8.5",
- "serde",
- "tls_codec",
 ]
 
 [[package]]
