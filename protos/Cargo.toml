@@ -13,6 +13,7 @@ license = "AGPL-3.0-or-later"
 [dependencies]
 aircommon.workspace = true
 airmacros.workspace = true
+apqmls.workspace = true
 chrono.workspace = true
 derive_more.workspace = true
 displaydoc.workspace = true

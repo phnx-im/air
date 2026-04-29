@@ -80,6 +80,7 @@ version = "0.14.0"
 dependencies = [
  "aircommon",
  "airprotos",
+ "apqmls",
  "futures-util",
  "mimi-room-policy",
  "mls-assist",
@@ -292,6 +293,7 @@ version = "0.14.0"
 dependencies = [
  "aircommon",
  "airmacros",
+ "apqmls",
  "cbor-diag",
  "chrono",
  "derive_more 0.99.20",
