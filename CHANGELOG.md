@@ -1,3 +1,45 @@
+## [0.15.0] - 2026-04-29
+
+### 🚀 Features
+
+- *(app)* Remove export/import client db from dev settings (#1152)
+- *(server)* Add invitation code metrics (#1172)
+- *(server)* Add username cli commands (#1171)
+- *(app)* Fades everywhere (#1174)
+- *(app)* Remove unencrypted group profile (#1135)
+- *(app)* Add user debug info view (#1173)
+- *(app)* Adjust settings copy (#1182)
+- *(server, app)* Communicate token quota exhaustion details (#1184)
+- *(app)* Tab bar & related design changes (#1181)
+
+### 🐛 Bug Fixes
+
+- *(app)* Ignore and clean-up undeserializable operation (#1167)
+- *(server)* Don't enforce token allowance for add username op (#1168)
+- *(app)* Back gesture on android (#1170)
+- *(app)* Allow creation of empty groups (#1169)
+- *(app)* Open notification navigation on android (#1163)
+- *(app)* Avoid repaints in chat list (#1156)
+- *(app)* Let the app know about background activity (#1164)
+- *(app)* Chat animations (#1165)
+- *(app)* Show ellipses for multi-lined text by removing newlines (#1129)
+- *(ci)* Update AppStore metadata (#1178)
+- *(app)* Set unencrypted group title for clients <= 0.14.0 (#1179)
+- *(app)* Add a scheme to links if there is none (#1180)
+- *(app)* Very rarely the message list would not load (#1183)
+- *(app)* Add a message wrapping the invite code when copying to clipboard (#1185)
+
+### 🚜 Refactor
+
+- Renaming for consistency (#1154)
+
+### ⚙️ Miscellaneous Tasks
+
+- Add dev container (#1150)
+- Update rust deps (#1175)
+- *(app)* UISceneDelegate adoption (#1176)
+- *(app)* Add missing translations (#1177)
+
 ## [0.14.0] - 2026-04-21
 
 ### 🚀 Features
