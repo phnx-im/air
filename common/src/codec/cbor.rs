@@ -11,20 +11,23 @@ use super::Codec;
 pub(super) struct Cbor;
 
 impl Cbor {
-    pub(crate) fn to_writer(
-        value: &impl Serialize,
-        writer: &mut impl std::io::Write,
-    ) -> Result<(), ciborium::ser::Error<std::io::Error>> {
-        ciborium::into_writer(value, writer)
+    pub(crate) fn to_writer<T: Serialize, W: std::io::Write>(
+        value: T,
+        writer: W,
+    ) -> Result<(), minicbor_serde::error::EncodeError<std::io::Error>> {
+        let writer = minicbor::encode::write::Writer::new(writer);
+        let mut serializer = minicbor_serde::Serializer::new(writer);
+        value.serialize(&mut serializer)?;
+        Ok(())
     }
 }
 
 #[derive(Debug, Error)]
 pub enum CborError {
     #[error(transparent)]
-    Serialization(#[from] ciborium::ser::Error<std::io::Error>),
+    Serialization(#[from] minicbor_serde::error::EncodeError<std::convert::Infallible>),
     #[error(transparent)]
-    Deserialization(#[from] ciborium::de::Error<std::io::Error>),
+    Deserialization(#[from] minicbor_serde::error::DecodeError),
 }
 
 impl Codec for Cbor {
@@ -34,15 +37,13 @@ impl Codec for Cbor {
     where
         T: Sized + Serialize,
     {
-        let mut buf = Vec::new();
-        ciborium::into_writer(value, &mut buf)?;
-        Ok(buf)
+        Ok(minicbor_serde::to_vec(value)?)
     }
 
     fn from_slice<T>(bytes: &[u8]) -> Result<T, Self::Error>
     where
         T: DeserializeOwned,
     {
-        Ok(ciborium::de::from_reader(bytes)?)
+        Ok(minicbor_serde::from_slice(bytes)?)
     }
 }

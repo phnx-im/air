@@ -7,7 +7,7 @@
 use std::mem;
 
 use aircommon::identifiers::AttachmentId;
-use mimi_content::content_container::NestedPartContent;
+use mimi_content::content_container::NestedPart;
 use tracing::error;
 
 use super::{content::MimiContentExt, persistence::PendingAttachmentRecord};
@@ -40,7 +40,7 @@ impl CoreUser {
         };
 
         let visit_res = mimi_content.visit_attachments_mut(|part| {
-            let NestedPartContent::ExternalPart {
+            let NestedPart::ExternalPart {
                 url,
                 content_type,
                 size,
@@ -61,7 +61,13 @@ impl CoreUser {
                 Ok(id) => id,
                 Err(error) => {
                     error!(%url, %error, "invalid attachment url; dropping attachment");
-                    let _ = mem::replace(part, NestedPartContent::NullPart);
+                    let _ = mem::replace(
+                        part,
+                        NestedPart::NullPart {
+                            disposition: Disposition::Unspecified,
+                            language: Default::default(),
+                        },
+                    );
                     return Ok(());
                 }
             };
@@ -80,11 +86,11 @@ impl CoreUser {
                 attachment_id,
                 size: *size,
                 enc_alg: *enc_alg,
-                enc_key: mem::take(key).into_vec(),
-                nonce: mem::take(nonce).into_vec(),
-                aad: mem::take(aad).into_vec(),
+                enc_key: mem::take(key),
+                nonce: mem::take(nonce),
+                aad: mem::take(aad),
                 hash_alg: *hash_alg,
-                hash: mem::take(content_hash).into_vec(),
+                hash: mem::take(content_hash),
             };
             records.push((record, pending_record));
 

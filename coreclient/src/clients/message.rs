@@ -4,7 +4,7 @@
 
 use aircommon::{identifiers::UserId, time::TimeStamp};
 use anyhow::{Context, bail};
-use mimi_content::{MessageStatus, MimiContent, NestedPartContent};
+use mimi_content::{MessageStatus, MimiContent, NestedPart};
 use sqlx::SqliteTransaction;
 
 use crate::{
@@ -247,7 +247,7 @@ impl UnsentContent {
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))?;
 
-        let is_deletion = content.nested_part.part == NestedPartContent::NullPart;
+        let is_deletion = content.nested_part.is_null_part();
 
         let message = if let Some(replaces) = replaces {
             let original_mimi_content = replaces

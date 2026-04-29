@@ -196,7 +196,6 @@ dependencies = [
  "argon2",
  "cbor-diag",
  "chrono",
- "ciborium",
  "criterion",
  "displaydoc",
  "ed25519",
@@ -205,6 +204,9 @@ dependencies = [
  "insta",
  "mimi-room-policy",
  "mimi_content",
+ "minicbor",
+ "minicbor-derive",
+ "minicbor-serde",
  "mls-assist",
  "rand 0.8.5",
  "rand_chacha 0.3.1",
@@ -276,7 +278,8 @@ dependencies = [
 name = "airmacros"
 version = "0.15.0"
 dependencies = [
- "ciborium",
+ "minicbor",
+ "minicbor-serde",
  "proc-macro2",
  "quote",
  "serde",
@@ -4430,15 +4433,44 @@ dependencies = [
 [[package]]
 name = "mimi_content"
 version = "0.1.0"
-source = "git+https://github.com/phnx-im/mimi-content?rev=9189ef0b350576e6edd130e43d281c8eb9bfe452#9189ef0b350576e6edd130e43d281c8eb9bfe452"
 dependencies = [
- "ciborium",
- "hex",
+ "minicbor",
+ "minicbor-derive",
+ "num_enum",
  "serde",
  "serde_bytes",
- "serde_list",
  "sha2",
  "thiserror 2.0.18",
+]
+
+[[package]]
+name = "minicbor"
+version = "2.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e70eae6d4f18f7d76877fe7b13f0bc21f7c2b7239d2041c338335f7b388d0dd7"
+dependencies = [
+ "minicbor-derive",
+]
+
+[[package]]
+name = "minicbor-derive"
+version = "0.19.3"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "294f0a0c161c510e9746adf546b8b044fbb0b00677d7dfc9a2452f9fdf63439b"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "minicbor-serde"
+version = "0.6.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "80047f75e28e3b38f6ab2ec3c2c7669f6b411fa6f8424e1a90a3fd784b19a3f4"
+dependencies = [
+ "minicbor",
+ "serde",
 ]
 
 [[package]]
@@ -4717,6 +4749,28 @@ checksum = "91df4bbde75afed763b708b7eee1e8e7651e02d97f6d5dd763e89367e957b23b"
 dependencies = [
  "hermit-abi",
  "libc",
+]
+
+[[package]]
+name = "num_enum"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "5d0bca838442ec211fa11de3a8b0e0e8f3a4522575b5c4c06ed722e005036f26"
+dependencies = [
+ "num_enum_derive",
+ "rustversion",
+]
+
+[[package]]
+name = "num_enum_derive"
+version = "0.7.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "680998035259dcfcafe653688bf2aa6d3e2dc05e98be6ab46afb089dc84f1df8"
+dependencies = [
+ "proc-macro-crate",
+ "proc-macro2",
+ "quote",
+ "syn",
 ]
 
 [[package]]
@@ -6335,24 +6389,6 @@ dependencies = [
  "serde",
  "serde_core",
  "zmij",
-]
-
-[[package]]
-name = "serde_list"
-version = "1.1.0"
-source = "git+https://github.com/phnx-im/mimi-content?rev=9189ef0b350576e6edd130e43d281c8eb9bfe452#9189ef0b350576e6edd130e43d281c8eb9bfe452"
-dependencies = [
- "serde",
- "serde_list_macros",
-]
-
-[[package]]
-name = "serde_list_macros"
-version = "0.1.0"
-source = "git+https://github.com/phnx-im/mimi-content?rev=9189ef0b350576e6edd130e43d281c8eb9bfe452#9189ef0b350576e6edd130e43d281c8eb9bfe452"
-dependencies = [
- "quote",
- "syn",
 ]
 
 [[package]]

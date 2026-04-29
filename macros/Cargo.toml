@@ -20,6 +20,7 @@ quote = "1"
 syn = { version = "2", features = ["full"] }
 
 [dev-dependencies]
-ciborium.workspace = true
+minicbor.workspace = true
+minicbor-serde.workspace = true
 serde.workspace = true
 serde_bytes.workspace = true
