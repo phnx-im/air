@@ -58,7 +58,9 @@ pub(crate) trait WriteConnection: ReadConnection + AsMut<SqliteConnection> + Sen
     fn notifier(&mut self) -> &mut StoreNotifier;
 
     // #[deprecated]
-    fn begin<'a>(&'a mut self) -> impl Future<Output = sqlx::Result<WriteDbTransaction<'a>>> {
+    fn begin<'a>(
+        &'a mut self,
+    ) -> impl Future<Output = sqlx::Result<WriteDbTransaction<'a>>> + Send {
         async {
             let (connection, notifier) = self.split();
             let txn_depth = SqliteTransactionManager::get_transaction_depth(connection);
