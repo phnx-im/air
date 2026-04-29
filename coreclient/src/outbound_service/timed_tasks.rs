@@ -55,6 +55,7 @@ impl OperationData for TimedTask {
         id.extend_from_slice(b"timed_task");
         match self.kind {
             TimedTaskKind::KeyPackageUpload => id.push(0),
+            TimedTaskKind::ApqKeyPackageUpload => id.push(4),
             TimedTaskKind::UsernameRefresh => id.push(1),
             TimedTaskKind::SelfUpdate => id.push(2),
             TimedTaskKind::TokenReplenishment { operation_type } => {
@@ -69,6 +70,7 @@ impl OperationData for TimedTask {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum TimedTaskKind {
     KeyPackageUpload,
+    ApqKeyPackageUpload,
     #[serde(alias = "HandleRefresh")]
     UsernameRefresh,
     SelfUpdate,
@@ -82,6 +84,7 @@ impl TimedTaskKind {
     pub(super) fn default_retry_interval(&self) -> Duration {
         match self {
             TimedTaskKind::KeyPackageUpload => Duration::minutes(5),
+            TimedTaskKind::ApqKeyPackageUpload => Duration::minutes(5),
             TimedTaskKind::UsernameRefresh => Duration::minutes(5),
             TimedTaskKind::SelfUpdate => Duration::minutes(5),
             TimedTaskKind::TokenReplenishment { operation_type } => match operation_type {
@@ -202,6 +205,10 @@ impl OutboundServiceContext {
             .into_operation()
             .enqueue_if_not_exists(&self.pool)
             .await?;
+        TimedTask::new(TimedTaskKind::ApqKeyPackageUpload)
+            .into_operation()
+            .enqueue_if_not_exists(&self.pool)
+            .await?;
         TimedTask::new(TimedTaskKind::UsernameRefresh)
             .into_operation()
             .enqueue_if_not_exists(&self.pool)
@@ -230,6 +237,7 @@ impl OutboundServiceContext {
 
         match task_kind {
             TimedTaskKind::KeyPackageUpload => self.upload_key_packages().await,
+            TimedTaskKind::ApqKeyPackageUpload => self.upload_apq_key_packages().await,
             TimedTaskKind::UsernameRefresh => self.refresh_usernames().await,
             TimedTaskKind::SelfUpdate => self.self_update(run_token).await,
             TimedTaskKind::TokenReplenishment { operation_type } => {
@@ -393,7 +401,7 @@ impl OutboundServiceContext {
     async fn upload_key_packages(&self) -> anyhow::Result<Duration> {
         let key_packages = self
             .with_transaction(async |txn| {
-                let mut key_packages = Vec::with_capacity(KEY_PACKAGES);
+                let mut key_packages = Vec::with_capacity(KEY_PACKAGES + 1);
                 for _ in 0..KEY_PACKAGES {
                     let kp = self.key_store.generate_key_package(
                         &mut *txn,
@@ -448,7 +456,85 @@ impl OutboundServiceContext {
         // If the upload was successful, we mark the uploaded ones as live and
         // mark the others as stale.
         self.with_transaction(async |txn| {
-            persistence::mark_key_packages_as_live(txn, &key_package_refs).await
+            let is_apq = false;
+            persistence::mark_key_packages_as_live(txn, &key_package_refs, is_apq).await
+        })
+        .await?;
+
+        Ok(Duration::weeks(1))
+    }
+
+    /// This function does the following:
+    /// 1. Generate a number of new key packages
+    /// 2. Upload them to the QS (and clean up on failure)
+    /// 3. Delete key packages that are marked stale
+    /// 4. Mark key packages stale that were previously marked live
+    /// 5. Marks the uploaded key packages as live in the database
+    async fn upload_apq_key_packages(&self) -> anyhow::Result<Duration> {
+        let key_packages = self
+            .with_transaction(async |txn| {
+                let mut key_packages = Vec::with_capacity(KEY_PACKAGES + 1);
+                for _ in 0..KEY_PACKAGES {
+                    let kp = self.key_store.generate_apq_key_package(
+                        &mut *txn,
+                        &self.qs_client_id,
+                        false,
+                    )?;
+                    key_packages.push(kp);
+                }
+
+                let last_resort_kp =
+                    self.key_store
+                        .generate_apq_key_package(&mut *txn, &self.qs_client_id, true)?;
+                key_packages.push(last_resort_kp);
+
+                Ok::<_, anyhow::Error>(key_packages)
+            })
+            .await?;
+
+        let crypto_provider = OpenMlsRustCrypto::default();
+        let key_package_refs = key_packages
+            .iter()
+            .map(|kp| {
+                let t_ref = kp.t_key_package().hash_ref(crypto_provider.crypto())?;
+                let pq_ref = kp.pq_key_package().hash_ref(crypto_provider.crypto())?;
+                Ok([t_ref, pq_ref])
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        info!(n = key_packages.len(), "Uploading key packages");
+        if let Err(error) = self
+            .api_clients
+            .default_client()?
+            .qs_publish_apq_key_packages(
+                self.qs_client_id,
+                key_packages,
+                &self.key_store.qs_client_signing_key,
+            )
+            .await
+        {
+            error!(%error, "Failed to upload key packages");
+            // Clean up previously created key packages
+            let connection = &mut self.pool.acquire().await?;
+            for key_package_ref in key_package_refs.into_iter().flatten() {
+                if let Err(error) = self
+                    .key_store
+                    .delete_key_package(connection, key_package_ref)
+                {
+                    error!(%error, "Failed to delete key package after upload failure");
+                }
+            }
+
+            return Err(error.into());
+        }
+        info!("Uploaded key packages");
+
+        // If the upload was successful, we mark the uploaded ones as live and
+        // mark the others as stale.
+        self.with_transaction(async |txn| {
+            let is_apq = true;
+            persistence::mark_key_packages_as_live(txn, key_package_refs.iter().flatten(), is_apq)
+                .await
         })
         .await?;
 
@@ -555,32 +641,47 @@ mod persistence {
 
     pub(super) async fn mark_key_packages_as_live(
         txn: &mut SqliteTransaction<'_>,
-        key_package_refs: &[KeyPackageRef],
+        key_package_refs: impl IntoIterator<Item = &KeyPackageRef>,
+        is_apq: bool,
+    ) -> anyhow::Result<()> {
+        let refs_table = if is_apq {
+            "apq_key_package_refs"
+        } else {
+            "key_package_refs"
+        };
+        mark_key_packages_as_live_impl(txn, refs_table, key_package_refs).await
+    }
+
+    pub(super) async fn mark_key_packages_as_live_impl(
+        txn: &mut SqliteTransaction<'_>,
+        refs_table: &'static str,
+        key_package_refs: impl IntoIterator<Item = &KeyPackageRef>,
     ) -> anyhow::Result<()> {
         // Delete all key packages that are not marked as live
-        sqlx::query!(
+        sqlx::query(&format!(
             "DELETE FROM key_package
             WHERE key_package_ref IN (
               SELECT key_package_ref
-              FROM key_package_refs
+              FROM {refs_table}
               WHERE is_live = 0
             )"
-        )
+        ))
         .execute(txn.as_mut())
         .await?;
 
         // Mark all key packages as stale
-        sqlx::query!(
-            "UPDATE key_package_refs
+        sqlx::query(&format!(
+            "UPDATE {refs_table}
             SET is_live = 0
-            WHERE is_live = 1"
-        )
+            WHERE is_live = 1",
+        ))
         .execute(txn.as_mut())
         .await?;
 
         // Add the newly uploaded ones as 'live'.
-        let mut qb =
-            QueryBuilder::new("INSERT INTO key_package_refs (key_package_ref, is_live) VALUES ");
+        let mut qb = QueryBuilder::new(format!(
+            "INSERT INTO {refs_table} (key_package_ref, is_live) VALUES "
+        ));
         let mut vals = qb.separated(", ");
         for r in key_package_refs {
             let r = KeyRefWrapper(r);
@@ -591,12 +692,12 @@ mod persistence {
         qb.build().execute(txn.as_mut()).await?;
 
         // Delete orphaned key packages (usually this is a no-op)
-        sqlx::query!(
+        sqlx::query(&format!(
             "DELETE FROM key_package WHERE key_package_ref NOT IN (
                 SELECT key_package_ref
-                FROM key_package_refs
+                FROM {refs_table}
             )"
-        )
+        ))
         .execute(txn.as_mut())
         .await?;
 
@@ -669,7 +770,9 @@ mod persistence {
                 .await?;
 
             let mut txn = pool.begin().await?;
-            mark_key_packages_as_live(&mut txn, slice::from_ref(&new_key_package_ref)).await?;
+            let is_apq = false;
+            mark_key_packages_as_live(&mut txn, std::iter::iter(&new_key_package_ref), is_apq)
+                .await?;
             txn.commit().await?;
 
             let rows = query(
