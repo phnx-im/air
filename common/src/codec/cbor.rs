@@ -12,7 +12,7 @@ pub(super) struct Cbor;
 
 impl Cbor {
     pub(crate) fn to_writer<T: Serialize, W: std::io::Write>(
-        value: T,
+        value: &T,
         writer: W,
     ) -> Result<(), minicbor_serde::error::EncodeError<std::io::Error>> {
         let writer = minicbor::encode::write::Writer::new(writer);

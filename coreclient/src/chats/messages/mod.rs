@@ -288,7 +288,7 @@ pub struct InReplyToMessage {
 
 // WARNING: If this type is changed, a new `VersionedMessage` variant must be
 // introduced and the storage logic changed accordingly.
-#[derive(PartialEq, Debug, Clone)]
+#[derive(PartialEq, Debug, Clone, Serialize, Deserialize)]
 pub enum Message {
     Content(Box<ContentMessage>),
     Event(EventMessage),
