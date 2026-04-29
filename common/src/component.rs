@@ -26,6 +26,11 @@ pub struct AirFeatures {
     /// Whether the client supports encrypted group profiles.
     #[tag(1)]
     pub encrypted_group_profiles: bool,
+    /// Whether the client supports [APQMLS] (Amortized PQ MLS Combiner).
+    ///
+    /// [APQMLS]: https://datatracker.ietf.org/doc/html/draft-ietf-mls-combiner
+    #[tag(2)]
+    pub pq_groups: bool,
 }
 
 impl AirComponent {
@@ -38,6 +43,7 @@ impl AirComponent {
         Self {
             features: AirFeatures {
                 encrypted_group_profiles: true,
+                pq_groups: false,
             },
         }
     }

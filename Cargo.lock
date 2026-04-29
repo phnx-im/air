@@ -537,7 +537,7 @@ version = "0.1.0"
 source = "git+https://github.com/phnx-im/apqmls?rev=e0dcefa4527a5e80683f830f7f50659153f9afd0#e0dcefa4527a5e80683f830f7f50659153f9afd0"
 dependencies = [
  "openmls",
- "openmls_basic_credential",
+ "openmls_basic_credential 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
  "openmls_memory_storage",
  "openmls_rust_crypto",
  "openmls_traits",
@@ -3361,10 +3361,9 @@ dependencies = [
 [[package]]
 name = "hpke-rs"
 version = "0.6.1"
-source = "git+https://github.com/boxdot/hpke-rs?branch=dima%2Fp384#07741e11f74789064eb00802bf449faeaad7b233"
 dependencies = [
  "hpke-rs-crypto",
- "hpke-rs-libcrux 0.6.1 (git+https://github.com/boxdot/hpke-rs?branch=dima%2Fp384)",
+ "hpke-rs-libcrux 0.6.1",
  "hpke-rs-rust-crypto",
  "libcrux-sha3",
  "log",
@@ -3378,9 +3377,24 @@ dependencies = [
 [[package]]
 name = "hpke-rs-crypto"
 version = "0.6.1"
-source = "git+https://github.com/boxdot/hpke-rs?branch=dima%2Fp384#07741e11f74789064eb00802bf449faeaad7b233"
 dependencies = [
  "rand_core 0.9.5",
+ "zeroize",
+]
+
+[[package]]
+name = "hpke-rs-libcrux"
+version = "0.6.1"
+dependencies = [
+ "hpke-rs-crypto",
+ "libcrux-aead",
+ "libcrux-ecdh",
+ "libcrux-hkdf",
+ "libcrux-kem",
+ "libcrux-traits",
+ "rand 0.10.1",
+ "rand_chacha 0.10.0",
+ "rand_core 0.10.0",
  "zeroize",
 ]
 
@@ -3403,26 +3417,8 @@ dependencies = [
 ]
 
 [[package]]
-name = "hpke-rs-libcrux"
-version = "0.6.1"
-source = "git+https://github.com/boxdot/hpke-rs?branch=dima%2Fp384#07741e11f74789064eb00802bf449faeaad7b233"
-dependencies = [
- "hpke-rs-crypto",
- "libcrux-aead",
- "libcrux-ecdh",
- "libcrux-hkdf",
- "libcrux-kem",
- "libcrux-traits",
- "rand 0.10.1",
- "rand_chacha 0.10.0",
- "rand_core 0.10.0",
- "zeroize",
-]
-
-[[package]]
 name = "hpke-rs-rust-crypto"
 version = "0.6.1"
-source = "git+https://github.com/boxdot/hpke-rs?branch=dima%2Fp384#07741e11f74789064eb00802bf449faeaad7b233"
 dependencies = [
  "aes-gcm",
  "chacha20poly1305",
@@ -4971,10 +4967,9 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 [[package]]
 name = "openmls"
 version = "0.8.1"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#92dffe36ba092a03abbd20f91c9229bb5de3fd01"
 dependencies = [
  "log",
- "openmls_basic_credential",
+ "openmls_basic_credential 0.5.0",
  "openmls_libcrux_crypto",
  "openmls_memory_storage",
  "openmls_rust_crypto",
@@ -4991,7 +4986,6 @@ dependencies = [
 [[package]]
 name = "openmls_basic_credential"
 version = "0.5.0"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#92dffe36ba092a03abbd20f91c9229bb5de3fd01"
 dependencies = [
  "ed25519-dalek",
  "ml-dsa",
@@ -5005,9 +4999,22 @@ dependencies = [
 ]
 
 [[package]]
+name = "openmls_basic_credential"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "983e8be1457dd6f316f409292cec334af3b57b49a19deadc925c83c3c35e15b6"
+dependencies = [
+ "ed25519-dalek",
+ "openmls_traits",
+ "p256",
+ "rand 0.8.5",
+ "serde",
+ "tls_codec",
+]
+
+[[package]]
 name = "openmls_libcrux_crypto"
 version = "0.3.1"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#92dffe36ba092a03abbd20f91c9229bb5de3fd01"
 dependencies = [
  "hpke-rs",
  "hpke-rs-crypto",
@@ -5028,7 +5035,6 @@ dependencies = [
 [[package]]
 name = "openmls_memory_storage"
 version = "0.5.0"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#92dffe36ba092a03abbd20f91c9229bb5de3fd01"
 dependencies = [
  "hex",
  "log",
@@ -5041,7 +5047,6 @@ dependencies = [
 [[package]]
 name = "openmls_rust_crypto"
 version = "0.5.1"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#92dffe36ba092a03abbd20f91c9229bb5de3fd01"
 dependencies = [
  "aes-gcm",
  "chacha20poly1305",
@@ -5067,7 +5072,6 @@ dependencies = [
 [[package]]
 name = "openmls_sqlite_storage"
 version = "0.2.0"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#92dffe36ba092a03abbd20f91c9229bb5de3fd01"
 dependencies = [
  "log",
  "openmls_traits",
@@ -5080,7 +5084,6 @@ dependencies = [
 [[package]]
 name = "openmls_traits"
 version = "0.5.0"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#92dffe36ba092a03abbd20f91c9229bb5de3fd01"
 dependencies = [
  "serde",
  "tls_codec",

@@ -21,6 +21,9 @@ service QueueService {
   rpc PublishKeyPackages(PublishKeyPackagesRequest) returns (PublishKeyPackagesResponse);
   rpc KeyPackage(KeyPackageRequest) returns (KeyPackageResponse);
 
+  rpc PublishApqKeyPackages(PublishApqKeyPackagesRequest) returns (PublishApqKeyPackagesResponse);
+  rpc ApqKeyPackage(ApqKeyPackageRequest) returns (ApqKeyPackageResponse);
+
   rpc QsEncryptionKey(QsEncryptionKeyRequest) returns (QsEncryptionKeyResponse);
 
   rpc Listen(stream ListenRequest) returns (stream QueueEvent);
@@ -194,6 +197,13 @@ message PublishKeyPackagesPayload {
 
 message KeyPackage {
   bytes tls = 1;
+}
+
+message ApqKeyPackage {
+  // TLS encoded key package for the traditional group.
+  bytes t_key_package = 1;
+  // TLS encoded key package for the post-quantum group.
+  bytes pq_key_package = 2;
 }
 
 message PublishKeyPackagesResponse {}
