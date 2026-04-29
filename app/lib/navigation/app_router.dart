@@ -212,7 +212,11 @@ extension on HomeNavigationState {
           key: ValueKey("create-group-screen"),
           child: CreateGroupScreen(),
         ),
-      if (userProfileOpen)
+      // On mobile the profile is rendered inline inside HomeScreen.
+      // Tablet/desktop still push it as a route until the desktop layout is
+      // reworked.
+      if (activeTab == HomeTab.profile &&
+          screenType != ResponsiveScreenType.mobile)
         const MaterialPage(
           key: ValueKey("user-profile-screen"),
           child: UserSettingsScreen(),

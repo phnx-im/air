@@ -12,6 +12,7 @@ import 'package:air/l10n/app_localizations.dart';
 import 'package:air/message_list/message_list.dart';
 import 'package:air/navigation/navigation_cubit.dart';
 import 'package:air/ui/colors/palette.dart';
+import 'package:air/ui/components/navigation/app_tab_bar.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -118,11 +119,22 @@ void main() {
                 subtitle: subtitle,
                 frameColor: frameColor,
                 device: ProductShotDevices.forPlatform(platform),
-                child: ChatListView(
-                  scaffold: true,
-                  createChatDetailsCubit: createMockChatDetailsCubitFactory(
-                    chats,
-                  ),
+                child: Stack(
+                  children: [
+                    Positioned.fill(
+                      child: ChatListView(
+                        scaffold: true,
+                        createChatDetailsCubit:
+                            createMockChatDetailsCubitFactory(chats),
+                      ),
+                    ),
+                    const Positioned(
+                      left: 0,
+                      right: 0,
+                      bottom: 0,
+                      child: AppTabBar(),
+                    ),
+                  ],
                 ),
               );
 

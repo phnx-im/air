@@ -9,9 +9,9 @@
   "userSettingsScreen_help": "Help",
   "userSettingsScreen_deleteAccount": "Delete Air account",
   "userSettingsScreen_sendWithEnter": "Send with Enter",
-  "userSettingsScreen_sendWithEnterDescription": "If disabled, pressing the Enter key won’t send a message.",
+  "userSettingsScreen_sendWithEnterDescription": "If turned on, the keyboard's \"Enter\" key sends the message.",
   "userSettingsScreen_readReceipts": "Read receipts",
-  "userSettingsScreen_readReceiptsDescription": "If disabled, others won’t be able to see when you’ve read their messages and you won’t be able to see when they’ve read yours.",
+  "userSettingsScreen_readReceiptsDescription": "If turned on, others will see if you’ve read their messages and you'll see if they’ve read yours.",
 
   "userSettingsScreen_displayNameLabel": "Display name",
 
@@ -110,7 +110,8 @@
   "invitationCodesScreen_global_quota_exceeded": "We're out of invites for now, please try again later.",
   "invitationCodesScreen_errorRequestingCode": "Something went wrong. Try again.",
   "invitationCodesScreen_copiedToClipboard": "Copied to clipboard",
-
+  "invitationCodesScreen_codeClipboardMessage": "Let's chat on Air: https://air.ms/install. Use invite code {code}.",
+  "invitationCodesScreen_codesClipboardMessage": "Let's chat on Air: https://air.ms/install. Use one of these invite codes to join:\n\n{codes}",
 
   "signUpScreen_header": "Create your profile",
   "signUpScreen_subheader": "Your profile is visible to people you connect with and members of groups you’re in. Air requires a display name, but a picture is optional.",
@@ -379,6 +380,9 @@
   "contactRequestDialog_error_incompatibleClient": "Failed to accept contact request. Update Air to the newest version, then try again.",
 
   "errorBanner_ok": "OK",
+
+  "homeTab_chats": "Chats",
+  "homeTab_profile": "You",
 
   "messageList_unreadMessages": "{count, plural, one {{count} unread message} other {{count} unread messages}}",
   "@messageList_unreadMessages": {

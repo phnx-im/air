@@ -45,14 +45,14 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get userSettingsScreen_sendWithEnterDescription =>
-      'Om detta är avstängt skickas inget meddelande när du trycker på Enter.';
+      'Om detta är aktiverat skickar tangentbordets \"Enter\"-tangent meddelandet.';
 
   @override
   String get userSettingsScreen_readReceipts => 'Läskvitton';
 
   @override
   String get userSettingsScreen_readReceiptsDescription =>
-      'Om detta är avstängt kan andra inte se när du har läst deras meddelanden och du kan inte se när de har läst dina.';
+      'Om detta är aktiverat kan andra se om du har läst deras meddelanden och du kan se om de har läst dina.';
 
   @override
   String get userSettingsScreen_displayNameLabel => 'Visningsnamn';
@@ -306,6 +306,16 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get invitationCodesScreen_copiedToClipboard => 'Kopierat till urklipp';
+
+  @override
+  String invitationCodesScreen_codeClipboardMessage(Object code) {
+    return 'Låt oss chatta på Air: https://air.ms/install. Använd inbjudningskoden $code.';
+  }
+
+  @override
+  String invitationCodesScreen_codesClipboardMessage(Object codes) {
+    return 'Låt oss chatta på Air: https://air.ms/install. Använd en av dessa inbjudningskoder för att gå med:\n$codes';
+  }
 
   @override
   String get signUpScreen_header => 'Skapa din profil';
@@ -1015,6 +1025,12 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get errorBanner_ok => 'OK';
+
+  @override
+  String get homeTab_chats => 'Chattar';
+
+  @override
+  String get homeTab_profile => 'Du';
 
   @override
   String messageList_unreadMessages(int count) {

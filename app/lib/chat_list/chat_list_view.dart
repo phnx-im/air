@@ -61,55 +61,41 @@ class _ChatListViewState extends State<ChatListView> {
   @override
   Widget build(BuildContext context) {
     final bgColor = ChatListContainer.backgroundColor(context);
-    const fadeBleeding = Spacings.s;
-    const fadeHeight = kToolbarHeight + fadeBleeding;
+    const fadeBleeding = Spacings.xs;
+    // Content top/bottom padding includes a small bleed below the header so
+    // chat rows don't snap right against it.
+    const contentInset = kToolbarHeight + fadeBleeding;
+    // Mobile uses taller fade gradients on both edges; desktop keeps the
+    // toolbar-height fade.
+    final topFadeHeight = widget.scaffold ? 96.0 : contentInset;
+    final bottomFadeHeight = widget.scaffold ? 120.0 : contentInset;
     // Inset the Scrollbar's track so it aligns with the list's content padding
     // and doesn't overlap the header or the fade regions.
     final scrollbarPadding = MediaQuery.paddingOf(
       context,
-    ).copyWith(top: fadeHeight, bottom: fadeHeight);
-    final container = Container(
-      color: bgColor,
-      child: MediaQuery(
-        data: MediaQuery.of(context).copyWith(padding: scrollbarPadding),
-        child: Scrollbar(
-          controller: _scrollController,
-          child: Stack(
-            children: [
-              Positioned.fill(
-                child: ScrollConfiguration(
-                  behavior: ScrollConfiguration.of(
-                    context,
-                  ).copyWith(scrollbars: false),
-                  child: ChatListContent(
-                    createChatDetailsCubit: widget.createChatDetailsCubit,
-                    topPadding: fadeHeight,
-                    bottomPadding: fadeHeight,
-                    scrollController: _scrollController,
-                  ),
-                ),
-              ),
-              Positioned.fill(
-                bottom: null,
-                child: EdgeFade(
-                  edge: FadeEdge.top,
-                  height: fadeHeight,
-                  color: bgColor,
-                  curve: Curves.easeInOutQuad,
-                  solidStop: 0.2,
-                ),
-              ),
-              const Positioned.fill(bottom: null, child: ChatListHeader()),
-              Positioned.fill(
-                top: null,
-                child: EdgeFade(
-                  edge: FadeEdge.bottom,
-                  height: fadeHeight,
-                  color: bgColor,
-                  curve: Curves.easeInOutQuad,
-                ),
-              ),
-            ],
+    ).copyWith(top: contentInset, bottom: contentInset);
+    final container = MediaQuery(
+      data: MediaQuery.of(context).copyWith(padding: scrollbarPadding),
+      child: Scrollbar(
+        controller: _scrollController,
+        child: FadedScrollFrame(
+          backgroundColor: bgColor,
+          header: const ChatListHeader(),
+          topFadeHeight: topFadeHeight,
+          bottomFadeHeight: bottomFadeHeight,
+          contentTopPadding: contentInset,
+          // Desktop: no tab bar, pin the bottom inset to the fade height.
+          bottomInset: widget.scaffold ? null : bottomFadeHeight,
+          builder: (topPadding, bottomPadding) => ScrollConfiguration(
+            behavior: ScrollConfiguration.of(
+              context,
+            ).copyWith(scrollbars: false),
+            child: ChatListContent(
+              createChatDetailsCubit: widget.createChatDetailsCubit,
+              topPadding: topPadding,
+              bottomPadding: bottomPadding,
+              scrollController: _scrollController,
+            ),
           ),
         ),
       ),

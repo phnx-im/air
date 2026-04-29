@@ -8,9 +8,9 @@
   "userSettingsScreen_help": "Hjälp",
   "userSettingsScreen_deleteAccount": "Radera Air-konto",
   "userSettingsScreen_sendWithEnter": "Skicka med Enter",
-  "userSettingsScreen_sendWithEnterDescription": "Om detta är avstängt skickas inget meddelande när du trycker på Enter.",
+  "userSettingsScreen_sendWithEnterDescription": "Om detta är aktiverat skickar tangentbordets \"Enter\"-tangent meddelandet.",
   "userSettingsScreen_readReceipts": "Läskvitton",
-  "userSettingsScreen_readReceiptsDescription": "Om detta är avstängt kan andra inte se när du har läst deras meddelanden och du kan inte se när de har läst dina.",
+  "userSettingsScreen_readReceiptsDescription": "Om detta är aktiverat kan andra se om du har läst deras meddelanden och du kan se om de har läst dina.",
   "userSettingsScreen_displayNameLabel": "Visningsnamn",
   "userSettingsScreen_usernamesSection": "Användarnamn",
   "userSettingsScreen_settingsSection": "Inställningar",
@@ -90,6 +90,8 @@
   "invitationCodesScreen_global_quota_exceeded": "Vi har inga fler inbjudningar för tillfället, försök igen senare.",
   "invitationCodesScreen_errorRequestingCode": "Något gick fel. Försök igen.",
   "invitationCodesScreen_copiedToClipboard": "Kopierat till urklipp",
+  "invitationCodesScreen_codeClipboardMessage": "Låt oss chatta på Air: https://air.ms/install. Använd inbjudningskoden {code}.",
+  "invitationCodesScreen_codesClipboardMessage": "Låt oss chatta på Air: https://air.ms/install. Använd en av dessa inbjudningskoder för att gå med:\n{codes}",
 
   "signUpScreen_header": "Skapa din profil",
   "signUpScreen_subheader": "Din profil är synlig för personer du ansluter till och medlemmar i grupper du är med i. Air kräver ett visningsnamn, men en bild är valfri.",
@@ -314,5 +316,7 @@
   "contactRequestDialog_error_fatal": "Kunde inte acceptera kontaktförfrågan",
   "contactRequestDialog_error_incompatibleClient": "Kunde inte acceptera kontaktförfrågan. Uppdatera Air till den senaste versionen och försök sedan igen.",
   "errorBanner_ok": "OK",
+  "homeTab_chats": "Chattar",
+  "homeTab_profile": "Du",
   "messageList_unreadMessages": "{count, plural, one {{count} oläst meddelande} other {{count} olästa meddelanden}}"
 }

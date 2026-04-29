@@ -60,9 +60,20 @@ impl AuthService {
         if let OperationType::AddUsername = operation_type {
             // Token allowance is not yet enforced for AddUsername
         } else if token_allowance.remaining < tokens_requested {
-            // NB: we might want to switch to returning the maximum amount of possible remaining tokens
-            // instead of rejecting the request
-            return Err(IssueTokensError::TooManyTokensRequested);
+            let (retry_after_secs, tokens_available) = if token_allowance.remaining > 0 {
+                (0, token_allowance.remaining)
+            } else {
+                let secs = token_allowance
+                    .valid_until
+                    .signed_duration_since(now)
+                    .num_seconds()
+                    .max(0) as u64;
+                (secs, operation_type.max_tokens_allowance())
+            };
+            return Err(IssueTokensError::TooManyTokensRequested {
+                retry_after_secs,
+                tokens_available,
+            });
         }
 
         let pp_server = Server::<Ristretto255>::new();
@@ -124,7 +135,9 @@ impl AuthService {
         operation_type: OperationType,
     ) -> Result<AmortizedBatchTokenResponse<Ristretto255>, IssueTokensError> {
         if token_request.nr() != 1 {
-            return Err(IssueTokensError::TooManyTokensRequested);
+            return Err(IssueTokensError::BadRequest(
+                "single token endpoint requires exactly one token",
+            ));
         }
 
         let mut transaction = self.db_pool.begin().await?;
@@ -328,6 +341,104 @@ mod tests {
             )
             .await;
         assert!(err.is_err());
+
+        Ok(())
+    }
+
+    /// When the quota is fully exhausted the error carries a non-zero retry_after_secs and the full
+    /// allowance as tokens_available.
+    #[sqlx::test]
+    async fn quota_exhausted_returns_retry_after(pool: PgPool) -> anyhow::Result<()> {
+        let (service, public_keys) = setup_with_keypair(&pool).await?;
+        let public_key = *public_keys.get(&OperationType::GetInviteCode).unwrap();
+
+        let user_record = store_random_user_record(&pool).await?;
+        let _client_record =
+            store_random_client_record(&pool, user_record.user_id().clone()).await?;
+
+        let max = OperationType::GetInviteCode.max_tokens_allowance();
+        let challenge = build_challenge();
+
+        // Exhaust the full allowance.
+        let (token_request, _) =
+            AmortizedBatchTokenRequest::<Ristretto255>::new(public_key, &challenge, max)?;
+        service
+            .as_issue_tokens(
+                user_record.user_id(),
+                OperationType::GetInviteCode,
+                token_request,
+            )
+            .await?;
+
+        // Now request even one more token.
+        let (token_request, _) =
+            AmortizedBatchTokenRequest::<Ristretto255>::new(public_key, &challenge, 1)?;
+        let err = service
+            .as_issue_tokens(
+                user_record.user_id(),
+                OperationType::GetInviteCode,
+                token_request,
+            )
+            .await
+            .unwrap_err();
+
+        let IssueTokensError::TooManyTokensRequested {
+            retry_after_secs,
+            tokens_available,
+        } = err
+        else {
+            panic!("expected TooManyTokensRequested, got {err:?}");
+        };
+        assert!(retry_after_secs > 0, "should have a non-zero retry delay");
+        assert_eq!(
+            tokens_available, max,
+            "should advertise the full allowance after reset"
+        );
+
+        Ok(())
+    }
+
+    /// When some tokens remain but fewer than requested, the error signals they are available
+    /// immediately with retry_after_secs == 0.
+    #[sqlx::test]
+    async fn quota_partial_returns_remaining_tokens_now(pool: PgPool) -> anyhow::Result<()> {
+        let (service, public_keys) = setup_with_keypair(&pool).await?;
+        let public_key = *public_keys.get(&OperationType::GetInviteCode).unwrap();
+
+        let user_record = store_random_user_record(&pool).await?;
+        let _client_record =
+            store_random_client_record(&pool, user_record.user_id().clone()).await?;
+
+        let challenge = build_challenge();
+
+        // Fresh user has 5 token remaining (the full GetInviteCode allowance). Requesting 6 exceeds
+        // it, triggering the partial-quota path.
+        let (token_request, _) =
+            AmortizedBatchTokenRequest::<Ristretto255>::new(public_key, &challenge, 6)?;
+        let err = service
+            .as_issue_tokens(
+                user_record.user_id(),
+                OperationType::GetInviteCode,
+                token_request,
+            )
+            .await
+            .unwrap_err();
+
+        let IssueTokensError::TooManyTokensRequested {
+            retry_after_secs,
+            tokens_available,
+        } = err
+        else {
+            panic!("expected TooManyTokensRequested, got {err:?}");
+        };
+        assert_eq!(
+            retry_after_secs, 0,
+            "token is available now, no wait needed"
+        );
+        assert_eq!(
+            tokens_available, 5,
+            "one token remains in the current epoch"
+        );
 
         Ok(())
     }

@@ -45,14 +45,14 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get userSettingsScreen_sendWithEnterDescription =>
-      'Wenn deaktiviert, wir die Nachricht beim Drücken der Entertaste nicht versendet.';
+      'Wenn aktiviert, sendet die \"Enter\"-Taste die Nachricht.';
 
   @override
   String get userSettingsScreen_readReceipts => 'Lesebestätigungen';
 
   @override
   String get userSettingsScreen_readReceiptsDescription =>
-      'Wenn deaktiviert, sehen andere nicht, wann du ihre Nachrichten gelesen hast, und du siehst nicht, wann sie deine gelesen haben.';
+      'Wenn aktiviert, sehen andere, ob du ihre Nachrichten gelesen hast, und du siehst, ob sie deine gelesen haben.';
 
   @override
   String get userSettingsScreen_displayNameLabel => 'Anzeigename';
@@ -310,6 +310,16 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get invitationCodesScreen_copiedToClipboard =>
       'In Zwischenablage kopiert';
+
+  @override
+  String invitationCodesScreen_codeClipboardMessage(Object code) {
+    return 'Lass uns auf Air chatten: https://air.ms/install. Verwende den Einladungscode $code.';
+  }
+
+  @override
+  String invitationCodesScreen_codesClipboardMessage(Object codes) {
+    return 'Lass uns auf Air chatten: https://air.ms/install. Verwende einen dieser Einladungscodes:\n\n$codes';
+  }
 
   @override
   String get signUpScreen_header => 'Erstelle dein Profil';
@@ -1022,6 +1032,12 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get errorBanner_ok => 'OK';
+
+  @override
+  String get homeTab_chats => 'Chats';
+
+  @override
+  String get homeTab_profile => 'Du';
 
   @override
   String messageList_unreadMessages(int count) {

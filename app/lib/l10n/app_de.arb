@@ -8,9 +8,9 @@
   "userSettingsScreen_help": "Hilfe",
   "userSettingsScreen_deleteAccount": "Air-Konto löschen",
   "userSettingsScreen_sendWithEnter": "Mit Eingabetaste senden",
-  "userSettingsScreen_sendWithEnterDescription": "Wenn deaktiviert, wir die Nachricht beim Drücken der Entertaste nicht versendet.",
+  "userSettingsScreen_sendWithEnterDescription": "Wenn aktiviert, sendet die \"Enter\"-Taste die Nachricht.",
   "userSettingsScreen_readReceipts": "Lesebestätigungen",
-  "userSettingsScreen_readReceiptsDescription": "Wenn deaktiviert, sehen andere nicht, wann du ihre Nachrichten gelesen hast, und du siehst nicht, wann sie deine gelesen haben.",
+  "userSettingsScreen_readReceiptsDescription": "Wenn aktiviert, sehen andere, ob du ihre Nachrichten gelesen hast, und du siehst, ob sie deine gelesen haben.",
   "userSettingsScreen_displayNameLabel": "Anzeigename",
   "userSettingsScreen_usernamesSection": "Benutzernamen",
   "userSettingsScreen_settingsSection": "Einstellungen",
@@ -90,6 +90,8 @@
   "invitationCodesScreen_global_quota_exceeded": "Wir haben im Moment keine Einladungscodes mehr, versuch es bitte später nochmal.",
   "invitationCodesScreen_errorRequestingCode": "Etwas ist schiefgelaufen. Versuche es erneut.",
   "invitationCodesScreen_copiedToClipboard": "In Zwischenablage kopiert",
+  "invitationCodesScreen_codeClipboardMessage": "Lass uns auf Air chatten: https://air.ms/install. Verwende den Einladungscode {code}.",
+  "invitationCodesScreen_codesClipboardMessage": "Lass uns auf Air chatten: https://air.ms/install. Verwende einen dieser Einladungscodes:\n\n{codes}",
 
   "signUpScreen_header": "Erstelle dein Profil",
   "signUpScreen_subheader": "Dein Profil ist für Personen sichtbar, mit denen du dich verbindest, und für Mitglieder deiner Gruppen. Air benötigt einen Anzeigenamen, ein Bild ist optional.",
@@ -316,5 +318,7 @@
   "contactRequestDialog_error_fatal": "Kontaktanfrage konnte nicht angenommen werden",
   "contactRequestDialog_error_incompatibleClient": "Kontaktanfrage konnte nicht angenommen werden. Aktualisiere Air auf die neueste Version und versuche es dann erneut.",
   "errorBanner_ok": "OK",
+  "homeTab_chats": "Chats",
+  "homeTab_profile": "Du",
   "messageList_unreadMessages": "{count, plural, one {{count} ungelesene Nachricht} other {{count} ungelesene Nachrichten}}"
 }

@@ -8,7 +8,7 @@ import 'package:air/core/core.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 export 'package:air/core/core.dart'
-    show NavigationState, IntroScreenType, DeveloperSettingsScreenType;
+    show NavigationState, IntroScreenType, DeveloperSettingsScreenType, HomeTab;
 export 'package:air/core/core_extension.dart' show NavigationStateExtension;
 
 class NavigationCubit implements StateStreamableSource<NavigationState> {
@@ -61,7 +61,7 @@ class NavigationCubit implements StateStreamableSource<NavigationState> {
   Future<void> openIntroScreen(IntroScreenType screen) =>
       _impl.openIntroScreen(screen: screen);
 
-  Future<void> openUserProfile() => _impl.openUserProfile();
+  Future<void> switchTab(HomeTab tab) => _impl.switchTab(tab: tab);
 
   bool pop() => _impl.pop();
 

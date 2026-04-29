@@ -32,6 +32,7 @@ class InvitationCodeScreen extends HookWidget {
     return Scaffold(
       resizeToAvoidBottomInset: true,
       appBar: AppBar(
+        clipBehavior: Clip.none,
         leading: AppBarBackButton(
           backgroundColor: colors.backgroundElevated.primary,
         ),
