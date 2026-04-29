@@ -205,7 +205,6 @@ dependencies = [
  "mimi-room-policy",
  "mimi_content",
  "minicbor",
- "minicbor-derive",
  "minicbor-serde",
  "mls-assist",
  "rand 0.8.5",

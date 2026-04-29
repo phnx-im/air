@@ -75,7 +75,6 @@ metrics = "0.24.2"
 metrics-exporter-prometheus = { version = "0.17.2", default-features = false }
 mimi-room-policy = { git = "https://github.com/phnx-im/mimi-room-policy", rev = "6406e6d84c1219da3afcccb91007f2fdaaf61193" }
 minicbor = { version = "2.2.1", features = ["std"] }
-minicbor-derive = "0.19.3"
 minicbor-serde = { version = "0.6", features = ["std"] }
 mimi_content = { git = "https://github.com/phnx-im/mimi-content", rev = "c6e5ab7a7ede126906961332551c5e67c1081d3a", features = ["serde"] }
 mockall = "0.13.1"

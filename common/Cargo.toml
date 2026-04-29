@@ -23,7 +23,6 @@ hkdf.workspace = true
 mimi-room-policy.workspace = true
 mimi_content.workspace = true
 minicbor.workspace = true
-minicbor-derive.workspace = true
 minicbor-serde.workspace = true
 mls-assist.workspace = true
 rand.workspace = true
