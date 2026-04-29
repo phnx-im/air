@@ -231,6 +231,7 @@ dependencies = [
  "airprotos",
  "airserver_test_harness",
  "anyhow",
+ "apqmls",
  "base64",
  "blurhash",
  "cbor-diag",
@@ -510,7 +511,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -521,7 +522,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -529,6 +530,22 @@ name = "anyhow"
 version = "1.0.102"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
+
+[[package]]
+name = "apqmls"
+version = "0.1.0"
+source = "git+https://github.com/phnx-im/apqmls?rev=e0dcefa4527a5e80683f830f7f50659153f9afd0#e0dcefa4527a5e80683f830f7f50659153f9afd0"
+dependencies = [
+ "openmls",
+ "openmls_basic_credential 0.5.0 (registry+https://github.com/rust-lang/crates.io-index)",
+ "openmls_memory_storage",
+ "openmls_rust_crypto",
+ "openmls_traits",
+ "serde",
+ "tap",
+ "thiserror 2.0.18",
+ "tls_codec",
+]
 
 [[package]]
 name = "arbitrary"
@@ -1389,7 +1406,7 @@ version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "cdd35008169921d80bc60d3d0ab416eecb028c4cd653352907921d95084790be"
 dependencies = [
- "hybrid-array",
+ "hybrid-array 0.4.8",
 ]
 
 [[package]]
@@ -1771,7 +1788,7 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -2091,7 +2108,8 @@ version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "77727bb15fa921304124b128af125e7e3b968275d1b108b379190264f4423710"
 dependencies = [
- "hybrid-array",
+ "hybrid-array 0.4.8",
+ "rand_core 0.10.0",
 ]
 
 [[package]]
@@ -2139,12 +2157,26 @@ dependencies = [
  "cpufeatures 0.2.17",
  "curve25519-dalek-derive",
  "digest 0.10.7",
- "fiat-crypto",
+ "fiat-crypto 0.2.9",
  "rand_core 0.6.4",
  "rustc_version",
  "serde",
  "subtle",
  "zeroize",
+]
+
+[[package]]
+name = "curve25519-dalek"
+version = "5.0.0-pre.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "335f1947f241137a14106b6f5acc5918a5ede29c9d71d3f2cb1678d5075d9fc3"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.2.17",
+ "curve25519-dalek-derive",
+ "fiat-crypto 0.3.0",
+ "rustc_version",
+ "subtle",
 ]
 
 [[package]]
@@ -2434,7 +2466,7 @@ version = "2.2.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "70e796c081cee67dc755e1a36a0a172b897fab85fc3f6bc48307991f64e4eca9"
 dependencies = [
- "curve25519-dalek",
+ "curve25519-dalek 4.1.3",
  "ed25519",
  "rand_core 0.6.4",
  "serde",
@@ -2599,7 +2631,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2717,6 +2749,12 @@ name = "fiat-crypto"
 version = "0.2.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "28dea519a9695b9977216879a3ebfddf92f1c08c05d984f8996aecd6ecdc811d"
+
+[[package]]
+name = "fiat-crypto"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "64cd1e32ddd350061ae6edb1b082d7c54915b5c672c389143b9a63403a109f24"
 
 [[package]]
 name = "filetime"
@@ -3323,11 +3361,9 @@ dependencies = [
 [[package]]
 name = "hpke-rs"
 version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b6ad6a58eb3e0ee30be8bfc7a9770ae98adcfa1d9bc820a5847732ce84f70837"
 dependencies = [
  "hpke-rs-crypto",
- "hpke-rs-libcrux",
+ "hpke-rs-libcrux 0.6.1",
  "hpke-rs-rust-crypto",
  "libcrux-sha3",
  "log",
@@ -3341,10 +3377,24 @@ dependencies = [
 [[package]]
 name = "hpke-rs-crypto"
 version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "0a73a99d9008010d73289f41335a3f6e14fb8c04eaf60e9111b450463b1bbc7f"
 dependencies = [
  "rand_core 0.9.5",
+ "zeroize",
+]
+
+[[package]]
+name = "hpke-rs-libcrux"
+version = "0.6.1"
+dependencies = [
+ "hpke-rs-crypto",
+ "libcrux-aead",
+ "libcrux-ecdh",
+ "libcrux-hkdf",
+ "libcrux-kem",
+ "libcrux-traits",
+ "rand 0.10.1",
+ "rand_chacha 0.10.0",
+ "rand_core 0.10.0",
  "zeroize",
 ]
 
@@ -3369,14 +3419,13 @@ dependencies = [
 [[package]]
 name = "hpke-rs-rust-crypto"
 version = "0.6.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "14b28be6cba9081c7feda2651d51c2a900029798e78b4c1e093e792f4571a870"
 dependencies = [
  "aes-gcm",
  "chacha20poly1305",
  "hkdf",
  "hpke-rs-crypto",
  "k256",
+ "ml-kem",
  "p256",
  "p384",
  "rand 0.8.5",
@@ -3385,7 +3434,8 @@ dependencies = [
  "rand_core 0.6.4",
  "sha2",
  "subtle",
- "x25519-dalek",
+ "x-wing",
+ "x25519-dalek 2.0.1",
  "zeroize",
 ]
 
@@ -3458,10 +3508,20 @@ checksum = "df3b46402a9d5adb4c86a0cf463f42e19994e3ee891101b1841f30a545cb49a9"
 
 [[package]]
 name = "hybrid-array"
+version = "0.3.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "891d15931895091dea5c47afa5b3c9a01ba634b311919fd4d41388fa0e3d76af"
+dependencies = [
+ "typenum",
+]
+
+[[package]]
+name = "hybrid-array"
 version = "0.4.8"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "8655f91cd07f2b9d0c24137bd650fe69617773435ee5ec83022377777ce65ef1"
 dependencies = [
+ "ctutils",
  "typenum",
 ]
 
@@ -3923,6 +3983,35 @@ checksum = "f6e3919bbaa2945715f0bb6d3934a173d1e9a59ac23767fbaaef277265a7411b"
 dependencies = [
  "cfg-if",
  "elliptic-curve",
+]
+
+[[package]]
+name = "keccak"
+version = "0.1.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cb26cec98cce3a3d96cbb7bced3c4b16e3d13f27ec56dbd62cbc8f39cfb9d653"
+dependencies = [
+ "cpufeatures 0.2.17",
+]
+
+[[package]]
+name = "keccak"
+version = "0.2.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "9e24a010dd405bd7ed803e5253182815b41bf2e6a80cc3bfc066658e03a198aa"
+dependencies = [
+ "cfg-if",
+ "cpufeatures 0.3.0",
+]
+
+[[package]]
+name = "kem"
+version = "0.3.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "01737161ba802849cfd486b5bd209d38ba4943494c249a8126005170c7621edd"
+dependencies = [
+ "crypto-common 0.2.1",
+ "rand_core 0.10.0",
 ]
 
 [[package]]
@@ -4469,6 +4558,34 @@ dependencies = [
 ]
 
 [[package]]
+name = "ml-dsa"
+version = "0.0.4"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ac4a46643af2001eafebcc37031fc459eb72d45057aac5d7a15b00046a2ad6db"
+dependencies = [
+ "const-oid 0.9.6",
+ "hybrid-array 0.3.1",
+ "num-traits",
+ "pkcs8 0.10.2",
+ "rand_core 0.6.4",
+ "sha3 0.10.9",
+ "signature 2.2.0",
+]
+
+[[package]]
+name = "ml-kem"
+version = "0.3.0-rc.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "04437cb1a66c0b78740927b76cc61f218344b9f6ef3dd430e283274a718ef0e9"
+dependencies = [
+ "hybrid-array 0.4.8",
+ "kem",
+ "module-lattice",
+ "rand_core 0.10.0",
+ "sha3 0.11.0",
+]
+
+[[package]]
 name = "mls-assist"
 version = "0.14.0"
 dependencies = [
@@ -4532,6 +4649,17 @@ dependencies = [
  "serde_urlencoded",
  "similar",
  "tokio",
+]
+
+[[package]]
+name = "module-lattice"
+version = "0.2.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "164eb3faeaecbd14b0b2a917c1b4d0c035097a9c559b0bed85c2cdd032bc8faa"
+dependencies = [
+ "ctutils",
+ "hybrid-array 0.4.8",
+ "num-traits",
 ]
 
 [[package]]
@@ -4622,7 +4750,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -4839,11 +4967,12 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 [[package]]
 name = "openmls"
 version = "0.8.1"
-source = "git+https://github.com/openmls/openmls?rev=b73621ba14ead6b32636a4e910f2cbfabb0d1ee9#b73621ba14ead6b32636a4e910f2cbfabb0d1ee9"
 dependencies = [
  "log",
+ "openmls_basic_credential 0.5.0",
  "openmls_libcrux_crypto",
  "openmls_memory_storage",
+ "openmls_rust_crypto",
  "openmls_sqlite_storage",
  "openmls_traits",
  "rayon",
@@ -4855,13 +4984,41 @@ dependencies = [
 ]
 
 [[package]]
+name = "openmls_basic_credential"
+version = "0.5.0"
+dependencies = [
+ "ed25519-dalek",
+ "ml-dsa",
+ "openmls_traits",
+ "p256",
+ "p384",
+ "rand_core 0.6.4",
+ "serde",
+ "tls_codec",
+ "zeroize",
+]
+
+[[package]]
+name = "openmls_basic_credential"
+version = "0.5.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "983e8be1457dd6f316f409292cec334af3b57b49a19deadc925c83c3c35e15b6"
+dependencies = [
+ "ed25519-dalek",
+ "openmls_traits",
+ "p256",
+ "rand 0.8.5",
+ "serde",
+ "tls_codec",
+]
+
+[[package]]
 name = "openmls_libcrux_crypto"
 version = "0.3.1"
-source = "git+https://github.com/openmls/openmls?rev=b73621ba14ead6b32636a4e910f2cbfabb0d1ee9#b73621ba14ead6b32636a4e910f2cbfabb0d1ee9"
 dependencies = [
  "hpke-rs",
  "hpke-rs-crypto",
- "hpke-rs-libcrux",
+ "hpke-rs-libcrux 0.6.1 (registry+https://github.com/rust-lang/crates.io-index)",
  "libcrux-aead",
  "libcrux-ed25519",
  "libcrux-hkdf",
@@ -4878,7 +5035,6 @@ dependencies = [
 [[package]]
 name = "openmls_memory_storage"
 version = "0.5.0"
-source = "git+https://github.com/openmls/openmls?rev=b73621ba14ead6b32636a4e910f2cbfabb0d1ee9#b73621ba14ead6b32636a4e910f2cbfabb0d1ee9"
 dependencies = [
  "hex",
  "log",
@@ -4891,7 +5047,6 @@ dependencies = [
 [[package]]
 name = "openmls_rust_crypto"
 version = "0.5.1"
-source = "git+https://github.com/openmls/openmls?rev=b73621ba14ead6b32636a4e910f2cbfabb0d1ee9#b73621ba14ead6b32636a4e910f2cbfabb0d1ee9"
 dependencies = [
  "aes-gcm",
  "chacha20poly1305",
@@ -4901,11 +5056,13 @@ dependencies = [
  "hpke-rs",
  "hpke-rs-crypto",
  "hpke-rs-rust-crypto",
+ "ml-dsa",
  "openmls_memory_storage",
  "openmls_traits",
  "p256",
- "rand 0.8.5",
+ "p384",
  "rand_chacha 0.3.1",
+ "rand_core 0.6.4",
  "serde",
  "sha2",
  "thiserror 2.0.18",
@@ -4915,7 +5072,6 @@ dependencies = [
 [[package]]
 name = "openmls_sqlite_storage"
 version = "0.2.0"
-source = "git+https://github.com/openmls/openmls?rev=b73621ba14ead6b32636a4e910f2cbfabb0d1ee9#b73621ba14ead6b32636a4e910f2cbfabb0d1ee9"
 dependencies = [
  "log",
  "openmls_traits",
@@ -4928,7 +5084,6 @@ dependencies = [
 [[package]]
 name = "openmls_traits"
 version = "0.5.0"
-source = "git+https://github.com/openmls/openmls?rev=b73621ba14ead6b32636a4e910f2cbfabb0d1ee9#b73621ba14ead6b32636a4e910f2cbfabb0d1ee9"
 dependencies = [
  "serde",
  "tls_codec",
@@ -4951,7 +5106,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.45.0",
 ]
 
 [[package]]
@@ -5941,9 +6096,9 @@ dependencies = [
 
 [[package]]
 name = "refinery"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "52c427f2572afe5c6cbfa2b1bf40071c89bf1a8539e958ea582842f6f38dcfae"
+checksum = "ee5133e5b207e5703c2a4a9dc9bd8c8f2cc74c4ac04ca5510acaa907012c77ac"
 dependencies = [
  "refinery-core",
  "refinery-macros",
@@ -5951,9 +6106,9 @@ dependencies = [
 
 [[package]]
 name = "refinery-core"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "702655abfc67f93a6f735e9fa4ace7d2e580633f8961f28acbfd7583ddce936c"
+checksum = "023a2a96d959c9b5b5da78e965bfdb1363b365bf5e84531a67d0eee827a702a3"
 dependencies = [
  "async-trait",
  "cfg-if",
@@ -5971,9 +6126,9 @@ dependencies = [
 
 [[package]]
 name = "refinery-macros"
-version = "0.9.0"
+version = "0.9.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "5145756cdf293b5089dc6b4f103f1a1229cc55d67082c866f8c8289531c4b983"
+checksum = "c56c2e960c8e47c7c5c30ad334afea8b5502da796a59e34d640d6239d876d924"
 dependencies = [
  "heck",
  "proc-macro2",
@@ -6178,7 +6333,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -6431,6 +6586,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "sha3"
+version = "0.10.9"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "77fd7028345d415a4034cf8777cd4f8ab1851274233b45f84e3d955502d93874"
+dependencies = [
+ "digest 0.10.7",
+ "keccak 0.1.6",
+]
+
+[[package]]
+name = "sha3"
+version = "0.11.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "be176f1a57ce4e3d31c1a166222d9768de5954f811601fb7ca06fc8203905ce1"
+dependencies = [
+ "digest 0.11.2",
+ "keccak 0.2.0",
+]
+
+[[package]]
 name = "shadow-rs"
 version = "1.7.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6554,7 +6729,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -6879,6 +7054,12 @@ dependencies = [
 ]
 
 [[package]]
+name = "tap"
+version = "1.0.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "55937e1799185b12863d447f42597ed69d9928686b8d88a1df17376a097d8369"
+
+[[package]]
 name = "tar"
 version = "0.4.45"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -6911,7 +7092,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -7531,7 +7712,7 @@ checksum = "f2f6fb2847f6742cd76af783a2a2c49e9375d0a111c7bef6f71cd9e738c72d6e"
 dependencies = [
  "memoffset",
  "tempfile",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -7679,7 +7860,7 @@ version = "0.6.0-pre.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "4120bad202975a1d3b5fb3468a65ee459d9e19a1d5d2a70d32fe615b9d65e04d"
 dependencies = [
- "curve25519-dalek",
+ "curve25519-dalek 4.1.3",
  "derive-where",
  "digest 0.10.7",
  "displaydoc",
@@ -8009,7 +8190,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.48.0",
 ]
 
 [[package]]
@@ -8603,6 +8784,19 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9edde0db4769d2dc68579893f2306b26c6ecfbe0ef499b013d731b7b9247e0b9"
 
 [[package]]
+name = "x-wing"
+version = "0.1.0-rc.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e17d0d5f4d1f26b9b9e7477af1d3bef960e1d1fb64edab7912fde472a8a8432e"
+dependencies = [
+ "kem",
+ "ml-kem",
+ "rand_core 0.10.0",
+ "sha3 0.11.0",
+ "x25519-dalek 3.0.0-pre.6",
+]
+
+[[package]]
 name = "x11rb"
 version = "0.13.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8625,10 +8819,20 @@ version = "2.0.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c7e468321c81fb07fa7f4c636c3972b9100f0346e5b6a9f2bd0603a52f7ed277"
 dependencies = [
- "curve25519-dalek",
+ "curve25519-dalek 4.1.3",
  "rand_core 0.6.4",
  "serde",
  "zeroize",
+]
+
+[[package]]
+name = "x25519-dalek"
+version = "3.0.0-pre.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "b3d5d6ff67acd3945b933e592bfa7143db4fcbb2f871754b6b9fbd7847fc5aea"
+dependencies = [
+ "curve25519-dalek 5.0.0-pre.6",
+ "rand_core 0.10.0",
 ]
 
 [[package]]
