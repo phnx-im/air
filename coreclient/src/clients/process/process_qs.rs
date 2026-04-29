@@ -1381,7 +1381,7 @@ mod tests {
         bob_mimi_content.in_reply_to = alice_message
             .message()
             .mimi_id()
-            .map(|mimi_id| ByteBuf::from(mimi_id.as_slice()));
+            .map(|mimi_id| mimi_id.as_slice().to_vec());
         let bob_message = ChatMessage::new_for_test(
             chat.id(),
             MessageId::random(),
@@ -1504,7 +1504,7 @@ mod tests {
         bob_mimi_content.in_reply_to = alice_message
             .message()
             .mimi_id()
-            .map(|mimi_id| ByteBuf::from(mimi_id.as_slice()));
+            .map(|mimi_id| mimi_id.as_slice().to_vec());
         let bob_message = ChatMessage::new_for_test(
             chat.id(),
             MessageId::random(),
@@ -1519,7 +1519,7 @@ mod tests {
         carol_mimi_content.in_reply_to = alice_message
             .message()
             .mimi_id()
-            .map(|mimi_id| ByteBuf::from(mimi_id.as_slice()));
+            .map(|mimi_id| mimi_id.as_slice().to_vec());
         let carol_message = ChatMessage::new_for_test(
             chat.id(),
             MessageId::random(),

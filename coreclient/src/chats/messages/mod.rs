@@ -187,10 +187,7 @@ impl ChatMessage {
         let salt: [u8; 16] = RustCrypto::default().random_array()?;
         Ok(MimiContent {
             salt: salt.to_vec(),
-            replaces: self
-                .message()
-                .mimi_id()
-                .map(|id| id.as_slice().to_vec().into()),
+            replaces: self.message().mimi_id().map(|id| id.as_slice().to_vec()),
             topic_id: Default::default(),
             expires: None,
             in_reply_to: None,

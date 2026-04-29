@@ -210,8 +210,8 @@ impl CoreUser {
         {
             *url = AttachmentUrl::new(attachment_metadata.attachment_id, attachment_url.dimensions)
                 .to_string();
-            *key = attachment_metadata.key.into_bytes().to_vec().into();
-            *nonce = attachment_metadata.nonce.to_vec().into();
+            *key = attachment_metadata.key.into_bytes().to_vec();
+            *nonce = attachment_metadata.nonce.to_vec();
 
             self.with_transaction_and_notifier(async |txn, notifier| {
                 message.update(txn.as_mut(), notifier).await?;
@@ -397,11 +397,11 @@ impl ProcessedAttachment {
             expires: 0,
             size: self.size,
             enc_alg: AIR_ATTACHMENT_ENCRYPTION_ALG,
-            key: metadata.key.into_bytes().to_vec().into(),
-            nonce: metadata.nonce.to_vec().into(),
+            key: metadata.key.into_bytes().to_vec(),
+            nonce: metadata.nonce.to_vec(),
             aad: Default::default(),
             hash_alg: AIR_ATTACHMENT_HASH_ALG,
-            content_hash: self.content_hash.into(),
+            content_hash: self.content_hash,
             description: Default::default(),
             filename: self.filename,
         };
@@ -410,7 +410,7 @@ impl ProcessedAttachment {
             disposition: Disposition::Preview,
             language: String::new(),
             content_type: "text/blurhash".to_owned(),
-            content: data.blurhash.into_bytes().into(),
+            content: data.blurhash.into_bytes(),
         });
 
         Ok([Some(attachment), blurhash].into_iter().flatten().collect())

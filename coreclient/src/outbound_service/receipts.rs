@@ -230,7 +230,7 @@ impl UnsentReceipt {
             statuses: statuses
                 .into_iter()
                 .map(|(id, status)| PerMessageStatus {
-                    mimi_id: id.as_ref().to_vec().into(),
+                    mimi_id: id.as_ref().to_vec(),
                     status,
                 })
                 .collect(),
@@ -247,7 +247,7 @@ impl UnsentReceipt {
             nested_part: NestedPart::SinglePart {
                 disposition: Disposition::Unspecified,
                 content_type: "application/mimi-message-status".to_owned(),
-                content: report.serialize()?.into(),
+                content: report.serialize()?,
                 language: Default::default(),
             },
             ..Default::default()

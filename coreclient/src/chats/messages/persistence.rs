@@ -1419,7 +1419,7 @@ pub(crate) mod tests {
         let sender = UserId::random("localhost".parse().unwrap());
         let report = MessageStatusReport {
             statuses: vec![PerMessageStatus {
-                mimi_id: mimi_id.as_ref().to_vec().into(),
+                mimi_id: mimi_id.as_ref().to_vec(),
                 status: mimi_content::MessageStatus::Delivered,
             }],
         };
