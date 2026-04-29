@@ -27,7 +27,6 @@ use crate::{
         },
     },
     groups::Group,
-    utils::connection_ext::StoreExt,
 };
 
 impl CoreUser {
@@ -55,9 +54,10 @@ impl CoreUser {
 
         // Load the pending attachment record and update the status to `Downloading`.
         let Some((pending_record, group)) = self
-            .with_transaction(async |txn| -> anyhow::Result<_> {
+            .db()
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
                 let Some(pending_record) =
-                    PendingAttachmentRecord::load_pending(txn.as_mut(), attachment_id).await?
+                    PendingAttachmentRecord::load_pending(&mut *txn, attachment_id).await?
                 else {
                     debug!(
                         ?attachment_id,
@@ -65,23 +65,18 @@ impl CoreUser {
                     );
                     return Ok(None);
                 };
-                let Some(record) = AttachmentRecord::load(txn.as_mut(), attachment_id).await?
-                else {
+                let Some(record) = AttachmentRecord::load(&mut *txn, attachment_id).await? else {
                     error!(?attachment_id, "Attachment record not found");
                     return Ok(None);
                 };
                 let chat_id = record.chat_id;
-                let Some(group) = Group::load_with_chat_id(txn, chat_id).await? else {
+                let Some(group) = Group::load_with_chat_id(&mut *txn, chat_id).await? else {
                     error!(?attachment_id, "Group not found");
                     return Ok(None);
                 };
 
-                AttachmentRecord::update_status(
-                    txn.as_mut(),
-                    attachment_id,
-                    AttachmentStatus::Downloading,
-                )
-                .await?;
+                AttachmentRecord::update_status(txn, attachment_id, AttachmentStatus::Downloading)
+                    .await?;
 
                 Ok(Some((pending_record, group)))
             })
@@ -177,10 +172,10 @@ impl CoreUser {
         let mut retries = 0u32;
         loop {
             let res = self
-                .with_transaction_and_notifier(async |txn, notifier| {
-                    AttachmentRecord::set_content(txn.as_mut(), notifier, attachment_id, bytes)
-                        .await?;
-                    PendingAttachmentRecord::delete(txn.as_mut(), attachment_id).await?;
+                .db()
+                .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                    AttachmentRecord::set_content(&mut *txn, attachment_id, bytes).await?;
+                    PendingAttachmentRecord::delete(txn, attachment_id).await?;
                     Ok(())
                 })
                 .await;

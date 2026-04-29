@@ -23,7 +23,6 @@ use crate::{
     },
     privacy_pass::RequestTokensError,
     usernames::UsernameRecord,
-    utils::connection_ext::StoreExt,
 };
 
 use super::OutboundServiceContext;
@@ -128,7 +127,7 @@ mod test_utils {
             TimedTask::new(TimedTaskKind::KeyPackageUpload)
                 .into_operation()
                 .schedule_at(due_at)
-                .enqueue(&self.context.pool)
+                .enqueue(self.context.db.write().await?)
                 .await
         }
 
@@ -136,7 +135,7 @@ mod test_utils {
             TimedTask::new(TimedTaskKind::SelfUpdate)
                 .into_operation()
                 .schedule_at(due_at)
-                .enqueue(&self.context.pool)
+                .enqueue(self.context.db.write().await?)
                 .await
         }
     }
@@ -170,7 +169,8 @@ impl OutboundServiceContext {
             let now = Utc::now();
 
             let Some(mut op) = self
-                .with_transaction(async |txn| {
+                .db
+                .with_write_transaction(async |txn| {
                     Operation::<TimedTask>::dequeue(txn, task_id, now).await
                 })
                 .await?
@@ -193,27 +193,28 @@ impl OutboundServiceContext {
             };
 
             // Schedule next run
-            op.reschedule(&self.pool, Utc::now() + interval).await?;
+            op.reschedule(self.db.write().await?, Utc::now() + interval)
+                .await?;
         }
     }
 
     async fn ensure_timed_tasks_exist(&self) -> Result<(), anyhow::Error> {
         TimedTask::new(TimedTaskKind::KeyPackageUpload)
             .into_operation()
-            .enqueue_if_not_exists(&self.pool)
+            .enqueue_if_not_exists(self.db.write().await?)
             .await?;
         TimedTask::new(TimedTaskKind::UsernameRefresh)
             .into_operation()
-            .enqueue_if_not_exists(&self.pool)
+            .enqueue_if_not_exists(self.db.write().await?)
             .await?;
         TimedTask::new(TimedTaskKind::SelfUpdate)
             .into_operation()
-            .enqueue_if_not_exists(&self.pool)
+            .enqueue_if_not_exists(self.db.write().await?)
             .await?;
         for operation_type in OperationType::all() {
             TimedTask::new(TimedTaskKind::TokenReplenishment { operation_type })
                 .into_operation()
-                .enqueue_if_not_exists(&self.pool)
+                .enqueue_if_not_exists(self.db.write().await?)
                 .await?;
         }
         Ok(())
@@ -248,24 +249,28 @@ impl OutboundServiceContext {
 
         let now = Utc::now();
         let threshold = now - USERNAME_REFRESH_THRESHOLD;
-        let usernames = UsernameRecord::load_needing_refresh(&self.pool, threshold).await?;
+        let usernames =
+            UsernameRecord::load_needing_refresh(self.db.read().await?, threshold).await?;
 
         if !usernames.is_empty() {
             let api_client = self.api_clients.default_client()?;
             for username_record in usernames {
-                let token =
-                    match privacy_pass::consume_token(&self.pool, OperationType::AddUsername).await
-                    {
-                        Ok(Some(t)) => t,
-                        Ok(None) => {
-                            info!("skipping username refresh: no tokens available");
-                            break;
-                        }
-                        Err(e) => {
-                            error!(%e, "failed to consume token for username refresh");
-                            break;
-                        }
-                    };
+                let token = match privacy_pass::consume_token(
+                    self.db.write().await?,
+                    OperationType::AddUsername,
+                )
+                .await
+                {
+                    Ok(Some(t)) => t,
+                    Ok(None) => {
+                        info!("skipping username refresh: no tokens available");
+                        break;
+                    }
+                    Err(e) => {
+                        error!(%e, "failed to consume token for username refresh");
+                        break;
+                    }
+                };
                 info!("refreshing username");
                 let result = api_client
                     .as_refresh_username(username_record.hash, &username_record.signing_key, token)
@@ -275,7 +280,7 @@ impl OutboundServiceContext {
                     if e.is_unknown_token_key_id() {
                         warn!("unknown token key ID, purging stale tokens");
                         privacy_pass::purge_and_replenish(
-                            &self.pool,
+                            &self.db,
                             &api_client,
                             self.user_id().clone(),
                             OperationType::AddUsername,
@@ -291,7 +296,12 @@ impl OutboundServiceContext {
                     result?;
                 }
 
-                UsernameRecord::update_refreshed_at(&self.pool, &username_record.hash, now).await?;
+                UsernameRecord::update_refreshed_at(
+                    self.db.write().await?,
+                    &username_record.hash,
+                    now,
+                )
+                .await?;
             }
         }
 
@@ -314,26 +324,27 @@ impl OutboundServiceContext {
         let api_client = self.api_clients.default_client()?;
 
         let Some(replenish_count) =
-            privacy_pass::needs_replenishment(self.pool(), operation_type).await?
+            privacy_pass::needs_replenishment(self.db.read().await?, operation_type).await?
         else {
             return Ok(Duration::hours(6));
         };
 
         if !*loaded_credentials {
             let credentials_response = api_client.as_as_credentials().await?;
-            self.with_transaction(async move |txn| {
-                privacy_pass::store_batched_token_keys(
-                    txn,
-                    &credentials_response.batched_token_keys,
-                )
-                .await
-            })
-            .await?;
+            self.db
+                .with_write_transaction(async move |txn| {
+                    privacy_pass::store_batched_token_keys(
+                        txn,
+                        &credentials_response.batched_token_keys,
+                    )
+                    .await
+                })
+                .await?;
             *loaded_credentials = true;
         }
 
         match privacy_pass::request_and_store_tokens(
-            self.pool(),
+            &self.db,
             &api_client,
             self.user_id().clone(),
             self.signing_key(),
@@ -392,7 +403,8 @@ impl OutboundServiceContext {
     /// 5. Marks the uploaded key packages as live in the database
     async fn upload_key_packages(&self) -> anyhow::Result<Duration> {
         let key_packages = self
-            .with_transaction(async |txn| {
+            .db
+            .with_write_transaction(async |txn| {
                 let mut key_packages = Vec::with_capacity(KEY_PACKAGES);
                 for _ in 0..KEY_PACKAGES {
                     let kp = self.key_store.generate_key_package(
@@ -405,7 +417,7 @@ impl OutboundServiceContext {
 
                 let last_resort_kp =
                     self.key_store
-                        .generate_key_package(&mut *txn, &self.qs_client_id, true)?;
+                        .generate_key_package(txn, &self.qs_client_id, true)?;
                 key_packages.push(last_resort_kp);
 
                 Ok::<_, anyhow::Error>(key_packages)
@@ -431,11 +443,10 @@ impl OutboundServiceContext {
         {
             error!(%error, "Failed to upload key packages");
             // Clean up previously created key packages
-            let connection = &mut self.pool.acquire().await?;
             for key_package_ref in key_package_refs {
                 if let Err(error) = self
                     .key_store
-                    .delete_key_package(connection, key_package_ref)
+                    .delete_key_package(self.db.write().await?, key_package_ref)
                 {
                     error!(%error, "Failed to delete key package after upload failure");
                 }
@@ -447,10 +458,11 @@ impl OutboundServiceContext {
 
         // If the upload was successful, we mark the uploaded ones as live and
         // mark the others as stale.
-        self.with_transaction(async |txn| {
-            persistence::mark_key_packages_as_live(txn, &key_package_refs).await
-        })
-        .await?;
+        self.db
+            .with_write_transaction(async |txn| {
+                persistence::mark_key_packages_as_live(txn, &key_package_refs).await
+            })
+            .await?;
 
         Ok(Duration::weeks(1))
     }
@@ -462,7 +474,7 @@ impl OutboundServiceContext {
         let now = Utc::now();
         let threshold = now - SELF_UPDATE_INTERVAL;
 
-        let chat_ids = Chat::load_ids_for_self_update(&self.pool, threshold).await?;
+        let chat_ids = Chat::load_ids_for_self_update(self.db.read().await?, threshold).await?;
         let num_chats = chat_ids.len();
 
         info!(num_chats, "Running self-updates");
@@ -494,9 +506,7 @@ impl OutboundServiceContext {
     async fn self_update_in_chat(&self, chat_id: ChatId) -> anyhow::Result<bool> {
         debug!(?chat_id, "Self-update in chat");
 
-        let Some(group) =
-            Group::load_with_chat_id(self.pool.acquire().await?.as_mut(), chat_id).await?
-        else {
+        let Some(group) = Group::load_with_chat_id(self.db.read().await?, chat_id).await? else {
             debug!(
                 ?chat_id,
                 "Skipping self-update in chat because group is not found"
@@ -527,7 +537,7 @@ impl OutboundServiceContext {
         }
 
         // If a chat operation is pending, we skip updating this chat
-        if PendingChatOperation::is_pending_for_chat(&self.pool, chat_id).await? {
+        if PendingChatOperation::is_pending_for_chat(self.db.read().await?, chat_id).await? {
             return Ok(false);
         }
 
@@ -549,12 +559,12 @@ impl OutboundServiceContext {
 
 mod persistence {
     use openmls::prelude::KeyPackageRef;
-    use sqlx::{QueryBuilder, SqliteTransaction};
+    use sqlx::QueryBuilder;
 
-    use crate::groups::openmls_provider::KeyRefWrapper;
+    use crate::{db_access::WriteDbTransaction, groups::openmls_provider::KeyRefWrapper};
 
     pub(super) async fn mark_key_packages_as_live(
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         key_package_refs: &[KeyPackageRef],
     ) -> anyhow::Result<()> {
         // Delete all key packages that are not marked as live
@@ -616,7 +626,9 @@ mod persistence {
         use sqlx::{Row, SqlitePool, query, query_scalar};
         use url::Host;
 
-        use crate::{clients::CIPHERSUITE, groups::openmls_provider::AirOpenMlsProvider};
+        use crate::{
+            clients::CIPHERSUITE, db_access::DbAccess, groups::openmls_provider::AirOpenMlsProvider,
+        };
 
         use super::*;
 
@@ -628,8 +640,10 @@ mod persistence {
             let pool = SqlitePool::connect("sqlite://:memory:").await?;
             sqlx::migrate!("./migrations").run(&pool).await?;
 
-            let mut connection = pool.acquire().await?;
-            let provider = AirOpenMlsProvider::new(&mut connection);
+            let pool = DbAccess::for_tests(pool);
+
+            let mut connection = pool.write().await?;
+            let provider = AirOpenMlsProvider::new(connection.as_mut());
 
             let user_id = UserId::random(Host::Domain("example.com".to_string()).into());
             let (_aic_sk, client_sk) = create_test_credentials(user_id);
@@ -661,16 +675,17 @@ mod persistence {
 
             query("INSERT INTO key_package_refs (key_package_ref, is_live) VALUES (?1, 1)")
                 .bind(KeyRefWrapper(&live_key_package_ref))
-                .execute(&pool)
+                .execute(pool.write().await?.as_mut())
                 .await?;
             query("INSERT INTO key_package_refs (key_package_ref, is_live) VALUES (?1, 0)")
                 .bind(KeyRefWrapper(&stale_key_package_ref))
-                .execute(&pool)
+                .execute(pool.write().await?.as_mut())
                 .await?;
 
-            let mut txn = pool.begin().await?;
-            mark_key_packages_as_live(&mut txn, slice::from_ref(&new_key_package_ref)).await?;
-            txn.commit().await?;
+            pool.with_write_transaction(async |txn| {
+                mark_key_packages_as_live(txn, slice::from_ref(&new_key_package_ref)).await
+            })
+            .await?;
 
             let rows = query(
                 "SELECT key_package_ref, is_live \
@@ -678,7 +693,7 @@ mod persistence {
                 LEFT JOIN key_package_refs kpr USING (key_package_ref)
                 ORDER BY is_live ASC",
             )
-            .fetch_all(&pool)
+            .fetch_all(pool.read().await?.as_mut())
             .await?;
 
             let key_packages: Vec<(KeyPackageRef, Option<bool>)> = rows
@@ -703,7 +718,7 @@ mod persistence {
             assert_eq!(is_live, &Some(true));
 
             let num_refs: i32 = query_scalar("SELECT COUNT(*) FROM key_package_refs")
-                .fetch_one(&pool)
+                .fetch_one(pool.read().await?.as_mut())
                 .await?;
             assert_eq!(num_refs, 2);
 

@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{crypto::indexed_aead::keys::UserProfileKeyIndex, identifiers::UserId};
-use sqlx::{SqliteExecutor, query, query_as};
+use sqlx::{query, query_as};
 
-use crate::store::StoreNotifier;
+use crate::db_access::{DbAccess, ReadConnection, WriteConnection};
 
 use super::{Asset, IndexedUserProfile, UserProfile, display_name::BaseDisplayName};
 
@@ -13,11 +13,7 @@ impl IndexedUserProfile {
     /// Stores this [`BaseIndexedUserProfile`].
     ///
     /// Will return an error if there already exists a user profile with the same user id.
-    pub(super) async fn store(
-        &self,
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
-    ) -> sqlx::Result<()> {
+    pub(super) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
         let uuid = self.user_id.uuid();
         let domain = self.user_id.domain();
         let epoch = self.epoch as i64;
@@ -37,18 +33,14 @@ impl IndexedUserProfile {
             self.display_name,
             self.profile_picture,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
-        notifier.update(self.user_id.clone());
+        connection.notifier().update(self.user_id.clone());
         Ok(())
     }
 
     /// Update the user's display name and profile picture in the database.
-    pub(crate) async fn update(
-        &self,
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
-    ) -> sqlx::Result<()> {
+    pub(crate) async fn update(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
         let uuid = self.user_id.uuid();
         let domain = self.user_id.domain();
         let epoch = self.epoch as i64;
@@ -66,9 +58,9 @@ impl IndexedUserProfile {
             self.display_name,
             self.profile_picture
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
-        notifier.update(self.user_id.clone());
+        connection.notifier().update(self.user_id.clone());
         Ok(())
     }
 }
@@ -104,7 +96,7 @@ impl From<(UserId, SqlUser)> for IndexedUserProfile {
 
 impl IndexedUserProfile {
     pub(crate) async fn load(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         user_id: &UserId,
     ) -> sqlx::Result<Option<Self>> {
         let uuid = user_id.uuid();
@@ -121,18 +113,15 @@ impl IndexedUserProfile {
             uuid,
             domain,
         )
-        .fetch_optional(executor)
+        .fetch_optional(connection.as_mut())
         .await
         .map(|res| res.map(|user| (user_id.clone(), user).into()))
     }
 }
 
 impl UserProfile {
-    pub async fn load(
-        executor: impl SqliteExecutor<'_>,
-        user_id: &UserId,
-    ) -> sqlx::Result<Option<Self>> {
-        IndexedUserProfile::load(executor, user_id)
+    pub async fn load(db_access: &DbAccess, user_id: &UserId) -> sqlx::Result<Option<Self>> {
+        IndexedUserProfile::load(db_access.read().await?, user_id)
             .await
             .map(|res| res.map(From::from))
     }
@@ -143,7 +132,7 @@ mod tests {
     use aircommon::crypto::indexed_aead::keys::UserProfileKey;
     use sqlx::SqlitePool;
 
-    use crate::{Asset, key_stores::indexed_keys::StorableIndexedKey};
+    use crate::{Asset, db_access::DbAccess, key_stores::indexed_keys::StorableIndexedKey};
 
     use super::*;
 
@@ -162,14 +151,13 @@ mod tests {
 
     #[sqlx::test]
     async fn store_load(pool: SqlitePool) -> anyhow::Result<()> {
-        let mut notifier = StoreNotifier::noop();
-
+        let pool = DbAccess::for_tests(pool);
         let (profile, key) = test_profile();
 
-        key.store(&pool).await?;
+        key.store(pool.write().await?).await?;
 
-        profile.store(&pool, &mut notifier).await?;
-        let loaded = IndexedUserProfile::load(&pool, &profile.user_id)
+        profile.store(pool.write().await?).await?;
+        let loaded = IndexedUserProfile::load(pool.read().await?, &profile.user_id)
             .await?
             .expect("profile exists");
         assert_eq!(loaded, profile);
@@ -180,7 +168,7 @@ mod tests {
 
         // store again doesn't work
         let store_err = new_profile
-            .store(&pool, &mut notifier)
+            .store(pool.write().await?)
             .await
             .expect_err("profile does not exist");
         assert!(matches!(store_err, sqlx::Error::Database(_)));
@@ -190,13 +178,13 @@ mod tests {
 
     #[sqlx::test]
     async fn update_load(pool: SqlitePool) -> anyhow::Result<()> {
-        let mut notifier = StoreNotifier::noop();
+        let pool = DbAccess::for_tests(pool);
 
         let (profile, key) = test_profile();
-        key.store(&pool).await?;
+        key.store(pool.write().await?).await?;
 
-        profile.store(&pool, &mut notifier).await?;
-        let loaded = IndexedUserProfile::load(&pool, &profile.user_id)
+        profile.store(pool.write().await?).await?;
+        let loaded = IndexedUserProfile::load(pool.read().await?, &profile.user_id)
             .await?
             .expect("profile exists");
         assert_eq!(loaded, profile);
@@ -205,8 +193,8 @@ mod tests {
         new_profile.display_name = "Alice In Wonderland".parse()?;
         new_profile.profile_picture = None;
 
-        new_profile.update(&pool, &mut notifier).await?;
-        let loaded = IndexedUserProfile::load(&pool, &profile.user_id)
+        new_profile.update(pool.write().await?).await?;
+        let loaded = IndexedUserProfile::load(pool.read().await?, &profile.user_id)
             .await?
             .expect("profile exists");
         assert_ne!(loaded, profile);

@@ -238,6 +238,7 @@ dependencies = [
  "derive_more 0.99.20",
  "displaydoc",
  "enumset",
+ "futures-core",
  "hex",
  "image",
  "infer",

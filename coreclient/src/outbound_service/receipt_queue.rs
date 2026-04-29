@@ -24,19 +24,19 @@ mod persistence {
     use std::time::Duration;
 
     use aircommon::{identifiers::MimiId, time::TimeStamp};
-    use sqlx::{SqliteExecutor, SqlitePool, query, query_as, query_scalar};
+    use sqlx::{query, query_as, query_scalar};
     use tokio_stream::StreamExt;
     use tracing::debug;
     use uuid::Uuid;
 
-    use crate::ChatId;
+    use crate::{ChatId, db_access::WriteConnection};
 
     use super::*;
 
     impl ReceiptQueue {
         pub(crate) async fn enqueue(
             &self,
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl WriteConnection,
             chat_id: ChatId,
             mimi_id: &MimiId,
         ) -> sqlx::Result<()> {
@@ -59,16 +59,16 @@ mod persistence {
                 status,
                 now,
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             Ok(())
         }
 
         pub(crate) async fn dequeue(
-            pool: &SqlitePool,
+            mut connection: impl WriteConnection,
             task_id: Uuid,
         ) -> anyhow::Result<Option<(ChatId, Vec<(MimiId, MessageStatus)>)>> {
-            let mut txn = pool.begin_with("BEGIN IMMEDIATE").await?;
+            let mut txn = connection.begin().await?;
 
             let now = TimeStamp::now();
             let locked_before = *now - LOCKED_THRESHOLD;
@@ -120,11 +120,11 @@ mod persistence {
         }
 
         pub(crate) async fn remove(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl WriteConnection,
             task_id: Uuid,
         ) -> sqlx::Result<()> {
             query!("DELETE FROM receipt_queue WHERE locked_by = ?", task_id)
-                .execute(executor)
+                .execute(connection.as_mut())
                 .await?;
             Ok(())
         }
