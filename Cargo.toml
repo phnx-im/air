@@ -77,8 +77,7 @@ mimi-room-policy = { git = "https://github.com/phnx-im/mimi-room-policy", rev = 
 minicbor = { version = "2.2.1", features = ["std"] }
 minicbor-derive = "0.19.3"
 minicbor-serde = { version = "0.6", features = ["std"] }
-#mimi_content = { git = "https://github.com/phnx-im/mimi-content", rev = "4fb6ce006d81c7b73d7b95bb489659a39e224321" }
-mimi_content = { path = "../mimi-content", features = ["serde"] }
+mimi_content = { git = "https://github.com/phnx-im/mimi-content", rev = "c6e5ab7a7ede126906961332551c5e67c1081d3a", features = ["serde"] }
 mockall = "0.13.1"
 mockito = "1.7.0"
 openmls = { version = "0.8.1", features = ["extensions-draft-08"] }

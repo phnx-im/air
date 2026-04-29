@@ -4433,6 +4433,7 @@ dependencies = [
 [[package]]
 name = "mimi_content"
 version = "0.1.0"
+source = "git+https://github.com/phnx-im/mimi-content?rev=c6e5ab7a7ede126906961332551c5e67c1081d3a#c6e5ab7a7ede126906961332551c5e67c1081d3a"
 dependencies = [
  "minicbor",
  "minicbor-derive",
