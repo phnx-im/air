@@ -47,6 +47,8 @@ pub(crate) struct WriteDbTransaction<'a> {
 pub(crate) trait ReadConnection: AsMut<SqliteConnection> + Send {}
 
 pub(crate) trait ReadTransaction: ReadConnection {}
+pub(crate) trait WriteTransaction: WriteConnection {}
+
 
 pub(crate) trait WriteConnection: ReadConnection + AsMut<SqliteConnection> + Send {
     fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier);
@@ -162,13 +164,6 @@ impl Drop for WriteDbConnection {
 }
 
 impl WriteDbTransaction<'_> {
-    /// Begins a nested read transaction.
-    pub(crate) async fn begin_read(&mut self) -> sqlx::Result<ReadDbTransaction<'_>> {
-        Ok(ReadDbTransaction {
-            txn: begin_txn(self.as_mut(), false).await?,
-        })
-    }
-
     pub(crate) async fn commit(self) -> sqlx::Result<()> {
         if let Err(error) = self.txn.commit().await {
             self.notifier.clear(); // don't notify on commit failure (rollback)
@@ -212,6 +207,8 @@ impl ReadTransaction for ReadDbTransaction<'_> {}
 impl ReadTransaction for &mut ReadDbTransaction<'_> {}
 impl ReadTransaction for WriteDbTransaction<'_> {}
 impl ReadTransaction for &mut WriteDbTransaction<'_> {}
+impl WriteTransaction for WriteDbTransaction<'_> {}
+impl WriteTransaction for &mut WriteDbTransaction<'_> {}
 
 // write connections can be also use to read
 impl<C> ReadConnection for &mut C where C: WriteConnection {}
@@ -253,6 +250,7 @@ impl WriteConnection for WriteDbConnection {
         &mut self.notifier
     }
 
+    #[cfg(test)]
     async fn begin(&mut self) -> sqlx::Result<WriteDbTransaction<'_>> {
         let (connection, notifier) = self.split();
         Ok(WriteDbTransaction {

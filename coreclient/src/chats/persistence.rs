@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatStatus, ChatType, MessageId,
-    db_access::{ReadConnection, ReadTransaction, WriteConnection, WriteDbTransaction},
+    db_access::{ReadConnection, ReadTransaction, WriteConnection, WriteDbTransaction, WriteTransaction},
     utils::persistence::GroupIdWrapper,
 };
 
@@ -395,11 +395,10 @@ impl Chat {
     }
 
     pub(super) async fn update_status(
-        mut connection: impl WriteConnection,
+        mut transaction: impl WriteTransaction,
         chat_id: ChatId,
         status: &ChatStatus,
     ) -> sqlx::Result<()> {
-        let mut transaction = connection.begin().await?;
         match status {
             ChatStatus::Inactive(inactive) => {
                 query!(
@@ -441,8 +440,7 @@ impl Chat {
                 // This status is a no-op
             }
         }
-        transaction.commit().await?;
-        connection.notifier().update(chat_id);
+        transaction.notifier().update(chat_id);
         Ok(())
     }
 

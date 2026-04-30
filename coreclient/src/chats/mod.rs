@@ -16,7 +16,7 @@ use serde::{Deserialize, Serialize};
 use tracing::error;
 use uuid::Uuid;
 
-use crate::{contacts::PartialContactType, db_access::WriteConnection, groups::GroupDataBytes};
+use crate::{contacts::PartialContactType, db_access::{WriteConnection, WriteTransaction}, groups::GroupDataBytes};
 
 pub use draft::MessageDraft;
 pub(crate) use {pending::PendingConnectionInfo, status::StatusRecord};
@@ -216,7 +216,7 @@ impl Chat {
 
     pub(crate) async fn set_inactive(
         &mut self,
-        connection: impl WriteConnection,
+        connection: impl WriteTransaction,
         past_members: Vec<UserId>,
     ) -> sqlx::Result<()> {
         let new_status = ChatStatus::Inactive(InactiveChat { past_members });
