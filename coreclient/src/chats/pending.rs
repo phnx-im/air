@@ -113,8 +113,8 @@ impl CoreUser {
             .await?;
 
         // Create a new group by joining it (if group already exists, it will be replaced)
-        let result = self
-            .with_transaction_and_notifier(async |txn, notifier| -> anyhow::Result<Result<_, _>> {
+        let fut = self.with_transaction_and_notifier(
+            async |txn, notifier| -> anyhow::Result<Result<_, _>> {
                 if Group::load_with_chat_id(txn.as_mut(), chat_id)
                     .await?
                     .is_some()
@@ -178,7 +178,7 @@ impl CoreUser {
                 )?;
 
                 let now = TimeStamp::now();
-                group.store_update(txn.as_mut(), Some(now)).await?;
+                group.store_update(&mut *txn, Some(now), None).await?;
 
                 // Create system messages for acceptance
                 let accepted_system_message = SystemMessage::AcceptedConnectionRequest {
@@ -206,8 +206,9 @@ impl CoreUser {
                 }
 
                 Ok(Ok((commit, group_info)))
-            })
-            .await?;
+            },
+        );
+        let result = Box::pin(fut).await?;
 
         // Propagate the error to the caller if it is a leaf node validation error.
         let (commit, group_info) = match result {

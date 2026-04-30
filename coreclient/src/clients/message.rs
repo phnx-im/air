@@ -39,9 +39,8 @@ impl CoreUser {
         let replaces_mimi_id = message.message().mimi_id().cloned();
 
         // Send the deletion message
-        let sent_message = self
-            .send_message(chat_id, null_content, Some(message))
-            .await?;
+        let sent_message =
+            Box::pin(self.send_message(chat_id, null_content, Some(message))).await?;
 
         // Redact reply references to this message
         if let Some(replaces_mimi_id) = replaces_mimi_id

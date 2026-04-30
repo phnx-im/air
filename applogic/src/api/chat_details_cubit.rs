@@ -166,11 +166,13 @@ impl ChatDetailsCubitBase {
         match delete_mode {
             DeleteMode::ForEveryone => {
                 // Send NullPart via network to delete for all participants
-                self.context
-                    .store
-                    .delete_message(self.context.chat_id, message_id)
-                    .await
-                    .inspect_err(|error| error!(%error, "Failed to send delete message"))?;
+                Box::pin(
+                    self.context
+                        .store
+                        .delete_message(self.context.chat_id, message_id),
+                )
+                .await
+                .inspect_err(|error| error!(%error, "Failed to send delete message"))?;
             }
             DeleteMode::ForMe => {
                 // Delete locally - completely remove the message from the database
@@ -256,11 +258,12 @@ impl ChatDetailsCubitBase {
         path: String,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
         let path = PathBuf::from(path);
-        let (attachment_id, progress, upload_task) = match self
-            .context
-            .store
-            .upload_attachment(self.context.chat_id, &path)
-            .await?
+        let (attachment_id, progress, upload_task) = match Box::pin(
+            self.context
+                .store
+                .upload_attachment(self.context.chat_id, &path),
+        )
+        .await?
         {
             Ok(result) => result,
             Err(error) => return error.into_ui_result(),

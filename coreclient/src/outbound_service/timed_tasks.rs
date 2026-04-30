@@ -706,8 +706,6 @@ mod persistence {
 
     #[cfg(test)]
     mod test {
-        use std::slice;
-
         use aircommon::{
             codec::PersistenceCodec, credentials::test_utils::create_test_credentials,
             identifiers::UserId,
@@ -771,8 +769,7 @@ mod persistence {
 
             let mut txn = pool.begin().await?;
             let is_apq = false;
-            mark_key_packages_as_live(&mut txn, std::iter::iter(&new_key_package_ref), is_apq)
-                .await?;
+            mark_key_packages_as_live(&mut txn, [&new_key_package_ref], is_apq).await?;
             txn.commit().await?;
 
             let rows = query(

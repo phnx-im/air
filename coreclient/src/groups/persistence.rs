@@ -15,13 +15,14 @@ use mimi_room_policy::{RoomState, VerifiedRoomState};
 use openmls::group::{GroupId, MlsGroup};
 use openmls::prelude::{LeafNodeIndex, StagedCommit};
 use openmls_traits::OpenMlsProvider;
-use sqlx::{SqliteExecutor, SqliteTransaction, query, query_as};
+use sqlx::{SqliteConnection, SqliteTransaction, query, query_as, query_scalar};
 use tls_codec::Serialize as _;
 use tracing::error;
 
 use crate::{
     ChatId,
     chats::messages::TimestampedMessage,
+    groups::apq_group::PqGroup,
     utils::persistence::{GroupIdRefWrapper, GroupIdWrapper},
 };
 
@@ -29,22 +30,52 @@ use super::{Group, GroupDataBytes, diff::StagedGroupDiff, openmls_provider::AirO
 
 struct SqlGroup {
     group_id: GroupIdWrapper,
+    pq_group_id: Option<GroupIdWrapper>,
     identity_link_wrapper_key: IdentityLinkWrapperKey,
     group_state_ear_key: GroupStateEarKey,
     pending_diff: Option<BlobDecoded<StagedGroupDiff>>,
     room_state: Vec<u8>,
     self_updated_at: Option<TimeStamp>,
+    pq_self_updated_at: Option<TimeStamp>,
+    pq_group_state_ear_key: Option<GroupStateEarKey>,
 }
 
 impl SqlGroup {
-    fn into_group(self, mls_group: MlsGroup) -> Group {
+    fn augment(self, connection: &mut SqliteConnection) -> sqlx::Result<Option<Group>> {
+        // TODO: Most likely we want to amortize this loading
+        let Some(mls_group) = MlsGroup::load(
+            AirOpenMlsProvider::new(connection).storage(),
+            &self.group_id.0,
+        )?
+        else {
+            return Ok(None);
+        };
+        let pq_mls_group = if let Some(pq_group_id) = self.pq_group_id.as_ref() {
+            let Some(pq_mls_group) = MlsGroup::load(
+                AirOpenMlsProvider::new(connection).storage(),
+                &pq_group_id.0,
+            )?
+            else {
+                return Ok(None);
+            };
+            Some(pq_mls_group)
+        } else {
+            None
+        };
+        Ok(Some(self.into_group(mls_group, pq_mls_group)))
+    }
+
+    fn into_group(self, mls_group: MlsGroup, pq_mls_group: Option<MlsGroup>) -> Group {
         let Self {
-            group_id: GroupIdWrapper(group_id),
+            group_id: _,
+            pq_group_id: _,
             identity_link_wrapper_key,
             group_state_ear_key,
             pending_diff,
             room_state,
             self_updated_at,
+            pq_self_updated_at,
+            pq_group_state_ear_key,
         } = self;
 
         let room_state = if let Some(state) = PersistenceCodec::from_slice::<RoomState>(&room_state)
@@ -72,14 +103,26 @@ impl SqlGroup {
             VerifiedRoomState::fallback_room(members)
         };
 
+        let pq = if let Some(pq_group) = pq_mls_group
+            && let Some(pq_group_state_ear_key) = pq_group_state_ear_key
+        {
+            Some(PqGroup {
+                mls_group: pq_group,
+                group_state_ear_key: pq_group_state_ear_key,
+                self_updated_at: pq_self_updated_at,
+            })
+        } else {
+            None
+        };
+
         Group {
-            group_id,
             identity_link_wrapper_key,
             group_state_ear_key,
             mls_group,
             pending_diff: pending_diff.map(|BlobDecoded(diff)| diff),
             room_state,
             self_updated_at,
+            pq,
         }
     }
 }
@@ -151,8 +194,8 @@ impl GroupStorageWitness for VerifiedGroup {
 }
 
 impl Group {
-    pub(crate) async fn store(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
-        let group_id = GroupIdRefWrapper::from(&self.group_id);
+    pub(crate) async fn store(&self, txn: &mut SqliteTransaction<'_>) -> sqlx::Result<()> {
+        let group_id = GroupIdRefWrapper::from(self.group_id());
         let room_state = BlobEncoded(&self.room_state);
         let pending_diff = self.pending_diff.as_ref().map(BlobEncoded);
 
@@ -173,8 +216,28 @@ impl Group {
             room_state,
             self.self_updated_at,
         )
-        .execute(executor)
+        .execute(txn.as_mut())
         .await?;
+
+        if let Some(pq) = &self.pq {
+            let pq_group_id = GroupIdRefWrapper::from(pq.group_id());
+            query!(
+                r#"INSERT INTO pq_group (
+                    group_id,
+                    t_group_id,
+                    group_state_ear_key,
+                    self_updated_at
+                )
+                VALUES (?, ?, ?,?)"#,
+                pq_group_id,
+                group_id,
+                pq.group_state_ear_key,
+                pq.self_updated_at,
+            )
+            .execute(txn.as_mut())
+            .await?;
+        }
+
         Ok(())
     }
 
@@ -189,6 +252,14 @@ impl Group {
         ensure!(
             group.mls_group.pending_commit().is_none(),
             "Room already had a pending commit"
+        );
+        ensure!(
+            group
+                .pq
+                .as_ref()
+                .map(|pq| pq.mls_group.pending_commit().is_none())
+                .unwrap_or(true),
+            "PQ Room already had a pending commit"
         );
 
         Ok(Some(group))
@@ -215,6 +286,14 @@ impl Group {
             group.mls_group.pending_commit().is_none(),
             "Room already had a pending commit"
         );
+        ensure!(
+            group
+                .pq
+                .as_ref()
+                .map(|pq| pq.mls_group.pending_commit().is_none())
+                .unwrap_or(true),
+            "PQ Room already had a pending commit"
+        );
 
         Ok(Some(group))
     }
@@ -230,27 +309,31 @@ impl Group {
         connection: &mut sqlx::SqliteConnection,
         group_id: &GroupId,
     ) -> sqlx::Result<Option<Self>> {
-        let Some(mls_group) =
-            MlsGroup::load(AirOpenMlsProvider::new(connection).storage(), group_id)?
+        let group_id = GroupIdRefWrapper::from(group_id);
+        let Some(sql_group) = query_as!(
+            SqlGroup,
+            r#"SELECT
+                g.group_id AS "group_id: _",
+                pq.group_id AS "pq_group_id: _",
+                identity_link_wrapper_key AS "identity_link_wrapper_key: _",
+                g.group_state_ear_key AS "group_state_ear_key: _",
+                pending_diff AS "pending_diff: _",
+                room_state AS "room_state: _",
+                g.self_updated_at AS "self_updated_at: _",
+                pq.group_state_ear_key AS "pq_group_state_ear_key: _",
+                pq.self_updated_at AS "pq_self_updated_at: _"
+            FROM "group" g
+            LEFT JOIN pq_group pq ON pq.t_group_id = g.group_id
+            WHERE g.group_id = ?
+            "#,
+            group_id
+        )
+        .fetch_optional(&mut *connection)
+        .await?
         else {
             return Ok(None);
         };
-        let group_id = GroupIdRefWrapper::from(group_id);
-        query_as!(
-            SqlGroup,
-            r#"SELECT
-                group_id AS "group_id: _",
-                identity_link_wrapper_key AS "identity_link_wrapper_key: _",
-                group_state_ear_key AS "group_state_ear_key: _",
-                pending_diff AS "pending_diff: _",
-                room_state AS "room_state: _",
-                self_updated_at AS "self_updated_at: _"
-            FROM "group" WHERE group_id = ?"#,
-            group_id
-        )
-        .fetch_optional(connection)
-        .await
-        .map(|res| res.map(|group| SqlGroup::into_group(group, mls_group)))
+        sql_group.augment(connection)
     }
 
     /// Same as [`Self::load()`], but load the group via the corresponding chat.
@@ -262,13 +345,17 @@ impl Group {
             SqlGroup,
             r#"SELECT
                 g.group_id AS "group_id: _",
-                g.identity_link_wrapper_key AS "identity_link_wrapper_key: _",
+                pq.group_id AS "pq_group_id: _",
+                identity_link_wrapper_key AS "identity_link_wrapper_key: _",
                 g.group_state_ear_key AS "group_state_ear_key: _",
-                g.pending_diff AS "pending_diff: _",
-                g.room_state AS "room_state: _",
-                g.self_updated_at AS "self_updated_at: _"
+                pending_diff AS "pending_diff: _",
+                room_state AS "room_state: _",
+                g.self_updated_at AS "self_updated_at: _",
+                pq.group_state_ear_key AS "pq_group_state_ear_key: _",
+                pq.self_updated_at AS "pq_self_updated_at: _"
             FROM "group" g
             INNER JOIN chat c ON c.group_id = g.group_id
+            LEFT JOIN pq_group pq ON pq.t_group_id = g.group_id
             WHERE c.chat_id = ?
             "#,
             chat_id
@@ -278,14 +365,7 @@ impl Group {
         else {
             return Ok(None);
         };
-        let Some(mls_group) = MlsGroup::load(
-            AirOpenMlsProvider::new(connection).storage(),
-            &sql_group.group_id.0,
-        )?
-        else {
-            return Ok(None);
-        };
-        Ok(Some(SqlGroup::into_group(sql_group, mls_group)))
+        sql_group.augment(connection)
     }
 
     /// Stores a group update.
@@ -294,10 +374,11 @@ impl Group {
     /// updated in the group and if so, at what time.
     pub(crate) async fn store_update(
         &mut self,
-        executor: impl SqliteExecutor<'_>,
+        txn: &mut SqliteTransaction<'_>,
         self_updated_at: Option<TimeStamp>,
+        pq_self_updated_at: Option<TimeStamp>,
     ) -> sqlx::Result<()> {
-        let group_id = GroupIdRefWrapper::from(&self.group_id);
+        let group_id = GroupIdRefWrapper::from(self.group_id());
         let pending_diff = self.pending_diff.as_ref().map(BlobEncoded);
         let room_state = BlobEncoded(&self.room_state);
         query!(
@@ -315,10 +396,28 @@ impl Group {
             self_updated_at,
             group_id,
         )
-        .execute(executor)
+        .execute(txn.as_mut())
         .await?;
         if let Some(self_updated_at) = self_updated_at {
             self.self_updated_at = Some(self_updated_at);
+        }
+        if let Some(pq) = self.pq.as_mut() {
+            let pq_group_id = GroupIdRefWrapper::from(pq.group_id());
+            query!(
+                r#"UPDATE pq_group SET
+                    group_state_ear_key = ?,
+                    self_updated_at = COALESCE(?, self_updated_at)
+                WHERE
+                    group_id = ?"#,
+                pq.group_state_ear_key,
+                pq_self_updated_at,
+                pq_group_id,
+            )
+            .execute(txn.as_mut())
+            .await?;
+            if let Some(self_updated_at) = pq_self_updated_at {
+                pq.self_updated_at = Some(self_updated_at);
+            }
         }
         Ok(())
     }
@@ -332,6 +431,20 @@ impl Group {
             group.mls_group.delete(provider.storage())?;
         };
         let group_id = GroupIdRefWrapper::from(group_id);
+        let pq_group_id: Option<GroupIdWrapper> = query_scalar!(
+            r#"SELECT group_id AS "group_id: _" FROM pq_group WHERE t_group_id = ?"#,
+            group_id
+        )
+        .fetch_optional(txn.as_mut())
+        .await?
+        .flatten();
+        if let Some(group_id) = pq_group_id
+            && let Some(mut group) = Group::load(txn.as_mut(), &group_id.0).await?
+        {
+            let provider = AirOpenMlsProvider::new(txn.as_mut());
+            group.mls_group.delete(provider.storage())?;
+        };
+        // This will also cascade delete the pq_group
         query!(r#"DELETE FROM "group" WHERE group_id = ?"#, group_id)
             .execute(txn.as_mut())
             .await?;

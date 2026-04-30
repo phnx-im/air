@@ -350,7 +350,7 @@ impl PendingChatOperation {
 
                 self.group
                     .group_mut()
-                    .store_update(txn.as_mut(), Some(ds_timestamp))
+                    .store_update(&mut *txn, Some(ds_timestamp), None)
                     .await?;
                 let messages =
                     CoreUser::store_new_messages(&mut *txn, notifier, chat.id(), group_messages)
@@ -970,7 +970,7 @@ mod tests {
         identifiers::{QualifiedGroupId, UserId},
     };
     use chrono::{Duration, Utc};
-    use sqlx::SqlitePool;
+    use sqlx::{Connection, SqlitePool};
     use uuid::Uuid;
 
     use crate::{
@@ -1001,7 +1001,9 @@ mod tests {
             group_id.clone(),
             group_data_bytes,
         )?;
-        group.store(&mut *connection).await?;
+        let mut txn = connection.begin().await?;
+        group.store(&mut txn).await?;
+        txn.commit().await?;
         let group = VerifiedGroup::new_for_test(group);
 
         let mut notifier = StoreNotifier::noop();

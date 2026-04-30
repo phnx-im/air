@@ -96,7 +96,10 @@ impl CoreUser {
         // No need to provision a group profile here, because we only have the group title and no
         // any additional data to upload.
         let provision_group_profile = None;
-        let (group_id, _) = client.ds_request_group_id(provision_group_profile).await?;
+        let request_pq_group_id = false;
+        let (group_id, _, _) = client
+            .ds_request_group_id(provision_group_profile, request_pq_group_id)
+            .await?;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
             payload: verified_connection_package,
             group_id,
@@ -167,7 +170,10 @@ impl CoreUser {
         // No need to provision a group profile here, because we only have the group title and no
         // any additional data to upload.
         let provision_group_profile = None;
-        let (group_id, _) = client.ds_request_group_id(provision_group_profile).await?;
+        let request_pq_group_id = false;
+        let (group_id, _, _) = client
+            .ds_request_group_id(provision_group_profile, request_pq_group_id)
+            .await?;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
             payload: user_id,
             group_id,
@@ -234,7 +240,7 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
             group_data_bytes,
         )?;
 
-        group.store(txn.as_mut()).await?;
+        group.store(txn).await?;
 
         Ok((group, partial_params))
     }
@@ -505,7 +511,12 @@ impl LocalUsernameContact<UsernamePayload> {
 
         info!("Creating connection group on DS");
         client
-            .ds_create_group(params, signer, group.group_state_ear_key())
+            .ds_create_group(
+                params,
+                signer,
+                group.group_state_ear_key(),
+                group.pq_group().map(|pq| &pq.group_state_ear_key),
+            )
             .await?;
 
         // Send off the connection offer.
@@ -536,7 +547,12 @@ impl LocalUsernameContact<TargetedMessagePayload> {
 
         info!("Creating connection group on DS");
         client
-            .ds_create_group(params, signer, group.group_state_ear_key())
+            .ds_create_group(
+                params,
+                signer,
+                group.group_state_ear_key(),
+                group.pq_group().map(|pq| &pq.group_state_ear_key),
+            )
             .await?;
 
         // Send off the targeted message.

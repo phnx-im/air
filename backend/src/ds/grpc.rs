@@ -380,6 +380,12 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         self.verify_client_version(request.client_metadata.as_ref())?;
         let qgid = self.ds.request_group_id().await;
 
+        let pq_qgid = if request.request_pq_group_id {
+            Some(self.ds.request_group_id().await)
+        } else {
+            None
+        };
+
         let group_profile_provisioning =
             if let Some(group_profile_size) = request.group_profile_size {
                 let content_length = group_profile_size
@@ -403,6 +409,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
         Ok(Response::new(RequestGroupIdResponse {
             group_id: Some(qgid.ref_into()),
+            pq_group_id: pq_qgid.map(|id| id.ref_into()),
             group_profile_provisioning,
         }))
     }

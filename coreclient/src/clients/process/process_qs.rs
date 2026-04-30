@@ -140,13 +140,13 @@ impl CoreUser {
                     .await
             }
             ExtractedQsQueueMessagePayload::MlsMessage(mls_message) => {
-                self.handle_mls_message(
+                Box::pin(self.handle_mls_message(
                     txn,
                     notifier,
                     *mls_message,
                     ds_timestamp,
                     read_receipts_enabled,
-                )
+                ))
                 .await
             }
             ExtractedQsQueueMessagePayload::UserProfileKeyUpdate(
@@ -208,7 +208,7 @@ impl CoreUser {
             group.merge_pending_commit(txn, None, timestamp).await?;
         group
             .group_mut()
-            .store_update(txn.as_mut(), Some(timestamp))
+            .store_update(&mut *txn, Some(timestamp), None)
             .await?;
 
         let mut chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
@@ -253,13 +253,13 @@ impl CoreUser {
         // WelcomeBundle Phase 1: Join the group. This might involve
         // loading AS credentials or fetching them from the AS.
 
-        let (group, sender_user_id, member_profile_info) = Group::join_group(
+        let (group, sender_user_id, member_profile_info) = Box::pin(Group::join_group(
             welcome_bundle,
             &self.inner.key_store.wai_ear_key,
             txn,
             &self.inner.api_clients,
             self.signing_key(),
-        )
+        ))
         .await?;
         let group_id = group.group_id().clone();
 
@@ -522,7 +522,10 @@ impl CoreUser {
                 let (new_messages, updated) = self
                     .handle_proposal_message(txn, &mut group, *proposal, ds_timestamp)
                     .await?;
-                group.group_mut().store_update(txn.as_mut(), None).await?;
+                group
+                    .group_mut()
+                    .store_update(&mut *txn, None, None)
+                    .await?;
                 (new_messages, Vec::new(), updated)
             }
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
@@ -544,7 +547,10 @@ impl CoreUser {
                         we_were_removed,
                     )
                     .await?;
-                group.group_mut().store_update(txn.as_mut(), None).await?;
+                group
+                    .group_mut()
+                    .store_update(&mut *txn, None, None)
+                    .await?;
                 (new_messages, Vec::new(), updated)
             }
             ProcessedMessageContent::ExternalJoinProposalMessage(_) => {

@@ -46,6 +46,14 @@ pub struct CreateGroupParamsOut {
     pub creator_client_reference: QsReference,
     pub group_info: MlsMessageOut,
     pub room_state: VerifiedRoomState,
+    pub pq: Option<CreatePqGroupParamsOut>,
+}
+
+#[derive(Debug)]
+pub struct CreatePqGroupParamsOut {
+    pub group_id: GroupId,
+    pub ratchet_tree: RatchetTree,
+    pub group_info: MlsMessageOut,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

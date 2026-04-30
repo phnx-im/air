@@ -25,6 +25,7 @@ impl CoreUser {
         &self,
         title: String,
         picture: Option<Vec<u8>>,
+        is_apq: bool,
     ) -> Result<ChatId> {
         let resized_picture = match picture {
             Some(picture) => {
@@ -36,7 +37,7 @@ impl CoreUser {
         let chat_attributes = ChatAttributes::new(title, resized_picture);
         let client_reference = self.create_own_client_reference();
 
-        let job = CreateChat::new(chat_attributes, client_reference);
+        let job = CreateChat::new(chat_attributes, client_reference, is_apq);
         let chat_id = self.execute_job(job).await?;
 
         Ok(chat_id)

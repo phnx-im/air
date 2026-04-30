@@ -1056,8 +1056,13 @@ impl TestBackend {
 
         let group_name = Uuid::new_v4().to_string();
         let group_picture_bytes_option = Some(test_picture_bytes());
+        let is_apq = false;
         let chat_id = user
-            .create_chat(group_name.clone(), group_picture_bytes_option.clone())
+            .create_chat(
+                group_name.clone(),
+                group_picture_bytes_option.clone(),
+                is_apq,
+            )
             .await
             .unwrap();
         let mut user_chats_after = user.chats().await;

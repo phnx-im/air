@@ -5,6 +5,7 @@
 pub(crate) mod client_auth_info;
 // TODO: Allowing dead code here for now. We'll need diffs when we start
 // rotating keys.
+pub(crate) mod apq_group;
 pub(crate) mod debug_info;
 #[allow(dead_code)]
 pub(crate) mod diff;
@@ -39,9 +40,9 @@ use aircommon::{
             AadMessage, AadPayload, DsJoinerInformation, GroupOperationParamsAad, WelcomeBundle,
         },
         client_ds_out::{
-            AddUsersInfoOut, CreateGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn,
-            GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageParamsOut,
-            TargetedMessageParamsOut, TargetedMessageType, WelcomeInfoIn,
+            AddUsersInfoOut, CreateGroupParamsOut, CreatePqGroupParamsOut, DeleteGroupParamsOut,
+            ExternalCommitInfoIn, GroupOperationParamsOut, SelfRemoveParamsOut,
+            SendMessageParamsOut, TargetedMessageParamsOut, TargetedMessageType, WelcomeInfoIn,
         },
         welcome_attribution_info::{
             WelcomeAttributionInfo, WelcomeAttributionInfoPayload, WelcomeAttributionInfoTbs,
@@ -78,7 +79,7 @@ use crate::{
         targeted_message::TargetedMessageContent,
     },
     contacts::ContactAddInfos,
-    groups::client_auth_info::VerifiableClientCredentialExt,
+    groups::{apq_group::PqGroup, client_auth_info::VerifiableClientCredentialExt},
     key_stores::as_credentials::AsCredentials,
     outbound_service::resync::Resync,
 };
@@ -110,6 +111,13 @@ pub(crate) struct PartialCreateGroupParams {
     ratchet_tree: RatchetTree,
     group_info: MlsMessageOut,
     pub(crate) room_state: VerifiedRoomState,
+    pq: Option<PartialPqCreateGroupParams>,
+}
+
+pub(crate) struct PartialPqCreateGroupParams {
+    group_id: GroupId,
+    ratchet_tree: RatchetTree,
+    group_info: MlsMessageOut,
 }
 
 impl PartialCreateGroupParams {
@@ -118,6 +126,11 @@ impl PartialCreateGroupParams {
         creator_client_reference: QsReference,
         encrypted_user_profile_key: EncryptedUserProfileKey,
     ) -> CreateGroupParamsOut {
+        let pq = self.pq.map(|pq| CreatePqGroupParamsOut {
+            group_id: pq.group_id,
+            ratchet_tree: pq.ratchet_tree,
+            group_info: pq.group_info,
+        });
         CreateGroupParamsOut {
             group_id: self.group_id,
             ratchet_tree: self.ratchet_tree,
@@ -125,6 +138,7 @@ impl PartialCreateGroupParams {
             creator_client_reference,
             group_info: self.group_info,
             room_state: self.room_state,
+            pq,
         }
     }
 }
@@ -176,7 +190,6 @@ impl From<Vec<u8>> for GroupDataBytes {
 
 #[derive(Debug)]
 pub(crate) struct Group {
-    group_id: GroupId,
     identity_link_wrapper_key: IdentityLinkWrapperKey,
     group_state_ear_key: GroupStateEarKey,
     mls_group: MlsGroup,
@@ -184,11 +197,16 @@ pub(crate) struct Group {
     pending_diff: Option<StagedGroupDiff>, // Currently unused, but we're keeping it for later
     /// The time at which the user self-updated their key material in this group the last time
     pub(crate) self_updated_at: Option<TimeStamp>,
+    pq: Option<PqGroup>,
 }
 
 impl Group {
     pub(crate) fn mls_group(&self) -> &MlsGroup {
         &self.mls_group
+    }
+
+    pub(crate) fn pq_group(&self) -> Option<&PqGroup> {
+        self.pq.as_ref()
     }
 
     /// Create a group.
@@ -231,24 +249,24 @@ impl Group {
         let room_state = VerifiedRoomState::new(
             user_id.tls_serialize_detached()?,
             RoomPolicy::default_trusted_private(),
-        )
-        .unwrap();
+        )?;
 
         let params = PartialCreateGroupParams {
             group_id: group_id.clone(),
             ratchet_tree: mls_group.export_ratchet_tree(),
             group_info: mls_group.export_group_info(provider.crypto(), signer, true)?,
             room_state: room_state.clone(),
+            pq: None,
         };
 
         let group = Self {
-            group_id,
             identity_link_wrapper_key,
             mls_group,
             room_state,
             group_state_ear_key: group_state_ear_key.clone(),
             pending_diff: None,
             self_updated_at: Some(TimeStamp::now()),
+            pq: None,
         };
 
         Ok((group, params))
@@ -387,17 +405,17 @@ impl Group {
         let credentials = verify_member_credentials(txn, api_clients, &mls_group).await?;
 
         let group = Self {
-            group_id: mls_group.group_id().clone(),
             mls_group,
             identity_link_wrapper_key: welcome_attribution_info.identity_link_wrapper_key().clone(),
             group_state_ear_key: joiner_info.group_state_ear_key,
             pending_diff: None,
             room_state,
             self_updated_at: Some(TimeStamp::now()),
+            pq: None,
         };
 
         // Phase 7: Store the group and client credentials.
-        group.store(txn.as_mut()).await?;
+        group.store(&mut *txn).await?;
         for credential in &credentials {
             credential.store(txn.as_mut()).await?;
         }
@@ -532,19 +550,19 @@ impl Group {
         let credentials = verify_member_credentials(&mut *txn, api_clients, &mls_group).await?;
 
         let group = Self {
-            group_id: mls_group.group_id().clone(),
             mls_group,
             identity_link_wrapper_key,
             group_state_ear_key,
             pending_diff: None,
             room_state,
             self_updated_at: Some(TimeStamp::now()),
+            pq: None,
         };
 
         // Phase 4: Store the group and client auth info.
         // If the group previously existed, delete it first.
-        Group::delete_from_db(&mut *txn, &group.group_id).await?;
-        group.store(txn.as_mut()).await?;
+        Group::delete_from_db(&mut *txn, group.group_id()).await?;
+        group.store(&mut *txn).await?;
         for credential in &credentials {
             credential.store(txn.as_mut()).await?;
         }
@@ -671,7 +689,7 @@ impl Group {
 
     pub(super) async fn stage_remove(
         &mut self,
-        connection: &mut sqlx::SqliteConnection,
+        connection: &mut SqliteConnection,
         signer: &ClientSigningKey,
         mut members: Vec<UserId>,
     ) -> Result<GroupOperationParamsOut> {
@@ -722,7 +740,7 @@ impl Group {
 
     pub(super) async fn stage_delete(
         &mut self,
-        connection: &mut sqlx::SqliteConnection,
+        connection: &mut SqliteConnection,
         signer: &ClientSigningKey,
     ) -> anyhow::Result<DeleteGroupParamsOut> {
         let provider = &AirOpenMlsProvider::new(&mut *connection);
@@ -1090,7 +1108,7 @@ impl Group {
 
     pub(super) fn stage_leave_group(
         &mut self,
-        connection: &mut sqlx::SqliteConnection,
+        connection: &mut SqliteConnection,
         signer: &ClientSigningKey,
     ) -> Result<SelfRemoveParamsOut> {
         let provider = &AirOpenMlsProvider::new(connection);
@@ -1107,7 +1125,7 @@ impl Group {
 
     pub(super) fn store_proposal(
         &mut self,
-        connection: &mut sqlx::SqliteConnection,
+        connection: &mut SqliteConnection,
         proposal: QueuedProposal,
     ) -> Result<()> {
         let provider = &AirOpenMlsProvider::new(connection);
@@ -1438,7 +1456,9 @@ mod handle_group_not_found_tests {
             group_id.clone(),
             GroupDataBytes::from(b"test-group-data".to_vec()),
         )?;
-        group.store(&mut *connection).await?;
+        let mut txn = connection.begin().await?;
+        group.store(&mut txn).await?;
+        txn.commit().await?;
 
         let mut notifier = StoreNotifier::noop();
         let chat = Chat::new_targeted_message_chat(

@@ -97,10 +97,13 @@ message RequestGroupIdRequest {
   common.v1.ClientMetadata client_metadata = 1;
   reserved 2; // removed provision_group_profile; use group_profile_size instead
   optional int64 group_profile_size = 3;
+  // If true, the server will return additional PQ group ID in the response.
+  bool request_pq_group_id = 4;
 }
 
 message RequestGroupIdResponse {
   common.v1.QualifiedGroupId group_id = 1;
+  optional common.v1.QualifiedGroupId pq_group_id = 3;
   ProvisionAttachmentResponse group_profile_provisioning = 2;
 }
 
@@ -149,20 +152,21 @@ message CreateApqGroupPayload {
   common.v1.ClientMetadata client_metadata = 1;
 
   // Chat related data
+
   EncryptedUserProfileKey encrypted_user_profile_key = 2;
   QsReference creator_client_reference = 3;
   RoomState room_state = 4;
 
   // Group related data
-  MlsGroupInfo t_group_info = 5;
-  MlsGroupInfo pq_group_info = 6;
 
-  // Apq group data
-  optional ApqMlsMessage commit = 7;
-  optional ApqAddUsersInfo add_users_info = 8;
+  // Data for the traditional group
+  GroupSessionData t_group_data = 5;
+  // Data for the pq group
+  GroupSessionData pq_group_data = 6;
 }
 
-message MlsGroupInfo {
+message GroupSessionData {
+  // TODO: Technically, pq group does not have to be qualified
   common.v1.QualifiedGroupId qgid = 1;
   GroupStateEarKey group_state_ear_key = 2;
   RatchetTree ratchet_tree = 3;
