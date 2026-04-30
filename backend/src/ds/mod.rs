@@ -16,6 +16,7 @@ use crate::{
 pub use grpc::GrpcDs;
 
 mod attachments;
+mod create_group;
 mod delete_group;
 mod group_operation;
 pub mod group_state;

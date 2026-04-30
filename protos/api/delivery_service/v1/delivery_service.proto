@@ -150,19 +150,20 @@ message CreateApqGroupRequest {
 message CreateApqGroupPayload {
   // Request related data
   common.v1.ClientMetadata client_metadata = 1;
+  ClientVerifyingKey sender = 2;
 
   // Chat related data
 
-  EncryptedUserProfileKey encrypted_user_profile_key = 2;
-  QsReference creator_client_reference = 3;
-  RoomState room_state = 4;
+  EncryptedUserProfileKey encrypted_user_profile_key = 3;
+  QsReference creator_client_reference = 4;
+  RoomState room_state = 5;
 
   // Group related data
 
   // Data for the traditional group
-  GroupSessionData t_group_data = 5;
+  GroupSessionData t_group_data = 6;
   // Data for the pq group
-  GroupSessionData pq_group_data = 6;
+  GroupSessionData pq_group_data = 7;
 }
 
 message GroupSessionData {

@@ -56,7 +56,7 @@ use super::{
 };
 
 pub struct GrpcDs<Qep: QsConnector> {
-    ds: Ds,
+    pub(super) ds: Ds,
     qs_connector: Qep,
 }
 
@@ -537,7 +537,134 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         &self,
         request: Request<CreateApqGroupRequest>,
     ) -> Result<Response<CreateApqGroupResponse>, Status> {
-        Err(Status::unimplemented("Not implemented"))
+        let request = request.into_inner();
+
+        // First use unverified payload; later we verify it using the client credential from the
+        // leaf node.
+        let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
+
+        // Extract chat related data
+        let encrypted_user_profile_key = payload
+            .encrypted_user_profile_key
+            .clone()
+            .ok_or_missing_field("encrypted_user_profile_key")?
+            .try_into()?;
+        let creator_client_reference = payload
+            .creator_client_reference
+            .clone()
+            .ok_or_missing_field("creator_client_reference")?
+            .try_into()?;
+        let room_state = mimi_room_policy::RoomState::try_from_ref(
+            payload
+                .room_state
+                .as_ref()
+                .ok_or_missing_field("room_state")?,
+        )
+        .map_err(|_| Status::invalid_argument("Invalid room_state message"))?;
+        let room_state = VerifiedRoomState::verify(room_state).map_err(|error| {
+            error!(%error, "proposed room policy failed verification");
+            Status::invalid_argument("Room state verification failed")
+        })?;
+
+        // Create t group state
+        let (t_client_credential, t_qgid, t_group_state, t_ear_key) = Self::extract_group_state(
+            &self,
+            payload
+                .clone()
+                .t_group_data
+                .ok_or_missing_field("t_group_data")?,
+            &encrypted_user_profile_key,
+            &creator_client_reference,
+            &room_state,
+        )?;
+
+        // Configure and apply rate-limiting
+        let rl_key = RlKey::new(
+            b"ds",
+            b"reserve_group_id",
+            &[
+                b"user_uuid",
+                t_client_credential.user_id().uuid().as_bytes(),
+            ],
+        );
+        let config = RlConfig {
+            max_requests: 100,
+            time_window: TimeDelta::hours(1),
+        };
+        let rl_storage = RlPostgresStorage::new(self.ds.db_pool.clone());
+        let rl = RateLimiter::new(config, rl_storage);
+        if !rl.allowed(rl_key).await {
+            return Err(Status::resource_exhausted(
+                "Too many requests, please try again later",
+            ));
+        }
+
+        // Now we can verify the payload
+        let payload: CreateApqGroupPayload = request
+            .verify(t_client_credential.verifying_key())
+            .map_err(InvalidSignature)?;
+
+        // Extract pq group state
+        let (pq_client_credential, pq_qgid, pq_group_state, pq_ear_key) =
+            Self::extract_group_state(
+                &self,
+                payload.pq_group_data.ok_or_missing_field("pq_group_data")?,
+                &encrypted_user_profile_key,
+                &creator_client_reference,
+                &room_state,
+            )?;
+
+        if t_client_credential != pq_client_credential {
+            return Err(Status::invalid_argument(
+                "t and pq client credentials do not match",
+            ));
+        }
+
+        // Encrypt and store group state
+        let t_reserved_group_id = self
+            .ds
+            .claim_reserved_group_id(t_qgid.group_uuid())
+            .await
+            .ok_or_else(|| Status::invalid_argument("unreserved group id"))?;
+        let pq_reserved_group_id = self
+            .ds
+            .claim_reserved_group_id(pq_qgid.group_uuid())
+            .await
+            .ok_or_else(|| Status::invalid_argument("unreserved group id"))?;
+        let encrypted_t_group_state = t_group_state.encrypt(&t_ear_key)?;
+        let encrypted_pq_group_state = pq_group_state.encrypt(&pq_ear_key)?;
+
+        let mut txn = self.ds.db_pool.begin().await.map_err(|error| {
+            error!(%error, "failed to start transaction");
+            Status::internal("database error")
+        })?;
+        StorableDsGroupData::new_and_store(
+            txn.as_mut(),
+            t_reserved_group_id,
+            encrypted_t_group_state,
+        )
+        .await
+        .map_err(|error| {
+            error!(%error, "failed to store t group state");
+            Status::internal("failed to store t group state")
+        })?;
+        StorableDsGroupData::new_and_store(
+            txn.as_mut(),
+            pq_reserved_group_id,
+            encrypted_pq_group_state,
+        )
+        .await
+        .map_err(|error| {
+            error!(%error, "failed to store pq group state");
+            Status::internal("failed to store pq group state")
+        })?;
+        txn.commit().await.map_err(|error| {
+            error!(%error, "failed to commit transaction");
+            Status::internal("database error")
+        })?;
+
+        Ok(Response::new(CreateApqGroupResponse {}))
     }
 
     async fn welcome_info(
@@ -546,18 +673,13 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
     ) -> Result<Response<WelcomeInfoResponse>, Status> {
         let request = request.into_inner();
 
-        request
-            .signature
-            .as_ref()
-            .ok_or_missing_field("signature")?;
-
         let sender: ClientVerifyingKey = request
             .payload
             .as_ref()
             .ok_or_missing_field("payload")?
             .sender
             .clone()
-            .ok_or_missing_field("payload")?
+            .ok_or_missing_field("sender")?
             .into();
         let payload: WelcomeInfoPayload = request.verify(&sender).map_err(InvalidSignature)?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
@@ -1253,7 +1375,7 @@ impl From<InvalidSignature> for Status {
 }
 
 /// Protobuf containing a qualified group id
-trait WithQualifiedGroupId {
+pub(super) trait WithQualifiedGroupId {
     fn qgid(&self) -> Result<QualifiedGroupId, Status>;
 
     fn validated_qgid(&self, own_domain: &Fqdn) -> Result<QualifiedGroupId, Status> {
@@ -1334,8 +1456,18 @@ impl WithQualifiedGroupId for GetAttachmentUrlPayload {
     }
 }
 
+impl WithQualifiedGroupId for GroupSessionData {
+    fn qgid(&self) -> Result<QualifiedGroupId, Status> {
+        self.qgid
+            .as_ref()
+            .ok_or_missing_field("qgid")?
+            .try_ref_into()
+            .map_err(From::from)
+    }
+}
+
 /// Protobuf containing a group state ear key
-trait WithGroupStateEarKey {
+pub(super) trait WithGroupStateEarKey {
     fn ear_key_proto(&self) -> Option<&v1::GroupStateEarKey>;
 
     fn ear_key(&self) -> Result<GroupStateEarKey, Status> {
@@ -1409,6 +1541,12 @@ impl WithGroupStateEarKey for ProvisionAttachmentRequest {
 impl WithGroupStateEarKey for GetAttachmentUrlRequest {
     fn ear_key_proto(&self) -> Option<&v1::GroupStateEarKey> {
         self.payload.as_ref()?.group_state_ear_key.as_ref()
+    }
+}
+
+impl WithGroupStateEarKey for GroupSessionData {
+    fn ear_key_proto(&self) -> Option<&v1::GroupStateEarKey> {
+        self.group_state_ear_key.as_ref()
     }
 }
 
