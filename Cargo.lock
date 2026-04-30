@@ -151,6 +151,7 @@ dependencies = [
  "aircommon",
  "airprotos",
  "anyhow",
+ "apqmls",
  "async-trait",
  "aws-config",
  "aws-sdk-s3",

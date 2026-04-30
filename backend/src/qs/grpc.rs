@@ -403,46 +403,41 @@ impl QueueService for GrpcQs {
         &self,
         request: Request<PublishApqKeyPackagesRequest>,
     ) -> Result<Response<PublishApqKeyPackagesResponse>, Status> {
-        Err(Status::unimplemented("Not implemented"))
-        // let request = request.into_inner();
-        // self.verify_client_version(
-        //     request
-        //         .payload
-        //         .as_ref()
-        //         .and_then(|p| p.client_metadata.as_ref())
-        //         .or(request.client_metadata.as_ref()),
-        // )?;
-        // let PublishKeyPackagesPayload {
-        //     client_metadata: _,
-        //     client_id,
-        //     key_packages,
-        // } = self.verify_client_auth(request).await?;
-        // let params = PublishKeyPackagesParams {
-        //     sender: client_id.ok_or_missing_field("client_id")?.try_into()?,
-        //     key_packages: key_packages
-        //         .into_iter()
-        //         .map(|key_package| key_package.try_into())
-        //         .collect::<Result<Vec<_>, _>>()
-        //         .invalid_tls("key_packages")?,
-        // };
-        // self.qs.qs_publish_key_packages(params).await?;
-        // Ok(Response::new(PublishKeyPackagesResponse {}))
+        let request = request.into_inner();
+        self.verify_client_version(
+            request
+                .payload
+                .as_ref()
+                .and_then(|p| p.client_metadata.as_ref()),
+        )?;
+        let PublishApqKeyPackagesPayload {
+            client_metadata: _,
+            client_id,
+            apq_key_packages,
+        } = self.verify_client_auth(request).await?;
+        let sender = client_id.ok_or_missing_field("client_id")?.try_into()?;
+        let apq_key_packages = apq_key_packages
+            .into_iter()
+            .map(|key_package| key_package.try_into())
+            .collect::<Result<Vec<_>, _>>()
+            .invalid_tls("key_packages")?;
+        self.qs
+            .qs_publish_apq_key_packages(sender, apq_key_packages)
+            .await?;
+        Ok(Response::new(PublishApqKeyPackagesResponse {}))
     }
 
     async fn apq_key_package(
         &self,
         request: Request<ApqKeyPackageRequest>,
     ) -> Result<Response<ApqKeyPackageResponse>, Status> {
-        Err(Status::unimplemented("Not implemented"))
-        // let request = request.into_inner();
-        // self.verify_client_version(request.client_metadata.as_ref())?;
-        // let params = KeyPackageParams {
-        //     sender: request.sender.ok_or_missing_field("sender")?.into(),
-        // };
-        // let response = self.qs.qs_key_package(params).await?;
-        // Ok(Response::new(KeyPackageResponse {
-        //     key_package: Some(response.key_package.try_into().tls_failed("key_package")?),
-        // }))
+        let request = request.into_inner();
+        self.verify_client_version(request.client_metadata.as_ref())?;
+        let friendship_token = request.sender.ok_or_missing_field("sender")?.into();
+        let key_package = self.qs.qs_apq_key_package(friendship_token).await?;
+        Ok(Response::new(ApqKeyPackageResponse {
+            key_package: Some(key_package.try_into().tls_failed("key_package")?),
+        }))
     }
 
     async fn qs_encryption_key(
