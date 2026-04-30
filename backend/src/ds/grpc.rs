@@ -526,6 +526,13 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         Ok(Response::new(CreateGroupResponse {}))
     }
 
+    async fn create_apq_group(
+        &self,
+        request: Request<CreateApqGroupRequest>,
+    ) -> Result<Response<CreateApqGroupResponse>, Status> {
+        Err(Status::unimplemented("Not implemented"))
+    }
+
     async fn welcome_info(
         &self,
         request: Request<WelcomeInfoRequest>,
@@ -980,6 +987,13 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         Ok(Response::new(GroupOperationResponse {
             fanout_timestamp: Some(timestamp.into()),
         }))
+    }
+
+    async fn apq_group_operation(
+        &self,
+        request: Request<ApqGroupOperationRequest>,
+    ) -> Result<Response<ApqGroupOperationResponse>, Status> {
+        Err(Status::unimplemented("Not implemented"))
     }
 
     async fn update_profile_key(
