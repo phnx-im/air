@@ -523,6 +523,10 @@ impl OutboundServiceContext {
         let self_update_at: DateTime<Utc> =
             group.self_updated_at.map(From::from).unwrap_or_default();
         if Utc::now() <= self_update_at + SELF_UPDATE_INTERVAL {
+            debug!(
+                ?chat_id,
+                "Skipping self-update in chat because it is not yet necessary"
+            );
             return Ok(false);
         }
 
