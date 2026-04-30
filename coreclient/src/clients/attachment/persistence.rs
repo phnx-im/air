@@ -377,8 +377,8 @@ impl PendingAttachmentRecord {
         notifier: &mut StoreNotifier,
     ) -> sqlx::Result<()> {
         let size = self.size as i64;
-        let enc_alg: i64 = self.enc_alg.repr().into();
-        let hash_alg: i64 = self.hash_alg.repr().into();
+        let enc_alg: u16 = self.enc_alg.into();
+        let hash_alg: u8 = self.hash_alg.into();
         query!(
             "INSERT INTO pending_attachment (
                 attachment_id,
@@ -451,11 +451,11 @@ impl PendingAttachmentRecord {
                 PendingAttachmentRecord {
                     attachment_id,
                     size,
-                    enc_alg: EncryptionAlgorithm::from_repr(enc_alg),
+                    enc_alg: EncryptionAlgorithm::from(enc_alg),
                     enc_key,
                     nonce,
                     aad,
-                    hash_alg: HashAlgorithm::from_repr(hash_alg),
+                    hash_alg: HashAlgorithm::from(hash_alg),
                     hash,
                 }
             },

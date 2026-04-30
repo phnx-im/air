@@ -5,7 +5,7 @@
 use aircoreclient::AttachmentUrl;
 use mimi_content::{
     MimiContent,
-    content_container::{Disposition, NestedPart, NestedPartContent, PartSemantics},
+    content_container::{Disposition, NestedPart, PartSemantics},
 };
 use tracing::warn;
 
@@ -21,11 +21,12 @@ pub(crate) trait MimiContentExt {
 impl MimiContentExt for MimiContent {
     // Message editing relies on this function returning the original input again. When we add processing to the input or the plain_body function, we need to adjust message editing.
     fn plain_body(&self) -> Option<&str> {
-        match &self.nested_part.part {
+        match &self.nested_part {
             // single part message
-            NestedPartContent::SinglePart {
+            NestedPart::SinglePart {
                 content,
                 content_type,
+                ..
             } if content_type == "text/markdown" => str::from_utf8(content).ok(),
             _ => None,
         }
@@ -45,25 +46,21 @@ impl From<MimiContent> for UiMimiContent {
     fn from(mut mimi_content: MimiContent) -> Self {
         let mut res = Self {
             plain_body: None,
-            replaces: mimi_content.replaces.map(|v| v.into_vec()),
-            topic_id: mimi_content.topic_id.into_vec(),
-            in_reply_to: mimi_content.in_reply_to.map(|v| v.into_vec()),
+            replaces: mimi_content.replaces,
+            topic_id: mimi_content.topic_id,
+            in_reply_to: mimi_content.in_reply_to,
             content: None,
             attachments: Default::default(),
         };
 
-        match (
-            mimi_content.nested_part.disposition,
-            std::mem::take(&mut mimi_content.nested_part.part),
-        ) {
+        match std::mem::take(&mut mimi_content.nested_part) {
             // multipart attachment message with ProcessAll semantics
-            (
-                Disposition::Attachment,
-                NestedPartContent::MultiPart {
-                    part_semantics: PartSemantics::ProcessAll,
-                    parts,
-                },
-            ) => {
+            NestedPart::MultiPart {
+                disposition: Disposition::Attachment,
+                part_semantics: PartSemantics::ProcessAll,
+                parts,
+                ..
+            } => {
                 let Some(attachment) = convert_attachment(parts) else {
                     return res.error_message("Unsupported attachment message");
                 };
@@ -71,25 +68,23 @@ impl From<MimiContent> for UiMimiContent {
             }
 
             // single part message
-            (
-                _,
-                NestedPartContent::SinglePart {
-                    content,
-                    content_type,
-                },
-            ) if content_type == "text/markdown" => {
-                let plain_body = String::from_utf8(content.into_vec())
+            NestedPart::SinglePart {
+                content,
+                content_type,
+                ..
+            } if content_type == "text/markdown" => {
+                let plain_body = String::from_utf8(content)
                     .unwrap_or_else(|_| "Invalid non-UTF8 message".to_owned());
                 res.content = Some(MessageContent::parse_markdown(&plain_body));
                 res.plain_body = Some(plain_body);
             }
-            (_, NestedPartContent::NullPart) => {
+            NestedPart::NullPart { .. } => {
                 res.content = None;
             }
 
             // any other message
-            (disposition, _) => {
-                return res.error_message(format!("Unsupported message: {disposition:?}"));
+            part => {
+                return res.error_message(format!("Unsupported message: {:?}", part.disposition()));
             }
         }
 
@@ -103,19 +98,17 @@ fn convert_attachment(parts: Vec<NestedPart>) -> Option<UiAttachment> {
     let mut dimensions: Option<(u32, u32)> = None;
 
     for part in parts {
-        match (part.disposition, part.part) {
+        match part {
             // actual attachment
-            (
-                Disposition::Attachment,
-                NestedPartContent::ExternalPart {
-                    content_type,
-                    url,
-                    description,
-                    filename,
-                    size,
-                    ..
-                },
-            ) => {
+            NestedPart::ExternalPart {
+                disposition: Disposition::Attachment,
+                content_type,
+                url,
+                description,
+                filename,
+                size,
+                ..
+            } => {
                 if attachment.is_some() {
                     warn!("Skipping duplicate attachment part");
                     continue;
@@ -142,13 +135,12 @@ fn convert_attachment(parts: Vec<NestedPart>) -> Option<UiAttachment> {
             }
 
             // blurhash preview
-            (
-                Disposition::Preview,
-                NestedPartContent::SinglePart {
-                    content,
-                    content_type,
-                },
-            ) if content_type == "text/blurhash" => {
+            NestedPart::SinglePart {
+                disposition: Disposition::Preview,
+                content,
+                content_type,
+                ..
+            } if content_type == "text/blurhash" => {
                 if blurhash.is_some() {
                     warn!("Skipping duplicate blurhash preview part");
                     continue;
@@ -161,8 +153,11 @@ fn convert_attachment(parts: Vec<NestedPart>) -> Option<UiAttachment> {
             }
 
             // other parts
-            (disposition, _) => {
-                warn!("Skipping unsupported attachment part: {disposition:?}");
+            part => {
+                warn!(
+                    "Skipping unsupported attachment part: {:?}",
+                    part.disposition()
+                );
             }
         }
     }
