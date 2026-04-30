@@ -9,7 +9,7 @@ use uuid::Uuid;
 
 use crate::{
     job::pending_chat_operation::test_utils::PendingChatOperationInfo,
-    outbound_service::resync::Resync, utils::connection_ext::ConnectionExt as _,
+    outbound_service::resync::Resync,
 };
 
 use super::*;
@@ -17,21 +17,24 @@ use super::*;
 impl CoreUser {
     /// The same as [`Self::new()`], except that databases are ephemeral and are
     /// dropped together with this instance of [`CoreUser`].
+    #[cfg(any(test, feature = "test_utils"))]
     pub async fn new_ephemeral(
         user_id: UserId,
         server_url: Url,
         push_token: Option<PushToken>,
         invitation_code: String,
     ) -> Result<Self> {
-        use crate::utils::persistence::open_db_in_memory;
+        use crate::{store::StoreNotificationsSender, utils::persistence::open_db_in_memory};
 
         info!(?user_id, "creating new ephemeral user");
 
+        let notifier_tx = StoreNotificationsSender::new();
+
         // Open the air db to store the client record
-        let air_db = open_db_in_memory().await?;
+        let air_db = DbAccess::new(open_db_in_memory().await?, notifier_tx.clone());
 
         // Open client specific db
-        let client_db = open_db_in_memory().await?;
+        let client_db = DbAccess::new(open_db_in_memory().await?, notifier_tx);
 
         let temp_file = tempfile::NamedTempFile::new()?;
         let global_lock = GlobalLock::from_path(temp_file.path())?;
@@ -49,11 +52,12 @@ impl CoreUser {
     }
 
     pub async fn mls_members(&self, chat_id: ChatId) -> Result<Option<Vec<Member>>> {
-        let mut connection = self.pool().acquire().await?;
-        let Some(chat_id) = Chat::load(&mut connection, &chat_id).await? else {
+        let mut connection = self.db().read().await?;
+        let mut txn = connection.begin().await?;
+        let Some(chat_id) = Chat::load(&mut txn, &chat_id).await? else {
             return Ok(None);
         };
-        let Some(group) = Group::load(&mut connection, chat_id.group_id()).await? else {
+        let Some(group) = Group::load(&mut txn, chat_id.group_id()).await? else {
             return Ok(None);
         };
         let members = group.mls_group().members().collect();
@@ -61,9 +65,10 @@ impl CoreUser {
     }
 
     pub async fn group_members(&self, chat_id: ChatId) -> Option<HashSet<UserId>> {
-        let mut connection = self.pool().acquire().await.ok()?;
-        let chat = Chat::load(&mut connection, &chat_id).await.ok()??;
-        let group = Group::load(&mut connection, chat.group_id()).await.ok()??;
+        let mut connection = self.db().read().await.ok()?;
+        let mut txn = connection.begin().await.ok()?;
+        let chat = Chat::load(&mut txn, &chat_id).await.ok()??;
+        let group = Group::load(&mut txn, chat.group_id()).await.ok()??;
         Some(group.members().collect())
     }
 
@@ -75,8 +80,7 @@ impl CoreUser {
         chat_id: ChatId,
         domain: &str,
     ) -> anyhow::Result<()> {
-        let mut connection = self.pool().acquire().await?;
-        let group = Group::load_with_chat_id(connection.as_mut(), chat_id)
+        let group = Group::load_with_chat_id(self.db().read().await?, chat_id)
             .await?
             .context("group not found")?;
 
@@ -90,13 +94,13 @@ impl CoreUser {
             identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
             original_leaf_index: group.own_index(),
         };
-        resync.enqueue(&mut *connection).await?;
+        resync.enqueue(self.db().write().await?).await?;
         Ok(())
     }
 
     pub async fn is_resync_pending(&self, chat_id: ChatId) -> anyhow::Result<bool> {
-        let mut connection = self.pool().acquire().await?;
-        Ok(Resync::is_pending_for_chat(connection.as_mut(), &chat_id).await?)
+        let connection = self.db().read().await?;
+        Ok(Resync::is_pending_for_chat(connection, &chat_id).await?)
     }
 
     /// Returns (operation_type, request_status, number_of_attempts) for the
@@ -105,9 +109,8 @@ impl CoreUser {
         &self,
         chat_id: ChatId,
     ) -> anyhow::Result<Option<PendingChatOperationInfo>> {
-        self.pool()
-            .clone()
-            .with_transaction(async |txn| PendingChatOperationInfo::load(txn, &chat_id).await)
+        self.db()
+            .with_write_transaction(async |txn| PendingChatOperationInfo::load(txn, &chat_id).await)
             .await
     }
 }

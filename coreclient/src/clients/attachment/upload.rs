@@ -46,10 +46,7 @@ use crate::{
     },
     groups::Group,
     store::{Store, StoreNotifier},
-    utils::{
-        connection_ext::StoreExt,
-        image::{ReencodedAttachmentImage, load_attachment_image},
-    },
+    utils::image::{ReencodedAttachmentImage, load_attachment_image},
 };
 
 impl CoreUser {
@@ -68,7 +65,7 @@ impl CoreUser {
             ProvisionAttachmentError,
         >,
     > {
-        let group = Group::load_with_chat_id_clean(self.pool().acquire().await?.as_mut(), chat_id)
+        let group = Group::load_with_chat_id_clean(self.db().read().await?, chat_id)
             .await?
             .with_context(|| format!("Can't find group with id {chat_id:?}"))?;
 
@@ -106,10 +103,11 @@ impl CoreUser {
         // Note: Acquire a transaction here to ensure that the attachment will be deleted from the
         // local database in case of an error.
         let message = self
-            .with_transaction_and_notifier(async |txn, notifier| {
+            .db()
+            .with_write_transaction(async |txn| -> anyhow::Result<ChatMessage> {
                 let message_id = MessageId::random();
                 let message = self
-                    .send_message_transactional(txn, notifier, chat_id, message_id, content)
+                    .send_message_transactional(&mut *txn, chat_id, message_id, content)
                     .await?;
 
                 // store attachment locally
@@ -122,9 +120,7 @@ impl CoreUser {
                     status: AttachmentStatus::Uploading,
                     created_at: Utc::now(),
                 };
-                record
-                    .store(txn.as_mut(), notifier, Some(content_bytes.as_slice()))
-                    .await?;
+                record.store(txn, Some(content_bytes.as_slice())).await?;
 
                 Ok(message)
             })
@@ -151,13 +147,14 @@ impl CoreUser {
     > {
         // load locally stored data
         let (group, mut message, content) = self
-            .with_transaction(async |txn| {
+            .db()
+            .with_write_transaction(async |txn| {
                 let content = match self.load_attachment(attachment_id).await? {
                     AttachmentContent::UploadFailed(bytes) => AttachmentBytes::from(bytes),
                     status => bail!("Unexpected attachment {attachment_id:?} status {status:?}"),
                 };
 
-                let attachment_record = AttachmentRecord::load(self.pool(), attachment_id)
+                let attachment_record = AttachmentRecord::load(&mut *txn, attachment_id)
                     .await?
                     .context("Attachment not found")?;
                 ensure!(
@@ -172,7 +169,7 @@ impl CoreUser {
                 ensure!(!message.is_sent(), "Message is already sent");
 
                 let chat_id = message.chat_id();
-                let chat = Chat::load(txn, &chat_id)
+                let chat = Chat::load(&mut *txn, &chat_id)
                     .await?
                     .with_context(|| format!("Can't find chat with id {chat_id}"))?;
 
@@ -213,21 +210,23 @@ impl CoreUser {
             *key = attachment_metadata.key.into_bytes().to_vec();
             *nonce = attachment_metadata.nonce.to_vec();
 
-            self.with_transaction_and_notifier(async |txn, notifier| {
-                message.update(txn.as_mut(), notifier).await?;
-                // Since we just move the attachment record, we don't need to notify the store.
-                let mut noop_notifier = StoreNotifier::noop();
-                AttachmentRecord::copy(
-                    txn.as_mut(),
-                    &mut noop_notifier,
-                    attachment_id,
-                    attachment_metadata.attachment_id,
-                )
+            self.db()
+                .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                    message.update(&mut *txn).await?;
+                    // Since we just move the attachment record, we don't need to notify the store.
+                    let mut noop_notifier = StoreNotifier::noop();
+                    AttachmentRecord::copy(
+                        &mut *txn,
+                        &mut noop_notifier,
+                        attachment_id,
+                        attachment_metadata.attachment_id,
+                    )
+                    .await?;
+                    AttachmentRecord::delete(txn, &mut noop_notifier, attachment_id).await?;
+
+                    Ok(())
+                })
                 .await?;
-                AttachmentRecord::delete(txn.as_mut(), &mut noop_notifier, attachment_id).await?;
-                Ok(())
-            })
-            .await?;
         } else {
             bail!("Invalid attachment mimi content")
         }
@@ -258,7 +257,7 @@ impl CoreUser {
     ) {
         let (progress_tx, progress) = AttachmentProgress::new();
         let http_client = self.http_client();
-        let pool = self.pool().clone();
+        let db = self.db().clone();
         let task = async move {
             let res = upload_encrypted_attachment(
                 &http_client,
@@ -267,15 +266,23 @@ impl CoreUser {
                 ciphertext,
             )
             .await;
+            let connection = db
+                .write()
+                .await
+                .map_err(|error| UploadTaskError::new(message.id(), error.into()))?;
             match res {
                 Ok(()) => {
-                    AttachmentRecord::update_status(&pool, attachment_id, AttachmentStatus::Ready)
-                        .await
-                        .map_err(|error| UploadTaskError::new(message.id(), error.into()))?;
+                    AttachmentRecord::update_status(
+                        connection,
+                        attachment_id,
+                        AttachmentStatus::Ready,
+                    )
+                    .await
+                    .map_err(|error| UploadTaskError::new(message.id(), error.into()))?;
                 }
                 Err(error) => {
                     AttachmentRecord::update_status(
-                        &pool,
+                        connection,
                         attachment_id,
                         AttachmentStatus::UploadFailed,
                     )

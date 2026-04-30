@@ -4,10 +4,12 @@
 
 use sqlx::query;
 
+use crate::db_access::WriteConnection;
+
 use super::OwnClientInfo;
 
 impl OwnClientInfo {
-    pub(crate) async fn store(&self, executor: impl sqlx::SqliteExecutor<'_>) -> sqlx::Result<()> {
+    pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
         let uuid = self.user_id.uuid();
         let domain = self.user_id.domain();
         query!(
@@ -22,7 +24,7 @@ impl OwnClientInfo {
             uuid,
             domain,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
         Ok(())
     }
@@ -34,23 +36,26 @@ mod tests {
     use sqlx::{Row, SqlitePool};
     use uuid::Uuid;
 
+    use crate::db_access::DbAccess;
+
     use super::*;
 
     #[sqlx::test]
     async fn store(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         let own_client_info = OwnClientInfo {
             qs_user_id: QsUserId::random(),
             qs_client_id: QsClientId::random(&mut rand::thread_rng()),
             user_id: UserId::new(Uuid::new_v4(), "localhost".parse().unwrap()),
         };
 
-        own_client_info.store(&pool).await?;
+        own_client_info.store(pool.write().await?).await?;
 
         let row = sqlx::query(
             "SELECT qs_user_id, qs_client_id, user_uuid, user_domain
             FROM own_client_info",
         )
-        .fetch_one(&pool)
+        .fetch_one(pool.read().await?.as_mut())
         .await?;
         let qs_user_id = row.try_get(0)?;
         let qs_client_id = row.try_get(1)?;

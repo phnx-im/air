@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                chat_id AS \"chat_id: _\",\n                chat_title,\n                chat_picture,\n                group_id AS \"group_id: _\",\n                last_read AS \"last_read: _\",\n                (SELECT timestamp FROM message\n                    WHERE chat_id = chat.chat_id\n                    ORDER BY timestamp DESC\n                    LIMIT 1\n                ) AS \"last_message_at: _\",\n                connection_user_uuid AS \"connection_user_uuid: _\",\n                connection_user_domain AS \"connection_user_domain: _\",\n                connection_user_handle AS \"connection_user_handle: _\",\n                is_confirmed_connection,\n                is_active,\n                is_incoming,\n                blocked_contact.user_uuid IS NOT NULL AS \"is_blocked!: _\"\n            FROM chat\n            LEFT JOIN blocked_contact ON blocked_contact.user_uuid = chat.connection_user_uuid\n                AND blocked_contact.user_domain = chat.connection_user_domain\n            WHERE chat_id = ?",
+  "query": "SELECT\n                        chat_id AS \"chat_id: _\",\n                        chat_title,\n                        chat_picture,\n                        group_id AS \"group_id: _\",\n                        last_read AS \"last_read: _\",\n                        (SELECT timestamp FROM message\n                            WHERE chat_id = chat.chat_id\n                            ORDER BY timestamp DESC\n                            LIMIT 1\n                        ) AS \"last_message_at: _\",\n                        connection_user_uuid AS \"connection_user_uuid: _\",\n                        connection_user_domain AS \"connection_user_domain: _\",\n                        connection_user_handle AS \"connection_user_handle: _\",\n                        is_confirmed_connection,\n                        is_active,\n                        is_incoming,\n                        blocked_contact.user_uuid IS NOT NULL AS \"is_blocked!: _\"\n                    FROM chat\n                    LEFT JOIN blocked_contact ON blocked_contact.user_uuid = chat.connection_user_uuid\n                        AND blocked_contact.user_domain = chat.connection_user_domain\n                    WHERE chat_id = ?",
   "describe": {
     "columns": [
       {
@@ -88,5 +88,5 @@
       null
     ]
   },
-  "hash": "d4629c1b2cd827de4d1773caca7c53429d0cdc76138a48ec846cb7b13f825e90"
+  "hash": "95cd50fda590798eca4fab451af5e7d2bbbc1926448836615d0b48f8b56a69c7"
 }

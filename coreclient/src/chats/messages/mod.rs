@@ -9,10 +9,7 @@ use mimi_content::{
 };
 use tracing::{error, warn};
 
-use crate::{
-    groups::Group,
-    store::{Store, StoreNotifier},
-};
+use crate::{groups::Group, store::Store};
 
 use super::*;
 
@@ -202,11 +199,10 @@ impl ChatMessage {
     /// Mark the message as sent and update the timestamp.
     pub(crate) async fn mark_as_sent(
         &mut self,
-        connection: &mut sqlx::SqliteConnection,
-        notifier: &mut StoreNotifier,
+        connection: impl WriteConnection,
         ds_timestamp: TimeStamp,
     ) -> sqlx::Result<()> {
-        Self::update_sent_status(connection, notifier, self.id(), ds_timestamp, true).await?;
+        Self::update_sent_status(connection, self.id(), ds_timestamp, true).await?;
         self.timestamped_message.mark_as_sent(ds_timestamp);
         Ok(())
     }
