@@ -239,33 +239,33 @@ impl Chat {
         chat_id: &ChatId,
     ) -> sqlx::Result<Option<Chat>> {
         let chat = query_as!(
-                    SqlChat,
-                            r#"SELECT
-                        chat_id AS "chat_id: _",
-                        chat_title,
-                        chat_picture,
-                        group_id AS "group_id: _",
-                        last_read AS "last_read: _",
-                        (SELECT timestamp FROM message
-                            WHERE chat_id = chat.chat_id
-                            ORDER BY timestamp DESC
-                            LIMIT 1
-                        ) AS "last_message_at: _",
-                        connection_user_uuid AS "connection_user_uuid: _",
-                        connection_user_domain AS "connection_user_domain: _",
-                        connection_user_handle AS "connection_user_handle: _",
-                        is_confirmed_connection,
-                        is_active,
-                        is_incoming,
-                        blocked_contact.user_uuid IS NOT NULL AS "is_blocked!: _"
-                    FROM chat
-                    LEFT JOIN blocked_contact ON blocked_contact.user_uuid = chat.connection_user_uuid
-                        AND blocked_contact.user_domain = chat.connection_user_domain
-                    WHERE chat_id = ?"#,
-                    chat_id
-                )
-                .fetch_optional(txn.as_mut())
-                .await?;
+            SqlChat,
+            r#"SELECT
+                chat_id AS "chat_id: _",
+                chat_title,
+                chat_picture,
+                group_id AS "group_id: _",
+                last_read AS "last_read: _",
+                (SELECT timestamp FROM message
+                    WHERE chat_id = chat.chat_id
+                    ORDER BY timestamp DESC
+                    LIMIT 1
+                ) AS "last_message_at: _",
+                connection_user_uuid AS "connection_user_uuid: _",
+                connection_user_domain AS "connection_user_domain: _",
+                connection_user_handle AS "connection_user_handle: _",
+                is_confirmed_connection,
+                is_active,
+                is_incoming,
+                blocked_contact.user_uuid IS NOT NULL AS "is_blocked!: _"
+            FROM chat
+            LEFT JOIN blocked_contact ON blocked_contact.user_uuid = chat.connection_user_uuid
+                AND blocked_contact.user_domain = chat.connection_user_domain
+            WHERE chat_id = ?"#,
+            chat_id
+        )
+        .fetch_optional(txn.as_mut())
+        .await?;
         let Some(chat) = chat else {
             return Ok(None);
         };
