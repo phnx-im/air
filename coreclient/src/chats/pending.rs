@@ -50,7 +50,7 @@ impl CoreUser {
         // Load needed data
         let (chat, sender_user_id, pending_connection_info, partial_contact, own_user_profile_key) =
             self.db()
-                .with_write_transaction(async |txn| {
+                .with_read_transaction(async |txn| {
                     let chat: Chat = Chat::load(&mut *txn, &chat_id)
                         .await?
                         .with_context(|| format!("Can't find chat with id {chat_id}"))?;

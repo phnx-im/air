@@ -152,7 +152,21 @@ impl DbAccess {
         })
     }
 
-    /// Executes a function with a write transaction.
+    /// Executes a function within a read transaction.
+    pub(crate) async fn with_read_transaction<T, E>(
+        &self,
+        f: impl AsyncFnOnce(&mut ReadDbTransaction<'_>) -> Result<T, E> + Send,
+    ) -> Result<T, E>
+    where
+        T: Send,
+        E: From<sqlx::Error>,
+    {
+        let mut read = self.read().await?;
+        let mut txn = read.begin().await?;
+        f(&mut txn).await // No need to commit a read transaction
+    }
+
+    /// Executes a function within a write transaction.
     ///
     /// This is a shortcut for `db.write().await?.with_transaction(f).await`.
     pub(crate) async fn with_write_transaction<T, E>(
