@@ -110,7 +110,7 @@ impl CoreUser {
         chat_id: ChatId,
     ) -> anyhow::Result<Option<PendingChatOperationInfo>> {
         self.db()
-            .with_write_transaction(async |txn| PendingChatOperationInfo::load(txn, &chat_id).await)
+            .with_read_transaction(async |txn| PendingChatOperationInfo::load(txn, &chat_id).await)
             .await
     }
 }

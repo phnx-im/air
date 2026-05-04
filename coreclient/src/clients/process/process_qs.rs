@@ -574,7 +574,6 @@ impl CoreUser {
     /// Returns a message if it should be stored, otherwise an empty vec.
     ///
     /// Also returns whether the chat should be notified as updated.
-    #[allow(clippy::too_many_arguments)]
     async fn handle_application_message(
         &self,
         txn: &mut WriteDbTransaction<'_>,

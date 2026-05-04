@@ -154,7 +154,7 @@ impl CoreUser {
 
     pub async fn chat(&self, chat_id: &ChatId) -> Option<Chat> {
         self.db()
-            .with_write_transaction(async |txn| Chat::load(txn, chat_id).await)
+            .with_read_transaction(async |txn| Chat::load(txn, chat_id).await)
             .await
             .ok()
             .flatten()

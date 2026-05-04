@@ -148,7 +148,7 @@ impl CoreUser {
         // load locally stored data
         let (group, mut message, content) = self
             .db()
-            .with_write_transaction(async |txn| {
+            .with_read_transaction(async |txn| {
                 let content = match self.load_attachment(attachment_id).await? {
                     AttachmentContent::UploadFailed(bytes) => AttachmentBytes::from(bytes),
                     status => bail!("Unexpected attachment {attachment_id:?} status {status:?}"),
