@@ -157,31 +157,35 @@ impl OutboundServiceContext {
         debug!(?message_id, "sending message");
 
         // load chat and message
-        let (chat, mut message) = {
-            let mut connection = self.db.read().await?;
-            let mut txn = connection.begin().await?;
-            let message = ChatMessage::load(&mut txn, message_id)
-                .await?
-                .with_context(|| format!("Can't find message with id {message_id:?}"))?;
-            let chat_id = message.chat_id();
-            let chat = Chat::load(&mut txn, &chat_id)
-                .await?
-                .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+        let Some((chat, mut message)) = self
+            .db
+            .with_read_transaction(async |txn| {
+                let message = ChatMessage::load(&mut *txn, message_id)
+                    .await?
+                    .with_context(|| format!("Can't find message with id {message_id:?}"))?;
+                let chat_id = message.chat_id();
+                let chat = Chat::load(&mut *txn, &chat_id)
+                    .await?
+                    .with_context(|| format!("Can't find chat with id {chat_id}"))?;
 
-            // Don't send messages for blocked chats
-            if let ChatStatus::Blocked = chat.status() {
-                return Ok(());
-            }
+                // Don't send messages for blocked chats
+                if let ChatStatus::Blocked = chat.status() {
+                    return Ok(None);
+                }
 
-            // Don't send messages for chats with pending resync
-            if Resync::is_pending_for_chat(&mut txn, &chat_id).await? {
-                debug!(?chat_id, "Skipping sending message due to pending resync");
-                return Ok(());
-            }
+                // Don't send messages for chats with pending resync
+                if Resync::is_pending_for_chat(&mut *txn, &chat_id).await? {
+                    debug!(?chat_id, "Skipping sending message due to pending resync");
+                    return Ok(None);
+                }
 
-            ensure!(!message.is_sent(), "Message is already sent");
+                ensure!(!message.is_sent(), "Message is already sent");
 
-            (chat, message)
+                Ok(Some((chat, message)))
+            })
+            .await?
+        else {
+            return Ok(());
         };
 
         let Message::Content(content) = message.message() else {

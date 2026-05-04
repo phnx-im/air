@@ -138,26 +138,16 @@ impl OutboundServiceContext {
         debug!(%chat_id, ?unsent_receipt, "sending receipt");
 
         // load chat
-        let chat = {
-            let mut connection = self
-                .db
-                .read()
-                .await
-                .map_err(OutboundServiceError::recoverable)?;
-            let txn = connection
-                .begin()
-                .await
-                .map_err(OutboundServiceError::recoverable)?;
-            let chat = Chat::load(txn, &chat_id)
-                .await
-                .map_err(OutboundServiceError::recoverable)?
-                .with_context(|| format!("Can't find chat with id {chat_id}"))
-                .map_err(OutboundServiceError::fatal)?;
-            if let ChatStatus::Blocked = chat.status() {
-                return Ok(());
-            }
-            chat
-        };
+        let chat = self
+            .db
+            .with_read_transaction(async |txn| Chat::load(txn, &chat_id).await)
+            .await
+            .map_err(OutboundServiceError::recoverable)?
+            .with_context(|| format!("Can't find chat with id {chat_id}"))
+            .map_err(OutboundServiceError::fatal)?;
+        if let ChatStatus::Blocked = chat.status() {
+            return Ok(());
+        }
 
         // load group and create MLS message
         let (group_state_ear_key, params) = self

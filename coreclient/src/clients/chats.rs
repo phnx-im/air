@@ -82,12 +82,12 @@ impl CoreUser {
         chat_id: ChatId,
         picture: Option<Vec<u8>>,
     ) -> Result<()> {
-        let mut connection = self.db().read().await?;
-        let txn = connection.begin().await?;
-        let chat = Chat::load(txn, &chat_id).await?.ok_or_else(|| {
-            let id = chat_id.uuid();
-            anyhow!("Can't find chat with id {id}")
-        })?;
+        let chat = Chat::load(self.db().read().await?.begin().await?, &chat_id)
+            .await?
+            .ok_or_else(|| {
+                let id = chat_id.uuid();
+                anyhow!("Can't find chat with id {id}")
+            })?;
         let resized_picture_option = tokio::task::spawn_blocking(|| {
             picture.and_then(|picture| resize_profile_image(&picture).ok())
         })
@@ -105,12 +105,12 @@ impl CoreUser {
     }
 
     pub(crate) async fn set_chat_title(&self, chat_id: ChatId, title: String) -> Result<()> {
-        let mut connection = self.db().read().await?;
-        let txn = connection.begin().await?;
-        let chat = Chat::load(txn, &chat_id).await?.ok_or_else(|| {
-            let id = chat_id.uuid();
-            anyhow!("Can't find chat with id {id}")
-        })?;
+        let chat = Chat::load(self.db().read().await?.begin().await?, &chat_id)
+            .await?
+            .ok_or_else(|| {
+                let id = chat_id.uuid();
+                anyhow!("Can't find chat with id {id}")
+            })?;
         if title == chat.attributes().title {
             // No change
             return Ok(());
