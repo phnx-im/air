@@ -140,6 +140,9 @@ impl CoreUser {
                 Box::pin(self.handle_welcome_bundle(txn, notifier, welcome_bundle, ds_timestamp))
                     .await
             }
+            ExtractedQsQueueMessagePayload::ApqWelcomeBundle(_welcome_bundle) => {
+                todo!()
+            }
             ExtractedQsQueueMessagePayload::MlsMessage(mls_message) => {
                 Box::pin(self.handle_mls_message(
                     txn,

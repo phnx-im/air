@@ -83,8 +83,8 @@ message AssistedMessage {
 }
 
 message ApqAssistedMlsMessage {
-  AssistedMessage t_commit = 1;
-  AssistedMessage pq_commit = 2;
+  AssistedMessage t_message = 1;
+  AssistedMessage pq_message = 2;
 }
 
 message RoomState {

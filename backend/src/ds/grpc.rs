@@ -14,8 +14,8 @@ use aircommon::{
     },
     identifiers::{self, Fqdn, QualifiedGroupId},
     messages::client_ds::{
-        GroupOperationParams, JoinConnectionGroupParams, QsQueueMessagePayload,
-        UserProfileKeyUpdateParams, WelcomeInfoParams,
+        self, GroupOperationParams, JoinConnectionGroupParams, QsQueueMessagePayload,
+        QsQueueMessageType, UserProfileKeyUpdateParams, WelcomeInfoParams,
     },
     time::TimeStamp,
 };
@@ -28,6 +28,7 @@ use airprotos::{
     },
     validation::{InvalidTlsExt, MissingFieldExt},
 };
+use apqmls::messages::ApqMlsMessageIn;
 use chrono::TimeDelta;
 use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
@@ -52,6 +53,7 @@ use crate::{
 
 use super::{
     Ds,
+    group_operation::AddUsersState,
     group_state::{DsGroupState, StorableDsGroupData},
 };
 
@@ -1122,7 +1124,227 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         &self,
         request: Request<ApqGroupOperationRequest>,
     ) -> Result<Response<ApqGroupOperationResponse>, Status> {
-        Err(Status::unimplemented("Not implemented"))
+        let request = request.into_inner();
+
+        // Short circuit requests without a signature
+        request
+            .signature
+            .as_ref()
+            .ok_or_missing_field("signature")?;
+
+        let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
+
+        // Extract the t and pq group state EAR keys
+        let t_ear_key: GroupStateEarKey = payload
+            .t_group_state_ear_key
+            .as_ref()
+            .ok_or_missing_field("t_group_state_ear_key")?
+            .try_ref_into()?;
+        let pq_ear_key: GroupStateEarKey = payload
+            .pq_group_state_ear_key
+            .as_ref()
+            .ok_or_missing_field("pq_group_state_ear_key")?
+            .try_ref_into()?;
+
+        // Deserialize the t and pq messages
+        let t_message: AssistedMessageIn = payload
+            .commit
+            .as_ref()
+            .and_then(|c| c.t_message.as_ref())
+            .ok_or_missing_field("commit.t_message")?
+            .try_ref_into()
+            .invalid_tls("commit.t_message")?;
+        let pq_message: AssistedMessageIn = payload
+            .commit
+            .as_ref()
+            .and_then(|c| c.pq_message.as_ref())
+            .ok_or_missing_field("commit.pq_message")?
+            .try_ref_into()
+            .invalid_tls("commit.pq_message")?;
+
+        let t_qgid = t_message.validated_qgid(self.ds.own_domain())?;
+        let pq_qgid = pq_message.validated_qgid(self.ds.own_domain())?;
+
+        // Load the t-group state and verify the signature
+        let mut txn = self.ds.db_pool.begin().await.map_err(|error| {
+            error!(%error, "Failed to start transaction");
+            Status::internal("Failed to start transaction")
+        })?;
+        let (mut t_group_state, t_group_data) = match self
+            .load_group_state_for_update(&mut txn, &t_qgid, &t_ear_key)
+            .await
+        {
+            Ok((group_data, group_state)) => (group_state, group_data),
+            Err(LoadGroupStateError::Expired) => {
+                // The group state has expired and has already been deleted.
+                // Commit the transaction and return not found.
+                txn.commit().await.map_err(|error| {
+                    error!(%error, "Failed to commit transaction");
+                    Status::internal("Failed to commit transaction")
+                })?;
+                return Err(Status::not_found("Group state expired"));
+            }
+            Err(LoadGroupStateError::Status(status)) => {
+                return Err(status);
+            }
+        };
+
+        // Verify the signature via the t-group state
+        let Sender::Member(t_sender_index) = *t_message.sender().ok_or_missing_field("sender")?
+        else {
+            return Err(Status::invalid_argument(
+                "unexpected sender: expected member",
+            ));
+        };
+        let t_sender = t_group_state
+            .group()
+            .leaf(t_sender_index)
+            .ok_or(Status::invalid_argument("unknown sender"))?;
+        let t_verifying_key: LeafVerifyingKeyRef = t_sender.signature_key().into();
+        let payload: ApqGroupOperationPayload =
+            request.verify(t_verifying_key).map_err(InvalidSignature)?;
+
+        // Load the pq-group state
+        let (mut pq_group_state, pq_group_data) = match self
+            .load_group_state_for_update(&mut txn, &pq_qgid, &pq_ear_key)
+            .await
+        {
+            Ok((group_data, group_state)) => (group_state, group_data),
+            Err(LoadGroupStateError::Expired) => {
+                // The group state has expired and has already been deleted.
+                // Commit the transaction and return not found.
+                txn.commit().await.map_err(|error| {
+                    error!(%error, "Failed to commit transaction");
+                    Status::internal("Failed to commit transaction")
+                })?;
+                return Err(Status::not_found("Group state expired"));
+            }
+            Err(LoadGroupStateError::Status(status)) => {
+                return Err(status);
+            }
+        };
+
+        // Check that the t and pq indices and credentials match
+        let Sender::Member(pq_sender_index) = *pq_message.sender().ok_or_missing_field("sender")?
+        else {
+            return Err(Status::invalid_argument(
+                "unexpected pq sender: expected member",
+            ));
+        };
+        if t_sender_index != pq_sender_index {
+            return Err(Status::invalid_argument(
+                "t and pq sender indices do not match",
+            ));
+        }
+        let pq_sender = pq_group_state
+            .group()
+            .leaf(pq_sender_index)
+            .ok_or(Status::invalid_argument("unknown pq sender"))?;
+        if t_sender.credential() != pq_sender.credential() {
+            return Err(Status::invalid_argument(
+                "t and pq credentials do not match",
+            ));
+        }
+
+        // Process both group operations
+        let add_users_info: Option<client_ds::ApqAddUsersInfo> = payload
+            .add_users_info
+            .map(|info| info.try_into())
+            .transpose()?;
+        let (t_add_users_info, pq_add_users_info) = add_users_info.map(|info| info.split()).unzip();
+        let t_params = GroupOperationParams {
+            commit: t_message,
+            add_users_info_option: t_add_users_info,
+        };
+        let (t_group_message, t_add_users_state) =
+            t_group_state.process_group_operation(t_params).await?;
+
+        let pq_params = GroupOperationParams {
+            commit: pq_message,
+            add_users_info_option: pq_add_users_info,
+        };
+        let (pq_group_message, pq_welcome) = pq_group_state.pq_group_operation(pq_params)?;
+
+        let apq_message_payload =
+            [t_group_message.0.as_slice(), pq_group_message.0.as_slice()].concat();
+
+        // Verify that the concat bytes is the same as TLS serialized ApqMlsMessageIn
+        #[cfg(debug_assertions)]
+        {
+            use tls_codec::Size as _;
+            let parsed = ApqMlsMessageIn::tls_deserialize_exact_bytes(&apq_message_payload)
+                .expect("concat bytes must be valid ApqMlsMessageIn");
+            let t_len = parsed.t_message().tls_serialized_len();
+            debug_assert_eq!(&apq_message_payload[..t_len], t_group_message.0.as_slice());
+            debug_assert_eq!(&apq_message_payload[t_len..], pq_group_message.0.as_slice());
+        }
+
+        // Bundle T+PQ serialized messages - produces valid TLS encoding of ApqMlsMessageIn
+        let apq_payload = QsQueueMessagePayload {
+            timestamp: TimeStamp::now(),
+            message_type: QsQueueMessageType::ApqMlsMessage,
+            payload: apq_message_payload,
+        };
+        let destination_clients: Vec<_> = t_group_state
+            .other_destination_clients(t_sender_index)
+            .collect();
+        let timestamp = self
+            .fan_out_message_without_notifications(apq_payload, destination_clients)
+            .await;
+
+        // Generate welcome bundles for new members
+        let mut individual_fan_out_messages = match (t_add_users_state, pq_welcome) {
+            (
+                Some(AddUsersState {
+                    added_users,
+                    welcome: t_welcome,
+                }),
+                Some(pq_welcome),
+            ) => t_group_state.generate_apq_fan_out_messages(
+                added_users,
+                &t_welcome,
+                &pq_welcome,
+                &t_ear_key,
+                &pq_ear_key,
+            )?,
+            (None, None) => vec![],
+            _ => {
+                warn!("T and PQ group operations inconsistently add users");
+                return Err(Status::invalid_argument("Inconsistent APQ add users info"));
+            }
+        };
+
+        t_group_state.proposals.clear();
+        pq_group_state.proposals.clear();
+
+        let commit_response = t_group_state.create_commit_response(t_sender_index, timestamp)?;
+        individual_fan_out_messages.push(commit_response);
+
+        for message in individual_fan_out_messages {
+            if let Err(e) = self
+                .qs_connector
+                .dispatch(message)
+                .await
+                .map_err(DistributeMessageError::Connector)
+            {
+                error!(%e, "Failed to dispatch message");
+            }
+        }
+
+        self.encrypt_and_persist(&mut txn, t_group_data, t_group_state, &t_ear_key)
+            .await?;
+        self.encrypt_and_persist(&mut txn, pq_group_data, pq_group_state, &pq_ear_key)
+            .await?;
+
+        txn.commit().await.map_err(|error| {
+            error!(%error, "Failed to commit transaction");
+            Status::internal("Failed to commit transaction")
+        })?;
+
+        Ok(Response::new(ApqGroupOperationResponse {
+            fanout_timestamp: Some(timestamp.into()),
+        }))
     }
 
     async fn update_profile_key(

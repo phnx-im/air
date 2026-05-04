@@ -6,9 +6,10 @@ use prost::Message;
 
 use crate::{
     delivery_service::v1::{
-        AssistedMessage, CreateApqGroupPayload, CreateApqGroupRequest, GetAttachmentUrlPayload,
-        GetAttachmentUrlRequest, GroupStateEarKey, LeafNodeIndex, ProvisionAttachmentPayload,
-        ProvisionAttachmentRequest, TargetedMessagePayload, TargetedMessageRequest,
+        ApqGroupOperationPayload, ApqGroupOperationRequest, AssistedMessage, CreateApqGroupPayload,
+        CreateApqGroupRequest, GetAttachmentUrlPayload, GetAttachmentUrlRequest, GroupStateEarKey,
+        LeafNodeIndex, ProvisionAttachmentPayload, ProvisionAttachmentRequest,
+        TargetedMessagePayload, TargetedMessageRequest,
     },
     sign::impl_signed_payload,
 };
@@ -207,6 +208,13 @@ impl_signed_payload!(
     CreateApqGroupPayload,
     ClientKeyType,
     "CreateApqGroupPayload"
+);
+
+impl_signed_payload!(
+    ApqGroupOperationRequest,
+    ApqGroupOperationPayload,
+    ClientKeyType,
+    "ApqGroupOperationPayload"
 );
 
 const DELETE_GROUP_PAYLOAD_LABEL: &str = "DeleteGroupPayload";
