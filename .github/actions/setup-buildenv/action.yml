@@ -44,6 +44,8 @@ outputs:
   build-number:
     description: "Build number derived from the count of git commit in the repository"
     value: ${{ steps.git-commits-count.outputs.value }}
+env:
+  GITHUB_TOKEN: ${{ github.token }}
 runs:
   using: composite
   steps:
