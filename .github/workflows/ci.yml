@@ -35,7 +35,6 @@ jobs:
         name: Setup build environment
         uses: ./.github/actions/setup-buildenv
         with:
-          git-fetch-depth: 1
           git-lfs: false
           cargo-binstall-tools: cargo-expand flutter_rust_bridge_codegen@2.12.0
 
