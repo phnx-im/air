@@ -15,6 +15,7 @@ use aircommon::{
     utils::removed_client,
 };
 use anyhow::{Context, Result, anyhow, bail, ensure};
+use apqmls::{messages::ApqProtocolMessage, processing::ApqProcessMessageError};
 use mimi_room_policy::RoleIndex;
 use openmls::{
     group::{ProcessMessageError, ValidationError},
@@ -78,6 +79,17 @@ impl Group {
             }
         };
 
+        self.post_process_message(txn, api_clients, processed_message)
+            .await
+            .map(Some)
+    }
+
+    async fn post_process_message(
+        &mut self,
+        txn: &mut SqliteTransaction<'_>,
+        api_clients: &ApiClients,
+        processed_message: ProcessedMessage,
+    ) -> Result<ProcessMessageResult> {
         let group_id = self.group_id().clone();
 
         // Will be set to true if we were removed (or the group was deleted).
@@ -91,11 +103,11 @@ impl Group {
             }
             ProcessedMessageContent::ApplicationMessage(_) => {
                 debug!("process application message");
-                return Ok(Some(ProcessMessageResult {
+                return Ok(ProcessMessageResult {
                     processed_message,
                     we_were_removed,
                     profile_infos: Vec::new(),
-                }));
+                });
             }
             ProcessedMessageContent::ProposalMessage(_proposal) => {
                 // Proposals are just returned and can then be added to the
@@ -348,11 +360,11 @@ impl Group {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(Some(ProcessMessageResult {
+        Ok(ProcessMessageResult {
             processed_message,
             we_were_removed,
             profile_infos,
-        }))
+        })
     }
 
     async fn process_adds(
@@ -417,6 +429,40 @@ impl Group {
         // group and the credential did not change.
 
         Ok(())
+    }
+
+    #[instrument(skip_all, fields(group_id = ?self.group_id()))]
+    pub(crate) async fn process_apq_message(
+        &mut self,
+        txn: &mut SqliteTransaction<'_>,
+        api_clients: &ApiClients,
+        message: impl Into<ApqProtocolMessage>,
+    ) -> Result<Option<ProcessMessageResult>> {
+        let pq = self.pq.as_mut().context("No PQ group")?;
+        let processes_message = match apqmls::processing::process_message(
+            &mut self.mls_group,
+            &mut pq.mls_group,
+            &AirOpenMlsProvider::new(txn.as_mut()),
+            message,
+            |cred_a, cred_b| cred_a == cred_b,
+        ) {
+            Ok(pm) => pm,
+            Err(ApqProcessMessageError::Processing(ProcessMessageError::ValidationError(
+                ValidationError::WrongEpoch,
+            ))) => {
+                // TODO: We need to handle epoch in the future gracefully and indicate a resync.
+                bail!("Wrong epoch");
+            }
+            Err(e) => {
+                return Err(e).context("Failed to process APQ message");
+            }
+        };
+
+        // The PQ message carries no Air-level semantics, so the only post-processing we need to do
+        // is on the t-message.
+        Self::post_process_message(self, txn, api_clients, processes_message.t_message)
+            .await
+            .map(Some)
     }
 }
 

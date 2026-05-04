@@ -150,7 +150,6 @@ message CreateApqGroupRequest {
 message CreateApqGroupPayload {
   // Request related data
   common.v1.ClientMetadata client_metadata = 1;
-  ClientVerifyingKey sender = 2;
 
   // Chat related data
 

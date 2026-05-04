@@ -7,6 +7,7 @@
 //! TODO: We should eventually factor this module out, together with the crypto
 //! module, to allow re-use by the client implementation.
 
+use apqmls::messages::ApqMlsMessageIn;
 use mls_assist::{
     messages::{AssistedMessageIn, AssistedWelcome, SerializedMlsMessage},
     openmls::prelude::{GroupEpoch, GroupId, LeafNodeIndex, MlsMessageIn, RatchetTreeIn},
@@ -57,11 +58,12 @@ pub type QsQueueRatchet = QueueRatchet<EncryptedQsQueueMessageCtype, QsQueueMess
 )]
 #[repr(u8)]
 pub enum QsQueueMessageType {
-    WelcomeBundle,
-    MlsMessage,
-    UserProfileKeyUpdate,
-    TargetedMessage,
-    DsResponse,
+    WelcomeBundle = 0,
+    MlsMessage = 1,
+    ApqMlsMessage = 5,
+    UserProfileKeyUpdate = 2,
+    TargetedMessage = 3,
+    DsResponse = 4,
 }
 
 #[derive(
@@ -84,6 +86,11 @@ impl QsQueueMessagePayload {
             QsQueueMessageType::MlsMessage => {
                 let message = MlsMessageIn::tls_deserialize_exact_bytes(self.payload.as_slice())?;
                 ExtractedQsQueueMessagePayload::MlsMessage(Box::new(message))
+            }
+            QsQueueMessageType::ApqMlsMessage => {
+                let message =
+                    ApqMlsMessageIn::tls_deserialize_exact_bytes(self.payload.as_slice())?;
+                ExtractedQsQueueMessagePayload::ApqMlsMessage(Box::new(message))
             }
             QsQueueMessageType::UserProfileKeyUpdate => {
                 let message = UserProfileKeyUpdateParams::tls_deserialize_exact_bytes(
@@ -127,6 +134,7 @@ pub struct ExtractedQsQueueMessage {
 pub enum ExtractedQsQueueMessagePayload {
     WelcomeBundle(WelcomeBundle),
     MlsMessage(Box<MlsMessageIn>),
+    ApqMlsMessage(Box<ApqMlsMessageIn>),
     UserProfileKeyUpdate(UserProfileKeyUpdateParams),
     TargetedMessage(QsQueueTargetedMessage),
     DsCommitResponse(DsCommitResponse),

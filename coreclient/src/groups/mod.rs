@@ -840,6 +840,11 @@ impl Group {
             let provider = AirOpenMlsProvider::new(&mut *txn);
             self.mls_group
                 .merge_staged_commit(&provider, staged_commit)?;
+            if let Some(pq) = &mut self.pq
+                && pq.mls_group.pending_commit().is_some()
+            {
+                pq.mls_group.merge_pending_commit(&provider)?;
+            }
             (staged_commit_messages, group_data)
         } else {
             // If we're merging a pending commit, we need to check if we have
@@ -860,6 +865,11 @@ impl Group {
                 };
             let provider = AirOpenMlsProvider::new(&mut *txn);
             self.mls_group.merge_pending_commit(&provider)?;
+            if let Some(pq) = &mut self.pq
+                && pq.mls_group.pending_commit().is_some()
+            {
+                pq.mls_group.merge_pending_commit(&provider)?;
+            }
             (staged_commit_messages, group_data)
         };
 

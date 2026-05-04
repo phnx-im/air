@@ -24,6 +24,7 @@ use airprotos::{
     queue_service::v1::{QueueEvent, queue_event},
 };
 use anyhow::{Context, Result, bail, ensure};
+use apqmls::messages::ApqMlsMessageIn;
 use chrono::Utc;
 use mimi_content::{
     Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPartContent,
@@ -144,6 +145,16 @@ impl CoreUser {
                     txn,
                     notifier,
                     *mls_message,
+                    ds_timestamp,
+                    read_receipts_enabled,
+                ))
+                .await
+            }
+            ExtractedQsQueueMessagePayload::ApqMlsMessage(apq_mls_message) => {
+                Box::pin(self.handle_apq_mls_message(
+                    txn,
+                    notifier,
+                    *apq_mls_message,
                     ds_timestamp,
                     read_receipts_enabled,
                 ))
@@ -462,11 +473,7 @@ impl CoreUser {
 
         // MLSMessage Phase 2: Process the message
 
-        let Some(ProcessMessageResult {
-            processed_message,
-            we_were_removed,
-            profile_infos,
-        }) = group
+        let Some(process_message_result) = group
             .group_mut()
             .process_message(txn, &self.inner.api_clients, protocol_message)
             .await?
@@ -484,6 +491,90 @@ impl CoreUser {
             return Ok(ProcessQsMessageResult::None);
         };
 
+        self.finalize_handle_message(
+            txn,
+            notifier,
+            ds_timestamp,
+            read_receipts_enabled,
+            chat,
+            group,
+            process_message_result,
+        )
+        .await
+    }
+
+    async fn handle_apq_mls_message(
+        &self,
+        txn: &mut SqliteTransaction<'_>,
+        notifier: &mut StoreNotifier,
+        apq_mls_message: ApqMlsMessageIn,
+        ds_timestamp: TimeStamp,
+        read_receipts_enabled: bool,
+    ) -> anyhow::Result<ProcessQsMessageResult> {
+        let protocol_message = apq_mls_message
+            .into_protocol_message()
+            .context("expected APQMLS protocol message")?;
+
+        // MLSMessage Phase 1: Load the chat and the group.
+        let apq_group_id = protocol_message.group_id();
+        let chat = Chat::load_by_group_id(txn, apq_group_id.t_group_id())
+            .await?
+            .with_context(|| format!("No chat found for APQ group ID: {apq_group_id:?}"))?;
+        let chat_id = chat.id();
+
+        // Load the group regardless of whether it has a pending commit or not.
+        let mut group = Group::load_verified(txn, apq_group_id.t_group_id())
+            .await?
+            .with_context(|| format!("No group found for APQ group ID: {apq_group_id:?}"))?;
+
+        // MLSMessage Phase 2: Process the message
+        let Some(process_message_result) = group
+            .group_mut()
+            .process_apq_message(txn, self.api_clients(), protocol_message)
+            .await?
+        else {
+            // TODO: Once we have a UX for resyncs, we should schedule one
+            // here and re-enable the resync test in integration.rs
+            let _resync = Resync {
+                chat_id,
+                group_id: group.group_id().clone(),
+                group_state_ear_key: group.group_state_ear_key().clone(),
+                identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
+                original_leaf_index: group.own_index(),
+            };
+
+            return Ok(ProcessQsMessageResult::None);
+        };
+
+        self.finalize_handle_message(
+            txn,
+            notifier,
+            ds_timestamp,
+            read_receipts_enabled,
+            chat,
+            group,
+            process_message_result,
+        )
+        .await
+    }
+
+    #[expect(clippy::too_many_arguments)]
+    async fn finalize_handle_message(
+        &self,
+        txn: &mut SqliteTransaction<'_>,
+        notifier: &mut StoreNotifier,
+        ds_timestamp: TimeStamp,
+        read_receipts_enabled: bool,
+        chat: Chat,
+        mut group: VerifiedGroup,
+        process_message_result: ProcessMessageResult,
+    ) -> anyhow::Result<ProcessQsMessageResult> {
+        let ProcessMessageResult {
+            processed_message,
+            we_were_removed,
+            profile_infos,
+        } = process_message_result;
+
         let sender = processed_message.sender().clone();
         let sender_user_id =
             VerifiableClientCredential::from_basic_credential(processed_message.credential())?
@@ -491,6 +582,8 @@ impl CoreUser {
                 .clone();
 
         let aad = processed_message.aad().to_vec();
+
+        let chat_id = chat.id();
 
         // `chat_changed` indicates whether the state of the chat was updated
         let (new_messages, updated_messages, chat_changed) = match processed_message.into_content()
