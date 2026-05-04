@@ -13,7 +13,7 @@ use crate::{
     clients::api_clients::ApiClients,
     db_access::{
         DbAccess, ReadConnection, ReadDbConnection, ReadDbTransaction, WriteConnection,
-        WriteDbConnection, WriteDbTransaction, begin_txn,
+        WriteDbConnection, WriteDbTransaction,
     },
     key_stores::MemoryUserKeyStore,
 };
@@ -59,9 +59,7 @@ impl<'s, 'c> JobContextReadConnection<'s, 'c> {
         use JobContextReadConnection::*;
         Ok(match self {
             Connection(db) => db.begin().await?,
-            Transaction(txn) => ReadDbTransaction {
-                txn: begin_txn(txn.as_mut(), false).await?,
-            },
+            Transaction(txn) => txn.begin_read().await?,
         })
     }
 }
