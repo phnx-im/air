@@ -943,7 +943,7 @@ impl<PskBundle: Entity<CURRENT_VERSION>> StorablePskBundleRef<'_, PskBundle> {
         let psk_id = KeyRefWrapper(psk_id);
         let psk_bundle = EntityRefWrapper(self.0);
         query!(
-            "INSERT INTO psk (psk_id, psk_bundle) VALUES (?1, ?2)",
+            "INSERT OR REPLACE INTO psk (psk_id, psk_bundle) VALUES (?1, ?2)",
             psk_id,
             psk_bundle,
         )

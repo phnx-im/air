@@ -22,7 +22,7 @@ inputs:
     required: false
   cargo-binstall-default-tools:
     description: "Default tools to install with cargo-binstall"
-    default: "sccache@0.14.0 just@1.48.1"
+    default: "sccache@0.15.0 just@1.48.1"
     required: false
   cargo-binstall-tools:
     description: "Space separated list of cargo-binstall tools to install"
@@ -64,11 +64,13 @@ runs:
     ## cargo-binstall (as a side-effect: setup Rust toolchain using rust-toolchain.toml)
 
     - name: Setup cargo binstall
-      uses: cargo-bins/cargo-binstall@v1.17.7
+      uses: cargo-bins/cargo-binstall@v1.19.0
 
     - name: Install Rust tools with cargo-binstall
       shell: bash
       run: cargo binstall --no-confirm ${{ inputs.cargo-binstall-default-tools }} ${{ inputs.cargo-binstall-tools }}
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
 
     ## sccache
 
