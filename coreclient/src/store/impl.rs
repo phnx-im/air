@@ -403,7 +403,7 @@ impl Store for CoreUser {
         content: mimi_content::MimiContent,
         replaces: Option<ChatMessage>,
     ) -> StoreResult<ChatMessage> {
-        self.send_message(chat_id, content, replaces).await
+        Box::pin(self.send_message(chat_id, content, replaces)).await
     }
 
     async fn delete_message_content_locally(&self, message_id: MessageId) -> StoreResult<()> {

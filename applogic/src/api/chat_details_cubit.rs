@@ -166,11 +166,13 @@ impl ChatDetailsCubitBase {
         match delete_mode {
             DeleteMode::ForEveryone => {
                 // Send NullPart via network to delete for all participants
-                self.context
-                    .store
-                    .delete_message(self.context.chat_id, message_id)
-                    .await
-                    .inspect_err(|error| error!(%error, "Failed to send delete message"))?;
+                Box::pin(
+                    self.context
+                        .store
+                        .delete_message(self.context.chat_id, message_id),
+                )
+                .await
+                .inspect_err(|error| error!(%error, "Failed to send delete message"))?;
             }
             DeleteMode::ForMe => {
                 // Delete locally - completely remove the message from the database
