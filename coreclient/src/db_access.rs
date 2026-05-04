@@ -49,7 +49,6 @@ pub(crate) trait ReadConnection: AsMut<SqliteConnection> + Send {}
 pub(crate) trait ReadTransaction: ReadConnection {}
 pub(crate) trait WriteTransaction: WriteConnection {}
 
-
 pub(crate) trait WriteConnection: ReadConnection + AsMut<SqliteConnection> + Send {
     fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier);
     fn notifier(&mut self) -> &mut StoreNotifier;

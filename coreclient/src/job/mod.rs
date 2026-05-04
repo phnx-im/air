@@ -59,7 +59,9 @@ impl<'s, 'c> JobContextReadConnection<'s, 'c> {
         use JobContextReadConnection::*;
         Ok(match self {
             Connection(db) => db.begin().await?,
-            Transaction(txn) => ReadDbTransaction { txn: begin_txn(txn.as_mut(), false).await?},
+            Transaction(txn) => ReadDbTransaction {
+                txn: begin_txn(txn.as_mut(), false).await?,
+            },
         })
     }
 }

@@ -13,7 +13,9 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatStatus, ChatType, MessageId,
-    db_access::{ReadConnection, ReadTransaction, WriteConnection, WriteDbTransaction, WriteTransaction},
+    db_access::{
+        ReadConnection, ReadTransaction, WriteConnection, WriteDbTransaction, WriteTransaction,
+    },
     utils::persistence::GroupIdWrapper,
 };
 

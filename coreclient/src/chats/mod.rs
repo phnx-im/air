@@ -16,7 +16,11 @@ use serde::{Deserialize, Serialize};
 use tracing::error;
 use uuid::Uuid;
 
-use crate::{contacts::PartialContactType, db_access::{WriteConnection, WriteTransaction}, groups::GroupDataBytes};
+use crate::{
+    contacts::PartialContactType,
+    db_access::{WriteConnection, WriteTransaction},
+    groups::GroupDataBytes,
+};
 
 pub use draft::MessageDraft;
 pub(crate) use {pending::PendingConnectionInfo, status::StatusRecord};
