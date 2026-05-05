@@ -50,7 +50,9 @@ impl Group {
                         // If it's a commit, we make sure there is a group info present.
                         let assisted_group_info = match assisted_message.group_info_option {
                             Some(agi) => agi,
-                            None => return Err(ProcessAssistedMessageError::InvalidAssistedMessage),
+                            None => {
+                                return Err(ProcessAssistedMessageError::InvalidAssistedMessage);
+                            }
                         };
                         (pm, assisted_group_info)
                     }
@@ -59,12 +61,10 @@ impl Group {
         };
         // First process the message, then verify that the group info
         // checks out.
-        let processed_message = self
-            .public_group
-            .process_message_with_app_data_updates(
-                provider,
-                ProtocolMessage::PublicMessage(commit.clone()),
-            )?;
+        let processed_message = self.public_group.process_message_with_app_data_updates(
+            provider,
+            ProtocolMessage::PublicMessage(commit.clone()),
+        )?;
         let sender = processed_message.sender().clone();
         let confirmation_tag = commit
             .confirmation_tag()

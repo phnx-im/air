@@ -675,13 +675,15 @@ mod persistence {
         }
         qb.build().execute(txn.as_mut()).await?;
 
-        // Delete orphaned key packages (usually this is a no-op)
-        sqlx::query(&format!(
+        // Delete orphaned key packages (usually this is a no-op).
+        // Must check both tables so regular and APQ key packages don't clobber each other.
+        sqlx::query(
             "DELETE FROM key_package WHERE key_package_ref NOT IN (
-                SELECT key_package_ref
-                FROM {refs_table}
-            )"
-        ))
+                SELECT key_package_ref FROM key_package_refs
+                UNION
+                SELECT key_package_ref FROM apq_key_package_refs
+            )",
+        )
         .execute(txn.as_mut())
         .await?;
 
