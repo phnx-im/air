@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO psk (psk_id, psk_bundle) VALUES (?1, ?2)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "3c656cc49c4b436ae8635d55aea92d5c53d201917ffb2b7f2d10b59dfd67e989"
+}

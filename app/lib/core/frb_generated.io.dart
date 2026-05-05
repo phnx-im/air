@@ -907,6 +907,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<UiUsername> dco_decode_list_ui_username(dynamic raw);
 
   @protected
+  LoadedImageAttachment dco_decode_loaded_image_attachment(dynamic raw);
+
+  @protected
   LogEntry dco_decode_log_entry(dynamic raw);
 
   @protected
@@ -2102,6 +2105,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<UiUsername> sse_decode_list_ui_username(SseDeserializer deserializer);
+
+  @protected
+  LoadedImageAttachment sse_decode_loaded_image_attachment(
+    SseDeserializer deserializer,
+  );
 
   @protected
   LogEntry sse_decode_log_entry(SseDeserializer deserializer);
@@ -3574,6 +3582,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_ui_username(
     List<UiUsername> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_loaded_image_attachment(
+    LoadedImageAttachment self,
     SseSerializer serializer,
   );
 

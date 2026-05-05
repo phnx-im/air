@@ -25,7 +25,7 @@ abstract class AttachmentsRepository implements RustOpaqueInterface {
   /// Load attachment's data from database
   Future<Uint8List?> loadAttachment({required AttachmentId attachmentId});
 
-  Future<Uint8List> loadImageAttachment({
+  Future<LoadedImageAttachment> loadImageAttachment({
     required AttachmentId attachmentId,
     required FutureOr<void> Function(BigInt) chunkEventCallback,
   });
@@ -43,6 +43,25 @@ abstract class AttachmentsRepository implements RustOpaqueInterface {
   });
 
   Stream<UiAttachmentStatus> statusStream({required AttachmentId attachmentId});
+}
+
+/// Bytes of an image attachment plus an animation classification.
+class LoadedImageAttachment {
+  final Uint8List bytes;
+  final bool isAnimated;
+
+  const LoadedImageAttachment({required this.bytes, required this.isAnimated});
+
+  @override
+  int get hashCode => bytes.hashCode ^ isAnimated.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LoadedImageAttachment &&
+          runtimeType == other.runtimeType &&
+          bytes == other.bytes &&
+          isAnimated == other.isAnimated;
 }
 
 @freezed

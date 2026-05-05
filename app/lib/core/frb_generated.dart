@@ -113,7 +113,7 @@ abstract class RustLibApi extends BaseApi {
     required AttachmentId attachmentId,
   });
 
-  Future<Uint8List>
+  Future<LoadedImageAttachment>
   crateApiAttachmentsRepositoryAttachmentsRepositoryLoadImageAttachment({
     required AttachmentsRepository that,
     required AttachmentId attachmentId,
@@ -1060,7 +1060,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<Uint8List>
+  Future<LoadedImageAttachment>
   crateApiAttachmentsRepositoryAttachmentsRepositoryLoadImageAttachment({
     required AttachmentsRepository that,
     required AttachmentId attachmentId,
@@ -1087,7 +1087,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_list_prim_u_8_strict,
+          decodeSuccessData: sse_decode_loaded_image_attachment,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta:
@@ -8919,6 +8919,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  LoadedImageAttachment dco_decode_loaded_image_attachment(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return LoadedImageAttachment(
+      bytes: dco_decode_list_prim_u_8_strict(arr[0]),
+      isAnimated: dco_decode_bool(arr[1]),
+    );
+  }
+
+  @protected
   LogEntry dco_decode_log_entry(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -11970,6 +11982,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ans_.add(sse_decode_ui_username(deserializer));
     }
     return ans_;
+  }
+
+  @protected
+  LoadedImageAttachment sse_decode_loaded_image_attachment(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_bytes = sse_decode_list_prim_u_8_strict(deserializer);
+    var var_isAnimated = sse_decode_bool(deserializer);
+    return LoadedImageAttachment(bytes: var_bytes, isAnimated: var_isAnimated);
   }
 
   @protected
@@ -15472,6 +15494,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_loaded_image_attachment(
+    LoadedImageAttachment self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_list_prim_u_8_strict(self.bytes, serializer);
+    sse_encode_bool(self.isAnimated, serializer);
+  }
+
+  @protected
   void sse_encode_log_entry(LogEntry self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_Chrono_Utc(self.time, serializer);
@@ -16753,7 +16785,7 @@ class AttachmentsRepositoryImpl extends RustOpaque
             attachmentId: attachmentId,
           );
 
-  Future<Uint8List> loadImageAttachment({
+  Future<LoadedImageAttachment> loadImageAttachment({
     required AttachmentId attachmentId,
     required FutureOr<void> Function(BigInt) chunkEventCallback,
   }) => RustLib.instance.api

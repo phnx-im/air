@@ -47,9 +47,9 @@ class AttachmentImageProvider extends ImageProvider<UiAttachment> {
     final ImageDecoderCallback decode,
     final StreamController<ImageChunkEvent> chunkEvents,
   ) async {
-    Uint8List bytes;
+    LoadedImageAttachment loaded;
     try {
-      bytes = await attachmentsRepository.loadImageAttachment(
+      loaded = await attachmentsRepository.loadImageAttachment(
         attachmentId: key.attachmentId,
         chunkEventCallback: (cumulativeBytesLoaded) {
           chunkEvents.add(
@@ -69,7 +69,7 @@ class AttachmentImageProvider extends ImageProvider<UiAttachment> {
       chunkEvents.close();
     }
 
-    final buffer = await ui.ImmutableBuffer.fromUint8List(bytes);
+    final buffer = await ui.ImmutableBuffer.fromUint8List(loaded.bytes);
     return decode(buffer);
   }
 
