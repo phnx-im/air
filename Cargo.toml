@@ -32,7 +32,7 @@ mls-assist = { path = "mls-assist" }
 
 aes-gcm = "0.10"
 anyhow = { version = "1.0.98", features = ["backtrace"] }
-apqmls = { git = "https://github.com/phnx-im/apqmls", rev = "e0dcefa4527a5e80683f830f7f50659153f9afd0" }
+apqmls = { git = "https://github.com/phnx-im/apqmls", rev = "2d51dd3ff845a5661a1fe81b82b553193487d2ca" }
 arboard = "3"
 argon2 = "0.5.3"
 async-trait = "0.1.53"
@@ -137,29 +137,29 @@ zeroize = "1.8.1"
 # <https://github.com/openmls/openmls/commit/b73621ba14ead6b32636a4e910f2cbfabb0d1ee9>
 #
 # Also, use the post-quantum-support branch of openmls.
-# openmls = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
-# openmls_rust_crypto = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
-# openmls_traits = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
-# openmls_memory_storage = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
-# openmls_basic_credential = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
-openmls = { path = "../openmls/openmls" }
-openmls_rust_crypto = { path = "../openmls/openmls_rust_crypto" }
-openmls_traits = { path = "../openmls/traits" }
-openmls_memory_storage = { path = "../openmls/memory_storage" }
-openmls_sqlite_storage = { path = "../openmls/sqlite_storage" }
-openmls_basic_credential = { path = "../openmls/basic_credential" }
+openmls = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
+openmls_rust_crypto = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
+openmls_traits = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
+openmls_memory_storage = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
+openmls_basic_credential = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
+# openmls = { path = "../openmls/openmls" }
+# openmls_rust_crypto = { path = "../openmls/openmls_rust_crypto" }
+# openmls_traits = { path = "../openmls/traits" }
+# openmls_memory_storage = { path = "../openmls/memory_storage" }
+# openmls_sqlite_storage = { path = "../openmls/sqlite_storage" }
+# openmls_basic_credential = { path = "../openmls/basic_credential" }
 
 # feat: add p384 support
 # <https://github.com/cryspen/hpke-rs/pull/150>
-# hpke-rs = { git = "https://github.com/boxdot/hpke-rs", branch = "dima/p384" }
-# hpke-rs-crypto = { git = "https://github.com/boxdot/hpke-rs", branch = "dima/p384" }
-# hpke-rs-rust-crypto = { git = "https://github.com/boxdot/hpke-rs", branch = "dima/p384" }
-hpke-rs = { path = "../hpke-rs" }
-hpke-rs-crypto = { path = "../hpke-rs/traits/" }
-hpke-rs-rust-crypto = { path = "../hpke-rs/rust_crypto_provider/" }
+hpke-rs = { git = "https://github.com/boxdot/hpke-rs", branch = "dima/p384" }
+hpke-rs-crypto = { git = "https://github.com/boxdot/hpke-rs", branch = "dima/p384" }
+hpke-rs-rust-crypto = { git = "https://github.com/boxdot/hpke-rs", branch = "dima/p384" }
+# hpke-rs = { path = "../hpke-rs" }
+# hpke-rs-crypto = { path = "../hpke-rs/traits/" }
+# hpke-rs-rust-crypto = { path = "../hpke-rs/rust_crypto_provider/" }
 
-[patch."https://github.com/phnx-im/apqmls"]
-apqmls = { path = "../apqmls" }
+# [patch."https://github.com/phnx-im/apqmls"]
+# apqmls = { path = "../apqmls" }
 
 
 [profile.release]

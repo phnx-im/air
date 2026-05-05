@@ -515,7 +515,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -526,7 +526,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -538,6 +538,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 [[package]]
 name = "apqmls"
 version = "0.1.0"
+source = "git+https://github.com/phnx-im/apqmls?rev=2d51dd3ff845a5661a1fe81b82b553193487d2ca#2d51dd3ff845a5661a1fe81b82b553193487d2ca"
 dependencies = [
  "openmls",
  "openmls_basic_credential",
@@ -1789,7 +1790,7 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2632,7 +2633,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3362,9 +3363,10 @@ dependencies = [
 [[package]]
 name = "hpke-rs"
 version = "0.6.1"
+source = "git+https://github.com/boxdot/hpke-rs?branch=dima%2Fp384#07741e11f74789064eb00802bf449faeaad7b233"
 dependencies = [
  "hpke-rs-crypto",
- "hpke-rs-libcrux 0.6.1",
+ "hpke-rs-libcrux 0.6.1 (git+https://github.com/boxdot/hpke-rs?branch=dima%2Fp384)",
  "hpke-rs-rust-crypto",
  "libcrux-sha3",
  "log",
@@ -3378,24 +3380,9 @@ dependencies = [
 [[package]]
 name = "hpke-rs-crypto"
 version = "0.6.1"
+source = "git+https://github.com/boxdot/hpke-rs?branch=dima%2Fp384#07741e11f74789064eb00802bf449faeaad7b233"
 dependencies = [
  "rand_core 0.9.5",
- "zeroize",
-]
-
-[[package]]
-name = "hpke-rs-libcrux"
-version = "0.6.1"
-dependencies = [
- "hpke-rs-crypto",
- "libcrux-aead",
- "libcrux-ecdh",
- "libcrux-hkdf",
- "libcrux-kem",
- "libcrux-traits",
- "rand 0.10.1",
- "rand_chacha 0.10.0",
- "rand_core 0.10.0",
  "zeroize",
 ]
 
@@ -3418,8 +3405,26 @@ dependencies = [
 ]
 
 [[package]]
+name = "hpke-rs-libcrux"
+version = "0.6.1"
+source = "git+https://github.com/boxdot/hpke-rs?branch=dima%2Fp384#07741e11f74789064eb00802bf449faeaad7b233"
+dependencies = [
+ "hpke-rs-crypto",
+ "libcrux-aead",
+ "libcrux-ecdh",
+ "libcrux-hkdf",
+ "libcrux-kem",
+ "libcrux-traits",
+ "rand 0.10.1",
+ "rand_chacha 0.10.0",
+ "rand_core 0.10.0",
+ "zeroize",
+]
+
+[[package]]
 name = "hpke-rs-rust-crypto"
 version = "0.6.1"
+source = "git+https://github.com/boxdot/hpke-rs?branch=dima%2Fp384#07741e11f74789064eb00802bf449faeaad7b233"
 dependencies = [
  "aes-gcm",
  "chacha20poly1305",
@@ -4751,7 +4756,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -4968,6 +4973,7 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 [[package]]
 name = "openmls"
 version = "0.8.1"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#60d3938f109c80a6a57670987a1c87bd59e24099"
 dependencies = [
  "log",
  "openmls_basic_credential",
@@ -4987,6 +4993,7 @@ dependencies = [
 [[package]]
 name = "openmls_basic_credential"
 version = "0.5.0"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#60d3938f109c80a6a57670987a1c87bd59e24099"
 dependencies = [
  "ed25519-dalek",
  "ml-dsa",
@@ -5002,6 +5009,7 @@ dependencies = [
 [[package]]
 name = "openmls_libcrux_crypto"
 version = "0.3.1"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#60d3938f109c80a6a57670987a1c87bd59e24099"
 dependencies = [
  "hpke-rs",
  "hpke-rs-crypto",
@@ -5022,6 +5030,7 @@ dependencies = [
 [[package]]
 name = "openmls_memory_storage"
 version = "0.5.0"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#60d3938f109c80a6a57670987a1c87bd59e24099"
 dependencies = [
  "hex",
  "log",
@@ -5034,6 +5043,7 @@ dependencies = [
 [[package]]
 name = "openmls_rust_crypto"
 version = "0.5.1"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#60d3938f109c80a6a57670987a1c87bd59e24099"
 dependencies = [
  "aes-gcm",
  "chacha20poly1305",
@@ -5059,6 +5069,7 @@ dependencies = [
 [[package]]
 name = "openmls_sqlite_storage"
 version = "0.2.0"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#60d3938f109c80a6a57670987a1c87bd59e24099"
 dependencies = [
  "log",
  "openmls_traits",
@@ -5071,6 +5082,7 @@ dependencies = [
 [[package]]
 name = "openmls_traits"
 version = "0.5.0"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#60d3938f109c80a6a57670987a1c87bd59e24099"
 dependencies = [
  "serde",
  "tls_codec",
@@ -5093,7 +5105,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
- "windows-sys 0.45.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6320,7 +6332,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6716,7 +6728,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7079,7 +7091,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7699,7 +7711,7 @@ checksum = "f2f6fb2847f6742cd76af783a2a2c49e9375d0a111c7bef6f71cd9e738c72d6e"
 dependencies = [
  "memoffset",
  "tempfile",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -8177,7 +8189,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
