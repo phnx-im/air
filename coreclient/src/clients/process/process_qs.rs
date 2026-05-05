@@ -56,7 +56,7 @@ use crate::{
     },
     contacts::{PartialContact, PartialContactType},
     groups::{
-        Group, VerifiedGroup, client_auth_info::StorableClientCredential,
+        Group, ProfileInfo, VerifiedGroup, client_auth_info::StorableClientCredential,
         process::ProcessMessageResult,
     },
     job::{JobContext, pending_chat_operation::PendingChatOperation},
@@ -270,9 +270,8 @@ impl CoreUser {
         welcome_bundle: WelcomeBundle,
         ds_timestamp: TimeStamp,
     ) -> Result<ProcessQsMessageResult> {
-        // WelcomeBundle Phase 1: Join the group. This might involve
-        // loading AS credentials or fetching them from the AS.
-
+        // WelcomeBundle Phase 1: Join the group. This might involve loading AS credentials or
+        // fetching them from the AS.
         let (group, sender_user_id, member_profile_info) = Box::pin(Group::join_group(
             welcome_bundle,
             &self.inner.key_store.wai_ear_key,
@@ -281,6 +280,54 @@ impl CoreUser {
             self.signing_key(),
         ))
         .await?;
+        self.finalize_welcome(
+            txn,
+            notifier,
+            ds_timestamp,
+            group,
+            sender_user_id,
+            member_profile_info,
+        )
+        .await
+    }
+
+    async fn handle_apq_welcome_bundle(
+        &self,
+        txn: &mut SqliteTransaction<'_>,
+        notifier: &mut StoreNotifier,
+        welcome_bundle: ApqWelcomeBundle,
+        ds_timestamp: TimeStamp,
+    ) -> anyhow::Result<ProcessQsMessageResult> {
+        // WelcomeBundle Phase 1: Join the group. This might involve loading AS credentials or
+        // fetching them from the AS.
+        let (group, sender_user_id, member_profile_info) = Box::pin(Group::join_apq_group(
+            welcome_bundle,
+            &self.inner.key_store.wai_ear_key,
+            txn,
+            &self.inner.api_clients,
+            self.signing_key(),
+        ))
+        .await?;
+        self.finalize_welcome(
+            txn,
+            notifier,
+            ds_timestamp,
+            group,
+            sender_user_id,
+            member_profile_info,
+        )
+        .await
+    }
+
+    async fn finalize_welcome(
+        &self,
+        txn: &mut SqliteTransaction<'_>,
+        notifier: &mut StoreNotifier,
+        ds_timestamp: TimeStamp,
+        group: Group,
+        sender_user_id: UserId,
+        member_profile_info: Vec<ProfileInfo>,
+    ) -> anyhow::Result<ProcessQsMessageResult> {
         let group_id = group.group_id().clone();
 
         // WelcomeBundle Phase 2: Fetch the user profiles of the group members
@@ -366,16 +413,6 @@ impl CoreUser {
 
         let messages = vec![system_message];
         Ok(ProcessQsMessageResult::NewChat(chat.id(), messages))
-    }
-
-    async fn handle_apq_welcome_bundle(
-        &self,
-        txn: &mut SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
-        apq_welcome_bundle: ApqWelcomeBundle,
-        ds_timestamp: TimeStamp,
-    ) -> anyhow::Result<ProcessQsMessageResult> {
-        bail!("APQ welcome bundles are not yet supported")
     }
 
     async fn handle_targeted_application_message(

@@ -14,6 +14,7 @@ pub(crate) mod openmls_provider;
 pub(crate) mod persistence;
 pub(crate) mod process;
 
+use apqmls::messages::ApqRatchetTreeIn;
 pub(crate) use error::*;
 pub(crate) use persistence::VerifiedGroup;
 
@@ -37,7 +38,8 @@ use aircommon::{
     messages::{
         client_as::ConnectionOfferHash,
         client_ds::{
-            AadMessage, AadPayload, DsJoinerInformation, GroupOperationParamsAad, WelcomeBundle,
+            AadMessage, AadPayload, ApqWelcomeBundle, DsApqJoinerInformation, DsJoinerInformation,
+            GroupOperationParamsAad, WelcomeBundle,
         },
         client_ds_out::{
             AddUsersInfoOut, ApqGroupOperationParamsOut, CreateGroupParamsOut,
@@ -334,14 +336,14 @@ impl Group {
             )?;
 
             // Phase 3: Check if there is already a group with the same ID.
-            let group_id = processed_welcome.unverified_group_info().group_id().clone();
-            if let Some(group) = Self::load(txn.as_mut(), &group_id).await? {
+            let group_id = processed_welcome.unverified_group_info().group_id();
+            if let Some(group) = Self::load(txn.as_mut(), group_id).await? {
                 // If the group is active, we can't join it.
                 if group.mls_group().is_active() {
                     bail!("We can't join a group that is still active.");
                 }
                 // Otherwise, we delete the old group.
-                Self::delete_from_db(txn, &group_id).await?;
+                Self::delete_from_db(txn, group_id).await?;
             }
             (processed_welcome, joiner_info)
         };
@@ -426,6 +428,177 @@ impl Group {
         }
 
         // Phase 8: Decrypt profile keys
+        let member_profile_info = encrypted_user_profile_keys
+            .into_iter()
+            .zip(credentials)
+            .map(|(eupk, ci)| {
+                UserProfileKey::decrypt(
+                    welcome_attribution_info.identity_link_wrapper_key(),
+                    &eupk,
+                    ci.user_id(),
+                )
+                .map(|user_profile_key| ProfileInfo {
+                    user_profile_key,
+                    client_credential: ci.into(),
+                })
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        Ok((group, sender_user_id, member_profile_info))
+    }
+
+    /// Same as [`Self::join_group`], but for APQ groups.
+    pub(super) async fn join_apq_group(
+        welcome_bundle: ApqWelcomeBundle,
+        // This is our own key that the sender uses to encrypt to us. We should
+        // be able to retrieve it from the client's key store.
+        welcome_attribution_info_ear_key: &WelcomeAttributionInfoEarKey,
+        txn: &mut SqliteTransaction<'_>,
+        api_clients: &ApiClients,
+        signer: &ClientSigningKey,
+    ) -> Result<(Self, UserId, Vec<ProfileInfo>)> {
+        // Phase 1: Serialize welcome and split
+        let serialized_welcome = welcome_bundle.welcome.tls_serialize_detached()?;
+        let (t_welcome, pq_welcome) = welcome_bundle.welcome.split();
+        let mls_group_config = default_mls_group_join_config();
+        let t_ciphersuite = t_welcome.ciphersuite();
+
+        // Phase 2: Find KeyPackageBundles, decrypt joiner info, process both welcomes
+        let provider = AirOpenMlsProvider::new(txn.as_mut());
+        let t_kpb: KeyPackageBundle = t_welcome
+            .secrets()
+            .iter()
+            .find_map(|egs| {
+                let kp_hash = egs.new_member();
+                provider.storage().key_package(&kp_hash).ok().flatten()
+            })
+            .ok_or(GroupOperationError::MissingKeyPackage)?;
+        let _pq_kpb: KeyPackageBundle = pq_welcome
+            .secrets()
+            .iter()
+            .find_map(|egs| {
+                let kp_hash = egs.new_member();
+                provider.storage().key_package(&kp_hash).ok().flatten()
+            })
+            .ok_or(GroupOperationError::MissingKeyPackage)?;
+
+        // DS joiner info is encrypted with the T-key package private key
+        let private_key = t_kpb.init_private_key();
+        let info = &[];
+        let aad = &[];
+        let decryption_key = JoinerInfoDecryptionKey::from((
+            private_key.clone(),
+            t_kpb.key_package().hpke_init_key().clone(),
+        ));
+        let joiner_info = DsApqJoinerInformation::decrypt(
+            welcome_bundle.encrypted_joiner_info,
+            &decryption_key,
+            info,
+            aad,
+        )?;
+
+        let processed_t_welcome =
+            ProcessedWelcome::new_from_welcome(&provider, &mls_group_config, t_welcome)?;
+        let processed_pq_welcome =
+            ProcessedWelcome::new_from_welcome(&provider, &mls_group_config, pq_welcome)?;
+
+        // Check if there is already a group with the same ID.
+        let t_group_id = processed_t_welcome.unverified_group_info().group_id();
+        if let Some(group) = Self::load(txn.as_mut(), t_group_id).await? {
+            if group.mls_group().is_active() {
+                bail!("Joining new group which is still active");
+            }
+            Self::delete_from_db(txn, t_group_id).await?;
+        }
+
+        // Phase 3: Fetch welcome info for both groups
+        let t_qgid = QualifiedGroupId::try_from(t_group_id)?;
+        let pq_group_id = processed_pq_welcome.unverified_group_info().group_id();
+        let pq_qgid = QualifiedGroupId::try_from(pq_group_id)?;
+        ensure!(
+            t_qgid.owning_domain() == pq_qgid.owning_domain(),
+            "T and PQ groups must belong to the same domain"
+        );
+        let api_client = api_clients.get(t_qgid.owning_domain())?;
+        // Note: Only meaningful encrypted user profile keys and room state in T-welcome info
+        let WelcomeInfoIn {
+            ratchet_tree: t_ratchet_tree,
+            encrypted_user_profile_keys,
+            room_state,
+        } = api_client
+            .ds_welcome_info(
+                t_group_id.clone(),
+                processed_t_welcome.unverified_group_info().epoch(),
+                &joiner_info.t_group_state_ear_key,
+                signer,
+            )
+            .await?;
+        let WelcomeInfoIn {
+            ratchet_tree: pq_ratchet_tree,
+            encrypted_user_profile_keys: _,
+            room_state: _,
+        } = api_client
+            .ds_welcome_info(
+                pq_group_id.clone(),
+                processed_pq_welcome.unverified_group_info().epoch(),
+                &joiner_info.pq_group_state_ear_key,
+                signer,
+            )
+            .await?;
+
+        // Phase 4: Complete both joins
+        let provider = AirOpenMlsProvider::new(txn.as_mut());
+        let (t_mls_group, pq_mls_group) = apqmls::welcome::JoinBuilder::new(
+            &provider,
+            processed_t_welcome,
+            processed_pq_welcome,
+            t_ciphersuite,
+        )
+        .skip_lifetime_validation()
+        .with_ratchet_tree(ApqRatchetTreeIn::new(t_ratchet_tree, pq_ratchet_tree))
+        .build()?
+        .into_groups();
+
+        // Phase 5: Verify WAI + extract sender
+        let verifiable_attribution_info = WelcomeAttributionInfo::decrypt(
+            welcome_attribution_info_ear_key,
+            &welcome_bundle.encrypted_attribution_info,
+        )?
+        .into_verifiable(t_mls_group.group_id().clone(), serialized_welcome);
+
+        let sender_user_id = verifiable_attribution_info.sender();
+        if BlockedContact::check_blocked(txn.as_mut(), &sender_user_id).await? {
+            bail!(BlockedContactError);
+        }
+        let sender_client_credential =
+            StorableClientCredential::load_by_user_id(txn.as_mut(), &sender_user_id)
+                .await?
+                .context("Unknown sender client credential")?;
+        let welcome_attribution_info: WelcomeAttributionInfoPayload =
+            verifiable_attribution_info.verify(sender_client_credential.verifying_key())?;
+
+        // Phase 6: Construct and persist Group
+        let credentials = verify_member_credentials(txn, api_clients, &t_mls_group).await?;
+        let self_updated_at = TimeStamp::now();
+        let group = Self {
+            identity_link_wrapper_key: welcome_attribution_info.identity_link_wrapper_key().clone(),
+            group_state_ear_key: joiner_info.t_group_state_ear_key,
+            mls_group: t_mls_group,
+            room_state,
+            pending_diff: None,
+            self_updated_at: Some(self_updated_at),
+            pq: Some(PqGroup {
+                mls_group: pq_mls_group,
+                group_state_ear_key: joiner_info.pq_group_state_ear_key,
+                self_updated_at: Some(self_updated_at),
+            }),
+        };
+        group.store(&mut *txn).await?;
+        for credential in &credentials {
+            credential.store(txn.as_mut()).await?;
+        }
+
+        // Phase 7: Decrypt profile keys
         let member_profile_info = encrypted_user_profile_keys
             .into_iter()
             .zip(credentials)
