@@ -268,8 +268,8 @@ fn webp_encoder(width: u32, height: u32) -> anyhow::Result<webp_animation::Encod
 /// Converts a frame delay to milliseconds, applying a floor to avoid
 /// zero-duration frames.
 fn delay_to_ms(delay: Delay) -> i32 {
-    let (numer, denom) = delay.numer_denom_ms();
-    let ms = if denom == 0 { 0 } else { numer / denom };
+    let (n, d) = delay.numer_denom_ms();
+    let ms = if d == 0 { 0 } else { n / d };
     let ms_i32: i32 = ms.try_into().unwrap_or(i32::MAX);
     ms_i32.max(MIN_FRAME_DURATION_MS)
 }
