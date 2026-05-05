@@ -1253,18 +1253,21 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .map(|info| info.try_into())
             .transpose()?;
         let (t_add_users_info, pq_add_users_info) = add_users_info.map(|info| info.split()).unzip();
+        let destination_clients: Vec<_> = t_group_state
+            .other_destination_clients(t_sender_index)
+            .collect();
+        let pq_params = GroupOperationParams {
+            commit: pq_message,
+            add_users_info_option: pq_add_users_info,
+        };
+        let (pq_group_message, pq_welcome) = pq_group_state.pq_group_operation(pq_params)?;
+
         let t_params = GroupOperationParams {
             commit: t_message,
             add_users_info_option: t_add_users_info,
         };
         let (t_group_message, t_add_users_state) =
             t_group_state.process_group_operation(t_params).await?;
-
-        let pq_params = GroupOperationParams {
-            commit: pq_message,
-            add_users_info_option: pq_add_users_info,
-        };
-        let (pq_group_message, pq_welcome) = pq_group_state.pq_group_operation(pq_params)?;
 
         let apq_message_payload =
             [t_group_message.0.as_slice(), pq_group_message.0.as_slice()].concat();
@@ -1286,9 +1289,6 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             message_type: QsQueueMessageType::ApqMlsMessage,
             payload: apq_message_payload,
         };
-        let destination_clients: Vec<_> = t_group_state
-            .other_destination_clients(t_sender_index)
-            .collect();
         let timestamp = self
             .fan_out_message_without_notifications(apq_payload, destination_clients)
             .await;

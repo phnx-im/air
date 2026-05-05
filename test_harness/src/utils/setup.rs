@@ -1049,14 +1049,21 @@ impl TestBackend {
         result
     }
 
+    pub async fn create_apq_group(&mut self, user_id: &UserId) -> ChatId {
+        self.create_group_inner(user_id, true).await
+    }
+
     pub async fn create_group(&mut self, user_id: &UserId) -> ChatId {
+        self.create_group_inner(user_id, false).await
+    }
+
+    async fn create_group_inner(&mut self, user_id: &UserId, is_apq: bool) -> ChatId {
         let test_user = self.users.get_mut(user_id).unwrap();
         let user = &mut test_user.user;
         let user_chats_before = user.chats().await;
 
         let group_name = Uuid::new_v4().to_string();
         let group_picture_bytes_option = Some(test_picture_bytes());
-        let is_apq = false;
         let chat_id = user
             .create_chat(
                 group_name.clone(),

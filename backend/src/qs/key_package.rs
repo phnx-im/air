@@ -55,6 +55,10 @@ pub(super) trait StorableKeyPackage<'q>: Sized + Send + Sync + Unpin {
         key_packages: &[Self],
         is_last_resort: bool,
     ) -> Result<(), StorageError> {
+        if key_packages.is_empty() {
+            return Ok(());
+        }
+
         query(&format!(
             "DELETE FROM {table_name} WHERE client_id = $1 AND is_last_resort = $2",
             table_name = Self::TABLE_NAME
@@ -152,6 +156,9 @@ pub(super) trait StorableKeyPackage<'q>: Sized + Send + Sync + Unpin {
         .bind(friendship_token)
         .fetch_one(&mut *transaction)
         .await
+        .inspect_err(|error| {
+            tracing::error!(%error, "Failed to fetch key package");
+        })
         .map(|blob| Self::decoded(blob))??;
 
         transaction.commit().await?;

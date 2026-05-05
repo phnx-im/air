@@ -14,7 +14,6 @@ pub(crate) mod openmls_provider;
 pub(crate) mod persistence;
 pub(crate) mod process;
 
-use apqmls::messages::ApqRatchetTreeIn;
 pub(crate) use error::*;
 pub(crate) use persistence::VerifiedGroup;
 
@@ -463,7 +462,7 @@ impl Group {
         let mls_group_config = default_mls_group_join_config();
         let t_ciphersuite = t_welcome.ciphersuite();
 
-        // Phase 2: Find KeyPackageBundles, decrypt joiner info, process both welcomes
+        // Phase 2: Find KeyPackageBundles, decrypt joiner info, process PQ welcome
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         let t_kpb: KeyPackageBundle = t_welcome
             .secrets()
@@ -497,42 +496,12 @@ impl Group {
             aad,
         )?;
 
-        let processed_t_welcome =
-            ProcessedWelcome::new_from_welcome(&provider, &mls_group_config, t_welcome)?;
         let processed_pq_welcome =
             ProcessedWelcome::new_from_welcome(&provider, &mls_group_config, pq_welcome)?;
 
-        // Check if there is already a group with the same ID.
-        let t_group_id = processed_t_welcome.unverified_group_info().group_id();
-        if let Some(group) = Self::load(txn.as_mut(), t_group_id).await? {
-            if group.mls_group().is_active() {
-                bail!("Joining new group which is still active");
-            }
-            Self::delete_from_db(txn, t_group_id).await?;
-        }
-
-        // Phase 3: Fetch welcome info for both groups
-        let t_qgid = QualifiedGroupId::try_from(t_group_id)?;
         let pq_group_id = processed_pq_welcome.unverified_group_info().group_id();
         let pq_qgid = QualifiedGroupId::try_from(pq_group_id)?;
-        ensure!(
-            t_qgid.owning_domain() == pq_qgid.owning_domain(),
-            "T and PQ groups must belong to the same domain"
-        );
-        let api_client = api_clients.get(t_qgid.owning_domain())?;
-        // Note: Only meaningful encrypted user profile keys and room state in T-welcome info
-        let WelcomeInfoIn {
-            ratchet_tree: t_ratchet_tree,
-            encrypted_user_profile_keys,
-            room_state,
-        } = api_client
-            .ds_welcome_info(
-                t_group_id.clone(),
-                processed_t_welcome.unverified_group_info().epoch(),
-                &joiner_info.t_group_state_ear_key,
-                signer,
-            )
-            .await?;
+        let api_client = api_clients.get(pq_qgid.owning_domain())?;
         let WelcomeInfoIn {
             ratchet_tree: pq_ratchet_tree,
             encrypted_user_profile_keys: _,
@@ -546,18 +515,51 @@ impl Group {
             )
             .await?;
 
-        // Phase 4: Complete both joins
+        // Phase 3: Complete the PQ join first, then derive the PSK needed by the T welcome.
         let provider = AirOpenMlsProvider::new(txn.as_mut());
-        let (t_mls_group, pq_mls_group) = apqmls::welcome::JoinBuilder::new(
-            &provider,
-            processed_t_welcome,
-            processed_pq_welcome,
-            t_ciphersuite,
-        )
-        .skip_lifetime_validation()
-        .with_ratchet_tree(ApqRatchetTreeIn::new(t_ratchet_tree, pq_ratchet_tree))
-        .build()?
-        .into_groups();
+        let pq_builder = JoinBuilder::new(&provider, processed_pq_welcome)
+            .skip_lifetime_validation()
+            .with_ratchet_tree(pq_ratchet_tree);
+        let mut pq_mls_group = pq_builder.build()?.into_group(&provider)?;
+        apqmls::welcome::derive_and_store_join_psk(&provider, &mut pq_mls_group, t_ciphersuite)?;
+
+        let processed_t_welcome =
+            ProcessedWelcome::new_from_welcome(&provider, &mls_group_config, t_welcome)?;
+
+        // Check if there is already a group with the same ID.
+        let t_group_id = processed_t_welcome.unverified_group_info().group_id();
+        let t_qgid = QualifiedGroupId::try_from(t_group_id)?;
+        ensure!(
+            t_qgid.owning_domain() == pq_qgid.owning_domain(),
+            "T and PQ groups must belong to the same domain"
+        );
+        if let Some(group) = Self::load(txn.as_mut(), t_group_id).await? {
+            if group.mls_group().is_active() {
+                bail!("Joining new group which is still active");
+            }
+            Self::delete_from_db(txn, t_group_id).await?;
+        }
+
+        // Phase 4: Fetch the T welcome info and complete the T join.
+        let WelcomeInfoIn {
+            ratchet_tree: t_ratchet_tree,
+            encrypted_user_profile_keys,
+            room_state,
+        } = api_client
+            .ds_welcome_info(
+                t_group_id.clone(),
+                processed_t_welcome.unverified_group_info().epoch(),
+                &joiner_info.t_group_state_ear_key,
+                signer,
+            )
+            .await?;
+        let t_mls_group = {
+            let provider = AirOpenMlsProvider::new(txn.as_mut());
+            let t_builder = JoinBuilder::new(&provider, processed_t_welcome)
+                .skip_lifetime_validation()
+                .with_ratchet_tree(t_ratchet_tree);
+            t_builder.build()?.into_group(&provider)?
+        };
 
         // Phase 5: Verify WAI + extract sender
         let verifiable_attribution_info = WelcomeAttributionInfo::decrypt(

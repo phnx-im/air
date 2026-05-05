@@ -464,33 +464,17 @@ impl OutboundServiceContext {
         Ok(Duration::weeks(1))
     }
 
-    /// This function does the following:
-    /// 1. Generate a number of new key packages
-    /// 2. Upload them to the QS (and clean up on failure)
-    /// 3. Delete key packages that are marked stale
-    /// 4. Mark key packages stale that were previously marked live
-    /// 5. Marks the uploaded key packages as live in the database
+    /// Same as [`Self::upload_key_packages`], but for APQ key packages.
+    ///
+    /// For now, we only upload one last resort APQ key package.
     async fn upload_apq_key_packages(&self) -> anyhow::Result<Duration> {
-        let key_packages = self
+        let last_resort_key_package = self
             .with_transaction(async |txn| {
-                let mut key_packages = Vec::with_capacity(KEY_PACKAGES + 1);
-                for _ in 0..KEY_PACKAGES {
-                    let kp = self.key_store.generate_apq_key_package(
-                        &mut *txn,
-                        &self.qs_client_id,
-                        false,
-                    )?;
-                    key_packages.push(kp);
-                }
-
-                let last_resort_kp =
-                    self.key_store
-                        .generate_apq_key_package(&mut *txn, &self.qs_client_id, true)?;
-                key_packages.push(last_resort_kp);
-
-                Ok::<_, anyhow::Error>(key_packages)
+                self.key_store
+                    .generate_apq_key_package(&mut *txn, &self.qs_client_id, true)
             })
             .await?;
+        let key_packages = vec![last_resort_key_package];
 
         let crypto_provider = OpenMlsRustCrypto::default();
         let key_package_refs = key_packages
