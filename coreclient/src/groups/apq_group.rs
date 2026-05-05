@@ -6,8 +6,9 @@ use aircommon::{
     credentials::keys::ClientSigningKey,
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     mls_group_config::{
-        GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, default_group_required_extensions,
-        default_leaf_node_capabilities, default_sender_ratchet_configuration,
+        APQ_CIPHERSUITE, GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS,
+        default_group_required_extensions, default_leaf_node_capabilities,
+        default_sender_ratchet_configuration,
     },
     time::TimeStamp,
 };
@@ -77,6 +78,7 @@ impl Group {
 
         let (t_group, pq_group) = ApqMlsGroup::builder()
             .with_group_ids(t_group_id, pq_group_id)
+            .with_ciphersuite(APQ_CIPHERSUITE)
             .with_capabilities(default_leaf_node_capabilities())
             .with_group_context_extensions(gc_extensions.clone(), gc_extensions)?
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
