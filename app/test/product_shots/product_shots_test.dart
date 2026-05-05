@@ -514,9 +514,13 @@ void testProductShot(
 ///
 /// This is necessary in tests, otherwise the images will not be rendered.
 ///
-/// Will be called inside `tester.runAsync`. Otherwise, `precacheImage` will never complete due
-/// to fake-async.
+/// Will be called inside `tester.runAsync`. Otherwise, `precacheImage` will
+/// never complete due to fake-async.
 Future<void> _precacheImages(WidgetTester tester) async {
+  // [AttachmentImage] inserts its [Image] child only after an async
+  // classification step resolves; settle once so the tree contains every
+  // [Image] we need to precache.
+  await tester.pumpAndSettle();
   await tester.runAsync(() async {
     final elements = tester.elementList(find.byType(DecoratedBox));
     for (Element element in elements) {
