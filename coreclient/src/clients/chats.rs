@@ -8,8 +8,8 @@ use mimi_room_policy::VerifiedRoomState;
 use tracing::error;
 
 use crate::{
-    ChatAttributes, MessageId,
-    chats::{Chat, messages::ChatMessage},
+    ChatAttributes, ChatType, MessageId,
+    chats::{Chat, PendingConnectionInfo, messages::ChatMessage},
     groups::Group,
     job::{chat_operation::ChatOperation, create_chat::CreateChat},
     utils::image::resize_profile_image,
@@ -59,13 +59,19 @@ impl CoreUser {
                 let chat = Chat::load(&mut *txn, &chat_id)
                     .await?
                     .context("missing chat for deletion")?;
+                if let ChatType::PendingConnection(_) = chat.chat_type()
+                    && let Some(info) = PendingConnectionInfo::load(&mut *txn, chat_id).await?
+                    && let Some(hash) = info.connection_offer_hash
+                {
+                    Group::delete_connection_offer_psk(&mut *txn, hash)?;
+                }
                 Group::delete_from_db(txn, chat.group_id())
                     .await
                     .inspect_err(|error| {
                         error!(%error, "failed to delete group; skipping");
                     })
                     .ok();
-                Chat::delete(txn, chat.id()).await?;
+                Chat::delete(&mut *txn, chat.id()).await?;
                 Ok(())
             })
             .await

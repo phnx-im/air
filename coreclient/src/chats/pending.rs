@@ -121,7 +121,10 @@ impl CoreUser {
                     .is_some()
                 {
                     warn!(%chat_id, "Group for pending chat already exists");
-                    Group::delete_from_db(&mut *txn, chat.group_id()).await?;
+                    Group::delete_from_db(txn, chat.group_id()).await?;
+                    if let Some(hash) = connection_offer_hash {
+                        Group::delete_connection_offer_psk(&mut *txn, hash)?;
+                    }
                 }
 
                 // Join group
@@ -178,18 +181,9 @@ impl CoreUser {
                     RoleIndex::Regular,
                 )?;
 
-                let now = TimeStamp::now();
-                group.store_update(&mut *txn, Some(now)).await?;
-
-                // Create system messages for acceptance
-                let accepted_system_message = SystemMessage::AcceptedConnectionRequest {
-                    contact: sender_user_id.clone(),
-                    user_handle: handle.clone(),
-                };
-                let accepted_message =
-                    TimestampedMessage::system_message(accepted_system_message, now);
-                let chat_messages = vec![accepted_message];
-                Self::store_new_messages(&mut *txn, chat_id, chat_messages).await?;
+                group
+                    .store_update(&mut *txn, Some(TimeStamp::now()))
+                    .await?;
 
                 if let Some(hash) = connection_package_hash {
                     // Delete the connection package if it's not last resort
@@ -233,9 +227,18 @@ impl CoreUser {
         // remove the pending connection info.
         self.db()
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                // old
                 chat.set_chat_type(&mut *txn, &ChatType::Connection(sender_user_id.clone()))
                     .await?;
+
+                let accepted_message = TimestampedMessage::system_message(
+                    SystemMessage::AcceptedConnectionRequest {
+                        contact: sender_user_id.clone(),
+                        user_handle: handle,
+                    },
+                    TimeStamp::now(),
+                );
+                Self::store_new_messages(&mut *txn, chat_id, vec![accepted_message]).await?;
+
                 partial_contact
                     .mark_as_complete(
                         &mut *txn,
@@ -244,6 +247,9 @@ impl CoreUser {
                     )
                     .await?;
                 PendingConnectionInfo::delete(&mut *txn, chat_id).await?;
+                if let Some(hash) = connection_offer_hash {
+                    Group::delete_connection_offer_psk(txn, hash)?;
+                }
                 Ok(())
             })
             .await?;
@@ -293,7 +299,7 @@ mod persistence {
     use super::*;
 
     impl PendingConnectionInfo {
-        pub(super) async fn load(
+        pub(crate) async fn load(
             mut connection: impl ReadConnection,
             chat_id: ChatId,
         ) -> sqlx::Result<Option<PendingConnectionInfo>> {
