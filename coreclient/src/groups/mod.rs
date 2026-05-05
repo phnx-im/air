@@ -935,6 +935,7 @@ impl Group {
         )
         .force_self_update(true)
         .propose_adds(key_packages)
+        .create_group_info(true)
         .finalize(&provider, signer, |_| true, |_| true)
         {
             Ok(bundle) => bundle,
