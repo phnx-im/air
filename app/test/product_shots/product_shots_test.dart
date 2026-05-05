@@ -249,7 +249,14 @@ void main() {
           attachmentId: any(named: "attachmentId"),
           chunkEventCallback: any(named: "chunkEventCallback"),
         ),
-      ).thenAnswer((_) => Future.value(jupiterAttachmentImage.data));
+      ).thenAnswer(
+        (_) => Future.value(
+          LoadedImageAttachment(
+            bytes: jupiterAttachmentImage.data,
+            isAnimated: false,
+          ),
+        ),
+      );
       when(
         () => attachmentsRepository.statusStream(
           attachmentId: any(named: "attachmentId"),

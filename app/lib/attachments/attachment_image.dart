@@ -239,39 +239,32 @@ class _AttachmentImageState extends State<AttachmentImage> {
   Widget build(BuildContext context) {
     final blurhash = BlurHash(hash: widget.imageMetadata.blurhash);
 
-    final Widget content;
+    final Widget? foreground;
     if (_error != null) {
-      content = const Align(child: AppIcon.circleAlert(size: 32));
+      foreground = const Align(child: AppIcon.circleAlert(size: 32));
     } else if (_isAnimated == false) {
-      content = Stack(
-        fit: StackFit.expand,
-        children: [
-          blurhash,
-          Image(
-            image: AttachmentImageProvider(
-              attachment: widget.attachment,
-              attachmentsRepository: context.read<AttachmentsRepository>(),
-            ),
-            fit: widget.fit,
-            alignment: Alignment.center,
-          ),
-        ],
+      foreground = Image(
+        image: AttachmentImageProvider(
+          attachment: widget.attachment,
+          attachmentsRepository: context.read<AttachmentsRepository>(),
+        ),
+        fit: widget.fit,
+        alignment: Alignment.center,
       );
     } else if (_currentFrame != null) {
-      content = Stack(
-        fit: StackFit.expand,
-        children: [
-          blurhash,
-          RawImage(
-            image: _currentFrame,
-            fit: widget.fit,
-            alignment: Alignment.center,
-          ),
-        ],
+      foreground = RawImage(
+        image: _currentFrame,
+        fit: widget.fit,
+        alignment: Alignment.center,
       );
     } else {
-      content = blurhash;
+      foreground = null;
     }
+
+    final content = Stack(
+      fit: StackFit.expand,
+      children: [blurhash, if (foreground != null) foreground],
+    );
 
     return AspectRatio(
       aspectRatio: widget.imageMetadata.width / widget.imageMetadata.height,
