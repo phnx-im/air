@@ -975,7 +975,10 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
             };
 
             if op.contains(StoreOperation::Remove) {
-                if self.data.message_ids_index.contains_key(message_id) {
+                if self.data.message_ids_index.contains_key(message_id)
+                    && let Some(message) = self.store.message(*message_id).await?
+                    && message.chat_id() == self.chat_id
+                {
                     self.remove_message_in_place(*message_id);
                 }
             } else if op.contains(StoreOperation::Add) {
