@@ -182,7 +182,7 @@ class _AttachmentImageState extends State<AttachmentImage> {
     final codec = _codec;
     if (codec == null || _stopped) return;
     final frame = await codec.getNextFrame();
-    if (!mounted) {
+    if (!mounted || _stopped || _codec != codec) {
       frame.image.dispose();
       return;
     }
