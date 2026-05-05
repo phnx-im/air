@@ -1595,6 +1595,18 @@ impl Group {
         Ok(())
     }
 
+    pub(crate) fn delete_connection_offer_psk(
+        connection: &mut SqliteConnection,
+        connection_offer_hash: ConnectionOfferHash,
+    ) -> Result<()> {
+        let provider = AirOpenMlsProvider::new(connection);
+        let psk = Psk::External(ExternalPsk::new(
+            connection_offer_hash.into_bytes().to_vec(),
+        ));
+        provider.storage().delete_psk(&psk)?;
+        Ok(())
+    }
+
     /// Deserializes client credentials from the corresponding leaf node.
     ///
     /// Does not guarantee that the credential was verified and is valid.

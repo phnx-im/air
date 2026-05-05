@@ -113,101 +113,86 @@ impl CoreUser {
             .await?;
 
         // Create a new group by joining it (if group already exists, it will be replaced)
-        let fut = self.with_transaction_and_notifier(
-            async |txn, notifier| -> anyhow::Result<Result<_, _>> {
-                if Group::load_with_chat_id(txn.as_mut(), chat_id)
-                    .await?
-                    .is_some()
-                {
-                    warn!(%chat_id, "Group for pending chat already exists");
-                    Group::delete_from_db(txn, chat.group_id()).await?;
+        let fut = self.with_transaction(async |txn| -> anyhow::Result<Result<_, _>> {
+            if Group::load_with_chat_id(txn.as_mut(), chat_id)
+                .await?
+                .is_some()
+            {
+                warn!(%chat_id, "Group for pending chat already exists");
+                Group::delete_from_db(txn, chat.group_id()).await?;
+                if let Some(hash) = connection_offer_hash {
+                    Group::delete_connection_offer_psk(txn.as_mut(), hash)?;
                 }
+            }
 
-                // Join group
-                let res = Group::join_group_externally(
-                    txn,
-                    self.api_clients(),
-                    eci,
-                    self.signing_key(),
-                    connection_info.connection_group_ear_key.clone(),
-                    connection_info
-                        .connection_group_identity_link_wrapper_key
-                        .clone(),
-                    aad,
-                    connection_offer_hash,
-                )
-                .await?;
-                let (mut group, commit, group_info, mut member_profile_info) = match res {
-                    Ok(value) => value,
-                    Err(error) => return Ok(Err(error)),
-                };
+            // Join group
+            let res = Group::join_group_externally(
+                txn,
+                self.api_clients(),
+                eci,
+                self.signing_key(),
+                connection_info.connection_group_ear_key.clone(),
+                connection_info
+                    .connection_group_identity_link_wrapper_key
+                    .clone(),
+                aad,
+                connection_offer_hash,
+            )
+            .await?;
+            let (mut group, commit, group_info, mut member_profile_info) = match res {
+                Ok(value) => value,
+                Err(error) => return Ok(Err(error)),
+            };
 
-                // Verify that the group has only one other member and that it's
-                // the sender of the CEP.
-                let members: Vec<_> = group.members().collect();
+            // Verify that the group has only one other member and that it's
+            // the sender of the CEP.
+            let members: Vec<_> = group.members().collect();
 
-                ensure!(
-                    members.len() == 2,
-                    "Connection group has more than two members: {:?}",
-                    members
-                );
+            ensure!(
+                members.len() == 2,
+                "Connection group has more than two members: {:?}",
+                members
+            );
 
-                ensure!(
-                    members.contains(self.user_id()) && members.contains(&sender_user_id),
-                    "Connection group has unexpected members: {:?}",
-                    members
-                );
+            ensure!(
+                members.contains(self.user_id()) && members.contains(&sender_user_id),
+                "Connection group has unexpected members: {:?}",
+                members
+            );
 
-                // There should be only one user profile
-                let contact_profile_info = member_profile_info
-                    .pop()
-                    .context("No user profile returned when joining connection group")?;
+            // There should be only one user profile
+            let contact_profile_info = member_profile_info
+                .pop()
+                .context("No user profile returned when joining connection group")?;
 
-                debug_assert!(
-                    member_profile_info.is_empty(),
-                    "More than one user profile returned when joining connection group"
-                );
+            debug_assert!(
+                member_profile_info.is_empty(),
+                "More than one user profile returned when joining connection group"
+            );
 
-                // Fetch and store user profile
-                Self::schedule_fetch_user_profile(txn.as_mut(), contact_profile_info).await?;
+            // Fetch and store user profile
+            Self::schedule_fetch_user_profile(txn.as_mut(), contact_profile_info).await?;
 
-                group.room_state_change_role(
-                    &sender_user_id,
-                    self.user_id(),
-                    RoleIndex::Regular,
-                )?;
+            group.room_state_change_role(&sender_user_id, self.user_id(), RoleIndex::Regular)?;
 
-                let now = TimeStamp::now();
-                group.store_update(&mut *txn, Some(now), None).await?;
+            let now = TimeStamp::now();
+            group.store_update(txn, Some(now), Some(now)).await?;
 
-                // Create system messages for acceptance
-                let accepted_system_message = SystemMessage::AcceptedConnectionRequest {
-                    contact: sender_user_id.clone(),
-                    user_handle: handle.clone(),
-                };
-                let accepted_message =
-                    TimestampedMessage::system_message(accepted_system_message, now);
-                let chat_messages = vec![accepted_message];
-                Self::store_new_messages(txn.as_mut(), notifier, chat_id, chat_messages).await?;
-
-                if let Some(hash) = connection_package_hash {
-                    // Delete the connection package if it's not last resort
-                    let is_last_resort =
-                        <ConnectionPackage as StorableConnectionPackage>::is_last_resort(
-                            txn, &hash,
-                        )
+            if let Some(hash) = connection_package_hash {
+                // Delete the connection package if it's not last resort
+                let is_last_resort =
+                    <ConnectionPackage as StorableConnectionPackage>::is_last_resort(txn, &hash)
                         .await?
                         .unwrap_or(false);
-                    if !is_last_resort {
-                        ConnectionPackage::delete(txn, &hash)
-                            .await
-                            .context("Failed to delete connection package")?;
-                    }
+                if !is_last_resort {
+                    ConnectionPackage::delete(txn, &hash)
+                        .await
+                        .context("Failed to delete connection package")?;
                 }
+            }
 
-                Ok(Ok((commit, group_info)))
-            },
-        );
+            Ok(Ok((commit, group_info)))
+        });
         let result = Box::pin(fut).await?;
 
         // Propagate the error to the caller if it is a leaf node validation error.
@@ -237,6 +222,17 @@ impl CoreUser {
                 &ChatType::Connection(sender_user_id.clone()),
             )
             .await?;
+
+            let accepted_message = TimestampedMessage::system_message(
+                SystemMessage::AcceptedConnectionRequest {
+                    contact: sender_user_id.clone(),
+                    user_handle: handle,
+                },
+                TimeStamp::now(),
+            );
+            Self::store_new_messages(txn.as_mut(), notifier, chat_id, vec![accepted_message])
+                .await?;
+
             partial_contact
                 .mark_as_complete(
                     txn,
@@ -246,6 +242,9 @@ impl CoreUser {
                 )
                 .await?;
             PendingConnectionInfo::delete(txn.as_mut(), chat_id).await?;
+            if let Some(hash) = connection_offer_hash {
+                Group::delete_connection_offer_psk(txn.as_mut(), hash)?;
+            }
             Ok(())
         })
         .await?;
@@ -295,7 +294,7 @@ mod persistence {
     use super::*;
 
     impl PendingConnectionInfo {
-        pub(super) async fn load(
+        pub(crate) async fn load(
             executor: impl SqliteExecutor<'_>,
             chat_id: ChatId,
         ) -> sqlx::Result<Option<PendingConnectionInfo>> {

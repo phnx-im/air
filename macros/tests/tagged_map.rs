@@ -5,7 +5,7 @@
 use std::borrow::Cow;
 
 use airmacros::{DeserializeTaggedMap, SerializeTaggedMap};
-use ciborium::{from_reader, into_writer};
+use minicbor_serde::{from_slice, to_vec};
 
 // Helpers
 
@@ -13,20 +13,21 @@ fn cbor_roundtrip<T>(value: &T) -> T
 where
     T: serde::Serialize + for<'de> serde::Deserialize<'de>,
 {
-    let mut buf = Vec::new();
-    into_writer(value, &mut buf).expect("serialize");
-    from_reader(buf.as_slice()).expect("deserialize")
+    let buf = to_vec(value).expect("serialize");
+    from_slice(&buf).expect("deserialize")
 }
 
 /// Returns the number of entries in the top-level CBOR map.
-fn cbor_map_len(value: &impl serde::Serialize) -> usize {
+fn cbor_map_len(value: &impl serde::Serialize) -> u64 {
     let mut buf = Vec::new();
-    into_writer(value, &mut buf).expect("serialize");
-    let v: ciborium::value::Value = from_reader(buf.as_slice()).expect("parse");
-    match v {
-        ciborium::value::Value::Map(m) => m.len(),
-        other => panic!("expected CBOR map, got {other:?}"),
-    }
+    let mut serializer = minicbor_serde::Serializer::new(&mut buf);
+    value.serialize(&mut serializer).expect("serialize");
+
+    let mut decoder = minicbor::Decoder::new(&buf);
+    decoder
+        .map()
+        .expect("expected CBOR map")
+        .unwrap_or_default()
 }
 
 // Basic roundtrip
@@ -201,10 +202,8 @@ fn unknown_keys_are_ignored() {
         known: 5,
         unknown: 999,
     };
-    let mut buf = Vec::new();
-    into_writer(&super_val, &mut buf).expect("serialize");
-
-    let sub_val: Subset = from_reader(buf.as_slice()).expect("deserialize");
+    let buf = to_vec(&super_val).expect("serialize");
+    let sub_val: Subset = from_slice(&buf).expect("deserialize");
     assert_eq!(sub_val, Subset { known: 5 });
 }
 
@@ -217,9 +216,7 @@ fn missing_keys_default_to_zero() {
         known: 0, // default -> omitted
         unknown: 1,
     };
-    let mut buf = Vec::new();
-    into_writer(&super_val, &mut buf).expect("serialize");
-
-    let sub_val: Subset = from_reader(buf.as_slice()).expect("deserialize");
+    let buf = to_vec(&super_val).expect("serialize");
+    let sub_val: Subset = from_slice(&buf).expect("deserialize");
     assert_eq!(sub_val, Subset { known: 0 });
 }

@@ -160,7 +160,7 @@ impl From<SqlChatMessage> for ChatMessage {
             MessageStatus::Hidden
         } else {
             u8::try_from(status)
-                .map(MessageStatus::from_repr)
+                .map(MessageStatus::from)
                 .unwrap_or(MessageStatus::Unread)
         };
 
@@ -680,7 +680,7 @@ impl ChatMessage {
             Message::Event(_) => true,
         };
         let edited_at = self.edited_at();
-        let status = self.status().repr();
+        let status: u8 = self.status().into();
         let message_id = self.id();
 
         query!(
@@ -1419,7 +1419,7 @@ pub(crate) mod tests {
         let sender = UserId::random("localhost".parse().unwrap());
         let report = MessageStatusReport {
             statuses: vec![PerMessageStatus {
-                mimi_id: mimi_id.as_ref().to_vec().into(),
+                mimi_id: mimi_id.as_ref().to_vec(),
                 status: mimi_content::MessageStatus::Delivered,
             }],
         };

@@ -135,7 +135,7 @@ mod persistence {
             txn: &mut SqliteTransaction<'_>,
             notifier: &mut StoreNotifier,
         ) -> sqlx::Result<()> {
-            let failed_status = MessageStatus::Error.repr();
+            let failed_status: u8 = MessageStatus::Error.into();
             query!(
                 "UPDATE message SET status = ? WHERE message_id = ?",
                 failed_status,
@@ -171,7 +171,7 @@ mod persistence {
             txn: &mut SqliteTransaction<'_>,
             notifier: &mut StoreNotifier,
         ) -> sqlx::Result<()> {
-            let failed_status = MessageStatus::Error.repr();
+            let failed_status: u8 = MessageStatus::Error.into();
             let marked_messages: Vec<MessageId> = query_scalar!(
                 r#"UPDATE message
                 SET status = ?1

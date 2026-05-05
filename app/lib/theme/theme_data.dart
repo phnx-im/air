@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/palette.dart';
 import 'package:air/ui/colors/themes.dart';
@@ -47,6 +48,9 @@ ThemeData themeData(Brightness brightness) {
       iconTheme: IconThemeData(color: colorScheme.text.primary),
       centerTitle: true,
       toolbarHeight: isPointer() ? 100 : null,
+      systemOverlayStyle: brightness == Brightness.light
+          ? SystemUiOverlayStyle.dark
+          : SystemUiOverlayStyle.light,
       titleTextStyle: (mergedAppBarTitleStyle ?? const TextStyle()).copyWith(
         color: colorScheme.text.primary,
         fontSize: LabelFontSize.base.size,

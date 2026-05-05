@@ -18,8 +18,8 @@ use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, store::Stor
 use airserver::network_provider::MockNetworkProvider;
 use anyhow::Context;
 use mimi_content::{
-    ByteBuf, MimiContent,
-    content_container::{EncryptionAlgorithm, HashAlgorithm, NestedPartContent},
+    MimiContent, NestedPart,
+    content_container::{EncryptionAlgorithm, HashAlgorithm},
 };
 use rand::{Rng, RngCore, distributions::Alphanumeric, seq::IteratorRandom};
 use rand_chacha::rand_core::OsRng;
@@ -713,7 +713,7 @@ impl TestBackend {
             .collect();
         let salt: [u8; 16] = RustCrypto::default().random_array().unwrap();
         let mut orig_message = MimiContent::simple_markdown_message(message, salt);
-        orig_message.in_reply_to = in_reply_to.map(|id| ByteBuf::from(id.as_slice()));
+        orig_message.in_reply_to = in_reply_to.map(|id| id.as_slice().to_vec());
         let test_sender = self.users.get_mut(sender_id).unwrap();
         let sender = &mut test_sender.user;
 
@@ -808,9 +808,14 @@ impl TestBackend {
 
         let salt: [u8; 16] = RustCrypto::default().random_array().unwrap();
         let mut orig_message = MimiContent::simple_markdown_message("edited".to_owned(), salt);
-        orig_message.replaces = Some(ByteBuf::from(
-            last_message.message().mimi_id().unwrap().as_slice(),
-        ));
+        orig_message.replaces = Some(
+            last_message
+                .message()
+                .mimi_id()
+                .unwrap()
+                .as_slice()
+                .to_vec(),
+        );
 
         // Before sending a message, the sender must first fetch and process its QS messages.
 
@@ -922,7 +927,7 @@ impl TestBackend {
         recipients: Vec<&UserId>,
         attachment: &[u8],
         filename: &str,
-    ) -> Result<(MessageId, NestedPartContent), ProvisionAttachmentError> {
+    ) -> Result<(MessageId, NestedPart), ProvisionAttachmentError> {
         let recipient_strings = recipients
             .iter()
             .map(|n| format!("{n:?}"))
@@ -968,7 +973,7 @@ impl TestBackend {
             .unwrap();
         let external_part = external_part.unwrap();
         match &external_part {
-            NestedPartContent::ExternalPart {
+            NestedPart::ExternalPart {
                 enc_alg,
                 key,
                 nonce,
@@ -1005,7 +1010,7 @@ impl TestBackend {
 
                     // Removed cleared fields from the expected attachment.
                     let mut expected = external_part.clone();
-                    if let NestedPartContent::ExternalPart {
+                    if let NestedPart::ExternalPart {
                         key,
                         nonce,
                         aad,
