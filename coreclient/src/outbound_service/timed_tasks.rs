@@ -636,7 +636,7 @@ mod persistence {
         mark_key_packages_as_live_impl(txn, refs_table, key_package_refs).await
     }
 
-    pub(super) async fn mark_key_packages_as_live_impl(
+    async fn mark_key_packages_as_live_impl(
         txn: &mut SqliteTransaction<'_>,
         refs_table: &'static str,
         key_package_refs: impl IntoIterator<Item = &KeyPackageRef>,
