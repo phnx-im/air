@@ -966,45 +966,48 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
         &mut self,
         notification: &StoreNotification,
     ) -> anyhow::Result<()> {
+        let mut needs_load_newer = false;
+        let mut clear_unread_marker = false;
+
         for (id, op) in &notification.ops {
-            if let StoreEntityId::Message(message_id) = id {
-                if op.contains(StoreOperation::Remove) {
-                    let in_window = self.data.message_ids_index.contains_key(message_id);
-                    if in_window {
-                        self.remove_message_in_place(*message_id);
-                    }
-                    return Ok(());
-                }
+            let StoreEntityId::Message(message_id) = id else {
+                continue;
+            };
 
-                if op.contains(StoreOperation::Add) {
-                    if let Some(message) = self.store.message(*message_id).await?
-                        && message.chat_id() == self.chat_id
-                    {
-                        // Own message (not yet sent to server) clears the
-                        // unread divider — the user has engaged with the chat.
-                        if !message.is_sent() {
-                            self.clear_first_unread_index();
-                        }
-
-                        let is_at_bottom = self.state_tx.borrow().is_at_bottom;
-                        if is_at_bottom {
-                            self.handle_load_newer().await;
-                        }
-                    }
-                    return Ok(());
+            if op.contains(StoreOperation::Remove) {
+                if self.data.message_ids_index.contains_key(message_id)
+                    && let Some(message) = self.store.message(*message_id).await?
+                    && message.chat_id() == self.chat_id
+                {
+                    self.remove_message_in_place(*message_id);
                 }
-
-                if op.contains(StoreOperation::Update) {
-                    let in_window = self.data.message_ids_index.contains_key(message_id);
-                    if in_window
-                        && let Some(message) = self.store.message(*message_id).await?
-                        && message.chat_id() == self.chat_id
-                    {
-                        self.update_message_in_place(message);
+            } else if op.contains(StoreOperation::Add) {
+                if let Some(message) = self.store.message(*message_id).await?
+                    && message.chat_id() == self.chat_id
+                {
+                    // Own message (not yet sent to server) clears the
+                    // unread divider — the user has engaged with the chat.
+                    if !message.is_sent() {
+                        clear_unread_marker = true;
                     }
-                    return Ok(());
+                    if self.state_tx.borrow().is_at_bottom {
+                        needs_load_newer = true;
+                    }
                 }
+            } else if op.contains(StoreOperation::Update)
+                && self.data.message_ids_index.contains_key(message_id)
+                && let Some(message) = self.store.message(*message_id).await?
+                && message.chat_id() == self.chat_id
+            {
+                self.update_message_in_place(message);
             }
+        }
+
+        if clear_unread_marker {
+            self.clear_first_unread_index();
+        }
+        if needs_load_newer {
+            self.handle_load_newer().await;
         }
         Ok(())
     }
