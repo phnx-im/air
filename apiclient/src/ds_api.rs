@@ -12,9 +12,9 @@ use aircommon::{
     messages::{
         client_ds::UserProfileKeyUpdateParams,
         client_ds_out::{
-            CreateGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn,
-            GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageParamsOut,
-            TargetedMessageParamsOut, WelcomeInfoIn,
+            ApqGroupOperationParamsOut, CreateGroupParamsOut, DeleteGroupParamsOut,
+            ExternalCommitInfoIn, GroupOperationParamsOut, SelfRemoveParamsOut,
+            SendMessageParamsOut, TargetedMessageParamsOut, WelcomeInfoIn,
         },
     },
     time::TimeStamp,
@@ -26,15 +26,16 @@ use airprotos::{
     },
     convert::{RefInto, TryRefInto},
     delivery_service::v1::{
-        AddUsersInfo, ConnectionGroupInfoRequest, CreateApqGroupPayload, CreateGroupPayload,
-        DeleteGroupPayload, ExternalCommitInfoRequest, GetAttachmentUrlPayload,
-        GroupOperationPayload, GroupSessionData, JoinConnectionGroupRequest,
-        ProvisionAttachmentPayload, RequestGroupIdRequest, ResyncPayload, SelfRemovePayload,
-        SendMessagePayload, StorageObjectType, TargetedMessagePayload, UpdateProfileKeyPayload,
-        WelcomeInfoPayload,
+        AddUsersInfo, ApqAddUsersInfo, ApqAssistedMlsMessage, ApqGroupOperationPayload,
+        ConnectionGroupInfoRequest, CreateApqGroupPayload, CreateGroupPayload, DeleteGroupPayload,
+        ExternalCommitInfoRequest, GetAttachmentUrlPayload, GroupOperationPayload,
+        GroupSessionData, JoinConnectionGroupRequest, ProvisionAttachmentPayload,
+        RequestGroupIdRequest, ResyncPayload, SelfRemovePayload, SendMessagePayload,
+        StorageObjectType, TargetedMessagePayload, UpdateProfileKeyPayload, WelcomeInfoPayload,
     },
     validation::MissingFieldExt,
 };
+use apqmls::commit_builder::ApqCommitMessageBundle;
 use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
     messages::AssistedMessageOut,
@@ -211,6 +212,63 @@ impl ApiClient {
         let response = self
             .ds_grpc_client()
             .group_operation(request)
+            .await?
+            .into_inner();
+        Ok(response
+            .fanout_timestamp
+            .ok_or(DsRequestError::UnexpectedResponse)?
+            .into())
+    }
+
+    /// Performs a APQ group operation.
+    pub async fn ds_apq_group_operation(
+        &self,
+        params: ApqGroupOperationParamsOut,
+        signing_key: &ClientSigningKey,
+        t_group_state_ear_key: &GroupStateEarKey,
+        pq_group_state_ear_key: &GroupStateEarKey,
+    ) -> Result<TimeStamp, DsRequestError> {
+        let ApqGroupOperationParamsOut {
+            bundle:
+                ApqCommitMessageBundle {
+                    commit,
+                    welcome,
+                    group_info,
+                },
+            encrypted_welcome_attribution_infos,
+        } = params;
+        let add_users_info = welcome
+            .map(|welcome| -> Result<_, tls_codec::Error> {
+                let welcome = apqmls::messages::ApqMlsMessageOut::from(welcome).try_ref_into()?;
+                Ok(ApqAddUsersInfo {
+                    welcome: Some(welcome),
+                    encrypted_welcome_attribution_info: encrypted_welcome_attribution_infos
+                        .into_iter()
+                        .map(From::from)
+                        .collect(),
+                })
+            })
+            .transpose()?;
+        let (t_commit, pq_commit) = commit.split();
+        let (t_group_info, pq_group_info) = group_info
+            .map(apqmls::messages::ApqMlsMessageOut::from)
+            .map(|msg| msg.split())
+            .unzip();
+        let commit = ApqAssistedMlsMessage {
+            t_message: Some(AssistedMessageOut::new(t_commit, t_group_info).try_ref_into()?),
+            pq_message: Some(AssistedMessageOut::new(pq_commit, pq_group_info).try_ref_into()?),
+        };
+        let payload = ApqGroupOperationPayload {
+            client_metadata: Some(self.metadata().clone()),
+            t_group_state_ear_key: Some(t_group_state_ear_key.ref_into()),
+            pq_group_state_ear_key: Some(pq_group_state_ear_key.ref_into()),
+            commit: Some(commit),
+            add_users_info,
+        };
+        let request = payload.sign(signing_key)?;
+        let response = self
+            .ds_grpc_client()
+            .apq_group_operation(request)
             .await?
             .into_inner();
         Ok(response

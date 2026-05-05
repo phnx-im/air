@@ -11,7 +11,7 @@ use aircommon::{
     messages::{
         QueueMessage,
         client_ds::{
-            AadMessage, AadPayload, DsCommitResponse, ExtractedQsQueueMessage,
+            AadMessage, AadPayload, ApqWelcomeBundle, DsCommitResponse, ExtractedQsQueueMessage,
             ExtractedQsQueueMessagePayload, QsQueueTargetedMessage, UserProfileKeyUpdateParams,
             WelcomeBundle,
         },
@@ -140,8 +140,9 @@ impl CoreUser {
                 Box::pin(self.handle_welcome_bundle(txn, notifier, welcome_bundle, ds_timestamp))
                     .await
             }
-            ExtractedQsQueueMessagePayload::ApqWelcomeBundle(_welcome_bundle) => {
-                todo!()
+            ExtractedQsQueueMessagePayload::ApqWelcomeBundle(welcome_bundle) => {
+                self.handle_apq_welcome_bundle(txn, notifier, welcome_bundle, ds_timestamp)
+                    .await
             }
             ExtractedQsQueueMessagePayload::MlsMessage(mls_message) => {
                 Box::pin(self.handle_mls_message(
@@ -174,8 +175,13 @@ impl CoreUser {
             ) => {
                 let mls_message = MlsMessageIn::tls_deserialize_exact_bytes(&mls_message_bytes)
                     .context("Failed to deserialize targeted MLS message")?;
-                self.handle_targeted_application_message(txn, notifier, mls_message, ds_timestamp)
-                    .await
+                Box::pin(self.handle_targeted_application_message(
+                    txn,
+                    notifier,
+                    mls_message,
+                    ds_timestamp,
+                ))
+                .await
             }
             ExtractedQsQueueMessagePayload::DsCommitResponse(ds_commit_response) => {
                 self.handle_commit_response(txn, notifier, ds_commit_response)
@@ -360,6 +366,16 @@ impl CoreUser {
 
         let messages = vec![system_message];
         Ok(ProcessQsMessageResult::NewChat(chat.id(), messages))
+    }
+
+    async fn handle_apq_welcome_bundle(
+        &self,
+        txn: &mut SqliteTransaction<'_>,
+        notifier: &mut StoreNotifier,
+        apq_welcome_bundle: ApqWelcomeBundle,
+        ds_timestamp: TimeStamp,
+    ) -> anyhow::Result<ProcessQsMessageResult> {
+        bail!("APQ welcome bundles are not yet supported")
     }
 
     async fn handle_targeted_application_message(

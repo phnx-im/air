@@ -305,6 +305,15 @@ impl Group {
         Ok(Self::load(connection, group_id).await?.map(VerifiedGroup))
     }
 
+    pub(crate) async fn load_verified_with_chat_id(
+        connection: &mut sqlx::SqliteConnection,
+        chat_id: ChatId,
+    ) -> sqlx::Result<Option<VerifiedGroup>> {
+        Ok(Self::load_with_chat_id(connection, chat_id)
+            .await?
+            .map(VerifiedGroup))
+    }
+
     pub(crate) async fn load(
         connection: &mut sqlx::SqliteConnection,
         group_id: &GroupId,

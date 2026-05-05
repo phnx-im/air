@@ -40,9 +40,10 @@ use aircommon::{
             AadMessage, AadPayload, DsJoinerInformation, GroupOperationParamsAad, WelcomeBundle,
         },
         client_ds_out::{
-            AddUsersInfoOut, CreateGroupParamsOut, CreatePqGroupParamsOut, DeleteGroupParamsOut,
-            ExternalCommitInfoIn, GroupOperationParamsOut, SelfRemoveParamsOut,
-            SendMessageParamsOut, TargetedMessageParamsOut, TargetedMessageType, WelcomeInfoIn,
+            AddUsersInfoOut, ApqGroupOperationParamsOut, CreateGroupParamsOut,
+            CreatePqGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn,
+            GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageParamsOut,
+            TargetedMessageParamsOut, TargetedMessageType, WelcomeInfoIn,
         },
         welcome_attribution_info::{
             WelcomeAttributionInfo, WelcomeAttributionInfoPayload, WelcomeAttributionInfoTbs,
@@ -78,7 +79,7 @@ use crate::{
         block_contact::{BlockedContact, BlockedContactError},
         targeted_message::TargetedMessageContent,
     },
-    contacts::ContactAddInfos,
+    contacts::{ContactAddInfos, ContactKeyPackage},
     groups::{apq_group::PqGroup, client_auth_info::VerifiableClientCredentialExt},
     key_stores::as_credentials::AsCredentials,
     outbound_service::resync::Resync,
@@ -94,11 +95,11 @@ use openmls::{
     key_packages::KeyPackageBundle,
     prelude::{
         AppDataDictionaryExtension, BasicCredentialError, CredentialWithKey, Extension, Extensions,
-        GroupId, KeyPackage, LeafNode, LeafNodeIndex, LeafNodeParameters, MlsGroup,
-        MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider,
-        PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal, ProposalType,
-        ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
-        UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
+        GroupId, LeafNode, LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsMessageBodyIn,
+        MlsMessageIn, MlsMessageOut, OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY,
+        PreSharedKeyProposal, Proposal, ProposalType, ProtocolVersion, QueuedProposal, Sender,
+        SignaturePublicKey, StagedCommit, UnknownExtension,
+        tls_codec::Serialize as TlsSerializeTrait,
     },
     schedule::{ExternalPsk, PreSharedKeyId, Psk},
     treesync::{RatchetTree, errors::LeafNodeValidationError},
@@ -201,6 +202,10 @@ pub(crate) struct Group {
 }
 
 impl Group {
+    pub(crate) fn is_apq(&self) -> bool {
+        self.pq.is_some()
+    }
+
     pub(crate) fn mls_group(&self) -> &MlsGroup {
         &self.mls_group
     }
@@ -595,8 +600,8 @@ impl Group {
 
     /// Invite the given list of contacts to join the group.
     ///
-    /// Returns the [`AddUserParamsOut`] as input for the API client.
-    pub(super) async fn stage_invite(
+    /// Returns the [`GroupOperationParamsOut`] as input for the pending chat operation processing.
+    pub(super) fn stage_invite(
         &mut self,
         connection: &mut SqliteConnection,
         signer: &ClientSigningKey,
@@ -606,14 +611,16 @@ impl Group {
         wai_keys: Vec<WelcomeAttributionInfoEarKey>,
         client_credentials: Vec<ClientCredential>,
     ) -> anyhow::Result<Result<GroupOperationParamsOut, LeafNodeValidationError>> {
+        debug_assert!(!self.is_apq(), "APQ group in non-APQ stage_invite");
         debug_assert!(add_infos.len() == wai_keys.len());
         debug_assert!(add_infos.len() == client_credentials.len());
         // Prepare KeyPackages
 
-        let (key_packages, user_profile_keys): (Vec<KeyPackage>, Vec<UserProfileKey>) = add_infos
-            .into_iter()
-            .map(|ai| (ai.key_package, ai.user_profile_key))
-            .unzip();
+        let (key_packages, user_profile_keys): (Vec<ContactKeyPackage>, Vec<UserProfileKey>) =
+            add_infos
+                .into_iter()
+                .map(|ai| (ai.key_package, ai.user_profile_key))
+                .unzip();
 
         let new_encrypted_user_profile_keys = user_profile_keys
             .iter()
@@ -633,6 +640,13 @@ impl Group {
             let provider = AirOpenMlsProvider::new(&mut *connection);
             self.mls_group
                 .set_aad(aad_message.tls_serialize_detached()?);
+            let key_packages = key_packages.into_iter().filter_map(|kp| match kp {
+                ContactKeyPackage::Traditional(kp) => Some(*kp),
+                ContactKeyPackage::Apq(_) => {
+                    error!("logic error: APQ key packages in traditional group");
+                    None
+                }
+            });
             let res = self
                 .mls_group
                 .commit_builder()
@@ -682,6 +696,111 @@ impl Group {
         let params = GroupOperationParamsOut {
             commit,
             add_users_info_option: Some(add_users_info),
+        };
+
+        Ok(Ok(params))
+    }
+
+    /// Invite the given list of contacts to join the APQ group.
+    ///
+    /// Returns the [`ApqGroupOperationParamsOut`] as input for the pending chat operation
+    /// processing.
+    pub(super) fn stage_apq_invite(
+        &mut self,
+        connection: &mut SqliteConnection,
+        signer: &ClientSigningKey,
+        // The following three vectors have to be in sync, i.e. of the same length
+        // and refer to the same contacts in order.
+        add_infos: Vec<ContactAddInfos>,
+        wai_keys: Vec<WelcomeAttributionInfoEarKey>,
+        client_credentials: Vec<ClientCredential>,
+    ) -> anyhow::Result<Result<ApqGroupOperationParamsOut, LeafNodeValidationError>> {
+        debug_assert!(self.is_apq(), "Non-APQ group in APQ stage_invite");
+        debug_assert!(add_infos.len() == wai_keys.len());
+        debug_assert!(add_infos.len() == client_credentials.len());
+        // Prepare KeyPackages
+
+        let (key_packages, user_profile_keys): (Vec<ContactKeyPackage>, Vec<UserProfileKey>) =
+            add_infos
+                .into_iter()
+                .map(|ai| (ai.key_package, ai.user_profile_key))
+                .unzip();
+
+        let new_encrypted_user_profile_keys = user_profile_keys
+            .iter()
+            .zip(client_credentials.iter())
+            .map(|(upk, client_credential)| {
+                upk.encrypt(&self.identity_link_wrapper_key, client_credential.user_id())
+            })
+            .collect::<Result<Vec<_>, _>>()?;
+
+        let aad_message: AadMessage = AadPayload::GroupOperation(GroupOperationParamsAad {
+            new_encrypted_user_profile_keys,
+        })
+        .into();
+
+        let pq = self.pq.as_mut().context("No PQ group found")?;
+
+        let key_packages = key_packages.into_iter().filter_map(|kp| match kp {
+            ContactKeyPackage::Traditional(_) => {
+                error!("logic error: Traditional key packages in APQ group");
+                None
+            }
+            ContactKeyPackage::Apq(kp) => Some(*kp),
+        });
+
+        let provider = AirOpenMlsProvider::new(&mut *connection);
+
+        self.mls_group
+            .set_aad(aad_message.tls_serialize_detached()?);
+
+        let bundle = match apqmls::commit_builder::CommitBuilder::from_groups(
+            &mut self.mls_group,
+            &mut pq.mls_group,
+        )
+        .force_self_update(true)
+        .propose_adds(key_packages)
+        .finalize(&provider, signer, |_| true, |_| true)
+        {
+            Ok(bundle) => bundle,
+            // Extract leaf node validation error if any
+            Err(apqmls::commit_builder::CreateCommitError::BuildCommit(error)) => {
+                return Ok(Err(to_capabilities_mismatch(error)?));
+            }
+            Err(other) => return Err(other.into()),
+        };
+
+        ensure!(
+            bundle.group_info.is_some(),
+            "No group info in APQMLS bundle"
+        );
+
+        let serialized_welcome = bundle
+            .welcome
+            .as_ref()
+            .context("No welcome in APQMLS bundle")?
+            .tls_serialize_detached()?;
+
+        let encrypted_welcome_attribution_infos = wai_keys
+            .iter()
+            .map(|wai_key| {
+                let wai_payload = WelcomeAttributionInfoPayload::new(
+                    signer.credential().user_id().clone(),
+                    self.identity_link_wrapper_key.clone(),
+                );
+                let wai = WelcomeAttributionInfoTbs {
+                    payload: wai_payload,
+                    group_id: self.group_id().clone(),
+                    welcome: serialized_welcome.clone(),
+                }
+                .sign(signer)?;
+                Ok(wai.encrypt(wai_key)?)
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        let params = ApqGroupOperationParamsOut {
+            bundle,
+            encrypted_welcome_attribution_infos,
         };
 
         Ok(Ok(params))
@@ -958,6 +1077,10 @@ impl Group {
 
     pub(crate) fn group_state_ear_key(&self) -> &GroupStateEarKey {
         &self.group_state_ear_key
+    }
+
+    pub(crate) fn group_state_pq_ear_key(&self) -> Option<&GroupStateEarKey> {
+        self.pq.as_ref().map(|pq| &pq.group_state_ear_key)
     }
 
     pub(crate) fn identity_link_wrapper_key(&self) -> &IdentityLinkWrapperKey {

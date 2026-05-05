@@ -8,7 +8,7 @@ use aircommon::{
     identifiers,
     messages::{client_ds, client_ds_out::AddUsersInfoOut, welcome_attribution_info},
 };
-use apqmls::messages::ApqMlsMessageIn;
+use apqmls::messages::{ApqMlsMessageIn, ApqMlsMessageOut};
 use mls_assist::messages::AssistedWelcome;
 use openmls::prelude::{MlsMessageBodyIn, MlsMessageIn, group_info};
 use tls_codec::{DeserializeBytes, Serialize};
@@ -151,11 +151,21 @@ impl TryFromRef<'_, MlsMessage> for openmls::framing::MlsMessageIn {
     }
 }
 
-impl TryFromRef<'_, ApqMlsMessage> for apqmls::messages::ApqMlsMessageIn {
+impl TryFromRef<'_, ApqMlsMessage> for ApqMlsMessageIn {
     type Error = tls_codec::Error;
 
     fn try_from_ref(proto: &ApqMlsMessage) -> Result<Self, Self::Error> {
         DeserializeBytes::tls_deserialize_exact_bytes(&proto.tls)
+    }
+}
+
+impl TryFromRef<'_, ApqMlsMessageOut> for ApqMlsMessage {
+    type Error = tls_codec::Error;
+
+    fn try_from_ref(proto: &ApqMlsMessageOut) -> Result<Self, Self::Error> {
+        Ok(Self {
+            tls: proto.tls_serialize_detached()?,
+        })
     }
 }
 

@@ -13,6 +13,7 @@ use aircommon::{
     identifiers::{UserId, Username},
     messages::{FriendshipToken, client_as::ConnectionOfferHash},
 };
+use apqmls::messages::ApqKeyPackage;
 use openmls::{prelude::KeyPackage, versions::ProtocolVersion};
 use openmls_rust_crypto::RustCrypto;
 use sqlx::SqliteConnection;
@@ -24,7 +25,7 @@ use crate::{
     key_stores::{as_credentials::AsCredentials, indexed_keys::StorableIndexedKey},
     user_profiles::IndexedUserProfile,
 };
-use anyhow::{Context, Result, bail};
+use anyhow::{Context, Result, bail, ensure};
 
 pub(crate) mod persistence;
 
@@ -40,8 +41,14 @@ pub struct Contact {
 
 #[derive(Debug, Clone)]
 pub(crate) struct ContactAddInfos {
-    pub key_package: KeyPackage,
+    pub key_package: ContactKeyPackage,
     pub user_profile_key: UserProfileKey,
+}
+
+#[derive(Debug, Clone)]
+pub(crate) enum ContactKeyPackage {
+    Traditional(Box<KeyPackage>),
+    Apq(Box<ApqKeyPackage>),
 }
 
 impl Contact {
@@ -49,31 +56,49 @@ impl Contact {
         &self,
         connection: &mut SqliteConnection,
         api_clients: &ApiClients,
+        is_apq: bool,
     ) -> Result<ContactAddInfos> {
         let invited_user_domain = self.user_id.domain();
 
-        let key_package_response = api_clients
-            .get(invited_user_domain)?
-            .qs_key_package(self.friendship_token.clone())
-            .await?;
+        let key_package = if is_apq {
+            let key_package_in = api_clients
+                .get(invited_user_domain)?
+                .qs_apq_key_package(self.friendship_token.clone())
+                .await?;
+            let key_package = key_package_in.validate(&RustCrypto::default())?;
+            ContactKeyPackage::Apq(key_package.into())
+        } else {
+            let key_package_in = api_clients
+                .get(invited_user_domain)?
+                .qs_key_package(self.friendship_token.clone())
+                .await?
+                .key_package;
+            let key_package =
+                key_package_in.validate(&RustCrypto::default(), ProtocolVersion::default())?;
+            ContactKeyPackage::Traditional(key_package.into())
+        };
 
-        let key_package_in = key_package_response.key_package;
-
-        // Verify the KeyPackage
-        let verified_key_package =
-            key_package_in.validate(&RustCrypto::default(), ProtocolVersion::default())?;
-        let verifiable_client_credential = VerifiableClientCredential::from_basic_credential(
-            verified_key_package.leaf_node().credential(),
-        )?;
-
+        // Verify the client credential
+        let client_credential = match &key_package {
+            ContactKeyPackage::Traditional(key_package) => key_package.leaf_node().credential(),
+            ContactKeyPackage::Apq(key_package) => {
+                let t_credential = key_package.t_credential();
+                let pq_credential = key_package.pq_credential();
+                ensure!(
+                    t_credential == pq_credential,
+                    "APQ key packages must have the same credentials"
+                );
+                t_credential
+            }
+        };
+        let verifiable_client_credential =
+            VerifiableClientCredential::from_basic_credential(client_credential)?;
         let as_credential = AsCredentials::fetch_for_verification(
             connection,
             api_clients,
             iter::once(&verifiable_client_credential),
         )
         .await?;
-
-        // Verify the client credential
         let incoming_client_credential =
             StorableClientCredential::verify(verifiable_client_credential, &as_credential)?;
 
@@ -94,11 +119,10 @@ impl Contact {
         let user_profile_key =
             UserProfileKey::load(&mut *connection, user_profile.decryption_key_index()).await?;
 
-        let add_info = ContactAddInfos {
-            key_package: verified_key_package,
+        Ok(ContactAddInfos {
+            key_package,
             user_profile_key,
-        };
-        Ok(add_info)
+        })
     }
 
     pub(crate) fn wai_ear_key(&self) -> &WelcomeAttributionInfoEarKey {

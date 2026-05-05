@@ -245,7 +245,7 @@ impl OutboundServiceContext {
         if let Err(error) = self.perform_queued_resyncs(&run_token).await {
             error!(%error, "Failed to perform queued resyncs");
         }
-        match self.send_pending_chat_operations(&run_token).await {
+        match Box::pin(self.send_pending_chat_operations(&run_token)).await {
             Err(OutboundServiceRunError::NetworkError) => {
                 info!("Network appears unavailable, terminating outbound service run");
                 return;

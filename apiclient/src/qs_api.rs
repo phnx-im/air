@@ -27,8 +27,8 @@ use aircommon::{
 use airprotos::{
     common::v1::{StatusDetails, StatusDetailsCode},
     queue_service::v1::{
-        AckListenRequest, CreateClientPayload, DeleteClientPayload, DeleteUserPayload,
-        FetchListenRequest, InitListenPayload, PublishApqKeyPackagesPayload,
+        AckListenRequest, ApqKeyPackageRequest, CreateClientPayload, DeleteClientPayload,
+        DeleteUserPayload, FetchListenRequest, InitListenPayload, PublishApqKeyPackagesPayload,
         PublishKeyPackagesPayload, QueueEvent, UpdateClientPayload, UpdateUserPayload,
         listen_request,
     },
@@ -39,7 +39,7 @@ use airprotos::{
     },
     validation::{MissingFieldError, MissingFieldExt},
 };
-use apqmls::messages::ApqKeyPackage;
+use apqmls::messages::{ApqKeyPackage, ApqKeyPackageIn};
 use mls_assist::openmls::prelude::KeyPackage;
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -291,6 +291,30 @@ impl ApiClient {
                 QsRequestError::UnexpectedResponse
             })?;
         Ok(KeyPackageResponseIn { key_package })
+    }
+
+    pub async fn qs_apq_key_package(
+        &self,
+        sender: FriendshipToken,
+    ) -> Result<ApqKeyPackageIn, QsRequestError> {
+        let request = ApqKeyPackageRequest {
+            client_metadata: Some(self.metadata().clone()),
+            sender: Some(sender.into()),
+        };
+        let response = self
+            .qs_grpc_client()
+            .apq_key_package(request)
+            .await?
+            .into_inner();
+        let key_package = response
+            .key_package
+            .ok_or_missing_field("key_package")?
+            .try_into()
+            .map_err(|error| {
+                error!(%error, "invalid key_package in response");
+                QsRequestError::UnexpectedResponse
+            })?;
+        Ok(key_package)
     }
 
     pub async fn qs_encryption_key(&self) -> Result<EncryptionKeyResponse, QsRequestError> {

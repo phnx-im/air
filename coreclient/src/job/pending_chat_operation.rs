@@ -6,7 +6,10 @@ use airapiclient::ds_api::DsRequestError;
 use aircommon::{
     credentials::{ClientCredential, keys::ClientSigningKey},
     identifiers::{QualifiedGroupId, UserId},
-    messages::client_ds_out::{DeleteGroupParamsOut, GroupOperationParamsOut, SelfRemoveParamsOut},
+    messages::client_ds_out::{
+        ApqGroupOperationParamsOut, DeleteGroupParamsOut, GroupOperationParamsOut,
+        SelfRemoveParamsOut,
+    },
     time::TimeStamp,
 };
 use airprotos::client::group::GroupData;
@@ -53,6 +56,15 @@ pub(super) enum OperationType {
         #[serde(with = "serde_bytes")]
         new_chat_picture: Option<Vec<u8>>,
     },
+    ApqOther {
+        params: Box<ApqGroupOperationParamsOut>,
+        /// New chat picture (if any)
+        ///
+        /// It was already uploaded as part of the external group profile but is not yet set as the
+        /// chat picture.
+        #[serde(with = "serde_bytes")]
+        new_chat_picture: Option<Vec<u8>>,
+    },
 }
 
 impl std::fmt::Display for OperationType {
@@ -61,6 +73,7 @@ impl std::fmt::Display for OperationType {
             OperationType::Leave(_) => write!(f, "leave"),
             OperationType::Delete(_) => write!(f, "delete"),
             OperationType::Other { .. } => write!(f, "other"),
+            OperationType::ApqOther { .. } => write!(f, "apq_other"),
         }
     }
 }
@@ -80,10 +93,26 @@ impl OperationType {
         }
     }
 
+    fn apq_other(params: ApqGroupOperationParamsOut) -> Self {
+        Self::apq_other_with_picture(params, None)
+    }
+
+    fn apq_other_with_picture(
+        params: ApqGroupOperationParamsOut,
+        new_chat_picture: Option<Vec<u8>>,
+    ) -> Self {
+        Self::ApqOther {
+            params: Box::new(params),
+            new_chat_picture,
+        }
+    }
+
     fn is_commit(&self) -> bool {
         match self {
             OperationType::Leave(_) => false,
-            OperationType::Delete(_) | OperationType::Other { .. } => true,
+            OperationType::Delete(_)
+            | OperationType::Other { .. }
+            | OperationType::ApqOther { .. } => true,
         }
     }
 
@@ -218,6 +247,7 @@ impl PendingChatOperation {
         }
 
         let mut new_chat_picture = None;
+        // TODO: Can we avoid cloning here?
         let res = match self.operation.clone() {
             OperationType::Leave(params) => {
                 api_client
@@ -236,6 +266,22 @@ impl PendingChatOperation {
                 new_chat_picture = chat_picture;
                 api_client
                     .ds_group_operation(*params, signer, self.group.group_state_ear_key())
+                    .await
+            }
+            OperationType::ApqOther {
+                params,
+                new_chat_picture: chat_picture,
+            } => {
+                new_chat_picture = chat_picture;
+                api_client
+                    .ds_apq_group_operation(
+                        *params,
+                        signer,
+                        self.group.group_state_ear_key(),
+                        self.group
+                            .group_state_pq_ear_key()
+                            .context("No PQ ear key in APQ operation")?,
+                    )
                     .await
             }
         };
@@ -548,9 +594,9 @@ impl PendingChatOperation {
         new_members: Vec<UserId>,
     ) -> Result<Self, JobError<ChatOperationError>> {
         // Load local data to prepare add operation
-        let chat = Chat::load(&mut *connection, &chat_id)
+        let mut group = Group::load_verified_with_chat_id(&mut *connection, chat_id)
             .await?
-            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+            .context("Can't find group for chat with id {chat_id:?}")?;
 
         let mut contact_wai_keys = Vec::with_capacity(new_members.len());
         let mut contacts = Vec::with_capacity(new_members.len());
@@ -575,19 +621,14 @@ impl PendingChatOperation {
         // Fetch add infos from the server
         let mut contact_add_infos: Vec<ContactAddInfos> = Vec::with_capacity(contacts.len());
         for contact in contacts {
-            let add_info = contact.fetch_add_infos(connection, api_clients).await?;
+            let add_info = contact
+                .fetch_add_infos(connection, api_clients, group.is_apq())
+                .await?;
             contact_add_infos.push(add_info);
         }
 
-        let group_id = chat.group_id();
         connection
             .with_transaction(async |txn| {
-                let mut group = Group::load_clean_verified(txn, group_id)
-                    .await
-                    .map_err(JobError::fatal)?
-                    .with_context(|| format!("Can't find group with id {group_id:?}"))
-                    .map_err(JobError::fatal)?;
-
                 let own_id = signer.credential().user_id();
 
                 // Room policy check (doesn't apply changes to room state yet)
@@ -596,23 +637,42 @@ impl PendingChatOperation {
                 }
 
                 // Adds new member and stages commit
-                let params = group
-                    .group_mut()
-                    .stage_invite(
-                        txn,
-                        signer,
-                        contact_add_infos,
-                        contact_wai_keys,
-                        client_credentials,
-                    )
-                    .await?
-                    // Check if we got a leaf node validation error which is domain specific and should
-                    // be propagated to the user.
-                    .map_err(|validation| JobError::domain(ChatOperationError::from(validation)))?;
+                let operation_type = if !group.is_apq() {
+                    let params = group
+                        .group_mut()
+                        .stage_invite(
+                            txn,
+                            signer,
+                            contact_add_infos,
+                            contact_wai_keys,
+                            client_credentials,
+                        )?
+                        // Check if we got a leaf node validation error which is domain specific and should
+                        // be propagated to the user.
+                        .map_err(|validation| {
+                            JobError::domain(ChatOperationError::from(validation))
+                        })?;
+                    OperationType::other(params)
+                } else {
+                    let params = group
+                        .group_mut()
+                        .stage_apq_invite(
+                            txn,
+                            signer,
+                            contact_add_infos,
+                            contact_wai_keys,
+                            client_credentials,
+                        )?
+                        // Check if we got a leaf node validation error which is domain specific and should
+                        // be propagated to the user.
+                        .map_err(|validation| {
+                            JobError::domain(ChatOperationError::from(validation))
+                        })?;
+                    OperationType::apq_other(params)
+                };
 
                 // Create PendingChatOperation job
-                let pending_chat_operation =
-                    PendingChatOperation::new(group, OperationType::other(params));
+                let pending_chat_operation = PendingChatOperation::new(group, operation_type);
                 pending_chat_operation.store(txn).await?;
 
                 Ok(pending_chat_operation)
