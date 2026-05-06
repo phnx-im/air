@@ -12,6 +12,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/effects/material.dart';
 import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:flutter/material.dart';
@@ -266,32 +267,39 @@ class _AttachmentImageState extends State<AttachmentImage> {
       children: [blurhash, if (foreground != null) foreground],
     );
 
+    final isAnimationPaused = _isAnimated == true && _stopped && _error == null;
+
     return AspectRatio(
       aspectRatio: widget.imageMetadata.width / widget.imageMetadata.height,
       child: Stack(
         fit: StackFit.expand,
         children: [
           GestureDetector(onTap: _onTap, child: content),
-          if (widget.isSender)
-            AttachmentUploadStatus(
-              attachmentId: widget.attachment.attachmentId,
-              size: widget.attachment.size,
-            ),
+          AttachmentImageOverlay(
+            attachmentId: widget.attachment.attachmentId,
+            size: widget.attachment.size,
+            isSender: widget.isSender,
+            isAnimationPaused: isAnimationPaused,
+          ),
         ],
       ),
     );
   }
 }
 
-class AttachmentUploadStatus extends HookWidget {
-  const AttachmentUploadStatus({
+class AttachmentImageOverlay extends HookWidget {
+  const AttachmentImageOverlay({
     super.key,
     required this.attachmentId,
     required this.size,
+    required this.isSender,
+    required this.isAnimationPaused,
   });
 
   final AttachmentId attachmentId;
   final int size;
+  final bool isSender;
+  final bool isAnimationPaused;
 
   @override
   Widget build(BuildContext context) {
@@ -304,13 +312,13 @@ class AttachmentUploadStatus extends HookWidget {
     final uploadStatus = useStream<UiAttachmentStatus>(uploadStatusSteam);
 
     final loc = AppLocalizations.of(context);
+    final colors = CustomColorScheme.of(context);
 
     return Align(
       alignment: Alignment.center,
       child: switch (uploadStatus.data) {
-        null || UiAttachmentStatus_Completed() => const SizedBox.shrink(),
         UiAttachmentStatus_Pending() ||
-        UiAttachmentStatus_Failed() => OutlinedButton(
+        UiAttachmentStatus_Failed() when isSender => OutlinedButton(
           onPressed: () {
             context.read<ChatDetailsCubit>().retryUploadAttachment(
               attachmentId,
@@ -325,44 +333,71 @@ class AttachmentUploadStatus extends HookWidget {
               Text(
                 loc.attachment_tryAgain,
                 style: TextStyle(
-                  color: CustomColorScheme.of(context).text.primary,
+                  color: colors.text.primary,
                   fontSize: LabelFontSize.base.size,
                 ),
               ),
             ],
           ),
         ),
-        UiAttachmentStatus_Progress(field0: final loaded) => ClipRRect(
-          borderRadius: BorderRadius.circular(100),
-          child: BackdropFilter(
-            filter: ui.ImageFilter.blur(sigmaX: 10, sigmaY: 10),
-            child: Padding(
-              padding: const EdgeInsets.all(Spacings.xs),
-              child: Stack(
-                alignment: Alignment.center,
-                children: [
-                  CircularProgressIndicator(
-                    strokeWidth: 2,
-                    valueColor: AlwaysStoppedAnimation<Color>(
-                      CustomColorScheme.of(context).text.primary,
-                    ),
-                    backgroundColor: Colors.transparent,
-                    value: loaded / BigInt.from(size),
+        UiAttachmentStatus_Progress(field0: final loaded) when isSender =>
+          _BlurredPill(
+            child: Stack(
+              alignment: Alignment.center,
+              children: [
+                CircularProgressIndicator(
+                  strokeWidth: 2,
+                  valueColor: AlwaysStoppedAnimation<Color>(
+                    colors.text.primary,
                   ),
-                  IconButton(
-                    onPressed: () {
-                      context.read<AttachmentsRepository>().cancel(
-                        attachmentId: attachmentId,
-                      );
-                    },
-                    icon: const AppIcon.x(size: 24),
-                  ),
-                ],
-              ),
+                  backgroundColor: Colors.transparent,
+                  value: loaded / BigInt.from(size),
+                ),
+                IconButton(
+                  onPressed: () {
+                    context.read<AttachmentsRepository>().cancel(
+                      attachmentId: attachmentId,
+                    );
+                  },
+                  icon: const AppIcon.x(size: 24),
+                ),
+              ],
             ),
           ),
+        _ when isAnimationPaused => IgnorePointer(
+          child: _BlurredPill(
+            child: AppIcon.rotateCw(size: 24, color: colors.text.primary),
+          ),
         ),
+        _ => const SizedBox.shrink(),
       },
+    );
+  }
+}
+
+/// Centered blurred pill used as the visual container for image overlays.
+class _BlurredPill extends StatelessWidget {
+  const _BlurredPill({required this.child});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return ClipRRect(
+      borderRadius: BorderRadius.circular(1000),
+      child: BackdropFilter(
+        filter: ui.ImageFilter.blur(
+          sigmaX: kMaterialBlurMedium,
+          sigmaY: kMaterialBlurMedium,
+        ),
+        child: ColoredBox(
+          color: CustomColorScheme.of(context).material.tertiary,
+          child: Padding(
+            padding: const EdgeInsets.all(Spacings.s),
+            child: child,
+          ),
+        ),
+      ),
     );
   }
 }
