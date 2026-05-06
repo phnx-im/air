@@ -18,7 +18,8 @@ use crate::store::{StoreNotificationsSender, StoreNotifier};
 /// access, and a [`StoreNotifier`] for tracking database changes.
 #[derive(Debug, Clone)]
 pub struct DbAccess {
-    pool: SqlitePool,
+    read_write_pool: SqlitePool,
+    read_only_pool: SqlitePool,
     pub(crate) notifier_tx: StoreNotificationsSender,
 }
 
@@ -117,18 +118,36 @@ pub(crate) trait WriteConnection: ReadConnection + AsMut<SqliteConnection> + Sen
 }
 
 impl DbAccess {
-    /// Create a new [`DbAccess`] from a database connection pool.
-    pub(crate) fn new(pool: SqlitePool, notifier_tx: StoreNotificationsSender) -> Self {
-        Self { pool, notifier_tx }
+    /// Create a new [`DbAccess`] from a single shared database connection pool.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub(crate) fn with_single_pool(
+        pool: SqlitePool,
+        notifier_tx: StoreNotificationsSender,
+    ) -> Self {
+        Self {
+            read_write_pool: pool.clone(),
+            read_only_pool: pool,
+            notifier_tx,
+        }
+    }
+
+    /// Create a new [`DbAccess`] from two database connection pool.
+    pub(crate) fn with_split_pools(
+        read_write_pool: SqlitePool,
+        read_only_pool: SqlitePool,
+        notifier_tx: StoreNotificationsSender,
+    ) -> Self {
+        Self {
+            read_write_pool,
+            read_only_pool,
+            notifier_tx,
+        }
     }
 
     /// Create a new [`DbAccess`] for testing with a local store notifier.
     #[cfg(test)]
     pub(crate) fn for_tests(pool: SqlitePool) -> Self {
-        Self {
-            pool,
-            notifier_tx: StoreNotificationsSender::new(),
-        }
+        Self::with_single_pool(pool, StoreNotificationsSender::new())
     }
 
     /// Create a new [`StoreNotifier`] for this [`DbAccess`].
@@ -138,13 +157,13 @@ impl DbAccess {
 
     /// Acquire a read-only database connection.
     pub(crate) async fn read(&self) -> sqlx::Result<ReadDbConnection> {
-        let conn = self.pool.acquire().await?;
+        let conn = self.read_only_pool.acquire().await?;
         Ok(ReadDbConnection { conn })
     }
 
     /// Acquire a write database connection.
     pub(crate) async fn write(&self) -> sqlx::Result<WriteDbConnection> {
-        let conn = self.pool.acquire().await?;
+        let conn = self.read_write_pool.acquire().await?;
         Ok(WriteDbConnection {
             conn,
             notifier_tx: self.notifier_tx.clone(),

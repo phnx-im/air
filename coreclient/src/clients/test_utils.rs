@@ -31,10 +31,10 @@ impl CoreUser {
         let notifier_tx = StoreNotificationsSender::new();
 
         // Open the air db to store the client record
-        let air_db = DbAccess::new(open_db_in_memory().await?, notifier_tx.clone());
+        let air_db = DbAccess::with_single_pool(open_db_in_memory().await?, notifier_tx.clone());
 
         // Open client specific db
-        let client_db = DbAccess::new(open_db_in_memory().await?, notifier_tx);
+        let client_db = DbAccess::with_single_pool(open_db_in_memory().await?, notifier_tx);
 
         let temp_file = tempfile::NamedTempFile::new()?;
         let global_lock = GlobalLock::from_path(temp_file.path())?;
