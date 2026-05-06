@@ -35,13 +35,27 @@ pub(crate) const AIR_DB_NAME: &str = "air.db";
 pub(crate) async fn open_air_db(db_path: &str) -> sqlx::Result<DbAccess> {
     let db_url = format!("sqlite://{db_path}/{AIR_DB_NAME}");
     let opts: SqliteConnectOptions = db_url.parse()?;
-    let opts = opts
+    let write_opts = opts
+        .clone()
         .journal_mode(SqliteJournalMode::Wal)
         .create_if_missing(true);
-    let pool = SqlitePoolOptions::new()
+    let write_pool = SqlitePoolOptions::new()
         .idle_timeout(None)
         .max_lifetime(None)
-        .connect_with(opts)
+        .before_acquire(|_, _| {
+            Box::pin(async {
+                info!("acquiring from write pool");
+                Ok(true)
+            })
+        })
+        .after_release(|_, _| {
+            Box::pin(async {
+                info!("released to write pool");
+                Ok(true)
+            })
+        })
+        .max_connections(1) // this is key to our approach
+        .connect_with(write_opts)
         .await?;
 
     // Delete the old migration table if it exists
@@ -49,18 +63,29 @@ pub(crate) async fn open_air_db(db_path: &str) -> sqlx::Result<DbAccess> {
     if let Ok(Some(_)) = sqlx::query_scalar::<_, i64>(&format!(
         "SELECT 1 FROM _sqlx_migrations WHERE version = {FIRST_MIGRATION}"
     ))
-    .fetch_optional(&pool)
+    .fetch_optional(&write_pool)
     .await
     {
         // The database is based on old migration
         sqlx::query("DROP TABLE IF EXISTS _sqlx_migrations")
-            .execute(&pool)
+            .execute(&write_pool)
             .await?;
     }
 
-    migrate!("migrations/air").run(&pool).await?;
+    migrate!("migrations/air").run(&write_pool).await?;
 
-    Ok(DbAccess::new(pool, StoreNotificationsSender::new()))
+    let read_opts = opts.read_only(true).journal_mode(SqliteJournalMode::Wal);
+    let read_pool = SqlitePoolOptions::new()
+        .idle_timeout(None)
+        .max_lifetime(None)
+        .connect_with(read_opts)
+        .await?;
+
+    Ok(DbAccess::with_split_pools(
+        write_pool,
+        read_pool,
+        StoreNotificationsSender::new(),
+    ))
 }
 
 #[cfg(feature = "test_utils")]
@@ -149,12 +174,14 @@ pub async fn open_client_db(user_id: &UserId, client_db_path: &str) -> sqlx::Res
     let client_db_name = client_db_name(user_id);
     let db_url = format!("sqlite://{client_db_path}/{client_db_name}");
     let opts: SqliteConnectOptions = db_url.parse()?;
-    let opts = opts
+    let write_opts = opts
+        .clone()
         .journal_mode(SqliteJournalMode::Wal)
         .create_if_missing(true);
-    let pool = SqlitePoolOptions::new()
+    let write_pool = SqlitePoolOptions::new()
         .idle_timeout(None)
         .max_lifetime(None)
+        .max_connections(1)
         .after_release(|conn, _meta| {
             // Discard connections that are left in an open transaction.
             //
@@ -165,12 +192,23 @@ pub async fn open_client_db(user_id: &UserId, client_db_path: &str) -> sqlx::Res
             let return_to_pool = SqliteTransactionManager::get_transaction_depth(conn) == 0;
             Box::pin(ready(Ok(return_to_pool)))
         })
-        .connect_with(opts)
+        .connect_with(write_opts)
         .await?;
 
-    migrate!().run(&pool).await?;
+    migrate!().run(&write_pool).await?;
 
-    Ok(DbAccess::new(pool, StoreNotificationsSender::new()))
+    let read_opts = opts.journal_mode(SqliteJournalMode::Wal).read_only(true);
+    let read_pool = SqlitePoolOptions::new()
+        .idle_timeout(None)
+        .max_lifetime(None)
+        .connect_with(read_opts)
+        .await?;
+
+    Ok(DbAccess::with_split_pools(
+        write_pool,
+        read_pool,
+        StoreNotificationsSender::new(),
+    ))
 }
 
 pub(crate) fn open_lock_file(db_path: &str) -> std::io::Result<GlobalLock> {

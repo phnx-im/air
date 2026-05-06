@@ -23,8 +23,8 @@ async fn user_stages() -> anyhow::Result<()> {
     let user_id = UserId::random("example.com".parse().unwrap());
 
     let notifier_tx = StoreNotificationsSender::new();
-    let air_db = DbAccess::new(open_db_in_memory().await?, notifier_tx.clone());
-    let client_db = DbAccess::new(open_db_in_memory().await?, notifier_tx);
+    let air_db = DbAccess::with_single_pool(open_db_in_memory().await?, notifier_tx.clone());
+    let client_db = DbAccess::with_single_pool(open_db_in_memory().await?, notifier_tx);
 
     let api_clients = ApiClients::new(user_id.domain().clone(), server_url.clone());
 
