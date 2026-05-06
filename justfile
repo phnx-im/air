@@ -183,11 +183,7 @@ update-goldens:
 # Trigger the "Update Goldens" workflow on the current branch, or a given PR.
 [script]
 update-goldens-ci pr='':
-    if [ -n "{{pr}}" ]; then
-        ref=$(gh pr view "{{pr}}" --json headRefName -q .headRefName)
-    else
-        ref=$(git branch --show-current)
-    fi
+    ref=$(gh pr view "{{pr}}" --json headRefName -q .headRefName)
     echo "Dispatching update-goldens.yml on ref: $ref"
     gh workflow run update-goldens.yml --ref "$ref"
 
