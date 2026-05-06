@@ -16,10 +16,10 @@ use tracing::error;
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage,
     chats::GroupDataExt,
+    db_access::WriteConnection,
     groups::Group,
     job::{Job, JobContext, JobError},
     key_stores::indexed_keys::StorableIndexedKey,
-    utils::connection_ext::ConnectionExt as _,
 };
 
 pub(crate) struct CreateChat {
@@ -37,7 +37,7 @@ impl Job for CreateChat {
 
     async fn execute_logic(
         self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<ChatId, JobError<Self::DomainError>> {
         self.execute_internal(context).await
     }
@@ -58,7 +58,7 @@ impl CreateChat {
 
     async fn execute_internal(
         self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<ChatId, JobError<DomainError>> {
         let Self {
             chat_attributes,
@@ -68,8 +68,7 @@ impl CreateChat {
 
         let JobContext {
             api_clients,
-            connection,
-            notifier,
+            db,
             key_store,
             http_client,
             ..
@@ -134,11 +133,13 @@ impl CreateChat {
 
         // Create the group. If the query to the DS fails later on, we just
         // clean up the group, so this is repeatable.
-        let (group, chat, partial_params, encrypted_user_profile_key) = connection
+        let (group, chat, partial_params, encrypted_user_profile_key) = db
+            .write()
+            .await?
             .with_transaction(async |txn| -> anyhow::Result<_> {
                 let (group, partial_params) = if is_apq {
                     Group::create_apq_group(
-                        txn,
+                        &mut *txn,
                         &key_store.signing_key,
                         identity_link_wrapper_key,
                         group_id,
@@ -147,7 +148,7 @@ impl CreateChat {
                     )?
                 } else {
                     Group::create_group(
-                        txn,
+                        &mut *txn,
                         &key_store.signing_key,
                         identity_link_wrapper_key,
                         group_id,
@@ -155,14 +156,14 @@ impl CreateChat {
                     )?
                 };
 
-                let user_profile_key = UserProfileKey::load_own(txn.as_mut()).await?;
+                let user_profile_key = UserProfileKey::load_own(&mut *txn).await?;
                 let encrypted_user_profile_key =
                     user_profile_key.encrypt(group.identity_link_wrapper_key(), own_user_id)?;
 
                 group.store(&mut *txn).await?;
 
                 let chat = Chat::new_group_chat(partial_params.group_id.clone(), chat_attributes);
-                chat.store(txn.as_mut(), notifier).await?;
+                chat.store(&mut *txn).await?;
                 Ok((group, chat, partial_params, encrypted_user_profile_key))
             })
             .await?;
@@ -177,10 +178,11 @@ impl CreateChat {
             )
             .await
         {
-            connection
-                .with_transaction(async |txn| -> sqlx::Result<_> {
-                    Group::delete_from_db(txn, group.group_id()).await?;
-                    Chat::delete(txn.as_mut(), notifier, chat.id()).await?;
+            db.write()
+                .await?
+                .with_transaction(async |txn| -> Result<_, JobError<_>> {
+                    Group::delete_from_db(&mut *txn, group.group_id()).await?;
+                    Chat::delete(txn, chat.id()).await?;
                     Ok(())
                 })
                 .await?;
@@ -194,7 +196,7 @@ impl CreateChat {
             TimeStamp::now(),
             SystemMessage::CreateGroup(own_user_id.clone()),
         )
-        .store(&mut **connection, notifier)
+        .store(db.write().await?)
         .await?;
 
         Ok(chat.id())

@@ -10,11 +10,13 @@
 use std::fmt;
 
 // Re-export for FRB-reasons
-pub(crate) use aircommon::identifiers::Username;
+pub(crate) use aircommon::{
+    component::{AirComponent, AirFeatures},
+    identifiers::{Username, UsernameValidationError},
+};
 pub(crate) use aircoreclient::{AddUsernameContactError, ChatId, MessageId};
 
 use aircommon::identifiers::UserId;
-pub(crate) use aircommon::identifiers::UsernameValidationError;
 use aircoreclient::{
     Asset, ChatAttributes, ChatMessage, ChatStatus, ChatType, Contact, ContentMessage, DisplayName,
     ErrorMessage, EventMessage, InactiveChat, Message, MessageDraft, SystemMessage,
@@ -634,6 +636,7 @@ impl UiFlightPosition {
 pub struct UiContact {
     pub user_id: UiUserId,
     pub chat_id: ChatId,
+    pub supported_features: Option<AirFeatures>,
 }
 
 impl From<Contact> for UiContact {
@@ -641,6 +644,7 @@ impl From<Contact> for UiContact {
         Self {
             user_id: contact.user_id.into(),
             chat_id: contact.chat_id,
+            supported_features: contact.supported_features,
         }
     }
 }
@@ -650,6 +654,7 @@ impl From<TargetedMessageContact> for UiContact {
         Self {
             user_id: contact.user_id.into(),
             chat_id: contact.chat_id,
+            supported_features: None,
         }
     }
 }
@@ -790,4 +795,19 @@ impl From<Username> for UiUsername {
             plaintext: username.into_plaintext(),
         }
     }
+}
+
+#[frb(unignore)]
+#[frb(mirror(AirComponent))]
+#[frb(dart_metadata = ("freezed"))]
+struct _AirComponent {
+    pub features: AirFeatures,
+}
+
+#[frb(unignore)]
+#[frb(mirror(AirFeatures))]
+#[frb(dart_metadata = ("freezed"))]
+struct _AirFeatures {
+    pub encrypted_group_profiles: bool,
+    pub pq_groups: bool,
 }

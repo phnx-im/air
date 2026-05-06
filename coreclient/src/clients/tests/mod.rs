@@ -7,6 +7,8 @@ use airserver_test_harness::utils::setup::TestBackend;
 
 use crate::{
     clients::store::{ClientRecord, ClientRecordState, UserCreationState},
+    db_access::DbAccess,
+    store::StoreNotificationsSender,
     utils::persistence::open_db_in_memory,
 };
 
@@ -20,8 +22,9 @@ async fn user_stages() -> anyhow::Result<()> {
 
     let user_id = UserId::random("example.com".parse().unwrap());
 
-    let air_db = open_db_in_memory().await?;
-    let client_db = open_db_in_memory().await?;
+    let notifier_tx = StoreNotificationsSender::new();
+    let air_db = DbAccess::new(open_db_in_memory().await?, notifier_tx.clone());
+    let client_db = DbAccess::new(open_db_in_memory().await?, notifier_tx);
 
     let api_clients = ApiClients::new(user_id.domain().clone(), server_url.clone());
 
@@ -35,7 +38,7 @@ async fn user_stages() -> anyhow::Result<()> {
     .await?;
 
     // There should now be a client record state in the air db.
-    let client_records = ClientRecord::load_all(&air_db).await?;
+    let client_records = ClientRecord::load_all(air_db.read().await?).await?;
     assert!(client_records.len() == 1);
     let client_record = client_records.first().unwrap();
     assert!(client_record.user_id == user_id);
@@ -45,7 +48,7 @@ async fn user_stages() -> anyhow::Result<()> {
     ));
 
     // If we load a user state now, it should be the basic user data state.
-    let loaded_state = UserCreationState::load(&client_db, &user_id)
+    let loaded_state = UserCreationState::load(client_db.read().await?, &user_id)
         .await?
         .unwrap();
     assert!(matches!(loaded_state, UserCreationState::BasicUserData(_)));
@@ -61,7 +64,7 @@ async fn user_stages() -> anyhow::Result<()> {
         .unwrap();
 
     // If we load a user state now, it should be the initial user state.
-    let loaded_state = UserCreationState::load(&client_db, &user_id)
+    let loaded_state = UserCreationState::load(client_db.read().await?, &user_id)
         .await?
         .unwrap();
     assert!(matches!(
@@ -80,7 +83,7 @@ async fn user_stages() -> anyhow::Result<()> {
         .unwrap();
 
     // If we load a user state now, it should be the post registration init state.
-    let loaded_state = UserCreationState::load(&client_db, &user_id)
+    let loaded_state = UserCreationState::load(client_db.read().await?, &user_id)
         .await?
         .unwrap();
     assert!(matches!(
@@ -99,7 +102,7 @@ async fn user_stages() -> anyhow::Result<()> {
         .unwrap();
 
     // If we load a user state now, it should be the unfinalized registration state.
-    let loaded_state = UserCreationState::load(&client_db, &user_id)
+    let loaded_state = UserCreationState::load(client_db.read().await?, &user_id)
         .await?
         .unwrap();
     assert!(matches!(
@@ -118,7 +121,7 @@ async fn user_stages() -> anyhow::Result<()> {
         .unwrap();
 
     // If we load a user state now, it should be the AS registered user state.
-    let loaded_state = UserCreationState::load(&client_db, &user_id)
+    let loaded_state = UserCreationState::load(client_db.read().await?, &user_id)
         .await?
         .unwrap();
     assert!(matches!(
@@ -137,7 +140,7 @@ async fn user_stages() -> anyhow::Result<()> {
         .unwrap();
 
     // If we load a user state now, it should be the QS registered user state.
-    let loaded_state = UserCreationState::load(&client_db, &user_id)
+    let loaded_state = UserCreationState::load(client_db.read().await?, &user_id)
         .await?
         .unwrap();
     assert!(matches!(
@@ -156,7 +159,7 @@ async fn user_stages() -> anyhow::Result<()> {
         .unwrap();
 
     // If we load a user state now, it should be the final user state.
-    let loaded_state = UserCreationState::load(&client_db, &user_id)
+    let loaded_state = UserCreationState::load(client_db.read().await?, &user_id)
         .await?
         .unwrap();
     assert!(matches!(loaded_state, UserCreationState::FinalUserState(_)));

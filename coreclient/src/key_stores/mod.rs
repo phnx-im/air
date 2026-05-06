@@ -19,11 +19,11 @@ use openmls::prelude::{
     SignaturePublicKey, UnknownExtension,
 };
 use openmls_traits::storage::StorageProvider;
-use sqlx::SqliteConnection;
 use tls_codec::Serialize as TlsSerializeTrait;
 
 use crate::{
     clients::{CIPHERSUITE, api_clients::ApiClients},
+    db_access::WriteConnection,
     groups::openmls_provider::AirOpenMlsProvider,
 };
 
@@ -81,7 +81,7 @@ impl MemoryUserKeyStore {
 
     pub(crate) fn generate_key_package(
         &self,
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         qs_client_id: &QsClientId,
         last_resort: bool,
     ) -> Result<KeyPackage> {
@@ -110,7 +110,7 @@ impl MemoryUserKeyStore {
             default_key_package_extensions()
         };
 
-        let provider = AirOpenMlsProvider::new(connection);
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
 
         let kp = KeyPackage::builder()
             .key_package_extensions(key_package_extensions)
@@ -128,7 +128,7 @@ impl MemoryUserKeyStore {
 
     pub(crate) fn generate_apq_key_package(
         &self,
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         qs_client_id: &QsClientId,
         last_resort: bool,
     ) -> Result<ApqKeyPackage> {
@@ -161,7 +161,7 @@ impl MemoryUserKeyStore {
             default_key_package_extensions()
         };
 
-        let provider = AirOpenMlsProvider::new(connection);
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
 
         let kp = ApqKeyPackage::builder()
             .key_package_extensions(key_package_extensions)
@@ -179,10 +179,10 @@ impl MemoryUserKeyStore {
 
     pub(crate) fn delete_key_package(
         &self,
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         key_package_ref: KeyPackageRef,
     ) -> Result<()> {
-        let provider = AirOpenMlsProvider::new(connection);
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
 
         provider.storage().delete_key_package(&key_package_ref)?;
         Ok(())

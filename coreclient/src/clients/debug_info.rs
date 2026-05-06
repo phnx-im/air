@@ -29,7 +29,7 @@ pub struct UserDebugInfo {
 
 impl CoreUser {
     pub async fn user_debug_info(&self) -> anyhow::Result<UserDebugInfo> {
-        let pool = self.pool();
+        let db = self.db();
 
         let uid = self.user_id();
         let user_id = format!("{}@{}", uid.uuid(), uid.domain());
@@ -38,7 +38,7 @@ impl CoreUser {
             "SELECT data, scheduled_at FROM operation
             WHERE kind = 'timed_task' ORDER BY scheduled_at ASC",
         )
-        .fetch_all(pool)
+        .fetch_all(db.read().await?.as_mut())
         .await?;
 
         let mut timed_tasks = Vec::new();
@@ -54,10 +54,11 @@ impl CoreUser {
         }
 
         let add_username_token_count =
-            privacy_pass::persistence::token_count(pool, OperationType::AddUsername).await? as u32;
+            privacy_pass::persistence::token_count(db.read().await?, OperationType::AddUsername)
+                .await? as u32;
         let invitation_code_token_count =
-            privacy_pass::persistence::token_count(pool, OperationType::GetInviteCode).await?
-                as u32;
+            privacy_pass::persistence::token_count(db.read().await?, OperationType::GetInviteCode)
+                .await? as u32;
 
         Ok(UserDebugInfo {
             user_id,

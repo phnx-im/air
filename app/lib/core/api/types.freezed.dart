@@ -12,6 +12,283 @@ part of 'types.dart';
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
+mixin _$AirComponent {
+
+ AirFeatures get features;
+/// Create a copy of AirComponent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$AirComponentCopyWith<AirComponent> get copyWith => _$AirComponentCopyWithImpl<AirComponent>(this as AirComponent, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AirComponent&&(identical(other.features, features) || other.features == features));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,features);
+
+@override
+String toString() {
+  return 'AirComponent(features: $features)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $AirComponentCopyWith<$Res>  {
+  factory $AirComponentCopyWith(AirComponent value, $Res Function(AirComponent) _then) = _$AirComponentCopyWithImpl;
+@useResult
+$Res call({
+ AirFeatures features
+});
+
+
+$AirFeaturesCopyWith<$Res> get features;
+
+}
+/// @nodoc
+class _$AirComponentCopyWithImpl<$Res>
+    implements $AirComponentCopyWith<$Res> {
+  _$AirComponentCopyWithImpl(this._self, this._then);
+
+  final AirComponent _self;
+  final $Res Function(AirComponent) _then;
+
+/// Create a copy of AirComponent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? features = null,}) {
+  return _then(_self.copyWith(
+features: null == features ? _self.features : features // ignore: cast_nullable_to_non_nullable
+as AirFeatures,
+  ));
+}
+/// Create a copy of AirComponent
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$AirFeaturesCopyWith<$Res> get features {
+  
+  return $AirFeaturesCopyWith<$Res>(_self.features, (value) {
+    return _then(_self.copyWith(features: value));
+  });
+}
+}
+
+
+
+/// @nodoc
+
+
+class _AirComponent implements AirComponent {
+  const _AirComponent({required this.features});
+  
+
+@override final  AirFeatures features;
+
+/// Create a copy of AirComponent
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$AirComponentCopyWith<_AirComponent> get copyWith => __$AirComponentCopyWithImpl<_AirComponent>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AirComponent&&(identical(other.features, features) || other.features == features));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,features);
+
+@override
+String toString() {
+  return 'AirComponent(features: $features)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$AirComponentCopyWith<$Res> implements $AirComponentCopyWith<$Res> {
+  factory _$AirComponentCopyWith(_AirComponent value, $Res Function(_AirComponent) _then) = __$AirComponentCopyWithImpl;
+@override @useResult
+$Res call({
+ AirFeatures features
+});
+
+
+@override $AirFeaturesCopyWith<$Res> get features;
+
+}
+/// @nodoc
+class __$AirComponentCopyWithImpl<$Res>
+    implements _$AirComponentCopyWith<$Res> {
+  __$AirComponentCopyWithImpl(this._self, this._then);
+
+  final _AirComponent _self;
+  final $Res Function(_AirComponent) _then;
+
+/// Create a copy of AirComponent
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? features = null,}) {
+  return _then(_AirComponent(
+features: null == features ? _self.features : features // ignore: cast_nullable_to_non_nullable
+as AirFeatures,
+  ));
+}
+
+/// Create a copy of AirComponent
+/// with the given fields replaced by the non-null parameter values.
+@override
+@pragma('vm:prefer-inline')
+$AirFeaturesCopyWith<$Res> get features {
+  
+  return $AirFeaturesCopyWith<$Res>(_self.features, (value) {
+    return _then(_self.copyWith(features: value));
+  });
+}
+}
+
+/// @nodoc
+mixin _$AirFeatures {
+
+ bool get encryptedGroupProfiles; bool get pqGroups;
+/// Create a copy of AirFeatures
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$AirFeaturesCopyWith<AirFeatures> get copyWith => _$AirFeaturesCopyWithImpl<AirFeatures>(this as AirFeatures, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AirFeatures&&(identical(other.encryptedGroupProfiles, encryptedGroupProfiles) || other.encryptedGroupProfiles == encryptedGroupProfiles)&&(identical(other.pqGroups, pqGroups) || other.pqGroups == pqGroups));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,encryptedGroupProfiles,pqGroups);
+
+@override
+String toString() {
+  return 'AirFeatures(encryptedGroupProfiles: $encryptedGroupProfiles, pqGroups: $pqGroups)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $AirFeaturesCopyWith<$Res>  {
+  factory $AirFeaturesCopyWith(AirFeatures value, $Res Function(AirFeatures) _then) = _$AirFeaturesCopyWithImpl;
+@useResult
+$Res call({
+ bool encryptedGroupProfiles, bool pqGroups
+});
+
+
+
+
+}
+/// @nodoc
+class _$AirFeaturesCopyWithImpl<$Res>
+    implements $AirFeaturesCopyWith<$Res> {
+  _$AirFeaturesCopyWithImpl(this._self, this._then);
+
+  final AirFeatures _self;
+  final $Res Function(AirFeatures) _then;
+
+/// Create a copy of AirFeatures
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') @override $Res call({Object? encryptedGroupProfiles = null,Object? pqGroups = null,}) {
+  return _then(_self.copyWith(
+encryptedGroupProfiles: null == encryptedGroupProfiles ? _self.encryptedGroupProfiles : encryptedGroupProfiles // ignore: cast_nullable_to_non_nullable
+as bool,pqGroups: null == pqGroups ? _self.pqGroups : pqGroups // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
+}
+
+
+
+/// @nodoc
+
+
+class _AirFeatures implements AirFeatures {
+  const _AirFeatures({required this.encryptedGroupProfiles, required this.pqGroups});
+  
+
+@override final  bool encryptedGroupProfiles;
+@override final  bool pqGroups;
+
+/// Create a copy of AirFeatures
+/// with the given fields replaced by the non-null parameter values.
+@override @JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+_$AirFeaturesCopyWith<_AirFeatures> get copyWith => __$AirFeaturesCopyWithImpl<_AirFeatures>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AirFeatures&&(identical(other.encryptedGroupProfiles, encryptedGroupProfiles) || other.encryptedGroupProfiles == encryptedGroupProfiles)&&(identical(other.pqGroups, pqGroups) || other.pqGroups == pqGroups));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,encryptedGroupProfiles,pqGroups);
+
+@override
+String toString() {
+  return 'AirFeatures(encryptedGroupProfiles: $encryptedGroupProfiles, pqGroups: $pqGroups)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class _$AirFeaturesCopyWith<$Res> implements $AirFeaturesCopyWith<$Res> {
+  factory _$AirFeaturesCopyWith(_AirFeatures value, $Res Function(_AirFeatures) _then) = __$AirFeaturesCopyWithImpl;
+@override @useResult
+$Res call({
+ bool encryptedGroupProfiles, bool pqGroups
+});
+
+
+
+
+}
+/// @nodoc
+class __$AirFeaturesCopyWithImpl<$Res>
+    implements _$AirFeaturesCopyWith<$Res> {
+  __$AirFeaturesCopyWithImpl(this._self, this._then);
+
+  final _AirFeatures _self;
+  final $Res Function(_AirFeatures) _then;
+
+/// Create a copy of AirFeatures
+/// with the given fields replaced by the non-null parameter values.
+@override @pragma('vm:prefer-inline') $Res call({Object? encryptedGroupProfiles = null,Object? pqGroups = null,}) {
+  return _then(_AirFeatures(
+encryptedGroupProfiles: null == encryptedGroupProfiles ? _self.encryptedGroupProfiles : encryptedGroupProfiles // ignore: cast_nullable_to_non_nullable
+as bool,pqGroups: null == pqGroups ? _self.pqGroups : pqGroups // ignore: cast_nullable_to_non_nullable
+as bool,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$UiChatMessage {
 
  ChatId get chatId; MessageId get id; DateTime get timestamp; UiMessage get message; UiInReplyToMessage? get inReplyToMessage; UiFlightPosition get position; UiMessageStatus get status;

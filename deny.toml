@@ -58,12 +58,6 @@ exceptions = [
     ], crate = "mimi-room-policy" },
     { allow = [
         "AGPL-3.0-or-later",
-    ], crate = "serde_list" },
-    { allow = [
-        "AGPL-3.0-or-later",
-    ], crate = "serde_list_macros" },
-    { allow = [
-        "AGPL-3.0-or-later",
     ], crate = "apqmls" },
 ]
 

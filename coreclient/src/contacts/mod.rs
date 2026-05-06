@@ -5,6 +5,7 @@
 use std::iter;
 
 use aircommon::{
+    component::AirFeatures,
     credentials::VerifiableClientCredential,
     crypto::{
         aead::keys::{FriendshipPackageEarKey, WelcomeAttributionInfoEarKey},
@@ -16,12 +17,12 @@ use aircommon::{
 use apqmls::messages::ApqKeyPackage;
 use openmls::{prelude::KeyPackage, versions::ProtocolVersion};
 use openmls_rust_crypto::RustCrypto;
-use sqlx::SqliteConnection;
 
 use crate::{
     ChatId,
     clients::api_clients::ApiClients,
-    groups::client_auth_info::StorableClientCredential,
+    db_access::{ReadConnection, WriteConnection},
+    groups::{Group, client_auth_info::StorableClientCredential},
     key_stores::{as_credentials::AsCredentials, indexed_keys::StorableIndexedKey},
     user_profiles::IndexedUserProfile,
 };
@@ -32,11 +33,16 @@ pub(crate) mod persistence;
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Contact {
     pub user_id: UserId,
-    // Encryption key for WelcomeAttributionInfos
+    /// Encryption key for WelcomeAttributionInfos
     pub(crate) wai_ear_key: WelcomeAttributionInfoEarKey,
     pub(crate) friendship_token: FriendshipToken,
-    // ID of the connection chat with this contact.
+    /// ID of the connection chat with this contact.
     pub chat_id: ChatId,
+    /// Features supported by the contact
+    ///
+    /// `None` means that the features are not yet loaded. Load on demand with
+    /// [`Contact::augment_supported_features`].
+    pub supported_features: Option<AirFeatures>,
 }
 
 #[derive(Debug, Clone)]
@@ -54,7 +60,7 @@ pub(crate) enum ContactKeyPackage {
 impl Contact {
     pub(crate) async fn fetch_add_infos(
         &self,
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         api_clients: &ApiClients,
         is_apq: bool,
     ) -> Result<ContactAddInfos> {
@@ -93,18 +99,22 @@ impl Contact {
         };
         let verifiable_client_credential =
             VerifiableClientCredential::from_basic_credential(client_credential)?;
-        let as_credential = AsCredentials::fetch_for_verification(
-            connection,
-            api_clients,
-            iter::once(&verifiable_client_credential),
-        )
-        .await?;
+        let as_credential = connection
+            .with_transaction(async |txn| {
+                AsCredentials::fetch_for_verification(
+                    txn,
+                    api_clients,
+                    iter::once(&verifiable_client_credential),
+                )
+                .await
+            })
+            .await?;
         let incoming_client_credential =
             StorableClientCredential::verify(verifiable_client_credential, &as_credential)?;
 
         // Check that the client credential is the same as the one we have on file.
         let current_client_credential = StorableClientCredential::load_by_user_id(
-            &mut *connection,
+            &mut connection,
             incoming_client_credential.user_id(),
         )
         .await?
@@ -113,11 +123,11 @@ impl Contact {
             bail!("Client credential does not match");
         }
 
-        let user_profile = IndexedUserProfile::load(&mut *connection, &self.user_id)
+        let user_profile = IndexedUserProfile::load(&mut connection, &self.user_id)
             .await?
             .context("User profile not found")?;
         let user_profile_key =
-            UserProfileKey::load(&mut *connection, user_profile.decryption_key_index()).await?;
+            UserProfileKey::load(connection, user_profile.decryption_key_index()).await?;
 
         Ok(ContactAddInfos {
             key_package,
@@ -127,6 +137,19 @@ impl Contact {
 
     pub(crate) fn wai_ear_key(&self) -> &WelcomeAttributionInfoEarKey {
         &self.wai_ear_key
+    }
+
+    /// Augment the supported features from the contact's connection group.
+    pub(crate) async fn augment_supported_features(
+        &mut self,
+        connection: impl ReadConnection,
+    ) -> sqlx::Result<()> {
+        if let Some(group) = Group::load_by_connection_user_id(connection, &self.user_id).await?
+            && let Some(air_component) = group.member_air_component(&self.user_id)
+        {
+            self.supported_features = Some(air_component.features);
+        }
+        Ok(())
     }
 }
 

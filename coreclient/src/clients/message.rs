@@ -5,16 +5,15 @@
 use aircommon::{identifiers::UserId, time::TimeStamp};
 use anyhow::{Context, bail};
 use mimi_content::{MessageStatus, MimiContent};
-use sqlx::SqliteTransaction;
 
 use crate::{
     Chat, ChatId, ChatMessage, ContentMessage, MessageId,
     chats::{StatusRecord, messages::edit::MessageEdit},
     clients::{attachment::AttachmentRecord, block_contact::BlockedContactError},
-    utils::connection_ext::StoreExt,
+    db_access::{WriteConnection, WriteDbTransaction},
 };
 
-use super::{CoreUser, Group, StoreNotifier};
+use super::{CoreUser, Group};
 
 impl CoreUser {
     /// Delete a message and send the deletion to other group members.
@@ -28,7 +27,7 @@ impl CoreUser {
         message_id: MessageId,
     ) -> anyhow::Result<ChatMessage> {
         // Load the message to get its mimi_id
-        let message = ChatMessage::load(self.pool().acquire().await?.as_mut(), message_id)
+        let message = ChatMessage::load(self.db().read().await?, message_id)
             .await?
             .with_context(|| format!("Can't find message with id {message_id:?}"))?;
 
@@ -46,22 +45,23 @@ impl CoreUser {
         if let Some(replaces_mimi_id) = replaces_mimi_id
             && let Some(redacted_mimi_id) = sent_message.message().mimi_id()
         {
-            self.with_transaction_and_notifier(async |txn, notifier| {
-                let updated_message_ids = ChatMessage::redact_all_in_reply_to_mimi_ids(
-                    txn.as_mut(),
-                    &replaces_message_id,
-                    &replaces_mimi_id,
-                    redacted_mimi_id,
-                )
+            self.db()
+                .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                    let updated_message_ids = ChatMessage::redact_all_in_reply_to_mimi_ids(
+                        &mut *txn,
+                        &replaces_message_id,
+                        &replaces_mimi_id,
+                        redacted_mimi_id,
+                    )
+                    .await?;
+
+                    for message_id in updated_message_ids {
+                        txn.notifier().add(message_id);
+                    }
+
+                    Ok(())
+                })
                 .await?;
-
-                for message_id in updated_message_ids {
-                    notifier.add(message_id);
-                }
-
-                Ok(())
-            })
-            .await?;
         }
 
         Ok(sent_message)
@@ -72,31 +72,32 @@ impl CoreUser {
     /// This completely removes the message from the database, including edit history
     /// and status records. The message will no longer appear in the chat.
     pub(crate) async fn delete_message_locally(&self, message_id: MessageId) -> anyhow::Result<()> {
-        self.with_transaction_and_notifier(async |txn, notifier| {
-            let message = ChatMessage::load(txn, message_id)
-                .await?
-                .with_context(|| format!("Can't find message with id {message_id:?}"))?;
+        self.db()
+            .with_write_transaction(async |txn| {
+                let message = ChatMessage::load(&mut *txn, message_id)
+                    .await?
+                    .with_context(|| format!("Can't find message with id {message_id:?}"))?;
 
-            // Find the IDs of all messages that are replies to the message we're deleting
-            // and mark them as updated, to notify the UI.
-            if let Some(replaces_mimi_id) = message.message().mimi_id() {
-                let message_ids_replied_to = ChatMessage::load_message_ids_in_reply_to_mimi_id(
-                    txn.as_mut(),
-                    replaces_mimi_id,
-                )
-                .await?;
+                // Find the IDs of all messages that are replies to the message we're deleting
+                // and mark them as updated, to notify the UI.
+                if let Some(replaces_mimi_id) = message.message().mimi_id() {
+                    let message_ids_replied_to = ChatMessage::load_message_ids_in_reply_to_mimi_id(
+                        &mut *txn,
+                        replaces_mimi_id,
+                    )
+                    .await?;
 
-                for message_id in message_ids_replied_to {
-                    notifier.add(message_id);
+                    for message_id in message_ids_replied_to {
+                        txn.notifier().add(message_id);
+                    }
                 }
-            }
 
-            // Delete the message (edit history and status records are cascade-deleted)
-            ChatMessage::delete(txn.as_mut(), notifier, message_id).await?;
+                // Delete the message (edit history and status records are cascade-deleted)
+                ChatMessage::delete(txn, message_id).await?;
 
-            Ok(())
-        })
-        .await
+                Ok(())
+            })
+            .await
     }
 
     /// Delete message content locally without sending a network message.
@@ -107,47 +108,48 @@ impl CoreUser {
         &self,
         message_id: MessageId,
     ) -> anyhow::Result<()> {
-        self.with_transaction_and_notifier(async |txn, notifier| {
-            let mut message = ChatMessage::load(txn, message_id)
-                .await?
-                .with_context(|| format!("Can't find message with id {message_id:?}"))?;
+        self.db()
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                let mut message = ChatMessage::load(&mut *txn, message_id)
+                    .await?
+                    .with_context(|| format!("Can't find message with id {message_id:?}"))?;
 
-            let chat = Chat::load(txn, &message.chat_id())
-                .await?
-                .with_context(|| format!("Can't find chat with id {:?}", message.chat_id()))?;
+                let chat = Chat::load(&mut *txn, &message.chat_id())
+                    .await?
+                    .with_context(|| format!("Can't find chat with id {:?}", message.chat_id()))?;
 
-            let original_sender = message
-                .message()
-                .sender()
-                .context("Message does not have sender")?
-                .clone();
+                let original_sender = message
+                    .message()
+                    .sender()
+                    .context("Message does not have sender")?
+                    .clone();
 
-            // Delete edit history
-            MessageEdit::delete_by_message_id(txn.as_mut(), message_id).await?;
+                // Delete edit history
+                MessageEdit::delete_by_message_id(&mut *txn, message_id).await?;
 
-            // Create NullPart content for deletion
-            let null_content = message.null_part_content()?;
+                // Create NullPart content for deletion
+                let null_content = message.null_part_content()?;
 
-            // Update the message with NullPart content
-            message.set_content_message(ContentMessage::new(
-                original_sender,
-                true, // is_sent
-                null_content,
-                chat.group_id(),
-            ));
-            message.set_status(MessageStatus::Deleted);
-            message.set_edited_at(TimeStamp::now());
-            message.update(txn.as_mut(), notifier).await?;
+                // Update the message with NullPart content
+                message.set_content_message(ContentMessage::new(
+                    original_sender,
+                    true, // is_sent
+                    null_content,
+                    chat.group_id(),
+                ));
+                message.set_status(MessageStatus::Deleted);
+                message.set_edited_at(TimeStamp::now());
+                message.update(&mut *txn).await?;
 
-            // Clear the status records
-            StatusRecord::clear(txn.as_mut(), notifier, message_id).await?;
+                // Clear the status records
+                StatusRecord::clear(&mut *txn, message_id).await?;
 
-            // Delete attachments
-            AttachmentRecord::delete_by_message_id(txn.as_mut(), notifier, message_id).await?;
+                // Delete attachments
+                AttachmentRecord::delete_by_message_id(&mut *txn, message_id).await?;
 
-            Ok(())
-        })
-        .await
+                Ok(())
+            })
+            .await
     }
 
     /// Send a message and return it.
@@ -160,12 +162,12 @@ impl CoreUser {
         content: MimiContent,
         replaces: Option<ChatMessage>,
     ) -> anyhow::Result<ChatMessage> {
-        let needs_update = {
-            let mut connection = self.pool().acquire().await?;
-            if Chat::is_blocked(connection.as_mut(), chat_id).await? {
+        let needs_update: bool = {
+            let mut connection = self.db().read().await?;
+            if Chat::is_blocked(&mut connection, chat_id).await? {
                 bail!(BlockedContactError);
             }
-            let group = Group::load_with_chat_id_clean(connection.as_mut(), chat_id)
+            let group = Group::load_with_chat_id_clean(&mut connection, chat_id)
                 .await?
                 .with_context(|| format!("Can't find group with chat_id: {chat_id:?}"))?;
             group.mls_group().has_pending_proposals()
@@ -176,24 +178,26 @@ impl CoreUser {
             self.update_key(chat_id, None).await?;
         }
 
-        let unsent_group_message = self
-            .with_transaction_and_notifier(async |txn, notifier| {
+        let unsent_group_message = Box::pin(self.db().with_write_transaction(
+            async |txn| -> anyhow::Result<_> {
                 let unsent_message = UnsentContent {
                     chat_id,
                     message_id: MessageId::random(),
                     content,
                 }
-                .store_unsent_message(txn, notifier, self.user_id(), replaces)
+                .store_unsent_message(&mut *txn, self.user_id(), replaces)
                 .await?
-                .store_group_update(txn, notifier, self.user_id())
+                .store_group_update(&mut *txn, self.user_id())
                 .await?;
 
                 self.outbound_service()
                     .enqueue_chat_message_in_transaction(txn, unsent_message.message.id(), None)
                     .await?;
+
                 Ok(unsent_message)
-            })
-            .await?;
+            },
+        ))
+        .await?;
 
         Ok(unsent_group_message.message)
     }
@@ -202,8 +206,7 @@ impl CoreUser {
     // automatically send updates before attempting to enqueue a message.
     pub(crate) async fn send_message_transactional(
         &self,
-        txn: &mut SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
+        txn: &mut WriteDbTransaction<'_>,
         chat_id: ChatId,
         message_id: MessageId,
         content: MimiContent,
@@ -213,9 +216,9 @@ impl CoreUser {
             message_id,
             content,
         }
-        .store_unsent_message(txn, notifier, self.user_id(), None)
+        .store_unsent_message(&mut *txn, self.user_id(), None)
         .await?
-        .store_group_update(txn, notifier, self.user_id())
+        .store_group_update(txn, self.user_id())
         .await?;
 
         Ok(unsent_group_message.message)
@@ -231,8 +234,7 @@ struct UnsentContent {
 impl UnsentContent {
     async fn store_unsent_message(
         self,
-        txn: &mut SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
+        txn: &mut WriteDbTransaction<'_>,
         sender: &UserId,
         replaces: Option<ChatMessage>,
     ) -> anyhow::Result<UnsentMessage<GroupUpdateNeeded>> {
@@ -242,7 +244,7 @@ impl UnsentContent {
             mut content,
         } = self;
 
-        let chat = Chat::load(txn.as_mut(), &chat_id)
+        let chat = Chat::load(&mut *txn, &chat_id)
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))?;
 
@@ -268,7 +270,7 @@ impl UnsentContent {
                     edit_created_at,
                     original_mimi_content,
                 );
-                edit.store(txn.as_mut()).await?;
+                edit.store(&mut *txn).await?;
             }
 
             // Edit the original message and clear its status
@@ -286,14 +288,13 @@ impl UnsentContent {
                 updated.set_status(MessageStatus::Unread);
             }
             updated.set_edited_at(edit_created_at);
-            updated.update(txn.as_mut(), notifier).await?;
-            StatusRecord::clear(txn.as_mut(), notifier, updated.id()).await?;
+            updated.update(&mut *txn).await?;
+            StatusRecord::clear(&mut *txn, updated.id()).await?;
 
             // Delete attachments for this message on network deletion
             // (FK cascade handles local deletion where the message row is deleted)
             if is_deletion {
-                AttachmentRecord::delete_by_message_id(txn.as_mut(), notifier, updated.id())
-                    .await?;
+                AttachmentRecord::delete_by_message_id(&mut *txn, updated.id()).await?;
             }
 
             updated
@@ -307,7 +308,7 @@ impl UnsentContent {
                 content.clone(),
                 chat.group_id(),
             );
-            message.store(txn.as_mut(), notifier).await?;
+            message.store(&mut *txn).await?;
             message
         };
 
@@ -340,8 +341,7 @@ struct UnsentMessage<GroupUpdate> {
 impl UnsentMessage<GroupUpdateNeeded> {
     async fn store_group_update(
         self,
-        txn: &mut SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
+        txn: &mut WriteDbTransaction<'_>,
         own_user: &UserId,
     ) -> anyhow::Result<UnsentMessage<GroupUpdated>> {
         let Self {
@@ -354,8 +354,7 @@ impl UnsentMessage<GroupUpdateNeeded> {
         // Also, mark the message (and all messages preceding it) as read, but
         // skip for deletions.
         if message.status() != MessageStatus::Deleted {
-            Chat::mark_as_read_until_message_id(txn, notifier, chat.id(), message.id(), own_user)
-                .await?;
+            Chat::mark_as_read_until_message_id(txn, chat.id(), message.id(), own_user).await?;
         }
 
         Ok(UnsentMessage {
@@ -380,7 +379,6 @@ mod tests {
             CoreUser,
             attachment::{AttachmentRecord, persistence::test::test_attachment_record},
         },
-        store::StoreNotifier,
     };
 
     #[tokio::test(flavor = "multi_thread")]
@@ -391,33 +389,31 @@ mod tests {
             CoreUser::new_ephemeral(user_id, backend.server_url(), None, "DUMMY007".to_owned())
                 .await?;
 
-        let pool = user.pool();
-        let mut notifier = StoreNotifier::noop();
+        let db = user.db();
 
         // Set up test data: chat -> message -> attachment
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
-            .await?;
+        chat.store(db.write().await?).await?;
 
         let message = test_chat_message(chat.id());
-        message.store(pool, &mut notifier).await?;
+        message.store(db.write().await?).await?;
 
         let attachment = test_attachment_record(chat.id(), message.id());
-        attachment.store(pool, &mut notifier, None).await?;
+        attachment.store(db.write().await?, None).await?;
 
         // Verify attachment exists before deletion
-        let ids = AttachmentRecord::load_ids_by_message_id(pool, message.id()).await?;
+        let ids = AttachmentRecord::load_ids_by_message_id(db.read().await?, message.id()).await?;
         assert_eq!(ids.len(), 1);
 
         // Call the actual function
         user.delete_message_content_locally(message.id()).await?;
 
         // Verify attachment is gone
-        let ids = AttachmentRecord::load_ids_by_message_id(pool, message.id()).await?;
+        let ids = AttachmentRecord::load_ids_by_message_id(db.read().await?, message.id()).await?;
         assert!(ids.is_empty());
 
         // Verify message still exists with Deleted status
-        let loaded = ChatMessage::load(pool.acquire().await?.as_mut(), message.id())
+        let loaded = ChatMessage::load(db.read().await?, message.id())
             .await?
             .unwrap();
         assert_eq!(loaded.status(), MessageStatus::Deleted);

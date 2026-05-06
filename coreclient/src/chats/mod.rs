@@ -13,11 +13,14 @@ use airprotos::client::group::{ExternalGroupProfile, GroupData};
 use chrono::{DateTime, Utc};
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
-use sqlx::{SqliteConnection, SqliteExecutor};
 use tracing::error;
 use uuid::Uuid;
 
-use crate::{contacts::PartialContactType, groups::GroupDataBytes, store::StoreNotifier};
+use crate::{
+    contacts::PartialContactType,
+    db_access::{WriteConnection, WriteTransaction},
+    groups::GroupDataBytes,
+};
 
 pub use draft::MessageDraft;
 pub(crate) use {pending::PendingConnectionInfo, status::StatusRecord};
@@ -197,34 +200,31 @@ impl Chat {
 
     pub(crate) async fn set_picture(
         &mut self,
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
+        connection: impl WriteConnection,
         picture: Option<Vec<u8>>,
     ) -> sqlx::Result<()> {
-        Self::update_picture(executor, notifier, self.id, picture.as_deref()).await?;
+        Self::update_picture(connection, self.id, picture.as_deref()).await?;
         self.attributes.set_picture(picture);
         Ok(())
     }
 
     pub(crate) async fn set_title(
         &mut self,
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
+        connection: impl WriteConnection,
         title: String,
     ) -> sqlx::Result<()> {
-        Self::update_title(executor, notifier, self.id, &title).await?;
+        Self::update_title(connection, self.id, &title).await?;
         self.attributes.set_title(title);
         Ok(())
     }
 
     pub(crate) async fn set_inactive(
         &mut self,
-        executor: &mut SqliteConnection,
-        notifier: &mut StoreNotifier,
+        connection: impl WriteTransaction,
         past_members: Vec<UserId>,
     ) -> sqlx::Result<()> {
         let new_status = ChatStatus::Inactive(InactiveChat { past_members });
-        Self::update_status(executor, notifier, self.id, &new_status).await?;
+        Self::update_status(connection, self.id, &new_status).await?;
         self.status = new_status;
         Ok(())
     }
@@ -232,13 +232,12 @@ impl Chat {
     /// Confirm a connection chat by setting the chat type to `Connection`.
     pub(crate) async fn confirm(
         &mut self,
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
+        connection: impl WriteConnection,
         user_id: UserId,
     ) -> sqlx::Result<()> {
         if self.is_unconfirmed() {
             let chat_type = ChatType::Connection(user_id);
-            self.set_chat_type(executor, notifier, &chat_type).await?;
+            self.set_chat_type(connection, &chat_type).await?;
             self.chat_type = chat_type;
         }
         Ok(())

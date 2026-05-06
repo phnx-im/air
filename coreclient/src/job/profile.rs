@@ -20,18 +20,17 @@ use airprotos::{
 use anyhow::Context;
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
-use sqlx::SqliteExecutor;
 use tls_codec::Serialize as _;
 use tracing::{debug, error, info};
 
 use crate::{
     Chat, ChatAttributes, ChatStatus,
     clients::{CoreUser, update_key::update_chat_attributes},
+    db_access::WriteConnection,
     groups::{Group, ProfileInfo},
     job::operation::OperationId,
     key_stores::indexed_keys::StorableIndexedKey,
     user_profiles::{VerifiableUserProfile, process::ExistingUserProfile},
-    utils::connection_ext::ConnectionExt,
 };
 
 use super::{
@@ -44,7 +43,7 @@ impl CoreUser {
     ///
     /// This will be executed on the next run of the outbound service.
     pub(crate) async fn schedule_fetch_user_profile(
-        executor: impl SqliteExecutor<'_>,
+        connection: impl WriteConnection,
         profile_info: impl Into<ProfileInfo>,
     ) -> sqlx::Result<()> {
         let ProfileInfo {
@@ -53,7 +52,7 @@ impl CoreUser {
         } = profile_info.into();
         FetchUserProfileOperation::new(client_credential, user_profile_key)
             .into_operation()
-            .enqueue(executor)
+            .enqueue(connection)
             .await
     }
 
@@ -74,7 +73,7 @@ impl CoreUser {
     ///
     /// This will be executed on the next run of the outbound service.
     pub(crate) async fn schedule_fetch_group_profile(
-        executor: impl SqliteExecutor<'_>,
+        connection: impl WriteConnection,
         group_id: GroupId,
         sender_id: UserId,
         uploaded_at: TimeStamp,
@@ -87,7 +86,7 @@ impl CoreUser {
             external_group_profile,
         }
         .into_operation()
-        .enqueue(executor)
+        .enqueue(connection)
         .await
     }
 }
@@ -133,7 +132,7 @@ impl Job for FetchUserProfileOperation {
 
     async fn execute_logic(
         self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<Self::Output, JobError<Self::DomainError>> {
         let Self {
             client_credential,
@@ -144,7 +143,7 @@ impl Job for FetchUserProfileOperation {
 
         // Phase 1: Check if the profile in the DB is up to date.
         let existing_user_profile =
-            ExistingUserProfile::load(&mut *context.connection, user_id).await?;
+            ExistingUserProfile::load(context.db.read().await?, user_id).await?;
         if existing_user_profile.matches_index(user_profile_key.index()) {
             return Ok(());
         }
@@ -166,16 +165,14 @@ impl Job for FetchUserProfileOperation {
             .map_err(JobError::fatal)?;
 
         // Phase 4: Store the user profile and key in the database
-        context
-            .connection
+        let mut write = context.db.write().await?;
+        write
             .with_transaction(async |txn| -> anyhow::Result<()> {
-                user_profile_key.store(txn.as_mut()).await?;
-                persistable_user_profile
-                    .persist(txn.as_mut(), context.notifier)
-                    .await?;
+                user_profile_key.store(&mut *txn).await?;
+                persistable_user_profile.persist(&mut *txn).await?;
                 if let Some(old_user_profile_index) = persistable_user_profile.old_profile_index() {
                     // Delete the old user profile key
-                    UserProfileKey::delete(txn.as_mut(), old_user_profile_index).await?;
+                    UserProfileKey::delete(txn, old_user_profile_index).await?;
                 }
                 Ok(())
             })
@@ -213,7 +210,7 @@ impl Job for FetchGroupProfileOperation {
 
     async fn execute_logic(
         self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<Self::Output, JobError<Self::DomainError>> {
         let Self {
             group_id,
@@ -231,15 +228,17 @@ impl Job for FetchGroupProfileOperation {
 
         // Load chat and group
         let Some((mut chat, group)) = context
-            .connection
+            .db
+            .write()
+            .await?
             .with_transaction(async |txn| -> anyhow::Result<_> {
-                let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
+                let chat = Chat::load_by_group_id(&mut *txn, &group_id)
                     .await?
                     .context("Missing chat")?;
                 if let ChatStatus::Blocked = chat.status() {
                     return Ok(None);
                 }
-                let group = Group::load_verified(txn.as_mut(), &group_id)
+                let group = Group::load_verified(txn, &group_id)
                     .await?
                     .context("Missing group")?;
                 Ok(Some((chat, group)))
@@ -287,7 +286,9 @@ impl Job for FetchGroupProfileOperation {
 
         // Update chat attributes and store new messages
         context
-            .connection
+            .db
+            .write()
+            .await?
             .with_transaction(async |txn| -> anyhow::Result<()> {
                 let mut messages = Vec::new();
 
@@ -296,8 +297,7 @@ impl Job for FetchGroupProfileOperation {
                     group_profile.picture.map(|p| p.into()),
                 );
                 update_chat_attributes(
-                    txn.as_mut(),
-                    context.notifier,
+                    &mut *txn,
                     &mut chat,
                     &sender_id,
                     chat_attributes,
@@ -306,7 +306,7 @@ impl Job for FetchGroupProfileOperation {
                 )
                 .await?;
 
-                CoreUser::store_new_messages(txn, context.notifier, chat.id(), messages).await?;
+                CoreUser::store_new_messages(txn, chat.id(), messages).await?;
 
                 debug!(?group_id, chat_id = %chat.id(), "Updated chat attributes");
 

@@ -3,11 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{identifiers::UserId, time::TimeStamp};
-use sqlx::SqliteConnection;
 
 use crate::{
-    Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage, chats::messages::TimestampedMessage,
-    job::chat_operation::ChatOperation, store::StoreNotifier,
+    Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage,
+    chats::messages::TimestampedMessage,
+    db_access::{WriteConnection, WriteDbTransaction},
+    job::chat_operation::ChatOperation,
 };
 
 use super::CoreUser;
@@ -31,8 +32,7 @@ impl CoreUser {
 }
 
 pub(crate) async fn update_chat_attributes(
-    connection: &mut SqliteConnection,
-    notifier: &mut StoreNotifier,
+    txn: &mut WriteDbTransaction<'_>,
     chat: &mut Chat,
     sender_id: &UserId,
     new_chat_attributes: ChatAttributes,
@@ -40,8 +40,7 @@ pub(crate) async fn update_chat_attributes(
     message_buffer: &mut Vec<TimestampedMessage>,
 ) -> anyhow::Result<()> {
     update_chat_title(
-        connection,
-        notifier,
+        &mut *txn,
         chat,
         sender_id,
         new_chat_attributes.title,
@@ -50,7 +49,7 @@ pub(crate) async fn update_chat_attributes(
     )
     .await?;
     if chat.attributes.picture != new_chat_attributes.picture {
-        chat.set_picture(connection, notifier, new_chat_attributes.picture)
+        chat.set_picture(&mut *txn, new_chat_attributes.picture)
             .await?;
         let system_message = SystemMessage::ChangePicture(sender_id.clone());
         let group_message = TimestampedMessage::system_message(system_message, ds_timestamp);
@@ -61,8 +60,7 @@ pub(crate) async fn update_chat_attributes(
 }
 
 pub(crate) async fn update_chat_title(
-    connection: &mut SqliteConnection,
-    notifier: &mut StoreNotifier,
+    connection: impl WriteConnection,
     chat: &mut Chat,
     sender_id: &UserId,
     new_title: String,
@@ -71,8 +69,7 @@ pub(crate) async fn update_chat_title(
 ) -> anyhow::Result<()> {
     if chat.attributes.title != new_title {
         let old_title = chat.attributes.title.clone();
-        chat.set_title(connection, notifier, new_title.clone())
-            .await?;
+        chat.set_title(connection, new_title.clone()).await?;
         let system_message = SystemMessage::ChangeTitle {
             user_id: sender_id.clone(),
             old_title,

@@ -8,6 +8,7 @@ use aircommon::{
     codec::{BlobDecoded, BlobEncoded, PersistenceCodec},
     credentials::{ClientCredential, GroupStorageWitness, VerifiableClientCredential},
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
+    identifiers::UserId,
     time::TimeStamp,
 };
 use anyhow::{Result, ensure};
@@ -15,13 +16,14 @@ use mimi_room_policy::{RoomState, VerifiedRoomState};
 use openmls::group::{GroupId, MlsGroup, MlsGroupState};
 use openmls::prelude::{LeafNodeIndex, StagedCommit};
 use openmls_traits::{OpenMlsProvider, storage::StorageProvider};
-use sqlx::{SqliteConnection, SqliteExecutor, SqliteTransaction, query, query_as, query_scalar};
+use sqlx::{SqliteConnection, query, query_as, query_scalar};
 use tls_codec::Serialize as _;
 use tracing::error;
 
 use crate::{
     ChatId,
     chats::messages::TimestampedMessage,
+    db_access::{ReadConnection, WriteConnection, WriteDbTransaction},
     groups::apq_group::PqGroup,
     utils::persistence::{GroupIdRefWrapper, GroupIdWrapper},
 };
@@ -161,7 +163,7 @@ impl VerifiedGroup {
     /// `&mut self` (for the group) and `&self` (for the witness) borrow conflict.
     pub(crate) async fn merge_pending_commit(
         &mut self,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         staged_commit_option: impl Into<Option<StagedCommit>>,
         ds_timestamp: TimeStamp,
     ) -> Result<(Vec<TimestampedMessage>, Option<GroupDataBytes>)> {
@@ -179,6 +181,7 @@ impl VerifiedGroup {
 
 impl Deref for VerifiedGroup {
     type Target = Group;
+
     fn deref(&self) -> &Self::Target {
         &self.0
     }
@@ -194,7 +197,7 @@ impl GroupStorageWitness for VerifiedGroup {
 }
 
 impl Group {
-    pub(crate) async fn store(&self, txn: &mut SqliteTransaction<'_>) -> sqlx::Result<()> {
+    pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
         let group_id = GroupIdRefWrapper::from(self.group_id());
         let room_state = BlobEncoded(&self.room_state);
         let pending_diff = self.pending_diff.as_ref().map(BlobEncoded);
@@ -216,7 +219,7 @@ impl Group {
             room_state,
             self.self_updated_at,
         )
-        .execute(txn.as_mut())
+        .execute(connection.as_mut())
         .await?;
 
         if let Some(pq) = &self.pq {
@@ -234,7 +237,7 @@ impl Group {
                 pq.group_state_ear_key,
                 pq.self_updated_at,
             )
-            .execute(txn.as_mut())
+            .execute(connection.as_mut())
             .await?;
         }
 
@@ -242,7 +245,7 @@ impl Group {
     }
 
     pub(crate) async fn load_clean(
-        connection: &mut sqlx::SqliteConnection,
+        connection: impl ReadConnection,
         group_id: &GroupId,
     ) -> anyhow::Result<Option<Self>> {
         let Some(group) = Group::load(connection, group_id).await? else {
@@ -266,7 +269,7 @@ impl Group {
     }
 
     pub(crate) async fn load_clean_verified(
-        connection: &mut sqlx::SqliteConnection,
+        connection: impl ReadConnection,
         group_id: &GroupId,
     ) -> anyhow::Result<Option<VerifiedGroup>> {
         Ok(Self::load_clean(connection, group_id)
@@ -275,7 +278,7 @@ impl Group {
     }
 
     pub(crate) async fn load_with_chat_id_clean(
-        connection: &mut sqlx::SqliteConnection,
+        connection: impl ReadConnection,
         chat_id: ChatId,
     ) -> anyhow::Result<Option<Self>> {
         let Some(group) = Group::load_with_chat_id(connection, chat_id).await? else {
@@ -299,14 +302,14 @@ impl Group {
     }
 
     pub(crate) async fn load_verified(
-        connection: &mut sqlx::SqliteConnection,
+        connection: impl ReadConnection,
         group_id: &GroupId,
     ) -> sqlx::Result<Option<VerifiedGroup>> {
         Ok(Self::load(connection, group_id).await?.map(VerifiedGroup))
     }
 
     pub(crate) async fn load_verified_with_chat_id(
-        connection: &mut sqlx::SqliteConnection,
+        connection: impl ReadConnection,
         chat_id: ChatId,
     ) -> sqlx::Result<Option<VerifiedGroup>> {
         Ok(Self::load_with_chat_id(connection, chat_id)
@@ -315,7 +318,7 @@ impl Group {
     }
 
     pub(crate) async fn load(
-        connection: &mut sqlx::SqliteConnection,
+        mut connection: impl ReadConnection,
         group_id: &GroupId,
     ) -> sqlx::Result<Option<Self>> {
         let group_id = GroupIdRefWrapper::from(group_id);
@@ -337,17 +340,17 @@ impl Group {
             "#,
             group_id
         )
-        .fetch_optional(&mut *connection)
+        .fetch_optional(connection.as_mut())
         .await?
         else {
             return Ok(None);
         };
-        sql_group.augment(connection)
+        sql_group.augment(connection.as_mut())
     }
 
     /// Same as [`Self::load()`], but load the group via the corresponding chat.
     pub(crate) async fn load_with_chat_id(
-        connection: &mut sqlx::SqliteConnection,
+        mut connection: impl ReadConnection,
         chat_id: ChatId,
     ) -> sqlx::Result<Option<Self>> {
         let Some(sql_group) = query_as!(
@@ -369,12 +372,47 @@ impl Group {
             "#,
             chat_id
         )
-        .fetch_optional(&mut *connection)
+        .fetch_optional(connection.as_mut())
         .await?
         else {
             return Ok(None);
         };
-        sql_group.augment(connection)
+        sql_group.augment(connection.as_mut())
+    }
+
+    /// Same as [`Self::load()`], but load the group via the connection chat of the given user.
+    pub(crate) async fn load_by_connection_user_id(
+        mut connection: impl ReadConnection,
+        user_id: &UserId,
+    ) -> sqlx::Result<Option<Self>> {
+        let user_uuid = user_id.uuid();
+        let user_domain = user_id.domain();
+        let Some(sql_group) = query_as!(
+            SqlGroup,
+            r#"SELECT
+                g.group_id AS "group_id: _",
+                pq.group_id AS "pq_group_id: _",
+                g.identity_link_wrapper_key AS "identity_link_wrapper_key: _",
+                g.group_state_ear_key AS "group_state_ear_key: _",
+                g.pending_diff AS "pending_diff: _",
+                g.room_state AS "room_state: _",
+                g.self_updated_at AS "self_updated_at: _",
+                pq.group_state_ear_key AS "pq_group_state_ear_key: _",
+                pq.self_updated_at AS "pq_self_updated_at: _"
+            FROM "group" g
+            INNER JOIN chat c ON c.group_id = g.group_id
+            LEFT JOIN pq_group pq ON pq.t_group_id = g.group_id
+            WHERE c.connection_user_uuid = ? AND c.connection_user_domain = ?
+            "#,
+            user_uuid,
+            user_domain,
+        )
+        .fetch_optional(connection.as_mut())
+        .await?
+        else {
+            return Ok(None);
+        };
+        sql_group.augment(connection.as_mut())
     }
 
     /// Stores a group update.
@@ -383,7 +421,7 @@ impl Group {
     /// updated in the group and if so, at what time.
     pub(crate) async fn store_update(
         &mut self,
-        txn: &mut SqliteTransaction<'_>,
+        mut connection: impl WriteConnection,
         self_updated_at: Option<TimeStamp>,
         pq_self_updated_at: Option<TimeStamp>,
     ) -> sqlx::Result<()> {
@@ -405,7 +443,7 @@ impl Group {
             self_updated_at,
             group_id,
         )
-        .execute(txn.as_mut())
+        .execute(connection.as_mut())
         .await?;
         if let Some(self_updated_at) = self_updated_at {
             self.self_updated_at = Some(self_updated_at);
@@ -422,7 +460,7 @@ impl Group {
                 pq_self_updated_at,
                 pq_group_id,
             )
-            .execute(txn.as_mut())
+            .execute(connection.as_mut())
             .await?;
             if let Some(self_updated_at) = pq_self_updated_at {
                 pq.self_updated_at = Some(self_updated_at);
@@ -432,10 +470,10 @@ impl Group {
     }
 
     pub(crate) async fn delete_from_db(
-        txn: &mut sqlx::SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
     ) -> sqlx::Result<()> {
-        if let Some(mut group) = Group::load(txn.as_mut(), group_id).await? {
+        if let Some(mut group) = Group::load(&mut *txn, group_id).await? {
             let provider = AirOpenMlsProvider::new(txn.as_mut());
             group.mls_group.delete(provider.storage())?;
         };
@@ -461,7 +499,7 @@ impl Group {
     }
 
     pub(crate) async fn load_all_group_ids(
-        connection: &mut sqlx::SqliteConnection,
+        mut connection: impl ReadConnection,
     ) -> sqlx::Result<Vec<GroupId>> {
         struct SqlGroupId {
             group_id: GroupIdWrapper,
@@ -470,7 +508,7 @@ impl Group {
             SqlGroupId,
             r#"SELECT group_id AS "group_id: _" FROM "group""#,
         )
-        .fetch_all(connection)
+        .fetch_all(connection.as_mut())
         .await?;
 
         Ok(group_ids
@@ -485,7 +523,7 @@ impl Group {
 
     /// Returns the t-group ID for the given PQ group ID, if it exists.
     pub(super) async fn load_group_id_for_pq(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         pq_group_id: &GroupId,
     ) -> sqlx::Result<Option<GroupId>> {
         let pq_group_id = GroupIdRefWrapper::from(pq_group_id);
@@ -493,7 +531,7 @@ impl Group {
             r#"SELECT t_group_id AS "t_group_id: _" FROM pq_group WHERE group_id = ?"#,
             pq_group_id
         )
-        .fetch_optional(executor)
+        .fetch_optional(connection.as_mut())
         .await
         .map(|group_id| group_id.map(|GroupIdWrapper(group_id)| group_id))
     }

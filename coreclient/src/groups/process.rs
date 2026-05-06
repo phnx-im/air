@@ -27,12 +27,12 @@ use openmls::{
         SignaturePublicKey, StagedCommit,
     },
 };
-use sqlx::SqliteTransaction;
 use tls_codec::DeserializeBytes as TlsDeserializeBytes;
 use tracing::{debug, instrument};
 
 use crate::{
-    clients::api_clients::ApiClients, groups::client_auth_info::VerifiableClientCredentialExt,
+    clients::api_clients::ApiClients, db_access::WriteDbTransaction,
+    groups::client_auth_info::VerifiableClientCredentialExt,
     job::pending_chat_operation::PendingChatOperation, key_stores::as_credentials::AsCredentials,
 };
 
@@ -52,13 +52,13 @@ impl Group {
     #[instrument(skip_all, fields(group_id = ?self.group_id()))]
     pub(crate) async fn process_message(
         &mut self,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         message: impl Into<ProtocolMessage>,
     ) -> Result<Option<ProcessMessageResult>> {
         // Phase 1: Process the message.
         let processed_message = {
-            let provider = AirOpenMlsProvider::new(&mut *txn);
+            let provider = AirOpenMlsProvider::new(txn.as_mut());
             let message = message.into();
             let message_epoch = message.epoch();
             match self.mls_group.process_message(&provider, message) {
@@ -89,7 +89,7 @@ impl Group {
 
     async fn post_process_message(
         &mut self,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         processed_message: ProcessedMessage,
     ) -> Result<ProcessMessageResult> {
@@ -138,9 +138,9 @@ impl Group {
                 // pending non-leave chat operations we may have for this group.
                 // If it's a leave operation, only delete it if it's part of
                 // this commit.
-                self.discard_pending_commit(txn).await?;
+                self.discard_pending_commit(&mut *txn).await?;
                 if let Some(pending_chat_operation) =
-                    PendingChatOperation::load_by_group_id(txn, &group_id).await?
+                    PendingChatOperation::load_by_group_id(&mut *txn, &group_id).await?
                 {
                     let commit_contains_our_self_remove =
                         staged_commit.queued_proposals().any(|p| {
@@ -148,7 +148,7 @@ impl Group {
                                 && sender_index == self.mls_group().own_leaf_index()
                         });
                     if !pending_chat_operation.is_leave() || commit_contains_our_self_remove {
-                        PendingChatOperation::delete(txn.as_mut(), &group_id).await?;
+                        PendingChatOperation::delete(&mut *txn, &group_id).await?;
                     }
                 }
 
@@ -262,7 +262,7 @@ impl Group {
                                 Some(&old_credential),
                                 &as_credentials,
                             )?;
-                            credential.store(txn.as_mut()).await?;
+                            credential.store(txn).await?;
                         }
 
                         // Process a resync if this is one
@@ -296,7 +296,7 @@ impl Group {
                         // * Check that this group is indeed a connection group.
 
                         // JoinConnectionGroup Phase 2: Persist the client credential
-                        sender_credential.store(txn.as_mut()).await?;
+                        sender_credential.store(txn).await?;
                         encrypted_profile_infos.push((
                             sender_credential.into(),
                             join_connection_group_payload.encrypted_user_profile_key,
@@ -339,7 +339,7 @@ impl Group {
                             Some(&old_credential),
                             &as_credentials,
                         )?;
-                        sender_credential.store(txn.as_mut()).await?;
+                        sender_credential.store(txn).await?;
                     }
                     AadPayload::DeleteGroup => {
                         we_were_removed = true;
@@ -374,7 +374,7 @@ impl Group {
         &mut self,
         sender_user: &UserId,
         staged_commit: &StagedCommit,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         as_credentials: &HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>,
     ) -> Result<Vec<ClientCredential>> {
         let mut credentials = Vec::new();
@@ -390,7 +390,7 @@ impl Group {
 
             self.verify_role_change(sender_user, credential.user_id(), RoleIndex::Regular)?;
 
-            credential.store(txn.as_mut()).await?;
+            credential.store(&mut *txn).await?;
             credentials.push(credential.into());
         }
 
@@ -437,7 +437,7 @@ impl Group {
     #[instrument(skip_all, fields(group_id = ?self.group_id()))]
     pub(crate) async fn process_apq_message(
         &mut self,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         message: impl Into<ApqProtocolMessage>,
     ) -> Result<Option<ProcessMessageResult>> {

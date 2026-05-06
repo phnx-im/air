@@ -19,12 +19,14 @@ use openmls::{
     prelude::{CredentialWithKey, Extension, Extensions, UnknownExtension},
 };
 use openmls_traits::OpenMlsProvider;
-use sqlx::SqliteConnection;
 use tls_codec::Serialize;
 
-use crate::groups::{
-    GroupDataBytes, PartialCreateGroupParams, PartialPqCreateGroupParams,
-    openmls_provider::AirOpenMlsProvider,
+use crate::{
+    db_access::WriteConnection,
+    groups::{
+        GroupDataBytes, PartialCreateGroupParams, PartialPqCreateGroupParams,
+        openmls_provider::AirOpenMlsProvider,
+    },
 };
 
 use super::Group;
@@ -45,14 +47,14 @@ impl PqGroup {
 
 impl Group {
     pub(crate) fn create_apq_group(
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         t_group_id: GroupId,
         pq_group_id: GroupId,
         group_data_bytes: GroupDataBytes,
     ) -> anyhow::Result<(Self, PartialCreateGroupParams)> {
-        let provider = AirOpenMlsProvider::new(connection);
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
 
         let t_group_state_ear_key = GroupStateEarKey::random()?;
         let pq_group_state_ear_key = GroupStateEarKey::random()?;
