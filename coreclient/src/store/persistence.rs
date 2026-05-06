@@ -165,7 +165,8 @@ impl StoreNotification {
             let record = record?;
             match record.into_entity_id_and_op() {
                 Ok((entity_id, op)) => {
-                    ops.insert(entity_id, op);
+                    let entry = ops.entry(entity_id).or_default();
+                    *entry |= op;
                 }
                 Err(error) => {
                     error!(%error, "Error parsing store notification; skipping");
