@@ -47,6 +47,8 @@ extend-exclude = [
 extend-ignore-identifiers-re = [
     # Identifiers ending with `_BASE64` are base64 encoded
     "^[a-zA-Z]_BASE64$",
+    # `Delay::numer_denom_ms` from the `image` crate
+    "^numer_denom(_ms)?$",
 ]
 
 extend-ignore-re = [

@@ -179,8 +179,15 @@ _generate-db-certs:
     cd backend && TEST_CERT_DIR_NAME=test_certs scripts/generate_test_certs.sh
 
 # Use the current test results as new reference images.
-update-flutter-goldens:
+update-goldens:
     cd app && just flutter test --update-goldens
+
+# Trigger the "Update Goldens" workflow on the current branch, or a given PR.
+[script]
+update-goldens-ci pr='':
+    ref=$(gh pr view "{{pr}}" --json headRefName -q .headRefName)
+    echo "Dispatching update-goldens.yml on ref: $ref"
+    gh workflow run update-goldens.yml --ref "$ref"
 
 # Start the app in debug mode.
 run-app *args='':
