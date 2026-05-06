@@ -28,7 +28,13 @@ use crate::{
 
 use super::OutboundServiceContext;
 
+/// Number of key packages to upload (excluding the last resort key package)
 pub const KEY_PACKAGES: usize = 100;
+
+/// Number of APQ key packages to upload (excluding the last resort key package)
+///
+/// Currently only a last resort key package is uploaded.
+pub const APQ_KEY_PACKAGES: usize = 0;
 
 /// Interval at which the self-update in a group is executed
 const SELF_UPDATE_INTERVAL: Duration = Duration::days(1);

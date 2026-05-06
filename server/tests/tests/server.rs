@@ -16,7 +16,7 @@ use aircommon::{
 use aircoreclient::{
     ChatId,
     clients::{QueueEvent, process::process_qs::ProcessedQsMessages, queue_event},
-    outbound_service::KEY_PACKAGES,
+    outbound_service::{APQ_KEY_PACKAGES, KEY_PACKAGES},
     store::Store,
 };
 
@@ -26,7 +26,9 @@ use airprotos::{
     delivery_service::v1::delivery_service_server,
     queue_service::v1::queue_service_server,
 };
-use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams, TestUser};
+use airserver_test_harness::utils::setup::{
+    APQ_GROUP_BY_DEFAULT, TestBackend, TestBackendParams, TestUser,
+};
 use chrono::Utc;
 use mimi_content::MimiContent;
 use rand::thread_rng;
@@ -654,7 +656,13 @@ async fn key_package_upload() {
             .encryption_key
     };
 
-    for _ in 0..(KEY_PACKAGES + 1) {
+    const N: usize = if APQ_GROUP_BY_DEFAULT {
+        APQ_KEY_PACKAGES + 1
+    } else {
+        KEY_PACKAGES + 1
+    };
+
+    for _ in 0..N {
         let bob_encryption_key = create_chat_and_invite_bob(&mut setup).await;
         assert!(encryption_keys.insert(bob_encryption_key));
     }
@@ -678,7 +686,7 @@ async fn key_package_upload() {
     // Invite Bob again, should get a new KeyPackage
     let bob_encryption_key = create_chat_and_invite_bob(&mut setup).await;
     assert!(
-        encryption_keys.insert(bob_encryption_key),
+        N <= 1 || encryption_keys.insert(bob_encryption_key),
         "Bob should have a new KeyPackage after uploading new ones"
     );
 }

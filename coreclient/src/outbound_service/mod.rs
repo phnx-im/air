@@ -28,7 +28,7 @@ use crate::{
     utils::{connection_ext::StoreExt, global_lock::GlobalLock},
 };
 
-pub use timed_tasks::KEY_PACKAGES;
+pub use timed_tasks::{APQ_KEY_PACKAGES, KEY_PACKAGES};
 
 mod chat_message_queue;
 mod chat_messages;

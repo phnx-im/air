@@ -36,6 +36,9 @@ use uuid::Uuid;
 
 use crate::utils::{controlled_listener::ControlHandle, spawn_app};
 
+/// Whether to create APQ groups by default
+pub const APQ_GROUP_BY_DEFAULT: bool = true;
+
 #[derive(Debug)]
 pub struct TestUser {
     pub user: CoreUser,
@@ -1059,7 +1062,7 @@ impl TestBackend {
     }
 
     pub async fn create_group(&mut self, user_id: &UserId) -> ChatId {
-        self.create_group_inner(user_id, false).await
+        self.create_group_inner(user_id, APQ_GROUP_BY_DEFAULT).await
     }
 
     async fn create_group_inner(&mut self, user_id: &UserId, is_apq: bool) -> ChatId {
