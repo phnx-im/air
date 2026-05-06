@@ -45,7 +45,7 @@ abstract class AttachmentsRepository implements RustOpaqueInterface {
   Stream<UiAttachmentStatus> statusStream({required AttachmentId attachmentId});
 }
 
-/// Bytes of an image attachment plus an animation classification.
+/// Bytes of an image attachment and an animation classification.
 class LoadedImageAttachment {
   final Uint8List bytes;
   final bool isAnimated;
