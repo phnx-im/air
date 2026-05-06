@@ -34,16 +34,6 @@ impl StoreNotifier {
         }
     }
 
-    /// Creates a new notifier which will just drop all notifications.
-    ///
-    /// Useful when a notifier is required, but no notifications should be emitted.
-    pub(crate) fn noop() -> Self {
-        Self {
-            tx: StoreNotificationsSender::new(),
-            notification: StoreNotification::empty(),
-        }
-    }
-
     /// Add a new entity to the notification.
     ///
     /// Notification will be sent when the `notify` function is called.

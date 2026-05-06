@@ -13,7 +13,11 @@ impl IndexedUserProfile {
     /// Stores this [`BaseIndexedUserProfile`].
     ///
     /// Will return an error if there already exists a user profile with the same user id.
-    pub(super) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
+    pub(super) async fn store(
+        &self,
+        mut connection: impl WriteConnection,
+        notify: bool,
+    ) -> sqlx::Result<()> {
         let uuid = self.user_id.uuid();
         let domain = self.user_id.domain();
         let epoch = self.epoch as i64;
@@ -35,7 +39,9 @@ impl IndexedUserProfile {
         )
         .execute(connection.as_mut())
         .await?;
-        connection.notifier().update(self.user_id.clone());
+        if notify {
+            connection.notifier().update(self.user_id.clone());
+        }
         Ok(())
     }
 
@@ -156,7 +162,7 @@ mod tests {
 
         key.store(pool.write().await?).await?;
 
-        profile.store(pool.write().await?).await?;
+        profile.store(pool.write().await?, true).await?;
         let loaded = IndexedUserProfile::load(pool.read().await?, &profile.user_id)
             .await?
             .expect("profile exists");
@@ -168,7 +174,7 @@ mod tests {
 
         // store again doesn't work
         let store_err = new_profile
-            .store(pool.write().await?)
+            .store(pool.write().await?, true)
             .await
             .expect_err("profile does not exist");
         assert!(matches!(store_err, sqlx::Error::Database(_)));
@@ -183,7 +189,7 @@ mod tests {
         let (profile, key) = test_profile();
         key.store(pool.write().await?).await?;
 
-        profile.store(pool.write().await?).await?;
+        profile.store(pool.write().await?, true).await?;
         let loaded = IndexedUserProfile::load(pool.read().await?, &profile.user_id)
             .await?
             .expect("profile exists");

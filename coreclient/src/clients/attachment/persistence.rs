@@ -13,7 +13,6 @@ use sqlx::{
 use crate::{
     ChatId, MessageId,
     db_access::{ReadConnection, WriteConnection},
-    store::StoreNotifier,
 };
 
 /// A record of an attachment.
@@ -275,9 +274,9 @@ impl AttachmentRecord {
 
     pub(crate) async fn copy(
         mut connection: impl WriteConnection,
-        notifier: &mut StoreNotifier,
         src_id: AttachmentId,
         dst_id: AttachmentId,
+        notify: bool,
     ) -> sqlx::Result<()> {
         query!(
             "INSERT INTO attachment (
@@ -297,14 +296,16 @@ impl AttachmentRecord {
         )
         .execute(connection.as_mut())
         .await?;
-        notifier.add(dst_id);
+        if notify {
+            connection.notifier().add(dst_id);
+        }
         Ok(())
     }
 
     pub(crate) async fn delete(
         mut connection: impl WriteConnection,
-        notifier: &mut StoreNotifier,
         attachment_id: AttachmentId,
+        notify: bool,
     ) -> sqlx::Result<()> {
         query!(
             "DELETE FROM attachment WHERE attachment_id = ?",
@@ -312,7 +313,9 @@ impl AttachmentRecord {
         )
         .execute(connection.as_mut())
         .await?;
-        notifier.remove(attachment_id);
+        if notify {
+            connection.notifier().remove(attachment_id);
+        }
         Ok(())
     }
 

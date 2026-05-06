@@ -222,7 +222,7 @@ impl WriteDbTransaction<'_> {
     /// Begin a read transaction within the current write transaction.
     pub(crate) async fn begin_read(&mut self) -> sqlx::Result<ReadDbTransaction<'_>> {
         Ok(ReadDbTransaction {
-            txn: self.txn.begin().await.unwrap(),
+            txn: self.txn.begin().await?,
         })
     }
 
@@ -377,12 +377,21 @@ where
         txn: begin_write_txn(connection).await?,
         notifier,
     };
-    let value = f(&mut txn).await?;
+    
+    // if we fail in the closure, we avoid propagating notifications
+    let value = match f(&mut txn).await {
+        Ok(value) => value,
+        Err(error) => {
+            txn.notifier.clear();
+            return Err(error.into())
+        }
+    };
 
+    // don't notify on commit failure (rollback)
     match txn.commit().await {
         Ok(_) => Ok(value),
         Err(error) => {
-            notifier.clear(); // don't notify on commit failure (rollback)
+            notifier.clear();
             Err(error.into())
         }
     }

@@ -45,7 +45,7 @@ use crate::{
         },
     },
     groups::Group,
-    store::{Store, StoreNotifier},
+    store::Store,
     utils::image::{ReencodedAttachmentImage, load_attachment_image},
 };
 
@@ -213,16 +213,14 @@ impl CoreUser {
             self.db()
                 .with_write_transaction(async |txn| -> anyhow::Result<()> {
                     message.update(&mut *txn).await?;
-                    // Since we just move the attachment record, we don't need to notify the store.
-                    let mut noop_notifier = StoreNotifier::noop();
                     AttachmentRecord::copy(
                         &mut *txn,
-                        &mut noop_notifier,
                         attachment_id,
                         attachment_metadata.attachment_id,
+                        false,
                     )
                     .await?;
-                    AttachmentRecord::delete(txn, &mut noop_notifier, attachment_id).await?;
+                    AttachmentRecord::delete(txn, attachment_id, false).await?;
 
                     Ok(())
                 })

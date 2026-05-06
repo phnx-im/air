@@ -124,7 +124,7 @@ impl BasicUserData {
             DisplayName::from_user_id(&self.user_id),
             None,
         )?
-        .store(&mut connection) // XXX: here the notifie was noop!!!111
+        .store(&mut connection)
         .await?
         .encrypt_with_index(&user_profile_key)?;
 

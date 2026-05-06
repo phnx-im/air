@@ -74,7 +74,7 @@ impl PersistableUserProfile {
         if self.is_update() {
             self.user_profile.update(connection).await
         } else {
-            self.user_profile.store(connection).await
+            self.user_profile.store(connection, true).await
         }
     }
 

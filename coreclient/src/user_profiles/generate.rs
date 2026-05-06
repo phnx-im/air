@@ -42,7 +42,7 @@ impl NewUserProfile {
         connection: impl WriteConnection,
     ) -> sqlx::Result<EncryptableUserProfile> {
         let NewUserProfile(profile) = self;
-        profile.tbs.store(connection).await?;
+        profile.tbs.store(connection, false).await?;
         Ok(EncryptableUserProfile(profile))
     }
 
