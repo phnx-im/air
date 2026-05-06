@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use crate::utils::connection_ext::ConnectionExt as _;
 use aircommon::{
     credentials::keys::ClientSigningKey,
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
@@ -14,7 +13,6 @@ use openmls::{
     group::GroupId,
     prelude::{LeafNodeIndex, MlsMessageOut},
 };
-use sqlx::{Connection, SqliteConnection, SqliteTransaction};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, info};
 use uuid::Uuid;
@@ -22,13 +20,13 @@ use uuid::Uuid;
 use crate::{
     ChatId,
     clients::{CoreUser, api_clients::ApiClients},
+    db_access::{WriteConnection, WriteDbTransaction},
     groups::{Group, ProfileInfo, handle_group_not_found_on_ds},
     job::{operation::OperationData, profile::FetchUserProfileOperation},
     outbound_service::{
         OutboundServiceContext,
         error::{OutboundServiceError, classify_ds_error, is_ds_not_found_error},
     },
-    utils::connection_ext::StoreExt,
 };
 
 pub(crate) struct Resync {
@@ -41,8 +39,7 @@ pub(crate) struct Resync {
 
 impl CoreUser {
     pub async fn enqueue_group_resync(&self, chat_id: ChatId) -> anyhow::Result<()> {
-        let mut connection = self.pool().acquire().await?;
-        let group = Group::load_with_chat_id(connection.as_mut(), chat_id)
+        let group = Group::load_with_chat_id(self.db().read().await?, chat_id)
             .await?
             .context("group not found")?;
 
@@ -54,7 +51,7 @@ impl CoreUser {
             original_leaf_index: group.own_index(),
         };
 
-        resync.enqueue(&mut *connection).await?;
+        resync.enqueue(self.db().write().await?).await?;
 
         self.outbound_service().notify_work();
 
@@ -75,8 +72,8 @@ impl OutboundServiceContext {
             }
 
             let Some(resync) = self
-                .pool
-                .with_transaction(async |txn| Resync::dequeue(txn, task_id).await)
+                .db
+                .with_write_transaction(async |txn| Resync::dequeue(txn, task_id).await)
                 .await?
             else {
                 return Ok(());
@@ -86,13 +83,13 @@ impl OutboundServiceContext {
             let group_id = resync.group_id.clone();
 
             let result = {
-                let mut connection = self.pool.acquire().await?;
+                let mut connection = self.db.write().await?;
                 let result = resync
                     .create_and_send_commit(&mut connection, &self.api_clients, self.signing_key())
                     .await;
                 if result.is_ok() {
                     info!("Got profiles infos");
-                    Resync::remove(&mut *connection, &group_id).await?;
+                    Resync::remove(&mut connection, &group_id).await?;
                     // TODO: Schedule a job here that deals with fetching profile
                     // infos in the background.
                 }
@@ -104,16 +101,16 @@ impl OutboundServiceContext {
                 Err(OutboundServiceError::Fatal(error)) => {
                     if is_ds_not_found_error(&error) {
                         error!(%error, "Group not found during resync; cleaning up local state");
-                        self.with_transaction_and_notifier(async |txn, notifier| {
-                            handle_group_not_found_on_ds(txn, notifier, &group_id).await
-                        })
-                        .await?;
+                        self.db
+                            .with_write_transaction(async |txn| {
+                                handle_group_not_found_on_ds(txn, &group_id).await
+                            })
+                            .await?;
                         continue;
                     }
 
                     error!(%error, "Failed to send resync; dropping");
-                    let mut connection = self.pool.acquire().await?;
-                    Resync::remove(&mut *connection, &group_id).await?;
+                    Resync::remove(self.db.write().await?, &group_id).await?;
                     return Err(error);
                 }
                 Err(OutboundServiceError::Recoverable(error)) => {
@@ -122,7 +119,7 @@ impl OutboundServiceContext {
                 }
             };
 
-            let mut connection = self.pool.acquire().await?;
+            let mut connection = self.db.write().await?;
             for ProfileInfo {
                 client_credential,
                 user_profile_key,
@@ -131,7 +128,7 @@ impl OutboundServiceContext {
                 if let Err(error) =
                     FetchUserProfileOperation::new(client_credential, user_profile_key)
                         .into_operation()
-                        .enqueue(connection.as_mut())
+                        .enqueue(&mut connection)
                         .await
                 {
                     error!(%error, "Failed to enqueue fetch profile operation");
@@ -145,7 +142,7 @@ impl Resync {
     /// Resync using an external commit.
     async fn create_and_send_commit(
         self,
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         api_clients: &ApiClients,
         signer: &ClientSigningKey,
     ) -> Result<Vec<ProfileInfo>, OutboundServiceError> {
@@ -157,7 +154,7 @@ impl Resync {
         let original_leaf_index = self.original_leaf_index;
 
         let mut txn = connection
-            .begin_with("BEGIN IMMEDIATE")
+            .begin()
             .await
             .map_err(OutboundServiceError::recoverable)?;
         let (group, commit, group_info, member_profile_infos) = self
@@ -203,7 +200,7 @@ impl Resync {
 
     async fn create_commit(
         self,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         // Needs api clients until we can schedule group member authentication
         api_clients: &ApiClients,
         signer: &ClientSigningKey,
@@ -263,16 +260,22 @@ impl Resync {
 
 mod persistence {
 
-    use sqlx::{SqliteExecutor, SqliteTransaction, query, query_as, query_scalar};
+    use sqlx::{query, query_as, query_scalar};
     use tracing::debug;
     use uuid::Uuid;
 
-    use crate::ChatId;
+    use crate::{
+        ChatId,
+        db_access::{ReadConnection, WriteConnection, WriteDbTransaction},
+    };
 
     use super::*;
 
     impl Resync {
-        pub(crate) async fn enqueue(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+        pub(crate) async fn enqueue(
+            &self,
+            mut connection: impl WriteConnection,
+        ) -> sqlx::Result<()> {
             debug!(
                 ?self.group_id,
                 ?self.chat_id,
@@ -292,7 +295,7 @@ mod persistence {
                 self.identity_link_wrapper_key,
                 original_leaf_index
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             Ok(())
         }
@@ -300,7 +303,7 @@ mod persistence {
         /// Dequeue a resync operation for processing that has not been locked
         /// by this task.
         pub(crate) async fn dequeue(
-            txn: &mut SqliteTransaction<'_>,
+            txn: &mut WriteDbTransaction<'_>,
             task_id: Uuid,
         ) -> anyhow::Result<Option<Resync>> {
             struct ResyncRecord {
@@ -355,20 +358,20 @@ mod persistence {
         }
 
         pub(crate) async fn is_pending_for_chat(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl ReadConnection,
             chat_id: &ChatId,
         ) -> sqlx::Result<bool> {
             let record = query!(
                 "SELECT EXISTS(SELECT 1 FROM resync_queue WHERE chat_id = ? LIMIT 1) AS row_exists",
                 chat_id,
             )
-            .fetch_one(executor)
+            .fetch_one(connection.as_mut())
             .await?;
             Ok(record.row_exists == 1)
         }
 
         pub(crate) async fn remove(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl WriteConnection,
             group_id: &GroupId,
         ) -> sqlx::Result<()> {
             let group_id_bytes = group_id.as_slice();
@@ -376,7 +379,7 @@ mod persistence {
                 "DELETE FROM resync_queue WHERE group_id = ?",
                 group_id_bytes
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             Ok(())
         }

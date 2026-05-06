@@ -40,14 +40,14 @@ impl UserCreationState {
     }
 
     pub(super) async fn new(
-        client_db: &SqlitePool,
-        air_db: &SqlitePool,
+        client_db: &DbAccess,
+        air_db: &DbAccess,
         user_id: UserId,
         push_token: Option<PushToken>,
         invitation_code: String,
     ) -> Result<Self> {
         let client_record = ClientRecord::new(user_id.clone());
-        client_record.store(air_db).await?;
+        client_record.store(air_db.write().await?).await?;
 
         let basic_user_data = BasicUserData {
             user_id: user_id.clone(),
@@ -57,15 +57,15 @@ impl UserCreationState {
 
         let user_creation_state = UserCreationState::BasicUserData(basic_user_data);
 
-        user_creation_state.store(client_db).await?;
+        user_creation_state.store(client_db.write().await?).await?;
 
         Ok(user_creation_state)
     }
 
     pub(super) async fn step(
         self,
-        air_db: &SqlitePool,
-        client_db: &SqlitePool,
+        air_db: &DbAccess,
+        client_db: &DbAccess,
         api_clients: &ApiClients,
     ) -> Result<Self> {
         // If we're already in the final state, there is nothing to do.
@@ -100,16 +100,16 @@ impl UserCreationState {
             UserCreationState::FinalUserState(_) => self,
         };
 
-        new_state.store(client_db).await?;
+        new_state.store(client_db.write().await?).await?;
 
         // If we just transitioned into the final state, we need to update the
         // client record.
         if let UserCreationState::FinalUserState(_) = new_state {
-            let mut client_record = ClientRecord::load(air_db, new_state.user_id())
+            let mut client_record = ClientRecord::load(air_db.read().await?, new_state.user_id())
                 .await?
                 .ok_or(anyhow!("Client record not found"))?;
             client_record.finish();
-            client_record.store(air_db).await?;
+            client_record.store(air_db.write().await?).await?;
         }
 
         Ok(new_state)
@@ -126,8 +126,8 @@ impl UserCreationState {
     /// A convenience function that performs the `step` function until the final state is reached.
     pub(super) async fn complete_user_creation(
         mut self,
-        air_db: &SqlitePool,
-        client_db: &SqlitePool,
+        air_db: &DbAccess,
+        client_db: &DbAccess,
         api_clients: &ApiClients,
     ) -> Result<PersistedUserState> {
         while !matches!(self, UserCreationState::FinalUserState(_)) {

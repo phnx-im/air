@@ -36,8 +36,8 @@ use crate::{
 impl CoreUser {
     /// Returns debug info for a group
     pub async fn chat_debug_info(&self, chat_id: ChatId) -> anyhow::Result<GroupDebugInfo> {
-        let mut connection = self.pool().acquire().await?;
-        let group = Group::load_with_chat_id(&mut connection, chat_id)
+        let connection = self.db().read().await?;
+        let group = Group::load_with_chat_id(connection, chat_id)
             .await?
             .context("Group not found")?;
         GroupDebugInfo::from_group(self, &group).await
@@ -91,14 +91,9 @@ pub struct RequiredDebugCapabilities {
 }
 
 #[derive(Debug, Clone)]
-pub struct AirComponentDebugInfo {
-    pub encrypted_group_profiles: bool,
-}
-
-#[derive(Debug, Clone)]
 pub struct AppDataDebugInfo {
     pub components: Vec<String>,
-    pub air_component: Option<AirComponentDebugInfo>,
+    pub air_component: Option<AirComponent>,
 }
 
 #[derive(Debug, Clone)]
@@ -259,10 +254,7 @@ impl AppDataDebugInfo {
             .unwrap_or_default();
         let air_component = dict
             .get(&AIR_COMPONENT_ID)
-            .and_then(|data| AirComponent::from_bytes(data).ok())
-            .map(|c| AirComponentDebugInfo {
-                encrypted_group_profiles: c.features.encrypted_group_profiles,
-            });
+            .and_then(|data| AirComponent::from_bytes(data).ok());
         Self {
             components,
             air_component,

@@ -12,7 +12,6 @@ use crate::{
     TokenId,
     clients::{CoreUser, api_clients::ApiClients},
     privacy_pass,
-    utils::connection_ext::StoreExt,
 };
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
@@ -49,7 +48,7 @@ impl CoreUser {
     ) -> anyhow::Result<Result<InvitationCode, RequestInvitationCodeError>> {
         let api_client = self.api_client()?;
 
-        let token = TokenId::load(self.pool(), &token_id)
+        let token = TokenId::load(self.db().read().await?, &token_id)
             .await?
             .context("no token found")?;
 
@@ -66,7 +65,7 @@ impl CoreUser {
             }
             Err(e) => {
                 // Token is burned
-                if let Err(error) = TokenId::delete(self.pool(), &token_id).await {
+                if let Err(error) = TokenId::delete(self.db().write().await?, &token_id).await {
                     warn!(%error, "failed to delete burned token");
                 }
                 return Err(e.into());
@@ -83,42 +82,48 @@ impl CoreUser {
             created_at: Utc::now(),
         };
 
-        self.with_transaction(async |txn| -> sqlx::Result<()> {
-            invitation_code.store(txn.as_mut()).await?;
-            TokenId::delete(txn.as_mut(), &token_id).await?;
-            Ok(())
-        })
-        .await?;
+        self.db()
+            .with_write_transaction(async |txn| -> sqlx::Result<()> {
+                invitation_code.store(&mut *txn).await?;
+                TokenId::delete(txn, &token_id).await?;
+                Ok(())
+            })
+            .await?;
 
         Ok(Ok(invitation_code))
     }
 
     pub async fn load_invitation_codes(&self) -> anyhow::Result<Vec<InvitationCode>> {
-        Ok(InvitationCode::load_all(self.pool()).await?)
+        Ok(InvitationCode::load_all(self.db().read().await?).await?)
     }
 
     pub async fn load_invitation_token_ids(&self) -> anyhow::Result<Vec<TokenId>> {
-        privacy_pass::persistence::load_token_ids(self.pool(), OperationType::GetInviteCode)
-            .await
-            .map_err(Into::into)
+        privacy_pass::persistence::load_token_ids(
+            self.db().read().await?,
+            OperationType::GetInviteCode,
+        )
+        .await
+        .map_err(Into::into)
     }
 
     pub async fn mark_invitation_code_as_copied(&self, code: &str) -> anyhow::Result<()> {
-        Ok(InvitationCode::mark_as_copied(self.pool(), code).await?)
+        Ok(InvitationCode::mark_as_copied(self.db().write().await?, code).await?)
     }
 
     pub async fn clear_copied_codes(&self) -> anyhow::Result<()> {
-        Ok(InvitationCode::delete_all_copied(self.pool()).await?)
+        Ok(InvitationCode::delete_all_copied(self.db().write().await?).await?)
     }
 }
 
 mod persistence {
+    use crate::db_access::{ReadConnection, WriteConnection};
+
     use super::InvitationCode;
 
-    use sqlx::{SqliteExecutor, query, query_as};
+    use sqlx::{query, query_as};
 
     impl InvitationCode {
-        pub(crate) async fn store(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+        pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
             query!(
                 "INSERT INTO invitation_code (
                     code, created_at, copied
@@ -127,39 +132,41 @@ mod persistence {
                 self.created_at,
                 self.copied
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             Ok(())
         }
 
-        pub async fn load_all(
-            executor: impl SqliteExecutor<'_>,
+        pub(crate) async fn load_all(
+            mut connection: impl ReadConnection,
         ) -> sqlx::Result<Vec<InvitationCode>> {
             query_as!(
                 InvitationCode,
                 r#"SELECT code, copied, created_at AS "created_at: _"
                 FROM invitation_code"#
             )
-            .fetch_all(executor)
+            .fetch_all(connection.as_mut())
             .await
         }
 
-        pub async fn mark_as_copied(
-            executor: impl SqliteExecutor<'_>,
+        pub(crate) async fn mark_as_copied(
+            mut connection: impl WriteConnection,
             code: &str,
         ) -> sqlx::Result<()> {
             query!(
                 "UPDATE invitation_code SET copied = TRUE WHERE code = ?",
                 code
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             Ok(())
         }
 
-        pub async fn delete_all_copied(executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+        pub(crate) async fn delete_all_copied(
+            mut connection: impl WriteConnection,
+        ) -> sqlx::Result<()> {
             query!("DELETE FROM invitation_code WHERE copied = TRUE",)
-                .execute(executor)
+                .execute(connection.as_mut())
                 .await?;
             Ok(())
         }

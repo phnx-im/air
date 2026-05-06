@@ -5,10 +5,7 @@
 use aircommon::identifiers::UserId;
 use chrono::{DateTime, Utc};
 
-use crate::{
-    clients::CoreUser, user_profiles::display_name::BaseDisplayName,
-    utils::connection_ext::StoreExt,
-};
+use crate::{clients::CoreUser, user_profiles::display_name::BaseDisplayName};
 
 impl CoreUser {
     pub(crate) async fn block_contact(&self, user_id: UserId) -> anyhow::Result<()> {
@@ -18,17 +15,11 @@ impl CoreUser {
             last_display_name: profile.display_name.clone(),
             blocked_at: Utc::now(),
         };
-        self.with_notifier(async |notifier| {
-            Ok(blocked_contact.store(self.pool(), notifier).await?)
-        })
-        .await
+        Ok(blocked_contact.store(self.db().write().await?).await?)
     }
 
     pub(crate) async fn unblock_contact(&self, user_id: UserId) -> anyhow::Result<()> {
-        self.with_notifier(async |notifier| {
-            Ok(BlockedContact::delete_by_id(self.pool(), notifier, user_id).await?)
-        })
-        .await
+        Ok(BlockedContact::delete_by_id(self.db().write().await?, user_id).await?)
     }
 }
 
@@ -55,18 +46,17 @@ impl BlockedContact {
 pub struct BlockedContactError;
 
 mod persistence {
-    use sqlx::{SqliteExecutor, query, query_scalar};
+    use sqlx::{query, query_scalar};
 
-    use crate::{ChatId, store::StoreNotifier};
+    use crate::{
+        ChatId,
+        db_access::{ReadConnection, WriteConnection},
+    };
 
     use super::*;
 
     impl BlockedContact {
-        pub(crate) async fn store(
-            &self,
-            executor: impl SqliteExecutor<'_>,
-            notifier: &mut StoreNotifier,
-        ) -> sqlx::Result<()> {
+        pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
             let uuid = self.user_id.uuid();
             let domain = self.user_id.domain();
             query!(
@@ -81,16 +71,16 @@ mod persistence {
                 self.last_display_name,
                 self.blocked_at,
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
 
-            notifier.add(self.user_id.clone());
+            connection.notifier().add(self.user_id.clone());
 
             Ok(())
         }
 
         pub(crate) async fn check_blocked(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl ReadConnection,
             user_id: &UserId,
         ) -> sqlx::Result<bool> {
             let user_uuid = user_id.uuid();
@@ -103,7 +93,7 @@ mod persistence {
                 user_uuid,
                 user_domain,
             )
-            .fetch_one(executor)
+            .fetch_one(connection.as_mut())
             .await
         }
 
@@ -112,7 +102,7 @@ mod persistence {
         /// Note: Group chats that contain a blocked contact are not considered as blocked.
         /// Therefore, this function returns `false` in this case.
         pub(crate) async fn check_blocked_chat(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl ReadConnection,
             chat_id: ChatId,
         ) -> sqlx::Result<bool> {
             query_scalar!(
@@ -125,13 +115,12 @@ mod persistence {
                 ) AS "exists: _""#,
                 chat_id,
             )
-            .fetch_one(executor)
+            .fetch_one(connection.as_mut())
             .await
         }
 
         pub(super) async fn delete_by_id(
-            executor: impl SqliteExecutor<'_>,
-            notifier: &mut StoreNotifier,
+            mut connection: impl WriteConnection,
             user_id: UserId,
         ) -> sqlx::Result<()> {
             let uuid = user_id.uuid();
@@ -141,10 +130,10 @@ mod persistence {
                 uuid,
                 domain,
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
 
-            notifier.add(user_id.clone());
+            connection.notifier().add(user_id.clone());
 
             Ok(())
         }

@@ -9,6 +9,7 @@
 mod chats;
 pub mod clients;
 mod contacts;
+pub(crate) mod db_access;
 mod groups;
 mod job;
 mod key_stores;
@@ -44,7 +45,7 @@ pub use crate::{
     },
     contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},
     groups::debug_info::{
-        AirComponentDebugInfo, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
+        AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
         ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo,
         RequiredDebugCapabilities,
     },

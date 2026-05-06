@@ -14,18 +14,17 @@ use aircommon::{
 };
 use chrono::Utc;
 use pin_project::pin_project;
-use sqlx::SqlitePool;
 use tokio::sync::watch;
 use tokio_util::sync::{CancellationToken, WaitForCancellationFutureOwned};
 use tracing::{debug, error, info};
 
 use crate::{
     clients::api_clients::ApiClients,
-    job::{Job, JobContext, JobError},
+    db_access::DbAccess,
+    job::{Job, JobContext, JobContextDb, JobError},
     key_stores::MemoryUserKeyStore,
     outbound_service::error::OutboundServiceRunError,
-    store::{StoreNotificationsSender, StoreNotifier},
-    utils::{connection_ext::StoreExt, global_lock::GlobalLock},
+    utils::global_lock::GlobalLock,
 };
 
 pub use timed_tasks::KEY_PACKAGES;
@@ -74,21 +73,19 @@ impl OutboundServiceWork for OutboundServiceContext {
 
 impl OutboundService<OutboundServiceContext> {
     pub(crate) fn new(
-        pool: SqlitePool,
+        db: DbAccess,
         api_clients: ApiClients,
         http_client: reqwest::Client,
         key_store: MemoryUserKeyStore,
         qs_client_id: QsClientId,
-        store_notifications_tx: StoreNotificationsSender,
         global_lock: GlobalLock,
     ) -> Self {
         let context = OutboundServiceContext {
-            pool,
+            db,
             api_clients,
             http_client,
             key_store,
             qs_client_id,
-            store_notifications_tx,
         };
         Self::with_context(context, global_lock)
     }
@@ -208,12 +205,11 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
 
 #[derive(Debug, Clone)]
 pub struct OutboundServiceContext {
-    pool: SqlitePool,
+    db: DbAccess,
     api_clients: ApiClients,
     http_client: reqwest::Client,
     key_store: MemoryUserKeyStore,
     qs_client_id: QsClientId,
-    store_notifications_tx: StoreNotificationsSender,
 }
 
 impl OutboundServiceContext {
@@ -223,18 +219,14 @@ impl OutboundServiceContext {
         E: std::error::Error + Send + Sync + 'static,
         JobType: Job<Output = T, DomainError = E>,
     {
-        let mut notifier = self.notifier();
-        let mut connection = self.pool().acquire().await?;
         let mut context = JobContext {
             api_clients: &self.api_clients,
             http_client: &self.http_client,
-            connection: &mut connection,
-            notifier: &mut notifier,
+            db: JobContextDb::Db(self.db.clone()),
             key_store: &self.key_store,
             now: Utc::now(),
         };
         let value = job.execute(&mut context).await?;
-        notifier.notify();
         Ok(value)
     }
 
@@ -277,16 +269,6 @@ impl OutboundServiceContext {
 
     fn user_id(&self) -> &UserId {
         self.signing_key().credential().user_id()
-    }
-}
-
-impl StoreExt for OutboundServiceContext {
-    fn pool(&self) -> &SqlitePool {
-        &self.pool
-    }
-
-    fn notifier(&self) -> StoreNotifier {
-        StoreNotifier::new(self.store_notifications_tx.clone())
     }
 }
 

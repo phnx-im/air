@@ -12,7 +12,7 @@ use crate::{
     chats::{Chat, PendingConnectionInfo, messages::ChatMessage},
     groups::Group,
     job::{chat_operation::ChatOperation, create_chat::CreateChat},
-    utils::{connection_ext::StoreExt, image::resize_profile_image},
+    utils::image::resize_profile_image,
 };
 
 use super::{ChatId, CoreUser};
@@ -54,26 +54,27 @@ impl CoreUser {
     }
 
     pub(crate) async fn erase_chat(&self, chat_id: ChatId) -> Result<()> {
-        self.with_transaction_and_notifier(async |txn, notifier| {
-            let chat = Chat::load(txn.as_mut(), &chat_id)
-                .await?
-                .context("missing chat for deletion")?;
-            if let ChatType::PendingConnection(_) = chat.chat_type()
-                && let Some(info) = PendingConnectionInfo::load(txn.as_mut(), chat_id).await?
-                && let Some(hash) = info.connection_offer_hash
-            {
-                Group::delete_connection_offer_psk(txn.as_mut(), hash)?;
-            }
-            Group::delete_from_db(txn, chat.group_id())
-                .await
-                .inspect_err(|error| {
-                    error!(%error, "failed to delete group; skipping");
-                })
-                .ok();
-            Chat::delete(txn.as_mut(), notifier, chat.id()).await?;
-            Ok(())
-        })
-        .await
+        self.db()
+            .with_write_transaction(async |txn| {
+                let chat = Chat::load(&mut *txn, &chat_id)
+                    .await?
+                    .context("missing chat for deletion")?;
+                if let ChatType::PendingConnection(_) = chat.chat_type()
+                    && let Some(info) = PendingConnectionInfo::load(&mut *txn, chat_id).await?
+                    && let Some(hash) = info.connection_offer_hash
+                {
+                    Group::delete_connection_offer_psk(&mut *txn, hash)?;
+                }
+                Group::delete_from_db(txn, chat.group_id())
+                    .await
+                    .inspect_err(|error| {
+                        error!(%error, "failed to delete group; skipping");
+                    })
+                    .ok();
+                Chat::delete(&mut *txn, chat.id()).await?;
+                Ok(())
+            })
+            .await
     }
 
     pub(crate) async fn leave_chat(&self, chat_id: ChatId) -> Result<()> {
@@ -87,7 +88,9 @@ impl CoreUser {
         chat_id: ChatId,
         picture: Option<Vec<u8>>,
     ) -> Result<()> {
-        let chat = Chat::load(self.pool().acquire().await?.as_mut(), &chat_id)
+        let chat = self
+            .db()
+            .with_read_transaction(async |txn| Chat::load(txn, &chat_id).await)
             .await?
             .ok_or_else(|| {
                 let id = chat_id.uuid();
@@ -110,7 +113,9 @@ impl CoreUser {
     }
 
     pub(crate) async fn set_chat_title(&self, chat_id: ChatId, title: String) -> Result<()> {
-        let chat = Chat::load(self.pool().acquire().await?.as_mut(), &chat_id)
+        let chat = self
+            .db()
+            .with_read_transaction(async |txn| Chat::load(txn, &chat_id).await)
             .await?
             .ok_or_else(|| {
                 let id = chat_id.uuid();
@@ -132,7 +137,7 @@ impl CoreUser {
         &self,
         message_id: MessageId,
     ) -> anyhow::Result<Option<ChatMessage>> {
-        ChatMessage::load(self.pool().acquire().await?.as_mut(), message_id)
+        ChatMessage::load(self.db().read().await?, message_id)
             .await
             .map_err(Into::into)
     }
@@ -142,7 +147,7 @@ impl CoreUser {
         chat_id: ChatId,
         message_id: MessageId,
     ) -> Result<Option<ChatMessage>> {
-        ChatMessage::prev_message(self.pool().acquire().await?.as_mut(), chat_id, message_id)
+        ChatMessage::prev_message(self.db().read().await?, chat_id, message_id)
             .await
             .map_err(Into::into)
     }
@@ -152,13 +157,14 @@ impl CoreUser {
         chat_id: ChatId,
         message_id: MessageId,
     ) -> Result<Option<ChatMessage>> {
-        ChatMessage::next_message(self.pool().acquire().await?.as_mut(), chat_id, message_id)
+        ChatMessage::next_message(self.db().read().await?, chat_id, message_id)
             .await
             .map_err(Into::into)
     }
 
-    pub async fn chat(&self, chat: &ChatId) -> Option<Chat> {
-        Chat::load(self.pool().acquire().await.ok()?.as_mut(), chat)
+    pub async fn chat(&self, chat_id: &ChatId) -> Option<Chat> {
+        self.db()
+            .with_read_transaction(async |txn| Chat::load(txn, chat_id).await)
             .await
             .ok()
             .flatten()
@@ -170,19 +176,14 @@ impl CoreUser {
         chat_id: ChatId,
         number_of_messages: usize,
     ) -> Result<Vec<ChatMessage>> {
-        ChatMessage::load_multiple(
-            self.pool().acquire().await?.as_mut(),
-            chat_id,
-            number_of_messages as u32,
-        )
-        .await
-        .map_err(Into::into)
+        ChatMessage::load_multiple(self.db().read().await?, chat_id, number_of_messages as u32)
+            .await
+            .map_err(Into::into)
     }
 
     pub async fn load_room_state(&self, chat_id: &ChatId) -> Result<(UserId, VerifiedRoomState)> {
         if let Some(chat_id) = self.chat(chat_id).await
-            && let Some(group) =
-                Group::load(self.pool().acquire().await?.as_mut(), chat_id.group_id()).await?
+            && let Some(group) = Group::load(self.db().read().await?, chat_id.group_id()).await?
         {
             return Ok((self.user_id().clone(), group.room_state));
         }
