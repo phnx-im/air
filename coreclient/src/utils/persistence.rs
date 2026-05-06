@@ -42,18 +42,6 @@ pub(crate) async fn open_air_db(db_path: &str) -> sqlx::Result<DbAccess> {
     let write_pool = SqlitePoolOptions::new()
         .idle_timeout(None)
         .max_lifetime(None)
-        .before_acquire(|_, _| {
-            Box::pin(async {
-                info!("acquiring from write pool");
-                Ok(true)
-            })
-        })
-        .after_release(|_, _| {
-            Box::pin(async {
-                info!("released to write pool");
-                Ok(true)
-            })
-        })
         .max_connections(1) // this is key to our approach
         .connect_with(write_opts)
         .await?;
