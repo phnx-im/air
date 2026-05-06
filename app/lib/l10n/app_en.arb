@@ -381,6 +381,8 @@
 
   "errorBanner_ok": "OK",
 
+  "memberSelectionList_client_not_supported": "This contact has an incompatible client which needs to be updated.",
+
   "homeTab_chats": "Chats",
   "homeTab_profile": "You",
 

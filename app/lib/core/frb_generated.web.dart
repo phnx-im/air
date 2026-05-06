@@ -581,7 +581,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AddUsernameContactError dco_decode_add_username_contact_error(dynamic raw);
 
   @protected
-  AirComponentDebugInfo dco_decode_air_component_debug_info(dynamic raw);
+  AirComponent dco_decode_air_component(dynamic raw);
+
+  @protected
+  AirFeatures dco_decode_air_features(dynamic raw);
 
   @protected
   AppDataDebugInfo dco_decode_app_data_debug_info(dynamic raw);
@@ -627,9 +630,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  AirComponentDebugInfo dco_decode_box_autoadd_air_component_debug_info(
-    dynamic raw,
-  );
+  AirComponent dco_decode_box_autoadd_air_component(dynamic raw);
+
+  @protected
+  AirFeatures dco_decode_box_autoadd_air_features(dynamic raw);
 
   @protected
   AppDataDebugInfo dco_decode_box_autoadd_app_data_debug_info(dynamic raw);
@@ -988,9 +992,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_opt_box_autoadd_add_username_contact_error(dynamic raw);
 
   @protected
-  AirComponentDebugInfo? dco_decode_opt_box_autoadd_air_component_debug_info(
-    dynamic raw,
-  );
+  AirComponent? dco_decode_opt_box_autoadd_air_component(dynamic raw);
+
+  @protected
+  AirFeatures? dco_decode_opt_box_autoadd_air_features(dynamic raw);
 
   @protected
   AppDataDebugInfo? dco_decode_opt_box_autoadd_app_data_debug_info(dynamic raw);
@@ -1690,9 +1695,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  AirComponentDebugInfo sse_decode_air_component_debug_info(
-    SseDeserializer deserializer,
-  );
+  AirComponent sse_decode_air_component(SseDeserializer deserializer);
+
+  @protected
+  AirFeatures sse_decode_air_features(SseDeserializer deserializer);
 
   @protected
   AppDataDebugInfo sse_decode_app_data_debug_info(SseDeserializer deserializer);
@@ -1738,9 +1744,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  AirComponentDebugInfo sse_decode_box_autoadd_air_component_debug_info(
+  AirComponent sse_decode_box_autoadd_air_component(
     SseDeserializer deserializer,
   );
+
+  @protected
+  AirFeatures sse_decode_box_autoadd_air_features(SseDeserializer deserializer);
 
   @protected
   AppDataDebugInfo sse_decode_box_autoadd_app_data_debug_info(
@@ -2201,7 +2210,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  AirComponentDebugInfo? sse_decode_opt_box_autoadd_air_component_debug_info(
+  AirComponent? sse_decode_opt_box_autoadd_air_component(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  AirFeatures? sse_decode_opt_box_autoadd_air_features(
     SseDeserializer deserializer,
   );
 
@@ -3058,10 +3072,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_air_component_debug_info(
-    AirComponentDebugInfo self,
-    SseSerializer serializer,
-  );
+  void sse_encode_air_component(AirComponent self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_air_features(AirFeatures self, SseSerializer serializer);
 
   @protected
   void sse_encode_app_data_debug_info(
@@ -3115,8 +3129,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_box_autoadd_air_component_debug_info(
-    AirComponentDebugInfo self,
+  void sse_encode_box_autoadd_air_component(
+    AirComponent self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_air_features(
+    AirFeatures self,
     SseSerializer serializer,
   );
 
@@ -3700,8 +3720,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_opt_box_autoadd_air_component_debug_info(
-    AirComponentDebugInfo? self,
+  void sse_encode_opt_box_autoadd_air_component(
+    AirComponent? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_air_features(
+    AirFeatures? self,
     SseSerializer serializer,
   );
 

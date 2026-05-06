@@ -8232,15 +8232,17 @@ const _: fn() = || {
         }
     }
     {
-        let AirComponentDebugInfo =
-            None::<crate::api::chat_details_cubit::AirComponentDebugInfo>.unwrap();
-        let _: bool = AirComponentDebugInfo.encrypted_group_profiles;
+        let AirComponent = None::<crate::api::types::AirComponent>.unwrap();
+        let _: crate::api::types::AirFeatures = AirComponent.features;
+    }
+    {
+        let AirFeatures = None::<crate::api::types::AirFeatures>.unwrap();
+        let _: bool = AirFeatures.encrypted_group_profiles;
     }
     {
         let AppDataDebugInfo = None::<crate::api::chat_details_cubit::AppDataDebugInfo>.unwrap();
         let _: Vec<String> = AppDataDebugInfo.components;
-        let _: Option<crate::api::chat_details_cubit::AirComponentDebugInfo> =
-            AppDataDebugInfo.air_component;
+        let _: Option<crate::api::types::AirComponent> = AppDataDebugInfo.air_component;
     }
     {
         let AttachmentId = None::<crate::api::message_content::AttachmentId>.unwrap();
@@ -9193,11 +9195,21 @@ impl SseDecode for crate::api::types::AddUsernameContactError {
     }
 }
 
-impl SseDecode for crate::api::chat_details_cubit::AirComponentDebugInfo {
+impl SseDecode for crate::api::types::AirComponent {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_features = <crate::api::types::AirFeatures>::sse_decode(deserializer);
+        return crate::api::types::AirComponent {
+            features: var_features,
+        };
+    }
+}
+
+impl SseDecode for crate::api::types::AirFeatures {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_encryptedGroupProfiles = <bool>::sse_decode(deserializer);
-        return crate::api::chat_details_cubit::AirComponentDebugInfo {
+        return crate::api::types::AirFeatures {
             encrypted_group_profiles: var_encryptedGroupProfiles,
         };
     }
@@ -9208,9 +9220,7 @@ impl SseDecode for crate::api::chat_details_cubit::AppDataDebugInfo {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_components = <Vec<String>>::sse_decode(deserializer);
         let mut var_airComponent =
-            <Option<crate::api::chat_details_cubit::AirComponentDebugInfo>>::sse_decode(
-                deserializer,
-            );
+            <Option<crate::api::types::AirComponent>>::sse_decode(deserializer);
         return crate::api::chat_details_cubit::AppDataDebugInfo {
             components: var_components,
             air_component: var_airComponent,
@@ -10314,13 +10324,22 @@ impl SseDecode for Option<crate::api::types::AddUsernameContactError> {
     }
 }
 
-impl SseDecode for Option<crate::api::chat_details_cubit::AirComponentDebugInfo> {
+impl SseDecode for Option<crate::api::types::AirComponent> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
-            return Some(
-                <crate::api::chat_details_cubit::AirComponentDebugInfo>::sse_decode(deserializer),
-            );
+            return Some(<crate::api::types::AirComponent>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::api::types::AirFeatures> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::types::AirFeatures>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -11047,9 +11066,12 @@ impl SseDecode for crate::api::types::UiContact {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_userId = <crate::api::types::UiUserId>::sse_decode(deserializer);
         let mut var_chatId = <crate::api::types::ChatId>::sse_decode(deserializer);
+        let mut var_supportedFeatures =
+            <Option<crate::api::types::AirFeatures>>::sse_decode(deserializer);
         return crate::api::types::UiContact {
             user_id: var_userId,
             chat_id: var_chatId,
+            supported_features: var_supportedFeatures,
         };
     }
 }
@@ -12184,23 +12206,36 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::AddUsername
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart
-    for FrbWrapper<crate::api::chat_details_cubit::AirComponentDebugInfo>
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::AirComponent> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [self.0.features.into_into_dart().into_dart()].into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::types::AirComponent>
 {
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::AirComponent>>
+    for crate::api::types::AirComponent
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::types::AirComponent> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::AirFeatures> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [self.0.encrypted_group_profiles.into_into_dart().into_dart()].into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::chat_details_cubit::AirComponentDebugInfo>
+    for FrbWrapper<crate::api::types::AirFeatures>
 {
 }
-impl
-    flutter_rust_bridge::IntoIntoDart<
-        FrbWrapper<crate::api::chat_details_cubit::AirComponentDebugInfo>,
-    > for crate::api::chat_details_cubit::AirComponentDebugInfo
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::AirFeatures>>
+    for crate::api::types::AirFeatures
 {
-    fn into_into_dart(self) -> FrbWrapper<crate::api::chat_details_cubit::AirComponentDebugInfo> {
+    fn into_into_dart(self) -> FrbWrapper<crate::api::types::AirFeatures> {
         self.into()
     }
 }
@@ -13526,6 +13561,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiContact {
         [
             self.user_id.into_into_dart().into_dart(),
             self.chat_id.into_into_dart().into_dart(),
+            self.supported_features.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -14716,7 +14752,14 @@ impl SseEncode for crate::api::types::AddUsernameContactError {
     }
 }
 
-impl SseEncode for crate::api::chat_details_cubit::AirComponentDebugInfo {
+impl SseEncode for crate::api::types::AirComponent {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <crate::api::types::AirFeatures>::sse_encode(self.features, serializer);
+    }
+}
+
+impl SseEncode for crate::api::types::AirFeatures {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.encrypted_group_profiles, serializer);
@@ -14727,10 +14770,7 @@ impl SseEncode for crate::api::chat_details_cubit::AppDataDebugInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Vec<String>>::sse_encode(self.components, serializer);
-        <Option<crate::api::chat_details_cubit::AirComponentDebugInfo>>::sse_encode(
-            self.air_component,
-            serializer,
-        );
+        <Option<crate::api::types::AirComponent>>::sse_encode(self.air_component, serializer);
     }
 }
 
@@ -15626,12 +15666,22 @@ impl SseEncode for Option<crate::api::types::AddUsernameContactError> {
     }
 }
 
-impl SseEncode for Option<crate::api::chat_details_cubit::AirComponentDebugInfo> {
+impl SseEncode for Option<crate::api::types::AirComponent> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
-            <crate::api::chat_details_cubit::AirComponentDebugInfo>::sse_encode(value, serializer);
+            <crate::api::types::AirComponent>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::api::types::AirFeatures> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::types::AirFeatures>::sse_encode(value, serializer);
         }
     }
 }
@@ -16222,6 +16272,7 @@ impl SseEncode for crate::api::types::UiContact {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <crate::api::types::UiUserId>::sse_encode(self.user_id, serializer);
         <crate::api::types::ChatId>::sse_encode(self.chat_id, serializer);
+        <Option<crate::api::types::AirFeatures>>::sse_encode(self.supported_features, serializer);
     }
 }
 

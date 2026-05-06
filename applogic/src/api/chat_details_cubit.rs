@@ -8,12 +8,12 @@ use std::{collections::HashMap, path::PathBuf, time::Duration};
 
 use aircommon::{
     OpenMlsRand, RustCrypto,
+    component::AirComponent,
     identifiers::{AttachmentId, UserId},
 };
 pub use aircoreclient::{
-    AcceptContactRequestError, AirComponentDebugInfo, AppDataDebugInfo, DebugCapabilities,
-    EncryptedGroupTitleDebugInfo, ExternalGroupProfileDebugInfo, GroupDataDebugInfo,
-    GroupDebugInfo, RequiredDebugCapabilities,
+    AcceptContactRequestError, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
+    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, RequiredDebugCapabilities,
 };
 use aircoreclient::{
     AttachmentProgress, Chat, ChatId, ChatMessage, MessageId, ProvisionAttachmentError,
@@ -821,12 +821,7 @@ pub struct _RequiredDebugCapabilities {
 #[frb(mirror(AppDataDebugInfo))]
 pub struct _AppDataDebugInfo {
     pub components: Vec<String>,
-    pub air_component: Option<AirComponentDebugInfo>,
-}
-
-#[frb(mirror(AirComponentDebugInfo))]
-pub struct _AirComponentDebugInfo {
-    pub encrypted_group_profiles: bool,
+    pub air_component: Option<AirComponent>,
 }
 
 #[frb(mirror(DebugCapabilities))]
