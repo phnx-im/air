@@ -71,9 +71,10 @@ impl SafetyCode {
 
 impl CoreUser {
     pub async fn safety_code(&self, user_id: &UserId) -> anyhow::Result<SafetyCode> {
-        let client_credential = StorableClientCredential::load_by_user_id(self.pool(), user_id)
-            .await?
-            .context("Can't find client credential of given user")?;
+        let client_credential =
+            StorableClientCredential::load_by_user_id(self.db().read().await?, user_id)
+                .await?
+                .context("Can't find client credential of given user")?;
         SafetyCode::new(&client_credential)
     }
 }

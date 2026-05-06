@@ -8,17 +8,26 @@ export RUST_BACKTRACE := "1"
 export RUSTFLAGS := "-D warnings"
 
 build_number := `git rev-list --count HEAD`
+ci := env_var_or_default("CI", "false")
 
 _default:
     just --list
 
-SERVER_DATABASE_URL := "postgres://postgres:password@localhost:5432/air_db"
+POSTGRES_HOST := env_var_or_default("POSTGRES_HOST", "localhost")
+SERVER_DATABASE_URL := "postgres://postgres:password@" + POSTGRES_HOST + ":5432/air_db"
 CLIENT_DATABASE_URL := if os() == "windows" {
     "sqlite:///" + replace(justfile_directory(), "\\", "/") + "/coreclient/client.db"
 } else {
     "sqlite://" + justfile_directory() + "/coreclient/client.db"
 }
 
+[working-directory('app')]
+@dart *args:
+    {{ if ci == "true" { "dart" } else { "fvm dart" } }} {{ args }}
+
+[working-directory('app')]
+@flutter *args:
+    {{ if ci == "true" { "flutter" } else { "fvm flutter" } }} {{ args }}
 
 # Reset and migrate databases.
 reset-dev:
@@ -45,10 +54,9 @@ migrate-dev:
 @check-flutter:
     just _check-status "git lfs --version"
     just _check-unstaged-changes "git --no-pager diff"
-    just _check-unstaged-changes "cd app && fvm flutter pub get"
-    just _check-unstaged-changes "cd app/rust_builder/cargokit/build_tool && fvm flutter pub get"
-    just _check-unstaged-changes "cd app && fvm dart format ."
-    just _check-status "cd app && fvm flutter analyze --no-pub"
+    just _check-unstaged-changes "just flutter pub get"
+    just _check-unstaged-changes "just dart format ."
+    just _check-status "just flutter analyze --no-pub"
     just _check-unstaged-changes "just regenerate-l10n"
     just _check-unstaged-changes "just regenerate-icons"
     echo "✅ {{BOLD}}check-flutter done{{NORMAL}}"
@@ -109,7 +117,7 @@ regenerate-frb:
 # Regenerate localization files.
 regenerate-l10n:
     cd app && cargo xtask prune-unused-l10n # pass --apply and optionally --safe to prevent data loss
-    cd app && fvm flutter gen-l10n
+    cd app && just flutter gen-l10n
 
 # Regenerate database query metadata.
 regenerate-sqlx: regenerate-sqlx-client regenerate-sqlx-server
@@ -127,8 +135,9 @@ regenerate-sqlx-server: start-docker-compose
     cargo sqlx prepare --no-dotenv --database-url {{SERVER_DATABASE_URL}} -- --tests
 
 # Recompile svg icons for rendering.
+[working-directory: 'app']
 regenerate-icons:
-    cd app && fvm dart run tool/compile_svg_icons.dart
+    just dart run tool/compile_svg_icons.dart
 
 # Run cargo build, clippy and test.
 @test-rust: start-docker-compose
@@ -138,7 +147,7 @@ regenerate-icons:
 
 # Run flutter test.
 test-flutter:
-    cd app && fvm flutter test
+    cd app && just flutter test
     @echo "{{BOLD}}test-flutter done{{NORMAL}}"
 
 # Run all lints and tests.
@@ -148,9 +157,12 @@ ci: check test
 test: test-rust test-flutter
 
 docker-is-podman := if `command -v podman || true` =~ ".*podman$" { "true" } else { "false" }
+skip_docker := env_var_or_default("SKIP_DOCKER_COMPOSE", "false")
 # Run docker compose services in the background.
 @start-docker-compose: _generate-db-certs
-    if {{docker-is-podman}} == "true"; then \
+    if [ "{{skip_docker}}" = "true" ]; then \
+        echo "SKIP_DOCKER_COMPOSE is set, skipping docker compose"; \
+    elif {{docker-is-podman}} == "true"; then \
         podman rm air_minio-setup_1 -i 2>&1 /dev/null; \
         podman-compose --podman-run-args=--replace up -d; \
         podman-compose ps; \
@@ -166,11 +178,11 @@ _generate-db-certs:
 
 # Use the current test results as new reference images.
 update-flutter-goldens:
-    cd app && fvm flutter test --update-goldens
+    cd app && just flutter test --update-goldens
 
 # Start the app in debug mode.
 run-app *args='':
-    cd app && fvm flutter run {{args}}
+    cd app && just flutter run {{args}}
 
 # Start the app from the last debug build.
 run-app-cached:
@@ -195,7 +207,18 @@ install-fvm:
     #  sha256sum install-fvm.sh
 
     curl -fsSL https://fvm.app/install.sh -o install-fvm.sh
-    printf "%s  %s\n" \
-        "f499535ce1f7ddf7948fd055d77e33f5d1aabf738f54844f6d6bc7a037408f5b" \
-        "install-fvm.sh" | sha256sum -c -
     bash install-fvm.sh 4.0.5
+
+[working-directory: 'app']
+build platform:
+    if [[ "${CI:-false}" != "true" ]]; then just flutter build {{ platform }}; fi
+
+[linux]
+[working-directory: 'app/linux']
+build-rpm: (build "linux")
+    nfpm package -p rpm
+
+[linux]
+[working-directory: 'app/linux']
+build-deb: (build "linux")
+    nfpm package -p deb

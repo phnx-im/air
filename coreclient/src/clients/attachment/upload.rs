@@ -12,7 +12,7 @@ use std::{
 use airapiclient::{ApiClient, ds_api::ProvisionAttachmentResponse};
 use aircommon::{
     credentials::keys::ClientSigningKey,
-    crypto::ear::{AeadCiphertext, EarEncryptable, keys::AttachmentEarKey},
+    crypto::aead::{AeadCiphertext, AeadEncryptable, keys::AttachmentEarKey},
     identifiers::AttachmentId,
 };
 use airprotos::{
@@ -24,7 +24,7 @@ use base64::{Engine, prelude::BASE64_STANDARD};
 use chrono::{DateTime, Local, Utc};
 use mimi_content::{
     MimiContent,
-    content_container::{Disposition, NestedPart, NestedPartContent, PartSemantics},
+    content_container::{Disposition, NestedPart, PartSemantics},
 };
 use reqwest::{Body, multipart};
 use serde::Deserialize;
@@ -40,16 +40,13 @@ use crate::{
         CoreUser,
         attachment::{
             AttachmentBytes, AttachmentRecord,
-            ear::{AIR_ATTACHMENT_ENCRYPTION_ALG, AIR_ATTACHMENT_HASH_ALG},
+            aead::{AIR_ATTACHMENT_ENCRYPTION_ALG, AIR_ATTACHMENT_HASH_ALG},
             progress::{AttachmentProgress, AttachmentProgressSender},
         },
     },
     groups::Group,
-    store::{Store, StoreNotifier},
-    utils::{
-        connection_ext::StoreExt,
-        image::{ReencodedAttachmentImage, load_attachment_image},
-    },
+    store::Store,
+    utils::image::{ReencodedAttachmentImage, load_attachment_image},
 };
 
 impl CoreUser {
@@ -68,7 +65,7 @@ impl CoreUser {
             ProvisionAttachmentError,
         >,
     > {
-        let group = Group::load_with_chat_id_clean(self.pool().acquire().await?.as_mut(), chat_id)
+        let group = Group::load_with_chat_id_clean(self.db().read().await?, chat_id)
             .await?
             .with_context(|| format!("Can't find group with id {chat_id:?}"))?;
 
@@ -94,13 +91,11 @@ impl CoreUser {
         let content_type = attachment.content_type;
 
         let content = MimiContent {
-            nested_part: NestedPart {
+            nested_part: NestedPart::MultiPart {
                 disposition: Disposition::Attachment,
-                part: NestedPartContent::MultiPart {
-                    part_semantics: PartSemantics::ProcessAll,
-                    parts: attachment.into_nested_parts(attachment_metadata)?,
-                },
-                ..Default::default()
+                part_semantics: PartSemantics::ProcessAll,
+                parts: attachment.into_nested_parts(attachment_metadata)?,
+                language: Default::default(),
             },
             ..Default::default()
         };
@@ -108,10 +103,11 @@ impl CoreUser {
         // Note: Acquire a transaction here to ensure that the attachment will be deleted from the
         // local database in case of an error.
         let message = self
-            .with_transaction_and_notifier(async |txn, notifier| {
+            .db()
+            .with_write_transaction(async |txn| -> anyhow::Result<ChatMessage> {
                 let message_id = MessageId::random();
                 let message = self
-                    .send_message_transactional(txn, notifier, chat_id, message_id, content)
+                    .send_message_transactional(&mut *txn, chat_id, message_id, content)
                     .await?;
 
                 // store attachment locally
@@ -124,9 +120,7 @@ impl CoreUser {
                     status: AttachmentStatus::Uploading,
                     created_at: Utc::now(),
                 };
-                record
-                    .store(txn.as_mut(), notifier, Some(content_bytes.as_slice()))
-                    .await?;
+                record.store(txn, Some(content_bytes.as_slice())).await?;
 
                 Ok(message)
             })
@@ -153,13 +147,14 @@ impl CoreUser {
     > {
         // load locally stored data
         let (group, mut message, content) = self
-            .with_transaction(async |txn| {
+            .db()
+            .with_read_transaction(async |txn| {
                 let content = match self.load_attachment(attachment_id).await? {
                     AttachmentContent::UploadFailed(bytes) => AttachmentBytes::from(bytes),
                     status => bail!("Unexpected attachment {attachment_id:?} status {status:?}"),
                 };
 
-                let attachment_record = AttachmentRecord::load(self.pool(), attachment_id)
+                let attachment_record = AttachmentRecord::load(&mut *txn, attachment_id)
                     .await?
                     .context("Attachment not found")?;
                 ensure!(
@@ -174,7 +169,7 @@ impl CoreUser {
                 ensure!(!message.is_sent(), "Message is already sent");
 
                 let chat_id = message.chat_id();
-                let chat = Chat::load(txn, &chat_id)
+                let chat = Chat::load(&mut *txn, &chat_id)
                     .await?
                     .with_context(|| format!("Can't find chat with id {chat_id}"))?;
 
@@ -201,35 +196,35 @@ impl CoreUser {
         // attachment record and this message is broken. We must copy the attachment record with
         // the new attachment id.
         if let Some(mimi_content) = message.message_mut().mimi_content_mut()
-            && let NestedPartContent::MultiPart { parts, .. } = &mut mimi_content.nested_part.part
+            && let NestedPart::MultiPart { parts, .. } = &mut mimi_content.nested_part
             && let Some(attachment_part) = parts
                 .iter_mut()
-                .find(|part| part.disposition == Disposition::Attachment)
-            && let NestedPartContent::ExternalPart {
+                .find(|part| part.disposition() == Disposition::Attachment)
+            && let NestedPart::ExternalPart {
                 url, key, nonce, ..
-            } = &mut attachment_part.part
+            } = attachment_part
             && let Ok(attachment_url) = AttachmentUrl::from_url(&url.parse()?)
         {
             *url = AttachmentUrl::new(attachment_metadata.attachment_id, attachment_url.dimensions)
                 .to_string();
-            *key = attachment_metadata.key.into_bytes().to_vec().into();
-            *nonce = attachment_metadata.nonce.to_vec().into();
+            *key = attachment_metadata.key.into_bytes().to_vec();
+            *nonce = attachment_metadata.nonce.to_vec();
 
-            self.with_transaction_and_notifier(async |txn, notifier| {
-                message.update(txn.as_mut(), notifier).await?;
-                // Since we just move the attachment record, we don't need to notify the store.
-                let mut noop_notifier = StoreNotifier::noop();
-                AttachmentRecord::copy(
-                    txn.as_mut(),
-                    &mut noop_notifier,
-                    attachment_id,
-                    attachment_metadata.attachment_id,
-                )
+            self.db()
+                .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                    message.update(&mut *txn).await?;
+                    AttachmentRecord::copy(
+                        &mut *txn,
+                        attachment_id,
+                        attachment_metadata.attachment_id,
+                        false,
+                    )
+                    .await?;
+                    AttachmentRecord::delete(txn, attachment_id, false).await?;
+
+                    Ok(())
+                })
                 .await?;
-                AttachmentRecord::delete(txn.as_mut(), &mut noop_notifier, attachment_id).await?;
-                Ok(())
-            })
-            .await?;
         } else {
             bail!("Invalid attachment mimi content")
         }
@@ -260,7 +255,7 @@ impl CoreUser {
     ) {
         let (progress_tx, progress) = AttachmentProgress::new();
         let http_client = self.http_client();
-        let pool = self.pool().clone();
+        let db = self.db().clone();
         let task = async move {
             let res = upload_encrypted_attachment(
                 &http_client,
@@ -269,15 +264,23 @@ impl CoreUser {
                 ciphertext,
             )
             .await;
+            let connection = db
+                .write()
+                .await
+                .map_err(|error| UploadTaskError::new(message.id(), error.into()))?;
             match res {
                 Ok(()) => {
-                    AttachmentRecord::update_status(&pool, attachment_id, AttachmentStatus::Ready)
-                        .await
-                        .map_err(|error| UploadTaskError::new(message.id(), error.into()))?;
+                    AttachmentRecord::update_status(
+                        connection,
+                        attachment_id,
+                        AttachmentStatus::Ready,
+                    )
+                    .await
+                    .map_err(|error| UploadTaskError::new(message.id(), error.into()))?;
                 }
                 Err(error) => {
                     AttachmentRecord::update_status(
-                        &pool,
+                        connection,
                         attachment_id,
                         AttachmentStatus::UploadFailed,
                     )
@@ -391,32 +394,28 @@ impl ProcessedAttachment {
                 .map(|data| (data.width, data.height)),
         );
 
-        let attachment = NestedPart {
+        let attachment = NestedPart::ExternalPart {
             disposition: Disposition::Attachment,
             language: String::new(),
-            part: NestedPartContent::ExternalPart {
-                content_type: self.content_type.to_owned(),
-                url: url.to_string(),
-                expires: 0,
-                size: self.size,
-                enc_alg: AIR_ATTACHMENT_ENCRYPTION_ALG,
-                key: metadata.key.into_bytes().to_vec().into(),
-                nonce: metadata.nonce.to_vec().into(),
-                aad: Default::default(),
-                hash_alg: AIR_ATTACHMENT_HASH_ALG,
-                content_hash: self.content_hash.into(),
-                description: Default::default(),
-                filename: self.filename,
-            },
+            content_type: self.content_type.to_owned(),
+            url: url.to_string(),
+            expires: 0,
+            size: self.size,
+            enc_alg: AIR_ATTACHMENT_ENCRYPTION_ALG,
+            key: metadata.key.into_bytes().to_vec(),
+            nonce: metadata.nonce.to_vec(),
+            aad: Default::default(),
+            hash_alg: AIR_ATTACHMENT_HASH_ALG,
+            content_hash: self.content_hash,
+            description: Default::default(),
+            filename: self.filename,
         };
 
-        let blurhash = self.image_data.map(|data| NestedPart {
+        let blurhash = self.image_data.map(|data| NestedPart::SinglePart {
             disposition: Disposition::Preview,
             language: String::new(),
-            part: NestedPartContent::SinglePart {
-                content_type: "text/blurhash".to_owned(),
-                content: data.blurhash.into_bytes().into(),
-            },
+            content_type: "text/blurhash".to_owned(),
+            content: data.blurhash.into_bytes(),
         });
 
         Ok([Some(attachment), blurhash].into_iter().flatten().collect())

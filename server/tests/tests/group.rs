@@ -4,9 +4,17 @@
 
 use std::slice;
 
-use aircoreclient::{DisplayName, UserProfile, clients::queue_event, store::Store};
+use aircoreclient::{
+    DisplayName, UserProfile,
+    clients::{
+        process::process_qs::{QsProcessEventResult, QsStreamProcessor},
+        queue_event,
+    },
+    store::Store,
+};
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::{DateTime, Duration, Utc};
+use mimi_content::MimiContent;
 use tokio_stream::StreamExt;
 use tracing::info;
 
@@ -18,6 +26,28 @@ async fn create_group() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     setup.create_group(&alice).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Create empty group", skip_all)]
+async fn create_empty_group() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let chat_id = setup.create_group(&alice).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+
+    // Inviting an empty user list should be a no-op
+    let messages = alice_user
+        .invite_users(chat_id, &[])
+        .await
+        .expect("inviting an empty user list should succeed")
+        .expect("inviting an empty user list should succeed");
+    assert!(messages.is_empty());
+
+    let participants = alice_user.chat_participants(chat_id).await.unwrap();
+    assert_eq!(participants.len(), 1);
+    assert!(participants.contains(&alice));
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -211,6 +241,7 @@ async fn update_user_profile_on_group_join() {
     bob_user
         .invite_users(chat_id, slice::from_ref(&charlie))
         .await
+        .unwrap()
         .unwrap();
 
     // Charlie accepts the invitation.
@@ -225,6 +256,7 @@ async fn update_user_profile_on_group_join() {
     bob_user
         .invite_users(chat_id, slice::from_ref(&alice))
         .await
+        .unwrap()
         .unwrap();
 
     // Charlie processes his messages again, fetching Alice's profile will fail because it tries to
@@ -268,7 +300,7 @@ async fn group_with_blocked_contact() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
-    setup.get_user_mut(&alice).add_user_handle().await.unwrap();
+    setup.get_user_mut(&alice).add_username().await.unwrap();
 
     let bob = setup.add_user().await;
     let charlie = setup.add_user().await;
@@ -361,6 +393,7 @@ async fn update_group_data() {
             "{:?} should process Alice's update without errors",
             user_id
         );
+        user.outbound_service().run_once().await;
         let actual_picture = user
             .chat(&chat_id)
             .await
@@ -418,6 +451,7 @@ async fn fetch_group_profile_on_invite() {
     alice_user
         .invite_users(chat_id, slice::from_ref(&bob))
         .await
+        .unwrap()
         .unwrap();
 
     // Bob processes the invitation: this schedules a FetchGroupProfileOperation
@@ -528,6 +562,7 @@ async fn missed_commit() {
     alice_user
         .invite_users(chat_id, slice::from_ref(&charlie))
         .await
+        .unwrap()
         .unwrap();
 
     let charlie_qs_messages = alice_user.qs_fetch_messages().await.unwrap();
@@ -592,6 +627,7 @@ async fn missed_commit() {
     alice_user
         .invite_users(chat_id, slice::from_ref(&bob))
         .await
+        .unwrap()
         .unwrap();
     let messages = alice_user.qs_fetch_messages().await.unwrap();
     alice_user.fully_process_qs_messages(messages).await;
@@ -814,4 +850,62 @@ async fn self_update_skips_inactive_chats() {
         DateTime::UNIX_EPOCH,
         "Inactive chat was self-updated even though it should not have been"
     );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "QS stream processor partially processes messages", skip_all)]
+async fn qs_stream_processor_partially_processes_messages() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    let connection_chat_id = setup.connect_users(&alice, &bob).await;
+    let group_chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(group_chat_id, &alice, vec![&bob])
+        .await;
+
+    // Remove bob chat only locally on their client
+    setup
+        .get_user(&bob)
+        .user
+        .erase_chat(group_chat_id)
+        .await
+        .unwrap();
+
+    let alice_user = &setup.get_user(&alice).user;
+
+    let content = MimiContent::simple_markdown_message("Hello from Alice!".to_owned(), [0; 16]);
+
+    alice_user
+        .send_message(connection_chat_id, content.clone(), None)
+        .await
+        .unwrap();
+    alice_user
+        .send_message(group_chat_id, content.clone(), None)
+        .await
+        .unwrap();
+    alice_user
+        .send_message(connection_chat_id, content, None)
+        .await
+        .unwrap();
+    alice_user.outbound_service().run_once().await;
+
+    let bob_user = &setup.get_user(&bob).user;
+
+    let (mut stream, responder) = bob_user.listen_queue().await.unwrap();
+    let mut processor = QsStreamProcessor::new(Some(responder));
+
+    while let Some(message) = stream.next().await {
+        match processor.process_event(bob_user, message).await {
+            QsProcessEventResult::Accumulated => (),
+            QsProcessEventResult::Ignored => (),
+            QsProcessEventResult::FullyProcessed { processed } => {
+                assert_eq!(processed.processed, 3);
+                assert_eq!(processed.errors.len(), 1);
+                return;
+            }
+            QsProcessEventResult::PartiallyProcessed { .. } => unreachable!(),
+        }
+    }
 }

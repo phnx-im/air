@@ -9,13 +9,15 @@
 mod chats;
 pub mod clients;
 mod contacts;
+pub(crate) mod db_access;
 mod groups;
 mod job;
 mod key_stores;
 pub mod outbound_service;
+pub(crate) mod privacy_pass;
 pub mod store;
-mod user_handles;
 mod user_profiles;
+mod usernames;
 mod utils;
 
 pub use crate::{
@@ -25,27 +27,30 @@ pub use crate::{
             ChatMessage, ContentMessage, ErrorMessage, EventMessage, InReplyToMessage, Message,
             MessageId, SystemMessage,
         },
+        pending::AcceptContactRequestError,
     },
     clients::{
-        add_contact::AddHandleContactError,
+        add_contact::AddUsernameContactError,
         attachment::{
             AttachmentContent, AttachmentStatus, AttachmentUrl, AttachmentUrlParseError,
             MimiContentExt, ProvisionAttachmentError, UploadTaskError,
             progress::{AttachmentProgress, AttachmentProgressEvent},
         },
         block_contact::BlockedContactError,
+        debug_info::{TimedTaskDebugInfo, UserDebugInfo},
+        invitation_code::{InvitationCode, RequestInvitationCodeError},
+        invite_users::InviteUsersError,
         safety_code::SafetyCode,
         user_settings::ReadReceiptsSetting,
     },
     contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},
     groups::debug_info::{
-        DebugCapabilities, EncryptedGroupTitleDebugInfo, ExternalGroupProfileDebugInfo,
-        GroupDataDebugInfo, GroupDebugInfo, RequiredDebugCapabilities,
+        AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
+        ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo,
+        RequiredDebugCapabilities,
     },
-    user_handles::UserHandleRecord,
+    privacy_pass::{RequestTokensError, TokenId},
     user_profiles::{Asset, DisplayName, DisplayNameError, UserProfile},
-    utils::persistence::{
-        delete_client_database, delete_databases, export_client_database, import_client_database,
-        open_client_db,
-    },
+    usernames::UsernameRecord,
+    utils::persistence::{delete_client_database, delete_databases, open_client_db},
 };

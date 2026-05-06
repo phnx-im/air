@@ -39,40 +39,18 @@ jobs:
           # Don't download historical file contents (blobs)
           filter: blob:none
 
-      - run: git lfs install && git lfs pull
-
-      - name: Set up Ruby
-        uses: ruby/setup-ruby@v1
+      - name: Setup build environment
+        uses: ./.github/actions/setup-buildenv
         with:
-          ruby-version: "3.3"
-
-      - uses: extractions/setup-just@v2
-      - run: just install-fvm
-      - run: echo /home/runner/fvm/bin >> $GITHUB_PATH
-
-      - name: Install required Java version
-        uses: actions/setup-java@v4
-        with:
-          distribution: "temurin"
-          java-version: "17"
-
-      - name: Set up Rust toolchain
-        uses: dtolnay/rust-toolchain@1.94.0
-        with:
-          targets: aarch64-linux-android
-
-      - uses: cargo-bins/cargo-binstall@main
-      - run: cargo binstall cargo-ndk --no-confirm
-
-      - name: Set up Android CI
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        run: cd app/fastlane && bundle install
+          fastlane: true
+          jdk: true
+          cargo-binstall-tools: cargo-ndk
 
       - name: Build and upload to Play Store
         env:
           ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_PLAYSTORE_KEY_JSON: ${{ secrets.ANDROID_PLAYSTORE_KEY_JSON }}
-        run: |
-          cd app/fastlane && bundle exec fastlane android beta_android upload_to_play_store:true --verbose
+          CARGOKIT_CARGO_PROFILE: ci-release
+        working-directory: app
+        run: bundle exec fastlane android beta_android upload_to_play_store:true --verbose

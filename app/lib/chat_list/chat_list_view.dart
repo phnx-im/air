@@ -3,10 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/chat/chat_details.dart';
+import 'package:air/theme/spacings.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/user/user.dart';
+import 'package:air/widgets/widgets.dart';
 
 import 'chat_list_content.dart';
 import 'chat_list_cubit.dart';
@@ -33,7 +35,7 @@ class ChatListContainer extends StatelessWidget {
   }
 }
 
-class ChatListView extends StatelessWidget {
+class ChatListView extends StatefulWidget {
   const ChatListView({
     super.key,
     this.scaffold = false,
@@ -44,27 +46,66 @@ class ChatListView extends StatelessWidget {
   final ChatDetailsCubitCreate createChatDetailsCubit;
 
   @override
+  State<ChatListView> createState() => _ChatListViewState();
+}
+
+class _ChatListViewState extends State<ChatListView> {
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
-    final widget = Container(
-      color: ChatListContainer.backgroundColor(context),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const ChatListHeader(),
-          Expanded(
+    final bgColor = ChatListContainer.backgroundColor(context);
+    const fadeBleeding = Spacings.xs;
+    // Content top/bottom padding includes a small bleed below the header so
+    // chat rows don't snap right against it.
+    const contentInset = kToolbarHeight + fadeBleeding;
+    // Mobile uses taller fade gradients on both edges; desktop keeps the
+    // toolbar-height fade.
+    final topFadeHeight = widget.scaffold ? 96.0 : contentInset;
+    final bottomFadeHeight = widget.scaffold ? 120.0 : contentInset;
+    // Inset the Scrollbar's track so it aligns with the list's content padding
+    // and doesn't overlap the header or the fade regions.
+    final scrollbarPadding = MediaQuery.paddingOf(
+      context,
+    ).copyWith(top: contentInset, bottom: contentInset);
+    final container = MediaQuery(
+      data: MediaQuery.of(context).copyWith(padding: scrollbarPadding),
+      child: Scrollbar(
+        controller: _scrollController,
+        child: FadedScrollFrame(
+          backgroundColor: bgColor,
+          header: const ChatListHeader(),
+          topFadeHeight: topFadeHeight,
+          bottomFadeHeight: bottomFadeHeight,
+          contentTopPadding: contentInset,
+          // Desktop: no tab bar, pin the bottom inset to the fade height.
+          bottomInset: widget.scaffold ? null : bottomFadeHeight,
+          builder: (topPadding, bottomPadding) => ScrollConfiguration(
+            behavior: ScrollConfiguration.of(
+              context,
+            ).copyWith(scrollbars: false),
             child: ChatListContent(
-              createChatDetailsCubit: createChatDetailsCubit,
+              createChatDetailsCubit: widget.createChatDetailsCubit,
+              topPadding: topPadding,
+              bottomPadding: bottomPadding,
+              scrollController: _scrollController,
             ),
           ),
-        ],
+        ),
       ),
     );
-    return scaffold
+    return widget.scaffold
         ? Scaffold(
-            backgroundColor: ChatListContainer.backgroundColor(context),
+            backgroundColor: bgColor,
             body: Stack(
               children: [
-                SafeArea(bottom: false, child: widget),
+                SafeArea(bottom: false, child: container),
                 const Positioned(
                   bottom: 0,
                   left: 0,
@@ -74,7 +115,7 @@ class ChatListView extends StatelessWidget {
               ],
             ),
           )
-        : widget;
+        : container;
   }
 }
 

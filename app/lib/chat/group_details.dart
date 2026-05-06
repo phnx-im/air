@@ -48,11 +48,15 @@ class GroupDetailsScreen extends StatelessWidget {
     return AppScaffold(
       title: chat.title,
       onTitleLongPress: () {
-        final debugInfoFut = context.read<ChatDetailsCubit>().chatDebugInfo();
+        var chatDetailsCubit = context.read<ChatDetailsCubit>();
+        final debugInfoFut = chatDetailsCubit.chatDebugInfo();
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (context) =>
-                ChatDebugInfoView(title: chat.title, debugInfo: debugInfoFut),
+            builder: (context) => ChatDebugInfoView(
+              title: chat.title,
+              debugInfo: debugInfoFut,
+              onRequestResync: () => chatDetailsCubit.requestResync(),
+            ),
           ),
         );
       },

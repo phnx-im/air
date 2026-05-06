@@ -6,25 +6,28 @@ use std::fmt::Display;
 
 use aircommon::{
     codec::{self, PersistenceCodec},
-    crypto::ear::keys::IdentityLinkWrapperKey,
-    identifiers::{Fqdn, QualifiedGroupId, UserHandle, UserId},
+    crypto::aead::keys::IdentityLinkWrapperKey,
+    identifiers::{Fqdn, QualifiedGroupId, UserId, Username},
 };
 use airprotos::client::group::{ExternalGroupProfile, GroupData};
 use chrono::{DateTime, Utc};
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
-use sqlx::{SqliteConnection, SqliteExecutor};
 use tracing::error;
 use uuid::Uuid;
 
-use crate::{contacts::PartialContactType, groups::GroupDataBytes, store::StoreNotifier};
+use crate::{
+    contacts::PartialContactType,
+    db_access::{WriteConnection, WriteTransaction},
+    groups::GroupDataBytes,
+};
 
 pub use draft::MessageDraft;
 pub(crate) use {pending::PendingConnectionInfo, status::StatusRecord};
 
 mod draft;
 pub(crate) mod messages;
-mod pending;
+pub(crate) mod pending;
 pub(crate) mod persistence;
 mod sqlx_support;
 pub(crate) mod status;
@@ -95,7 +98,7 @@ impl Chat {
     pub(crate) fn new_handle_chat(
         group_id: GroupId,
         attributes: ChatAttributes,
-        handle: UserHandle,
+        username: Username,
     ) -> Self {
         let id = ChatId::try_from(&group_id).unwrap();
         Self {
@@ -104,7 +107,7 @@ impl Chat {
             last_read: Utc::now(),
             last_message_at: None,
             status: ChatStatus::Active,
-            chat_type: ChatType::HandleConnection(handle),
+            chat_type: ChatType::HandleConnection(username),
             attributes,
         }
     }
@@ -178,10 +181,6 @@ impl Chat {
         &self.status
     }
 
-    pub fn status_mut(&mut self) -> &mut ChatStatus {
-        &mut self.status
-    }
-
     pub fn attributes(&self) -> &ChatAttributes {
         &self.attributes
     }
@@ -201,34 +200,31 @@ impl Chat {
 
     pub(crate) async fn set_picture(
         &mut self,
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
+        connection: impl WriteConnection,
         picture: Option<Vec<u8>>,
     ) -> sqlx::Result<()> {
-        Self::update_picture(executor, notifier, self.id, picture.as_deref()).await?;
+        Self::update_picture(connection, self.id, picture.as_deref()).await?;
         self.attributes.set_picture(picture);
         Ok(())
     }
 
     pub(crate) async fn set_title(
         &mut self,
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
+        connection: impl WriteConnection,
         title: String,
     ) -> sqlx::Result<()> {
-        Self::update_title(executor, notifier, self.id, &title).await?;
+        Self::update_title(connection, self.id, &title).await?;
         self.attributes.set_title(title);
         Ok(())
     }
 
     pub(crate) async fn set_inactive(
         &mut self,
-        executor: &mut SqliteConnection,
-        notifier: &mut StoreNotifier,
+        connection: impl WriteTransaction,
         past_members: Vec<UserId>,
     ) -> sqlx::Result<()> {
         let new_status = ChatStatus::Inactive(InactiveChat { past_members });
-        Self::update_status(executor, notifier, self.id, &new_status).await?;
+        Self::update_status(connection, self.id, &new_status).await?;
         self.status = new_status;
         Ok(())
     }
@@ -236,13 +232,12 @@ impl Chat {
     /// Confirm a connection chat by setting the chat type to `Connection`.
     pub(crate) async fn confirm(
         &mut self,
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
+        connection: impl WriteConnection,
         user_id: UserId,
     ) -> sqlx::Result<()> {
         if self.is_unconfirmed() {
             let chat_type = ChatType::Connection(user_id);
-            self.set_chat_type(executor, notifier, &chat_type).await?;
+            self.set_chat_type(connection, &chat_type).await?;
             self.chat_type = chat_type;
         }
         Ok(())
@@ -279,7 +274,7 @@ impl InactiveChat {
 pub enum ChatType {
     /// A connection chat which was established via a handle and is not yet confirmed by the other
     /// party. (outgoing)
-    HandleConnection(UserHandle),
+    HandleConnection(Username),
     /// A connection chat that is confirmed by the other party and for which we have received the
     /// necessary secrets.
     Connection(UserId),
@@ -295,7 +290,9 @@ pub enum ChatType {
 impl ChatType {
     pub fn unconfirmed_contact(&self) -> Option<PartialContactType> {
         match self {
-            ChatType::HandleConnection(handle) => Some(PartialContactType::Handle(handle.clone())),
+            ChatType::HandleConnection(username) => {
+                Some(PartialContactType::Handle(username.clone()))
+            }
             ChatType::TargetedMessageConnection(user_id) => {
                 Some(PartialContactType::TargetedMessage(user_id.clone()))
             }
@@ -306,10 +303,9 @@ impl ChatType {
 
 /// Attributes of a chat.
 ///
-/// This type is an in-memory representation of the chat attributes and is only persisted in the
-/// local database. It is not used to be communicated with other clients. For that, see its
-/// counterpart [`GroupData`].
-#[derive(Debug, Clone, Hash, Eq, PartialEq, Serialize, Deserialize)]
+/// This type is only an in-memory representation of the chat attributes. It is not used to be
+/// communicated with other clients. For that, see its counterpart [`GroupData`].
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct ChatAttributes {
     pub title: String,
     pub picture: Option<Vec<u8>>,
@@ -347,10 +343,13 @@ pub(crate) trait GroupDataExt {
     /// Encodes the group data as bytes to be stored in the group data extension.
     fn encode(&self) -> Result<GroupDataBytes, codec::Error>;
 
+    /// Returns the chat title and the external group profile.
+    ///
+    /// The title is decrypted from the group context if it is present.
     fn into_parts(
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> (ChatAttributes, Option<ExternalGroupProfile>);
+    ) -> (Option<String>, Option<ExternalGroupProfile>);
 }
 
 impl GroupDataExt for GroupData {
@@ -365,25 +364,23 @@ impl GroupDataExt for GroupData {
     fn into_parts(
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> (ChatAttributes, Option<ExternalGroupProfile>) {
+    ) -> (Option<String>, Option<ExternalGroupProfile>) {
         let Self {
-            title,
-            picture,
+            legacy_title,
             encrypted_title,
             external_group_profile,
         } = self;
 
-        // Always prefer the encrypted title over the plaintext title
         let title = if let Some(encrypted_title) = encrypted_title
             && let Ok(decrypted_title) = encrypted_title
                 .decrypt(identity_link_wrapper_key)
                 .inspect_err(|error| {
                     error!(%error, "Failed to decrypt group title; fallback to plaintext");
                 }) {
-            decrypted_title
+            Some(decrypted_title)
         } else {
-            title
+            legacy_title
         };
-        (ChatAttributes { title, picture }, external_group_profile)
+        (title, external_group_profile)
     }
 }

@@ -68,9 +68,15 @@ class ChatListContent extends StatelessWidget {
   const ChatListContent({
     super.key,
     this.createChatDetailsCubit = ChatDetailsCubit.new,
+    this.topPadding = 0,
+    this.bottomPadding = 0,
+    this.scrollController,
   });
 
   final ChatDetailsCubitCreate createChatDetailsCubit;
+  final double topPadding;
+  final double bottomPadding;
+  final ScrollController? scrollController;
 
   @override
   Widget build(BuildContext context) {
@@ -83,14 +89,11 @@ class ChatListContent extends StatelessWidget {
     }
 
     return ListView.separated(
-      padding: const EdgeInsets.all(0),
+      controller: scrollController,
+      padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
       itemCount: chatIds.length,
-      separatorBuilder: (context, index) => Divider(
-        height: 1,
-        thickness: 1,
-        indent: Spacings.s + Spacings.xl + Spacings.xs,
-        color: CustomColorScheme.of(context).separator.secondary,
-      ),
+      separatorBuilder: (context, index) =>
+          _ChatSeparator(aboveId: chatIds[index], belowId: chatIds[index + 1]),
       itemBuilder: (BuildContext context, int index) {
         return BlocProvider(
           key: ValueKey(chatIds[index]),
@@ -106,6 +109,35 @@ class ChatListContent extends StatelessWidget {
           child: _ListTile(chatId: chatIds[index]),
         );
       },
+    );
+  }
+}
+
+class _ChatSeparator extends StatelessWidget {
+  const _ChatSeparator({required this.aboveId, required this.belowId});
+
+  final ChatId aboveId;
+  final ChatId belowId;
+
+  @override
+  Widget build(BuildContext context) {
+    final isMobile = isSmallScreen(context);
+    // On desktop the separator above and below the active item is suppressed
+    // so the selection background reads as a single rounded surface.
+    if (!isMobile) {
+      final openChatId = context.select(
+        (NavigationCubit cubit) => cubit.state.openChatId,
+      );
+      if (openChatId == aboveId || openChatId == belowId) {
+        return const SizedBox.shrink();
+      }
+    }
+    return Divider(
+      height: 0.5,
+      thickness: 0.5,
+      indent: Spacings.s + Spacings.xl + Spacings.xs,
+      endIndent: Spacings.s,
+      color: CustomColorScheme.of(context).separator.secondary,
     );
   }
 }
@@ -139,11 +171,10 @@ class _ListTile extends StatelessWidget {
     );
     final isSelected = currentChatId == chatId;
 
-    return ListTile(
-      horizontalTitleGap: 0,
-      contentPadding: const EdgeInsets.symmetric(horizontal: 0, vertical: 0),
-      minVerticalPadding: 0,
-      title: Container(
+    return GestureDetector(
+      onTap: () => context.read<NavigationCubit>().openChat(chatId),
+      behavior: HitTestBehavior.opaque,
+      child: Container(
         padding: const EdgeInsets.fromLTRB(
           Spacings.s,
           Spacings.s,
@@ -165,13 +196,10 @@ class _ListTile extends StatelessWidget {
             }
             return Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: .center,
+              crossAxisAlignment: .start,
               spacing: Spacings.xs,
               children: [
-                Align(
-                  alignment: .centerLeft,
-                  child: ChatAvatar(chatId: chat.id, size: 48),
-                ),
+                ChatAvatar(chatId: chat.id, size: 48),
                 Expanded(
                   child: Column(
                     mainAxisSize: .min,
@@ -189,8 +217,6 @@ class _ListTile extends StatelessWidget {
           },
         ),
       ),
-      selected: isSelected,
-      onTap: () => context.read<NavigationCubit>().openChat(chatId),
     );
   }
 }

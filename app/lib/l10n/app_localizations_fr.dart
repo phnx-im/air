@@ -45,14 +45,14 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get userSettingsScreen_sendWithEnterDescription =>
-      'Si cette option est désactivée, la touche Entrée n\'enverra pas de message.';
+      'Si activée, la touche « Entrée » du clavier envoie le message.';
 
   @override
   String get userSettingsScreen_readReceipts => 'Accusés de lecture';
 
   @override
   String get userSettingsScreen_readReceiptsDescription =>
-      'Si vous les désactivez, les autres ne verront pas quand vous aurez lu leurs messages et vous ne verrez pas quand ils auront lu les vôtres.';
+      'Si activés, les autres verront si vous avez lu leurs messages et vous verrez s\'ils ont lu les vôtres.';
 
   @override
   String get userSettingsScreen_displayNameLabel => 'Nom d\'affichage';
@@ -70,7 +70,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get userSettingsScreen_accountSection => 'Compte';
 
   @override
-  String get userSettingsScreen_userHandlePlaceholder => 'Nom d\'utilisateur';
+  String get userSettingsScreen_inviteCodes => 'Codes d\'invitation';
 
   @override
   String get settingsScreen_copiedToClipboard => 'Copié dans le presse-papiers';
@@ -89,6 +89,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get removeUsernameDialog_remove => 'Supprimer';
 
   @override
+  String get userSettingsScreen_usernamePlaceholder => 'Nom d\'utilisateur';
+
+  @override
   String get addMembersScreen_addMembers => 'Ajouter des membres';
 
   @override
@@ -96,7 +99,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'une discussion active est obligatoire';
 
   @override
-  String get contactDetailsScreen_chat => 'Chat';
+  String get contactDetailsScreen_chat => 'Discussion';
 
   @override
   String get contactDetailsScreen_viewSafetyCode => 'Voir le code de sécurité';
@@ -275,6 +278,54 @@ class AppLocalizationsFr extends AppLocalizations {
       'Code d\'invitation invalide. Vérifiez votre code et réessayez.';
 
   @override
+  String get invitationCodesScreen_title => 'Codes d\'invitation';
+
+  @override
+  String get invitationCodesScreen_copyAll => 'Tout copier';
+
+  @override
+  String get invitationCodesScreen_tapToGetCode =>
+      'Touchez pour obtenir un code';
+
+  @override
+  String get invitationCodesScreen_removeUsedCodes =>
+      'Supprimer les codes utilisés';
+
+  @override
+  String get invitationCodesScreen_empty =>
+      'Aucun code d\'invitation disponible';
+
+  @override
+  String get invitationCodesScreen_infoText1 =>
+      'Air est dans une phase d\'accès limité. Toute personne qui souhaite nous rejoindre a besoin d\'un code d\'invitation.';
+
+  @override
+  String get invitationCodesScreen_infoText2 =>
+      'Partagez ces codes avec vos amis ou toute personne qui souhaite rejoindre Air ! De nouveaux codes seront ajoutés régulièrement.';
+
+  @override
+  String get invitationCodesScreen_global_quota_exceeded =>
+      'Nous n\'avons plus d\'invitations pour le moment, veuillez réessayer plus tard.';
+
+  @override
+  String get invitationCodesScreen_errorRequestingCode =>
+      'Un problème est survenu. Veuillez réessayer.';
+
+  @override
+  String get invitationCodesScreen_copiedToClipboard =>
+      'Copié dans le presse-papiers';
+
+  @override
+  String invitationCodesScreen_codeClipboardMessage(Object code) {
+    return 'Téléchargez Air et rejoignez-nous : https://air.ms/install. Utilises le code d\'invitation $code.';
+  }
+
+  @override
+  String invitationCodesScreen_codesClipboardMessage(Object codes) {
+    return 'Téléchargez Air et rejoignez-nous : https://air.ms/install. Utilises l\'un de ces codes d\'invitation pour rejoindre:\n\n$codes';
+  }
+
+  @override
   String get signUpScreen_header => 'Créez votre profil';
 
   @override
@@ -325,6 +376,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get usernameOnboarding_addButton => 'Ajouter';
 
   @override
+  String get usernameOnboarding_error =>
+      'Un problème est survenu de notre côté. Veuillez patienter un instant puis réessayer.';
+
+  @override
   String get usernameOnboarding_next => 'Suivant';
 
   @override
@@ -336,47 +391,47 @@ class AppLocalizationsFr extends AppLocalizations {
       'Ajoutez un nom d\'utilisateur...';
 
   @override
-  String get userHandleScreen_title => 'Ajouter un nom d\'utilisateur';
+  String get usernameScreen_title => 'Ajouter un nom d\'utilisateur';
 
   @override
-  String get userHandleScreen_inputHint => 'Saisissez un nom d\'utilisateur...';
+  String get usernameScreen_inputHint => 'Saisissez un nom d\'utilisateur...';
 
   @override
-  String get userHandleScreen_error_emptyHandle =>
+  String get usernameScreen_error_emptyUsername =>
       'Le nom d\'utilisateur ne peut pas être vide';
 
   @override
-  String get userHandleScreen_error_alreadyExists =>
+  String get usernameScreen_error_alreadyExists =>
       'Ce nom d\'utilisateur est déjà utilisé';
 
   @override
-  String get userHandleScreen_description =>
+  String get usernameScreen_description =>
       'Choisissez un nom d\'utilisateur que d\'autres peuvent utiliser pour se connecter avec vous.\n\nUtilisez des lettres, des chiffres ou des tirets. Minimum 5 caractères.';
 
   @override
-  String get userHandleScreen_cancel => 'Annuler';
+  String get usernameScreen_cancel => 'Annuler';
 
   @override
-  String get userHandleScreen_confirm => 'Ajouter';
+  String get usernameScreen_confirm => 'Ajouter';
 
   @override
-  String get userHandleScreen_error_tooShort =>
+  String get usernameScreen_error_tooShort =>
       'Le nom d\'utilisateur doit contenir au moins 5 caractères';
 
   @override
-  String get userHandleScreen_error_tooLong =>
+  String get usernameScreen_error_tooLong =>
       'Le nom d\'utilisateur doit contenir au maximum 63 caractères';
 
   @override
-  String get userHandleScreen_error_invalidCharacter =>
+  String get usernameScreen_error_invalidCharacter =>
       'Le nom d\'utilisateur ne peut contenir que des lettres, des chiffres ou des tirets';
 
   @override
-  String get userHandleScreen_error_consecutiveDashes =>
+  String get usernameScreen_error_consecutiveDashes =>
       'Le nom d\'utilisateur ne doit pas contenir de tirets consécutifs';
 
   @override
-  String get userHandleScreen_error_leadingDigit =>
+  String get usernameScreen_error_leadingDigit =>
       'Le nom d\'utilisateur ne doit pas commencer par un chiffre';
 
   @override
@@ -549,6 +604,11 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
+  String newChatDialog_error_incompatibleClient(Object chatName) {
+    return 'Impossible de créer une discussion de groupe avec le nom $chatName car l\'un des contacts a un client incompatible.';
+  }
+
+  @override
   String get newConnectionDialog_newConnectionTitle => 'Ajouter un contact Air';
 
   @override
@@ -583,11 +643,11 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get newConnectionDialog_error_emptyHandle =>
+  String get newConnectionDialog_error_emptyUsername =>
       'Le nom d\'utilisateur ne peut pas être vide';
 
   @override
-  String newConnectionDialog_error_handleNotFound(Object username) {
+  String newConnectionDialog_error_usernameNotFound(Object username) {
     return 'Le nom d\'utilisateur $username n\'existe pas';
   }
 
@@ -596,7 +656,7 @@ class AppLocalizationsFr extends AppLocalizations {
       'Vous avez déjà une demande de contact en attente pour ce nom d\'utilisateur.';
 
   @override
-  String get newConnectionDialog_error_ownHandle =>
+  String get newConnectionDialog_error_ownUsername =>
       'Vous ne pouvez pas vous envoyer une demande de contact.';
 
   @override
@@ -616,7 +676,7 @@ class AppLocalizationsFr extends AppLocalizations {
     Object actualSize,
     Object maxSize,
   ) {
-    return 'Attachment is too large. The maximum size is $maxSize and the actual size is $actualSize.';
+    return 'La pièce jointe est trop volumineuse. La taille maximale est de $maxSize et la taille réelle est de $actualSize.';
   }
 
   @override
@@ -869,6 +929,10 @@ class AppLocalizationsFr extends AppLocalizations {
   String get addMembersScreen_done => 'Terminé';
 
   @override
+  String get addMembersScreen_error_incompatibleClient =>
+      'Impossible d\'ajouter le(s) membre(s) car l\'un des contacts a un client incompatible';
+
+  @override
   String get leaveChatDialog_title => 'Quitter la discussion';
 
   @override
@@ -972,5 +1036,30 @@ class AppLocalizationsFr extends AppLocalizations {
       'Impossible d\'accepter la demande de contact';
 
   @override
+  String get contactRequestDialog_error_incompatibleClient =>
+      'Impossible d\'accepter la demande de contact. Mettez Air à jour vers la dernière version, puis réessayez.';
+
+  @override
   String get errorBanner_ok => 'OK';
+
+  @override
+  String get memberSelectionList_client_not_supported =>
+      'This contact has an incompatible client which needs to be updated.';
+
+  @override
+  String get homeTab_chats => 'Discussions';
+
+  @override
+  String get homeTab_profile => 'Profil';
+
+  @override
+  String messageList_unreadMessages(int count) {
+    String _temp0 = intl.Intl.pluralLogic(
+      count,
+      locale: localeName,
+      other: '$count messages non lus',
+      one: '$count message non lu',
+    );
+    return '$_temp0';
+  }
 }

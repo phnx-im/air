@@ -290,6 +290,9 @@ InlineSpan buildInlineElement(
       recognizer: destUrl != null
           ? openLinkRecognizer(context, destUrl, field0)
           : null,
+      mouseCursor: destUrl != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.text,
     ),
     InlineElement_Code(:final field0) => TextSpan(
       text: field0,
@@ -305,7 +308,7 @@ InlineSpan buildInlineElement(
               context,
               child,
               isSender,
-              destUrl: Uri.tryParse(destUrl),
+              destUrl: _parseLinkDest(destUrl),
             ),
           )
           .toList(),
@@ -321,6 +324,9 @@ InlineSpan buildInlineElement(
           .toList(),
       style: const TextStyle(fontWeight: FontWeight.bold),
       recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
+      mouseCursor: destUrl != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.text,
     ),
     InlineElement_Italic(:final field0) => TextSpan(
       children: field0
@@ -328,6 +334,9 @@ InlineSpan buildInlineElement(
           .toList(),
       style: const TextStyle(fontStyle: FontStyle.italic),
       recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
+      mouseCursor: destUrl != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.text,
     ),
     InlineElement_Strikethrough(:final field0) => TextSpan(
       children: field0
@@ -335,6 +344,9 @@ InlineSpan buildInlineElement(
           .toList(),
       style: const TextStyle(decoration: TextDecoration.lineThrough),
       recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
+      mouseCursor: destUrl != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.text,
     ),
     InlineElement_Spoiler(:final field0) => TextSpan(
       children: field0
@@ -372,6 +384,14 @@ InlineSpan buildInlineElement(
       ),
     ),
   };
+}
+
+Uri? _parseLinkDest(String dest) {
+  final uri = Uri.tryParse(dest);
+  if (uri == null) return null;
+  if (uri.hasScheme) return uri;
+  // If the link doesn't have a scheme, try parsing it as https.
+  return Uri.tryParse('https://$dest');
 }
 
 TapGestureRecognizer openLinkRecognizer(

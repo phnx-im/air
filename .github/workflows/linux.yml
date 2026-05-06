@@ -1,0 +1,88 @@
+# SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: Build Linux app
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+on:
+  pull_request:
+    branches: ["main"]
+  push:
+    branches: ["main"]
+  merge_group:
+
+env:
+  CARGO_TERM_COLOR: always
+  CARGO_INCREMENTAL: 0
+  SQLX_OFFLINE: true
+  RUSTFLAGS: "-D warnings"
+  # Unfortunately, flutter doesn't support flavors on Linux, so we do with env variables and CMake
+  APP_FLAVOR: "${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}"
+
+jobs:
+  linux-build:
+    runs-on: ubuntu-latest
+    outputs:
+      build-number: ${{ steps.setup-buildenv.outputs.build-number }}
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Fetch all commit metadata (build number is derived from number of commits)
+          fetch-depth: 0
+          # Don't download historical file contents (blobs)
+          filter: blob:none
+
+      - id: setup-buildenv
+        name: Setup build environment
+        uses: ./.github/actions/setup-buildenv
+
+      - name: Build app
+        working-directory: app
+        env:
+          CARGOKIT_CARGO_PROFILE: ${{ github.ref == 'refs/heads/main' && 'ci-release' || '' }}
+        run: flutter build linux -v --build-number=${{ steps.setup-buildenv.outputs.build-number }}
+
+      - name: Upload app bundle
+        uses: actions/upload-artifact@v6
+        with:
+          name: linux-x64-app
+          path: app/build/linux/x64/release/bundle
+
+  linux-publish:
+    needs: linux-build
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Download app bundle
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: linux-x64-app
+          path: app/build/linux/x64/release/bundle
+
+      - name: Install just
+        uses: extractions/setup-just@v3
+
+      - name: Install nfpm
+        run: |
+          echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
+          sudo apt-get update && sudo apt-get install -y nfpm
+
+      - name: Build packages
+        run: RELEASE=${{ needs.linux-build.outputs.build-number }} just build-deb build-rpm
+
+      - name: Upload packages
+        uses: actions/upload-artifact@v6
+        with:
+          name: linux-x64-packages
+          path: |
+            app/linux/*.deb
+            app/linux/*.rpm

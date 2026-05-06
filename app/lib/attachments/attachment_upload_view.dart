@@ -6,6 +6,7 @@ import 'dart:io';
 
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/components/button/glass_circle_button.dart';
 import 'package:air/ui/icons/app_icons.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/util/platform.dart' as platform_utils;
@@ -70,7 +71,7 @@ class AttachmentUploadView extends HookWidget {
                         p.basename(file.path),
                         style: TextStyle(
                           color: colors.text.primary,
-                          fontSize: FontSizes.base.size,
+                          fontSize: LabelFontSize.base.size,
                         ),
                       ),
                     ],
@@ -81,13 +82,9 @@ class AttachmentUploadView extends HookWidget {
                 bottom: Spacings.s,
                 right: Spacings.s,
                 child: SafeArea(
-                  child: IconButton(
-                    style: ButtonStyle(
-                      backgroundColor: WidgetStatePropertyAll(
-                        colors.backgroundBase.secondary,
-                      ),
-                    ),
-                    icon: const AppIcon.arrowUp(size: 24, color: Colors.white),
+                  child: GlassCircleButton(
+                    icon: AppIcon.arrowUp(size: 20, color: colors.text.primary),
+                    color: colors.material.tertiary,
                     onPressed: () {
                       onUpload();
                       Navigator.of(context).pop();
@@ -105,6 +102,7 @@ class AttachmentUploadView extends HookWidget {
                       .withValues(alpha: 0.7),
                   child: AppBar(
                     automaticallyImplyLeading: false,
+                    clipBehavior: Clip.none,
                     title: Text(
                       title,
                       style: TextStyle(color: colors.text.primary),

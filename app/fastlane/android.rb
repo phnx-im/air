@@ -42,8 +42,10 @@ platform :android do
         # When not uploading to the Play Store, we just build the app as APK to
         # allow manual installation
         build_target = upload_to_play_store ? "appbundle" : "apk"
+        flavor = upload_to_play_store ? "production" : "staging"
 
-        sh "CARGOKIT_CARGO_PROFILE=ci-release fvm flutter build #{build_target} --release --target-platform android-arm64 --build-number=#{current_build_number}"
+        sh "just flutter pub get"
+        sh "just flutter build #{build_target} --flavor #{flavor} --release --target-platform android-arm64 --build-number=#{current_build_number}"
 
         if upload_to_play_store
           metadata_path = File.expand_path("../stores/android/metadata", __dir__)
@@ -53,7 +55,7 @@ platform :android do
             release_status: "completed",
             version_code: current_build_number,
             track: track,
-            aab: "build/app/outputs/bundle/release/app-release.aab",
+            aab: "build/app/outputs/bundle/productionRelease/app-production-release.aab",
             json_key: "fastlane/" + playstore_key_path,
             package_name: package_name,
             metadata_path: metadata_path,

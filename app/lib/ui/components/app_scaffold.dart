@@ -11,19 +11,24 @@ class AppScaffold extends StatelessWidget {
     super.key,
     this.title,
     this.onTitleLongPress,
+    this.backgroundColor,
     required this.child,
   });
 
   final String? title;
   final Function()? onTitleLongPress;
+  final Color? backgroundColor;
   final Widget child;
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: backgroundColor,
       appBar: AppBar(
         elevation: 0,
         scrolledUnderElevation: 0,
+        clipBehavior: Clip.none,
+        backgroundColor: backgroundColor,
         leading: const AppBarBackButton(),
         title: title != null
             ? GestureDetector(

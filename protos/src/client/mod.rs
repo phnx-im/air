@@ -4,4 +4,5 @@
 
 //! Protocol types used in client to client communication.
 
+pub mod component;
 pub mod group;

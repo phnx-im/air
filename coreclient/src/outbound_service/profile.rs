@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{ops::ControlFlow, time::Duration};
+use std::{convert::Infallible, ops::ControlFlow, time::Duration};
 
 use chrono::{DateTime, Utc};
 use tokio_util::sync::CancellationToken;
@@ -49,8 +49,12 @@ impl OutboundServiceContext {
         let now = Utc::now();
 
         // fetch user profiles
-        while let Some(op) =
-            Operation::<FetchUserProfileOperation>::dequeue(&self.pool, task_id, now).await?
+        while let Some(op) = self
+            .db
+            .with_write_transaction(async |txn| {
+                Operation::<FetchUserProfileOperation>::dequeue(txn, task_id, now).await
+            })
+            .await?
         {
             match self.fetch_profile(op, now).await? {
                 ControlFlow::Continue(_) => (),
@@ -59,8 +63,12 @@ impl OutboundServiceContext {
         }
 
         // fetch group profiles
-        while let Some(op) =
-            Operation::<FetchGroupProfileOperation>::dequeue(&self.pool, task_id, now).await?
+        while let Some(op) = self
+            .db
+            .with_write_transaction(async |txn| {
+                Operation::<FetchGroupProfileOperation>::dequeue(txn, task_id, now).await
+            })
+            .await?
         {
             match self.fetch_profile(op, now).await? {
                 ControlFlow::Continue(_) => (),
@@ -71,11 +79,14 @@ impl OutboundServiceContext {
         Ok(())
     }
 
-    async fn fetch_profile<T: OperationData + Job<Output = ()>>(
+    async fn fetch_profile<T>(
         &self,
         op: Operation<T>,
         now: DateTime<Utc>,
-    ) -> anyhow::Result<ControlFlow<()>> {
+    ) -> anyhow::Result<ControlFlow<()>>
+    where
+        T: OperationData + Job<Output = (), DomainError = Infallible>,
+    {
         debug!(?op.operation_id, kind = ?T::kind(), "fetching profile");
 
         let (mut op, data) = op.take_data();
@@ -84,7 +95,7 @@ impl OutboundServiceContext {
         match self.execute_job(data).await {
             Ok(()) => {
                 debug!(?operation_id, "fetched profile");
-                op.delete(&self.pool).await?;
+                op.delete(self.db.write().await?).await?;
             }
             Err(JobError::NetworkError) => {
                 debug!(
@@ -92,7 +103,8 @@ impl OutboundServiceContext {
                     "Failed to fetch profile due to network error"
                 );
                 if op.retries + 1 < NUM_RETRIES {
-                    op.reschedule(&self.pool, now + RETRY_AFTER).await?;
+                    op.reschedule(self.db.write().await?, now + RETRY_AFTER)
+                        .await?;
                     return Ok(ControlFlow::Break(()));
                 } else {
                     let retries = op.retries;
@@ -100,14 +112,19 @@ impl OutboundServiceContext {
                         ?operation_id,
                         retries, "Reached max number of retries; giving up"
                     );
-                    op.delete(&self.pool).await?;
+                    op.delete(self.db.write().await?).await?;
                     return Ok(ControlFlow::Continue(()));
                 }
             }
-            Err(error @ (JobError::Blocked | JobError::FatalError(_) | JobError::NotFound)) => {
+            Err(
+                error @ (JobError::Blocked
+                | JobError::Fatal(_)
+                | JobError::NotFound
+                | JobError::Domain(_)),
+            ) => {
                 // These error cases must not happen when fetching profiles.
                 error!(?operation_id, %error, "Failed to fetch profile; deleting operation");
-                op.delete(&self.pool).await?;
+                op.delete(self.db.write().await?).await?;
             }
         }
 

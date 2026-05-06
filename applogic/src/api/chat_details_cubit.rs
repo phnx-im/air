@@ -8,15 +8,16 @@ use std::{collections::HashMap, path::PathBuf, time::Duration};
 
 use aircommon::{
     OpenMlsRand, RustCrypto,
+    component::AirComponent,
     identifiers::{AttachmentId, UserId},
+};
+pub use aircoreclient::{
+    AcceptContactRequestError, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
+    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, RequiredDebugCapabilities,
 };
 use aircoreclient::{
     AttachmentProgress, Chat, ChatId, ChatMessage, MessageId, ProvisionAttachmentError,
     UploadTaskError, clients::CoreUser, store::Store,
-};
-pub use aircoreclient::{
-    DebugCapabilities, EncryptedGroupTitleDebugInfo, ExternalGroupProfileDebugInfo,
-    GroupDataDebugInfo, GroupDebugInfo, RequiredDebugCapabilities,
 };
 use anyhow::{Context as _, bail};
 use chrono::{DateTime, Local, SubsecRound, Utc};
@@ -126,7 +127,7 @@ impl ChatDetailsCubitBase {
 
     // Cubit interface
 
-    pub fn close(&mut self) {
+    pub fn close(&self) {
         self.core.close();
     }
 
@@ -140,7 +141,7 @@ impl ChatDetailsCubitBase {
         self.core.state()
     }
 
-    pub async fn stream(&mut self, sink: StreamSink<ChatDetailsState>) {
+    pub async fn stream(&self, sink: StreamSink<ChatDetailsState>) {
         self.core.stream(sink).await;
     }
 
@@ -149,11 +150,11 @@ impl ChatDetailsCubitBase {
     /// Sets the chat picture.
     ///
     /// When `bytes` is `None`, the chat picture is removed.
-    pub async fn set_chat_picture(&mut self, bytes: Option<Vec<u8>>) -> anyhow::Result<()> {
+    pub async fn set_chat_picture(&self, bytes: Option<Vec<u8>>) -> anyhow::Result<()> {
         Store::set_chat_picture(&self.context.store, self.context.chat_id, bytes.clone()).await
     }
 
-    pub async fn set_chat_title(&mut self, title: String) -> anyhow::Result<()> {
+    pub async fn set_chat_title(&self, title: String) -> anyhow::Result<()> {
         Store::set_chat_title(&self.context.store, self.context.chat_id, title).await
     }
 
@@ -165,11 +166,13 @@ impl ChatDetailsCubitBase {
         match delete_mode {
             DeleteMode::ForEveryone => {
                 // Send NullPart via network to delete for all participants
-                self.context
-                    .store
-                    .delete_message(self.context.chat_id, message_id)
-                    .await
-                    .inspect_err(|error| error!(%error, "Failed to send delete message"))?;
+                Box::pin(
+                    self.context
+                        .store
+                        .delete_message(self.context.chat_id, message_id),
+                )
+                .await
+                .inspect_err(|error| error!(%error, "Failed to send delete message"))?;
             }
             DeleteMode::ForMe => {
                 // Delete locally - completely remove the message from the database
@@ -545,15 +548,26 @@ impl ChatDetailsCubitBase {
         Ok(())
     }
 
-    pub async fn accept_contact_request(&self) -> anyhow::Result<()> {
+    pub async fn accept_contact_request(
+        &self,
+    ) -> anyhow::Result<Option<AcceptContactRequestError>> {
         let chat_id = self.context.chat_id;
-        self.context.store.accept_contact_request(chat_id).await?;
-        Ok(())
+        Ok(self
+            .context
+            .store
+            .accept_contact_request(chat_id)
+            .await?
+            .err())
     }
 
     pub async fn chat_debug_info(&self) -> anyhow::Result<GroupDebugInfo> {
         let chat_id = self.context.chat_id;
         self.context.store.chat_debug_info(chat_id).await
+    }
+
+    pub async fn request_resync(&self) -> anyhow::Result<()> {
+        let chat_id = self.context.chat_id;
+        self.context.store.enqueue_group_resync(chat_id).await
     }
 }
 
@@ -755,6 +769,11 @@ pub enum UploadAttachmentError {
     },
 }
 
+#[frb(mirror(AcceptContactRequestError))]
+pub enum _AcceptContactRequestError {
+    IncompatibleClient { reason: String },
+}
+
 #[frb(mirror(GroupDebugInfo))]
 pub struct _GroupDebugInfo {
     pub group_id: String,
@@ -772,8 +791,6 @@ pub struct _GroupDebugInfo {
 
 #[frb(mirror(GroupDataDebugInfo))]
 pub struct _GroupDataDebugInfo {
-    pub title: String,
-    pub has_picture: bool,
     pub encrypted_title: Option<EncryptedGroupTitleDebugInfo>,
     pub external_group_profile: Option<ExternalGroupProfileDebugInfo>,
 }
@@ -803,6 +820,12 @@ pub struct _RequiredDebugCapabilities {
     pub credential_types: Vec<String>,
 }
 
+#[frb(mirror(AppDataDebugInfo))]
+pub struct _AppDataDebugInfo {
+    pub components: Vec<String>,
+    pub air_component: Option<AirComponent>,
+}
+
 #[frb(mirror(DebugCapabilities))]
 pub struct _DebugCapabilities {
     pub user_id: String,
@@ -811,4 +834,5 @@ pub struct _DebugCapabilities {
     pub ciphersuites: Vec<String>,
     pub extensions: Vec<String>,
     pub proposals: Vec<String>,
+    pub app_data: Option<AppDataDebugInfo>,
 }

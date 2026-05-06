@@ -9,7 +9,7 @@ use std::borrow::Cow;
 use aircommon::{
     codec::{self, PersistenceCodec},
     crypto::{
-        ear::{AEAD_NONCE_SIZE, AeadCiphertext, EarKey, Payload, keys::IdentityLinkWrapperKey},
+        aead::{AEAD_NONCE_SIZE, AeadCiphertext, AeadKey, Payload, keys::IdentityLinkWrapperKey},
         errors::{DecryptionError, EncryptionError},
     },
     padme::padme_padding_len,
@@ -27,8 +27,11 @@ use uuid::Uuid;
 /// from `serde`.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GroupData {
-    pub title: String,
-    pub picture: Option<Vec<u8>>,
+    /// Set for the clients with version <= 0.14.0
+    ///
+    /// Can be removed once all such clients have been updated.
+    #[serde(rename = "title", skip_serializing_if = "Option::is_none")]
+    pub legacy_title: Option<String>,
     /// Encrypted group title
     ///
     /// It is encrypted with the same key and algorithm as the external group profile. It is
@@ -342,8 +345,6 @@ mod test {
 
     fn test_group_data() -> GroupData {
         GroupData {
-            title: "Group Title".to_string(),
-            picture: Some(vec![1, 2, 3]),
             encrypted_title: Some(EncryptedGroupTitle {
                 ciphertext: b"title-ciphertext".to_vec(),
                 nonce: [0xAA; _],
@@ -358,6 +359,7 @@ mod test {
                 hash_alg: HashAlgorithm::Sha256,
                 content_hash: [0xCC; 32].to_vec(),
             }),
+            legacy_title: None,
         }
     }
 
@@ -406,6 +408,37 @@ mod test {
     }
 
     #[test]
+    fn group_data_backward_compatibility() {
+        #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
+        struct OldGroupData {
+            title: String,
+            picture: Option<Vec<u8>>,
+        }
+
+        let group_data = test_group_data();
+        let old_group_data = OldGroupData {
+            title: "My Chat".to_string(),
+            picture: None,
+        };
+
+        let bytes = PersistenceCodec::to_vec(&group_data).unwrap();
+        let value: Result<OldGroupData, _> = PersistenceCodec::from_slice(&bytes);
+        // Old clients cannot join a group without a title
+        assert!(value.is_err(), "Old group data cannot be deserialized");
+
+        let bytes = PersistenceCodec::to_vec(&old_group_data).unwrap();
+        let value: GroupData = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(
+            value,
+            GroupData {
+                encrypted_title: None,
+                external_group_profile: None,
+                legacy_title: Some("My Chat".to_string()),
+            }
+        );
+    }
+
+    #[test]
     fn group_profile_encrypt_decrypt_roundtrip() {
         let key = IdentityLinkWrapperKey::random().unwrap();
         let profile = GroupProfile::new(
@@ -417,35 +450,5 @@ mod test {
         let external = builder.build(Uuid::new_v4());
         let decrypted = GroupProfile::decrypt(&key, &external, ciphertext).unwrap();
         assert_eq!(decrypted, profile);
-    }
-
-    #[test]
-    fn group_data_backward_compatibility() {
-        #[derive(Debug, Serialize, Deserialize, PartialEq, Eq)]
-        struct OldGroupData {
-            title: String,
-            picture: Option<Vec<u8>>,
-        }
-
-        let group_data = test_group_data();
-        let old_group_data = OldGroupData {
-            title: group_data.title.clone(),
-            picture: group_data.picture.clone(),
-        };
-
-        let bytes = PersistenceCodec::to_vec(&group_data).unwrap();
-        let value: OldGroupData = PersistenceCodec::from_slice(&bytes).unwrap();
-        assert_eq!(value, old_group_data);
-
-        let bytes = PersistenceCodec::to_vec(&old_group_data).unwrap();
-        let value: GroupData = PersistenceCodec::from_slice(&bytes).unwrap();
-        assert_eq!(
-            value,
-            GroupData {
-                encrypted_title: None,
-                external_group_profile: None,
-                ..group_data
-            }
-        );
     }
 }

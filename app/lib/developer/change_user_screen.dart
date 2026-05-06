@@ -49,6 +49,7 @@ class ChangeUserScreenView extends StatelessWidget {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
+        clipBehavior: Clip.none,
         title: const Text('Change User'),
         toolbarHeight: isPointer() ? 100 : null,
         leading: const AppBarBackButton(),

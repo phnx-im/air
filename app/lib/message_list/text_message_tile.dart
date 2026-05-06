@@ -11,6 +11,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/jumbo_emoji.dart';
 import 'package:air/message_list/message_composer.dart';
+import 'package:air/message_list/message_list_cubit.dart';
 import 'package:air/message_list/mobile_message_actions.dart';
 import 'package:air/message_list/timestamp.dart';
 import 'package:air/navigation/navigation.dart';
@@ -299,7 +300,7 @@ class _MessageView extends HookWidget {
         platform == TargetPlatform.windows;
 
     Widget buildMessageBubble({required bool enableSelection}) {
-      Widget child = _MessageContent(
+      return _MessageContent(
         content: contentMessage.content,
         inReplyToMessage: inReplyToMessage,
         isSender: isSender,
@@ -307,30 +308,19 @@ class _MessageView extends HookWidget {
         flightPosition: flightPosition,
         isEdited: contentMessage.edited,
         isHidden: status == UiMessageStatus.hidden && !isRevealed.value,
+        isError: status == UiMessageStatus.error,
         enableSelection: enableSelection,
       );
-      // When selection is enabled, dragging selects text instead of swiping
-      // to reply.
-      return enableSelection
-          ? child
-          : SwipeToReply(
-              onReply: () {
-                context.read<ChatDetailsCubit>().replyToMessage(
-                  messageId: messageId,
-                );
-              },
-              icon: AppIcon.cornerLeft(size: 16, color: colors.function.black),
-              child: child,
-            );
     }
 
     final attachments = contentMessage.content.attachments;
     final isDeleted = contentMessage.content.isDeleted;
+    final isReplyable = !isDeleted && status != UiMessageStatus.error;
 
     const iconSize = 16.0;
 
     final actions = [
-      if (!isDeleted)
+      if (isReplyable)
         MessageAction(
           label: loc.messageContextMenu_reply,
           leading: const AppIcon.cornerLeft(size: iconSize),
@@ -421,7 +411,13 @@ class _MessageView extends HookWidget {
       required bool detached,
       required bool includeMetadata,
     }) {
-      final bubble = buildMessageBubble(enableSelection: enableSelection);
+      Widget bubble = buildMessageBubble(enableSelection: enableSelection);
+      if (!enableSelection && isReplyable) {
+        bubble = SwipeToReplyBubble(
+          icon: AppIcon.cornerLeft(size: 16, color: colors.text.secondary),
+          child: bubble,
+        );
+      }
 
       return Container(
         key: messageKey,
@@ -477,7 +473,7 @@ class _MessageView extends HookWidget {
     }
 
     if (isMobilePlatform) {
-      return WrapWithBubbleWidth(
+      final wrappedBubble = WrapWithBubbleWidth(
         isSender: isSender,
         child: buildMessageShell(
           onLongPress: actions.isEmpty
@@ -516,6 +512,17 @@ class _MessageView extends HookWidget {
           includeMetadata: showMetadata,
         ),
       );
+
+      return isReplyable
+          ? SwipeToReplyScope(
+              onReply: () {
+                context.read<ChatDetailsCubit>().replyToMessage(
+                  messageId: messageId,
+                );
+              },
+              child: wrappedBubble,
+            )
+          : wrappedBubble;
     }
 
     return WrapWithBubbleWidth(
@@ -699,37 +706,43 @@ class _MessageMetadataRowState extends State<_MessageMetadataRow> {
         mainAxisSize: MainAxisSize.min,
         children: [
           const SizedBox(height: 2),
-          Row(
-            mainAxisAlignment: widget.isSender
-                ? MainAxisAlignment.end
-                : MainAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(width: leadingSpacing),
-              if (showTimestamp) Timestamp(widget.timestamp),
-              if (showMessageStatus) const SizedBox(width: Spacings.xxxs),
-              if (showMessageStatus && isError)
-                Text(
-                  style: TextStyle(
-                    color: CustomColorScheme.of(context).function.warning,
-                    fontSize: LabelFontSize.small2.size,
+          // We use this to avoid overflow issues when transitioning between
+          // mobile & desktop views,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: widget.isSender
+                ? Alignment.centerRight
+                : Alignment.centerLeft,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(width: leadingSpacing),
+                if (showTimestamp) Timestamp(widget.timestamp),
+                if (showMessageStatus) const SizedBox(width: Spacings.xxxs),
+                if (showMessageStatus && isError)
+                  Text(
+                    style: TextStyle(
+                      color: CustomColorScheme.of(context).function.warning,
+                      fontSize: LabelFontSize.small2.size,
+                    ),
+                    loc.messageBubble_failedToSend,
                   ),
-                  loc.messageBubble_failedToSend,
-                ),
-              if (showMessageStatus && isSending && _showSending)
-                Text(
-                  style: TextStyle(
-                    color: CustomColorScheme.of(context).text.tertiary,
-                    fontSize: LabelFontSize.small2.size,
+                if (showMessageStatus && isSending && _showSending)
+                  Text(
+                    style: TextStyle(
+                      color: CustomColorScheme.of(context).text.tertiary,
+                      fontSize: LabelFontSize.small2.size,
+                    ),
+                    loc.messageBubble_sending,
                   ),
-                  loc.messageBubble_sending,
-                ),
-              if (showMessageStatus && (isError || (isSending && _showSending)))
-                const SizedBox(width: Spacings.xxxs),
-              if (showMessageStatus)
-                MessageStatusIndicator(status: widget.status),
-              const SizedBox(width: Spacings.xs),
-            ],
+                if (showMessageStatus &&
+                    (isError || (isSending && _showSending)))
+                  const SizedBox(width: Spacings.xxxs),
+                if (showMessageStatus)
+                  MessageStatusIndicator(status: widget.status),
+                const SizedBox(width: Spacings.xs),
+              ],
+            ),
           ),
         ],
       ),
@@ -746,6 +759,7 @@ class _MessageContent extends StatelessWidget {
     required this.flightPosition,
     required this.isEdited,
     required this.isHidden,
+    required this.isError,
     required this.enableSelection,
   });
 
@@ -756,6 +770,7 @@ class _MessageContent extends StatelessWidget {
   final UiFlightPosition flightPosition;
   final bool isEdited;
   final bool isHidden;
+  final bool isError;
   final bool enableSelection;
 
   @override
@@ -863,6 +878,49 @@ class _MessageContent extends StatelessWidget {
       }
     }
 
+    Widget messageBubble = Column(
+      crossAxisAlignment: inReplyTo != null ? .stretch : .start,
+      children: [
+        if (inReplyTo != null)
+          MouseRegion(
+            cursor: switch (inReplyTo) {
+              UiInReplyToMessage_Resolved(:final mimiContent)
+                  when !mimiContent.isDeleted =>
+                SystemMouseCursors.click,
+              _ => MouseCursor.defer,
+            },
+            child: GestureDetector(
+              onTap: () {
+                if (inReplyTo case UiInReplyToMessage_Resolved(
+                  :final messageId,
+                  :final mimiContent,
+                ) when !mimiContent.isDeleted) {
+                  context.read<MessageListCubit>().jumpToMessage(
+                    messageId: messageId,
+                  );
+                }
+              },
+              child: Padding(
+                padding: const EdgeInsets.only(
+                  left: Spacings.xs,
+                  right: Spacings.xs,
+                  top: Spacings.xs,
+                ),
+                child: InReplyToBubble(
+                  inReplyTo: inReplyTo,
+                  backgroundColor: colors.fill.secondary,
+                ),
+              ),
+            ),
+          ),
+        ...columnChildren,
+      ],
+    );
+
+    if (inReplyTo != null) {
+      messageBubble = IntrinsicWidth(child: messageBubble);
+    }
+
     return Padding(
       padding: const EdgeInsets.only(bottom: 1.5),
       child: DecoratedBox(
@@ -878,24 +936,7 @@ class _MessageContent extends StatelessWidget {
           child: Column(
             crossAxisAlignment: .end,
             children: [
-              Column(
-                crossAxisAlignment: .start,
-                children: [
-                  if (inReplyTo != null)
-                    Padding(
-                      padding: const EdgeInsets.only(
-                        left: Spacings.xs,
-                        right: Spacings.xs,
-                        top: Spacings.xs,
-                      ),
-                      child: InReplyToBubble(
-                        inReplyTo: inReplyTo,
-                        backgroundColor: colors.fill.secondary,
-                      ),
-                    ),
-                  ...columnChildren,
-                ],
-              ),
+              messageBubble,
               if (isEdited)
                 Padding(
                   padding: const EdgeInsets.only(

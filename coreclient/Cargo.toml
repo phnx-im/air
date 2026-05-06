@@ -4,7 +4,7 @@
 
 [package]
 name = "aircoreclient"
-version = "0.12.1"
+version = "0.16.0"
 authors = ["Phoenix R&D GmbH <hello@phnx.im>"]
 edition = "2024"
 publish = false
@@ -22,8 +22,8 @@ base64.workspace = true
 blurhash.workspace = true
 chrono.workspace = true
 derive_more.workspace = true
+displaydoc.workspace = true
 enumset.workspace = true
-flate2.workspace = true
 hex.workspace = true
 image.workspace = true
 infer.workspace = true
@@ -34,14 +34,15 @@ openmls.workspace = true
 openmls_rust_crypto.workspace = true
 openmls_traits.workspace = true
 pin-project.workspace = true
+privacypass.workspace = true
 rand.workspace = true                                              # TODO: Replace this with a CSPRNG
 rand_chacha.workspace = true
 reqwest = { workspace = true, features = ["stream", "multipart"] }
 serde.workspace = true
+serde_bytes.workspace = true
 serde_json.workspace = true
 sha2.workspace = true
 sqlx = { workspace = true, features = ["chrono", "sqlite"] }
-tar.workspace = true
 tempfile = { workspace = true, optional = true }
 thiserror.workspace = true
 tls_codec.workspace = true
@@ -69,4 +70,5 @@ test_utils = ["tempfile"]
 [package.metadata.cargo-machete]
 ignored = [
     "kamadak-exif", # false positive due to a different crate name: exif
+    "serde_bytes",  # false positive because used as a field attribute
 ]

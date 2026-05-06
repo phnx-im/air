@@ -13,7 +13,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
-import 'package:visibility_detector/visibility_detector.dart';
 
 import '../chat_list/chat_list_content_test.dart';
 import '../helpers.dart';
@@ -182,11 +181,7 @@ void main() {
         ),
       ];
 
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(messages, isConnectionChat: true));
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      messageListCubit.setState(messages, isConnectionChat: true);
 
       await tester.pumpWidget(buildSubject(messages, isConnectionChat: true));
 
@@ -238,11 +233,7 @@ void main() {
         ),
       ];
 
-      when(
-        () => messageListCubit.state,
-      ).thenReturn(MockMessageListState(messages, isConnectionChat: false));
-
-      VisibilityDetectorController.instance.updateInterval = Duration.zero;
+      messageListCubit.setState(messages);
 
       await tester.pumpWidget(buildSubject(messages, isConnectionChat: false));
 

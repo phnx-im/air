@@ -4,7 +4,7 @@
 
 [package]
 name = "airserver"
-version = "0.12.1"
+version = "0.16.0"
 edition = "2024"
 publish = false
 description = "Server that makes the logic implemented in the backend available to clients via a REST API"
@@ -31,6 +31,7 @@ aircommon.workspace = true
 airprotos.workspace = true
 anyhow.workspace = true
 axum.workspace = true
+chrono.workspace = true
 clap = { workspace = true, features = ["derive"] }
 config.workspace = true
 futures-core.workspace = true
@@ -38,6 +39,7 @@ jsonwebtoken.workspace = true
 metrics.workspace = true
 metrics-exporter-prometheus.workspace = true
 pin-project.workspace = true
+rand.workspace = true
 reqwest.workspace = true
 serde.workspace = true
 serde_json.workspace = true
@@ -71,7 +73,6 @@ image.workspace = true
 mimi_content.workspace = true
 mockito.workspace = true
 png.workspace = true
-rand.workspace = true
 semver.workspace = true
 sha2.workspace = true
 tempfile.workspace = true

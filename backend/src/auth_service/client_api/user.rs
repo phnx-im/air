@@ -9,6 +9,7 @@ use aircommon::{
     messages::{client_as::RegisterUserResponse, client_as_out::RegisterUserParamsIn},
     time::TimeStamp,
 };
+use metrics::counter;
 use tracing::error;
 
 use crate::{
@@ -85,6 +86,7 @@ impl AuthService {
                 error!(%error, "Storage provider error");
                 RegisterUserError::StorageError
             })?;
+
         ClientRecord::new_and_store(txn.as_mut(), client_credential.clone())
             .await
             .map_err(|error| {
@@ -98,6 +100,7 @@ impl AuthService {
                 error!(%error, "Failed to save invitation code");
                 RegisterUserError::StorageError
             })?;
+            counter!("air_invitation_codes_redeemed_total").increment(1);
         }
 
         txn.commit().await.map_err(|error| {

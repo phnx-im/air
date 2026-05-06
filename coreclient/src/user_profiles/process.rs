@@ -8,6 +8,8 @@ use aircommon::{
     identifiers::UserId,
 };
 
+use crate::db_access::{ReadConnection, WriteConnection};
+
 use super::{
     IndexedUserProfile, UnvalidatedUserProfile, UserProfileValidationError, VerifiableUserProfile,
 };
@@ -16,10 +18,10 @@ pub(crate) struct ExistingUserProfile(Option<IndexedUserProfile>);
 
 impl ExistingUserProfile {
     pub(crate) async fn load(
-        executor: impl sqlx::SqliteExecutor<'_>,
+        connection: impl ReadConnection,
         user_id: &UserId,
     ) -> sqlx::Result<Self> {
-        let existing_user_profile = IndexedUserProfile::load(executor, user_id).await?;
+        let existing_user_profile = IndexedUserProfile::load(connection, user_id).await?;
         Ok(Self(existing_user_profile))
     }
 
@@ -68,15 +70,11 @@ pub(crate) struct PersistableUserProfile {
 }
 
 impl PersistableUserProfile {
-    pub(crate) async fn persist(
-        &self,
-        executor: impl sqlx::SqliteExecutor<'_>,
-        notifier: &mut crate::store::StoreNotifier,
-    ) -> sqlx::Result<()> {
+    pub(crate) async fn persist(&self, connection: impl WriteConnection) -> sqlx::Result<()> {
         if self.is_update() {
-            self.user_profile.update(executor, notifier).await
+            self.user_profile.update(connection).await
         } else {
-            self.user_profile.store(executor, notifier).await
+            self.user_profile.store(connection, true).await
         }
     }
 

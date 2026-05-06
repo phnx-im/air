@@ -18,8 +18,11 @@ enum ResponsiveScreenType {
   desktop,
 }
 
+/// Breakpoint between the mobile (tab bar) and non-mobile (sidebar) layouts.
+const double kMobileBreakpoint = 576;
+
 ResponsiveScreenType _screenType(double width) {
-  if (width < 600) {
+  if (width < kMobileBreakpoint) {
     return ResponsiveScreenType.mobile;
   } else if (ResponsiveScreen.isTouch) {
     return ResponsiveScreenType.tablet;
@@ -45,13 +48,13 @@ class ResponsiveScreen extends StatefulWidget {
     required this.desktop,
   });
 
-  /// Mobile layout: less than 800px
+  /// Mobile layout: width below [kMobileBreakpoint].
   final Widget mobile;
 
-  /// Tablet layout: greats than 800px and is touch device (iOS or Android)
+  /// Tablet layout: width at or above [kMobileBreakpoint] on a touch device (iOS, Android).
   final Widget tablet;
 
-  /// Desktop layout: greater than 800px and is not touch device (macOS, Windows, Linux)
+  /// Desktop layout: width at or above [kMobileBreakpoint] on a pointer device (macOS, Windows, Linux).
   final Widget desktop;
 
   static bool isMobile(BuildContext context) =>

@@ -8,8 +8,8 @@ use aircommon::{
         keys::{AsIntermediateVerifyingKey, ClientSignature},
     },
     crypto::{
-        ear::{
-            EarDecryptable, EarEncryptable,
+        aead::{
+            AeadDecryptable, AeadEncryptable,
             keys::{
                 FriendshipPackageEarKey, GroupStateEarKey, IdentityLinkWrapperKey,
                 WelcomeAttributionInfoEarKey,
@@ -24,7 +24,7 @@ use aircommon::{
             signable::{Signable, SignedStruct, Verifiable, VerifiedStruct},
         },
     },
-    identifiers::{Fqdn, UserHandle},
+    identifiers::{Fqdn, Username},
     messages::{
         FriendshipToken,
         client_as::{EncryptedConnectionOffer, EncryptedFriendshipPackageCtype},
@@ -37,7 +37,7 @@ use tbs::{ConnectionOfferTbs, VerifiableConnectionOffer};
 use tls_codec::{Serialize as TlsSerializeTrait, TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 pub(crate) mod payload {
-    use aircommon::{LibraryError, credentials::keys::ClientSigningKey, identifiers::UserHandle};
+    use aircommon::{LibraryError, credentials::keys::ClientSigningKey, identifiers::Username};
 
     use crate::groups::Group;
 
@@ -116,7 +116,7 @@ pub(crate) mod payload {
         pub(crate) fn sign(
             self,
             signing_key: &ClientSigningKey,
-            recipient_user_handle: UserHandle,
+            recipient_user_handle: Username,
             connection_package_hash: ConnectionPackageHash,
         ) -> Result<ConnectionOffer, LibraryError> {
             let tbs = ConnectionOfferTbs::from_payload(
@@ -186,7 +186,7 @@ mod tbs {
     use super::*;
     use aircommon::{
         credentials::keys::{ClientKeyType, ClientSignature},
-        identifiers::UserHandle,
+        identifiers::Username,
     };
 
     use super::payload::ConnectionOfferPayload;
@@ -194,14 +194,14 @@ mod tbs {
     #[derive(Debug, TlsSerialize, TlsSize, Clone)]
     pub(super) struct ConnectionOfferTbs {
         payload: ConnectionOfferPayload,
-        recipient_user_handle: UserHandle,
+        recipient_user_handle: Username,
         connection_package_hash: ConnectionPackageHash,
     }
 
     impl ConnectionOfferTbs {
         pub(super) fn from_payload(
             payload: ConnectionOfferPayload,
-            recipient_user_handle: UserHandle,
+            recipient_user_handle: Username,
             connection_package_hash: ConnectionPackageHash,
         ) -> Self {
             Self {
@@ -247,7 +247,7 @@ mod tbs {
     impl VerifiableConnectionOffer {
         pub(super) fn from_verified_payload(
             verified_payload: ConnectionOfferPayload,
-            recipient_user_handle: UserHandle,
+            recipient_user_handle: Username,
             connection_package_hash: ConnectionPackageHash,
             signature: ClientSignature,
         ) -> Self {
@@ -322,7 +322,7 @@ impl ConnectionOfferIn {
     pub(super) fn verify(
         self,
         verifying_key: &AsIntermediateVerifyingKey,
-        recipient_user_handle: UserHandle,
+        recipient_user_handle: Username,
         connection_package_hash: ConnectionPackageHash,
     ) -> Result<ConnectionOfferPayload, SignatureVerificationError> {
         let verified_payload = self.payload.verify(verifying_key)?;
@@ -346,11 +346,11 @@ pub(crate) struct FriendshipPackage {
     pub(crate) user_profile_base_secret: UserProfileBaseSecret,
 }
 
-impl EarEncryptable<FriendshipPackageEarKey, EncryptedFriendshipPackageCtype>
+impl AeadEncryptable<FriendshipPackageEarKey, EncryptedFriendshipPackageCtype>
     for FriendshipPackage
 {
 }
-impl EarDecryptable<FriendshipPackageEarKey, EncryptedFriendshipPackageCtype>
+impl AeadDecryptable<FriendshipPackageEarKey, EncryptedFriendshipPackageCtype>
     for FriendshipPackage
 {
 }
@@ -361,7 +361,7 @@ mod tests {
     use aircommon::{
         credentials::test_utils::create_test_credentials,
         crypto::signatures::private_keys::SignatureVerificationError,
-        identifiers::{UserHandle, UserId},
+        identifiers::{UserId, Username},
         messages::connection_package::ConnectionPackageHash,
     };
     use tls_codec::{DeserializeBytes as _, Serialize};
@@ -373,7 +373,7 @@ mod tests {
         let sender_user_id = UserId::random("localhost".parse().unwrap());
         let (as_sk, client_sk) = create_test_credentials(sender_user_id);
         let cep_payload = ConnectionOfferPayload::dummy(client_sk.credential().clone());
-        let user_handle = UserHandle::new("ellie-01".to_owned()).unwrap();
+        let user_handle = Username::new("ellie-01".to_owned()).unwrap();
         let hash = ConnectionPackageHash::new_for_test(vec![0; 32]);
         let cep = cep_payload
             .clone()
@@ -389,7 +389,7 @@ mod tests {
         assert_eq!(cep_verified, cep_payload);
 
         // Try with a different recipient
-        let user_handle_2 = UserHandle::new("ellie-02".to_owned()).unwrap();
+        let user_handle_2 = Username::new("ellie-02".to_owned()).unwrap();
         let err = cep_in
             .verify(as_sk.verifying_key(), user_handle_2, hash)
             .unwrap_err();

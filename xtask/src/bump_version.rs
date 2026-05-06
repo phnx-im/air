@@ -4,7 +4,7 @@
 
 use std::fs;
 
-use anyhow::{Context, Result, anyhow, bail, ensure};
+use anyhow::{Context, Result, anyhow, ensure};
 use camino::Utf8Path;
 use cargo_metadata::MetadataCommand;
 use regex::Regex;
@@ -22,25 +22,14 @@ pub(crate) fn run() -> Result<()> {
     let next = increment_minor(&current);
     println!("Bumping version {} -> {}", current, next);
 
-    cmd!(shell, "cargo set-version --version").quiet().run()?;
-    cmd!(shell, "git-cliff --version").quiet().run()?;
-
     let next_string = next.to_string();
-    cmd!(shell, "cargo set-version --workspace {next_string}").run()?;
+    cmd!(shell, "cargo set-version {next_string}").run()?;
 
     update_flutter_version(repo_root.as_ref(), &next)?;
     println!("Updated Flutter version to {}+1", next);
 
-    let changelog_section = cmd!(shell, "git-cliff --unreleased --tag v{next_string}").read()?;
-    let trimmed = changelog_section.trim_end();
-    if trimmed.is_empty() {
-        bail!("git-cliff produced empty output for v{next}");
-    }
-    prepend_changelog(repo_root.as_ref(), trimmed)?;
-    println!("Prepended changelog section for v{next}");
-
-    create_tag(&shell, &next)?;
-    println!("Created git tag v{next}");
+    update_nfpm_version(repo_root.as_ref(), &next)?;
+    println!("Updated nFPM version to {}+1", next);
 
     Ok(())
 }
@@ -97,33 +86,25 @@ fn update_flutter_version(repo_root: &Utf8Path, new_version: &Version) -> Result
     Ok(())
 }
 
-fn prepend_changelog(repo_root: &Utf8Path, new_section: &str) -> Result<()> {
-    let changelog_path = repo_root.join("CHANGELOG.md");
+fn update_nfpm_version(repo_root: &Utf8Path, new_version: &Version) -> Result<()> {
+    let nfpm_config_path = repo_root.join("app/linux/nfpm.yaml");
     ensure!(
-        changelog_path.exists(),
-        "CHANGELOG.md not found at {}",
-        changelog_path
+        nfpm_config_path.exists(),
+        "nfpm.yaml not found at {}",
+        nfpm_config_path
     );
 
-    let previous = fs::read_to_string(&changelog_path)?;
-    let mut buffer = String::new();
-    buffer.push_str(new_section);
-    buffer.push_str("\n\n");
-    buffer.push_str(&previous);
-    fs::write(&changelog_path, buffer)
-        .with_context(|| format!("Failed to write {}", changelog_path))?;
-    Ok(())
-}
-
-fn create_tag(shell: &Shell, version: &Version) -> Result<()> {
-    let tag_name = format!("v{}", version);
-    let existing = cmd!(shell, "git tag --list {tag_name}").read()?;
+    let content = fs::read_to_string(&nfpm_config_path)
+        .with_context(|| format!("Failed to read {}", nfpm_config_path))?;
+    let regex = Regex::new(r"(?m)^version:\s*.+$").expect("valid regex");
     ensure!(
-        existing.trim().is_empty(),
-        "Tag {} already exists",
-        tag_name
+        regex.is_match(&content),
+        "Could not locate version line in pubspec.yaml"
     );
 
-    cmd!(shell, "git tag {tag_name}").run()?;
+    let replacement = format!("version: {}", new_version);
+    let updated = regex.replace(&content, replacement).to_string();
+    fs::write(&nfpm_config_path, updated)
+        .with_context(|| format!("Failed to write {}", nfpm_config_path))?;
     Ok(())
 }

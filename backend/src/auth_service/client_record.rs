@@ -12,10 +12,7 @@ use crate::errors::StorageError;
 pub(super) struct ClientRecord {
     pub(super) activity_time: TimeStamp,
     pub(super) credential: ClientCredential,
-    pub(super) token_allowance: i32,
 }
-
-const DEFAULT_TOKEN_ALLOWANCE: i32 = 1000;
 
 impl ClientRecord {
     pub(super) async fn new_and_store(
@@ -25,7 +22,6 @@ impl ClientRecord {
         let record = Self {
             activity_time: TimeStamp::now(),
             credential,
-            token_allowance: DEFAULT_TOKEN_ALLOWANCE,
         };
         record.store(connection).await?;
         Ok(record)
@@ -59,38 +55,12 @@ pub(crate) mod persistence {
                     user_uuid,
                     user_domain,
                     activity_time,
-                    credential,
-                    remaining_tokens
-                ) VALUES ($1, $2, $3, $4, $5)",
+                    credential
+                ) VALUES ($1, $2, $3, $4)",
                 user_id.uuid(),
                 user_id.domain() as _,
                 activity_time,
                 client_credential as FlatClientCredential,
-                self.token_allowance,
-            )
-            .execute(connection)
-            .await?;
-            Ok(())
-        }
-
-        pub(in crate::auth_service) async fn update(
-            &self,
-            connection: impl PgExecutor<'_>,
-        ) -> Result<(), StorageError> {
-            let activity_time = DateTime::<Utc>::from(self.activity_time);
-            let client_credential = FlatClientCredential::new(&self.credential);
-            let user_id = self.credential.user_id();
-            query!(
-                "UPDATE as_client_record SET
-                    activity_time = $1,
-                    credential = $2,
-                    remaining_tokens = $3
-                WHERE user_uuid = $4 AND user_domain = $5",
-                activity_time,
-                client_credential as FlatClientCredential,
-                self.token_allowance,
-                user_id.uuid(),
-                user_id.domain() as _,
             )
             .execute(connection)
             .await?;
@@ -104,8 +74,7 @@ pub(crate) mod persistence {
             query!(
                 r#"SELECT
                     activity_time,
-                    credential AS "credential: FlatClientCredential",
-                    remaining_tokens
+                    credential AS "credential: FlatClientCredential"
                 FROM as_client_record
                 WHERE user_uuid = $1 AND user_domain = $2"#,
                 user_id.uuid(),
@@ -117,7 +86,6 @@ pub(crate) mod persistence {
                 Ok(ClientRecord {
                     activity_time: record.activity_time.into(),
                     credential: record.credential.into_client_credential(user_id.clone()),
-                    token_allowance: record.remaining_tokens,
                 })
             })
             .transpose()
@@ -129,8 +97,9 @@ pub(crate) mod persistence {
             user_id: &UserId,
         ) -> Result<(), StorageError> {
             query!(
-                "DELETE FROM as_client_record WHERE user_uuid = $1",
+                "DELETE FROM as_client_record WHERE user_uuid = $1 AND user_domain = $2",
                 user_id.uuid(),
+                user_id.domain() as _,
             )
             .execute(connection)
             .await?;
@@ -196,7 +165,6 @@ pub(crate) mod persistence {
                     ),
                     Signature::new_for_test(b"signature".to_vec()),
                 ),
-                token_allowance: 42,
             };
             Ok(record)
         }
@@ -222,28 +190,6 @@ pub(crate) mod persistence {
                 store_random_client_record(&pool, user_record.user_id().clone()).await?;
             let loaded = ClientRecord::load_user_credentials(&pool, user_record.user_id()).await?;
             assert_eq!(loaded, [client_record.credential]);
-            Ok(())
-        }
-
-        #[sqlx::test]
-        async fn update(pool: PgPool) -> anyhow::Result<()> {
-            let user_record = store_random_user_record(&pool).await?;
-            let client_record =
-                store_random_client_record(&pool, user_record.user_id().clone()).await?;
-
-            let loaded = ClientRecord::load(&pool, client_record.user_id())
-                .await?
-                .expect("missing client record");
-            assert_eq!(loaded, client_record);
-
-            let updated_client_record = random_client_record(client_record.user_id().clone())?;
-
-            updated_client_record.update(&pool).await?;
-            let loaded = ClientRecord::load(&pool, client_record.user_id())
-                .await?
-                .expect("missing client record");
-            assert_eq!(loaded, updated_client_record);
-
             Ok(())
         }
 

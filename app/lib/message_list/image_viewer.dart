@@ -323,6 +323,7 @@ class _ViewerOverlay extends StatelessWidget {
             color: backgroundColor,
             child: AppBar(
               automaticallyImplyLeading: false,
+              clipBehavior: Clip.none,
               actions: [
                 AppBarXButton(
                   onPressed: () => Navigator.of(context).maybePop(),

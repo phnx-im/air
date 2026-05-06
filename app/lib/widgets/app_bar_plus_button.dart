@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/theme/spacings.dart';
-import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/components/button/glass_circle_button.dart';
 import 'package:air/ui/icons/app_icons.dart';
 import 'package:flutter/material.dart';
 
@@ -14,27 +14,12 @@ class AppBarPlusButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
-
     return Padding(
       padding: const EdgeInsets.only(right: Spacings.s),
-      child: Material(
-        color: Colors.transparent,
-        child: InkWell(
-          onTap: onPressed,
-          customBorder: const CircleBorder(),
-          overlayColor: WidgetStateProperty.all(Colors.transparent),
-          child: DecoratedBox(
-            decoration: BoxDecoration(
-              color: colors.backgroundBase.secondary,
-              shape: BoxShape.circle,
-            ),
-            child: const SizedBox.square(
-              dimension: 32,
-              child: Center(child: AppIcon.plus(size: 16)),
-            ),
-          ),
-        ),
+      child: GlassCircleButton(
+        icon: const AppIcon.plus(size: 20),
+        hitTargetSize: 48,
+        onPressed: onPressed,
       ),
     );
   }

@@ -4,6 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/theme/theme.dart';
+import 'package:air/ui/effects/motion.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -20,6 +21,11 @@ class ChatTile extends StatelessWidget {
   });
 
   final bool isConnectionChat;
+
+  /// Wraps the tile in [_AnimatedMessage] to play the entrance animation on
+  /// mount. Rebuilds within the same mount preserve the controller's progress;
+  /// flipping back to `false` (or never entering `true`) renders the tile
+  /// directly.
   final bool animated;
 
   @override
@@ -108,10 +114,7 @@ class _AnimatedMessageState extends State<_AnimatedMessage>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(
-      vsync: this,
-      duration: const Duration(milliseconds: 300),
-    );
+    _controller = AnimationController(vsync: this, duration: motionShort);
     _controller.forward();
   }
 
@@ -131,10 +134,7 @@ class _AnimatedMessageState extends State<_AnimatedMessage>
       UiFlightPosition.single || UiFlightPosition.end => 27.0,
     };
 
-    final animation = CurvedAnimation(
-      parent: _controller,
-      curve: Curves.easeOutQuart,
-    );
+    final animation = CurvedAnimation(parent: _controller, curve: motionEasing);
 
     return Container(
       constraints: BoxConstraints(minHeight: fixedStartHeight),

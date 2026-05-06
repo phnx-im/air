@@ -25,58 +25,66 @@ jobs:
   frb:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          # Fetch only last commit, we do not need build_number for CI tests
           fetch-depth: 1
-          # Don't download historical file contents (blobs)
           filter: blob:none
 
-      ## CHECK FRB
-      - uses: extractions/setup-just@v2
-      - uses: cargo-bins/cargo-binstall@main
-      - run: cargo binstall flutter_rust_bridge_codegen@2.11.1 --no-confirm
-      - run: just install-fvm
-      - run: echo /home/runner/fvm/bin >> $GITHUB_PATH
-      - run: (cd app && fvm install)
-      - run: just check-frb
+      - id: setup-buildenv
+        name: Setup build environment
+        uses: ./.github/actions/setup-buildenv
+        with:
+          git-lfs: false
+          cargo-binstall-tools: cargo-expand flutter_rust_bridge_codegen@2.12.0
+
+      - name: Check generated Flutter Rust Bridge (FRB) files
+        run: just check-frb
 
   flutter:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v5
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          lfs: true
+          fetch-depth: 1
+          filter: blob:none
 
-      # CHECK FLUTTER
-      - uses: extractions/setup-just@v2
-      - run: just install-fvm
-      - run: echo /home/runner/fvm/bin >> $GITHUB_PATH
-      - run: (cd app && fvm install)
-      - run: just check-flutter
+      - name: Setup build environment
+        uses: ./.github/actions/setup-buildenv
 
-      # TEST FLUTTER
-      - run: just test-flutter
-      - uses: actions/upload-artifact@v4
-        if: failure()
+      - name: Flutter checks
+        run: just check-flutter
+
+      - name: Flutter tests
+        run: just test-flutter
+
+      - if: failure()
+        name: Upload failed tests screenshots
+        uses: actions/upload-artifact@v4
         with:
           name: golden-failures
           path: app/test/**/failures/*
 
   rust:
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
-      - uses: actions/checkout@v5
-
-      # CHECK RUST
-      - uses: extractions/setup-just@v2
-      - uses: dtolnay/rust-toolchain@1.94.0
-      - uses: taiki-e/install-action@v2
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          tool: cargo-deny@0.19.0,sqlx-cli@0.8.6,cargo-machete@0.9.1
-      - run: pip3 install --user reuse podman-compose
-      - uses: Swatinem/rust-cache@v2
-      - run: just check-rust
+          fetch-depth: 1
+          filter: blob:none
 
-      # TEST RUST
-      - run: just test-rust
+      - name: Setup build environment
+        uses: ./.github/actions/setup-buildenv
+        with:
+          cargo-binstall-tools: cargo-deny@0.19.0 sqlx-cli@0.8.6 cargo-machete@0.9.1
+          pypi-packages: reuse~=6.2 podman-compose~=1.5
+          flutter: false
+
+      - name: Rust checks
+        run: just check-rust
+
+      - name: Rust tests
+        run: just test-rust

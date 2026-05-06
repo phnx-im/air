@@ -3,13 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    crypto::ear::keys::GroupStateEarKey, identifiers::MimiId,
+    crypto::aead::keys::GroupStateEarKey, identifiers::MimiId,
     messages::client_ds_out::SendMessageParamsOut, time::TimeStamp,
 };
 use anyhow::Context;
 use mimi_content::{
-    ByteBuf, Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPart,
-    NestedPartContent, PerMessageStatus,
+    Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPart, PerMessageStatus,
 };
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
@@ -18,10 +17,13 @@ use uuid::Uuid;
 use crate::{
     Chat, ChatId, ChatStatus, MessageId,
     chats::StatusRecord,
-    groups::{Group, openmls_provider::AirOpenMlsProvider},
+    db_access::WriteDbTransaction,
+    groups::{Group, handle_group_not_found_on_ds, openmls_provider::AirOpenMlsProvider},
     job::pending_chat_operation::PendingChatOperation,
-    outbound_service::{error::OutboundServiceError, resync::Resync},
-    utils::connection_ext::StoreExt,
+    outbound_service::{
+        error::{OutboundServiceError, classify_ds_error},
+        resync::Resync,
+    },
 };
 
 use super::{OutboundService, OutboundServiceContext, receipt_queue::ReceiptQueue};
@@ -32,16 +34,29 @@ impl OutboundService {
         chat_id: ChatId,
         statuses: impl Iterator<Item = (MessageId, &'a MimiId, MessageStatus)> + Send,
     ) -> anyhow::Result<()> {
-        let mut connection = self.context.pool.acquire().await?;
-        if Chat::is_blocked(connection.as_mut(), chat_id).await? {
+        self.context
+            .db
+            .with_write_transaction(async |txn| {
+                self.schedule_receipts(txn, chat_id, statuses).await
+            })
+            .await?;
+        self.notify_work();
+        Ok(())
+    }
+
+    pub(crate) async fn schedule_receipts<'a>(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+        chat_id: ChatId,
+        statuses: impl Iterator<Item = (MessageId, &'a MimiId, MessageStatus)> + Send,
+    ) -> anyhow::Result<()> {
+        if Chat::is_blocked(&mut *txn, chat_id).await? {
             return Ok(());
         }
 
         for (message_id, mimi_id, status) in statuses {
             let receipt_queue = ReceiptQueue::new(message_id, status);
-            receipt_queue
-                .enqueue(&mut *connection, chat_id, mimi_id)
-                .await?;
+            receipt_queue.enqueue(&mut *txn, chat_id, mimi_id).await?;
         }
 
         self.notify_work();
@@ -62,19 +77,20 @@ impl OutboundServiceContext {
                 return Ok(()); // the task is being stopped
             }
 
-            let Some((chat_id, statuses)) = ReceiptQueue::dequeue(&self.pool, task_id).await?
+            let Some((chat_id, statuses)) =
+                ReceiptQueue::dequeue(self.db.write().await?, task_id).await?
             else {
                 return Ok(());
             };
 
             // If a resync is pending, we skip sending receipts for this chat
-            if Resync::is_pending_for_chat(&self.pool, &chat_id).await? {
+            if Resync::is_pending_for_chat(self.db.read().await?, &chat_id).await? {
                 debug!(?chat_id, "Skipping sending receipt due to pending resync");
                 continue;
             }
 
             // If a chat operation is pending, we skip sending receipts for this chat
-            if PendingChatOperation::is_pending_for_chat(&self.pool, chat_id).await? {
+            if PendingChatOperation::is_pending_for_chat(self.db.read().await?, chat_id).await? {
                 debug!(
                     ?chat_id,
                     "Skipping sending receipt due to pending chat operation"
@@ -87,12 +103,12 @@ impl OutboundServiceContext {
             match UnsentReceipt::new(statuses.iter().map(|(mimi_id, status)| (mimi_id, *status))) {
                 Ok(Some(receipt)) => match self.send_chat_receipt(chat_id, receipt).await {
                     Ok(_) => {
-                        ReceiptQueue::remove(&self.pool, task_id).await?;
+                        ReceiptQueue::remove(self.db.write().await?, task_id).await?;
                     }
                     Err(OutboundServiceError::Fatal(error)) => {
-                        error!(%error, "Failed to send receipt; dropping");
-                        ReceiptQueue::remove(&self.pool, task_id).await?;
-                        return Err(error);
+                        error!(%error, ?chat_id, "Failed to send receipt; dropping");
+                        ReceiptQueue::remove(self.db.write().await?, task_id).await?;
+                        continue;
                     }
                     Err(OutboundServiceError::Recoverable(error)) => {
                         error!(%error, "Failed to send receipt; will retry later");
@@ -102,13 +118,13 @@ impl OutboundServiceContext {
                 },
                 Ok(None) => {
                     // Nothing to send => Remove from the queue
-                    ReceiptQueue::remove(&self.pool, task_id).await?;
+                    ReceiptQueue::remove(self.db.write().await?, task_id).await?;
                 }
                 Err(error) => {
                     error!(%error, "Failed to create receipt; dropping");
                     // There is no chance we will be able to create a receipt next time
                     // => Remove from the queue
-                    ReceiptQueue::remove(&self.pool, task_id).await?;
+                    ReceiptQueue::remove(self.db.write().await?, task_id).await?;
                 }
             };
         }
@@ -122,22 +138,16 @@ impl OutboundServiceContext {
         debug!(%chat_id, ?unsent_receipt, "sending receipt");
 
         // load chat
-        let chat = {
-            let mut connection = self
-                .pool
-                .acquire()
-                .await
-                .map_err(OutboundServiceError::recoverable)?;
-            let chat = Chat::load(&mut connection, &chat_id)
-                .await
-                .map_err(OutboundServiceError::recoverable)?
-                .with_context(|| format!("Can't find chat with id {chat_id}"))
-                .map_err(OutboundServiceError::fatal)?;
-            if let ChatStatus::Blocked = chat.status() {
-                return Ok(());
-            }
-            chat
-        };
+        let chat = self
+            .db
+            .with_read_transaction(async |txn| Chat::load(txn, &chat_id).await)
+            .await
+            .map_err(OutboundServiceError::recoverable)?
+            .with_context(|| format!("Can't find chat with id {chat_id}"))
+            .map_err(OutboundServiceError::fatal)?;
+        if let ChatStatus::Blocked = chat.status() {
+            return Ok(());
+        }
 
         // load group and create MLS message
         let (group_state_ear_key, params) = self
@@ -146,22 +156,33 @@ impl OutboundServiceContext {
             .map_err(OutboundServiceError::fatal)?;
 
         // send MLS message to DS
-        self.api_clients
+        if let Err(ds_error) = self
+            .api_clients
             .get(&chat.owner_domain())
             .map_err(OutboundServiceError::fatal)?
             .ds_send_message(params, self.signing_key(), &group_state_ear_key)
             .await
-            .map_err(OutboundServiceError::recoverable)?;
+        {
+            if ds_error.is_not_found() {
+                self.db
+                    .with_write_transaction(async |txn| {
+                        handle_group_not_found_on_ds(txn, chat.group_id()).await
+                    })
+                    .await
+                    .map_err(OutboundServiceError::fatal)?;
+            }
+            return Err(classify_ds_error(ds_error));
+        }
 
         // store delivery receipt report
-        self.with_transaction_and_notifier(async |txn, notifier| {
-            StatusRecord::borrowed(self.user_id(), unsent_receipt.report, TimeStamp::now())
-                .store_report(txn, notifier)
-                .await?;
-            Ok(())
-        })
-        .await
-        .map_err(OutboundServiceError::fatal)?;
+        self.db
+            .with_write_transaction(async |txn| {
+                StatusRecord::borrowed(self.user_id(), unsent_receipt.report, TimeStamp::now())
+                    .store_report(txn)
+                    .await
+            })
+            .await
+            .map_err(OutboundServiceError::fatal)?;
 
         Ok(())
     }
@@ -171,19 +192,20 @@ impl OutboundServiceContext {
         chat: &Chat,
         mimi_content: MimiContent,
     ) -> anyhow::Result<(GroupStateEarKey, SendMessageParamsOut)> {
-        self.with_transaction(async |txn| {
-            let group_id = chat.group_id();
-            let mut group = Group::load_clean(txn.as_mut(), group_id)
-                .await?
-                .with_context(|| format!("Can't find group with id {group_id:?}"))?;
-            let params = group.create_message(
-                &AirOpenMlsProvider::new(txn.as_mut()),
-                self.signing_key(),
-                mimi_content,
-            )?;
-            Ok((group.group_state_ear_key().clone(), params))
-        })
-        .await
+        self.db
+            .with_write_transaction(async |txn| {
+                let group_id = chat.group_id();
+                let mut group = Group::load_clean(&mut *txn, group_id)
+                    .await?
+                    .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+                let params = group.create_message(
+                    &AirOpenMlsProvider::new(txn.as_mut()),
+                    self.signing_key(),
+                    mimi_content,
+                )?;
+                Ok((group.group_state_ear_key().clone(), params))
+            })
+            .await
     }
 }
 
@@ -203,7 +225,7 @@ impl UnsentReceipt {
             statuses: statuses
                 .into_iter()
                 .map(|(id, status)| PerMessageStatus {
-                    mimi_id: id.as_ref().to_vec().into(),
+                    mimi_id: id.as_ref().to_vec(),
                     status,
                 })
                 .collect(),
@@ -214,14 +236,14 @@ impl UnsentReceipt {
         }
 
         let content = MimiContent {
-            salt: ByteBuf::from(aircommon::crypto::secrets::Secret::<16>::random()?.secret()),
-            nested_part: NestedPart {
+            salt: aircommon::crypto::secrets::Secret::<16>::random()?
+                .secret()
+                .to_vec(),
+            nested_part: NestedPart::SinglePart {
                 disposition: Disposition::Unspecified,
-                part: NestedPartContent::SinglePart {
-                    content_type: "application/mimi-message-status".to_owned(),
-                    content: report.serialize()?.into(),
-                },
-                ..Default::default()
+                content_type: "application/mimi-message-status".to_owned(),
+                content: report.serialize()?,
+                language: Default::default(),
             },
             ..Default::default()
         };

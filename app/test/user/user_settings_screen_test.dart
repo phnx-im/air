@@ -12,6 +12,7 @@ import 'package:air/user/user.dart';
 
 import '../helpers.dart';
 import '../mocks.dart';
+import 'invitation_codes_view_test.dart';
 
 const physicalSize = Size(1080, 3300);
 
@@ -20,11 +21,13 @@ void main() {
     late MockUserCubit userCubit;
     late MockUsersCubit contactsCubit;
     late MockUserSettingsCubit userSettingsCubit;
+    late MockInvitationCodesCubit invitationCodesCubit;
 
     setUp(() async {
       userCubit = MockUserCubit();
       contactsCubit = MockUsersCubit();
       userSettingsCubit = MockUserSettingsCubit();
+      invitationCodesCubit = MockInvitationCodesCubit();
 
       when(() => contactsCubit.state).thenReturn(
         MockUsersState(
@@ -32,6 +35,16 @@ void main() {
         ),
       );
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
+      when(() => invitationCodesCubit.state).thenReturn(
+        InvitationCodesState(
+          codes: [
+            code('ABCD-EFGH-IJKL'),
+            token(1),
+            code('MNOP-QRST-UVWX', copied: true),
+            token(2),
+          ],
+        ),
+      );
     });
 
     Widget buildSubject() => MultiBlocProvider(
@@ -40,6 +53,7 @@ void main() {
         BlocProvider<UserCubit>.value(value: userCubit),
         BlocProvider<UsersCubit>.value(value: contactsCubit),
         BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+        BlocProvider<InvitationCodesCubit>.value(value: invitationCodesCubit),
       ],
       child: Builder(
         builder: (context) {
@@ -47,7 +61,7 @@ void main() {
             debugShowCheckedModeBanner: false,
             theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
             localizationsDelegates: AppLocalizations.localizationsDelegates,
-            home: const UserSettingsScreen(),
+            home: const UserSettingsView(),
           );
         },
       ),
@@ -59,9 +73,7 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      when(
-        () => userCubit.state,
-      ).thenReturn(MockUiUser(id: 1, userHandles: []));
+      when(() => userCubit.state).thenReturn(MockUiUser(id: 1, usernames: []));
 
       await tester.pumpWidget(buildSubject());
 
@@ -80,9 +92,9 @@ void main() {
       when(() => userCubit.state).thenReturn(
         MockUiUser(
           id: 1,
-          userHandles: [
-            const UiUserHandle(plaintext: "ellie"),
-            const UiUserHandle(plaintext: "firefly"),
+          usernames: [
+            const UiUsername(plaintext: "ellie"),
+            const UiUsername(plaintext: "firefly"),
           ],
         ),
       );
@@ -104,12 +116,12 @@ void main() {
       when(() => userCubit.state).thenReturn(
         MockUiUser(
           id: 1,
-          userHandles: [
-            const UiUserHandle(plaintext: "ellie"),
-            const UiUserHandle(plaintext: "firefly"),
-            const UiUserHandle(plaintext: "kiddo"),
-            const UiUserHandle(plaintext: "ells"),
-            const UiUserHandle(plaintext: "wolf"),
+          usernames: [
+            const UiUsername(plaintext: "ellie"),
+            const UiUsername(plaintext: "firefly"),
+            const UiUsername(plaintext: "kiddo"),
+            const UiUsername(plaintext: "ells"),
+            const UiUsername(plaintext: "wolf"),
           ],
         ),
       );

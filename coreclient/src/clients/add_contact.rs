@@ -6,12 +6,12 @@ use airapiclient::{ApiClient, as_api::AsConnectionOfferResponder};
 use aircommon::{
     credentials::keys::ClientSigningKey,
     crypto::{
-        ear::keys::{FriendshipPackageEarKey, GroupStateEarKey, IdentityLinkWrapperKey},
+        aead::keys::{FriendshipPackageEarKey, GroupStateEarKey, IdentityLinkWrapperKey},
         hash::Hashable as _,
         hpke::HpkeEncryptable,
         indexed_aead::keys::UserProfileKey,
     },
-    identifiers::{QsReference, UserHandle, UserHandleHash, UserId},
+    identifiers::{QsReference, UserId, Username, UsernameHash},
     messages::{
         client_as::{ConnectionOfferMessage, EncryptedConnectionOffer},
         client_ds_out::{CreateGroupParamsOut, TargetedMessageParamsOut},
@@ -22,7 +22,6 @@ use aircommon::{
 use airprotos::client::group::{EncryptedGroupTitle, GroupData};
 use anyhow::{Context, bail};
 use openmls::group::GroupId;
-use sqlx::SqliteTransaction;
 use tracing::info;
 
 use crate::{
@@ -32,52 +31,56 @@ use crate::{
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
         targeted_message::TargetedMessageContent,
     },
-    contacts::{HandleContact, TargetedMessageContact},
+    contacts::{TargetedMessageContact, UsernameContact},
+    db_access::WriteDbTransaction,
     groups::{Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider},
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
-    store::{Store, StoreNotifier},
-    utils::connection_ext::StoreExt,
+    store::Store,
+    user_profiles::IndexedUserProfile,
 };
 
 use super::{CoreUser, connection_offer::payload::ConnectionOfferPayload};
 
 #[derive(Debug)]
-pub enum AddHandleContactError {
-    /// The contact could not be added because the user handle does not exist
-    HandleNotFound,
-    /// There is already a pending contact request for this user handle
+pub enum AddUsernameContactError {
+    /// The contact could not be added because the username does not exist
+    UsernameNotFound,
+    /// There is already a pending contact request for this username
     DuplicateRequest,
-    /// The given handle is our own
-    OwnHandle,
+    /// The given username is our own
+    OwnUsername,
 }
 
 impl CoreUser {
-    /// Create a connection via a user handle.
+    /// Create a connection via a username.
     ///
-    /// The hash of the user handle must be pre-computed before calling this function.
-    pub(crate) async fn add_contact_via_handle(
+    /// The hash of the username must be pre-computed before calling this function.
+    pub(crate) async fn add_contact_via_username(
         &self,
-        handle: UserHandle,
-        hash: UserHandleHash,
-    ) -> anyhow::Result<Result<ChatId, AddHandleContactError>> {
+        username: Username,
+        hash: UsernameHash,
+    ) -> anyhow::Result<Result<ChatId, AddUsernameContactError>> {
         let client = self.api_client()?;
 
         // Phase 0: Perform sanity checks
         // Check if a connection request is already pending
-        if HandleContact::load(self.pool(), &handle).await?.is_some() {
-            return Ok(Err(AddHandleContactError::DuplicateRequest));
+        if UsernameContact::load(self.db().read().await?, &username)
+            .await?
+            .is_some()
+        {
+            return Ok(Err(AddUsernameContactError::DuplicateRequest));
         }
-        // Check if the target handle is one of our own handles
-        if self.user_handles().await?.contains(&handle) {
-            return Ok(Err(AddHandleContactError::OwnHandle));
+        // Check if the target username is one of our own usernames
+        if self.usernames().await?.contains(&username) {
+            return Ok(Err(AddUsernameContactError::OwnUsername));
         }
 
         // Phase 1: Fetch a connection package from the AS
         let (connection_package, connection_offer_responder) =
-            match client.as_connect_handle(hash).await {
+            match client.as_connect_username(hash).await {
                 Ok(res) => res,
                 Err(error) if error.is_not_found() => {
-                    return Ok(Err(AddHandleContactError::HandleNotFound));
+                    return Ok(Err(AddUsernameContactError::UsernameNotFound));
                 }
                 Err(error) => return Err(error.into()),
             };
@@ -101,40 +104,39 @@ impl CoreUser {
 
         let client_reference = self.create_own_client_reference();
 
-        self.with_transaction_and_notifier(async |txn, notifier| {
-            // Phase 4: Create a connection group
-            let local_group = connection_package
-                .create_local_connection_group(
-                    txn,
-                    notifier,
-                    &self.inner.key_store.signing_key,
-                    handle.clone(),
-                )
-                .await?;
+        self.db()
+            .with_write_transaction(async |txn| {
+                // Phase 4: Create a connection group
+                let local_group = connection_package
+                    .create_local_connection_group(
+                        &mut *txn,
+                        &self.inner.key_store.signing_key,
+                        username.clone(),
+                    )
+                    .await?;
 
-            let local_partial_contact = local_group
-                .create_handle_contact(
-                    txn,
-                    notifier,
-                    &self.inner.key_store,
-                    client_reference,
-                    self.user_id(),
-                    handle,
-                )
-                .await?;
+                let local_partial_contact = local_group
+                    .create_username_contact(
+                        txn,
+                        &self.inner.key_store,
+                        client_reference,
+                        self.user_id(),
+                        username,
+                    )
+                    .await?;
 
-            // Phase 5: Create the connection group on the DS and send off the connection offer
-            let chat_id = local_partial_contact
-                .create_connection_group_via_handle(
-                    &client,
-                    self.signing_key(),
-                    connection_offer_responder,
-                )
-                .await?;
+                // Phase 5: Create the connection group on the DS and send off the connection offer
+                let chat_id = local_partial_contact
+                    .create_connection_group_via_username(
+                        &client,
+                        self.signing_key(),
+                        connection_offer_responder,
+                    )
+                    .await?;
 
-            Ok(Ok(chat_id))
-        })
-        .await
+                Ok(Ok(chat_id))
+            })
+            .await
     }
 
     /// Create a connection with a user through a targeted message in a shared
@@ -153,7 +155,7 @@ impl CoreUser {
         }
 
         // Check whether we already have a pending connection request to this user
-        if TargetedMessageContact::load(self.pool(), &user_id)
+        if TargetedMessageContact::load(self.db().read().await?, &user_id)
             .await?
             .is_some()
         {
@@ -172,31 +174,31 @@ impl CoreUser {
 
         let client_reference = self.create_own_client_reference();
 
-        self.with_transaction_and_notifier(async |txn, notifier| {
-            // Phase 4: Create a connection group and prepare the targeted message
-            let local_group = connection_package
-                .create_local_connection_group(txn, notifier, &self.inner.key_store.signing_key)
-                .await?;
+        self.db()
+            .with_write_transaction(async |txn| {
+                // Phase 4: Create a connection group and prepare the targeted message
+                let local_group = connection_package
+                    .create_local_connection_group(&mut *txn, &self.inner.key_store.signing_key)
+                    .await?;
 
-            let local_partial_contact = local_group
-                .create_targeted_message_contact(
-                    txn,
-                    notifier,
-                    &self.inner.key_store,
-                    client_reference,
-                    self.user_id(),
-                    chat_id,
-                )
-                .await?;
+                let local_partial_contact = local_group
+                    .create_targeted_message_contact(
+                        &mut *txn,
+                        &self.inner.key_store,
+                        client_reference,
+                        self.user_id(),
+                        chat_id,
+                    )
+                    .await?;
 
-            // Phase 5: Create the connection group on the DS and send off the connection offer
-            let chat_id = local_partial_contact
-                .create_connection_group_via_targeted_message(&client, self.signing_key())
-                .await?;
+                // Phase 5: Create the connection group on the DS and send off the connection offer
+                let chat_id = local_partial_contact
+                    .create_connection_group_via_targeted_message(&client, self.signing_key())
+                    .await?;
 
-            Ok(chat_id)
-        })
-        .await
+                Ok(chat_id)
+            })
+            .await
     }
 }
 
@@ -208,31 +210,30 @@ struct VerifiedConnectionPackagesWithGroupId<Payload = ConnectionPackage> {
 impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
     async fn create_connection_group_internal(
         &self,
-        txn: &mut sqlx::SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         signing_key: &ClientSigningKey,
         title: String,
     ) -> anyhow::Result<(Group, PartialCreateGroupParams)> {
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
         let encrypted_title = EncryptedGroupTitle::encrypt(&title, &identity_link_wrapper_key)?;
         let group_data_bytes = GroupData {
-            title,
             encrypted_title: Some(encrypted_title),
-            picture: None,
             // No group profile is uploaded, because there is no additational data except for the
             // title.
             external_group_profile: None,
+            legacy_title: Some(title),
         }
         .encode()?;
 
         let (group, partial_params) = Group::create_group(
-            txn,
+            &mut *txn,
             signing_key,
             identity_link_wrapper_key,
             self.group_id.clone(),
             group_data_bytes,
         )?;
 
-        group.store(txn.as_mut()).await?;
+        group.store(txn).await?;
 
         Ok((group, partial_params))
     }
@@ -241,17 +242,16 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
 impl VerifiedConnectionPackagesWithGroupId<ConnectionPackage> {
     async fn create_local_connection_group(
         self,
-        txn: &mut sqlx::SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
+        txn: &mut WriteDbTransaction<'_>,
         signing_key: &ClientSigningKey,
-        handle: UserHandle,
+        username: Username,
     ) -> anyhow::Result<LocalGroup<ConnectionPackage>> {
         info!("Creating local connection group");
-        let title = format!("Connection group: {}", handle.plaintext());
+        let title = format!("Connection group: {}", username.plaintext());
         let attributes = ChatAttributes::new(title, None);
 
         let (group, partial_params) = self
-            .create_connection_group_internal(txn, signing_key, attributes.title.clone())
+            .create_connection_group_internal(&mut *txn, signing_key, attributes.title.clone())
             .await?;
 
         let Self {
@@ -260,14 +260,14 @@ impl VerifiedConnectionPackagesWithGroupId<ConnectionPackage> {
         } = self;
 
         // Create the connection chat
-        let chat = Chat::new_handle_chat(group_id.clone(), attributes, handle.clone());
-        chat.store(txn.as_mut(), notifier).await?;
+        let chat = Chat::new_handle_chat(group_id.clone(), attributes, username.clone());
+        chat.store(&mut *txn).await?;
 
         // Create the initial system message for the chat
-        let system_message = SystemMessage::NewHandleConnectionChat(handle);
+        let system_message = SystemMessage::NewHandleConnectionChat(username);
         let chat_message =
             ChatMessage::new_system_message(chat.id(), TimeStamp::now(), system_message);
-        chat_message.store(txn.as_mut(), notifier).await?;
+        chat_message.store(&mut *txn).await?;
 
         Ok(LocalGroup {
             group,
@@ -281,19 +281,19 @@ impl VerifiedConnectionPackagesWithGroupId<ConnectionPackage> {
 impl VerifiedConnectionPackagesWithGroupId<UserId> {
     async fn create_local_connection_group(
         self,
-        txn: &mut sqlx::SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
+        txn: &mut WriteDbTransaction<'_>,
         signing_key: &ClientSigningKey,
     ) -> anyhow::Result<LocalGroup<UserId>> {
         info!("Creating local connection group");
-        let user_profile = UserProfile::load(txn.as_mut(), &self.payload)
+        let user_profile: UserProfile = IndexedUserProfile::load(&mut *txn, &self.payload)
             .await?
-            .context("Can't find user profile for target user")?;
+            .context("Can't find user profile for target user")?
+            .into();
         let title = format!("Connection group: {}", user_profile.display_name);
         let attributes = ChatAttributes::new(title, None);
 
         let (group, partial_params) = self
-            .create_connection_group_internal(txn, signing_key, attributes.title.clone())
+            .create_connection_group_internal(&mut *txn, signing_key, attributes.title.clone())
             .await?;
 
         let Self {
@@ -303,13 +303,13 @@ impl VerifiedConnectionPackagesWithGroupId<UserId> {
 
         // Create the connection chat
         let chat = Chat::new_targeted_message_chat(group_id.clone(), attributes, user_id.clone());
-        chat.store(txn.as_mut(), notifier).await?;
+        chat.store(&mut *txn).await?;
 
         // Create the initial system message for the chat
         let system_message = SystemMessage::NewDirectConnectionChat(user_id.clone());
         let chat_message =
             ChatMessage::new_system_message(chat.id(), TimeStamp::now(), system_message);
-        chat_message.store(txn.as_mut(), notifier).await?;
+        chat_message.store(txn).await?;
 
         Ok(LocalGroup {
             group,
@@ -328,15 +328,14 @@ struct LocalGroup<Payload = ConnectionPackage> {
 }
 
 impl LocalGroup<ConnectionPackage> {
-    async fn create_handle_contact(
+    async fn create_username_contact(
         self,
-        txn: &mut SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
+        txn: &mut WriteDbTransaction<'_>,
         key_store: &MemoryUserKeyStore,
         own_client_reference: QsReference,
         own_user_id: &UserId,
-        handle: UserHandle,
-    ) -> anyhow::Result<LocalHandleContact<HandlePayload>> {
+        username: Username,
+    ) -> anyhow::Result<LocalUsernameContact<UsernamePayload>> {
         let Self {
             group,
             partial_params,
@@ -344,7 +343,7 @@ impl LocalGroup<ConnectionPackage> {
             payload: verified_connection_package,
         } = self;
 
-        let own_user_profile_key = UserProfileKey::load_own(txn.as_mut()).await?;
+        let own_user_profile_key = UserProfileKey::load_own(&mut *txn).await?;
 
         let friendship_package = FriendshipPackage {
             friendship_token: key_store.friendship_token.clone(),
@@ -368,34 +367,34 @@ impl LocalGroup<ConnectionPackage> {
         let connection_offer = connection_offer_payload
             .sign(
                 &key_store.signing_key,
-                handle.clone(),
+                username.clone(),
                 verified_connection_package.hash(),
             )?
             .encrypt(verified_connection_package.encryption_key(), &[], &[]);
 
         let connection_offer_hash = connection_offer.hash();
 
-        group.store_connection_offer_psk(txn.as_mut(), connection_offer_hash)?;
+        group.store_connection_offer_psk(&mut *txn, connection_offer_hash)?;
 
         // Create and persist a new partial contact
-        HandleContact::new(
-            handle,
+        UsernameContact::new(
+            username,
             chat_id,
             friendship_package_ear_key,
             connection_offer_hash,
         )
-        .upsert(txn.as_mut(), notifier)
+        .upsert(&mut *txn)
         .await?;
 
         let encrypted_user_profile_key =
             own_user_profile_key.encrypt(group.identity_link_wrapper_key(), own_user_id)?;
         let params = partial_params.into_params(own_client_reference, encrypted_user_profile_key);
 
-        Ok(LocalHandleContact::<HandlePayload> {
+        Ok(LocalUsernameContact::<UsernamePayload> {
             group,
             params,
             chat_id,
-            payload: HandlePayload {
+            payload: UsernamePayload {
                 connection_offer,
                 verified_connection_package,
             },
@@ -406,13 +405,12 @@ impl LocalGroup<ConnectionPackage> {
 impl LocalGroup<UserId> {
     async fn create_targeted_message_contact(
         self,
-        txn: &mut SqliteTransaction<'_>,
-        notifier: &mut StoreNotifier,
+        txn: &mut WriteDbTransaction<'_>,
         key_store: &MemoryUserKeyStore,
         own_client_reference: QsReference,
         own_user_id: &UserId,
         targeted_message_chat_id: ChatId,
-    ) -> anyhow::Result<LocalHandleContact<TargetedMessagePayload>> {
+    ) -> anyhow::Result<LocalUsernameContact<TargetedMessagePayload>> {
         let Self {
             group,
             partial_params,
@@ -420,7 +418,7 @@ impl LocalGroup<UserId> {
             payload: user_id,
         } = self;
 
-        let own_user_profile_key = UserProfileKey::load_own(txn.as_mut()).await?;
+        let own_user_profile_key = UserProfileKey::load_own(&mut *txn).await?;
 
         let friendship_package = FriendshipPackage {
             friendship_token: key_store.friendship_token.clone(),
@@ -433,7 +431,7 @@ impl LocalGroup<UserId> {
         // Create and persist a new partial contact
         let contact =
             TargetedMessageContact::new(user_id, chat_id, friendship_package_ear_key.clone());
-        contact.upsert(txn.as_mut(), notifier).await?;
+        contact.upsert(&mut *txn).await?;
 
         let encrypted_user_profile_key =
             own_user_profile_key.encrypt(group.identity_link_wrapper_key(), own_user_id)?;
@@ -446,7 +444,7 @@ impl LocalGroup<UserId> {
             Group::load_with_chat_id(&mut *txn, targeted_message_chat_id)
                 .await?
                 .context("Can't find group to send targeted message in")?;
-        let provider = AirOpenMlsProvider::new(txn);
+        let provider = AirOpenMlsProvider::new(txn.as_mut());
         let targeted_message_params = targeted_message_group.create_targeted_application_message(
             &provider,
             &key_store.signing_key,
@@ -454,7 +452,7 @@ impl LocalGroup<UserId> {
             TargetedMessageContent::ConnectionRequest(connection_info),
         )?;
 
-        Ok(LocalHandleContact::<TargetedMessagePayload> {
+        Ok(LocalUsernameContact::<TargetedMessagePayload> {
             group,
             params,
             chat_id,
@@ -471,20 +469,20 @@ struct TargetedMessagePayload {
     targeted_group_state_ear_key: GroupStateEarKey,
 }
 
-struct HandlePayload {
+struct UsernamePayload {
     connection_offer: EncryptedConnectionOffer,
     verified_connection_package: ConnectionPackage,
 }
 
-struct LocalHandleContact<Payload = HandlePayload> {
+struct LocalUsernameContact<Payload = UsernamePayload> {
     group: Group,
     params: CreateGroupParamsOut,
     chat_id: ChatId,
     payload: Payload,
 }
 
-impl LocalHandleContact<HandlePayload> {
-    async fn create_connection_group_via_handle(
+impl LocalUsernameContact<UsernamePayload> {
+    async fn create_connection_group_via_username(
         self,
         client: &ApiClient,
         signer: &ClientSigningKey,
@@ -495,7 +493,7 @@ impl LocalHandleContact<HandlePayload> {
             params,
             chat_id,
             payload:
-                HandlePayload {
+                UsernamePayload {
                     connection_offer,
                     verified_connection_package,
                 },
@@ -515,7 +513,7 @@ impl LocalHandleContact<HandlePayload> {
     }
 }
 
-impl LocalHandleContact<TargetedMessagePayload> {
+impl LocalUsernameContact<TargetedMessagePayload> {
     async fn create_connection_group_via_targeted_message(
         self,
         client: &ApiClient,

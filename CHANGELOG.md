@@ -1,3 +1,167 @@
+## [0.15.0] - 2026-04-29
+
+### 🚀 Features
+
+- *(app)* Remove export/import client db from dev settings (#1152)
+- *(server)* Add invitation code metrics (#1172)
+- *(server)* Add username cli commands (#1171)
+- *(app)* Fades everywhere (#1174)
+- *(app)* Remove unencrypted group profile (#1135)
+- *(app)* Add user debug info view (#1173)
+- *(app)* Adjust settings copy (#1182)
+- *(server, app)* Communicate token quota exhaustion details (#1184)
+- *(app)* Tab bar & related design changes (#1181)
+
+### 🐛 Bug Fixes
+
+- *(app)* Ignore and clean-up undeserializable operation (#1167)
+- *(server)* Don't enforce token allowance for add username op (#1168)
+- *(app)* Back gesture on android (#1170)
+- *(app)* Allow creation of empty groups (#1169)
+- *(app)* Open notification navigation on android (#1163)
+- *(app)* Avoid repaints in chat list (#1156)
+- *(app)* Let the app know about background activity (#1164)
+- *(app)* Chat animations (#1165)
+- *(app)* Show ellipses for multi-lined text by removing newlines (#1129)
+- *(ci)* Update AppStore metadata (#1178)
+- *(app)* Set unencrypted group title for clients <= 0.14.0 (#1179)
+- *(app)* Add a scheme to links if there is none (#1180)
+- *(app)* Very rarely the message list would not load (#1183)
+- *(app)* Add a message wrapping the invite code when copying to clipboard (#1185)
+
+### 🚜 Refactor
+
+- Renaming for consistency (#1154)
+
+### ⚙️ Miscellaneous Tasks
+
+- Add dev container (#1150)
+- Update rust deps (#1175)
+- *(app)* UISceneDelegate adoption (#1176)
+- *(app)* Add missing translations (#1177)
+
+## [0.14.0] - 2026-04-21
+
+### 🚀 Features
+
+- *(app)* Advertise app component extension (#1112)
+- *(app|server)* More privacypass (#1133)
+- *(app)* Pagination and message navigation (#1123)
+- *(app)* Missing l10n (#1142)
+- *(ci)* Add blueoak license to allowlist (#1145)
+- *(app)* Use anchored list (#1151)
+- *(app)* Composer updates (#1155)
+- *(app)* Use privacy pass tokens to generate invite codes (#1143)
+- *(app)* Design tweaks (#1162)
+- *(server)* Add RUST_LOG_FORMAT config env var (#1159)
+
+### 🐛 Bug Fixes
+
+- *(app)* Refactor attachments download task (#1118)
+- *(app)* Make QS message processing cancel-safe (#1114)
+- *(app)* Apply protection to temp directory on iOS in NSE (#1124)
+- *(app)* Acking messages from QS that are not yet processed (#1125)
+- *(app)* Monotonic last read (#1127)
+- *(app)* Revamp UI scaling (specifically on Linux) (#1080)
+- *(app)* Some more reply tweaks (#1120)
+- *(ci)* Temp: remove fvm pinning (#1132)
+- *(app)* Add connected network constraint to Android background job (#1134)
+- *(tests)* Higher rate limit for tests (#1136)
+- *(app)* Cleanup after group-not-found (#1140)
+- *(app)* Report background work errors from Rust to JNI/Swift (#1139)
+- *(ci)* Fix android build/publish (#1148)
+- *(app)* Less exclusive cubits (#1149)
+- *(app)* Restore better iOS and macOS icons (#1147)
+- *(app)* Native scroll physics (#1160)
+- *(app)* Stable animation of new messages (#1161)
+- *(app)* Ignore and clean-up undeserializable operation (#1167)
+
+### ⚡ Performance
+
+- *(ci)* Install cargo-expand as binary in CI (#1128)
+- *(ci)* Use sccache on all platforms except macOS (#1119)
+- *(app)* Optimize sqlite queries (#1122)
+
+### ⚙️ Miscellaneous Tasks
+
+- *(app)* Skip serde on _phantom field (#1126)
+- *(app)* Add debug view for the Air component (#1138)
+- *(app)* Introduce a (default) staging flavor (#1131)
+- *(app)* Upgrade flutter_rust_bridge to 2.12.0 (#1141)
+- *(app)* Update rand partially (#1146)
+- *(app|server)* Bump vulnerable deps (#1157)
+
+### 🛡️ Security
+
+- *(deps)* Bump addressable from 2.8.9 to 2.9.0 in /app/fastlane (#1137)
+
+## [0.13.0] - 2026-03-25
+
+### 🚀 Features
+
+- *(server)* Extend the attachment API into a general storage API (#1066)
+- *(app)* Add group data protocol model (#1067)
+- *(app)* Implement inline replies (#1065)
+- *(app)* Show system notification when client version is unsupported (#1075)
+- *(app)* Upload and fetch encrypted group profiles (#1068)
+- *(ci)* Add workflow to check PR title format (#1084)
+- *(ci)* Add a workflow for linting (start with typos) (#1092)
+- *(app)* Swipe-to-reply refinements (#1081)
+- *(ci)* Build RPM and DEB packages (#1099)
+- *(app)* Add a button to request chat resync (#1104)
+- *(app)* More swipe-to-reply tweaks (#1106)
+- *(app)* Skip lifetime validation for external joins (#1109)
+- *(app)* Surface incompatible client errors (#1088)
+
+### 🐛 Bug Fixes
+
+- *(app)* Sometimes decreasing notification counts (#1063)
+- *(app)* Default capabilities not updated in self-update (#1069)
+- *(CI)* Cargo deny check is not working (#1060)
+- *(app)* Resolve performance regression introduced with replies support (#1078)
+- *(app)* Local db location on Linux (#1077)
+- *(app)* Fix crash on Android on expedited work to foreground (#1085)
+- *(test)* Always use in-source Roboto for Linux goldens (#1083)
+- *(app)* Inline replies design fixes (#1079)
+- *(server)* Storage bucket setting was not applied (#1094)
+- *(app)* Adjust behaviour when replying and editing a message (#1093)
+- *(app)* Fix race condition in merge commit handler (#1095)
+- *(app, server)* Cannot create group because content-length is required (#1096)
+- *(app)* Redact replied to messages on local delete operation (#1086)
+- *(ci)* Use sccache on Linux in CI (#1089)
+- *(app)* Skip opening keyboard on mobile if draft is not empty (#1101)
+- Set hover mouse cursor to text mode (#1100)
+- *(app)* Make QS message processing cancel-safe (#1097)
+- *(app)* Revert make QS message processing cancel-safe (#1097) (#1102)
+- *(app)* Race between app state & navigation (#1111)
+- *(app)* Fix protection of temporary directory on iOS (#1110)
+- *(app)* Cursor for links (#1113)
+
+### 💼 Other
+
+- *(app)* Disallow path traversal for attachment paths (#1072)
+
+### 🚜 Refactor
+
+- *(app)* Use context-independent error banner and snack bar (#1091)
+
+### ⚡ Performance
+
+- *(app)* Don't lock database when loading messages (#1082)
+- *(app)* Avoid write locks for read-only db queries (#1090)
+
+### 🧪 Testing
+
+- Use CBOR hex diagnostic representation in insta snapshots (#1071)
+
+### ⚙️ Miscellaneous Tasks
+
+- Update Rust to 1.94 (#1074)
+- *(app)* Update to Flutter 3.41.4  incl. dependencies (#1055)
+- Update openmls to 0.8.1 (#1087)
+- Update dependencies (#1105)
+- *(app)* Log group id in process message (#1107)
+
 ## [0.12.1] - 2026-03-06
 
 ### 🐛 Bug Fixes

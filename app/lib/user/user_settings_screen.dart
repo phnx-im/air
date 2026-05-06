@@ -17,10 +17,10 @@ import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
 import 'package:package_info_plus/package_info_plus.dart';
-import 'package:provider/provider.dart';
 
 import 'add_username_dialog.dart';
 import 'change_display_name_dialog.dart';
@@ -33,16 +33,54 @@ class UserSettingsScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) =>
+          InvitationCodesCubit(userCubit: context.read<UserCubit>()),
+      child: const UserSettingsView(),
+    );
+  }
+}
+
+class UserSettingsView extends StatelessWidget {
+  const UserSettingsView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-
-    final isMobilePlatform = Platform.isAndroid || Platform.isIOS;
-    final isDesktopPlatform =
-        Platform.isMacOS || Platform.isWindows || Platform.isLinux;
-
     final colors = CustomColorScheme.of(context);
+    final bgColor = colors.backgroundBase.primary;
+
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Container(
+          constraints: isPointer() ? const BoxConstraints(maxWidth: 800) : null,
+          child: const _Sections(),
+        ),
+      ),
+    );
+
+    if (isSmallScreen(context)) {
+      return Scaffold(
+        backgroundColor: bgColor,
+        body: SafeArea(
+          bottom: false,
+          child: FadedScrollFrame(
+            backgroundColor: bgColor,
+            header: _MobileHeader(title: loc.userSettingsScreen_title),
+            builder: (topPadding, bottomPadding) => SingleChildScrollView(
+              padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
+              child: content,
+            ),
+          ),
+        ),
+      );
+    }
 
     return Scaffold(
       appBar: AppBar(
+        clipBehavior: Clip.none,
         title: Text(
           loc.userSettingsScreen_title,
           style: TextStyle(
@@ -53,61 +91,80 @@ class UserSettingsScreen extends StatelessWidget {
         leading: AppBarBackButton(
           backgroundColor: colors.backgroundElevated.primary,
         ),
+        automaticallyImplyLeading: false,
         actions: null,
-        backgroundColor: colors.backgroundBase.secondary,
-        toolbarHeight: isPointer() ? 100 : null,
+        backgroundColor: bgColor,
         centerTitle: true,
         scrolledUnderElevation: 0,
       ),
-      backgroundColor: colors.backgroundBase.secondary,
-      body: SafeArea(
-        child: SingleChildScrollView(
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
-            child: Align(
-              alignment: Alignment.topCenter,
-              child: Container(
-                constraints: isPointer()
-                    ? const BoxConstraints(maxWidth: 800)
-                    : null,
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const SizedBox(height: 18),
+      backgroundColor: bgColor,
+      body: SafeArea(child: SingleChildScrollView(child: content)),
+    );
+  }
+}
 
-                    const _UserAvatar(),
+class _Sections extends StatelessWidget {
+  const _Sections();
 
-                    const SizedBox(height: Spacings.xs),
-                    const _DisplayName(),
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final isMobilePlatform = Platform.isAndroid || Platform.isIOS;
+    final isDesktopPlatform =
+        Platform.isMacOS || Platform.isWindows || Platform.isLinux;
 
-                    const SizedBox(height: Spacings.m),
-                    const _UsernamesSection(),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 18),
 
-                    const SizedBox(height: Spacings.m),
-                    _SectionHeader(
-                      text: loc.userSettingsScreen_settingsSection,
-                    ),
+        const _UserAvatar(),
 
-                    const SizedBox(height: Spacings.xs),
-                    const _CommonSettings(),
+        const SizedBox(height: Spacings.xs),
+        const _DisplayName(),
 
-                    if (isMobilePlatform) const SizedBox(height: Spacings.xs),
-                    if (isMobilePlatform) _MobileSettings(),
+        const SizedBox(height: Spacings.m),
+        const _UsernamesSection(),
 
-                    if (isDesktopPlatform) const SizedBox(height: Spacings.xs),
-                    if (isDesktopPlatform) const _DesktopSettings(),
+        const SizedBox(height: Spacings.m),
+        _SectionHeader(text: loc.userSettingsScreen_settingsSection),
 
-                    const SizedBox(height: Spacings.m),
-                    const _HelpSection(),
+        const SizedBox(height: Spacings.xs),
+        const _CommonSettings(),
 
-                    const SizedBox(height: Spacings.m),
-                    const _AccountSection(),
+        if (isMobilePlatform) const SizedBox(height: Spacings.xs),
+        if (isMobilePlatform) _MobileSettings(),
 
-                    const SizedBox(height: Spacings.l + Spacings.xxs),
-                  ],
-                ),
-              ),
-            ),
+        if (isDesktopPlatform) const SizedBox(height: Spacings.xs),
+        if (isDesktopPlatform) const _DesktopSettings(),
+
+        const SizedBox(height: Spacings.m),
+        const _HelpSection(),
+
+        const SizedBox(height: Spacings.m),
+        const _AccountSection(),
+
+        const SizedBox(height: Spacings.l + Spacings.xxs),
+      ],
+    );
+  }
+}
+
+class _MobileHeader extends StatelessWidget {
+  const _MobileHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: kToolbarHeight,
+      child: Center(
+        child: Text(
+          title,
+          style: TextStyle(
+            fontSize: LabelFontSize.base.size,
+            fontWeight: FontWeight.bold,
           ),
         ),
       ),
@@ -126,7 +183,7 @@ class _UserAvatar extends StatelessWidget {
     return Center(
       child: UserAvatar(
         profile: profile,
-        size: 96,
+        size: 192,
         onPressed: () => _pickAvatar(context),
       ),
     );
@@ -196,11 +253,9 @@ class _UsernamesSection extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    List<UiUserHandle> userHandles;
+    List<UiUsername> usernames;
     try {
-      userHandles = context.select(
-        (UserCubit cubit) => cubit.state.userHandles,
-      );
+      usernames = context.select((UserCubit cubit) => cubit.state.usernames);
     } on ProviderNotFoundException {
       return const SizedBox.shrink();
     }
@@ -214,20 +269,20 @@ class _UsernamesSection extends StatelessWidget {
       children: [
         _SectionHeader(text: loc.userSettingsScreen_usernamesSection),
 
-        ...userHandles.expand(
-          (handle) => [
+        ...usernames.expand(
+          (username) => [
             const SizedBox(height: Spacings.xs),
             _FieldContainer(
               child: Row(
                 children: [
-                  Text(handle.plaintext),
+                  Text(username.plaintext),
                   const Spacer(),
                   InkWell(
                     onTap: () {
                       showDialog(
                         context: context,
                         builder: (context) =>
-                            RemoveUsernameDialog(username: handle),
+                            RemoveUsernameDialog(username: username),
                       );
                     },
                     child: AppIcon.trash(
@@ -241,7 +296,7 @@ class _UsernamesSection extends StatelessWidget {
           ],
         ),
 
-        if (userHandles.isEmpty || userHandles.length < 5) ...[
+        if (usernames.isEmpty || usernames.length < 5) ...[
           const SizedBox(height: Spacings.xs),
           _FieldContainer(
             onTap: () => showDialog(
@@ -251,7 +306,7 @@ class _UsernamesSection extends StatelessWidget {
             child: Row(
               children: [
                 Text(
-                  loc.userSettingsScreen_userHandlePlaceholder,
+                  loc.userSettingsScreen_usernamePlaceholder,
                   style: TextStyle(color: colors.text.quaternary),
                 ),
               ],
@@ -278,6 +333,10 @@ class _CommonSettings extends HookWidget {
     final loc = AppLocalizations.of(context);
     return Column(
       children: [
+        const _InviteCodes(),
+
+        const SizedBox(height: Spacings.xs),
+
         const _LanguageSetting(),
 
         const SizedBox(height: Spacings.xs),
@@ -296,6 +355,84 @@ class _CommonSettings extends HookWidget {
 
         FieldLabel(loc.userSettingsScreen_readReceiptsDescription),
       ],
+    );
+  }
+}
+
+class _InviteCodes extends StatelessWidget {
+  const _InviteCodes();
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final colors = CustomColorScheme.of(context);
+
+    return _FieldContainer(
+      onTap: () {
+        // Note: We want to share the cubit between this widget and the screen,
+        // because we want to synchronize the data between the two.
+        final invitationCodesCubit = context.read<InvitationCodesCubit>();
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => InvitationCodesScreen(
+              invitationCodesCubit: invitationCodesCubit,
+            ),
+          ),
+        );
+      },
+      child: Row(
+        children: [
+          AppIcon.users(color: colors.text.secondary, size: 24),
+
+          const SizedBox(width: Spacings.xs),
+
+          Expanded(child: Text(loc.userSettingsScreen_inviteCodes)),
+
+          const _InvitationCodesBadge(),
+        ],
+      ),
+    );
+  }
+}
+
+class _InvitationCodesBadge extends StatelessWidget {
+  const _InvitationCodesBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final availableInvitationCodes = context.select(
+      (InvitationCodesCubit cubit) => cubit.state.codes
+          .where(
+            (code) => switch (code) {
+              UiInvitationCode_Token() => true,
+              UiInvitationCode_Code(field0: final code) => !code.copied,
+            },
+          )
+          .length,
+    );
+
+    if (availableInvitationCodes == 0) {
+      return const SizedBox.shrink();
+    }
+
+    final colors = CustomColorScheme.of(context);
+
+    return Container(
+      width: 40,
+      height: 24,
+      decoration: BoxDecoration(
+        color: colors.function.success,
+        borderRadius: BorderRadius.circular(1000),
+      ),
+      child: Center(
+        child: Text(
+          availableInvitationCodes.toString(),
+          style: TextStyle(
+            color: colors.function.white,
+            fontSize: LabelFontSize.small2.size,
+          ),
+        ),
+      ),
     );
   }
 }
@@ -635,7 +772,7 @@ class _FieldContainer extends StatelessWidget {
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            color: colors.backgroundBase.tertiary,
+            color: colors.backgroundBase.secondary,
             borderRadius: BorderRadius.circular(Spacings.s),
           ),
           padding: const EdgeInsets.symmetric(horizontal: Spacings.xs),

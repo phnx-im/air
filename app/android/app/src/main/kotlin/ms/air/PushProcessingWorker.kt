@@ -5,6 +5,8 @@
 package ms.air
 
 import android.content.Context
+import android.os.Handler
+import android.os.Looper
 import android.util.Log
 import androidx.core.app.NotificationCompat
 import androidx.work.CoroutineWorker
@@ -38,19 +40,25 @@ class PushProcessingWorker(
             try {
                 Log.d(WORKER_LOGTAG, "Starting to process messages in Rust")
                 val notificationBatch = NativeLib().processNewMessages(notificationContent)
+                    ?: return@withContext Result.retry()
                 Log.d(WORKER_LOGTAG, "Finished to process messages in Rust")
 
                 // Show the notifications
-                notificationBatch?.additions?.forEach { content ->
+                notificationBatch.additions.forEach { content ->
                     Notifications.showNotification(applicationContext, content)
                 }
 
                 // Remove the notifications
-                if (notificationBatch?.removals != null) {
-                    Notifications.cancelNotifications(
-                        applicationContext,
-                        ArrayList(notificationBatch.removals)
-                    )
+                Notifications.cancelNotifications(
+                    applicationContext,
+                    ArrayList(notificationBatch.removals)
+                )
+
+                // Let the main app know
+                MainActivity.activeChannel()?.let { channel ->
+                    Handler(Looper.getMainLooper()).post {
+                        channel.invokeMethod("processStoreNotifications", null)
+                    }
                 }
 
                 Result.success()

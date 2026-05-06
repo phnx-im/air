@@ -13,7 +13,7 @@ use crate::{
     },
     crypto::{
         Labeled, RatchetEncryptionKey,
-        ear::Ciphertext,
+        aead::Ciphertext,
         hash::{Hash, Hashable},
         kdf::keys::RatchetSecret,
     },
@@ -94,14 +94,79 @@ impl AsRef<HpkeCiphertext> for EncryptedConnectionOffer {
     }
 }
 
+// === Privacy Pass ===
+
+/// TLS-serialized `AmortizedToken` for token redemption.
+#[derive(Debug, Clone)]
+pub struct SerializedToken(Vec<u8>);
+
+impl SerializedToken {
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.0
+    }
+}
+
+/// TLS-serialized `AmortizedBatchTokenRequest` for token issuance.
+#[derive(Debug, Clone)]
+pub struct SerializedTokenRequest(Vec<u8>);
+
+impl SerializedTokenRequest {
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.0
+    }
+}
+
+/// TLS-serialized `AmortizedBatchTokenResponse` from the server.
+#[derive(Debug, Clone)]
+pub struct SerializedTokenResponse(Vec<u8>);
+
+impl SerializedTokenResponse {
+    pub fn new(bytes: Vec<u8>) -> Self {
+        Self(bytes)
+    }
+
+    pub fn as_bytes(&self) -> &[u8] {
+        &self.0
+    }
+
+    pub fn into_bytes(self) -> Vec<u8> {
+        self.0
+    }
+}
+
 // === Anonymous requests ===
 
 #[derive(Debug)]
 pub struct AsCredentialsParams {}
+
+/// A VOPRF public key for Privacy Pass token issuance.
+#[derive(Debug)]
+pub struct BatchedTokenKeyResponse {
+    pub operation_type: i32,
+    pub token_key_id: u8,
+    pub public_key: Vec<u8>,
+}
 
 #[derive(Debug)]
 pub struct AsCredentialsResponse {
     pub as_credentials: Vec<AsCredential>,
     pub as_intermediate_credentials: Vec<AsIntermediateCredential>,
     pub revoked_credentials: Vec<Hash<AsCredentialBody>>,
+    pub batched_token_keys: Vec<BatchedTokenKeyResponse>,
 }

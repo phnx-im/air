@@ -18,7 +18,7 @@ use aircommon::{
         AsIntermediateCredential, VerifiableClientCredential, keys::PreliminaryClientSigningKey,
     },
     crypto::{
-        ear::{EarEncryptable, keys::PushTokenEarKey},
+        aead::{AeadEncryptable, keys::PushTokenEarKey},
         indexed_aead::{ciphertexts::IndexEncryptable, keys::UserProfileKey},
         signatures::{DEFAULT_SIGNATURE_SCHEME, signable::Verifiable},
     },
@@ -51,7 +51,7 @@ impl BasicUserData {
 
     pub(super) async fn prepare_as_registration(
         self,
-        pool: &SqlitePool,
+        db: &DbAccess,
         api_clients: &ApiClients,
     ) -> Result<InitialUserState> {
         // Prepare user account creation
@@ -60,7 +60,8 @@ impl BasicUserData {
         let domain = self.user_id.domain();
         // Fetch credentials from AS
         let as_intermediate_credential =
-            AsCredentials::get_intermediate_credential(pool, api_clients, domain).await?;
+            AsCredentials::get_intermediate_credential(db.read().await?, api_clients, domain)
+                .await?;
 
         // We already fetch the QS encryption key here, so we don't have to do
         // it in a later step, where we otherwise don't have to perform network
@@ -83,7 +84,8 @@ impl BasicUserData {
         );
 
         let qs_initial_ratchet_secret = RatchetSecret::random()?;
-        StorableQsQueueRatchet::initialize(pool, qs_initial_ratchet_secret.clone()).await?;
+        StorableQsQueueRatchet::initialize(db.write().await?, qs_initial_ratchet_secret.clone())
+            .await?;
         let qs_queue_decryption_key = RatchetDecryptionKey::generate()?;
         let qs_client_signing_key = QsClientSigningKey::generate()?;
         let qs_user_signing_key = QsUserSigningKey::generate()?;
@@ -112,8 +114,8 @@ impl BasicUserData {
 
         let user_profile_key = UserProfileKey::random(&self.user_id)?;
 
-        let mut connection = pool.acquire().await?;
-        user_profile_key.store_own(connection.as_mut()).await?;
+        let mut connection = db.write().await?;
+        user_profile_key.store_own(&mut connection).await?;
 
         let encrypted_user_profile = NewUserProfile::new(
             &key_store.signing_key,
@@ -122,7 +124,7 @@ impl BasicUserData {
             DisplayName::from_user_id(&self.user_id),
             None,
         )?
-        .store(connection.as_mut(), &mut StoreNotifier::noop())
+        .store(&mut connection)
         .await?
         .encrypt_with_index(&user_profile_key)?;
 
@@ -196,7 +198,7 @@ pub(crate) struct PostAsRegistrationState {
 impl PostAsRegistrationState {
     pub(super) async fn process_server_response(
         self,
-        pool: &SqlitePool,
+        db: &DbAccess,
     ) -> Result<UnfinalizedRegistrationState> {
         let InitialUserState {
             client_credential_payload: _,
@@ -212,7 +214,7 @@ impl PostAsRegistrationState {
             .client_credential
             .verify(as_intermediate_credential.verifying_key())?;
         StorableClientCredential::new(client_credential.clone())
-            .store(pool)
+            .store(db.write().await?)
             .await?;
 
         let signing_key =
@@ -220,7 +222,7 @@ impl PostAsRegistrationState {
 
         // Store the own client credential in the DB
         StorableClientCredential::new(client_credential.clone())
-            .store(pool)
+            .store(db.write().await?)
             .await?;
 
         // Replace preliminary signing key in the key store
@@ -368,7 +370,7 @@ pub(crate) struct PersistedUserState {
 impl PersistedUserState {
     pub(super) fn into_self_user(
         self,
-        pool: SqlitePool,
+        db: DbAccess,
         api_clients: ApiClients,
         global_lock: GlobalLock,
     ) -> CoreUser {
@@ -378,14 +380,12 @@ impl PersistedUserState {
             qs_client_id,
         } = self.state;
         let http_client = reqwest::Client::new();
-        let store_notifications_tx = StoreNotificationsSender::new();
         let outbound_service = outbound_service::OutboundService::new(
-            pool.clone(),
+            db.clone(),
             api_clients.clone(),
             http_client.clone(),
             key_store.clone(),
             qs_client_id,
-            store_notifications_tx.clone(),
             global_lock,
         );
 
@@ -393,13 +393,13 @@ impl PersistedUserState {
         let (event_loop, event_loop_sender, event_loop_cancel) = EventLoop::new();
 
         let inner = Arc::new(CoreUserInner {
-            pool,
+            db,
             key_store,
             qs_user_id,
             qs_client_id,
             api_clients,
             http_client,
-            store_notifications_tx,
+            store_notifications_pending: Arc::new(Notify::new()),
             outbound_service,
             event_loop_sender,
             _event_loop_cancel: event_loop_cancel.drop_guard(),

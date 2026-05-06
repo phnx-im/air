@@ -4,14 +4,12 @@
 
 use aircommon::{OpenMlsRand, RustCrypto, identifiers::MimiId, time::TimeStamp};
 use mimi_content::{
-    Disposition, MessageStatus, MimiContent, NestedPartContent, content_container::PartSemantics,
+    MessageStatus, MimiContent,
+    content_container::{Disposition, NestedPart, PartSemantics},
 };
 use tracing::{error, warn};
 
-use crate::{
-    groups::Group,
-    store::{Store, StoreNotifier},
-};
+use crate::{groups::Group, store::Store};
 
 use super::*;
 
@@ -185,19 +183,15 @@ impl ChatMessage {
     pub(crate) fn null_part_content(&self) -> anyhow::Result<MimiContent> {
         let salt: [u8; 16] = RustCrypto::default().random_array()?;
         Ok(MimiContent {
-            salt: mimi_content::ByteBuf::from(salt.to_vec()),
-            replaces: self
-                .message()
-                .mimi_id()
-                .map(|id| id.as_slice().to_vec().into()),
+            salt: salt.to_vec(),
+            replaces: self.message().mimi_id().map(|id| id.as_slice().to_vec()),
             topic_id: Default::default(),
             expires: None,
             in_reply_to: None,
             extensions: Default::default(),
-            nested_part: mimi_content::NestedPart {
-                disposition: mimi_content::Disposition::Render,
+            nested_part: NestedPart::NullPart {
+                disposition: Disposition::Render,
                 language: String::new(),
-                part: NestedPartContent::NullPart,
             },
         })
     }
@@ -205,11 +199,10 @@ impl ChatMessage {
     /// Mark the message as sent and update the timestamp.
     pub(crate) async fn mark_as_sent(
         &mut self,
-        connection: &mut sqlx::SqliteConnection,
-        notifier: &mut StoreNotifier,
+        connection: impl WriteConnection,
         ds_timestamp: TimeStamp,
     ) -> sqlx::Result<()> {
-        Self::update_sent_status(connection, notifier, self.id(), ds_timestamp, true).await?;
+        Self::update_sent_status(connection, self.id(), ds_timestamp, true).await?;
         self.timestamped_message.mark_as_sent(ds_timestamp);
         Ok(())
     }
@@ -348,8 +341,8 @@ impl Message {
                             .display_name;
                         format!("{display_name}: {content}")
                     }
-                    ChatType::HandleConnection(handle) => {
-                        format!("{handle}: {content}", handle = handle.plaintext())
+                    ChatType::HandleConnection(username) => {
+                        format!("{username}: {content}", username = username.plaintext())
                     }
                     ChatType::Connection(_) | ChatType::PendingConnection(_) => content,
                 };
@@ -398,25 +391,26 @@ impl Message {
             return None;
         };
 
-        match &content_message.content().nested_part.part {
+        match &content_message.content().nested_part {
             // Attachment
-            NestedPartContent::MultiPart {
+            NestedPart::MultiPart {
                 part_semantics: PartSemantics::ProcessAll,
                 parts,
+                ..
             } if parts
                 .iter()
-                .any(|part| part.disposition == Disposition::Attachment) =>
+                .any(|part| part.disposition() == Disposition::Attachment) =>
             {
                 // Blurhash preview indicates an image
                 let is_image = parts.iter().any(|part| {
-                    part.disposition == Disposition::Preview
-                        && matches!(
-                            &part.part,
-                            NestedPartContent::SinglePart {
-                                content_type,
-                                ..
-                            } if content_type == "text/blurhash"
-                        )
+                    matches!(
+                        &part,
+                        NestedPart::SinglePart {
+                            content_type,
+                            disposition: Disposition::Preview,
+                            ..
+                        } if content_type == "text/blurhash"
+                    )
                 });
                 Some(if is_image {
                     AttachmentType::Image
@@ -430,8 +424,13 @@ impl Message {
 
     pub fn is_deleted(&self) -> bool {
         self.mimi_content().is_some_and(|c| {
-            c.nested_part.disposition == mimi_content::Disposition::Render
-                && c.nested_part.part == NestedPartContent::NullPart
+            matches!(
+                c.nested_part,
+                NestedPart::NullPart {
+                    disposition: Disposition::Render,
+                    ..
+                }
+            )
         })
     }
 }
@@ -530,22 +529,22 @@ pub enum SystemMessage {
     },
     ReceivedHandleConnectionRequest {
         sender: UserId,
-        user_handle: UserHandle,
+        user_handle: Username,
     },
-    /// We accepted a connection request from another user. The UserHandle is
-    /// the handle through which the connection was made.
+    /// We accepted a connection request from another user. The Username is
+    /// the username through which the connection was made.
     AcceptedConnectionRequest {
         contact: UserId,
-        user_handle: Option<UserHandle>,
+        user_handle: Option<Username>,
     },
     /// We received a confirmation for a connection request we sent to another user. The optional
-    /// UserHandle is the handle through which the connection was made, if any.
+    /// Username is the username through which the connection was made, if any.
     ReceivedConnectionConfirmation {
         sender: UserId,
-        user_handle: Option<UserHandle>,
+        user_handle: Option<Username>,
     },
-    /// We requested a connection with another user through a user handle.
-    NewHandleConnectionChat(UserHandle),
+    /// We requested a connection with another user through a username.
+    NewHandleConnectionChat(Username),
     /// We requested a connection with another user through a group.
     NewDirectConnectionChat(UserId),
     CreateGroup(UserId),
@@ -579,8 +578,8 @@ impl SystemMessage {
                 format!("{user_display_name} changed the group picture")
             }
             SystemMessage::NewHandleConnectionChat(user_handle) => {
-                let handle_str = user_handle.plaintext();
-                format!("You requested a connection with {handle_str}")
+                let username_str = user_handle.plaintext();
+                format!("You requested a connection with {username_str}")
             }
             SystemMessage::ReceivedConnectionConfirmation {
                 sender: user_id,
@@ -592,9 +591,9 @@ impl SystemMessage {
             } => {
                 let user_display_name = store.user_profile(user_id).await.display_name;
                 let base_str = format!("You connected with {user_display_name}");
-                if let Some(handle) = user_handle {
-                    let handle_str = handle.plaintext();
-                    format!("{base_str} through handle {handle_str}")
+                if let Some(username) = user_handle {
+                    let username_str = username.plaintext();
+                    format!("{base_str} through username {username_str}")
                 } else {
                     base_str
                 }

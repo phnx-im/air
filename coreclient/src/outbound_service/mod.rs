@@ -14,18 +14,17 @@ use aircommon::{
 };
 use chrono::Utc;
 use pin_project::pin_project;
-use sqlx::SqlitePool;
 use tokio::sync::watch;
 use tokio_util::sync::{CancellationToken, WaitForCancellationFutureOwned};
 use tracing::{debug, error, info};
 
 use crate::{
     clients::api_clients::ApiClients,
-    job::{Job, JobContext, JobError},
+    db_access::DbAccess,
+    job::{Job, JobContext, JobContextDb, JobError},
     key_stores::MemoryUserKeyStore,
     outbound_service::error::OutboundServiceRunError,
-    store::{StoreNotificationsSender, StoreNotifier},
-    utils::{connection_ext::StoreExt, global_lock::GlobalLock},
+    utils::global_lock::GlobalLock,
 };
 
 pub use timed_tasks::KEY_PACKAGES;
@@ -39,7 +38,7 @@ mod receipt_queue;
 mod receipts;
 pub(crate) mod resync;
 mod retry_pending_chat_operations;
-mod timed_tasks;
+pub(crate) mod timed_tasks;
 
 /// A service which is responsible for processing outbound messages.
 ///
@@ -74,21 +73,19 @@ impl OutboundServiceWork for OutboundServiceContext {
 
 impl OutboundService<OutboundServiceContext> {
     pub(crate) fn new(
-        pool: SqlitePool,
+        db: DbAccess,
         api_clients: ApiClients,
         http_client: reqwest::Client,
         key_store: MemoryUserKeyStore,
         qs_client_id: QsClientId,
-        store_notifications_tx: StoreNotificationsSender,
         global_lock: GlobalLock,
     ) -> Self {
         let context = OutboundServiceContext {
-            pool,
+            db,
             api_clients,
             http_client,
             key_store,
             qs_client_id,
-            store_notifications_tx,
         };
         Self::with_context(context, global_lock)
     }
@@ -208,30 +205,28 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
 
 #[derive(Debug, Clone)]
 pub struct OutboundServiceContext {
-    pool: SqlitePool,
+    db: DbAccess,
     api_clients: ApiClients,
     http_client: reqwest::Client,
     key_store: MemoryUserKeyStore,
     qs_client_id: QsClientId,
-    store_notifications_tx: StoreNotificationsSender,
 }
 
 impl OutboundServiceContext {
-    async fn execute_job<T: Send, JobType: Job<Output = T>>(
-        &self,
-        job: JobType,
-    ) -> Result<T, JobError> {
-        let mut notifier = self.notifier();
+    async fn execute_job<T, E, JobType>(&self, job: JobType) -> Result<T, JobError<E>>
+    where
+        T: Send,
+        E: std::error::Error + Send + Sync + 'static,
+        JobType: Job<Output = T, DomainError = E>,
+    {
         let mut context = JobContext {
             api_clients: &self.api_clients,
             http_client: &self.http_client,
-            pool: self.pool().clone(),
-            notifier: &mut notifier,
+            db: JobContextDb::Db(self.db.clone()),
             key_store: &self.key_store,
             now: Utc::now(),
         };
         let value = job.execute(&mut context).await?;
-        notifier.notify();
         Ok(value)
     }
 
@@ -274,16 +269,6 @@ impl OutboundServiceContext {
 
     fn user_id(&self) -> &UserId {
         self.signing_key().credential().user_id()
-    }
-}
-
-impl StoreExt for OutboundServiceContext {
-    fn pool(&self) -> &SqlitePool {
-        &self.pool
-    }
-
-    fn notifier(&self) -> StoreNotifier {
-        StoreNotifier::new(self.store_notifications_tx.clone())
     }
 }
 
@@ -427,6 +412,22 @@ mod test {
 
         service.start().await;
 
+        assert_eq!(1, context.counter.load(Ordering::SeqCst));
+    }
+
+    #[tokio::test]
+    async fn notify_work_does_not_start_work_when_stopped() {
+        init_test_tracing();
+
+        let context = DelayedCounterContext::default();
+        let service = OutboundService::with_context(context.clone(), global_lock());
+
+        service.stop().await;
+        service.notify_work().await;
+
+        assert_eq!(0, context.counter.load(Ordering::SeqCst));
+
+        service.start().await;
         assert_eq!(1, context.counter.load(Ordering::SeqCst));
     }
 

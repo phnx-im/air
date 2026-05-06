@@ -12,6 +12,7 @@ import 'package:air/user/user.dart';
 import 'package:air/widgets/app_bar_back_button.dart';
 import 'package:air/widgets/avatar.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'chat_details_cubit.dart';
@@ -76,10 +77,28 @@ class _EmptyChatPane extends StatelessWidget {
   }
 }
 
-class ChatScreenView extends StatelessWidget {
-  const ChatScreenView({super.key, this.createMessageCubit = MessageCubit.new});
+class ChatScreenView extends StatefulWidget {
+  const ChatScreenView({
+    super.key,
+    this.createMessageCubit = MessageCubit.new,
+    this.textEditingController,
+  });
 
   final MessageCubitCreate createMessageCubit;
+  final TextEditingController? textEditingController;
+
+  @override
+  State<ChatScreenView> createState() => _ChatScreenViewState();
+}
+
+class _ChatScreenViewState extends State<ChatScreenView> {
+  final _scrollToBottomController = ScrollToBottomController();
+
+  @override
+  void dispose() {
+    _scrollToBottomController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -133,7 +152,10 @@ class ChatScreenView extends StatelessWidget {
     final bool showBlockedFooter =
         blockedUserId != null && blockedUserDisplayName != null;
 
-    Widget footer = const MessageComposer();
+    Widget footer = MessageComposer(
+      scrollToBottomController: _scrollToBottomController,
+      textEditingController: widget.textEditingController,
+    );
     if (showInactiveFooter) {
       footer = const _InactiveChatFooter();
     } else if (showBlockedFooter) {
@@ -147,17 +169,28 @@ class ChatScreenView extends StatelessWidget {
     }
 
     return Scaffold(
+      extendBodyBehindAppBar: true,
       appBar: _ChatHeader(),
-      body: SafeArea(
-        minimum: const EdgeInsets.only(bottom: Spacings.xs),
-        child: Column(
-          children: [
-            Expanded(
-              child: MessageListView(createMessageCubit: createMessageCubit),
+      body: Stack(
+        children: [
+          MessageListView(
+            createMessageCubit: widget.createMessageCubit,
+            scrollToBottomController: _scrollToBottomController,
+          ),
+          Positioned.fill(
+            top: null,
+            child: SafeArea(
+              top: false,
+              minimum: const EdgeInsets.only(bottom: Spacings.xs),
+              child: _MeasureHeight(
+                onChange: (height) {
+                  _scrollToBottomController.composerHeight.value = height;
+                },
+                child: footer,
+              ),
             ),
-            footer,
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }
@@ -185,10 +218,11 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
     return AppBar(
       key: _key,
       automaticallyImplyLeading: false,
-      backgroundColor: CustomColorScheme.of(context).backgroundBase.primary,
+      backgroundColor: Colors.transparent,
       surfaceTintColor: Colors.transparent,
       scrolledUnderElevation: 0,
       elevation: 0,
+      clipBehavior: Clip.none,
       leading: context.responsiveScreenType == ResponsiveScreenType.mobile
           ? const AppBarBackButton()
           : null,
@@ -206,7 +240,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
             mainAxisSize: MainAxisSize.min,
             spacing: Spacings.xs,
             children: [
-              ChatAvatar(chatId: chatId, size: Spacings.l),
+              ChatAvatar(chatId: chatId, size: 40),
               Flexible(
                 child: Text(
                   title ?? "",
@@ -214,7 +248,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextTheme.of(context).labelMedium!.copyWith(
-                    color: CustomColorScheme.of(context).text.tertiary,
+                    color: CustomColorScheme.of(context).text.primary,
                   ),
                 ),
               ),
@@ -279,6 +313,43 @@ class _BlockedChatFooter extends StatelessWidget {
         ],
       ),
     );
+  }
+}
+
+/// Reports its child's height via [onChange] after every layout pass.
+class _MeasureHeight extends SingleChildRenderObjectWidget {
+  const _MeasureHeight({required this.onChange, required super.child});
+
+  final ValueChanged<double> onChange;
+
+  @override
+  RenderObject createRenderObject(BuildContext context) {
+    return _RenderMeasureHeight(onChange);
+  }
+
+  @override
+  void updateRenderObject(
+    BuildContext context,
+    covariant _RenderMeasureHeight renderObject,
+  ) {
+    renderObject.onChange = onChange;
+  }
+}
+
+class _RenderMeasureHeight extends RenderProxyBox {
+  _RenderMeasureHeight(this.onChange);
+
+  ValueChanged<double> onChange;
+  double? _lastHeight;
+
+  @override
+  void performLayout() {
+    super.performLayout();
+    final h = size.height;
+    if (_lastHeight == null || (_lastHeight! - h).abs() > 0.5) {
+      _lastHeight = h;
+      WidgetsBinding.instance.addPostFrameCallback((_) => onChange(h));
+    }
   }
 }
 

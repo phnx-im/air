@@ -4,7 +4,7 @@
 
 [package]
 name = "airprotos"
-version = "0.12.1"
+version = "0.16.0"
 edition = "2024"
 publish = false
 description = "Protobuf and gRPC definitions of the APIs"
@@ -25,6 +25,7 @@ semver.workspace = true
 serde.workspace = true
 serde_bytes.workspace = true
 sha2.workspace = true
+strum.workspace = true
 thiserror.workspace = true
 tls_codec.workspace = true
 tonic.workspace = true

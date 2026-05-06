@@ -1,0 +1,66 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+services:
+  dev:
+    build:
+      context: .
+      dockerfile: .devcontainer/Dockerfile
+    user: root
+    volumes:
+      - .:/workspace:cached
+      - cargo-registry:/home/dev/.cargo/registry
+      - cargo-git:/home/dev/.cargo/git
+      - cargo-target:/workspace/target
+    depends_on:
+      postgres:
+        condition: service_healthy
+      minio-setup:
+        condition: service_completed_successfully
+    environment:
+      AIR_DATABASE_HOST: postgres
+      AIR_STORAGE_ENDPOINT: http://minio:9000
+      CARGO_TERM_COLOR: always
+      CI: "true"
+      PGDATABASE: air_db
+      PGHOST: postgres
+      PGPASSWORD: password
+      PGPORT: "5432"
+      PGUSER: postgres
+      POSTGRES_HOST: postgres
+      RUST_BACKTRACE: "1"
+      RUSTFLAGS: "-D warnings"
+      SKIP_DOCKER_COMPOSE: "true"
+      SQLX_OFFLINE: "true"
+    command: sleep infinity
+
+  generate-db-certs:
+    image: alpine:3
+    working_dir: /workspace/backend
+    entrypoint: ["/bin/sh", "-ec"]
+    command:
+      - |
+        apk add --no-cache bash openssl
+        TEST_CERT_DIR_NAME=test_certs bash scripts/generate_test_certs.sh
+    restart: "no"
+    volumes:
+      - .:/workspace:cached
+
+  postgres:
+    depends_on:
+      generate-db-certs:
+        condition: service_completed_successfully
+
+  minio-setup:
+    entrypoint: >
+      sh -ec "
+      mc alias set local http://minio:9000 minioadmin minioadmin;
+      mc admin user add local minioaccesskey miniosecretkey || true;
+      mc admin policy attach local readwrite --user=minioaccesskey;
+      mc mb --ignore-existing local/data"
+
+volumes:
+  cargo-registry:
+  cargo-git:
+  cargo-target:

@@ -6,9 +6,9 @@
 
 use std::sync::Arc;
 
-use aircommon::identifiers::{UserHandle, UserHandleHash};
+use aircommon::identifiers::{Username, UsernameHash};
 use aircoreclient::{
-    AddHandleContactError, ChatId,
+    AddUsernameContactError, ChatId,
     clients::CoreUser,
     store::{Store, StoreEntityId, StoreNotification},
 };
@@ -23,7 +23,7 @@ use crate::{
     util::{Cubit, CubitCore, spawn_from_sync},
 };
 
-use super::{types::UiUserHandle, user_cubit::UserCubitBase};
+use super::{types::UiUsername, user_cubit::UserCubitBase};
 
 /// Represents the state of the list of chat.
 #[frb(dart_metadata = ("freezed"))]
@@ -66,7 +66,7 @@ impl ChatListCubitBase {
         self.core.is_closed()
     }
 
-    pub fn close(&mut self) {
+    pub fn close(&self) {
         self.core.close();
     }
 
@@ -75,24 +75,24 @@ impl ChatListCubitBase {
         self.core.state()
     }
 
-    pub async fn stream(&mut self, sink: StreamSink<ChatListState>) {
+    pub async fn stream(&self, sink: StreamSink<ChatListState>) {
         self.core.stream(sink).await;
     }
 
     // Cubit methods
 
-    /// Creates a new 1:1 connection with the given user via a user handle.
+    /// Creates a new 1:1 connection with the given user via a username.
     ///
-    /// Returns `None` if the provided handle does not exist.
+    /// Returns `None` if the provided username does not exist.
     pub async fn create_contact_chat(
         &self,
-        handle: UiUserHandle,
-        hash: UserHandleHash,
-    ) -> anyhow::Result<Option<AddHandleContactError>> {
-        let handle = UserHandle::new(handle.plaintext)?;
+        username: UiUsername,
+        hash: UsernameHash,
+    ) -> anyhow::Result<Option<AddUsernameContactError>> {
+        let username = Username::new(username.plaintext)?;
         self.context
             .store
-            .add_contact(handle, hash)
+            .add_contact(username, hash)
             .await
             .map(Result::err)
     }

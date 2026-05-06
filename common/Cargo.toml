@@ -4,7 +4,7 @@
 
 [package]
 name = "aircommon"
-version = "0.12.1"
+version = "0.16.0"
 authors = ["Phoenix R&D GmbH <hello@phnx.im>"]
 edition = "2024"
 publish = false
@@ -13,15 +13,17 @@ license = "AGPL-3.0-or-later"
 
 [dependencies]
 aes-gcm.workspace = true
+airmacros.workspace = true
 argon2 = { workspace = true, features = ["std"] }
 chrono = { workspace = true, features = ["serde"] }
-ciborium.workspace = true
 displaydoc.workspace = true
 ed25519 = { workspace = true, features = ["serde"] }
 hex.workspace = true
 hkdf.workspace = true
 mimi-room-policy.workspace = true
 mimi_content.workspace = true
+minicbor.workspace = true
+minicbor-serde.workspace = true
 mls-assist.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true

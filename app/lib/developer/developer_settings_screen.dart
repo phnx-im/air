@@ -5,7 +5,6 @@
 import 'dart:io';
 
 import 'package:air/util/scaffold_messenger.dart';
-import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:air/core/core.dart';
@@ -17,11 +16,9 @@ import 'package:air/theme/theme.dart';
 import 'package:air/util/platform.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:air/ui/icons/app_icons.dart';
-import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
-import 'package:share_plus/share_plus.dart';
 
-final _log = Logger("DeveloperSettingsScreen");
+import 'user_debug_info_panel.dart';
 
 class DeveloperSettingsScreen extends StatefulWidget {
   const DeveloperSettingsScreen({super.key});
@@ -104,6 +101,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
+        clipBehavior: Clip.none,
         title: const Text('Developer Settings'),
         leading: const AppBarBackButton(),
       ),
@@ -180,17 +178,6 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                   ),
                   if (user != null)
                     ListTile(
-                      title: const Text("Export Database"),
-                      trailing: const AppIcon.fileDown(),
-                      onTap: () => _exportDatabase(context, user),
-                    ),
-                  ListTile(
-                    title: const Text("Import Database"),
-                    trailing: const AppIcon.fileUp(),
-                    onTap: () => _importDatabase(context),
-                  ),
-                  if (user != null)
-                    ListTile(
                       title: Text(
                         profile?.displayName ?? user.userId.uuid.toString(),
                         style: Theme.of(
@@ -226,6 +213,16 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                       confirmLabel: "Erase",
                     ),
                   ),
+                  if (user != null) ...[
+                    const _SectionHeader("Debug Info"),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(
+                        horizontal: Spacings.xs,
+                        vertical: Spacings.xxs,
+                      ),
+                      child: UserDebugInfoPanel(user: user),
+                    ),
+                  ],
                 ],
               ),
             ),
@@ -233,45 +230,6 @@ class DeveloperSettingsScreenView extends StatelessWidget {
         ),
       ),
     );
-  }
-
-  void _exportDatabase(BuildContext context, User user) async {
-    final isMobile = Platform.isAndroid || Platform.isIOS;
-    if (isMobile) {
-      // on mobile, the exported database is shared as a file
-      final bytes = await exportClientDatabase(
-        dbPath: await dbPath(),
-        userId: user.userId,
-      );
-      final params = ShareParams(
-        files: [XFile.fromData(bytes, mimeType: "application/gzip")],
-        fileNameOverrides: ["${user.userId}.tar.gz"],
-      );
-      SharePlus.instance.share(params);
-    } else {
-      // on desktop, we ask for a directory and save the database there
-      final location = await getSaveLocation(
-        suggestedName: "${user.userId}.tar.gz",
-      );
-      if (location == null) {
-        return;
-      }
-      _log.info("Exporting client database to ${location.path}");
-      final bytes = await exportClientDatabase(
-        dbPath: await dbPath(),
-        userId: user.userId,
-      );
-      File(location.path).writeAsBytes(bytes);
-    }
-  }
-
-  void _importDatabase(BuildContext context) async {
-    final file = await openFile();
-    if (file == null) {
-      return;
-    }
-    final bytes = await file.readAsBytes();
-    await importClientDatabase(dbPath: await dbPath(), tarGzBytes: bytes);
   }
 }
 

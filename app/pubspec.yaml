@@ -19,7 +19,7 @@ publish_to: "none" # Remove this line if you wish to publish to pub.dev
 # In iOS, build-name is used as CFBundleShortVersionString while build-number used as CFBundleVersion.
 # Read more about iOS versioning at
 # https://developer.apple.com/library/archive/documentation/General/Reference/InfoPlistKeyReference/Articles/CoreFoundationKeys.html
-version: 0.12.1+1
+version: 0.16.0+1
 
 environment:
   sdk: ">=3.11.0 <4.0.0"
@@ -30,7 +30,7 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   convert: ^3.0.0
-  flutter_rust_bridge: 2.11.1
+  flutter_rust_bridge: 2.12.0
   freezed_annotation: ^3.0.0
   path_provider: ^2.1.1
   image_picker: ^1.0.7
@@ -43,7 +43,6 @@ dependencies:
   provider: ^6.1.2
   logging: ^1.3.0
   flutter_bloc: ^9.1.1
-  visibility_detector: ^0.4.0+2
   path: ^1.9.1
   share_plus: ^12.0.0
   file_selector: ^1.0.3
@@ -63,7 +62,6 @@ dev_dependencies:
     sdk: flutter
   vector_graphics_compiler: ^1.1.19
   freezed: ^3.0.6
-  flutter_launcher_icons: ^0.14.2
   integration_test:
     sdk: flutter
   flutter_driver:
@@ -79,6 +77,9 @@ dev_dependencies:
 
 # The following section is specific to Flutter.
 flutter:
+  # Build the test version by default, prevents accidental overwrite of the Play Store version on Android.
+  default-flavor: staging
+
   generate: true
 
   # The following line ensures that the Material Icons font is
@@ -99,15 +100,3 @@ flutter:
 
   # For details regarding fonts from package dependencies,
   # see https://flutter.dev/custom-fonts/#from-packages
-
-flutter_launcher_icons:
-  android: true
-  ios: true
-  image_path: "assets/images/icon.png"
-  windows:
-    generate: true
-    image_path: "assets/images/icon.png"
-    icon_size: 256 # min:48, max:256, default: 48
-  macos:
-    generate: true
-    image_path: "assets/images/mac-icon.png"

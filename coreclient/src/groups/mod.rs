@@ -21,8 +21,8 @@ use aircommon::{
         ClientCredential, GroupStorageWitness, VerifiableClientCredential, keys::ClientSigningKey,
     },
     crypto::{
-        ear::{
-            EarDecryptable, EarEncryptable,
+        aead::{
+            AeadDecryptable, AeadEncryptable,
             keys::{
                 EncryptedUserProfileKey, GroupStateEarKey, IdentityLinkWrapperKey,
                 WelcomeAttributionInfoEarKey,
@@ -48,21 +48,23 @@ use aircommon::{
         },
     },
     mls_group_config::{
-        GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, default_capabilities,
-        default_mls_group_join_config, default_required_capabilities,
+        AIR_COMPONENT_ID, GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, SUPPORTED_COMPONENTS,
+        default_app_data_dictionary_extension, default_group_required_extensions,
+        default_leaf_node_capabilities, default_leaf_node_extensions,
+        default_mls_group_join_config, default_required_group_capabilities,
         default_sender_ratchet_configuration,
     },
     time::TimeStamp,
     utils::removed_client,
 };
+use airprotos::client::component::AirComponent;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use mimi_content::MimiContent;
 use mimi_room_policy::{MimiProposal, RoleIndex, RoomPolicy, VerifiedRoomState};
-use mls_assist::messages::AssistedMessageOut;
+use mls_assist::{components::ComponentsList, messages::AssistedMessageOut};
 use openmls_provider::AirOpenMlsProvider;
 use openmls_traits::storage::StorageProvider;
-use serde::{Deserialize, Serialize};
-use sqlx::{SqliteConnection, SqliteTransaction};
+use serde::Serialize;
 use tls_codec::DeserializeBytes;
 use tracing::{Level, debug, enabled, error};
 
@@ -75,23 +77,30 @@ use crate::{
         targeted_message::TargetedMessageContent,
     },
     contacts::ContactAddInfos,
+    db_access::{WriteConnection, WriteDbTransaction},
     groups::client_auth_info::VerifiableClientCredentialExt,
     key_stores::as_credentials::AsCredentials,
+    outbound_service::resync::Resync,
 };
 use std::collections::HashSet;
 
 use openmls::{
-    group::{ExternalCommitBuilder, JoinBuilder, ProcessedWelcome},
+    component::ComponentType,
+    group::{
+        CreateCommitError, ExternalCommitBuilder, JoinBuilder, ProcessedWelcome,
+        ProposalValidationError,
+    },
     key_packages::KeyPackageBundle,
     prelude::{
-        BasicCredentialError, CredentialWithKey, Extension, Extensions, GroupId, KeyPackage,
-        LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
-        OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal,
-        ProposalType, ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
+        AppDataDictionaryExtension, BasicCredentialError, CredentialWithKey, Extension, Extensions,
+        GroupId, KeyPackage, LeafNode, LeafNodeIndex, LeafNodeParameters, MlsGroup,
+        MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider,
+        PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal, ProposalType,
+        ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
         UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
     },
     schedule::{ExternalPsk, PreSharedKeyId, Psk},
-    treesync::RatchetTree,
+    treesync::{RatchetTree, errors::LeafNodeValidationError},
 };
 
 use self::{client_auth_info::StorableClientCredential, diff::StagedGroupDiff};
@@ -182,20 +191,41 @@ impl Group {
         &self.mls_group
     }
 
+    /// Returns the [`AirComponent`] from the leaf node of the given member, or `None` if the member
+    /// is not in the group.
+    pub(crate) fn member_air_component(&self, user_id: &UserId) -> Option<AirComponent> {
+        let member = self.mls_group.members().find(|m| {
+            VerifiableClientCredential::from_basic_credential(&m.credential)
+                .map(|c| c.user_id() == user_id)
+                .unwrap_or(false)
+        })?;
+        let leaf_node = self.mls_group.public_group().leaf(member.index)?;
+        leaf_node
+            .extensions()
+            .app_data_dictionary()
+            .and_then(|dict| dict.dictionary().get(&AIR_COMPONENT_ID))
+            .and_then(|data| {
+                AirComponent::from_bytes(data)
+                    .inspect_err(|error| {
+                        error!(%error, "Failed to deserialize member air component");
+                    })
+                    .ok()
+            })
+    }
+
     /// Create a group.
     pub(super) fn create_group(
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         group_id: GroupId,
         group_data_bytes: GroupDataBytes,
     ) -> Result<(Self, PartialCreateGroupParams)> {
-        let provider = AirOpenMlsProvider::new(connection);
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
         let group_state_ear_key = GroupStateEarKey::random()?;
 
         let required_capabilities =
-            Extension::RequiredCapabilities(default_required_capabilities());
-        let leaf_node_capabilities = default_capabilities();
+            Extension::RequiredCapabilities(default_group_required_extensions());
 
         let group_data_extension = Extension::Unknown(
             GROUP_DATA_EXTENSION_TYPE,
@@ -211,7 +241,7 @@ impl Group {
 
         let mls_group = MlsGroup::builder()
             .with_group_id(group_id.clone())
-            .with_capabilities(leaf_node_capabilities)
+            .with_capabilities(default_required_group_capabilities())
             .with_group_context_extensions(gc_extensions)
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
@@ -256,7 +286,7 @@ impl Group {
         // This is our own key that the sender uses to encrypt to us. We should
         // be able to retrieve it from the client's key store.
         welcome_attribution_info_ear_key: &WelcomeAttributionInfoEarKey,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         signer: &ClientSigningKey,
     ) -> Result<(Self, UserId, Vec<ProfileInfo>)> {
@@ -304,7 +334,7 @@ impl Group {
 
             // Phase 3: Check if there is already a group with the same ID.
             let group_id = processed_welcome.unverified_group_info().group_id().clone();
-            if let Some(group) = Self::load(txn.as_mut(), &group_id).await? {
+            if let Some(group) = Self::load(&mut *txn, &group_id).await? {
                 // If the group is active, we can't join it.
                 if group.mls_group().is_active() {
                     bail!("We can't join a group that is still active.");
@@ -355,13 +385,13 @@ impl Group {
 
             let sender_user_id = verifiable_attribution_info.sender();
             let sender_client_credential =
-                StorableClientCredential::load_by_user_id(txn.as_mut(), &sender_user_id)
+                StorableClientCredential::load_by_user_id(&mut *txn, &sender_user_id)
                     .await?
                     .ok_or_else(|| {
                         anyhow!("Could not find client credential of sender in database.")
                     })?;
 
-            if BlockedContact::check_blocked(txn.as_mut(), &sender_user_id).await? {
+            if BlockedContact::check_blocked(&mut *txn, &sender_user_id).await? {
                 bail!(BlockedContactError);
             }
 
@@ -376,7 +406,7 @@ impl Group {
             )
         };
 
-        let credentials = verify_member_credentials(txn, api_clients, &mls_group).await?;
+        let credentials = verify_member_credentials(&mut *txn, api_clients, &mls_group).await?;
 
         let group = Self {
             group_id: mls_group.group_id().clone(),
@@ -389,9 +419,9 @@ impl Group {
         };
 
         // Phase 7: Store the group and client credentials.
-        group.store(txn.as_mut()).await?;
+        group.store(&mut *txn).await?;
         for credential in &credentials {
-            credential.store(txn.as_mut()).await?;
+            credential.store(&mut *txn).await?;
         }
 
         // Phase 8: Decrypt profile keys
@@ -417,7 +447,7 @@ impl Group {
     /// Join a group using an external commit.
     #[allow(clippy::too_many_arguments)]
     pub(super) async fn join_group_externally(
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         external_commit_info: ExternalCommitInfoIn,
         signer: &ClientSigningKey,
@@ -426,7 +456,9 @@ impl Group {
         aad: AadMessage,
         // Should be Some if this join is in response to a connection offer.
         connection_offer_hash: Option<ConnectionOfferHash>,
-    ) -> Result<(Self, MlsMessageOut, MlsMessageOut, Vec<ProfileInfo>)> {
+    ) -> anyhow::Result<
+        Result<(Self, MlsMessageOut, MlsMessageOut, Vec<ProfileInfo>), LeafNodeValidationError>,
+    > {
         let mls_group_config = default_mls_group_join_config();
         let credential_with_key = CredentialWithKey {
             credential: signer.credential().try_into()?,
@@ -440,16 +472,16 @@ impl Group {
             proposals,
         } = external_commit_info;
 
-        let proposals = proposals
+        let proposals: Vec<_> = proposals
             .iter()
             .filter_map(|b| {
                 let mls_message = MlsMessageIn::tls_deserialize_exact_bytes(b);
                 let MlsMessageBodyIn::PublicMessage(pm) = mls_message.ok()?.extract() else {
                     return None;
                 };
-                Some(anyhow::Ok(pm))
+                Some(pm)
             })
-            .collect::<Result<Vec<_>, _>>()?;
+            .collect();
 
         // Figure out who was removed so we can filter out the encrypted profile keys later.
         let removed_members: Vec<_> = proposals
@@ -465,7 +497,7 @@ impl Group {
         // Let's create the group first so that we can access the GroupId.
         // Phase 1: Create and store the group
         let (mls_group, commit, group_info) = {
-            let provider = AirOpenMlsProvider::new(&mut *txn);
+            let provider = AirOpenMlsProvider::new(txn.as_mut());
             // Prepare PSK proposal if we have a connection offer hash.
             let psk_proposal = match connection_offer_hash {
                 Some(co_hash) => {
@@ -482,12 +514,15 @@ impl Group {
             };
 
             let leaf_node_parameters = LeafNodeParameters::builder()
-                .with_capabilities(default_capabilities())
+                .with_capabilities(default_leaf_node_capabilities())
+                .with_extensions(default_leaf_node_extensions())
                 .build();
+
             let mut builder = ExternalCommitBuilder::new()
                 .with_proposals(proposals)
                 .with_aad(aad.tls_serialize_detached()?)
                 .with_config(mls_group_config)
+                .skip_lifetime_validation()
                 .with_ratchet_tree(ratchet_tree_in)
                 .build_group(&provider, verifiable_group_info, credential_with_key)?
                 .leaf_node_parameters(leaf_node_parameters);
@@ -496,18 +531,22 @@ impl Group {
                 builder = builder.add_psk_proposal(psk_proposal);
             }
 
-            let (mls_group, commit) = builder
+            let res = builder
                 .load_psks(provider.storage())?
                 .create_group_info(true)
-                .build(provider.rand(), provider.crypto(), signer, |_| true)?
-                .finalize(&provider)?;
+                .build(provider.rand(), provider.crypto(), signer, |_| true);
+            let (mls_group, commit) = match res {
+                Ok(builder) => builder.finalize(&provider)?,
+                // Extract leaf node validation error if any
+                Err(error) => return Ok(Err(to_capabilities_mismatch(error)?)),
+            };
 
             let (commit, _, group_info) = commit.into_contents();
 
             (
                 mls_group,
                 commit,
-                group_info.context("No group info found")?.into(),
+                group_info.context("No group info found")?,
             )
         };
 
@@ -526,15 +565,15 @@ impl Group {
 
         // Phase 4: Store the group and client auth info.
         // If the group previously existed, delete it first.
-        Group::delete_from_db(&mut *txn, &group.group_id).await?;
-        group.store(txn.as_mut()).await?;
+        Group::delete_from_db(txn, &group.group_id).await?;
+        group.store(&mut *txn).await?;
         for credential in &credentials {
-            credential.store(txn.as_mut()).await?;
+            credential.store(&mut *txn).await?;
         }
         // Also store own credential
         let own_credential = signer.credential().clone();
         StorableClientCredential::from(own_credential)
-            .store(txn.as_mut())
+            .store(&mut *txn)
             .await?;
 
         // Compile a list of user profile keys for the members.
@@ -555,7 +594,7 @@ impl Group {
             })
             .collect::<Result<Vec<_>, _>>()?;
 
-        Ok((group, commit, group_info, member_profile_info))
+        Ok(Ok((group, commit, group_info.into(), member_profile_info)))
     }
 
     /// Invite the given list of contacts to join the group.
@@ -563,14 +602,14 @@ impl Group {
     /// Returns the [`AddUserParamsOut`] as input for the API client.
     pub(super) async fn stage_invite(
         &mut self,
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
         // The following three vectors have to be in sync, i.e. of the same length
         // and refer to the same contacts in order.
         add_infos: Vec<ContactAddInfos>,
         wai_keys: Vec<WelcomeAttributionInfoEarKey>,
         client_credentials: Vec<ClientCredential>,
-    ) -> Result<GroupOperationParamsOut> {
+    ) -> anyhow::Result<Result<GroupOperationParamsOut, LeafNodeValidationError>> {
         debug_assert!(add_infos.len() == wai_keys.len());
         debug_assert!(add_infos.len() == client_credentials.len());
         // Prepare KeyPackages
@@ -595,23 +634,27 @@ impl Group {
 
         // Set Aad to contain the encrypted client credentials.
         let (mls_commit, welcome_option, group_info_option) = {
-            let provider = AirOpenMlsProvider::new(&mut *connection);
+            let provider = AirOpenMlsProvider::new(connection.as_mut());
             self.mls_group
                 .set_aad(aad_message.tls_serialize_detached()?);
-            self.mls_group
+            let res = self
+                .mls_group
                 .commit_builder()
                 .force_self_update(true)
                 .propose_adds(key_packages)
                 .load_psks(provider.storage())?
                 .create_group_info(true)
-                .build(provider.rand(), provider.crypto(), signer, |_| true)?
-                .stage_commit(&provider)?
-                .into_contents()
+                .build(provider.rand(), provider.crypto(), signer, |_| true);
+            match res {
+                Ok(builder) => builder.stage_commit(&provider)?.into_contents(),
+                // Extract leaf node validation error if any
+                Err(error) => return Ok(Err(to_capabilities_mismatch(error)?)),
+            }
         };
 
-        let group_info = group_info_option.ok_or(anyhow!("Commit didn't return a group info"))?;
+        let group_info = group_info_option.context("No group info found")?;
         let welcome = MlsMessageOut::from_welcome(
-            welcome_option.ok_or(anyhow!("Commit didn't return a welcome"))?,
+            welcome_option.context("No welcome message found")?,
             ProtocolVersion::default(),
         );
         let commit = AssistedMessageOut::new(mls_commit, Some(group_info.into()));
@@ -633,7 +676,7 @@ impl Group {
                 .sign(signer)?;
                 Ok(wai.encrypt(wai_key)?)
             })
-            .collect::<Result<Vec<_>>>()?;
+            .collect::<anyhow::Result<Vec<_>>>()?;
 
         let add_users_info = AddUsersInfoOut {
             welcome,
@@ -645,12 +688,12 @@ impl Group {
             add_users_info_option: Some(add_users_info),
         };
 
-        Ok(params)
+        Ok(Ok(params))
     }
 
     pub(super) async fn stage_remove(
         &mut self,
-        connection: &mut sqlx::SqliteConnection,
+        mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
         mut members: Vec<UserId>,
     ) -> Result<GroupOperationParamsOut> {
@@ -674,7 +717,7 @@ impl Group {
         });
         let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
         self.mls_group.set_aad(aad);
-        let provider = AirOpenMlsProvider::new(&mut *connection);
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
 
         let (mls_message, _welcome_option, group_info_option) = self
             .mls_group
@@ -701,10 +744,10 @@ impl Group {
 
     pub(super) async fn stage_delete(
         &mut self,
-        connection: &mut sqlx::SqliteConnection,
+        mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
     ) -> anyhow::Result<DeleteGroupParamsOut> {
-        let provider = &AirOpenMlsProvider::new(&mut *connection);
+        let provider = &AirOpenMlsProvider::new(connection.as_mut());
         let remove_indices = self
             .mls_group()
             .members()
@@ -744,7 +787,7 @@ impl Group {
 
     pub(super) async fn discard_pending_commit(
         &mut self,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
     ) -> Result<()> {
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         self.pending_diff = None;
@@ -777,7 +820,7 @@ impl Group {
     /// extracted from the staged commit.
     pub(in crate::groups) async fn merge_pending_commit(
         &mut self,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         verified: &impl GroupStorageWitness,
         staged_commit_option: impl Into<Option<StagedCommit>>,
         ds_timestamp: TimeStamp,
@@ -798,7 +841,7 @@ impl Group {
 
             let group_data = GroupDataBytes::from_staged_commit(&staged_commit);
 
-            let provider = AirOpenMlsProvider::new(&mut *txn);
+            let provider = AirOpenMlsProvider::new(txn.as_mut());
             self.mls_group
                 .merge_staged_commit(&provider, staged_commit)?;
             (staged_commit_messages, group_data)
@@ -819,7 +862,7 @@ impl Group {
                 } else {
                     (vec![], None)
                 };
-            let provider = AirOpenMlsProvider::new(&mut *txn);
+            let provider = AirOpenMlsProvider::new(txn.as_mut());
             self.mls_group.merge_pending_commit(&provider)?;
             (staged_commit_messages, group_data)
         };
@@ -929,7 +972,7 @@ impl Group {
 
     pub(super) async fn update(
         &mut self,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         signer: &ClientSigningKey,
         new_group_data: Option<GroupDataBytes>,
     ) -> Result<GroupOperationParamsOut> {
@@ -949,6 +992,9 @@ impl Group {
             })
             .transpose()?;
 
+        let own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
+        let leaf_node_parameters = Self::update_leaf_node_extensions(own_leaf_node.extensions())?;
+
         self.mls_group.set_aad(aad);
         let (mls_message, group_info) = {
             let provider = AirOpenMlsProvider::new(txn.as_mut());
@@ -958,9 +1004,6 @@ impl Group {
                 builder = builder.propose_group_context_extensions(extensions)?;
             };
 
-            let leaf_node_parameters = LeafNodeParameters::builder()
-                .with_capabilities(default_capabilities())
-                .build();
             let (mls_message, _welcome_option, group_info_option) = builder
                 .force_self_update(true)
                 .leaf_node_parameters(leaf_node_parameters)
@@ -983,12 +1026,96 @@ impl Group {
         })
     }
 
+    fn update_leaf_node_extensions(
+        leaf_node_extensions: &Extensions<LeafNode>,
+    ) -> anyhow::Result<LeafNodeParameters> {
+        let mut leaf_node_parameters =
+            LeafNodeParameters::builder().with_capabilities(default_leaf_node_capabilities());
+
+        if let Some(app_data_dictionary) = leaf_node_extensions.app_data_dictionary() {
+            let dict = app_data_dictionary.dictionary();
+            let mut updated_dict = None;
+
+            // Augment app components
+            if let Some(mut app_components) = dict
+                .get(&ComponentType::AppComponents.into())
+                .and_then(|data| {
+                    ComponentsList::tls_deserialize_exact_bytes(data)
+                        .inspect_err(|error| {
+                            error!(%error, "Failed to deserialize app components; will replace");
+                        })
+                        .ok()
+                })
+            {
+                if !app_components.component_ids.contains(&AIR_COMPONENT_ID) {
+                    // Advertise that we support the Air component in the app data dictionary.
+                    app_components.component_ids.push(AIR_COMPONENT_ID);
+                    updated_dict.get_or_insert_with(|| dict.clone()).insert(
+                        ComponentType::AppComponents.into(),
+                        app_components.tls_serialize_detached()?,
+                    );
+                }
+            } else {
+                // Add app components list to the app data dictionary.
+                updated_dict.get_or_insert_with(|| dict.clone()).insert(
+                    ComponentType::AppComponents.into(),
+                    ComponentsList {
+                        component_ids: SUPPORTED_COMPONENTS.to_vec(),
+                    }
+                    .tls_serialize_detached()?,
+                );
+            }
+
+            // Augment Air component
+            if let Some(mut air_component) = dict.get(&AIR_COMPONENT_ID).and_then(|data| {
+                AirComponent::from_bytes(data)
+                    .inspect_err(|error| {
+                        error!(%error, "Failed to deserialize air component; will replace");
+                    })
+                    .ok()
+            }) {
+                // Enabled encrypted group profiles
+                if !air_component.features.encrypted_group_profiles {
+                    air_component.features.encrypted_group_profiles = true;
+                    updated_dict
+                        .get_or_insert_with(|| dict.clone())
+                        .insert(AIR_COMPONENT_ID, air_component.to_bytes()?);
+                }
+            } else {
+                // Add air component to the app data dictionary.
+                updated_dict.get_or_insert_with(|| dict.clone()).insert(
+                    AIR_COMPONENT_ID,
+                    AirComponent::default_leaf_or_key_package_component()
+                        .to_bytes()
+                        .expect("invalid Air component"),
+                );
+            };
+
+            if let Some(dict) = updated_dict {
+                // Replace the app data dictionary with the updated one
+                let mut leaf_node_extensions = leaf_node_extensions.clone();
+                leaf_node_extensions.add_or_replace(Extension::AppDataDictionary(
+                    AppDataDictionaryExtension::new(dict),
+                ))?;
+                leaf_node_parameters =
+                    leaf_node_parameters.with_extensions(leaf_node_extensions.clone());
+            }
+        } else {
+            // App data extension is not present, add it with default values
+            let mut leaf_node_extensions = leaf_node_extensions.clone();
+            leaf_node_extensions.add(default_app_data_dictionary_extension())?;
+            leaf_node_parameters = leaf_node_parameters.with_extensions(leaf_node_extensions);
+        }
+
+        Ok(leaf_node_parameters.build())
+    }
+
     pub(super) fn stage_leave_group(
         &mut self,
-        connection: &mut sqlx::SqliteConnection,
+        mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
     ) -> Result<SelfRemoveParamsOut> {
-        let provider = &AirOpenMlsProvider::new(connection);
+        let provider = &AirOpenMlsProvider::new(connection.as_mut());
         let proposal = self
             .mls_group
             .leave_group_via_self_remove(provider, signer)?;
@@ -1002,10 +1129,10 @@ impl Group {
 
     pub(super) fn store_proposal(
         &mut self,
-        connection: &mut sqlx::SqliteConnection,
+        mut connection: impl WriteConnection,
         proposal: QueuedProposal,
     ) -> Result<()> {
-        let provider = &AirOpenMlsProvider::new(connection);
+        let provider = &AirOpenMlsProvider::new(connection.as_mut());
         self.mls_group
             .store_pending_proposal(provider.storage(), proposal)?;
         Ok(())
@@ -1147,10 +1274,10 @@ impl Group {
 
     pub(crate) fn store_connection_offer_psk(
         &self,
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         connection_offer_hash: ConnectionOfferHash,
     ) -> Result<()> {
-        let provider = AirOpenMlsProvider::new(connection);
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
         let psk_value = connection_offer_hash.into_bytes();
         PreSharedKeyId::new(
             self.mls_group().ciphersuite(),
@@ -1160,6 +1287,18 @@ impl Group {
             )),
         )?
         .store(&provider, &psk_value)?;
+        Ok(())
+    }
+
+    pub(crate) fn delete_connection_offer_psk(
+        mut connection: impl WriteConnection,
+        connection_offer_hash: ConnectionOfferHash,
+    ) -> Result<()> {
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
+        let psk = Psk::External(ExternalPsk::new(
+            connection_offer_hash.into_bytes().to_vec(),
+        ));
+        provider.storage().delete_psk(&psk)?;
         Ok(())
     }
 
@@ -1198,10 +1337,10 @@ impl Group {
 ///
 /// Returns the credentials of the group members.
 async fn verify_member_credentials(
-    txn: &mut SqliteTransaction<'_>,
+    txn: &mut WriteDbTransaction<'_>,
     api_clients: &ApiClients,
     mls_group: &MlsGroup,
-) -> Result<Vec<StorableClientCredential>, anyhow::Error> {
+) -> anyhow::Result<Vec<StorableClientCredential>> {
     let unverified_credentials = mls_group
         .members()
         .map(|m| {
@@ -1213,13 +1352,13 @@ async fn verify_member_credentials(
         .collect::<anyhow::Result<Vec<_>>>()?;
 
     let as_credentials = AsCredentials::fetch_for_verification(
-        txn.as_mut(),
+        txn,
         api_clients,
         unverified_credentials.iter().map(|(c, _)| c),
     )
     .await?;
 
-    let credentials = unverified_credentials
+    unverified_credentials
         .into_iter()
         .map(|(credential, leaf_verifying_key)| {
             VerifiableClientCredential::verify_and_validate(
@@ -1229,8 +1368,46 @@ async fn verify_member_credentials(
                 &as_credentials,
             )
         })
-        .collect::<Result<Vec<_>>>()?;
-    Ok(credentials)
+        .collect()
+}
+
+/// Cleans up local state when the DS reports that a group no longer exists.
+///
+/// Mirrors what happens when we process a deletion commit from another member:
+/// the chat is marked inactive (preserving history) and the MLS group is
+/// deleted. The group deletion cascades to `resync_queue`,
+/// `pending_chat_operation`, and `group_membership` via foreign keys.
+///
+/// This function is idempotent — safe to call even if the group or chat is
+/// already gone.
+pub(crate) async fn handle_group_not_found_on_ds(
+    txn: &mut WriteDbTransaction<'_>,
+    group_id: &GroupId,
+) -> anyhow::Result<()> {
+    // Collect past members before deleting the group.
+    let past_members = match Group::load(&mut *txn, group_id).await? {
+        Some(group) => group.members().collect(),
+        None => Vec::new(),
+    };
+
+    // Mark the chat as inactive so the user sees it's dead. We do this even
+    // for blocked chats so they stay inactive if the user later unblocks the
+    // contact.
+    if let Some(mut chat) = crate::Chat::load_by_group_id(&mut *txn, group_id).await?
+        && !matches!(chat.status(), crate::ChatStatus::Inactive(_))
+    {
+        chat.set_inactive(&mut *txn, past_members).await?;
+    }
+
+    // Remove any pending resync for this group (FK is on chat_id, not
+    // group_id, so it won't cascade from Group::delete_from_db).
+    Resync::remove(&mut *txn, group_id).await?;
+
+    // Delete the MLS group. This cascades to pending_chat_operation and
+    // group_membership via FK.
+    Group::delete_from_db(txn, group_id).await?;
+
+    Ok(())
 }
 
 #[cfg(feature = "test_utils")]
@@ -1244,7 +1421,7 @@ mod test_utils {
             &self,
             chat_id: ChatId,
         ) -> sqlx::Result<Option<DateTime<Utc>>> {
-            Chat::self_updated_at(self.pool(), chat_id).await
+            Chat::self_updated_at(self.db().read().await?, chat_id).await
         }
 
         pub async fn set_self_updated_at(
@@ -1252,8 +1429,97 @@ mod test_utils {
             chat_id: ChatId,
             self_updated_at: DateTime<Utc>,
         ) -> sqlx::Result<()> {
-            Chat::set_self_updated_at(self.pool(), chat_id, self_updated_at).await
+            Chat::set_self_updated_at(self.db().write().await?, chat_id, self_updated_at).await
         }
+    }
+}
+
+#[cfg(test)]
+mod handle_group_not_found_tests {
+    use aircommon::{
+        credentials::test_utils::create_test_credentials,
+        identifiers::{QualifiedGroupId, UserId},
+    };
+    use sqlx::query;
+    use uuid::Uuid;
+
+    use crate::{
+        Chat, ChatAttributes, ChatStatus, clients::block_contact::BlockedContact,
+        db_access::DbAccess, groups::GroupDataBytes, utils::persistence::open_db_in_memory,
+    };
+
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn handle_group_not_found_marks_blocked_chat_inactive_under_block() -> anyhow::Result<()>
+    {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let mut connection = pool.write().await?;
+
+        let own_user_id = UserId::random("example.com".parse().unwrap());
+        let blocked_user_id = UserId::random("example.com".parse().unwrap());
+        let (_as_signing_key, client_signing_key) = create_test_credentials(own_user_id);
+
+        let qgid = QualifiedGroupId::new(Uuid::new_v4(), "example.com".parse().unwrap());
+        let group_id = GroupId::from(qgid);
+
+        let (group, _) = Group::create_group(
+            &mut connection,
+            &client_signing_key,
+            IdentityLinkWrapperKey::random()?,
+            group_id.clone(),
+            GroupDataBytes::from(b"test-group-data".to_vec()),
+        )?;
+        group.store(&mut connection).await?;
+
+        let chat = Chat::new_targeted_message_chat(
+            group_id.clone(),
+            ChatAttributes::new("Blocked chat".into(), None),
+            blocked_user_id.clone(),
+        );
+        let chat_id = chat.id();
+        chat.store(&mut connection).await?;
+
+        BlockedContact::new(blocked_user_id.clone())
+            .store(&mut connection)
+            .await?;
+
+        let mut txn = connection.begin().await?;
+
+        assert!(matches!(
+            Chat::load(&mut txn, &chat_id)
+                .await?
+                .expect("chat should exist")
+                .status(),
+            ChatStatus::Blocked
+        ));
+
+        handle_group_not_found_on_ds(&mut txn, &group_id).await?;
+
+        assert!(Group::load(&mut txn, &group_id).await?.is_none());
+        assert!(matches!(
+            Chat::load(&mut txn, &chat_id)
+                .await?
+                .expect("chat should still exist")
+                .status(),
+            ChatStatus::Blocked
+        ));
+
+        query("DELETE FROM blocked_contact WHERE user_uuid = ?1 AND user_domain = ?2")
+            .bind(blocked_user_id.uuid())
+            .bind(blocked_user_id.domain().to_string())
+            .execute(txn.as_mut())
+            .await?;
+
+        assert!(matches!(
+            Chat::load(&mut txn, &chat_id)
+                .await?
+                .expect("chat should still exist after unblock")
+                .status(),
+            ChatStatus::Inactive(_)
+        ));
+
+        Ok(())
     }
 }
 
@@ -1384,4 +1650,104 @@ pub fn suppress_notifications(content: &MimiContent) -> bool {
     }
     // All other messages should trigger notifications.
     false
+}
+
+fn to_capabilities_mismatch(error: CreateCommitError) -> anyhow::Result<LeafNodeValidationError> {
+    use LeafNodeValidationError::*;
+    match error {
+        CreateCommitError::LeafNodeValidation(error)
+        | CreateCommitError::ProposalValidationError(
+            ProposalValidationError::LeafNodeValidation(error),
+        ) if matches!(
+            error,
+            UnsupportedExtensions
+                | UnsupportedProposals
+                | UnsupportedCredentials
+                | CiphersuiteNotInCapabilities
+                | CredentialNotInCapabilities
+                | ExtensionsNotInCapabilities
+                | LeafNodeCredentialNotSupportedByMember
+                | MemberCredentialNotSupportedByLeafNode,
+        ) =>
+        {
+            Ok(error)
+        }
+        other => Err(other.into()),
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use aircommon::mls_group_config::{AIR_COMPONENT_ID, default_app_data_dictionary_extension};
+    use mls_assist::components::ComponentsList;
+    use openmls::{
+        component::ComponentType,
+        prelude::{AppDataDictionary, AppDataDictionaryExtension, Extension, Extensions, LeafNode},
+    };
+    use tls_codec::{DeserializeBytes, Serialize as TlsSerializeTrait};
+
+    use super::Group;
+
+    fn air_component_ids(params_extensions: &Extensions<LeafNode>) -> Option<Vec<u16>> {
+        params_extensions
+            .app_data_dictionary()?
+            .dictionary()
+            .get(&ComponentType::AppComponents.into())
+            .and_then(|data| ComponentsList::tls_deserialize_exact_bytes(data).ok())
+            .map(|list| list.component_ids)
+    }
+
+    fn extensions_with_dict(dict: AppDataDictionary) -> Extensions<LeafNode> {
+        Extensions::from_vec(vec![Extension::AppDataDictionary(
+            AppDataDictionaryExtension::new(dict),
+        )])
+        .expect("valid extensions")
+    }
+
+    /// No app data dictionary -> add the default one containing AIR_COMPONENT_ID
+    #[test]
+    fn no_app_data_dictionary() {
+        let extensions = Extensions::empty();
+        let params = Group::update_leaf_node_extensions(&extensions).unwrap();
+        let ids = air_component_ids(params.extensions().unwrap()).unwrap();
+        assert!(ids.contains(&AIR_COMPONENT_ID));
+    }
+
+    /// App data dictionary present but no AppComponents key -> add AppComponents with AIR_COMPONENT_ID
+    #[test]
+    fn app_data_dictionary_without_app_components() {
+        let extensions = extensions_with_dict(AppDataDictionary::new());
+        let params = Group::update_leaf_node_extensions(&extensions).unwrap();
+        let ids = air_component_ids(params.extensions().unwrap()).unwrap();
+        assert!(ids.contains(&AIR_COMPONENT_ID));
+    }
+
+    /// AppComponents present but AIR_COMPONENT_ID missing -> add it
+    #[test]
+    fn app_components_without_air_component_id() {
+        let other_id: u16 = 0x0001;
+        let mut dict = AppDataDictionary::new();
+        dict.insert(
+            ComponentType::AppComponents.into(),
+            ComponentsList {
+                component_ids: vec![other_id],
+            }
+            .tls_serialize_detached()
+            .unwrap(),
+        );
+        let extensions = extensions_with_dict(dict);
+        let params = Group::update_leaf_node_extensions(&extensions).unwrap();
+        let ids = air_component_ids(params.extensions().unwrap()).unwrap();
+        assert!(ids.contains(&AIR_COMPONENT_ID));
+        assert!(ids.contains(&other_id));
+    }
+
+    /// AIR_COMPONENT_ID already present -> extensions in params are unchanged (None)
+    #[test]
+    fn app_components_with_air_component_id_already() {
+        let extensions = Extensions::from_vec(vec![default_app_data_dictionary_extension()])
+            .expect("valid extensions");
+        let params = Group::update_leaf_node_extensions(&extensions).unwrap();
+        assert!(params.extensions().is_none());
+    }
 }

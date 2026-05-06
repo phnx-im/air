@@ -5,11 +5,13 @@
 use tonic_prost_build::Config;
 
 fn main() {
-    println!("cargo:rerun-if-changed=api");
-
     let protoc_path = protoc_bin_vendored::protoc_bin_path().unwrap();
     let mut config = Config::new();
     config.protoc_executable(protoc_path);
+    config.enum_attribute(
+        "auth_service.v1.OperationType",
+        "#[derive(strum::VariantArray, strum::Display)]",
+    );
     tonic_prost_build::configure()
         .compile_with_config(
             config,
@@ -21,5 +23,6 @@ fn main() {
             &["api"],
         )
         .unwrap();
+
     println!("cargo:rerun-if-changed=api");
 }

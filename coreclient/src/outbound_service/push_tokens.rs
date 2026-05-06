@@ -4,7 +4,7 @@
 
 use airapiclient::qs_api::QsRequestError;
 use aircommon::{
-    crypto::ear::EarEncryptable,
+    crypto::aead::AeadEncryptable,
     messages::push_token::PushToken,
     time::{Duration, TimeStamp},
 };
@@ -26,8 +26,8 @@ impl OutboundServiceContext {
         }
 
         let now = TimeStamp::now();
-        push_token_state::clamp_pending_future(&self.pool, now).await?;
-        let Some(state) = push_token_state::load_pending(&self.pool, now).await? else {
+        push_token_state::clamp_pending_future(self.db.write().await?, now).await?;
+        let Some(state) = push_token_state::load_pending(self.db.write().await?, now).await? else {
             return Ok(());
         };
 
@@ -35,24 +35,24 @@ impl OutboundServiceContext {
             Ok(push_token) => push_token,
             Err(error) => {
                 error!(%error, "Invalid push token state; dropping");
-                push_token_state::clear_pending(&self.pool).await?;
+                push_token_state::clear_pending(self.db.write().await?).await?;
                 return Err(error);
             }
         };
 
         match self.update_push_token_on_qs(push_token).await {
             Ok(()) => {
-                push_token_state::clear_pending(&self.pool).await?;
+                push_token_state::clear_pending(self.db.write().await?).await?;
             }
             Err(OutboundServiceError::Fatal(error)) => {
                 error!(%error, "Failed to update push token; dropping");
-                push_token_state::clear_pending(&self.pool).await?;
+                push_token_state::clear_pending(self.db.write().await?).await?;
                 return Err(error);
             }
             Err(OutboundServiceError::Recoverable(error)) => {
                 error!(%error, "Failed to update push token; will retry later");
                 let retry_at = next_retry_at(now);
-                push_token_state::schedule_retry(&self.pool, retry_at).await?;
+                push_token_state::schedule_retry(self.db.write().await?, retry_at).await?;
             }
         }
         Ok(())

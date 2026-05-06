@@ -25,7 +25,7 @@ pub(crate) trait Cubit {
     type State;
 
     /// Closes the stream and cancels all pending and background operations
-    fn close(&mut self);
+    fn close(&self);
 
     /// Returns `true` if the stream is closed
     fn is_closed(&self) -> bool;
@@ -34,7 +34,7 @@ pub(crate) trait Cubit {
     fn state(&self) -> Self::State;
 
     /// Streams new states
-    async fn stream(&mut self, sink: StreamSink<Self::State>);
+    async fn stream(&self, sink: StreamSink<Self::State>);
 }
 
 /// Building block for cubits
@@ -64,7 +64,7 @@ impl<S: Clone> Cubit for CubitCore<S> {
         self.cancel.is_cancelled()
     }
 
-    fn close(&mut self) {
+    fn close(&self) {
         self.cancel.cancel();
     }
 
@@ -72,10 +72,13 @@ impl<S: Clone> Cubit for CubitCore<S> {
         self.state_tx.borrow().clone()
     }
 
-    async fn stream(&mut self, sink: StreamSink<S>) {
-        if self.sinks_tx.send(sink).await.is_err() {
-            self.close();
+    async fn stream(&self, sink: StreamSink<S>) {
+        if self.is_closed() {
+            return;
         }
+        // Ignoring the error: send fails only when the emitter loop has
+        // already exited (receiver dropped), so there is nothing to close.
+        let _ = self.sinks_tx.send(sink).await;
     }
 }
 
@@ -148,7 +151,13 @@ where
 
             let state = state_rx.borrow_and_update().clone();
             trace!(num_sinks = sinks.len(), ?state, "emitting new state");
-            sinks.retain(|sink| sink.add(state.clone()).is_ok());
+            sinks.retain(|sink| {
+                if stop.is_cancelled() {
+                    false
+                } else {
+                    sink.add(state.clone()).is_ok()
+                }
+            });
         }
     }
 }

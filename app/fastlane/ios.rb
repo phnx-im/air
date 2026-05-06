@@ -76,17 +76,26 @@ platform :ios do
       app = Spaceship::ConnectAPI::App.find(app_identifier)
       UI.user_error!("App not found: #{app_identifier}") unless app
 
-      # Check for any blocking store version states
-      pending_release = app.get_pending_release_app_store_version   # PENDING_APPLE_RELEASE / PENDING_DEVELOPER_RELEASE
-      in_review       = app.get_in_review_app_store_version         # IN_REVIEW
-      editable        = app.get_edit_app_store_version              # PREPARE_FOR_SUBMISSION / WAITING_FOR_REVIEW / etc.
+      # Only upload metadata when the editable version is in a state we know is safe to modify.
+      version_state = Spaceship::ConnectAPI::AppStoreVersion::AppVersionState
+      metadata_uploadable_states = [
+        version_state::PREPARE_FOR_SUBMISSION,
+        version_state::DEVELOPER_REJECTED,
+        version_state::REJECTED,
+        version_state::METADATA_REJECTED,
+        version_state::INVALID_BINARY,
+      ]
 
-      blocking = [pending_release, in_review, editable].compact
+      editable = app.get_edit_app_store_version
+      editable_state = editable&.app_version_state || editable&.app_store_state
 
-      if blocking.any?
-        UI.important("There is a pending App Store version in a blocking state. Skipping metadata upload.")
+      if editable.nil?
+        UI.important("No editable App Store version found. Skipping metadata upload.")
+      elsif !metadata_uploadable_states.include?(editable_state)
+        UI.important("App Store version '#{editable.version_string}' is in '#{editable_state}' state. Skipping metadata upload.")
       else
         # Upload metadata and screenshots
+        UI.message("Uploading metadata and screenshots for version '#{editable.version_string}' in state '#{editable_state}'")
         upload_to_app_store(
           api_key: api_key,
           app_identifier: app_identifier,
@@ -112,8 +121,11 @@ platform :ios do
     # Set up CI
     setup_ci()
 
+    # Install flutter dependencies
+    sh "just flutter pub get"
+
     # Build the app with flutter first to create the necessary ephemeral files
-    sh "CARGOKIT_CARGO_PROFILE=ci-release fvm flutter build ios --config-only #{skip_signing ? '--debug --no-codesign' : '--release'} --build-number #{build_number}"
+    sh "just flutter build ios --flavor production --config-only #{skip_signing ? '--debug --no-codesign' : '--release'} --build-number #{build_number}"
 
     # Install CocoaPods dependencies
     cocoapods(

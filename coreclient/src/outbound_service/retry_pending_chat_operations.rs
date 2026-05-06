@@ -9,7 +9,6 @@ use uuid::Uuid;
 use crate::{
     job::{JobError, pending_chat_operation::PendingChatOperation},
     outbound_service::{OutboundServiceContext, error::OutboundServiceRunError},
-    utils::connection_ext::ConnectionExt,
 };
 
 impl OutboundServiceContext {
@@ -26,9 +25,9 @@ impl OutboundServiceContext {
 
             let now = chrono::Utc::now();
 
-            let pool = self.pool.clone();
-            let pending_chat_operation = pool
-                .with_transaction(async |txn| {
+            let pending_chat_operation = self
+                .db
+                .with_write_transaction(async |txn| {
                     PendingChatOperation::dequeue(txn, task_id, now).await
                 })
                 .await?;
@@ -46,7 +45,7 @@ impl OutboundServiceContext {
                     // If we're getting a network error, error out of the loop and wait for the next run.
                     return Err(OutboundServiceRunError::NetworkError);
                 }
-                Err(JobError::FatalError(error)) => {
+                Err(error @ (JobError::Fatal(_) | JobError::Domain(_))) => {
                     error!(%error, ?group_id, "Failed to execute pending chat operation");
                     // This job has a fatal error. Continue with the next one.
                     continue;

@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/chat/chat_details.dart';
-import 'package:air/core/api/types.dart';
+import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/theme/theme.dart';
@@ -26,8 +26,8 @@ sealed class ContactRequestSource {
     required String originChatTitle,
   }) = _TargetedMessageContactRequest;
 
-  const factory ContactRequestSource.handle({required UiUserHandle handle}) =
-      _HandleContactRequest;
+  const factory ContactRequestSource.username({required UiUsername username}) =
+      _UsernameContactRequest;
 }
 
 class _TargetedMessageContactRequest extends ContactRequestSource {
@@ -36,10 +36,10 @@ class _TargetedMessageContactRequest extends ContactRequestSource {
   final String originChatTitle;
 }
 
-class _HandleContactRequest extends ContactRequestSource {
-  const _HandleContactRequest({required this.handle});
+class _UsernameContactRequest extends ContactRequestSource {
+  const _UsernameContactRequest({required this.username});
 
-  final UiUserHandle handle;
+  final UiUsername username;
 }
 
 class ContactRequestDialog extends HookWidget {
@@ -69,10 +69,10 @@ class ContactRequestDialog extends HookWidget {
           senderProfile.displayName,
           originChatTitle,
         ),
-      _HandleContactRequest(:final handle) =>
+      _UsernameContactRequest(:final username) =>
         loc.systemMessage_receivedHandleConnectionRequest(
           senderProfile.displayName,
-          handle.plaintext,
+          username.plaintext,
         ),
     };
 
@@ -169,7 +169,18 @@ class _AcceptButton extends HookWidget {
 
     final chatDetailsCubit = context.read<ChatDetailsCubit>();
     try {
-      await chatDetailsCubit.acceptContactRequest();
+      switch (await chatDetailsCubit.acceptContactRequest()) {
+        case null:
+          break; // No error
+        case AcceptContactRequestError_IncompatibleClient(:final reason):
+          Logger.detached("ContactRequestDialog").severe(
+            "Failed to accept contact request due to incompatible client: $reason",
+          );
+          showErrorBannerStandalone(
+            (loc) => loc.contactRequestDialog_error_incompatibleClient,
+          );
+          break;
+      }
     } catch (e, stackTrace) {
       Logger.detached(
         "ContactRequestDialog",

@@ -12,12 +12,14 @@ import 'package:air/user/user.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:air/ui/colors/themes.dart';
-import 'package:air/widgets/user_handle_input_formatter.dart';
+import 'package:air/widgets/username_input_formatter.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
 import 'chat_list_cubit.dart';
+
+final _log = Logger("AddContactDialog");
 
 class AddContactDialog extends HookWidget {
   const AddContactDialog({super.key});
@@ -26,7 +28,7 @@ class AddContactDialog extends HookWidget {
   Widget build(context) {
     final formKey = useMemoized(() => GlobalKey<FormState>());
 
-    final handleHash = useState<UserHandleHash?>(null);
+    final usernameHash = useState<UsernameHash?>(null);
     final isSubmitting = useState(false);
     final isInputValid = useState(false);
     final errorMessage = useState<String?>(null);
@@ -75,7 +77,7 @@ class AddContactDialog extends HookWidget {
               autofocus: true,
               controller: controller,
               focusNode: focusNode,
-              inputFormatters: const [UserHandleInputFormatter()],
+              inputFormatters: const [UsernameInputFormatter()],
               decoration: appDialogInputDecoration.copyWith(
                 hintText: loc.newConnectionDialog_usernamePlaceholder,
                 filled: true,
@@ -83,7 +85,7 @@ class AddContactDialog extends HookWidget {
               ),
               onChanged: (value) {
                 errorMessage.value = null;
-                handleHash.value = null;
+                usernameHash.value = null;
                 isInputValid.value = _validate(value);
               },
               onFieldSubmitted: (value) {
@@ -92,7 +94,7 @@ class AddContactDialog extends HookWidget {
                   formKey: formKey,
                   isSubmitting: isSubmitting,
                   errorMessage: errorMessage,
-                  handleHash: handleHash,
+                  usernameHash: usernameHash,
                   value: value,
                 )._submit(context);
               },
@@ -104,9 +106,9 @@ class AddContactDialog extends HookWidget {
               constraints: const BoxConstraints(minHeight: 38),
               padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
               child: _Description(
-                hasHandleHash: handleHash.value != null,
+                hasUsernameHash: usernameHash.value != null,
                 errorMessage: errorMessage.value,
-                handle: controller.text,
+                username: controller.text,
               ),
             ),
 
@@ -130,7 +132,7 @@ class AddContactDialog extends HookWidget {
                       formKey: formKey,
                       isSubmitting: isSubmitting,
                       errorMessage: errorMessage,
-                      handleHash: handleHash,
+                      usernameHash: usernameHash,
                       value: controller.text,
                     )._submit(context),
                     state: isSubmitting.value
@@ -138,7 +140,7 @@ class AddContactDialog extends HookWidget {
                         : isInputValid.value && errorMessage.value == null
                         ? .active
                         : .inactive,
-                    label: handleHash.value == null
+                    label: usernameHash.value == null
                         ? loc.newConnectionDialog_confirm1
                         : loc.newConnectionDialog_confirm2,
                   ),
@@ -152,35 +154,35 @@ class AddContactDialog extends HookWidget {
   }
 
   bool _validate(String value) {
-    final normalized = UserHandleInputFormatter.normalize(value);
+    final normalized = UsernameInputFormatter.normalize(value);
     if (normalized.isEmpty) {
       return false;
     }
-    UiUserHandle handle = UiUserHandle(plaintext: normalized);
-    return handle.validationError() == null;
+    UiUsername username = UiUsername(plaintext: normalized);
+    return username.validationError() == null;
   }
 }
 
 class _Description extends StatelessWidget {
   const _Description({
-    required this.hasHandleHash,
+    required this.hasUsernameHash,
     required this.errorMessage,
-    required this.handle,
+    required this.username,
   });
 
-  final bool hasHandleHash;
+  final bool hasUsernameHash;
   final String? errorMessage;
-  final String handle;
+  final String username;
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final colors = CustomColorScheme.of(context);
 
-    final (text, color) = switch ((errorMessage, hasHandleHash)) {
+    final (text, color) = switch ((errorMessage, hasUsernameHash)) {
       (final errorMessage?, _) => (errorMessage, colors.function.danger),
       (null, true) => (
-        loc.newConnectionDialog_handleExists(handle),
+        loc.newConnectionDialog_handleExists(username),
         colors.function.success,
       ),
       (null, false) => (
@@ -201,14 +203,14 @@ class _SubmitHandler {
     required this.formKey,
     required this.isSubmitting,
     required this.errorMessage,
-    required this.handleHash,
+    required this.usernameHash,
     required this.value,
   });
 
   final GlobalKey<FormState> formKey;
   final ValueNotifier<bool> isSubmitting;
   final ValueNotifier<String?> errorMessage;
-  final ValueNotifier<UserHandleHash?> handleHash;
+  final ValueNotifier<UsernameHash?> usernameHash;
   final String value;
 
   void _submit(BuildContext context) {
@@ -218,47 +220,47 @@ class _SubmitHandler {
 
     isSubmitting.value = true;
 
-    final normalized = UserHandleInputFormatter.normalize(value);
+    final normalized = UsernameInputFormatter.normalize(value);
 
     final loc = AppLocalizations.of(context);
     if (normalized.isEmpty) {
-      errorMessage.value = loc.newConnectionDialog_error_emptyHandle;
+      errorMessage.value = loc.newConnectionDialog_error_emptyUsername;
       isSubmitting.value = false;
       return;
     }
-    final handle = UiUserHandle(plaintext: normalized);
+    final username = UiUsername(plaintext: normalized);
 
-    if (handleHash.value == null) {
-      _checkHandle(context, handle);
+    if (usernameHash.value == null) {
+      _checkUsername(context, username);
     } else {
-      _connectHandle(context, handle, handleHash.value!);
+      _connectUsername(context, username, usernameHash.value!);
     }
   }
 
-  void _checkHandle(BuildContext context, UiUserHandle handle) async {
+  void _checkUsername(BuildContext context, UiUsername username) async {
     isSubmitting.value = true;
     final userCubit = context.read<UserCubit>();
-    final hash = await userCubit.checkHandleExists(handle: handle);
+    final hash = await userCubit.checkUsernameExists(username: username);
 
     if (!context.mounted) return;
     final loc = AppLocalizations.of(context);
 
     if (hash == null) {
-      errorMessage.value = loc.newConnectionDialog_error_handleNotFound(
-        handle.plaintext,
+      errorMessage.value = loc.newConnectionDialog_error_usernameNotFound(
+        username.plaintext,
       );
       isSubmitting.value = false;
       return;
     }
 
-    handleHash.value = hash;
+    usernameHash.value = hash;
     isSubmitting.value = false;
   }
 
-  void _connectHandle(
+  void _connectUsername(
     BuildContext context,
-    UiUserHandle handle,
-    UserHandleHash hash,
+    UiUsername username,
+    UsernameHash hash,
   ) async {
     isSubmitting.value = true;
 
@@ -266,16 +268,16 @@ class _SubmitHandler {
     final chatListCubit = context.read<ChatListCubit>();
     try {
       final error = await chatListCubit.createContactChat(
-        handle: handle,
+        username: username,
         hash: hash,
       );
       final errorMessage = switch (error) {
-        AddHandleContactError.handleNotFound =>
-          loc.newConnectionDialog_error_handleNotFound(handle.plaintext),
-        AddHandleContactError.duplicateRequest =>
+        AddUsernameContactError.usernameNotFound =>
+          loc.newConnectionDialog_error_usernameNotFound(username.plaintext),
+        AddUsernameContactError.duplicateRequest =>
           loc.newConnectionDialog_error_duplicateRequest,
-        AddHandleContactError.ownHandle =>
-          loc.newConnectionDialog_error_ownHandle,
+        AddUsernameContactError.ownUsername =>
+          loc.newConnectionDialog_error_ownUsername,
         null => null,
       };
       if (errorMessage != null) {
@@ -285,11 +287,9 @@ class _SubmitHandler {
       }
     } catch (e) {
       // fatal error
-      Logger.detached(
-        "AddContactDialog",
-      ).severe("Failed to create connection: $e", e);
+      _log.severe("Failed to create connection: $e", e);
       showErrorBannerStandalone(
-        (loc) => loc.newConnectionDialog_error(handle.plaintext),
+        (loc) => loc.newConnectionDialog_error(username.plaintext),
       );
     } finally {
       isSubmitting.value = false;

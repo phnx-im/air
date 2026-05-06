@@ -6,6 +6,7 @@ import 'package:air/core/core.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/themes.dart';
 import 'package:air/ui/components/app_scaffold.dart';
+import 'package:air/ui/components/button/button.dart';
 import 'package:air/ui/typography/font_size.dart';
 import 'package:air/ui/typography/monospace.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -20,11 +21,13 @@ class ChatDebugInfoView extends HookWidget {
   const ChatDebugInfoView({
     required this.title,
     required this.debugInfo,
+    required this.onRequestResync,
     super.key,
   });
 
   final String title;
   final Future<GroupDebugInfo> debugInfo;
+  final VoidCallback onRequestResync;
 
   @override
   Widget build(BuildContext context) {
@@ -36,6 +39,7 @@ class ChatDebugInfoView extends HookWidget {
       child: switch (snapshot) {
         AsyncSnapshot(hasData: true, :final data) => _GroupDebugInfoBody(
           info: data!,
+          onRequestResync: onRequestResync,
         ),
         AsyncSnapshot(hasError: true, :final error) => Center(
           child: Padding(
@@ -65,9 +69,13 @@ class ChatDebugInfoView extends HookWidget {
 }
 
 class _GroupDebugInfoBody extends StatelessWidget {
-  const _GroupDebugInfoBody({required this.info});
+  const _GroupDebugInfoBody({
+    required this.info,
+    required this.onRequestResync,
+  });
 
   final GroupDebugInfo info;
+  final VoidCallback onRequestResync;
 
   @override
   Widget build(BuildContext context) {
@@ -123,7 +131,28 @@ class _GroupDebugInfoBody extends StatelessWidget {
           ),
         ],
         const SizedBox(height: Spacings.l),
+        _RequestResyncButton(onTapped: onRequestResync),
       ],
+    );
+  }
+}
+
+class _RequestResyncButton extends HookWidget {
+  const _RequestResyncButton({required this.onTapped});
+
+  final VoidCallback onTapped;
+
+  @override
+  Widget build(BuildContext context) {
+    final isTapped = useState(false);
+    return AppButton(
+      onPressed: () {
+        isTapped.value = true;
+        onTapped();
+      },
+      tone: AppButtonTone.danger,
+      state: isTapped.value ? AppButtonState.inactive : AppButtonState.active,
+      label: "DANGER: Request resync",
     );
   }
 }
@@ -276,8 +305,6 @@ class _GroupDataInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return _InfoCard(
       children: [
-        _InfoRow(label: 'Title', value: data.title),
-        _InfoRow(label: 'Has Picture', value: data.hasPicture ? 'yes' : 'no'),
         if (data.encryptedTitle != null) ...[
           const _CardSectionHeader('Encrypted Title'),
           _InfoRow(
@@ -453,6 +480,28 @@ class _MemberCard extends StatelessWidget {
             color: colors.separator.secondary,
           ),
           _ChipListRow(label: 'Proposals', values: caps.proposals),
+          Divider(
+            height: 1,
+            indent: Spacings.s,
+            color: colors.separator.secondary,
+          ),
+          _ChipListRow(
+            label: 'App Components',
+            values: caps.appData?.components ?? [],
+          ),
+          Divider(
+            height: 1,
+            indent: Spacings.s,
+            color: colors.separator.secondary,
+          ),
+          _ChipListRow(
+            label: 'Air Component',
+            values: [
+              if (caps.appData?.airComponent?.features.encryptedGroupProfiles ==
+                  true)
+                'encrypted_group_profiles',
+            ],
+          ),
         ],
       ),
     );

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                UPDATE chat_message_queue\n                SET locked_by = ?1\n                WHERE message_id = ?2\n                RETURNING message_id AS \"message_id: _\", chat_id AS \"chat_id: _\"\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "message_id: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "chat_id: _",
+        "ordinal": 1,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "a29532ac60efe449a22935d4db1e21138f73dc4ed97387169cbeae0004ececf6"
+}

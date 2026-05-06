@@ -88,7 +88,8 @@ async fn pending_chat_operation_is_executed_before_chat_operation() {
     alice_user
         .invite_users(chat_id, std::slice::from_ref(&charlie))
         .await
-        .expect("invite should succeed after pending remove is executed");
+        .expect("invite should succeed after pending remove is executed")
+        .unwrap();
 
     let members = alice_user.chat_participants(chat_id).await.unwrap();
     assert!(members.contains(&alice));

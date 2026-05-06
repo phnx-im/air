@@ -1,0 +1,49 @@
+---
+source: common/src/mls_group_config.rs
+expression: diag
+---
+a1                                               # map(1)
+   66                                            #   text(6)
+      756e69717565                               #     "unique"
+   81                                            #   array(1)
+      a1                                         #     map(1)
+         71                                      #       text(17)
+            4170704461746144696374696f6e617279   #         "AppDataDictionary"
+         a1                                      #       map(1)
+            6a                                   #         text(10)
+               64696374696f6e617279              #           "dictionary"
+            a1                                   #         map(1)
+               6e                                #           text(14)
+                  636f6d706f6e656e745f64617461   #             "component_data"
+               a2                                #           map(2)
+                  01                             #             unsigned(1)
+                  a2                             #             map(2)
+                     6c                          #               text(12)
+                        636f6d706f6e656e745f6964 #                 "component_id"
+                     01                          #               unsigned(1)
+                     64                          #               text(4)
+                        64617461                 #                 "data"
+                     a1                          #               map(1)
+                        63                       #                 text(3)
+                           766563                #                   "vec"
+                        83                       #                 array(3)
+                           02                    #                   unsigned(2)
+                           18 80                 #                   unsigned(128)
+                           00                    #                   unsigned(0)
+                  19 8000                        #             unsigned(32,768)
+                  a2                             #             map(2)
+                     6c                          #               text(12)
+                        636f6d706f6e656e745f6964 #                 "component_id"
+                     19 8000                     #               unsigned(32,768)
+                     64                          #               text(4)
+                        64617461                 #                 "data"
+                     a1                          #               map(1)
+                        63                       #                 text(3)
+                           766563                #                   "vec"
+                        86                       #                 array(6)
+                           01                    #                   unsigned(1)
+                           18 a1                 #                   unsigned(161)
+                           01                    #                   unsigned(1)
+                           18 a1                 #                   unsigned(161)
+                           01                    #                   unsigned(1)
+                           18 f5                 #                   unsigned(245)

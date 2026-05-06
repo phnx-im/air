@@ -8,6 +8,7 @@ import 'dart:typed_data';
 import 'package:air/core/core.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
 
 /// Wrapper of the [UserCubitBase] that implements a [StateStreamableSource]
 ///
@@ -54,8 +55,11 @@ class UserCubit implements StateStreamableSource<UiUser> {
         profilePicture: profilePicture,
       );
 
-  Future<void> addUserToChat(ChatId chatId, UiUserId userId) =>
-      _impl.addUserToChat(chatId, userId);
+  @useResult
+  Future<InviteUsersError?> addUserToChat(
+    ChatId chatId,
+    List<UiUserId> userIds,
+  ) => _impl.addUsersToChat(chatId, userIds);
 
   Future<void> removeUserFromChat(ChatId chatId, UiUserId userId) =>
       _impl.removeUserFromChat(chatId, userId);
@@ -66,11 +70,11 @@ class UserCubit implements StateStreamableSource<UiUser> {
 
   Future<List<UiContact>> get contacts => _impl.contacts;
 
-  Future<bool> addUserHandle(UiUserHandle userHandle) =>
-      _impl.addUserHandle(userHandle: userHandle);
+  Future<bool> addUsername(UiUsername username) =>
+      _impl.addUsername(username: username);
 
-  Future<void> removeUserHandle(UiUserHandle userHandle) =>
-      _impl.removeUserHandle(userHandle: userHandle);
+  Future<void> removeUsername(UiUsername username) =>
+      _impl.removeUsername(username: username);
 
   Future<List<UiContact>> addableContacts(ChatId chatId) =>
       _impl.addableContacts(chatId: chatId);
@@ -98,8 +102,8 @@ class UserCubit implements StateStreamableSource<UiUser> {
     required UiUserId userId,
   }) => _impl.addContactFromGroup(chatId: chatId, userId: userId);
 
-  Future<UserHandleHash?> checkHandleExists({required UiUserHandle handle}) =>
-      _impl.checkHandleExists(handle: handle);
+  Future<UsernameHash?> checkUsernameExists({required UiUsername username}) =>
+      _impl.checkUsernameExists(username: username);
 
   Future<intArray12> safetyCodes(UiUserId userId) =>
       _impl.safetyCodes(otherUserId: userId);

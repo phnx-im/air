@@ -4,6 +4,8 @@
 
 //! Fetching operations for user and group profiles.
 
+use std::convert::Infallible;
+
 use aircommon::{
     credentials::ClientCredential,
     crypto::indexed_aead::{ciphertexts::IndexDecryptable, keys::UserProfileKey},
@@ -18,18 +20,17 @@ use airprotos::{
 use anyhow::Context;
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
-use sqlx::SqliteExecutor;
 use tls_codec::Serialize as _;
 use tracing::{debug, error, info};
 
 use crate::{
     Chat, ChatAttributes, ChatStatus,
     clients::{CoreUser, update_key::update_chat_attributes},
+    db_access::WriteConnection,
     groups::{Group, ProfileInfo},
     job::operation::OperationId,
     key_stores::indexed_keys::StorableIndexedKey,
     user_profiles::{VerifiableUserProfile, process::ExistingUserProfile},
-    utils::connection_ext::ConnectionExt,
 };
 
 use super::{
@@ -42,7 +43,7 @@ impl CoreUser {
     ///
     /// This will be executed on the next run of the outbound service.
     pub(crate) async fn schedule_fetch_user_profile(
-        executor: impl SqliteExecutor<'_>,
+        connection: impl WriteConnection,
         profile_info: impl Into<ProfileInfo>,
     ) -> sqlx::Result<()> {
         let ProfileInfo {
@@ -51,30 +52,28 @@ impl CoreUser {
         } = profile_info.into();
         FetchUserProfileOperation::new(client_credential, user_profile_key)
             .into_operation()
-            .enqueue(executor)
+            .enqueue(connection)
             .await
     }
 
-    /// Immediately fetch user profile from the server.
+    /// Creates a [`FetchUserProfileOperation`] job
     ///
-    /// This will do a network request.
-    pub(crate) async fn fetch_user_profile(
-        &self,
+    /// It can be immediately executed for example in a context of another job.
+    pub(crate) fn fetch_user_profile_job(
         profile_info: impl Into<ProfileInfo>,
-    ) -> anyhow::Result<()> {
+    ) -> impl Job<Output = ()> {
         let ProfileInfo {
             client_credential,
             user_profile_key,
         } = profile_info.into();
-        let job = FetchUserProfileOperation::new(client_credential, user_profile_key);
-        self.execute_job(job).await
+        FetchUserProfileOperation::new(client_credential, user_profile_key)
     }
 
     /// Schedule a group profile fetch operation.
     ///
     /// This will be executed on the next run of the outbound service.
     pub(crate) async fn schedule_fetch_group_profile(
-        executor: impl SqliteExecutor<'_>,
+        connection: impl WriteConnection,
         group_id: GroupId,
         sender_id: UserId,
         uploaded_at: TimeStamp,
@@ -87,7 +86,7 @@ impl CoreUser {
             external_group_profile,
         }
         .into_operation()
-        .enqueue(executor)
+        .enqueue(connection)
         .await
     }
 }
@@ -129,7 +128,12 @@ impl OperationData for FetchUserProfileOperation {
 impl Job for FetchUserProfileOperation {
     type Output = ();
 
-    async fn execute_logic(self, context: &mut JobContext<'_>) -> Result<Self::Output, JobError> {
+    type DomainError = Infallible;
+
+    async fn execute_logic(
+        self,
+        context: &mut JobContext<'_, '_>,
+    ) -> Result<Self::Output, JobError<Self::DomainError>> {
         let Self {
             client_credential,
             user_profile_key,
@@ -138,7 +142,8 @@ impl Job for FetchUserProfileOperation {
         let user_id = client_credential.user_id();
 
         // Phase 1: Check if the profile in the DB is up to date.
-        let existing_user_profile = ExistingUserProfile::load(&context.pool, user_id).await?;
+        let existing_user_profile =
+            ExistingUserProfile::load(context.db.read().await?, user_id).await?;
         if existing_user_profile.matches_index(user_profile_key.index()) {
             return Ok(());
         }
@@ -160,16 +165,14 @@ impl Job for FetchUserProfileOperation {
             .map_err(JobError::fatal)?;
 
         // Phase 4: Store the user profile and key in the database
-        context
-            .pool
-            .with_transaction(async |txn| {
-                user_profile_key.store(txn.as_mut()).await?;
-                persistable_user_profile
-                    .persist(txn.as_mut(), context.notifier)
-                    .await?;
+        let mut write = context.db.write().await?;
+        write
+            .with_transaction(async |txn| -> anyhow::Result<()> {
+                user_profile_key.store(&mut *txn).await?;
+                persistable_user_profile.persist(&mut *txn).await?;
                 if let Some(old_user_profile_index) = persistable_user_profile.old_profile_index() {
                     // Delete the old user profile key
-                    UserProfileKey::delete(txn.as_mut(), old_user_profile_index).await?;
+                    UserProfileKey::delete(txn, old_user_profile_index).await?;
                 }
                 Ok(())
             })
@@ -203,7 +206,12 @@ impl OperationData for FetchGroupProfileOperation {
 impl Job for FetchGroupProfileOperation {
     type Output = ();
 
-    async fn execute_logic(self, context: &mut JobContext<'_>) -> Result<Self::Output, JobError> {
+    type DomainError = Infallible;
+
+    async fn execute_logic(
+        self,
+        context: &mut JobContext<'_, '_>,
+    ) -> Result<Self::Output, JobError<Self::DomainError>> {
         let Self {
             group_id,
             sender_id,
@@ -220,15 +228,17 @@ impl Job for FetchGroupProfileOperation {
 
         // Load chat and group
         let Some((mut chat, group)) = context
-            .pool
-            .with_transaction(async |txn| {
-                let chat = Chat::load_by_group_id(txn.as_mut(), &group_id)
+            .db
+            .write()
+            .await?
+            .with_transaction(async |txn| -> anyhow::Result<_> {
+                let chat = Chat::load_by_group_id(&mut *txn, &group_id)
                     .await?
                     .context("Missing chat")?;
                 if let ChatStatus::Blocked = chat.status() {
                     return Ok(None);
                 }
-                let group = Group::load_verified(txn.as_mut(), &group_id)
+                let group = Group::load_verified(txn, &group_id)
                     .await?
                     .context("Missing group")?;
                 Ok(Some((chat, group)))
@@ -276,8 +286,10 @@ impl Job for FetchGroupProfileOperation {
 
         // Update chat attributes and store new messages
         context
-            .pool
-            .with_transaction(async |txn| {
+            .db
+            .write()
+            .await?
+            .with_transaction(async |txn| -> anyhow::Result<()> {
                 let mut messages = Vec::new();
 
                 let chat_attributes = ChatAttributes::new(
@@ -285,17 +297,16 @@ impl Job for FetchGroupProfileOperation {
                     group_profile.picture.map(|p| p.into()),
                 );
                 update_chat_attributes(
-                    txn.as_mut(),
-                    context.notifier,
+                    &mut *txn,
                     &mut chat,
-                    sender_id,
+                    &sender_id,
                     chat_attributes,
                     uploaded_at,
                     &mut messages,
                 )
                 .await?;
 
-                CoreUser::store_new_messages(txn, context.notifier, chat.id(), messages).await?;
+                CoreUser::store_new_messages(txn, chat.id(), messages).await?;
 
                 debug!(?group_id, chat_id = %chat.id(), "Updated chat attributes");
 

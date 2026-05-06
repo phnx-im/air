@@ -6,18 +6,18 @@ use aircommon::identifiers::AttachmentId;
 use anyhow::anyhow;
 use anyhow::{Context, ensure};
 use mimi_content::MessageStatus;
-use sqlx::SqliteTransaction;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use tracing::warn;
 use uuid::Uuid;
 
+use crate::db_access::WriteDbTransaction;
+use crate::groups::handle_group_not_found_on_ds;
 use crate::job::pending_chat_operation::PendingChatOperation;
 use crate::outbound_service::resync::Resync;
-use crate::utils::connection_ext::ConnectionExt as _;
 use crate::{
     Chat, ChatMessage, ChatStatus, Message, MessageId,
-    outbound_service::chat_message_queue::ChatMessageQueue, utils::connection_ext::StoreExt,
+    outbound_service::chat_message_queue::ChatMessageQueue,
 };
 
 use super::{OutboundService, OutboundServiceContext};
@@ -33,33 +33,33 @@ impl OutboundService {
         attachment_id: Option<AttachmentId>,
     ) -> anyhow::Result<()> {
         self.context
-            .pool
-            .with_transaction(async |txn| {
+            .db
+            .with_write_transaction(async |txn| {
                 self.enqueue_chat_message_in_transaction(txn, message_id, attachment_id)
                     .await
             })
             .await
     }
 
-    pub async fn enqueue_chat_message_in_transaction(
+    pub(crate) async fn enqueue_chat_message_in_transaction(
         &self,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         message_id: MessageId,
         attachment_id: Option<AttachmentId>,
     ) -> anyhow::Result<()> {
         // Load message to make sure it exists and get chat id
-        let message = ChatMessage::load(txn, message_id)
+        let message = ChatMessage::load(&mut *txn, message_id)
             .await?
             .with_context(|| format!("Can't find message with id {message_id:?}"))?;
         let chat_id = message.chat_id();
 
         // Load chat to check status
-        if Chat::is_blocked(txn.as_mut(), chat_id).await? {
+        if Chat::is_blocked(&mut *txn, chat_id).await? {
             return Ok(());
         }
 
         let message_queue = ChatMessageQueue::new(chat_id, message_id, attachment_id);
-        message_queue.enqueue(txn.as_mut()).await?;
+        message_queue.enqueue(txn).await?;
 
         self.notify_work();
 
@@ -72,24 +72,23 @@ impl OutboundService {
         attachment_id: Option<AttachmentId>,
     ) -> anyhow::Result<()> {
         self.context
-            .with_transaction_and_notifier(async |txn, notifier| {
+            .db
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
                 // Load message to make sure it exists and get chat id
-                let message = ChatMessage::load(txn, message_id)
+                let message = ChatMessage::load(&mut *txn, message_id)
                     .await?
                     .with_context(|| format!("Can't find message with id {message_id:?}"))?;
                 let chat_id = message.chat_id();
 
                 // Load chat to check status
-                if Chat::is_blocked(txn.as_mut(), chat_id).await? {
+                if Chat::is_blocked(&mut *txn, chat_id).await? {
                     return Ok(());
                 }
 
                 let message_queue =
                     ChatMessageQueue::new(message.chat_id(), message_id, attachment_id);
 
-                message_queue
-                    .remove_and_mark_as_failed(txn, notifier)
-                    .await?;
+                message_queue.remove_and_mark_as_failed(txn).await?;
                 Ok(())
             })
             .await?;
@@ -112,8 +111,10 @@ impl OutboundServiceContext {
                 return Ok(()); // the task is being stopped
             }
 
-            let Some((chat_id, message_id)) =
-                ChatMessageQueue::dequeue(&self.pool, task_id).await?
+            let Some((chat_id, message_id)) = self
+                .db
+                .with_write_transaction(async |txn| ChatMessageQueue::dequeue(txn, task_id).await)
+                .await?
             else {
                 return Ok(());
             };
@@ -121,7 +122,7 @@ impl OutboundServiceContext {
 
             // If a chat operation is pending, we skip sending chat messages for
             // this chat
-            if PendingChatOperation::is_pending_for_chat(&self.pool, chat_id).await? {
+            if PendingChatOperation::is_pending_for_chat(self.db.read().await?, chat_id).await? {
                 debug!(
                     ?chat_id,
                     "Skipping sending chat message due to pending chat operation"
@@ -133,52 +134,58 @@ impl OutboundServiceContext {
                 warn!(%e, ?message_id, "Failed to send chat message");
                 // If the message fails, we mark it and all other queued
                 // messages as "failed" and delete them from the queue.
-                self.with_transaction_and_notifier(async |txn, notifier| {
-                    ChatMessageQueue::remove_all_and_and_mark_as_failed(txn, notifier).await?;
-                    Ok(())
-                })
-                .await?;
+                self.db
+                    .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                        Ok(ChatMessageQueue::remove_all_and_and_mark_as_failed(txn).await?)
+                    })
+                    .await?;
                 return Ok(());
             };
 
             // Always delete the message from the queue. We don't want to automatically
             // retry here.
-            self.with_transaction(async |txn| -> anyhow::Result<_> {
-                ChatMessageQueue::remove(txn, message_id).await?;
-                Ok(())
-            })
-            .await?;
+            self.db
+                .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                    ChatMessageQueue::remove(txn, message_id).await?;
+                    Ok(())
+                })
+                .await?;
         }
     }
 
-    async fn send_chat_message(&self, message_id: MessageId) -> Result<(), anyhow::Error> {
+    async fn send_chat_message(&self, message_id: MessageId) -> anyhow::Result<()> {
         debug!(?message_id, "sending message");
 
         // load chat and message
-        let (chat, mut message) = {
-            let mut connection = self.pool.acquire().await?;
-            let message = ChatMessage::load(connection.as_mut(), message_id)
-                .await?
-                .with_context(|| format!("Can't find message with id {message_id:?}"))?;
-            let chat_id = message.chat_id();
-            let chat = Chat::load(connection.as_mut(), &chat_id)
-                .await?
-                .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+        let Some((chat, mut message)) = self
+            .db
+            .with_read_transaction(async |txn| {
+                let message = ChatMessage::load(&mut *txn, message_id)
+                    .await?
+                    .with_context(|| format!("Can't find message with id {message_id:?}"))?;
+                let chat_id = message.chat_id();
+                let chat = Chat::load(&mut *txn, &chat_id)
+                    .await?
+                    .with_context(|| format!("Can't find chat with id {chat_id}"))?;
 
-            // Don't send messages for blocked chats
-            if let ChatStatus::Blocked = chat.status() {
-                return Ok(());
-            }
+                // Don't send messages for blocked chats
+                if let ChatStatus::Blocked = chat.status() {
+                    return Ok(None);
+                }
 
-            // Don't send messages for chats with pending resync
-            if Resync::is_pending_for_chat(connection.as_mut(), &chat_id).await? {
-                debug!(?chat_id, "Skipping sending message due to pending resync");
-                return Ok(());
-            }
+                // Don't send messages for chats with pending resync
+                if Resync::is_pending_for_chat(&mut *txn, &chat_id).await? {
+                    debug!(?chat_id, "Skipping sending message due to pending resync");
+                    return Ok(None);
+                }
 
-            ensure!(!message.is_sent(), "Message is already sent");
+                ensure!(!message.is_sent(), "Message is already sent");
 
-            (chat, message)
+                Ok(Some((chat, message)))
+            })
+            .await?
+        else {
+            return Ok(());
         };
 
         let Message::Content(content) = message.message() else {
@@ -193,42 +200,53 @@ impl OutboundServiceContext {
             .await?;
 
         // send MLS message to DS
-        let ds_timestamp = self
+        let ds_timestamp = match self
             .api_clients
             .get(&chat.owner_domain())?
             .ds_send_message(params, self.signing_key(), &group_state_ear_key)
-            .await?;
+            .await
+        {
+            Ok(ts) => ts,
+            Err(ds_error) => {
+                if ds_error.is_not_found() {
+                    self.db
+                        .with_write_transaction(async |txn| {
+                            handle_group_not_found_on_ds(txn, chat.group_id()).await
+                        })
+                        .await?;
+                }
+                return Err(ds_error.into());
+            }
+        };
 
         // post-processing:
-        self.with_transaction_and_notifier(async |txn, notifier| {
-            // adjust message status and edited_at timestamp
-            if message.edited_at().is_some() {
-                message
-                    .mark_as_sent(&mut *txn, notifier, message.timestamp().into())
-                    .await?;
-                message.set_edited_at(ds_timestamp);
-            } else {
-                message
-                    .mark_as_sent(&mut *txn, notifier, ds_timestamp)
-                    .await?;
-            }
-            message.update(txn.as_mut(), notifier).await?;
+        self.db
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                // adjust message status and edited_at timestamp
+                if message.edited_at().is_some() {
+                    message
+                        .mark_as_sent(&mut *txn, message.timestamp().into())
+                        .await?;
+                    message.set_edited_at(ds_timestamp);
+                } else {
+                    message.mark_as_sent(&mut *txn, ds_timestamp).await?;
+                }
+                message.update(&mut *txn).await?;
 
-            // Mark message as read, but only if it's not a deletion.
-            if message.status() != MessageStatus::Deleted {
-                Chat::mark_as_read_until_message_id(
-                    txn,
-                    notifier,
-                    message.chat_id(),
-                    message.id(),
-                    self.user_id(),
-                )
-                .await?;
-            }
+                // Mark message as read, but only if it's not a deletion.
+                if message.status() != MessageStatus::Deleted {
+                    Chat::mark_as_read_until_message_id(
+                        txn,
+                        message.chat_id(),
+                        message.id(),
+                        self.user_id(),
+                    )
+                    .await?;
+                }
 
-            Ok(())
-        })
-        .await?;
+                Ok(())
+            })
+            .await?;
 
         Ok(())
     }

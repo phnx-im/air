@@ -22,20 +22,32 @@ pub extern "C" fn process_new_messages(
     let input: String = match env.get_string(&content) {
         Ok(value) => value.into(),
         Err(error) => {
-            error!(%error, "Failed to read content string from Java");
+            let _ = env.throw_new(
+                "java/lang/IllegalArgumentException",
+                "Failed to read content string from Java",
+            );
             return std::ptr::null_mut();
         }
     };
 
     let batch = match init_environment(&input) {
         Some(batch) => batch,
-        None => return std::ptr::null_mut(),
+        None => {
+            let _ = env.throw_new(
+                "java/lang/RuntimeException",
+                "Failed to process new messages",
+            );
+            return std::ptr::null_mut();
+        }
     };
 
     let response = match serde_json::to_string(&batch) {
         Ok(json) => json,
         Err(error) => {
-            error!(%error, "Failed to serialize notification batch");
+            let _ = env.throw_new(
+                "java/lang/RuntimeException",
+                "Failed to serialize notification batch",
+            );
             return std::ptr::null_mut();
         }
     };
@@ -43,8 +55,11 @@ pub extern "C" fn process_new_messages(
     // Convert Rust string back to Java string
     match env.new_string(response) {
         Ok(output) => output.into_raw(),
-        Err(error) => {
-            error!(%error, "Failed to create Java string");
+        Err(_error) => {
+            let _ = env.throw_new(
+                "java/lang/RuntimeException",
+                "Failed to create Java string from Rust",
+            );
             std::ptr::null_mut()
         }
     }
