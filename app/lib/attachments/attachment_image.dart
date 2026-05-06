@@ -264,7 +264,7 @@ class _AttachmentImageState extends State<AttachmentImage> {
 
     final content = Stack(
       fit: StackFit.expand,
-      children: [blurhash, if (foreground != null) foreground],
+      children: [blurhash, ?foreground],
     );
 
     final isAnimationPaused = _isAnimated == true && _stopped && _error == null;
