@@ -508,6 +508,15 @@ impl CoreUser {
         Ok(contacts)
     }
 
+    pub async fn contacts_with_supported_features(&self) -> sqlx::Result<Vec<Contact>> {
+        let mut connection = self.db().read().await?;
+        let mut contacts = Contact::load_all(&mut connection).await?;
+        for contact in contacts.iter_mut() {
+            contact.augment_supported_features(&mut connection).await?;
+        }
+        Ok(contacts)
+    }
+
     pub async fn contact(&self, user_id: &UserId) -> Option<Contact> {
         self.try_contact(user_id).await.ok().flatten()
     }
@@ -554,13 +563,9 @@ impl CoreUser {
     ) -> Result<Option<HashSet<UserId>>> {
         self.db()
             .with_read_transaction(async |txn| {
-                let Some(chat_id) = Chat::load(&mut *txn, &chat_id).await? else {
-                    return Ok(None);
-                };
-                let Some(group) = Group::load(txn, chat_id.group_id()).await? else {
-                    return Ok(None);
-                };
-                Ok(Some(group.members().collect()))
+                Ok(Group::load_with_chat_id(&mut *txn, chat_id)
+                    .await?
+                    .map(|group| group.members().collect()))
             })
             .await
     }
@@ -577,8 +582,7 @@ impl CoreUser {
         &self,
         chat_id: ChatId,
     ) -> Result<Option<HashSet<UserId>>> {
-        let connection = self.db().read().await?;
-        let Some(group) = Group::load_with_chat_id(connection, chat_id).await? else {
+        let Some(group) = Group::load_with_chat_id(self.db().read().await?, chat_id).await? else {
             return Ok(None);
         };
         let users = group
@@ -591,22 +595,16 @@ impl CoreUser {
     }
 
     pub async fn pending_removes(&self, chat_id: ChatId) -> Option<Vec<UserId>> {
-        self.db()
-            .with_read_transaction(async |txn| -> anyhow::Result<_> {
-                let chat = Chat::load(&mut *txn, &chat_id)
-                    .await?
-                    .context("chat not found")?;
-                let group = Group::load(txn, chat.group_id())
-                    .await?
-                    .context("group not found")?;
-                Ok(group
+        Group::load_with_chat_id(self.db().read().await.ok()?, chat_id)
+            .await
+            .ok()?
+            .map(|group| {
+                group
                     .pending_removes()
                     .into_iter()
                     .map(|(_, removed)| removed)
-                    .collect())
+                    .collect()
             })
-            .await
-            .ok()
     }
 
     pub async fn listen_queue(

@@ -91,14 +91,9 @@ pub struct RequiredDebugCapabilities {
 }
 
 #[derive(Debug, Clone)]
-pub struct AirComponentDebugInfo {
-    pub encrypted_group_profiles: bool,
-}
-
-#[derive(Debug, Clone)]
 pub struct AppDataDebugInfo {
     pub components: Vec<String>,
-    pub air_component: Option<AirComponentDebugInfo>,
+    pub air_component: Option<AirComponent>,
 }
 
 #[derive(Debug, Clone)]
@@ -259,10 +254,7 @@ impl AppDataDebugInfo {
             .unwrap_or_default();
         let air_component = dict
             .get(&AIR_COMPONENT_ID)
-            .and_then(|data| AirComponent::from_bytes(data).ok())
-            .map(|c| AirComponentDebugInfo {
-                encrypted_group_profiles: c.features.encrypted_group_profiles,
-            });
+            .and_then(|data| AirComponent::from_bytes(data).ok());
         Self {
             components,
             air_component,

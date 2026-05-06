@@ -22,6 +22,17 @@ part 'types.freezed.dart';
 /// Mirror of the [`AddUsernameContactError`] type
 enum AddUsernameContactError { usernameNotFound, duplicateRequest, ownUsername }
 
+@freezed
+sealed class AirComponent with _$AirComponent {
+  const factory AirComponent({required AirFeatures features}) = _AirComponent;
+}
+
+@freezed
+sealed class AirFeatures with _$AirFeatures {
+  const factory AirFeatures({required bool encryptedGroupProfiles}) =
+      _AirFeatures;
+}
+
 /// Mirror of the [`ChatId`] type
 class ChatId {
   final UuidValue uuid;
@@ -265,11 +276,17 @@ class UiClientRecord {
 class UiContact {
   final UiUserId userId;
   final ChatId chatId;
+  final AirFeatures? supportedFeatures;
 
-  const UiContact({required this.userId, required this.chatId});
+  const UiContact({
+    required this.userId,
+    required this.chatId,
+    this.supportedFeatures,
+  });
 
   @override
-  int get hashCode => userId.hashCode ^ chatId.hashCode;
+  int get hashCode =>
+      userId.hashCode ^ chatId.hashCode ^ supportedFeatures.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -277,7 +294,8 @@ class UiContact {
       other is UiContact &&
           runtimeType == other.runtimeType &&
           userId == other.userId &&
-          chatId == other.chatId;
+          chatId == other.chatId &&
+          supportedFeatures == other.supportedFeatures;
 }
 
 /// Content of a message including the sender and whether it was sent

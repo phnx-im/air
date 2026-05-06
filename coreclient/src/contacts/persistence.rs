@@ -44,6 +44,8 @@ impl From<SqlContact> for Contact {
             wai_ear_key,
             friendship_token,
             chat_id,
+            // By default, supported features are not loaded
+            supported_features: None,
         }
     }
 }
@@ -219,6 +221,7 @@ impl UsernameContact {
             chat_id: self.chat_id,
             wai_ear_key: friendship_package.wai_ear_key,
             friendship_token: friendship_package.friendship_token,
+            supported_features: None,
         };
 
         self.delete(&mut *txn).await?;
@@ -341,6 +344,7 @@ impl TargetedMessageContact {
             chat_id: self.chat_id,
             wai_ear_key: friendship_package.wai_ear_key,
             friendship_token: friendship_package.friendship_token,
+            supported_features: None,
         };
 
         contact.upsert(txn).await?;
@@ -423,6 +427,7 @@ mod tests {
             wai_ear_key: WelcomeAttributionInfoEarKey::random().unwrap(),
             friendship_token: FriendshipToken::random().unwrap(),
             chat_id,
+            supported_features: None,
         }
     }
 

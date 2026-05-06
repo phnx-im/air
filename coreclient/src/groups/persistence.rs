@@ -8,6 +8,7 @@ use aircommon::{
     codec::{BlobDecoded, BlobEncoded, PersistenceCodec},
     credentials::{ClientCredential, GroupStorageWitness, VerifiableClientCredential},
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
+    identifiers::UserId,
     time::TimeStamp,
 };
 use anyhow::{Result, ensure};
@@ -276,6 +277,44 @@ impl Group {
             WHERE c.chat_id = ?
             "#,
             chat_id
+        )
+        .fetch_optional(connection.as_mut())
+        .await?
+        else {
+            return Ok(None);
+        };
+        let Some(mls_group) = MlsGroup::load(
+            AirOpenMlsProvider::new(connection.as_mut()).storage(),
+            &sql_group.group_id.0,
+        )?
+        else {
+            return Ok(None);
+        };
+        Ok(Some(SqlGroup::into_group(sql_group, mls_group)))
+    }
+
+    /// Same as [`Self::load()`], but load the group via the connection chat of the given user.
+    pub(crate) async fn load_by_connection_user_id(
+        mut connection: impl ReadConnection,
+        user_id: &UserId,
+    ) -> sqlx::Result<Option<Self>> {
+        let user_uuid = user_id.uuid();
+        let user_domain = user_id.domain();
+        let Some(sql_group) = query_as!(
+            SqlGroup,
+            r#"SELECT
+                g.group_id AS "group_id: _",
+                g.identity_link_wrapper_key AS "identity_link_wrapper_key: _",
+                g.group_state_ear_key AS "group_state_ear_key: _",
+                g.pending_diff AS "pending_diff: _",
+                g.room_state AS "room_state: _",
+                g.self_updated_at AS "self_updated_at: _"
+            FROM "group" g
+            INNER JOIN chat c ON c.group_id = g.group_id
+            WHERE c.connection_user_uuid = ? AND c.connection_user_domain = ?
+            "#,
+            user_uuid,
+            user_domain,
         )
         .fetch_optional(connection.as_mut())
         .await?

@@ -52,22 +52,16 @@ impl CoreUser {
     }
 
     pub async fn mls_members(&self, chat_id: ChatId) -> Result<Option<Vec<Member>>> {
-        let group = self
+        Ok(self
             .db()
-            .with_read_transaction(async |txn| match Chat::load(&mut *txn, &chat_id).await? {
-                Some(chat) => Group::load(&mut *txn, chat.group_id()).await,
-                None => Ok(None),
-            })
-            .await?;
-        Ok(group.map(|group| group.mls_group().members().collect()))
+            .with_read_transaction(async |txn| Group::load_with_chat_id(txn, chat_id).await)
+            .await?
+            .map(|group| group.mls_group().members().collect()))
     }
 
     pub async fn group_members(&self, chat_id: ChatId) -> Option<HashSet<UserId>> {
         self.db()
-            .with_read_transaction(async |txn| match Chat::load(&mut *txn, &chat_id).await? {
-                Some(chat) => Group::load(&mut *txn, chat.group_id()).await,
-                None => Ok(None),
-            })
+            .with_read_transaction(async |txn| Group::load_with_chat_id(&mut *txn, chat_id).await)
             .await
             .ok()
             .flatten()

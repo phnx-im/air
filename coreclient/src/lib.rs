@@ -45,7 +45,7 @@ pub use crate::{
     },
     contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},
     groups::debug_info::{
-        AirComponentDebugInfo, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
+        AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
         ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo,
         RequiredDebugCapabilities,
     },
