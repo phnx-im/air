@@ -18,7 +18,7 @@ RUN cargo chef cook --release --recipe-path recipe.json
 COPY . .
 ENV SQLX_OFFLINE=true
 
-RUN cargo build --release --bin airserver
+RUN cargo build --profile=ci-release --bin airserver
 
 FROM debian:bookworm-slim AS runtime
 

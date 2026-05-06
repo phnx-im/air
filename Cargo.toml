@@ -140,7 +140,8 @@ openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "b7362
 openmls_traits = { git = "https://github.com/openmls/openmls", rev = "b73621ba14ead6b32636a4e910f2cbfabb0d1ee9" }
 openmls_memory_storage = { git = "https://github.com/openmls/openmls", rev = "b73621ba14ead6b32636a4e910f2cbfabb0d1ee9" }
 
-[profile.release]
+[profile.ci-release]
+inherits = "release"
 strip = true
-lto = true
+lto = "thin"
 codegen-units = 1

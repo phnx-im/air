@@ -44,6 +44,8 @@ jobs:
 
       - name: Build app
         working-directory: app
+        env:
+          CARGOKIT_CARGO_PROFILE: ${{ github.ref == 'refs/heads/main' && 'ci-release' || '' }}
         run: flutter build linux -v --build-number=${{ steps.setup-buildenv.outputs.build-number }}
 
       - name: Upload app bundle

@@ -44,7 +44,6 @@ platform :android do
         build_target = upload_to_play_store ? "appbundle" : "apk"
         flavor = upload_to_play_store ? "production" : "staging"
 
-        sh "just flutter precache --android"
         sh "just flutter pub get"
         sh "just flutter build #{build_target} --flavor #{flavor} --release --target-platform android-arm64 --build-number=#{current_build_number}"
 

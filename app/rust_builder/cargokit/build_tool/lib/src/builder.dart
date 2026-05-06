@@ -47,6 +47,7 @@ class BuildEnvironment {
   final String targetTempDir;
   final String manifestDir;
   final CrateInfo crateInfo;
+  final String? profile;
 
   final bool isAndroid;
   final String? androidSdkPath;
@@ -65,6 +66,7 @@ class BuildEnvironment {
     this.androidNdkVersion,
     this.androidMinSdkVersion,
     this.javaHome,
+    this.profile,
   });
 
   static BuildConfiguration parseBuildConfiguration(String value) {
@@ -99,6 +101,7 @@ class BuildEnvironment {
       targetTempDir: Environment.targetTempDir,
       manifestDir: manifestDir,
       crateInfo: crateInfo,
+      profile: Environment.cargoProfile,
       isAndroid: isAndroid,
       androidSdkPath: isAndroid ? Environment.sdkPath : null,
       androidNdkVersion: isAndroid ? Environment.ndkVersion : null,
@@ -158,8 +161,11 @@ class RustBuilder {
         '--manifest-path',
         manifestPath,
         '-p',
+        environment.prof
         environment.crateInfo.packageName,
-        if (!environment.configuration.isDebug) '--release',
+        Environment.cargoProfile
+          ? "--profile=${Environment.cargoProfile}"
+          : '--release',
         '--target',
         target.rust,
         '--target-dir',
