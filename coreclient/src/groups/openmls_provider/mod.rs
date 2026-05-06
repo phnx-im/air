@@ -106,16 +106,19 @@ mod tests {
     use openmls::prelude::*;
     use sqlx::SqlitePool;
 
+    use crate::db_access::DbAccess;
+
     use super::*;
 
     #[sqlx::test]
     async fn randomness(pool: SqlitePool) -> anyhow::Result<()> {
-        let mut connection = pool.acquire().await?;
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
 
-        let provider = AirOpenMlsProvider::new(&mut connection);
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
         let random_vec_1 = provider.random_vec(32).unwrap();
         let random_vec_2 = provider.random_vec(32).unwrap();
-        let provider = AirOpenMlsProvider::new(&mut connection);
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
         let random_vec_3 = provider.random_vec(32).unwrap();
         let random_vec_4 = provider.random_vec(32).unwrap();
         let set = [random_vec_1, random_vec_2, random_vec_3, random_vec_4]

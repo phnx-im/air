@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-pub(crate) mod connection_ext;
 mod file_lock;
 pub(crate) mod global_lock;
 pub(crate) mod image;

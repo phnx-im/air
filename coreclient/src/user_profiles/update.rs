@@ -7,6 +7,8 @@ use aircommon::{
     crypto::{indexed_aead::keys::UserProfileKeyIndex, signatures::signable::Signable},
 };
 
+use crate::db_access::WriteConnection;
+
 use super::{
     EncryptableUserProfile, IndexedUserProfile, SignedUserProfile, UserProfile,
     UserProfileValidationError,
@@ -40,10 +42,9 @@ impl UserProfileUpdate {
 
     pub(crate) async fn store(
         self,
-        executor: impl sqlx::SqliteExecutor<'_>,
-        notifier: &mut crate::store::StoreNotifier,
+        connection: impl WriteConnection,
     ) -> sqlx::Result<EncryptableUserProfile> {
-        self.0.tbs.update(executor, notifier).await?;
+        self.0.tbs.update(connection).await?;
         Ok(EncryptableUserProfile(self.0))
     }
 

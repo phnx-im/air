@@ -15,7 +15,6 @@ use crate::{
     groups::Group,
     key_stores::indexed_keys::StorableIndexedKey,
     user_profiles::{IndexedUserProfile, UserProfile, update::UserProfileUpdate},
-    utils::connection_ext::StoreExt,
 };
 
 use super::CoreUser;
@@ -29,8 +28,9 @@ impl CoreUser {
 
         // Phase 1: Store the new user profile key in the database
         let encryptable_user_profile = self
-            .with_transaction_and_notifier(async |txn, notifier| {
-                let current_profile = IndexedUserProfile::load(txn.as_mut(), self.user_id())
+            .db()
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                let current_profile = IndexedUserProfile::load(&mut *txn, self.user_id())
                     .await?
                     .context("Failed to load own user profile")?;
 
@@ -40,10 +40,10 @@ impl CoreUser {
                     user_profile_key.index().clone(),
                     &self.inner.key_store.signing_key,
                 )?
-                .store(txn.as_mut(), notifier)
+                .store(&mut *txn)
                 .await?;
 
-                user_profile_key.store_own(txn.as_mut()).await?;
+                user_profile_key.store_own(txn).await?;
                 Ok(user_profile)
             })
             .await?;
@@ -65,10 +65,10 @@ impl CoreUser {
 
         // Phase 4: Send a notification to all groups
         let own_user_id = self.user_id();
-        let mut connection = self.pool().acquire().await?;
+        let mut connection = self.db().read().await?;
 
         let groups_ids = Group::load_all_group_ids(&mut connection).await?;
-        let mut chat_ids = Chat::load_ordered_ids(connection.as_mut()).await?;
+        let mut chat_ids = Chat::load_ordered_ids(&mut connection).await?;
         chat_ids.sort_unstable();
 
         for group_id in groups_ids {
@@ -83,7 +83,7 @@ impl CoreUser {
                 continue; // Skip groups without a chat
             }
 
-            if BlockedContact::check_blocked_chat(&mut *connection, chat_id).await? {
+            if BlockedContact::check_blocked_chat(&mut connection, chat_id).await? {
                 continue; // Skip blocked chats
             }
 
