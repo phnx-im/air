@@ -130,7 +130,7 @@ pub fn image_is_animated(bytes: &[u8]) -> bool {
     }
 }
 
-/// Decodes a still image and re-encodes it as a single-frame WebP.
+/// Decodes a still image and re-encodes it as a static WebP.
 fn load_still_image<D: ImageDecoder>(
     mut decoder: D,
     file_size: u64,
@@ -150,13 +150,10 @@ fn load_still_image<D: ImageDecoder>(
     let image_rgba = image.to_rgba8();
     let (width, height) = image_rgba.dimensions();
 
-    let mut encoder = webp_encoder(width, height)?;
-    encoder
-        .add_frame(&image_rgba, 0)
-        .context("WebP add_frame failed")?;
-    let webp_data = encoder
-        .finalize(MIN_FRAME_DURATION_MS)
-        .context("WebP finalize failed")?;
+    let webp_data = webpx::Encoder::new_rgba(&image_rgba, width, height)
+        .quality(ATTACHMENT_IMAGE_QUALITY_PERCENT)
+        .encode(webpx::Unstoppable)
+        .context("WebP encode failed")?;
 
     // `blurhash::encode` can only fail if the components dimension is out of range
     // => We should never get an error here.
@@ -169,7 +166,7 @@ fn load_still_image<D: ImageDecoder>(
     );
 
     Ok(ReencodedAttachmentImage {
-        webp_image: webp_data.to_vec(),
+        webp_image: webp_data,
         image_dimensions: (width, height),
         blurhash,
     })
@@ -198,11 +195,13 @@ fn load_animated_frames<'a, D: AnimationDecoder<'a>>(
 
     let blurhash = blurhash::encode(4, 3, width, height, first_buffer.as_raw())?;
 
-    let mut encoder = webp_encoder(width, height)?;
+    let mut encoder = webpx::AnimationEncoder::with_options(width, height, true, 0)
+        .context("WebP encoder init failed")?;
+    encoder.set_quality(ATTACHMENT_IMAGE_QUALITY_PERCENT);
 
     let mut timestamp_ms: i32 = 0;
     encoder
-        .add_frame(first_buffer.as_raw(), timestamp_ms)
+        .add_frame_rgba(first_buffer.as_raw(), timestamp_ms)
         .context("WebP add_frame failed")?;
     timestamp_ms = timestamp_ms.saturating_add(delay_to_ms(first_delay));
 
@@ -219,13 +218,13 @@ fn load_animated_frames<'a, D: AnimationDecoder<'a>>(
             anyhow::bail!("{source:?} frame dimensions changed mid-stream");
         }
         encoder
-            .add_frame(resized.as_raw(), timestamp_ms)
+            .add_frame_rgba(resized.as_raw(), timestamp_ms)
             .context("WebP add_frame failed")?;
         timestamp_ms = timestamp_ms.saturating_add(delay_to_ms(frame_delay));
     }
 
     let webp_data = encoder
-        .finalize(timestamp_ms)
+        .finish(timestamp_ms)
         .context("WebP finalize failed")?;
 
     info!(
@@ -236,30 +235,10 @@ fn load_animated_frames<'a, D: AnimationDecoder<'a>>(
     );
 
     Ok(ReencodedAttachmentImage {
-        webp_image: webp_data.to_vec(),
+        webp_image: webp_data,
         image_dimensions: (width, height),
         blurhash,
     })
-}
-
-/// Creates a new WebP encoder with the given dimensions and quality settings.
-fn webp_encoder(width: u32, height: u32) -> anyhow::Result<webp_animation::Encoder> {
-    webp_animation::Encoder::new_with_options(
-        (width, height),
-        webp_animation::EncoderOptions {
-            minimize_size: true, // only for animated WebP
-            allow_mixed: true,   // only for animated WebP
-            encoding_config: Some(webp_animation::EncodingConfig {
-                quality: ATTACHMENT_IMAGE_QUALITY_PERCENT,
-                encoding_type: webp_animation::EncodingType::Lossy(
-                    webp_animation::LossyEncodingConfig::default(),
-                ),
-                ..Default::default()
-            }),
-            ..Default::default()
-        },
-    )
-    .context("WebP encoder init failed")
 }
 
 /// Converts a frame delay to milliseconds, applying a floor to avoid
