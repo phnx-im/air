@@ -147,11 +147,7 @@ impl DbAccess {
     /// Create a new [`DbAccess`] for testing with a local store notifier.
     #[cfg(test)]
     pub(crate) fn for_tests(pool: SqlitePool) -> Self {
-        Self {
-            read_write_pool: pool.clone(),
-            read_only_pool: pool,
-            notifier_tx: StoreNotificationsSender::new(),
-        }
+        Self::with_single_pool(pool, StoreNotificationsSender::new())
     }
 
     /// Create a new [`StoreNotifier`] for this [`DbAccess`].
