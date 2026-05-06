@@ -143,6 +143,8 @@ regenerate-icons:
 @test-rust: start-docker-compose
     just _check-status "cargo clippy --locked --all-targets"
     just _check-status "cargo test --locked"
+    # Run integration tests with APQ groups enabled
+    just _check-status "env TEST_WITH_APQ_GROUPS=true cargo test --locked --test integration"
     echo "{{BOLD}}test-rust done{{NORMAL}}"
 
 # Run flutter test.

@@ -230,7 +230,7 @@ mod test {
         insta::assert_snapshot!(diag);
     }
 
-    /// Default extensions can be extended by must be backwards compatible.
+    /// Default extensions can be extended but must be backwards compatible.
     #[test]
     fn default_extensions_stability() {
         let leaf_node_extensions = default_leaf_node_extensions();
