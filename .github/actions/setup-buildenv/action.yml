@@ -9,7 +9,7 @@ inputs:
     default: "true"
     required: false
   fastlane:
-    description: "Whether to setup Ruby and gems for Fastlane" 
+    description: "Whether to setup Ruby and gems for Fastlane"
     default: "false"
     required: false
   jdk:
@@ -22,7 +22,7 @@ inputs:
     required: false
   cargo-binstall-default-tools:
     description: "Default tools to install with cargo-binstall"
-    default: "sccache@0.14.0 just@1.48.1"
+    default: "sccache@0.15.0 just@1.48.1"
     required: false
   cargo-binstall-tools:
     description: "Space separated list of cargo-binstall tools to install"
@@ -60,15 +60,17 @@ runs:
       id: git-commits-count
       shell: bash
       run: echo "value=$(git rev-list --count HEAD)" >> $GITHUB_OUTPUT
-      
+
     ## cargo-binstall (as a side-effect: setup Rust toolchain using rust-toolchain.toml)
 
     - name: Setup cargo binstall
-      uses: cargo-bins/cargo-binstall@v1.17.7
-      
+      uses: cargo-bins/cargo-binstall@v1.19.0
+
     - name: Install Rust tools with cargo-binstall
       shell: bash
       run: cargo binstall --no-confirm ${{ inputs.cargo-binstall-default-tools }} ${{ inputs.cargo-binstall-tools }}
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
 
     ## sccache
 
@@ -126,12 +128,12 @@ runs:
       with:
         path: ~/.rustup
         key: rust-toolchain-${{ hashFiles('rust-toolchain.toml' ) }}
-    
+
     ## JDK
 
     - if: inputs.jdk == 'true'
       name: Install JDK
-      uses: actions/setup-java@v4
+      uses: actions/setup-java@be666c2fcd27ec809703dec50e508c2fdc7f6654 # v5.2.0
       with:
         distribution: "temurin"
         java-version: "17"

@@ -5,7 +5,6 @@
 pub use aircommon::identifiers::AttachmentId;
 use aircommon::identifiers::MimiId;
 use flutter_rust_bridge::frb;
-use mimi_content::ByteBuf;
 use uuid::Uuid;
 
 use crate::api::markdown::MessageContent;
@@ -27,9 +26,9 @@ impl From<UiMimiId> for MimiId {
     }
 }
 
-impl From<UiMimiId> for ByteBuf {
+impl From<UiMimiId> for Vec<u8> {
     fn from(id: UiMimiId) -> Self {
-        ByteBuf::from(id.0)
+        Vec::from(id.0)
     }
 }
 

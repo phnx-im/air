@@ -165,7 +165,7 @@ abstract class AppLocalizations {
   /// No description provided for @userSettingsScreen_sendWithEnterDescription.
   ///
   /// In en, this message translates to:
-  /// **'If disabled, pressing the Enter key won’t send a message.'**
+  /// **'If turned on, the keyboard\'s \"Enter\" key sends the message.'**
   String get userSettingsScreen_sendWithEnterDescription;
 
   /// No description provided for @userSettingsScreen_readReceipts.
@@ -177,7 +177,7 @@ abstract class AppLocalizations {
   /// No description provided for @userSettingsScreen_readReceiptsDescription.
   ///
   /// In en, this message translates to:
-  /// **'If disabled, others won’t be able to see when you’ve read their messages and you won’t be able to see when they’ve read yours.'**
+  /// **'If turned on, others will see if you’ve read their messages and you\'ll see if they’ve read yours.'**
   String get userSettingsScreen_readReceiptsDescription;
 
   /// No description provided for @userSettingsScreen_displayNameLabel.
@@ -617,6 +617,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Copied to clipboard'**
   String get invitationCodesScreen_copiedToClipboard;
+
+  /// No description provided for @invitationCodesScreen_codeClipboardMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Let\'s chat on Air: https://air.ms/install. Use invite code {code}.'**
+  String invitationCodesScreen_codeClipboardMessage(Object code);
+
+  /// No description provided for @invitationCodesScreen_codesClipboardMessage.
+  ///
+  /// In en, this message translates to:
+  /// **'Let\'s chat on Air: https://air.ms/install. Use one of these invite codes to join:\n\n{codes}'**
+  String invitationCodesScreen_codesClipboardMessage(Object codes);
 
   /// No description provided for @signUpScreen_header.
   ///
@@ -1796,6 +1808,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'This contact has an incompatible client which needs to be updated.'**
   String get memberSelectionList_client_not_supported;
+
+  /// No description provided for @homeTab_chats.
+  ///
+  /// In en, this message translates to:
+  /// **'Chats'**
+  String get homeTab_chats;
+
+  /// No description provided for @homeTab_profile.
+  ///
+  /// In en, this message translates to:
+  /// **'You'**
+  String get homeTab_profile;
 
   /// No description provided for @messageList_unreadMessages.
   ///

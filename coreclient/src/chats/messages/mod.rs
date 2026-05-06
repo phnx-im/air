@@ -4,7 +4,8 @@
 
 use aircommon::{OpenMlsRand, RustCrypto, identifiers::MimiId, time::TimeStamp};
 use mimi_content::{
-    Disposition, MessageStatus, MimiContent, NestedPartContent, content_container::PartSemantics,
+    MessageStatus, MimiContent,
+    content_container::{Disposition, NestedPart, PartSemantics},
 };
 use tracing::{error, warn};
 
@@ -185,19 +186,15 @@ impl ChatMessage {
     pub(crate) fn null_part_content(&self) -> anyhow::Result<MimiContent> {
         let salt: [u8; 16] = RustCrypto::default().random_array()?;
         Ok(MimiContent {
-            salt: mimi_content::ByteBuf::from(salt.to_vec()),
-            replaces: self
-                .message()
-                .mimi_id()
-                .map(|id| id.as_slice().to_vec().into()),
+            salt: salt.to_vec(),
+            replaces: self.message().mimi_id().map(|id| id.as_slice().to_vec()),
             topic_id: Default::default(),
             expires: None,
             in_reply_to: None,
             extensions: Default::default(),
-            nested_part: mimi_content::NestedPart {
-                disposition: mimi_content::Disposition::Render,
+            nested_part: NestedPart::NullPart {
+                disposition: Disposition::Render,
                 language: String::new(),
-                part: NestedPartContent::NullPart,
             },
         })
     }
@@ -398,25 +395,26 @@ impl Message {
             return None;
         };
 
-        match &content_message.content().nested_part.part {
+        match &content_message.content().nested_part {
             // Attachment
-            NestedPartContent::MultiPart {
+            NestedPart::MultiPart {
                 part_semantics: PartSemantics::ProcessAll,
                 parts,
+                ..
             } if parts
                 .iter()
-                .any(|part| part.disposition == Disposition::Attachment) =>
+                .any(|part| part.disposition() == Disposition::Attachment) =>
             {
                 // Blurhash preview indicates an image
                 let is_image = parts.iter().any(|part| {
-                    part.disposition == Disposition::Preview
-                        && matches!(
-                            &part.part,
-                            NestedPartContent::SinglePart {
-                                content_type,
-                                ..
-                            } if content_type == "text/blurhash"
-                        )
+                    matches!(
+                        &part,
+                        NestedPart::SinglePart {
+                            content_type,
+                            disposition: Disposition::Preview,
+                            ..
+                        } if content_type == "text/blurhash"
+                    )
                 });
                 Some(if is_image {
                     AttachmentType::Image
@@ -430,8 +428,13 @@ impl Message {
 
     pub fn is_deleted(&self) -> bool {
         self.mimi_content().is_some_and(|c| {
-            c.nested_part.disposition == mimi_content::Disposition::Render
-                && c.nested_part.part == NestedPartContent::NullPart
+            matches!(
+                c.nested_part,
+                NestedPart::NullPart {
+                    disposition: Disposition::Render,
+                    ..
+                }
+            )
         })
     }
 }

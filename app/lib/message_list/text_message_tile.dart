@@ -706,37 +706,43 @@ class _MessageMetadataRowState extends State<_MessageMetadataRow> {
         mainAxisSize: MainAxisSize.min,
         children: [
           const SizedBox(height: 2),
-          Row(
-            mainAxisAlignment: widget.isSender
-                ? MainAxisAlignment.end
-                : MainAxisAlignment.start,
-            mainAxisSize: MainAxisSize.min,
-            children: [
-              SizedBox(width: leadingSpacing),
-              if (showTimestamp) Timestamp(widget.timestamp),
-              if (showMessageStatus) const SizedBox(width: Spacings.xxxs),
-              if (showMessageStatus && isError)
-                Text(
-                  style: TextStyle(
-                    color: CustomColorScheme.of(context).function.warning,
-                    fontSize: LabelFontSize.small2.size,
+          // We use this to avoid overflow issues when transitioning between
+          // mobile & desktop views,
+          FittedBox(
+            fit: BoxFit.scaleDown,
+            alignment: widget.isSender
+                ? Alignment.centerRight
+                : Alignment.centerLeft,
+            child: Row(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                SizedBox(width: leadingSpacing),
+                if (showTimestamp) Timestamp(widget.timestamp),
+                if (showMessageStatus) const SizedBox(width: Spacings.xxxs),
+                if (showMessageStatus && isError)
+                  Text(
+                    style: TextStyle(
+                      color: CustomColorScheme.of(context).function.warning,
+                      fontSize: LabelFontSize.small2.size,
+                    ),
+                    loc.messageBubble_failedToSend,
                   ),
-                  loc.messageBubble_failedToSend,
-                ),
-              if (showMessageStatus && isSending && _showSending)
-                Text(
-                  style: TextStyle(
-                    color: CustomColorScheme.of(context).text.tertiary,
-                    fontSize: LabelFontSize.small2.size,
+                if (showMessageStatus && isSending && _showSending)
+                  Text(
+                    style: TextStyle(
+                      color: CustomColorScheme.of(context).text.tertiary,
+                      fontSize: LabelFontSize.small2.size,
+                    ),
+                    loc.messageBubble_sending,
                   ),
-                  loc.messageBubble_sending,
-                ),
-              if (showMessageStatus && (isError || (isSending && _showSending)))
-                const SizedBox(width: Spacings.xxxs),
-              if (showMessageStatus)
-                MessageStatusIndicator(status: widget.status),
-              const SizedBox(width: Spacings.xs),
-            ],
+                if (showMessageStatus &&
+                    (isError || (isSending && _showSending)))
+                  const SizedBox(width: Spacings.xxxs),
+                if (showMessageStatus)
+                  MessageStatusIndicator(status: widget.status),
+                const SizedBox(width: Spacings.xs),
+              ],
+            ),
           ),
         ],
       ),

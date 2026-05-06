@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use mimi_content::{MessageStatus, MimiContent, NestedPartContent};
+use mimi_content::{MessageStatus, MimiContent};
 use rand::{Rng, distributions::Alphanumeric, rngs::OsRng};
 
 use aircoreclient::{
@@ -158,15 +158,14 @@ async fn delete_messages_and_check_replies() -> anyhow::Result<()> {
         "Bob's reply to Alice should point to the updated empty MIMI content"
     );
 
-    assert_eq!(
+    assert!(
         bob_reply_to_alice_irt
             .unwrap()
             .mimi_content
             .as_ref()
             .unwrap()
             .nested_part
-            .part,
-        NestedPartContent::NullPart,
+            .is_null_part(),
         "Bob's reply to Alice should have a loaded empty MIMI content"
     );
 
@@ -193,14 +192,13 @@ async fn delete_messages_and_check_replies() -> anyhow::Result<()> {
         "Bob's reply to Alice should point to "
     );
 
-    assert_eq!(
+    assert!(
         bob_replies_to_alice_irt
             .unwrap()
             .mimi_content
             .unwrap()
             .nested_part
-            .part,
-        NestedPartContent::NullPart,
+            .is_null_part(),
         "Bob's reply to Alice should have a loaded empty MIMI content"
     );
 
@@ -604,7 +602,7 @@ async fn delete_message_preserves_other_messages() {
                 text.contains("First")
                     || text.contains("Second")
                     || text.contains("Third")
-                    || c.nested_part.part == mimi_content::NestedPartContent::NullPart
+                    || c.nested_part.is_null_part()
             })
             .unwrap_or(false)
     };

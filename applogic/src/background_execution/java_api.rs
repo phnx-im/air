@@ -55,7 +55,7 @@ pub extern "C" fn process_new_messages(
     // Convert Rust string back to Java string
     match env.new_string(response) {
         Ok(output) => output.into_raw(),
-        Err(error) => {
+        Err(_error) => {
             let _ = env.throw_new(
                 "java/lang/RuntimeException",
                 "Failed to create Java string from Rust",

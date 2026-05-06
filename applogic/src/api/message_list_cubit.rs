@@ -14,7 +14,7 @@ use aircoreclient::{
     store::{Store, StoreEntityId, StoreNotification, StoreOperation},
 };
 use flutter_rust_bridge::frb;
-use tokio::sync::{broadcast, mpsc, watch};
+use tokio::sync::{Notify, broadcast, mpsc, watch};
 use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::CancellationToken;
 use tracing::{error, warn};
@@ -520,6 +520,7 @@ pub struct MessageListCubitBase {
     core: CubitCore<MessageListState>,
     commands_tx: mpsc::Sender<Command>,
     transitions_tx: broadcast::Sender<MessageListTransition>,
+    subscribed: Arc<Notify>,
 }
 
 #[frb(ignore)]
@@ -540,12 +541,15 @@ impl MessageListCubitBase {
         let (commands_tx, commands_rx) = mpsc::channel(4);
         let (transitions_tx, _) = broadcast::channel(64);
 
+        let subscribed = Arc::new(Notify::new());
+
         MessageListContext::new(
             store,
             core.state_tx().clone(),
             transitions_tx.clone(),
             chat_id.into(),
             commands_rx,
+            subscribed.clone(),
         )
         .spawn(store_notifications, core.cancellation_token().clone());
 
@@ -553,6 +557,7 @@ impl MessageListCubitBase {
             core,
             commands_tx,
             transitions_tx,
+            subscribed,
         }
     }
 
@@ -600,6 +605,7 @@ impl MessageListCubitBase {
 
     pub async fn transitions(&self, sink: StreamSink<MessageListTransition>) {
         let mut rx = self.transitions_tx.subscribe();
+        self.subscribed.notify_one();
         loop {
             match rx.recv().await {
                 Ok(transition) => {
@@ -624,6 +630,7 @@ struct MessageListContext<S> {
     transitions_tx: broadcast::Sender<MessageListTransition>,
     chat_id: ChatId,
     commands_rx: mpsc::Receiver<Command>,
+    subscribed: Arc<Notify>,
     data: MessageListData,
 }
 
@@ -634,6 +641,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
         transitions_tx: broadcast::Sender<MessageListTransition>,
         chat_id: ChatId,
         commands_rx: mpsc::Receiver<Command>,
+        subscribed: Arc<Notify>,
     ) -> Self {
         Self {
             store,
@@ -641,6 +649,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
             transitions_tx,
             chat_id,
             commands_rx,
+            subscribed,
             data: Default::default(),
         }
     }
@@ -651,6 +660,9 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
         stop: CancellationToken,
     ) {
         spawn_from_sync(async move {
+            // Before loading the initial state, wait for the subscription. Otherwise, we might
+            // emit state before Flutter has subscribed, and therefore lose it.
+            self.subscribed.notified().await;
             self.initial_load().await;
             self.run_loop(store_notifications, stop).await;
         });
@@ -954,45 +966,48 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
         &mut self,
         notification: &StoreNotification,
     ) -> anyhow::Result<()> {
+        let mut needs_load_newer = false;
+        let mut clear_unread_marker = false;
+
         for (id, op) in &notification.ops {
-            if let StoreEntityId::Message(message_id) = id {
-                if op.contains(StoreOperation::Remove) {
-                    let in_window = self.data.message_ids_index.contains_key(message_id);
-                    if in_window {
-                        self.remove_message_in_place(*message_id);
-                    }
-                    return Ok(());
-                }
+            let StoreEntityId::Message(message_id) = id else {
+                continue;
+            };
 
-                if op.contains(StoreOperation::Add) {
-                    if let Some(message) = self.store.message(*message_id).await?
-                        && message.chat_id() == self.chat_id
-                    {
-                        // Own message (not yet sent to server) clears the
-                        // unread divider — the user has engaged with the chat.
-                        if !message.is_sent() {
-                            self.clear_first_unread_index();
-                        }
-
-                        let is_at_bottom = self.state_tx.borrow().is_at_bottom;
-                        if is_at_bottom {
-                            self.handle_load_newer().await;
-                        }
-                    }
-                    return Ok(());
+            if op.contains(StoreOperation::Remove) {
+                if self.data.message_ids_index.contains_key(message_id)
+                    && let Some(message) = self.store.message(*message_id).await?
+                    && message.chat_id() == self.chat_id
+                {
+                    self.remove_message_in_place(*message_id);
                 }
-
-                if op.contains(StoreOperation::Update) {
-                    let in_window = self.data.message_ids_index.contains_key(message_id);
-                    if in_window
-                        && let Some(message) = self.store.message(*message_id).await?
-                        && message.chat_id() == self.chat_id
-                    {
-                        self.update_message_in_place(message);
+            } else if op.contains(StoreOperation::Add) {
+                if let Some(message) = self.store.message(*message_id).await?
+                    && message.chat_id() == self.chat_id
+                {
+                    // Own message (not yet sent to server) clears the
+                    // unread divider — the user has engaged with the chat.
+                    if !message.is_sent() {
+                        clear_unread_marker = true;
                     }
-                    return Ok(());
+                    if self.state_tx.borrow().is_at_bottom {
+                        needs_load_newer = true;
+                    }
                 }
+            } else if op.contains(StoreOperation::Update)
+                && self.data.message_ids_index.contains_key(message_id)
+                && let Some(message) = self.store.message(*message_id).await?
+                && message.chat_id() == self.chat_id
+            {
+                self.update_message_in_place(message);
             }
+        }
+
+        if clear_unread_marker {
+            self.clear_first_unread_index();
+        }
+        if needs_load_newer {
+            self.handle_load_newer().await;
         }
         Ok(())
     }

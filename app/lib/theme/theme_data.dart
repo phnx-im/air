@@ -3,9 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:air/theme/theme.dart';
 import 'package:air/ui/colors/palette.dart';
 import 'package:air/ui/colors/themes.dart';
+import 'package:air/ui/effects/cupertino_scrim_transition.dart';
 import 'package:air/ui/theme/font.dart';
 import 'package:air/ui/typography/font_size.dart';
 
@@ -46,6 +48,9 @@ ThemeData themeData(Brightness brightness) {
       iconTheme: IconThemeData(color: colorScheme.text.primary),
       centerTitle: true,
       toolbarHeight: isPointer() ? 100 : null,
+      systemOverlayStyle: brightness == Brightness.light
+          ? SystemUiOverlayStyle.dark
+          : SystemUiOverlayStyle.light,
       titleTextStyle: (mergedAppBarTitleStyle ?? const TextStyle()).copyWith(
         color: colorScheme.text.primary,
         fontSize: LabelFontSize.base.size,
@@ -96,6 +101,15 @@ ThemeData themeData(Brightness brightness) {
       focusedErrorBorder: _textInputBorder,
       filled: true,
       fillColor: colorScheme.backgroundBase.secondary,
+    ),
+    pageTransitionsTheme: PageTransitionsTheme(
+      // We want a scrim for iOS and macOS to visually separate the new page
+      // from the old one during the transition
+      builders: {
+        ...const PageTransitionsTheme().builders,
+        TargetPlatform.iOS: const CupertinoScrimPageTransitionsBuilder(),
+        TargetPlatform.macOS: const CupertinoScrimPageTransitionsBuilder(),
+      },
     ),
     switchTheme: SwitchThemeData(
       thumbColor: WidgetStateProperty.all(colorScheme.text.secondary),

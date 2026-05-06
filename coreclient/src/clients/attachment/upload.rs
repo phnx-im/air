@@ -24,7 +24,7 @@ use base64::{Engine, prelude::BASE64_STANDARD};
 use chrono::{DateTime, Local, Utc};
 use mimi_content::{
     MimiContent,
-    content_container::{Disposition, NestedPart, NestedPartContent, PartSemantics},
+    content_container::{Disposition, NestedPart, PartSemantics},
 };
 use reqwest::{Body, multipart};
 use serde::Deserialize;
@@ -94,13 +94,11 @@ impl CoreUser {
         let content_type = attachment.content_type;
 
         let content = MimiContent {
-            nested_part: NestedPart {
+            nested_part: NestedPart::MultiPart {
                 disposition: Disposition::Attachment,
-                part: NestedPartContent::MultiPart {
-                    part_semantics: PartSemantics::ProcessAll,
-                    parts: attachment.into_nested_parts(attachment_metadata)?,
-                },
-                ..Default::default()
+                part_semantics: PartSemantics::ProcessAll,
+                parts: attachment.into_nested_parts(attachment_metadata)?,
+                language: Default::default(),
             },
             ..Default::default()
         };
@@ -201,19 +199,19 @@ impl CoreUser {
         // attachment record and this message is broken. We must copy the attachment record with
         // the new attachment id.
         if let Some(mimi_content) = message.message_mut().mimi_content_mut()
-            && let NestedPartContent::MultiPart { parts, .. } = &mut mimi_content.nested_part.part
+            && let NestedPart::MultiPart { parts, .. } = &mut mimi_content.nested_part
             && let Some(attachment_part) = parts
                 .iter_mut()
-                .find(|part| part.disposition == Disposition::Attachment)
-            && let NestedPartContent::ExternalPart {
+                .find(|part| part.disposition() == Disposition::Attachment)
+            && let NestedPart::ExternalPart {
                 url, key, nonce, ..
-            } = &mut attachment_part.part
+            } = attachment_part
             && let Ok(attachment_url) = AttachmentUrl::from_url(&url.parse()?)
         {
             *url = AttachmentUrl::new(attachment_metadata.attachment_id, attachment_url.dimensions)
                 .to_string();
-            *key = attachment_metadata.key.into_bytes().to_vec().into();
-            *nonce = attachment_metadata.nonce.to_vec().into();
+            *key = attachment_metadata.key.into_bytes().to_vec();
+            *nonce = attachment_metadata.nonce.to_vec();
 
             self.with_transaction_and_notifier(async |txn, notifier| {
                 message.update(txn.as_mut(), notifier).await?;
@@ -391,32 +389,28 @@ impl ProcessedAttachment {
                 .map(|data| (data.width, data.height)),
         );
 
-        let attachment = NestedPart {
+        let attachment = NestedPart::ExternalPart {
             disposition: Disposition::Attachment,
             language: String::new(),
-            part: NestedPartContent::ExternalPart {
-                content_type: self.content_type.to_owned(),
-                url: url.to_string(),
-                expires: 0,
-                size: self.size,
-                enc_alg: AIR_ATTACHMENT_ENCRYPTION_ALG,
-                key: metadata.key.into_bytes().to_vec().into(),
-                nonce: metadata.nonce.to_vec().into(),
-                aad: Default::default(),
-                hash_alg: AIR_ATTACHMENT_HASH_ALG,
-                content_hash: self.content_hash.into(),
-                description: Default::default(),
-                filename: self.filename,
-            },
+            content_type: self.content_type.to_owned(),
+            url: url.to_string(),
+            expires: 0,
+            size: self.size,
+            enc_alg: AIR_ATTACHMENT_ENCRYPTION_ALG,
+            key: metadata.key.into_bytes().to_vec(),
+            nonce: metadata.nonce.to_vec(),
+            aad: Default::default(),
+            hash_alg: AIR_ATTACHMENT_HASH_ALG,
+            content_hash: self.content_hash,
+            description: Default::default(),
+            filename: self.filename,
         };
 
-        let blurhash = self.image_data.map(|data| NestedPart {
+        let blurhash = self.image_data.map(|data| NestedPart::SinglePart {
             disposition: Disposition::Preview,
             language: String::new(),
-            part: NestedPartContent::SinglePart {
-                content_type: "text/blurhash".to_owned(),
-                content: data.blurhash.into_bytes().into(),
-            },
+            content_type: "text/blurhash".to_owned(),
+            content: data.blurhash.into_bytes(),
         });
 
         Ok([Some(attachment), blurhash].into_iter().flatten().collect())

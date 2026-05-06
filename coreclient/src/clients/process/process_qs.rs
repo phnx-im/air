@@ -25,9 +25,7 @@ use airprotos::{
 };
 use anyhow::{Context, Result, bail, ensure};
 use chrono::Utc;
-use mimi_content::{
-    Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPartContent,
-};
+use mimi_content::{Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPart};
 use mimi_room_policy::RoleIndex;
 use openmls::{
     group::{GroupId, QueuedProposal},
@@ -563,7 +561,7 @@ impl CoreUser {
         let delivery_receipts = messages.iter().filter_map(|message| {
             if let Message::Content(content_message) = message.message()
                 && let Disposition::Render | Disposition::Attachment =
-                    content_message.content().nested_part.disposition
+                    content_message.content().nested_part.disposition()
                 && let Some(mimi_id) = content_message.mimi_id()
             {
                 Some((message.id(), mimi_id, MessageStatus::Delivered))
@@ -607,10 +605,11 @@ impl CoreUser {
 
         // Delivery receipt
         if let Ok(content) = &content
-            && let NestedPartContent::SinglePart {
+            && let NestedPart::SinglePart {
                 content_type,
                 content: report_content,
-            } = &content.nested_part.part
+                ..
+            } = &content.nested_part
             && content_type == "application/mimi-message-status"
         {
             let mut report = MessageStatusReport::deserialize(report_content)?;
@@ -1103,7 +1102,7 @@ async fn handle_message_edit(
     replaces: MimiId,
     content: MimiContent,
 ) -> anyhow::Result<ChatMessage> {
-    let is_delete = content.nested_part.part == NestedPartContent::NullPart;
+    let is_delete = content.nested_part.is_null_part();
 
     // First try to directly load the original message by mimi id (non-edited message) and fallback
     // to the history of edits otherwise.
@@ -1337,7 +1336,7 @@ impl QsProcessEventResult {
 #[cfg(test)]
 mod tests {
     use aircommon::{identifiers::UserId, time::TimeStamp};
-    use mimi_content::{ByteBuf, MimiContent};
+    use mimi_content::MimiContent;
     use sqlx::SqlitePool;
 
     use crate::{
@@ -1382,7 +1381,7 @@ mod tests {
         bob_mimi_content.in_reply_to = alice_message
             .message()
             .mimi_id()
-            .map(|mimi_id| ByteBuf::from(mimi_id.as_slice()));
+            .map(|mimi_id| mimi_id.as_slice().to_vec());
         let bob_message = ChatMessage::new_for_test(
             chat.id(),
             MessageId::random(),
@@ -1505,7 +1504,7 @@ mod tests {
         bob_mimi_content.in_reply_to = alice_message
             .message()
             .mimi_id()
-            .map(|mimi_id| ByteBuf::from(mimi_id.as_slice()));
+            .map(|mimi_id| mimi_id.as_slice().to_vec());
         let bob_message = ChatMessage::new_for_test(
             chat.id(),
             MessageId::random(),
@@ -1520,7 +1519,7 @@ mod tests {
         carol_mimi_content.in_reply_to = alice_message
             .message()
             .mimi_id()
-            .map(|mimi_id| ByteBuf::from(mimi_id.as_slice()));
+            .map(|mimi_id| mimi_id.as_slice().to_vec());
         let carol_message = ChatMessage::new_for_test(
             chat.id(),
             MessageId::random(),
@@ -1611,8 +1610,7 @@ mod tests {
         let edited_alice_mimi_id = *alice_message.message().mimi_id().unwrap();
         let mut bob_mimi_content =
             MimiContent::simple_markdown_message("Reply to edited message!".to_string(), [1; 16]);
-        bob_mimi_content.in_reply_to =
-            Some(ByteBuf::from(edited_alice_mimi_id.as_slice().to_vec()));
+        bob_mimi_content.in_reply_to = Some(edited_alice_mimi_id.as_slice().to_vec());
         let bob_message = ChatMessage::new_for_test(
             chat.id(),
             MessageId::random(),

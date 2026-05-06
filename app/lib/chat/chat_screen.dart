@@ -222,6 +222,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
       surfaceTintColor: Colors.transparent,
       scrolledUnderElevation: 0,
       elevation: 0,
+      clipBehavior: Clip.none,
       leading: context.responsiveScreenType == ResponsiveScreenType.mobile
           ? const AppBarBackButton()
           : null,

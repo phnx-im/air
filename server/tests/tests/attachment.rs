@@ -9,7 +9,7 @@ use aircoreclient::{AttachmentProgressEvent, ProvisionAttachmentError, store::St
 use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams};
 use base64::{Engine, prelude::BASE64_STANDARD};
 use image::{ImageBuffer, Rgba};
-use mimi_content::content_container::NestedPartContent;
+use mimi_content::content_container::NestedPart;
 use png::Encoder;
 use sha2::{Digest, Sha256};
 use tokio_stream::StreamExt;
@@ -54,7 +54,7 @@ async fn send_attachment() {
         .unwrap();
 
     let attachment_id = match &external_part {
-        NestedPartContent::ExternalPart {
+        NestedPart::ExternalPart {
             content_type,
             url,
             filename,
@@ -104,7 +104,7 @@ async fn send_attachment() {
         .into_bytes()
         .unwrap();
     match external_part {
-        NestedPartContent::ExternalPart {
+        NestedPart::ExternalPart {
             size, content_hash, ..
         } => {
             assert_eq!(content.len() as u64, size);
@@ -144,7 +144,7 @@ async fn send_image_attachment() {
     alice.user.outbound_service().run_once().await;
 
     let attachment_id = match &external_part {
-        NestedPartContent::ExternalPart {
+        NestedPart::ExternalPart {
             content_type,
             url,
             filename,
@@ -196,7 +196,7 @@ async fn send_image_attachment() {
         .into_bytes()
         .unwrap();
     match external_part {
-        NestedPartContent::ExternalPart {
+        NestedPart::ExternalPart {
             size, content_hash, ..
         } => {
             assert_eq!(content.len() as u64, size);

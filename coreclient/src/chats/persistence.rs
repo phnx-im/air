@@ -555,8 +555,8 @@ impl Chat {
             mimi_id: MimiId,
         }
 
-        let unread_status = MessageStatus::Unread.repr();
-        let delivered_status = MessageStatus::Delivered.repr();
+        let unread_status: u8 = MessageStatus::Unread.into();
+        let delivered_status: u8 = MessageStatus::Delivered.into();
         let new_marked_as_read: Vec<(MessageId, MimiId)> = query_as!(
             Record,
             r#"SELECT
@@ -605,7 +605,7 @@ impl Chat {
         executor: impl SqliteExecutor<'_>,
     ) -> sqlx::Result<usize> {
         // We exclude deleted messages from the unread count.
-        let excluded_status = MessageStatus::Deleted.repr();
+        let excluded_status: u8 = MessageStatus::Deleted.into();
         query_scalar!(
             r#"SELECT
                 COUNT(m.chat_id) AS "count: _"
@@ -651,7 +651,7 @@ impl Chat {
         chat_id: ChatId,
     ) -> sqlx::Result<usize> {
         // We exclude deleted messages from the unread count.
-        let excluded_status = MessageStatus::Deleted.repr();
+        let excluded_status: u8 = MessageStatus::Deleted.into();
         query_scalar!(
             r#"SELECT
                 COUNT(*) AS "count: _"

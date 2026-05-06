@@ -45,14 +45,14 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get userSettingsScreen_sendWithEnterDescription =>
-      'Si cette option est désactivée, la touche Entrée n\'enverra pas de message.';
+      'Si activée, la touche « Entrée » du clavier envoie le message.';
 
   @override
   String get userSettingsScreen_readReceipts => 'Accusés de lecture';
 
   @override
   String get userSettingsScreen_readReceiptsDescription =>
-      'Si vous les désactivez, les autres ne verront pas quand vous aurez lu leurs messages et vous ne verrez pas quand ils auront lu les vôtres.';
+      'Si activés, les autres verront si vous avez lu leurs messages et vous verrez s\'ils ont lu les vôtres.';
 
   @override
   String get userSettingsScreen_displayNameLabel => 'Nom d\'affichage';
@@ -314,6 +314,16 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get invitationCodesScreen_copiedToClipboard =>
       'Copié dans le presse-papiers';
+
+  @override
+  String invitationCodesScreen_codeClipboardMessage(Object code) {
+    return 'Téléchargez Air et rejoignez-nous : https://air.ms/install. Utilises le code d\'invitation $code.';
+  }
+
+  @override
+  String invitationCodesScreen_codesClipboardMessage(Object codes) {
+    return 'Téléchargez Air et rejoignez-nous : https://air.ms/install. Utilises l\'un de ces codes d\'invitation pour rejoindre:\n\n$codes';
+  }
 
   @override
   String get signUpScreen_header => 'Créez votre profil';
@@ -1035,6 +1045,12 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get memberSelectionList_client_not_supported =>
       'This contact has an incompatible client which needs to be updated.';
+
+  @override
+  String get homeTab_chats => 'Discussions';
+
+  @override
+  String get homeTab_profile => 'Profil';
 
   @override
   String messageList_unreadMessages(int count) {

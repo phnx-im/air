@@ -70,6 +70,7 @@ class _AddMembersScreenViewState extends State<AddMembersScreenView> {
       appBar: AppBar(
         elevation: 0,
         scrolledUnderElevation: 0,
+        clipBehavior: Clip.none,
         leading: const AppBarBackButton(),
         title: Text(loc.addMembersScreen_addMembers),
         actions: [

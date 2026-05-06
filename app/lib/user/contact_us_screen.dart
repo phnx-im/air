@@ -36,6 +36,7 @@ class ContactUsScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
+        clipBehavior: Clip.none,
         title: Text(
           loc.contactUsScreen_title,
           style: TextStyle(

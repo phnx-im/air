@@ -45,14 +45,14 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get userSettingsScreen_sendWithEnterDescription =>
-      'If disabled, pressing the Enter key won’t send a message.';
+      'If turned on, the keyboard\'s \"Enter\" key sends the message.';
 
   @override
   String get userSettingsScreen_readReceipts => 'Read receipts';
 
   @override
   String get userSettingsScreen_readReceiptsDescription =>
-      'If disabled, others won’t be able to see when you’ve read their messages and you won’t be able to see when they’ve read yours.';
+      'If turned on, others will see if you’ve read their messages and you\'ll see if they’ve read yours.';
 
   @override
   String get userSettingsScreen_displayNameLabel => 'Display name';
@@ -304,6 +304,16 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get invitationCodesScreen_copiedToClipboard => 'Copied to clipboard';
+
+  @override
+  String invitationCodesScreen_codeClipboardMessage(Object code) {
+    return 'Let\'s chat on Air: https://air.ms/install. Use invite code $code.';
+  }
+
+  @override
+  String invitationCodesScreen_codesClipboardMessage(Object codes) {
+    return 'Let\'s chat on Air: https://air.ms/install. Use one of these invite codes to join:\n\n$codes';
+  }
 
   @override
   String get signUpScreen_header => 'Create your profile';
@@ -1011,6 +1021,12 @@ class AppLocalizationsEn extends AppLocalizations {
   @override
   String get memberSelectionList_client_not_supported =>
       'This contact has an incompatible client which needs to be updated.';
+
+  @override
+  String get homeTab_chats => 'Chats';
+
+  @override
+  String get homeTab_profile => 'You';
 
   @override
   String messageList_unreadMessages(int count) {
