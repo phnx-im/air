@@ -491,12 +491,19 @@ impl PendingChatOperation {
             group.verify_role_change(own_id, target, RoleIndex::Outsider)?;
         }
 
-        let params = group
-            .group_mut()
-            .stage_remove(txn.as_mut(), signer, target_users)
-            .await?;
+        let operation_type = if group.is_apq() {
+            let params = group
+                .group_mut()
+                .stage_apq_remove(txn.as_mut(), signer, target_users)?;
+            OperationType::apq_other(params)
+        } else {
+            let params = group
+                .group_mut()
+                .stage_remove(txn.as_mut(), signer, target_users)?;
+            OperationType::other(params)
+        };
 
-        let job = Self::new(group, OperationType::other(params));
+        let job = Self::new(group, operation_type);
         job.store(txn.as_mut()).await?;
         Ok(job)
     }

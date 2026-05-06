@@ -515,12 +515,25 @@ impl Group {
             )
             .await?;
 
+        // Check if there is already a group with the same ID.
+        if let Some(t_group_id) = Self::load_group_id_for_pq(txn.as_mut(), pq_group_id).await? {
+            // If the group is active, we can't join it.
+            if Self::is_active(txn.as_mut(), &t_group_id)? {
+                bail!("We can't join a group that is still active.");
+            }
+            // Otherwise, we delete the old group.
+            Self::delete_from_db(txn, &t_group_id).await?;
+        }
+
         // Phase 3: Complete the PQ join first, then derive the PSK needed by the T welcome.
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         let pq_builder = JoinBuilder::new(&provider, processed_pq_welcome)
             .skip_lifetime_validation()
             .with_ratchet_tree(pq_ratchet_tree);
         let mut pq_mls_group = pq_builder.build()?.into_group(&provider)?;
+
+        // Note: This method has a side-effect of storing PSK in the database. It is important to
+        // call it *after* processing the PQ welcome and *before* processing the T welcome.
         apqmls::welcome::derive_and_store_join_psk(&provider, &mut pq_mls_group, t_ciphersuite)?;
 
         let processed_t_welcome =
@@ -982,7 +995,7 @@ impl Group {
         Ok(Ok(params))
     }
 
-    pub(super) async fn stage_remove(
+    pub(super) fn stage_remove(
         &mut self,
         connection: &mut SqliteConnection,
         signer: &ClientSigningKey,
@@ -1031,6 +1044,55 @@ impl Group {
             add_users_info_option: None,
         };
         Ok(params)
+    }
+
+    pub(super) fn stage_apq_remove(
+        &mut self,
+        connection: &mut SqliteConnection,
+        signer: &ClientSigningKey,
+        mut members: Vec<UserId>,
+    ) -> anyhow::Result<ApqGroupOperationParamsOut> {
+        // Note: The order of `remove_indices` is not the same as the order of `members`.
+        let mut remove_indices = Vec::with_capacity(members.len());
+        for member in self.mls_group.members() {
+            let credential = VerifiableClientCredential::from_basic_credential(&member.credential)?;
+            let user_id = credential.user_id();
+            if let Some(idx) = members.iter().position(|id| id == user_id) {
+                remove_indices.push(member.index);
+                members.swap_remove(idx);
+            }
+            if members.is_empty() {
+                break;
+            }
+        }
+        ensure!(members.is_empty(), "Not all members to remove were found");
+
+        let aad_payload = AadPayload::GroupOperation(GroupOperationParamsAad {
+            new_encrypted_user_profile_keys: vec![],
+        });
+        let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
+        self.mls_group.set_aad(aad);
+
+        let provider = AirOpenMlsProvider::new(&mut *connection);
+        let bundle = apqmls::commit_builder::CommitBuilder::from_groups(
+            &mut self.mls_group,
+            &mut self.pq.as_mut().context("No PQ group found")?.mls_group,
+        )
+        .force_self_update(true)
+        .propose_removals(remove_indices)
+        .create_group_info(true)
+        .finalize(&provider, signer, |_| true, |_| true)?;
+
+        debug_assert!(bundle.welcome.is_none());
+        ensure!(
+            bundle.group_info.is_some(),
+            "No group info in APQMLS bundle"
+        );
+
+        Ok(ApqGroupOperationParamsOut {
+            bundle,
+            encrypted_welcome_attribution_infos: Vec::new(),
+        })
     }
 
     pub(super) async fn stage_delete(

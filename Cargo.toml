@@ -32,7 +32,7 @@ mls-assist = { path = "mls-assist" }
 
 aes-gcm = "0.10"
 anyhow = { version = "1.0.98", features = ["backtrace"] }
-apqmls = { git = "https://github.com/phnx-im/apqmls", rev = "ebc525cc48505f9f2cdc9e87286b2b9c8840ea1a" }
+apqmls = { git = "https://github.com/phnx-im/apqmls", rev = "b1049815788061f89cc040487e1552520a0c54d1" }
 arboard = "3"
 argon2 = "0.5.3"
 async-trait = "0.1.53"
@@ -159,8 +159,8 @@ hpke-rs-rust-crypto = { git = "https://github.com/cryspen/hpke-rs", rev = "42f9b
 # hpke-rs-crypto = { path = "../hpke-rs/traits/" }
 # hpke-rs-rust-crypto = { path = "../hpke-rs/rust_crypto_provider/" }
 
-[patch."https://github.com/phnx-im/apqmls"]
-apqmls = { path = "../apqmls" }
+# [patch."https://github.com/phnx-im/apqmls"]
+# apqmls = { path = "../apqmls" }
 
 
 [profile.release]

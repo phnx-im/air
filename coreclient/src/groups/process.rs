@@ -15,7 +15,10 @@ use aircommon::{
     utils::removed_client,
 };
 use anyhow::{Context, Result, anyhow, bail, ensure};
-use apqmls::{messages::ApqProtocolMessage, processing::ApqProcessMessageError};
+use apqmls::{
+    messages::ApqProtocolMessage,
+    processing::{ApqProcessMessageError, ApqProcessedMessage},
+};
 use mimi_room_policy::RoleIndex;
 use openmls::{
     group::{ProcessMessageError, ValidationError},
@@ -439,7 +442,11 @@ impl Group {
         message: impl Into<ApqProtocolMessage>,
     ) -> Result<Option<ProcessMessageResult>> {
         let pq = self.pq.as_mut().context("No PQ group")?;
-        let processes_message = match apqmls::processing::process_message(
+
+        let ApqProcessedMessage {
+            t_message,
+            pq_message,
+        } = match apqmls::processing::process_message(
             &mut self.mls_group,
             &mut pq.mls_group,
             &AirOpenMlsProvider::new(txn.as_mut()),
@@ -458,9 +465,18 @@ impl Group {
             }
         };
 
+        // Merge the PQ staged commit so the PQ group epoch advances before the T commit is merged.
+        if let ProcessedMessageContent::StagedCommitMessage(pq_staged_commit) =
+            pq_message.into_content()
+        {
+            let provider = AirOpenMlsProvider::new(txn.as_mut());
+            pq.mls_group
+                .merge_staged_commit(&provider, *pq_staged_commit)?;
+        }
+
         // The PQ message carries no Air-level semantics, so the only post-processing we need to do
         // is on the t-message.
-        Self::post_process_message(self, txn, api_clients, processes_message.t_message)
+        Self::post_process_message(self, txn, api_clients, t_message)
             .await
             .map(Some)
     }

@@ -12,10 +12,10 @@ use aircommon::{
 };
 use anyhow::{Result, ensure};
 use mimi_room_policy::{RoomState, VerifiedRoomState};
-use openmls::group::{GroupId, MlsGroup};
+use openmls::group::{GroupId, MlsGroup, MlsGroupState};
 use openmls::prelude::{LeafNodeIndex, StagedCommit};
-use openmls_traits::OpenMlsProvider;
-use sqlx::{SqliteConnection, SqliteTransaction, query, query_as, query_scalar};
+use openmls_traits::{OpenMlsProvider, storage::StorageProvider};
+use sqlx::{SqliteConnection, SqliteExecutor, SqliteTransaction, query, query_as, query_scalar};
 use tls_codec::Serialize as _;
 use tracing::error;
 
@@ -447,11 +447,11 @@ impl Group {
         .fetch_optional(txn.as_mut())
         .await?
         .flatten();
-        if let Some(group_id) = pq_group_id
-            && let Some(mut group) = Group::load(txn.as_mut(), &group_id.0).await?
-        {
+        if let Some(pq_group_id) = pq_group_id {
             let provider = AirOpenMlsProvider::new(txn.as_mut());
-            group.mls_group.delete(provider.storage())?;
+            if let Some(mut pq_mls_group) = MlsGroup::load(provider.storage(), &pq_group_id.0)? {
+                pq_mls_group.delete(provider.storage())?;
+            }
         };
         // This will also cascade delete the pq_group
         query!(r#"DELETE FROM "group" WHERE group_id = ?"#, group_id)
@@ -481,5 +481,36 @@ impl Group {
                  }| group_id,
             )
             .collect())
+    }
+
+    /// Returns the t-group ID for the given PQ group ID, if it exists.
+    pub(super) async fn load_group_id_for_pq(
+        executor: impl SqliteExecutor<'_>,
+        pq_group_id: &GroupId,
+    ) -> sqlx::Result<Option<GroupId>> {
+        let pq_group_id = GroupIdRefWrapper::from(pq_group_id);
+        query_scalar!(
+            r#"SELECT t_group_id AS "t_group_id: _" FROM pq_group WHERE group_id = ?"#,
+            pq_group_id
+        )
+        .fetch_optional(executor)
+        .await
+        .map(|group_id| group_id.map(|GroupIdWrapper(group_id)| group_id))
+    }
+
+    /// Returns true if the group with the given ID is active.
+    pub(super) fn is_active(
+        connection: &mut sqlx::SqliteConnection,
+        group_id: &GroupId,
+    ) -> sqlx::Result<bool> {
+        let provider = AirOpenMlsProvider::new(connection);
+        let state: Option<MlsGroupState> = provider.storage().group_state(group_id)?;
+        Ok(state
+            .map(|state| match state {
+                MlsGroupState::Operational => true,
+                MlsGroupState::Inactive => false,
+                MlsGroupState::PendingCommit(_) => true,
+            })
+            .unwrap_or(false))
     }
 }
