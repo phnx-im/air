@@ -35,7 +35,9 @@ impl Group {
                         // Proposals are fed to the PublicGroup s.t. they are
                         // put into the ProposalStore. Otherwise we don't do
                         // anything with them.
-                        let processed_message = self.public_group.process_message(provider, *pm)?;
+                        let processed_message = self
+                            .public_group
+                            .process_message_with_app_data_updates(provider, *pm)?;
                         let processed_assisted_message =
                             ProcessedAssistedMessage::NonCommit(processed_message);
                         let message_plus = ProcessedAssistedMessagePlus {
@@ -59,9 +61,10 @@ impl Group {
         };
         // First process the message, then verify that the group info
         // checks out.
-        let processed_message = self
-            .public_group
-            .process_message(provider, ProtocolMessage::PublicMessage(commit.clone()))?;
+        let processed_message = self.public_group.process_message_with_app_data_updates(
+            provider,
+            ProtocolMessage::PublicMessage(commit.clone()),
+        )?;
         let sender = processed_message.sender().clone();
         let confirmation_tag = commit
             .confirmation_tag()

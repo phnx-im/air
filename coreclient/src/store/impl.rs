@@ -103,8 +103,13 @@ impl Store for CoreUser {
         self.remove_username(username).await
     }
 
-    async fn create_chat(&self, title: String, picture: Option<Vec<u8>>) -> StoreResult<ChatId> {
-        self.create_chat(title, picture).await
+    async fn create_chat(
+        &self,
+        title: String,
+        picture: Option<Vec<u8>>,
+        is_apq: bool,
+    ) -> StoreResult<ChatId> {
+        self.create_chat(title, picture, is_apq).await
     }
 
     async fn set_chat_picture(&self, chat_id: ChatId, picture: Option<Vec<u8>>) -> StoreResult<()> {
@@ -431,7 +436,7 @@ impl Store for CoreUser {
             ProvisionAttachmentError,
         >,
     > {
-        self.upload_attachment(chat_id, path).await
+        Box::pin(self.upload_attachment(chat_id, path)).await
     }
 
     async fn retry_upload_attachment(

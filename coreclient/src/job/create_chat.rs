@@ -25,6 +25,7 @@ use crate::{
 pub(crate) struct CreateChat {
     pub chat_attributes: ChatAttributes,
     pub client_reference: QsReference,
+    pub is_apq: bool,
 }
 
 type DomainError = Infallible;
@@ -43,10 +44,15 @@ impl Job for CreateChat {
 }
 
 impl CreateChat {
-    pub(crate) fn new(chat_attributes: ChatAttributes, client_reference: QsReference) -> Self {
+    pub(crate) fn new(
+        chat_attributes: ChatAttributes,
+        client_reference: QsReference,
+        is_apq: bool,
+    ) -> Self {
         Self {
             chat_attributes,
             client_reference,
+            is_apq,
         }
     }
 
@@ -57,7 +63,9 @@ impl CreateChat {
         let Self {
             chat_attributes,
             client_reference,
+            is_apq,
         } = self;
+
         let JobContext {
             api_clients,
             db,
@@ -88,8 +96,8 @@ impl CreateChat {
         // If we can't get a new group ID, we can't create the chat. Getting a
         // new group ID is repeatable.
         let api_client = api_clients.default_client()?;
-        let (group_id, group_profile_provisioning) = api_client
-            .ds_request_group_id(Some(group_profile_bytes.len()))
+        let (group_id, pq_group_id, group_profile_provisioning) = api_client
+            .ds_request_group_id(Some(group_profile_bytes.len()), is_apq)
             .await?;
 
         let external_group_profile = if let Some(provisioning) = group_profile_provisioning
@@ -129,13 +137,24 @@ impl CreateChat {
             .write()
             .await?
             .with_transaction(async |txn| -> anyhow::Result<_> {
-                let (group, partial_params) = Group::create_group(
-                    &mut *txn,
-                    &key_store.signing_key,
-                    identity_link_wrapper_key,
-                    group_id,
-                    group_data_bytes,
-                )?;
+                let (group, partial_params) = if is_apq {
+                    Group::create_apq_group(
+                        &mut *txn,
+                        &key_store.signing_key,
+                        identity_link_wrapper_key,
+                        group_id,
+                        pq_group_id.context("Missing PQ group ID")?,
+                        group_data_bytes.clone(),
+                    )?
+                } else {
+                    Group::create_group(
+                        &mut *txn,
+                        &key_store.signing_key,
+                        identity_link_wrapper_key,
+                        group_id,
+                        group_data_bytes,
+                    )?
+                };
 
                 let user_profile_key = UserProfileKey::load_own(&mut *txn).await?;
                 let encrypted_user_profile_key =
@@ -151,7 +170,12 @@ impl CreateChat {
 
         let params = partial_params.into_params(client_reference, encrypted_user_profile_key);
         if let Err(e) = api_client
-            .ds_create_group(params, &key_store.signing_key, group.group_state_ear_key())
+            .ds_create_group(
+                params,
+                &key_store.signing_key,
+                group.group_state_ear_key(),
+                group.pq_group().map(|pq| &pq.group_state_ear_key),
+            )
             .await
         {
             db.write()

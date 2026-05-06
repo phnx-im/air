@@ -7,6 +7,7 @@
 //! TODO: We should eventually factor this module out, together with the crypto
 //! module, to allow re-use by the client implementation.
 
+use apqmls::messages::{ApqMlsMessageIn, ApqWelcome};
 use mls_assist::{
     messages::{AssistedMessageIn, AssistedWelcome, SerializedMlsMessage},
     openmls::prelude::{GroupEpoch, GroupId, LeafNodeIndex, MlsMessageIn, RatchetTreeIn},
@@ -57,11 +58,13 @@ pub type QsQueueRatchet = QueueRatchet<EncryptedQsQueueMessageCtype, QsQueueMess
 )]
 #[repr(u8)]
 pub enum QsQueueMessageType {
-    WelcomeBundle,
-    MlsMessage,
-    UserProfileKeyUpdate,
-    TargetedMessage,
-    DsResponse,
+    WelcomeBundle = 0,
+    ApqWelcomeBundle = 5,
+    MlsMessage = 1,
+    ApqMlsMessage = 6,
+    UserProfileKeyUpdate = 2,
+    TargetedMessage = 3,
+    DsResponse = 4,
 }
 
 #[derive(
@@ -81,9 +84,18 @@ impl QsQueueMessagePayload {
                 let wb = WelcomeBundle::tls_deserialize_exact_bytes(&self.payload)?;
                 ExtractedQsQueueMessagePayload::WelcomeBundle(wb)
             }
+            QsQueueMessageType::ApqWelcomeBundle => {
+                let wb = ApqWelcomeBundle::tls_deserialize_exact_bytes(&self.payload)?;
+                ExtractedQsQueueMessagePayload::ApqWelcomeBundle(wb)
+            }
             QsQueueMessageType::MlsMessage => {
                 let message = MlsMessageIn::tls_deserialize_exact_bytes(self.payload.as_slice())?;
                 ExtractedQsQueueMessagePayload::MlsMessage(Box::new(message))
+            }
+            QsQueueMessageType::ApqMlsMessage => {
+                let message =
+                    ApqMlsMessageIn::tls_deserialize_exact_bytes(self.payload.as_slice())?;
+                ExtractedQsQueueMessagePayload::ApqMlsMessage(Box::new(message))
             }
             QsQueueMessageType::UserProfileKeyUpdate => {
                 let message = UserProfileKeyUpdateParams::tls_deserialize_exact_bytes(
@@ -126,7 +138,9 @@ pub struct ExtractedQsQueueMessage {
 #[derive(Debug)]
 pub enum ExtractedQsQueueMessagePayload {
     WelcomeBundle(WelcomeBundle),
+    ApqWelcomeBundle(ApqWelcomeBundle),
     MlsMessage(Box<MlsMessageIn>),
+    ApqMlsMessage(Box<ApqMlsMessageIn>),
     UserProfileKeyUpdate(UserProfileKeyUpdateParams),
     TargetedMessage(QsQueueTargetedMessage),
     DsCommitResponse(DsCommitResponse),
@@ -172,6 +186,19 @@ impl TryFrom<WelcomeBundle> for QsQueueMessagePayload {
         Ok(Self {
             timestamp: TimeStamp::now(),
             message_type: QsQueueMessageType::WelcomeBundle,
+            payload,
+        })
+    }
+}
+
+impl TryFrom<ApqWelcomeBundle> for QsQueueMessagePayload {
+    type Error = tls_codec::Error;
+
+    fn try_from(welcome_bundle: ApqWelcomeBundle) -> Result<Self, Self::Error> {
+        let payload = welcome_bundle.tls_serialize_detached()?;
+        Ok(Self {
+            timestamp: TimeStamp::now(),
+            message_type: QsQueueMessageType::ApqWelcomeBundle,
             payload,
         })
     }
@@ -305,6 +332,36 @@ pub struct AddUsersInfo {
 }
 
 #[derive(Debug)]
+pub struct ApqAddUsersInfo {
+    pub welcome: ApqWelcome,
+    pub encrypted_welcome_attribution_infos: Vec<EncryptedWelcomeAttributionInfo>,
+}
+
+impl ApqAddUsersInfo {
+    pub fn split(self) -> (AddUsersInfo, AddUsersInfo) {
+        let Self {
+            welcome,
+            encrypted_welcome_attribution_infos,
+        } = self;
+        let (t_add_user_info, pq_add_user_info) = welcome.split();
+        let t_info = AddUsersInfo {
+            welcome: AssistedWelcome {
+                welcome: t_add_user_info,
+            },
+            // TODO: Can we avoid cloning here?
+            encrypted_welcome_attribution_infos: encrypted_welcome_attribution_infos.clone(),
+        };
+        let pq_info = AddUsersInfo {
+            welcome: AssistedWelcome {
+                welcome: pq_add_user_info,
+            },
+            encrypted_welcome_attribution_infos,
+        };
+        (t_info, pq_info)
+    }
+}
+
+#[derive(Debug)]
 pub struct GroupOperationParams {
     pub commit: AssistedMessageIn,
     pub add_users_info_option: Option<AddUsersInfo>,
@@ -375,6 +432,38 @@ impl From<HpkeCiphertext> for EncryptedDsJoinerInformation {
 impl HpkeEncryptable<JoinerInfoKeyType, EncryptedDsJoinerInformation> for DsJoinerInformation {}
 impl HpkeDecryptable<JoinerInfoKeyType, EncryptedDsJoinerInformation> for DsJoinerInformation {}
 
+#[derive(TlsSerialize, TlsSize, Clone, TlsDeserializeBytes)]
+pub struct DsApqJoinerInformation {
+    pub t_group_state_ear_key: GroupStateEarKey,
+    pub pq_group_state_ear_key: GroupStateEarKey,
+}
+
+#[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize, Clone)]
+pub struct EncryptedDsApqJoinerInformation {
+    pub ciphertext: HpkeCiphertext,
+}
+
+impl AsRef<HpkeCiphertext> for EncryptedDsApqJoinerInformation {
+    fn as_ref(&self) -> &HpkeCiphertext {
+        &self.ciphertext
+    }
+}
+
+impl From<HpkeCiphertext> for EncryptedDsApqJoinerInformation {
+    fn from(ciphertext: HpkeCiphertext) -> Self {
+        Self { ciphertext }
+    }
+}
+
+impl HpkeEncryptable<JoinerInfoKeyType, EncryptedDsApqJoinerInformation>
+    for DsApqJoinerInformation
+{
+}
+impl HpkeDecryptable<JoinerInfoKeyType, EncryptedDsApqJoinerInformation>
+    for DsApqJoinerInformation
+{
+}
+
 #[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize, Clone)]
 pub struct WelcomeBundle {
     pub welcome: AssistedWelcome,
@@ -382,4 +471,13 @@ pub struct WelcomeBundle {
     pub encrypted_attribution_info: EncryptedWelcomeAttributionInfo,
     // This part is added by the DS later.
     pub encrypted_joiner_info: EncryptedDsJoinerInformation,
+}
+
+#[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize)]
+pub struct ApqWelcomeBundle {
+    pub welcome: ApqWelcome,
+    // This is the part the DS shouldn't see.
+    pub encrypted_attribution_info: EncryptedWelcomeAttributionInfo,
+    // This part is added by the DS later.
+    pub encrypted_joiner_info: EncryptedDsApqJoinerInformation,
 }

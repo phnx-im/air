@@ -8238,6 +8238,7 @@ const _: fn() = || {
     {
         let AirFeatures = None::<crate::api::types::AirFeatures>.unwrap();
         let _: bool = AirFeatures.encrypted_group_profiles;
+        let _: bool = AirFeatures.pq_groups;
     }
     {
         let AppDataDebugInfo = None::<crate::api::chat_details_cubit::AppDataDebugInfo>.unwrap();
@@ -9209,8 +9210,10 @@ impl SseDecode for crate::api::types::AirFeatures {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_encryptedGroupProfiles = <bool>::sse_decode(deserializer);
+        let mut var_pqGroups = <bool>::sse_decode(deserializer);
         return crate::api::types::AirFeatures {
             encrypted_group_profiles: var_encryptedGroupProfiles,
+            pq_groups: var_pqGroups,
         };
     }
 }
@@ -12237,7 +12240,11 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::AirComponen
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::AirFeatures> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [self.0.encrypted_group_profiles.into_into_dart().into_dart()].into_dart()
+        [
+            self.0.encrypted_group_profiles.into_into_dart().into_dart(),
+            self.0.pq_groups.into_into_dart().into_dart(),
+        ]
+        .into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
@@ -14796,6 +14803,7 @@ impl SseEncode for crate::api::types::AirFeatures {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.encrypted_group_profiles, serializer);
+        <bool>::sse_encode(self.pq_groups, serializer);
     }
 }
 

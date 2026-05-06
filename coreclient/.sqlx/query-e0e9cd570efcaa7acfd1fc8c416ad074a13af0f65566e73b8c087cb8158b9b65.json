@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE pq_group SET\n                    group_state_ear_key = ?,\n                    self_updated_at = COALESCE(?, self_updated_at)\n                WHERE\n                    group_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "e0e9cd570efcaa7acfd1fc8c416ad074a13af0f65566e73b8c087cb8158b9b65"
+}

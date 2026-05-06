@@ -21,6 +21,9 @@ service QueueService {
   rpc PublishKeyPackages(PublishKeyPackagesRequest) returns (PublishKeyPackagesResponse);
   rpc KeyPackage(KeyPackageRequest) returns (KeyPackageResponse);
 
+  rpc PublishApqKeyPackages(PublishApqKeyPackagesRequest) returns (PublishApqKeyPackagesResponse);
+  rpc ApqKeyPackage(ApqKeyPackageRequest) returns (ApqKeyPackageResponse);
+
   rpc QsEncryptionKey(QsEncryptionKeyRequest) returns (QsEncryptionKeyResponse);
 
   rpc Listen(stream ListenRequest) returns (stream QueueEvent);
@@ -207,6 +210,39 @@ message KeyPackageRequest {
 
 message KeyPackageResponse {
   KeyPackage key_package = 1;
+}
+
+// publish apq key packages
+
+message PublishApqKeyPackagesRequest {
+  PublishApqKeyPackagesPayload payload = 1;
+  common.v1.Signature signature = 2;
+}
+
+message PublishApqKeyPackagesPayload {
+  common.v1.ClientMetadata client_metadata = 1;
+  QsClientId client_id = 2;
+  repeated ApqKeyPackage apq_key_packages = 3;
+}
+
+message ApqKeyPackage {
+  // TLS encoded key package for the traditional group.
+  bytes t_key_package_tls = 1;
+  // TLS encoded key package for the post-quantum group.
+  bytes pq_key_package_tls = 2;
+}
+
+message PublishApqKeyPackagesResponse {}
+
+// apq key package
+
+message ApqKeyPackageRequest {
+  common.v1.ClientMetadata client_metadata = 2;
+  FriendshipToken sender = 1;
+}
+
+message ApqKeyPackageResponse {
+  ApqKeyPackage key_package = 1;
 }
 
 // qs encryption key

@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use apqmls::messages::{ApqKeyPackage, ApqKeyPackageIn};
 use mls_assist::openmls::prelude::KeyPackage;
 
 use aircommon::{
@@ -9,18 +10,29 @@ use aircommon::{
     identifiers::QsClientId,
     messages::FriendshipToken,
 };
-use serde::{Serialize, de::DeserializeOwned};
-use sqlx::{Arguments, Connection, PgConnection, PgTransaction, postgres::PgArguments, query};
+use sqlx::{
+    Arguments, Connection, PgConnection, PgTransaction, Postgres, encode::IsNull,
+    error::BoxDynError, postgres::PgArguments, query,
+};
+use tls_codec::Serialize as _;
 use tonic::async_trait;
 
 use crate::errors::StorageError;
 
-impl StorableKeyPackage for KeyPackage {}
-
 #[async_trait]
-pub(super) trait StorableKeyPackage:
-    Sized + Serialize + DeserializeOwned + Send + Sync + Unpin
-{
+pub(super) trait StorableKeyPackage<'q>: Sized + Send + Sync + Unpin {
+    const TABLE_NAME: &'static str;
+
+    type BlobEncoded<'a>: sqlx::Encode<'a, Postgres> + sqlx::Type<Postgres>
+    where
+        Self: 'a;
+
+    fn encoded<'a>(&'a self) -> Self::BlobEncoded<'a>;
+
+    type BlobDecoded: for<'a> sqlx::Decode<'a, Postgres> + sqlx::Type<Postgres> + Send + Unpin;
+
+    fn decoded(decoded: Self::BlobDecoded) -> sqlx::Result<Self>;
+
     async fn replace_multiple(
         txn: &mut PgTransaction<'_>,
         client_id: &QsClientId,
@@ -43,22 +55,29 @@ pub(super) trait StorableKeyPackage:
         key_packages: &[Self],
         is_last_resort: bool,
     ) -> Result<(), StorageError> {
-        query!(
-            "DELETE FROM key_package WHERE client_id = $1 AND is_last_resort = $2",
-            client_id as _,
-            is_last_resort
-        )
+        if key_packages.is_empty() {
+            return Ok(());
+        }
+
+        query(&format!(
+            "DELETE FROM {table_name} WHERE client_id = $1 AND is_last_resort = $2",
+            table_name = Self::TABLE_NAME
+        ))
+        .bind(client_id)
+        .bind(is_last_resort)
         .execute(txn.as_mut())
         .await?;
 
         let mut query_args = PgArguments::default();
-        let mut query_string =
-            String::from("INSERT INTO key_package (client_id, key_package, is_last_resort) VALUES");
+        let mut query_string = format!(
+            "INSERT INTO {table_name} (client_id, key_package, is_last_resort) VALUES",
+            table_name = Self::TABLE_NAME
+        );
 
         for (i, key_package) in key_packages.iter().enumerate() {
             // Add values to the query arguments. None of these should throw an error.
             query_args.add(client_id)?;
-            query_args.add(BlobEncoded(key_package))?;
+            query_args.add(key_package.encoded())?;
             query_args.add(is_last_resort)?;
 
             if i > 0 {
@@ -91,27 +110,30 @@ pub(super) trait StorableKeyPackage:
     ) -> Result<Self, StorageError> {
         let mut transaction = connection.begin().await?;
 
-        let key_package = sqlx::query_scalar!(
-                r#"WITH user_info AS (
+        let key_package = sqlx::query_scalar(&format!(
+            r#"WITH user_info AS (
                     -- Step 1: Fetch the user_id based on the friendship token.
                         SELECT user_id FROM qs_user_record WHERE friendship_token = $1
                 ),
 
                 client_ids AS (
                     -- Step 2: Retrieve client IDs for the user from the `user_info`.
-                        SELECT client_id FROM qs_client_record WHERE user_id = (SELECT user_id FROM user_info)
+                        SELECT client_id FROM qs_client_record WHERE user_id = (
+                            SELECT user_id FROM user_info)
                 ),
 
                 ranked_packages AS (
                     -- Step 3: Rank key packages for each client.
                         SELECT p.id, p.key_package, p.is_last_resort,
-                           ROW_NUMBER() OVER (PARTITION BY p.client_id ORDER BY p.is_last_resort ASC) AS rn
-                        FROM key_package p
+                           ROW_NUMBER() OVER (PARTITION BY p.client_id
+                               ORDER BY p.is_last_resort ASC) AS rn
+                        FROM {table_name} p
                     INNER JOIN client_ids c ON p.client_id = c.client_id
                 ),
 
                 selected_key_packages AS (
-                    -- Step 4: Select the best-ranked package per client (rn = 1), skipping locked rows.
+                    -- Step 4: Select the best-ranked package per client (rn = 1),
+                    -- skipping locked rows.
                     SELECT id, key_package, is_last_resort
                     FROM ranked_packages
                     WHERE rn = 1
@@ -120,19 +142,103 @@ pub(super) trait StorableKeyPackage:
 
                 deleted_packages AS (
                     -- Step 5: Delete the selected packages that are not marked as last_resort.
-                        DELETE FROM key_package
-                    WHERE id IN (SELECT id FROM selected_key_packages WHERE is_last_resort = FALSE)
+                        DELETE FROM {table_name}
+                    WHERE id IN (SELECT id FROM selected_key_packages
+                        WHERE is_last_resort = FALSE)
                     RETURNING key_package
                 )
 
                 -- Step 6: Return the key_package from the selected packages.
-                SELECT key_package as "key_package: BlobDecoded<Self>" FROM selected_key_packages"#,
-                friendship_token as &FriendshipToken
-            ).fetch_one(&mut *transaction).await.map(|BlobDecoded(key_package)| key_package)?;
+                SELECT key_package as "key_package: Self::BlobDecoded"
+                FROM selected_key_packages"#,
+            table_name = Self::TABLE_NAME
+        ))
+        .bind(friendship_token)
+        .fetch_one(&mut *transaction)
+        .await
+        .inspect_err(|error| {
+            tracing::error!(%error, "Failed to fetch key package");
+        })
+        .map(|blob| Self::decoded(blob))??;
 
         transaction.commit().await?;
 
         Ok(key_package)
+    }
+}
+
+impl StorableKeyPackage<'_> for KeyPackage {
+    const TABLE_NAME: &'static str = "key_package";
+
+    type BlobEncoded<'a> = BlobEncoded<&'a Self>;
+
+    fn encoded(&self) -> Self::BlobEncoded<'_> {
+        BlobEncoded(self)
+    }
+
+    type BlobDecoded = BlobDecoded<Self>;
+
+    fn decoded<'a>(decoded: Self::BlobDecoded) -> sqlx::Result<Self> {
+        Ok(BlobDecoded::into_inner(decoded))
+    }
+}
+
+impl StorableKeyPackage<'_> for ApqKeyPackage {
+    const TABLE_NAME: &'static str = "apq_key_package";
+
+    type BlobEncoded<'a> = StorableApqKeyPackage<'a>;
+
+    fn encoded(&self) -> Self::BlobEncoded<'_> {
+        StorableApqKeyPackage(self)
+    }
+
+    type BlobDecoded = StoredApqKeyPackage;
+
+    fn decoded(decoded: Self::BlobDecoded) -> sqlx::Result<Self> {
+        decoded
+            .0
+            .unwrap_verified()
+            .map_err(|e| sqlx::Error::Decode(Box::new(e)))
+    }
+}
+
+pub(super) struct StorableApqKeyPackage<'a>(&'a ApqKeyPackage);
+
+impl sqlx::Type<Postgres> for StorableApqKeyPackage<'_> {
+    fn type_info() -> <Postgres as sqlx::Database>::TypeInfo {
+        <Vec<u8> as sqlx::Type<Postgres>>::type_info()
+    }
+}
+
+impl sqlx::Encode<'_, Postgres> for StorableApqKeyPackage<'_> {
+    fn encode_by_ref(
+        &self,
+        buf: &mut <Postgres as sqlx::Database>::ArgumentBuffer<'_>,
+    ) -> Result<IsNull, BoxDynError> {
+        let buf: &mut Vec<u8> = &mut *buf;
+        self.0.t_key_package().tls_serialize(buf)?;
+        self.0.pq_key_package().tls_serialize(buf)?;
+        Ok(IsNull::No)
+    }
+}
+
+pub(super) struct StoredApqKeyPackage(ApqKeyPackageIn);
+
+impl sqlx::Type<Postgres> for StoredApqKeyPackage {
+    fn type_info() -> <Postgres as sqlx::Database>::TypeInfo {
+        <Vec<u8> as sqlx::Type<Postgres>>::type_info()
+    }
+}
+
+impl sqlx::Decode<'_, Postgres> for StoredApqKeyPackage {
+    fn decode(value: <Postgres as sqlx::Database>::ValueRef<'_>) -> Result<Self, BoxDynError> {
+        let bytes = value.as_bytes()?;
+        let (t_key_package, remaining) = tls_codec::DeserializeBytes::tls_deserialize_bytes(bytes)?;
+        let pq_key_package = tls_codec::DeserializeBytes::tls_deserialize_exact_bytes(remaining)?;
+        Ok(StoredApqKeyPackage(ApqKeyPackageIn::new(
+            t_key_package,
+            pq_key_package,
+        )))
     }
 }
 
@@ -153,7 +259,21 @@ mod tests {
 
     type DummyKeyPackage = Vec<u8>;
 
-    impl StorableKeyPackage for DummyKeyPackage {}
+    impl StorableKeyPackage<'_> for DummyKeyPackage {
+        const TABLE_NAME: &'static str = "key_package";
+
+        type BlobEncoded<'a> = BlobEncoded<&'a Self>;
+
+        fn encoded(&self) -> Self::BlobEncoded<'_> {
+            BlobEncoded(self)
+        }
+
+        type BlobDecoded = BlobDecoded<Self>;
+
+        fn decoded(decoded: Self::BlobDecoded) -> sqlx::Result<Self> {
+            Ok(BlobDecoded::into_inner(decoded))
+        }
+    }
 
     #[sqlx::test]
     async fn load_user_key_package(pool: PgPool) -> anyhow::Result<()> {

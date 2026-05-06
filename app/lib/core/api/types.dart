@@ -29,8 +29,10 @@ sealed class AirComponent with _$AirComponent {
 
 @freezed
 sealed class AirFeatures with _$AirFeatures {
-  const factory AirFeatures({required bool encryptedGroupProfiles}) =
-      _AirFeatures;
+  const factory AirFeatures({
+    required bool encryptedGroupProfiles,
+    required bool pqGroups,
+  }) = _AirFeatures;
 }
 
 /// Mirror of the [`ChatId`] type

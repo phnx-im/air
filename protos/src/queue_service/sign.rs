@@ -7,8 +7,9 @@ use aircommon::crypto::signatures::keys::{QsClientVerifyingKeyType, QsUserVerify
 use crate::queue_service::v1::{
     CreateClientPayload, CreateClientRequest, DeleteClientPayload, DeleteClientRequest,
     DeleteUserPayload, DeleteUserRequest, InitListenPayload, InitListenRequest,
-    PublishKeyPackagesPayload, PublishKeyPackagesRequest, UpdateClientPayload, UpdateClientRequest,
-    UpdateUserPayload, UpdateUserRequest,
+    PublishApqKeyPackagesPayload, PublishApqKeyPackagesRequest, PublishKeyPackagesPayload,
+    PublishKeyPackagesRequest, UpdateClientPayload, UpdateClientRequest, UpdateUserPayload,
+    UpdateUserRequest,
 };
 use crate::sign::impl_signed_payload;
 
@@ -52,6 +53,13 @@ impl_signed_payload!(
     PublishKeyPackagesPayload,
     QsClientVerifyingKeyType,
     "PublishKeyPackagesPayload"
+);
+
+impl_signed_payload!(
+    PublishApqKeyPackagesRequest,
+    PublishApqKeyPackagesPayload,
+    QsClientVerifyingKeyType,
+    "PublishApqKeyPackagesRequest"
 );
 
 impl_signed_payload!(

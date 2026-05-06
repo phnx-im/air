@@ -8,11 +8,12 @@ use aircommon::{
     crypto::hpke::{ClientIdEncryptionKey, HpkeEncryptable},
     identifiers::{ClientConfig, QsClientId, QsReference},
     mls_group_config::{
-        QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_key_package_extensions,
+        APQ_CIPHERSUITE, QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_key_package_extensions,
         default_leaf_node_capabilities, default_leaf_node_extensions,
     },
 };
 use anyhow::Result;
+use apqmls::{authentication::ApqCredentialWithKey, messages::ApqKeyPackage};
 use openmls::prelude::{
     CredentialWithKey, Extension, KeyPackage, KeyPackageRef, LastResortExtension, OpenMlsProvider,
     SignaturePublicKey, UnknownExtension,
@@ -122,7 +123,58 @@ impl MemoryUserKeyStore {
                 credential_with_key,
             )?;
 
-        Ok(kp.key_package().clone())
+        Ok(kp.into_key_package())
+    }
+
+    pub(crate) fn generate_apq_key_package(
+        &self,
+        mut connection: impl WriteConnection,
+        qs_client_id: &QsClientId,
+        last_resort: bool,
+    ) -> Result<ApqKeyPackage> {
+        let credential_with_key = CredentialWithKey {
+            credential: self.signing_key.credential().try_into()?,
+            signature_key: SignaturePublicKey::from(
+                self.signing_key.credential().verifying_key().clone(),
+            ),
+        };
+        let apq_credential_with_key = ApqCredentialWithKey {
+            t_credential: credential_with_key.clone(),
+            pq_credential: credential_with_key,
+        };
+
+        let mut leaf_node_extensions = default_leaf_node_extensions();
+
+        let client_reference = self.create_own_client_reference(qs_client_id);
+        let client_ref_extension = Extension::Unknown(
+            QS_CLIENT_REFERENCE_EXTENSION_TYPE,
+            UnknownExtension(client_reference.tls_serialize_detached()?),
+        );
+        leaf_node_extensions.add(client_ref_extension)?;
+
+        let key_package_extensions = if last_resort {
+            let mut extensions = default_key_package_extensions();
+            let last_resort_extension = Extension::LastResort(LastResortExtension::new());
+            extensions.add(last_resort_extension)?;
+            extensions
+        } else {
+            default_key_package_extensions()
+        };
+
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
+
+        let kp = ApqKeyPackage::builder()
+            .key_package_extensions(key_package_extensions)
+            .leaf_node_capabilities(default_leaf_node_capabilities())
+            .leaf_node_extensions(leaf_node_extensions)
+            .build(
+                &provider,
+                APQ_CIPHERSUITE,
+                &self.signing_key,
+                apq_credential_with_key,
+            )?;
+
+        Ok(kp.into_key_package())
     }
 
     pub(crate) fn delete_key_package(

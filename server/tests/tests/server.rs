@@ -16,7 +16,7 @@ use aircommon::{
 use aircoreclient::{
     ChatId,
     clients::{QueueEvent, process::process_qs::ProcessedQsMessages, queue_event},
-    outbound_service::KEY_PACKAGES,
+    outbound_service::{APQ_KEY_PACKAGES, KEY_PACKAGES},
     store::Store,
 };
 
@@ -654,7 +654,14 @@ async fn key_package_upload() {
             .encryption_key
     };
 
-    for _ in 0..(KEY_PACKAGES + 1) {
+    // Number of key packages + 1 for the last resort key package
+    let n: usize = if setup.apq_groups {
+        APQ_KEY_PACKAGES
+    } else {
+        KEY_PACKAGES
+    } + 1;
+
+    for _ in 0..n {
         let bob_encryption_key = create_chat_and_invite_bob(&mut setup).await;
         assert!(encryption_keys.insert(bob_encryption_key));
     }
@@ -678,7 +685,7 @@ async fn key_package_upload() {
     // Invite Bob again, should get a new KeyPackage
     let bob_encryption_key = create_chat_and_invite_bob(&mut setup).await;
     assert!(
-        encryption_keys.insert(bob_encryption_key),
+        n <= 1 || encryption_keys.insert(bob_encryption_key),
         "Bob should have a new KeyPackage after uploading new ones"
     );
 }

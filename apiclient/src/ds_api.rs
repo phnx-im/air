@@ -12,9 +12,9 @@ use aircommon::{
     messages::{
         client_ds::UserProfileKeyUpdateParams,
         client_ds_out::{
-            CreateGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn,
-            GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageParamsOut,
-            TargetedMessageParamsOut, WelcomeInfoIn,
+            ApqGroupOperationParamsOut, CreateGroupParamsOut, DeleteGroupParamsOut,
+            ExternalCommitInfoIn, GroupOperationParamsOut, SelfRemoveParamsOut,
+            SendMessageParamsOut, TargetedMessageParamsOut, WelcomeInfoIn,
         },
     },
     time::TimeStamp,
@@ -26,14 +26,16 @@ use airprotos::{
     },
     convert::{RefInto, TryRefInto},
     delivery_service::v1::{
-        AddUsersInfo, ConnectionGroupInfoRequest, CreateGroupPayload, DeleteGroupPayload,
+        AddUsersInfo, ApqAddUsersInfo, ApqAssistedMlsMessage, ApqGroupOperationPayload,
+        ConnectionGroupInfoRequest, CreateApqGroupPayload, CreateGroupPayload, DeleteGroupPayload,
         ExternalCommitInfoRequest, GetAttachmentUrlPayload, GroupOperationPayload,
-        JoinConnectionGroupRequest, ProvisionAttachmentPayload, RequestGroupIdRequest,
-        ResyncPayload, SelfRemovePayload, SendMessagePayload, StorageObjectType,
-        TargetedMessagePayload, UpdateProfileKeyPayload, WelcomeInfoPayload,
+        GroupSessionData, JoinConnectionGroupRequest, ProvisionAttachmentPayload,
+        RequestGroupIdRequest, ResyncPayload, SelfRemovePayload, SendMessagePayload,
+        StorageObjectType, TargetedMessagePayload, UpdateProfileKeyPayload, WelcomeInfoPayload,
     },
     validation::MissingFieldExt,
 };
+use apqmls::commit_builder::ApqCommitMessageBundle;
 use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
     messages::AssistedMessageOut,
@@ -118,23 +120,65 @@ impl ApiClient {
     /// Creates a new group on the DS.
     pub async fn ds_create_group(
         &self,
-        payload: CreateGroupParamsOut,
+        params: CreateGroupParamsOut,
         signing_key: &ClientSigningKey,
         group_state_ear_key: &GroupStateEarKey,
+        pq_group_state_ear_key: Option<&GroupStateEarKey>,
     ) -> Result<(), DsRequestError> {
-        let qgid: QualifiedGroupId = payload.group_id.try_into()?;
-        let payload = CreateGroupPayload {
-            client_metadata: Some(self.metadata().clone()),
-            qgid: Some(qgid.ref_into()),
-            group_state_ear_key: Some(group_state_ear_key.ref_into()),
-            ratchet_tree: Some(payload.ratchet_tree.try_ref_into()?),
-            encrypted_user_profile_key: Some(payload.encrypted_user_profile_key.into()),
-            creator_client_reference: Some(payload.creator_client_reference.into()),
-            group_info: Some(payload.group_info.try_ref_into()?),
-            room_state: Some(payload.room_state.unverified().try_ref_into()?),
-        };
-        let request = payload.sign(signing_key)?;
-        self.ds_grpc_client().create_group(request).await?;
+        let CreateGroupParamsOut {
+            group_id,
+            group_info,
+            ratchet_tree,
+            encrypted_user_profile_key,
+            creator_client_reference,
+            room_state,
+            pq,
+        } = params;
+
+        let qgid: QualifiedGroupId = group_id.try_into()?;
+
+        if let Some(pq) = pq
+            && let Some(pq_group_state_ear_key) = pq_group_state_ear_key
+        {
+            let pq_qgid: QualifiedGroupId = pq.group_id.try_into()?;
+
+            let t_group_data = GroupSessionData {
+                qgid: Some(qgid.ref_into()),
+                group_state_ear_key: Some(group_state_ear_key.ref_into()),
+                ratchet_tree: Some(ratchet_tree.try_ref_into()?),
+                group_info: Some(group_info.try_ref_into()?),
+            };
+            let pq_group_data = GroupSessionData {
+                qgid: Some(pq_qgid.ref_into()),
+                group_state_ear_key: Some(pq_group_state_ear_key.ref_into()),
+                ratchet_tree: Some(pq.ratchet_tree.try_ref_into()?),
+                group_info: Some(pq.group_info.try_ref_into()?),
+            };
+
+            let payload = CreateApqGroupPayload {
+                client_metadata: Some(self.metadata().clone()),
+                encrypted_user_profile_key: Some(encrypted_user_profile_key.into()),
+                creator_client_reference: Some(creator_client_reference.into()),
+                room_state: Some(room_state.unverified().try_ref_into()?),
+                t_group_data: Some(t_group_data),
+                pq_group_data: Some(pq_group_data),
+            };
+            let request = payload.sign(signing_key)?;
+            self.ds_grpc_client().create_apq_group(request).await?;
+        } else {
+            let payload = CreateGroupPayload {
+                client_metadata: Some(self.metadata().clone()),
+                qgid: Some(qgid.ref_into()),
+                group_state_ear_key: Some(group_state_ear_key.ref_into()),
+                ratchet_tree: Some(ratchet_tree.try_ref_into()?),
+                encrypted_user_profile_key: Some(encrypted_user_profile_key.into()),
+                creator_client_reference: Some(creator_client_reference.into()),
+                group_info: Some(group_info.try_ref_into()?),
+                room_state: Some(room_state.unverified().try_ref_into()?),
+            };
+            let request = payload.sign(signing_key)?;
+            self.ds_grpc_client().create_group(request).await?;
+        }
         Ok(())
     }
 
@@ -168,6 +212,63 @@ impl ApiClient {
         let response = self
             .ds_grpc_client()
             .group_operation(request)
+            .await?
+            .into_inner();
+        Ok(response
+            .fanout_timestamp
+            .ok_or(DsRequestError::UnexpectedResponse)?
+            .into())
+    }
+
+    /// Performs a APQ group operation.
+    pub async fn ds_apq_group_operation(
+        &self,
+        params: ApqGroupOperationParamsOut,
+        signing_key: &ClientSigningKey,
+        t_group_state_ear_key: &GroupStateEarKey,
+        pq_group_state_ear_key: &GroupStateEarKey,
+    ) -> Result<TimeStamp, DsRequestError> {
+        let ApqGroupOperationParamsOut {
+            bundle:
+                ApqCommitMessageBundle {
+                    commit,
+                    welcome,
+                    group_info,
+                },
+            encrypted_welcome_attribution_infos,
+        } = params;
+        let add_users_info = welcome
+            .map(|welcome| -> Result<_, tls_codec::Error> {
+                let welcome = apqmls::messages::ApqMlsMessageOut::from(welcome).try_ref_into()?;
+                Ok(ApqAddUsersInfo {
+                    welcome: Some(welcome),
+                    encrypted_welcome_attribution_info: encrypted_welcome_attribution_infos
+                        .into_iter()
+                        .map(From::from)
+                        .collect(),
+                })
+            })
+            .transpose()?;
+        let (t_commit, pq_commit) = commit.split();
+        let (t_group_info, pq_group_info) = group_info
+            .map(apqmls::messages::ApqMlsMessageOut::from)
+            .map(|msg| msg.split())
+            .unzip();
+        let commit = ApqAssistedMlsMessage {
+            t_message: Some(AssistedMessageOut::new(t_commit, t_group_info).try_ref_into()?),
+            pq_message: Some(AssistedMessageOut::new(pq_commit, pq_group_info).try_ref_into()?),
+        };
+        let payload = ApqGroupOperationPayload {
+            client_metadata: Some(self.metadata().clone()),
+            t_group_state_ear_key: Some(t_group_state_ear_key.ref_into()),
+            pq_group_state_ear_key: Some(pq_group_state_ear_key.ref_into()),
+            commit: Some(commit),
+            add_users_info,
+        };
+        let request = payload.sign(signing_key)?;
+        let response = self
+            .ds_grpc_client()
+            .apq_group_operation(request)
             .await?
             .into_inner();
         Ok(response
@@ -481,7 +582,15 @@ impl ApiClient {
     pub async fn ds_request_group_id(
         &self,
         provision_group_profile_size: Option<usize>,
-    ) -> Result<(GroupId, Option<ProvisionAttachmentResponse>), DsRequestError> {
+        request_pq_group_id: bool,
+    ) -> Result<
+        (
+            GroupId,
+            Option<GroupId>,
+            Option<ProvisionAttachmentResponse>,
+        ),
+        DsRequestError,
+    > {
         let group_profile_size: Option<i64> = provision_group_profile_size
             .map(|size| size.try_into())
             .transpose()
@@ -494,6 +603,7 @@ impl ApiClient {
             .request_group_id(RequestGroupIdRequest {
                 client_metadata: Some(self.metadata().clone()),
                 group_profile_size,
+                request_pq_group_id,
             })
             .await?
             .into_inner();
@@ -509,7 +619,28 @@ impl ApiClient {
                 error!(%error, "unexpected response");
                 DsRequestError::UnexpectedResponse
             })?;
-        Ok((qgid.into(), response.group_profile_provisioning))
+        let pq_qgid = if request_pq_group_id {
+            let qgid: QualifiedGroupId = response
+                .pq_group_id
+                .ok_or_missing_field("pq_group_id")
+                .map_err(|error| {
+                    error!(%error, "unexpected response");
+                    DsRequestError::UnexpectedResponse
+                })?
+                .try_ref_into()
+                .map_err(|error| {
+                    error!(%error, "unexpected response");
+                    DsRequestError::UnexpectedResponse
+                })?;
+            Some(qgid)
+        } else {
+            None
+        };
+        Ok((
+            qgid.into(),
+            pq_qgid.map(Into::into),
+            response.group_profile_provisioning,
+        ))
     }
 
     /// Provision an attachment for a group.

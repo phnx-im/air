@@ -909,3 +909,47 @@ async fn qs_stream_processor_partially_processes_messages() {
         }
     }
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Create APQ group test", skip_all)]
+async fn create_apq_group() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    setup.create_apq_group(&alice).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Invite to APQ group test", skip_all)]
+async fn invite_to_apq_group() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_apq_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Send message in APQ group test", skip_all)]
+async fn send_message_in_apq_group() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_apq_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+    setup
+        .send_message(chat_id, &alice, vec![&bob, &charlie], None)
+        .await;
+    setup
+        .send_message(chat_id, &bob, vec![&alice, &charlie], None)
+        .await;
+}

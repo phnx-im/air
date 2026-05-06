@@ -32,6 +32,7 @@ mls-assist = { path = "mls-assist" }
 
 aes-gcm = "0.10"
 anyhow = { version = "1.0.98", features = ["backtrace"] }
+apqmls = { git = "https://github.com/phnx-im/apqmls", rev = "b1049815788061f89cc040487e1552520a0c54d1" }
 arboard = "3"
 argon2 = "0.5.3"
 async-trait = "0.1.53"
@@ -74,15 +75,15 @@ memmap2 = "0.9.5"
 metrics = "0.24.2"
 metrics-exporter-prometheus = { version = "0.17.2", default-features = false }
 mimi-room-policy = { git = "https://github.com/phnx-im/mimi-room-policy", rev = "6406e6d84c1219da3afcccb91007f2fdaaf61193" }
+mimi_content = { git = "https://github.com/phnx-im/mimi-content", rev = "c6e5ab7a7ede126906961332551c5e67c1081d3a", features = ["serde"] }
 minicbor = { version = "2.2.1", features = ["std"] }
 minicbor-serde = { version = "0.6", features = ["std"] }
-mimi_content = { git = "https://github.com/phnx-im/mimi-content", rev = "c6e5ab7a7ede126906961332551c5e67c1081d3a", features = ["serde"] }
 mockall = "0.13.1"
 mockito = "1.7.0"
-openmls = { version = "0.8.1", features = ["extensions-draft-08"] }
-openmls_memory_storage = { version = "0.5.0", features = ["extensions-draft-08"] }
-openmls_rust_crypto = { version = "0.5.1" }
-openmls_traits = { version = "0.5.0" }
+openmls = { version = "0.8.1", features = ["extensions-draft-08", "draft-ietf-mls-pq-ciphersuites"] }
+openmls_memory_storage = { version = "0.5.0", features = ["extensions-draft-08", "draft-ietf-mls-pq-ciphersuites"] }
+openmls_rust_crypto = { version = "0.5.1", features = ["draft-ietf-mls-pq-ciphersuites"] }
+openmls_traits = { version = "0.5.0", features = ["draft-ietf-mls-pq-ciphersuites"] }
 parking_lot = "0.12"
 pin-project = "1.1.10"
 png = "0.17"
@@ -135,10 +136,32 @@ zeroize = "1.8.1"
 # Use the several commits after the 0.8.1 release exposing methods as public APIs, in particular:
 # <https://github.com/openmls/openmls/commit/04c50d7fb12d52f4f9aee26de5f5234f3df29fa8>
 # <https://github.com/openmls/openmls/commit/b73621ba14ead6b32636a4e910f2cbfabb0d1ee9>
-openmls = { git = "https://github.com/openmls/openmls", rev = "b73621ba14ead6b32636a4e910f2cbfabb0d1ee9" }
-openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "b73621ba14ead6b32636a4e910f2cbfabb0d1ee9" }
-openmls_traits = { git = "https://github.com/openmls/openmls", rev = "b73621ba14ead6b32636a4e910f2cbfabb0d1ee9" }
-openmls_memory_storage = { git = "https://github.com/openmls/openmls", rev = "b73621ba14ead6b32636a4e910f2cbfabb0d1ee9" }
+#
+# Also, use the post-quantum-support branch of openmls.
+openmls = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
+openmls_rust_crypto = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
+openmls_traits = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
+openmls_memory_storage = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
+openmls_basic_credential = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
+# openmls = { path = "../openmls/openmls" }
+# openmls_rust_crypto = { path = "../openmls/openmls_rust_crypto" }
+# openmls_traits = { path = "../openmls/traits" }
+# openmls_memory_storage = { path = "../openmls/memory_storage" }
+# openmls_sqlite_storage = { path = "../openmls/sqlite_storage" }
+# openmls_basic_credential = { path = "../openmls/basic_credential" }
+
+# feat: add p384 support
+# <https://github.com/cryspen/hpke-rs/pull/150>
+hpke-rs = { git = "https://github.com/cryspen/hpke-rs", rev = "42f9b421d499dec01dcb3fd80d639669d9669c73" }
+hpke-rs-crypto = { git = "https://github.com/cryspen/hpke-rs", rev = "42f9b421d499dec01dcb3fd80d639669d9669c73" }
+hpke-rs-rust-crypto = { git = "https://github.com/cryspen/hpke-rs", rev = "42f9b421d499dec01dcb3fd80d639669d9669c73" }
+# hpke-rs = { path = "../hpke-rs" }
+# hpke-rs-crypto = { path = "../hpke-rs/traits/" }
+# hpke-rs-rust-crypto = { path = "../hpke-rs/rust_crypto_provider/" }
+
+# [patch."https://github.com/phnx-im/apqmls"]
+# apqmls = { path = "../apqmls" }
+
 
 [profile.release]
 strip = true

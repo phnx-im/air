@@ -14,6 +14,8 @@ service DeliveryService {
 
   rpc CreateGroup(CreateGroupRequest) returns (CreateGroupResponse);
 
+  rpc CreateApqGroup(CreateApqGroupRequest) returns (CreateApqGroupResponse);
+
   rpc WelcomeInfo(WelcomeInfoRequest) returns (WelcomeInfoResponse);
 
   rpc ExternalCommitInfo(ExternalCommitInfoRequest) returns (ExternalCommitInfoResponse);
@@ -31,6 +33,8 @@ service DeliveryService {
   rpc DeleteGroup(DeleteGroupRequest) returns (DeleteGroupResponse);
 
   rpc GroupOperation(GroupOperationRequest) returns (GroupOperationResponse);
+
+  rpc ApqGroupOperation(ApqGroupOperationRequest) returns (ApqGroupOperationResponse);
 
   // Sends a message to a member of a given group (and only to that member).
   rpc TargetedMessage(TargetedMessageRequest) returns (TargetedMessageResponse);
@@ -70,8 +74,17 @@ message MlsMessage {
   bytes tls = 1;
 }
 
+message ApqMlsMessage {
+  bytes tls = 1;
+}
+
 message AssistedMessage {
   bytes tls = 1;
+}
+
+message ApqAssistedMlsMessage {
+  AssistedMessage t_message = 1;
+  AssistedMessage pq_message = 2;
 }
 
 message RoomState {
@@ -84,10 +97,13 @@ message RequestGroupIdRequest {
   common.v1.ClientMetadata client_metadata = 1;
   reserved 2; // removed provision_group_profile; use group_profile_size instead
   optional int64 group_profile_size = 3;
+  // If true, the server will return additional PQ group ID in the response.
+  bool request_pq_group_id = 4;
 }
 
 message RequestGroupIdResponse {
   common.v1.QualifiedGroupId group_id = 1;
+  optional common.v1.QualifiedGroupId pq_group_id = 3;
   ProvisionAttachmentResponse group_profile_provisioning = 2;
 }
 
@@ -123,6 +139,46 @@ message QsReference {
 message SealedClientReference {
   common.v1.HpkeCiphertext ciphertext = 1;
 }
+
+// create apq group
+
+message CreateApqGroupRequest {
+  CreateApqGroupPayload payload = 1;
+  common.v1.Signature signature = 2;
+}
+
+message CreateApqGroupPayload {
+  // Request related data
+  common.v1.ClientMetadata client_metadata = 1;
+
+  // Chat related data
+
+  EncryptedUserProfileKey encrypted_user_profile_key = 3;
+  QsReference creator_client_reference = 4;
+  RoomState room_state = 5;
+
+  // Group related data
+
+  // Data for the traditional group
+  GroupSessionData t_group_data = 6;
+  // Data for the pq group
+  GroupSessionData pq_group_data = 7;
+}
+
+message GroupSessionData {
+  // TODO: Technically, pq group does not have to be qualified
+  common.v1.QualifiedGroupId qgid = 1;
+  GroupStateEarKey group_state_ear_key = 2;
+  RatchetTree ratchet_tree = 3;
+  MlsMessage group_info = 4;
+}
+
+message ApqAddUsersInfo {
+  ApqMlsMessage welcome = 1;
+  repeated EncryptedWelcomeAttributionInfo encrypted_welcome_attribution_info = 2;
+}
+
+message CreateApqGroupResponse {}
 
 // welcome info
 
@@ -300,6 +356,25 @@ message EncryptedWelcomeAttributionInfo {
 
 message GroupOperationResponse {
   common.v1.Timestamp fanout_timestamp = 1;
+}
+
+message ApqGroupOperationPayload {
+  common.v1.ClientMetadata client_metadata = 1;
+  GroupStateEarKey t_group_state_ear_key = 2;
+  GroupStateEarKey pq_group_state_ear_key = 3;
+  ApqAssistedMlsMessage commit = 4;
+  optional ApqAddUsersInfo add_users_info = 5;
+}
+
+message ApqGroupOperationResponse {
+  common.v1.Timestamp fanout_timestamp = 1;
+}
+
+// apq group operation
+
+message ApqGroupOperationRequest {
+  ApqGroupOperationPayload payload = 1;
+  common.v1.Signature signature = 2;
 }
 
 // targeted messages

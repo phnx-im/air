@@ -8,6 +8,7 @@ use aircommon::{
     identifiers,
     messages::{client_ds, client_ds_out::AddUsersInfoOut, welcome_attribution_info},
 };
+use apqmls::messages::{ApqMlsMessageIn, ApqMlsMessageOut};
 use mls_assist::messages::AssistedWelcome;
 use openmls::prelude::{MlsMessageBodyIn, MlsMessageIn, group_info};
 use tls_codec::{DeserializeBytes, Serialize};
@@ -17,7 +18,8 @@ use crate::{
     common::convert::InvalidNonceLen,
     convert::{FromRef, TryFromRef, TryRefInto},
     delivery_service::v1::{
-        TargetedApplicationMessage, targeted_message_payload::TargetedMessageType,
+        ApqAddUsersInfo, ApqMlsMessage, TargetedApplicationMessage,
+        targeted_message_payload::TargetedMessageType,
     },
     validation::{MissingFieldError, MissingFieldExt},
 };
@@ -146,6 +148,24 @@ impl TryFromRef<'_, MlsMessage> for openmls::framing::MlsMessageIn {
 
     fn try_from_ref(proto: &MlsMessage) -> Result<Self, Self::Error> {
         DeserializeBytes::tls_deserialize_exact_bytes(&proto.tls)
+    }
+}
+
+impl TryFromRef<'_, ApqMlsMessage> for ApqMlsMessageIn {
+    type Error = tls_codec::Error;
+
+    fn try_from_ref(proto: &ApqMlsMessage) -> Result<Self, Self::Error> {
+        DeserializeBytes::tls_deserialize_exact_bytes(&proto.tls)
+    }
+}
+
+impl TryFromRef<'_, ApqMlsMessageOut> for ApqMlsMessage {
+    type Error = tls_codec::Error;
+
+    fn try_from_ref(proto: &ApqMlsMessageOut) -> Result<Self, Self::Error> {
+        Ok(Self {
+            tls: proto.tls_serialize_detached()?,
+        })
     }
 }
 
@@ -342,6 +362,28 @@ impl TryFrom<AddUsersInfo> for client_ds::AddUsersInfo {
             return Err(AddUsersInfoError::InvalidWelcome);
         };
         let welcome = AssistedWelcome { welcome };
+        Ok(Self {
+            welcome,
+            encrypted_welcome_attribution_infos: proto
+                .encrypted_welcome_attribution_info
+                .into_iter()
+                .map(TryFrom::try_from)
+                .collect::<Result<Vec<_>, _>>()?,
+        })
+    }
+}
+
+impl TryFrom<ApqAddUsersInfo> for client_ds::ApqAddUsersInfo {
+    type Error = AddUsersInfoError;
+
+    fn try_from(proto: ApqAddUsersInfo) -> Result<Self, Self::Error> {
+        let message: ApqMlsMessageIn = proto
+            .welcome
+            .ok_or_missing_field(WelcomeField)?
+            .try_ref_into()?;
+        let Some(welcome) = message.into_welcome() else {
+            return Err(AddUsersInfoError::InvalidWelcome);
+        };
         Ok(Self {
             welcome,
             encrypted_welcome_attribution_infos: proto

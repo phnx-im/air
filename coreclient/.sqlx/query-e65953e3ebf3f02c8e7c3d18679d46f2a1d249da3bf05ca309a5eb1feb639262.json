@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO pq_group (\n                    group_id,\n                    t_group_id,\n                    group_state_ear_key,\n                    self_updated_at\n                )\n                VALUES (?, ?, ?,?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "e65953e3ebf3f02c8e7c3d18679d46f2a1d249da3bf05ca309a5eb1feb639262"
+}

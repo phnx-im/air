@@ -7,6 +7,7 @@
 //! TODO: We should eventually factor this module out, together with the crypto
 //! module, to allow re-use by the client implementation.
 
+use apqmls::commit_builder::ApqCommitMessageBundle;
 use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
     messages::AssistedMessageOut,
@@ -46,6 +47,14 @@ pub struct CreateGroupParamsOut {
     pub creator_client_reference: QsReference,
     pub group_info: MlsMessageOut,
     pub room_state: VerifiedRoomState,
+    pub pq: Option<CreatePqGroupParamsOut>,
+}
+
+#[derive(Debug)]
+pub struct CreatePqGroupParamsOut {
+    pub group_id: GroupId,
+    pub ratchet_tree: RatchetTree,
+    pub group_info: MlsMessageOut,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
@@ -58,6 +67,12 @@ pub struct AddUsersInfoOut {
 pub struct GroupOperationParamsOut {
     pub commit: AssistedMessageOut,
     pub add_users_info_option: Option<AddUsersInfoOut>,
+}
+
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct ApqGroupOperationParamsOut {
+    pub bundle: ApqCommitMessageBundle,
+    pub encrypted_welcome_attribution_infos: Vec<EncryptedWelcomeAttributionInfo>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

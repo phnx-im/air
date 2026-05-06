@@ -258,11 +258,12 @@ impl ChatDetailsCubitBase {
         path: String,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
         let path = PathBuf::from(path);
-        let (attachment_id, progress, upload_task) = match self
-            .context
-            .store
-            .upload_attachment(self.context.chat_id, &path)
-            .await?
+        let (attachment_id, progress, upload_task) = match Box::pin(
+            self.context
+                .store
+                .upload_attachment(self.context.chat_id, &path),
+        )
+        .await?
         {
             Ok(result) => result,
             Err(error) => return error.into_ui_result(),

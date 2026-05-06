@@ -83,7 +83,12 @@ pub trait Store {
     /// Create new chat
     ///
     /// Returns the id of the newly created chat.
-    async fn create_chat(&self, title: String, picture: Option<Vec<u8>>) -> StoreResult<ChatId>;
+    async fn create_chat(
+        &self,
+        title: String,
+        picture: Option<Vec<u8>>,
+        is_apq: bool,
+    ) -> StoreResult<ChatId>;
 
     async fn set_chat_picture(&self, chat_id: ChatId, picture: Option<Vec<u8>>) -> StoreResult<()>;
 

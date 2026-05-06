@@ -96,7 +96,10 @@ impl CoreUser {
         // No need to provision a group profile here, because we only have the group title and no
         // any additional data to upload.
         let provision_group_profile = None;
-        let (group_id, _) = client.ds_request_group_id(provision_group_profile).await?;
+        let request_pq_group_id = false;
+        let (group_id, _, _) = client
+            .ds_request_group_id(provision_group_profile, request_pq_group_id)
+            .await?;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
             payload: verified_connection_package,
             group_id,
@@ -104,39 +107,38 @@ impl CoreUser {
 
         let client_reference = self.create_own_client_reference();
 
-        self.db()
-            .with_write_transaction(async |txn| {
-                // Phase 4: Create a connection group
-                let local_group = connection_package
-                    .create_local_connection_group(
-                        &mut *txn,
-                        &self.inner.key_store.signing_key,
-                        username.clone(),
-                    )
-                    .await?;
+        Box::pin(self.db().with_write_transaction(async |txn| {
+            // Phase 4: Create a connection group
+            let local_group = connection_package
+                .create_local_connection_group(
+                    &mut *txn,
+                    &self.inner.key_store.signing_key,
+                    username.clone(),
+                )
+                .await?;
 
-                let local_partial_contact = local_group
-                    .create_username_contact(
-                        txn,
-                        &self.inner.key_store,
-                        client_reference,
-                        self.user_id(),
-                        username,
-                    )
-                    .await?;
+            let local_partial_contact = local_group
+                .create_username_contact(
+                    txn,
+                    &self.inner.key_store,
+                    client_reference,
+                    self.user_id(),
+                    username,
+                )
+                .await?;
 
-                // Phase 5: Create the connection group on the DS and send off the connection offer
-                let chat_id = local_partial_contact
-                    .create_connection_group_via_username(
-                        &client,
-                        self.signing_key(),
-                        connection_offer_responder,
-                    )
-                    .await?;
+            // Phase 5: Create the connection group on the DS and send off the connection offer
+            let chat_id = local_partial_contact
+                .create_connection_group_via_username(
+                    &client,
+                    self.signing_key(),
+                    connection_offer_responder,
+                )
+                .await?;
 
-                Ok(Ok(chat_id))
-            })
-            .await
+            Ok(Ok(chat_id))
+        }))
+        .await
     }
 
     /// Create a connection with a user through a targeted message in a shared
@@ -166,7 +168,10 @@ impl CoreUser {
         // No need to provision a group profile here, because we only have the group title and no
         // any additional data to upload.
         let provision_group_profile = None;
-        let (group_id, _) = client.ds_request_group_id(provision_group_profile).await?;
+        let request_pq_group_id = false;
+        let (group_id, _, _) = client
+            .ds_request_group_id(provision_group_profile, request_pq_group_id)
+            .await?;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
             payload: user_id,
             group_id,
@@ -174,31 +179,30 @@ impl CoreUser {
 
         let client_reference = self.create_own_client_reference();
 
-        self.db()
-            .with_write_transaction(async |txn| {
-                // Phase 4: Create a connection group and prepare the targeted message
-                let local_group = connection_package
-                    .create_local_connection_group(&mut *txn, &self.inner.key_store.signing_key)
-                    .await?;
+        Box::pin(self.db().with_write_transaction(async |txn| {
+            // Phase 4: Create a connection group and prepare the targeted message
+            let local_group = connection_package
+                .create_local_connection_group(&mut *txn, &self.inner.key_store.signing_key)
+                .await?;
 
-                let local_partial_contact = local_group
-                    .create_targeted_message_contact(
-                        &mut *txn,
-                        &self.inner.key_store,
-                        client_reference,
-                        self.user_id(),
-                        chat_id,
-                    )
-                    .await?;
+            let local_partial_contact = local_group
+                .create_targeted_message_contact(
+                    &mut *txn,
+                    &self.inner.key_store,
+                    client_reference,
+                    self.user_id(),
+                    chat_id,
+                )
+                .await?;
 
-                // Phase 5: Create the connection group on the DS and send off the connection offer
-                let chat_id = local_partial_contact
-                    .create_connection_group_via_targeted_message(&client, self.signing_key())
-                    .await?;
+            // Phase 5: Create the connection group on the DS and send off the connection offer
+            let chat_id = local_partial_contact
+                .create_connection_group_via_targeted_message(&client, self.signing_key())
+                .await?;
 
-                Ok(chat_id)
-            })
-            .await
+            Ok(chat_id)
+        }))
+        .await
     }
 }
 
@@ -501,7 +505,12 @@ impl LocalUsernameContact<UsernamePayload> {
 
         info!("Creating connection group on DS");
         client
-            .ds_create_group(params, signer, group.group_state_ear_key())
+            .ds_create_group(
+                params,
+                signer,
+                group.group_state_ear_key(),
+                group.pq_group().map(|pq| &pq.group_state_ear_key),
+            )
             .await?;
 
         // Send off the connection offer.
@@ -532,7 +541,12 @@ impl LocalUsernameContact<TargetedMessagePayload> {
 
         info!("Creating connection group on DS");
         client
-            .ds_create_group(params, signer, group.group_state_ear_key())
+            .ds_create_group(
+                params,
+                signer,
+                group.group_state_ear_key(),
+                group.pq_group().map(|pq| &pq.group_state_ear_key),
+            )
             .await?;
 
         // Send off the targeted message.
