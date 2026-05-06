@@ -11,14 +11,13 @@ use airprotos::{
 };
 use anyhow::{Context, anyhow, bail};
 use openmls::treesync::errors::LeafNodeValidationError;
-use sqlx::SqliteConnection;
 use thiserror::Error;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus,
+    db_access::WriteConnection,
     groups::Group,
-    job::{Job, JobContext, JobError, pending_chat_operation::PendingChatOperation},
-    utils::connection_ext::ConnectionExt,
+    job::{Job, JobContext, JobContextDb, JobError, pending_chat_operation::PendingChatOperation},
 };
 
 #[derive(Debug, Clone)]
@@ -49,18 +48,20 @@ impl Job for ChatOperation {
 
     async fn execute_logic(
         self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<Self::DomainError>> {
         self.execute_internal(context).await
     }
 
     async fn execute_dependencies(
         &mut self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<(), JobError<Self::DomainError>> {
         // Execute any pending operation for this chat first.
         let pending_operation = context
-            .connection
+            .db
+            .write()
+            .await?
             .with_transaction(async |txn| PendingChatOperation::load(txn, &self.chat_id).await)
             .await?;
 
@@ -118,17 +119,21 @@ impl ChatOperation {
     /// Returns an error if the operation is no longer valid.
     async fn check_validity_and_refine(
         &mut self,
-        connection: &mut SqliteConnection,
+        db: &mut JobContextDb<'_, '_>,
     ) -> anyhow::Result<()> {
-        let chat = Chat::load(connection, &self.chat_id)
-            .await?
-            .ok_or(anyhow!("No chat found for ID {}", self.chat_id))?;
+        let chat = {
+            let mut connection = db.read().await?;
+            let txn = connection.begin().await?;
+            Chat::load(txn, &self.chat_id)
+                .await?
+                .ok_or(anyhow!("No chat found for ID {}", self.chat_id))?
+        };
 
         if let ChatStatus::Inactive(_) = chat.status() {
             bail!("Cannot execute operation on inactive chat");
         }
 
-        let group = Group::load_clean(connection, chat.group_id())
+        let group = Group::load_clean(db.read().await?, chat.group_id())
             .await?
             .ok_or_else(|| anyhow::anyhow!("No group found for chat {}", self.chat_id))?;
 
@@ -151,13 +156,13 @@ impl ChatOperation {
 
     async fn execute_internal(
         mut self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         // Check whether our operation is still. It may be refined in case the
         // group state has changed, either due to a PendingChatOperation
         // executed as a dependency, or one or more commits arriving from the
         // QS.
-        self.check_validity_and_refine(context.connection).await?;
+        self.check_validity_and_refine(&mut context.db).await?;
 
         match self.operation.clone() {
             ChatOperationType::AddMembers(user_ids) => {
@@ -182,17 +187,17 @@ impl ChatOperation {
 
     async fn execute_add_members(
         &mut self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
         users: Vec<UserId>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext {
             api_clients,
-            connection,
+            db,
             key_store,
             ..
         } = context;
         let job = PendingChatOperation::create_add(
-            connection,
+            db.write().await?,
             api_clients,
             &key_store.signing_key,
             self.chat_id,
@@ -206,15 +211,13 @@ impl ChatOperation {
     /// Remove users from the chat
     async fn execute_remove_members(
         &mut self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
         users: Vec<UserId>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
-        let JobContext {
-            connection,
-            key_store,
-            ..
-        } = context;
-        let job = connection
+        let JobContext { db, key_store, .. } = context;
+        let job = db
+            .write()
+            .await?
             .with_transaction(async |txn| {
                 PendingChatOperation::create_remove(
                     txn,
@@ -232,14 +235,12 @@ impl ChatOperation {
     /// Leave the chat
     async fn execute_leave_chat(
         &mut self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
-        let JobContext {
-            connection,
-            key_store,
-            ..
-        } = context;
-        let job = connection
+        let JobContext { db, key_store, .. } = context;
+        let job = db
+            .write()
+            .await?
             .with_transaction(async |txn| {
                 PendingChatOperation::create_leave(txn, &key_store.signing_key, self.chat_id).await
             })
@@ -251,20 +252,20 @@ impl ChatOperation {
     /// Update the chat
     async fn execute_update(
         self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
         chat_attributes: Option<ChatAttributes>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         let JobContext {
             api_clients,
             http_client,
-            connection,
+            db,
             key_store,
             ..
         } = context;
 
         let (group_data, new_chat_picture) = if let Some(attributes) = chat_attributes {
             let chat_id = self.chat_id;
-            let group = Group::load_with_chat_id_clean(connection, chat_id)
+            let group = Group::load_with_chat_id_clean(db.read().await?, chat_id)
                 .await?
                 .with_context(|| format!("No group with chat id {chat_id}"))?;
 
@@ -325,7 +326,9 @@ impl ChatOperation {
             (None, None)
         };
 
-        let job = connection
+        let job = db
+            .write()
+            .await?
             .with_transaction(async |txn| {
                 PendingChatOperation::create_update(
                     txn,
@@ -343,23 +346,14 @@ impl ChatOperation {
 
     async fn execute_delete(
         self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
-        let JobContext {
-            connection,
-            notifier,
-            key_store,
-            ..
-        } = context;
-        let job = connection
+        let JobContext { db, key_store, .. } = context;
+        let job = db
+            .write()
+            .await?
             .with_transaction(async |txn| {
-                PendingChatOperation::create_delete(
-                    txn,
-                    &key_store.signing_key,
-                    notifier,
-                    self.chat_id,
-                )
-                .await
+                PendingChatOperation::create_delete(txn, &key_store.signing_key, self.chat_id).await
             })
             .await?;
 

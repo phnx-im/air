@@ -19,8 +19,9 @@ const NOTIFICATION_CHANNEL_SIZE: usize = 1024;
 /// Bundles a notification sender and a notification.
 ///
 /// Used to collect all notifications and eventually send them all at once.
+#[derive(Debug)]
 pub(crate) struct StoreNotifier {
-    tx: Option<StoreNotificationsSender>, // None if the notifier is a noop
+    tx: StoreNotificationsSender,
     notification: StoreNotification,
 }
 
@@ -28,17 +29,7 @@ impl StoreNotifier {
     /// Creates a new notifier which will send all notifications with the given sender.
     pub(crate) fn new(tx: StoreNotificationsSender) -> Self {
         Self {
-            tx: Some(tx),
-            notification: StoreNotification::empty(),
-        }
-    }
-
-    /// Creates a new notifier which will just drop all notifications.
-    ///
-    /// Useful when a notifier is required, but no notifications are actually should be emitted.
-    pub(crate) fn noop() -> Self {
-        Self {
-            tx: None,
+            tx,
             notification: StoreNotification::empty(),
         }
     }
@@ -81,18 +72,21 @@ impl StoreNotifier {
 
     /// Send collected notifications to the subscribers, if there are any.
     pub(crate) fn notify(mut self) {
-        if let Some(tx) = self.tx.as_ref()
-            && !self.notification.ops.is_empty()
-        {
+        if !self.notification.ops.is_empty() {
             let notification = mem::take(&mut self.notification);
-            tx.notify(Arc::new(notification));
+            self.tx.notify(Arc::new(notification));
         }
+    }
+
+    /// Clears accumulated notifications
+    pub(crate) fn clear(&mut self) {
+        self.notification.clear();
     }
 }
 
 impl Drop for StoreNotifier {
     fn drop(&mut self) {
-        if !self.notification.ops.is_empty() && self.tx.is_some() {
+        if !self.notification.ops.is_empty() {
             // Note: This might be ok. E.g. an error might happen after some notifications were
             // added to the notifier.
             warn!(
@@ -193,6 +187,10 @@ impl StoreNotification {
 
     pub fn is_empty(&self) -> bool {
         self.ops.is_empty()
+    }
+
+    fn clear(&mut self) {
+        self.ops.clear();
     }
 }
 

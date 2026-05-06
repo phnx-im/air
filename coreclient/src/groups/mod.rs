@@ -65,7 +65,6 @@ use mls_assist::{components::ComponentsList, messages::AssistedMessageOut};
 use openmls_provider::AirOpenMlsProvider;
 use openmls_traits::storage::StorageProvider;
 use serde::Serialize;
-use sqlx::{SqliteConnection, SqliteTransaction};
 use tls_codec::DeserializeBytes;
 use tracing::{Level, debug, enabled, error};
 
@@ -78,6 +77,7 @@ use crate::{
         targeted_message::TargetedMessageContent,
     },
     contacts::ContactAddInfos,
+    db_access::{WriteConnection, WriteDbTransaction},
     groups::client_auth_info::VerifiableClientCredentialExt,
     key_stores::as_credentials::AsCredentials,
     outbound_service::resync::Resync,
@@ -215,13 +215,13 @@ impl Group {
 
     /// Create a group.
     pub(super) fn create_group(
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         group_id: GroupId,
         group_data_bytes: GroupDataBytes,
     ) -> Result<(Self, PartialCreateGroupParams)> {
-        let provider = AirOpenMlsProvider::new(connection);
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
         let group_state_ear_key = GroupStateEarKey::random()?;
 
         let required_capabilities =
@@ -286,7 +286,7 @@ impl Group {
         // This is our own key that the sender uses to encrypt to us. We should
         // be able to retrieve it from the client's key store.
         welcome_attribution_info_ear_key: &WelcomeAttributionInfoEarKey,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         signer: &ClientSigningKey,
     ) -> Result<(Self, UserId, Vec<ProfileInfo>)> {
@@ -334,7 +334,7 @@ impl Group {
 
             // Phase 3: Check if there is already a group with the same ID.
             let group_id = processed_welcome.unverified_group_info().group_id().clone();
-            if let Some(group) = Self::load(txn.as_mut(), &group_id).await? {
+            if let Some(group) = Self::load(&mut *txn, &group_id).await? {
                 // If the group is active, we can't join it.
                 if group.mls_group().is_active() {
                     bail!("We can't join a group that is still active.");
@@ -385,13 +385,13 @@ impl Group {
 
             let sender_user_id = verifiable_attribution_info.sender();
             let sender_client_credential =
-                StorableClientCredential::load_by_user_id(txn.as_mut(), &sender_user_id)
+                StorableClientCredential::load_by_user_id(&mut *txn, &sender_user_id)
                     .await?
                     .ok_or_else(|| {
                         anyhow!("Could not find client credential of sender in database.")
                     })?;
 
-            if BlockedContact::check_blocked(txn.as_mut(), &sender_user_id).await? {
+            if BlockedContact::check_blocked(&mut *txn, &sender_user_id).await? {
                 bail!(BlockedContactError);
             }
 
@@ -406,7 +406,7 @@ impl Group {
             )
         };
 
-        let credentials = verify_member_credentials(txn, api_clients, &mls_group).await?;
+        let credentials = verify_member_credentials(&mut *txn, api_clients, &mls_group).await?;
 
         let group = Self {
             group_id: mls_group.group_id().clone(),
@@ -419,9 +419,9 @@ impl Group {
         };
 
         // Phase 7: Store the group and client credentials.
-        group.store(txn.as_mut()).await?;
+        group.store(&mut *txn).await?;
         for credential in &credentials {
-            credential.store(txn.as_mut()).await?;
+            credential.store(&mut *txn).await?;
         }
 
         // Phase 8: Decrypt profile keys
@@ -447,7 +447,7 @@ impl Group {
     /// Join a group using an external commit.
     #[allow(clippy::too_many_arguments)]
     pub(super) async fn join_group_externally(
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         external_commit_info: ExternalCommitInfoIn,
         signer: &ClientSigningKey,
@@ -497,7 +497,7 @@ impl Group {
         // Let's create the group first so that we can access the GroupId.
         // Phase 1: Create and store the group
         let (mls_group, commit, group_info) = {
-            let provider = AirOpenMlsProvider::new(&mut *txn);
+            let provider = AirOpenMlsProvider::new(txn.as_mut());
             // Prepare PSK proposal if we have a connection offer hash.
             let psk_proposal = match connection_offer_hash {
                 Some(co_hash) => {
@@ -565,15 +565,15 @@ impl Group {
 
         // Phase 4: Store the group and client auth info.
         // If the group previously existed, delete it first.
-        Group::delete_from_db(&mut *txn, &group.group_id).await?;
-        group.store(txn.as_mut()).await?;
+        Group::delete_from_db(txn, &group.group_id).await?;
+        group.store(&mut *txn).await?;
         for credential in &credentials {
-            credential.store(txn.as_mut()).await?;
+            credential.store(&mut *txn).await?;
         }
         // Also store own credential
         let own_credential = signer.credential().clone();
         StorableClientCredential::from(own_credential)
-            .store(txn.as_mut())
+            .store(&mut *txn)
             .await?;
 
         // Compile a list of user profile keys for the members.
@@ -602,7 +602,7 @@ impl Group {
     /// Returns the [`AddUserParamsOut`] as input for the API client.
     pub(super) async fn stage_invite(
         &mut self,
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
         // The following three vectors have to be in sync, i.e. of the same length
         // and refer to the same contacts in order.
@@ -634,7 +634,7 @@ impl Group {
 
         // Set Aad to contain the encrypted client credentials.
         let (mls_commit, welcome_option, group_info_option) = {
-            let provider = AirOpenMlsProvider::new(&mut *connection);
+            let provider = AirOpenMlsProvider::new(connection.as_mut());
             self.mls_group
                 .set_aad(aad_message.tls_serialize_detached()?);
             let res = self
@@ -693,7 +693,7 @@ impl Group {
 
     pub(super) async fn stage_remove(
         &mut self,
-        connection: &mut sqlx::SqliteConnection,
+        mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
         mut members: Vec<UserId>,
     ) -> Result<GroupOperationParamsOut> {
@@ -717,7 +717,7 @@ impl Group {
         });
         let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
         self.mls_group.set_aad(aad);
-        let provider = AirOpenMlsProvider::new(&mut *connection);
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
 
         let (mls_message, _welcome_option, group_info_option) = self
             .mls_group
@@ -744,10 +744,10 @@ impl Group {
 
     pub(super) async fn stage_delete(
         &mut self,
-        connection: &mut sqlx::SqliteConnection,
+        mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
     ) -> anyhow::Result<DeleteGroupParamsOut> {
-        let provider = &AirOpenMlsProvider::new(&mut *connection);
+        let provider = &AirOpenMlsProvider::new(connection.as_mut());
         let remove_indices = self
             .mls_group()
             .members()
@@ -787,7 +787,7 @@ impl Group {
 
     pub(super) async fn discard_pending_commit(
         &mut self,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
     ) -> Result<()> {
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         self.pending_diff = None;
@@ -820,7 +820,7 @@ impl Group {
     /// extracted from the staged commit.
     pub(in crate::groups) async fn merge_pending_commit(
         &mut self,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         verified: &impl GroupStorageWitness,
         staged_commit_option: impl Into<Option<StagedCommit>>,
         ds_timestamp: TimeStamp,
@@ -841,7 +841,7 @@ impl Group {
 
             let group_data = GroupDataBytes::from_staged_commit(&staged_commit);
 
-            let provider = AirOpenMlsProvider::new(&mut *txn);
+            let provider = AirOpenMlsProvider::new(txn.as_mut());
             self.mls_group
                 .merge_staged_commit(&provider, staged_commit)?;
             (staged_commit_messages, group_data)
@@ -862,7 +862,7 @@ impl Group {
                 } else {
                     (vec![], None)
                 };
-            let provider = AirOpenMlsProvider::new(&mut *txn);
+            let provider = AirOpenMlsProvider::new(txn.as_mut());
             self.mls_group.merge_pending_commit(&provider)?;
             (staged_commit_messages, group_data)
         };
@@ -972,7 +972,7 @@ impl Group {
 
     pub(super) async fn update(
         &mut self,
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         signer: &ClientSigningKey,
         new_group_data: Option<GroupDataBytes>,
     ) -> Result<GroupOperationParamsOut> {
@@ -1112,10 +1112,10 @@ impl Group {
 
     pub(super) fn stage_leave_group(
         &mut self,
-        connection: &mut sqlx::SqliteConnection,
+        mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
     ) -> Result<SelfRemoveParamsOut> {
-        let provider = &AirOpenMlsProvider::new(connection);
+        let provider = &AirOpenMlsProvider::new(connection.as_mut());
         let proposal = self
             .mls_group
             .leave_group_via_self_remove(provider, signer)?;
@@ -1129,10 +1129,10 @@ impl Group {
 
     pub(super) fn store_proposal(
         &mut self,
-        connection: &mut sqlx::SqliteConnection,
+        mut connection: impl WriteConnection,
         proposal: QueuedProposal,
     ) -> Result<()> {
-        let provider = &AirOpenMlsProvider::new(connection);
+        let provider = &AirOpenMlsProvider::new(connection.as_mut());
         self.mls_group
             .store_pending_proposal(provider.storage(), proposal)?;
         Ok(())
@@ -1274,10 +1274,10 @@ impl Group {
 
     pub(crate) fn store_connection_offer_psk(
         &self,
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         connection_offer_hash: ConnectionOfferHash,
     ) -> Result<()> {
-        let provider = AirOpenMlsProvider::new(connection);
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
         let psk_value = connection_offer_hash.into_bytes();
         PreSharedKeyId::new(
             self.mls_group().ciphersuite(),
@@ -1291,10 +1291,10 @@ impl Group {
     }
 
     pub(crate) fn delete_connection_offer_psk(
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         connection_offer_hash: ConnectionOfferHash,
     ) -> Result<()> {
-        let provider = AirOpenMlsProvider::new(connection);
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
         let psk = Psk::External(ExternalPsk::new(
             connection_offer_hash.into_bytes().to_vec(),
         ));
@@ -1337,7 +1337,7 @@ impl Group {
 ///
 /// Returns the credentials of the group members.
 async fn verify_member_credentials(
-    txn: &mut SqliteTransaction<'_>,
+    txn: &mut WriteDbTransaction<'_>,
     api_clients: &ApiClients,
     mls_group: &MlsGroup,
 ) -> anyhow::Result<Vec<StorableClientCredential>> {
@@ -1352,7 +1352,7 @@ async fn verify_member_credentials(
         .collect::<anyhow::Result<Vec<_>>>()?;
 
     let as_credentials = AsCredentials::fetch_for_verification(
-        txn.as_mut(),
+        txn,
         api_clients,
         unverified_credentials.iter().map(|(c, _)| c),
     )
@@ -1381,12 +1381,11 @@ async fn verify_member_credentials(
 /// This function is idempotent — safe to call even if the group or chat is
 /// already gone.
 pub(crate) async fn handle_group_not_found_on_ds(
-    txn: &mut SqliteTransaction<'_>,
-    notifier: &mut crate::store::StoreNotifier,
+    txn: &mut WriteDbTransaction<'_>,
     group_id: &GroupId,
 ) -> anyhow::Result<()> {
     // Collect past members before deleting the group.
-    let past_members = match Group::load(txn.as_mut(), group_id).await? {
+    let past_members = match Group::load(&mut *txn, group_id).await? {
         Some(group) => group.members().collect(),
         None => Vec::new(),
     };
@@ -1394,16 +1393,15 @@ pub(crate) async fn handle_group_not_found_on_ds(
     // Mark the chat as inactive so the user sees it's dead. We do this even
     // for blocked chats so they stay inactive if the user later unblocks the
     // contact.
-    if let Some(mut chat) = crate::Chat::load_by_group_id(txn.as_mut(), group_id).await?
+    if let Some(mut chat) = crate::Chat::load_by_group_id(&mut *txn, group_id).await?
         && !matches!(chat.status(), crate::ChatStatus::Inactive(_))
     {
-        chat.set_inactive(txn.as_mut(), notifier, past_members)
-            .await?;
+        chat.set_inactive(&mut *txn, past_members).await?;
     }
 
     // Remove any pending resync for this group (FK is on chat_id, not
     // group_id, so it won't cascade from Group::delete_from_db).
-    Resync::remove(txn.as_mut(), group_id).await?;
+    Resync::remove(&mut *txn, group_id).await?;
 
     // Delete the MLS group. This cascades to pending_chat_operation and
     // group_membership via FK.
@@ -1423,7 +1421,7 @@ mod test_utils {
             &self,
             chat_id: ChatId,
         ) -> sqlx::Result<Option<DateTime<Utc>>> {
-            Chat::self_updated_at(self.pool(), chat_id).await
+            Chat::self_updated_at(self.db().read().await?, chat_id).await
         }
 
         pub async fn set_self_updated_at(
@@ -1431,7 +1429,7 @@ mod test_utils {
             chat_id: ChatId,
             self_updated_at: DateTime<Utc>,
         ) -> sqlx::Result<()> {
-            Chat::set_self_updated_at(self.pool(), chat_id, self_updated_at).await
+            Chat::set_self_updated_at(self.db().write().await?, chat_id, self_updated_at).await
         }
     }
 }
@@ -1442,12 +1440,12 @@ mod handle_group_not_found_tests {
         credentials::test_utils::create_test_credentials,
         identifiers::{QualifiedGroupId, UserId},
     };
-    use sqlx::{Connection, query};
+    use sqlx::query;
     use uuid::Uuid;
 
     use crate::{
         Chat, ChatAttributes, ChatStatus, clients::block_contact::BlockedContact,
-        groups::GroupDataBytes, store::StoreNotifier, utils::persistence::open_db_in_memory,
+        db_access::DbAccess, groups::GroupDataBytes, utils::persistence::open_db_in_memory,
     };
 
     use super::*;
@@ -1455,8 +1453,8 @@ mod handle_group_not_found_tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn handle_group_not_found_marks_blocked_chat_inactive_under_block() -> anyhow::Result<()>
     {
-        let pool = open_db_in_memory().await?;
-        let mut connection = pool.acquire().await?;
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let mut connection = pool.write().await?;
 
         let own_user_id = UserId::random("example.com".parse().unwrap());
         let blocked_user_id = UserId::random("example.com".parse().unwrap());
@@ -1472,36 +1470,35 @@ mod handle_group_not_found_tests {
             group_id.clone(),
             GroupDataBytes::from(b"test-group-data".to_vec()),
         )?;
-        group.store(&mut *connection).await?;
+        group.store(&mut connection).await?;
 
-        let mut notifier = StoreNotifier::noop();
         let chat = Chat::new_targeted_message_chat(
             group_id.clone(),
             ChatAttributes::new("Blocked chat".into(), None),
             blocked_user_id.clone(),
         );
         let chat_id = chat.id();
-        chat.store(&mut connection, &mut notifier).await?;
+        chat.store(&mut connection).await?;
 
         BlockedContact::new(blocked_user_id.clone())
-            .store(&mut *connection, &mut notifier)
+            .store(&mut connection)
             .await?;
 
+        let mut txn = connection.begin().await?;
+
         assert!(matches!(
-            Chat::load(&mut connection, &chat_id)
+            Chat::load(&mut txn, &chat_id)
                 .await?
                 .expect("chat should exist")
                 .status(),
             ChatStatus::Blocked
         ));
 
-        let mut txn = connection.begin().await?;
-        handle_group_not_found_on_ds(&mut txn, &mut notifier, &group_id).await?;
-        txn.commit().await?;
+        handle_group_not_found_on_ds(&mut txn, &group_id).await?;
 
-        assert!(Group::load(&mut connection, &group_id).await?.is_none());
+        assert!(Group::load(&mut txn, &group_id).await?.is_none());
         assert!(matches!(
-            Chat::load(&mut connection, &chat_id)
+            Chat::load(&mut txn, &chat_id)
                 .await?
                 .expect("chat should still exist")
                 .status(),
@@ -1511,11 +1508,11 @@ mod handle_group_not_found_tests {
         query("DELETE FROM blocked_contact WHERE user_uuid = ?1 AND user_domain = ?2")
             .bind(blocked_user_id.uuid())
             .bind(blocked_user_id.domain().to_string())
-            .execute(&mut *connection)
+            .execute(txn.as_mut())
             .await?;
 
         assert!(matches!(
-            Chat::load(&mut connection, &chat_id)
+            Chat::load(&mut txn, &chat_id)
                 .await?
                 .expect("chat should still exist after unblock")
                 .status(),

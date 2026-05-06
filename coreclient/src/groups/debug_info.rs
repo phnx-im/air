@@ -36,8 +36,8 @@ use crate::{
 impl CoreUser {
     /// Returns debug info for a group
     pub async fn chat_debug_info(&self, chat_id: ChatId) -> anyhow::Result<GroupDebugInfo> {
-        let mut connection = self.pool().acquire().await?;
-        let group = Group::load_with_chat_id(&mut connection, chat_id)
+        let connection = self.db().read().await?;
+        let group = Group::load_with_chat_id(connection, chat_id)
             .await?
             .context("Group not found")?;
         GroupDebugInfo::from_group(self, &group).await

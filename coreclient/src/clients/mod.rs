@@ -36,7 +36,7 @@ use openmls::prelude::Ciphersuite;
 use own_client_info::OwnClientInfo;
 
 use serde::{Deserialize, Serialize};
-use sqlx::{Row, SqliteConnection, SqlitePool, query};
+use sqlx::{Row, query};
 use store::ClientRecord;
 use tls_codec::DeserializeBytes;
 use tokio::sync::Notify;
@@ -46,17 +46,18 @@ use tokio_util::sync::DropGuard;
 use tracing::{error, info, warn};
 use url::Url;
 
+use crate::user_profiles::UserProfile;
 use crate::{
     Asset, UsernameRecord,
     clients::event_loop::{EventLoop, EventLoopSender},
     contacts::{TargetedMessageContact, UsernameContact},
+    db_access::{DbAccess, ReadConnection, WriteDbTransaction},
     groups::Group,
-    job::{Job, JobContext, JobError},
+    job::{Job, JobContext, JobContextDb, JobError},
     key_stores::queue_ratchets::StorableQsQueueRatchet,
     outbound_service::OutboundService,
     store::Store,
     utils::{
-        connection_ext::StoreExt,
         global_lock::GlobalLock,
         image::resize_profile_image,
         persistence::{delete_client_database, open_lock_file},
@@ -72,11 +73,10 @@ use crate::{
     clients::connection_offer::FriendshipPackage,
     contacts::Contact,
     key_stores::MemoryUserKeyStore,
-    store::{StoreNotification, StoreNotifier},
+    store::StoreNotification,
     user_profiles::IndexedUserProfile,
     utils::persistence::{open_air_db, open_client_db},
 };
-use crate::{store::StoreNotificationsSender, user_profiles::UserProfile};
 
 use self::{api_clients::ApiClients, create_user::InitialUserState, store::UserCreationState};
 
@@ -121,13 +121,12 @@ pub struct CoreUser {
 
 #[derive(Debug)]
 pub(crate) struct CoreUserInner {
-    pool: SqlitePool,
+    db: DbAccess,
     api_clients: ApiClients,
     http_client: reqwest::Client,
     qs_user_id: QsUserId,
     qs_client_id: QsClientId,
     key_store: MemoryUserKeyStore,
-    store_notifications_tx: StoreNotificationsSender,
     store_notifications_pending: Arc<Notify>,
     outbound_service: OutboundService,
     event_loop_sender: EventLoopSender,
@@ -198,8 +197,8 @@ impl CoreUser {
         user_id: UserId,
         server_url: Option<Url>,
         push_token: Option<PushToken>,
-        air_db: SqlitePool,
-        client_db: SqlitePool,
+        air_db: DbAccess,
+        client_db: DbAccess,
         global_lock: GlobalLock,
         invitation_code: String,
     ) -> Result<Self> {
@@ -218,7 +217,7 @@ impl CoreUser {
             qs_client_id: *final_state.qs_client_id(),
             user_id: final_state.user_id().clone(),
         }
-        .store(&client_db)
+        .store(client_db.write().await?)
         .await?;
 
         let self_user = final_state.into_self_user(client_db, api_clients, global_lock);
@@ -251,7 +250,7 @@ impl CoreUser {
     ) -> Result<CoreUser> {
         let client_db = open_client_db(user_id, db_path).await?;
 
-        let user_creation_state = UserCreationState::load(&client_db, user_id)
+        let user_creation_state = UserCreationState::load(client_db.read().await?, user_id)
             .await?
             .context("missing user creation state")?;
 
@@ -260,7 +259,7 @@ impl CoreUser {
         let final_state = user_creation_state
             .complete_user_creation(&air_db, &client_db, &api_clients)
             .await?;
-        ClientRecord::set_default(&air_db, user_id).await?;
+        ClientRecord::set_default(air_db.write().await?, user_id).await?;
 
         let global_lock = open_lock_file(db_path)?;
 
@@ -289,13 +288,8 @@ impl CoreUser {
         Ok(())
     }
 
-    pub(crate) fn pool(&self) -> &SqlitePool {
-        &self.inner.pool
-    }
-
-    #[cfg(feature = "test_utils")]
-    pub fn pool_for_tests(&self) -> &SqlitePool {
-        &self.inner.pool
+    pub(crate) fn db(&self) -> &DbAccess {
+        &self.inner.db
     }
 
     pub(crate) fn signing_key(&self) -> &ClientSigningKey {
@@ -329,7 +323,7 @@ impl CoreUser {
 
     pub(crate) fn send_store_notification(&self, notification: StoreNotification) {
         if !notification.is_empty() {
-            self.inner.store_notifications_tx.notify(notification);
+            self.inner.db.notifier_tx.notify(notification);
         }
     }
 
@@ -340,7 +334,7 @@ impl CoreUser {
     pub(crate) fn subscribe_to_store_notifications(
         &self,
     ) -> impl Stream<Item = Arc<StoreNotification>> + Send + 'static {
-        self.inner.store_notifications_tx.subscribe()
+        self.inner.db.notifier_tx.subscribe()
     }
 
     /// Subscribes to pending store notifications.
@@ -350,25 +344,19 @@ impl CoreUser {
     pub(crate) fn subscribe_iter_to_store_notifications(
         &self,
     ) -> impl Iterator<Item = Arc<StoreNotification>> + Send + 'static {
-        self.inner.store_notifications_tx.subscribe_iter()
-    }
-
-    pub(crate) fn store_notifier(&self) -> StoreNotifier {
-        StoreNotifier::new(self.inner.store_notifications_tx.clone())
+        self.inner.db.notifier_tx.subscribe_iter()
     }
 
     pub(crate) async fn enqueue_store_notification(
         &self,
         notification: &StoreNotification,
     ) -> Result<()> {
-        notification
-            .enqueue(self.pool().acquire().await?.as_mut())
-            .await?;
+        notification.enqueue(self.db().write().await?).await?;
         Ok(())
     }
 
     pub(crate) async fn dequeue_store_notification(&self) -> Result<StoreNotification> {
-        Ok(StoreNotification::dequeue(self.pool()).await?)
+        Ok(StoreNotification::dequeue(self.db().write().await?).await?)
     }
 
     /// Signals that new store notifications were persisted and should be drained.
@@ -409,8 +397,8 @@ impl CoreUser {
     /// In case of an error, or if the user profile is not found, the client id is used as a
     /// fallback.
     pub async fn user_profile(&self, user_id: &UserId) -> UserProfile {
-        match self.pool().acquire().await {
-            Ok(mut connection) => Self::user_profile_internal(&mut connection, user_id).await,
+        match self.db().read().await {
+            Ok(connection) => Self::user_profile_internal(connection, user_id).await,
             Err(error) => {
                 error!(%error, "Error loading user profile; fallback to user_id");
                 UserProfile::from_user_id(user_id)
@@ -420,7 +408,7 @@ impl CoreUser {
 
     // Helper to use when we already hold a connection
     async fn user_profile_internal(
-        connection: &mut SqliteConnection,
+        connection: impl ReadConnection,
         user_id: &UserId,
     ) -> UserProfile {
         IndexedUserProfile::load(connection, user_id)
@@ -516,13 +504,13 @@ impl CoreUser {
     }
 
     pub async fn contacts(&self) -> sqlx::Result<Vec<Contact>> {
-        let contacts = Contact::load_all(self.pool()).await?;
+        let contacts = Contact::load_all(self.db().read().await?).await?;
         Ok(contacts)
     }
 
     pub async fn contacts_with_supported_features(&self) -> sqlx::Result<Vec<Contact>> {
-        let mut connection = self.pool().acquire().await?;
-        let mut contacts = Contact::load_all(connection.as_mut()).await?;
+        let mut connection = self.db().read().await?;
+        let mut contacts = Contact::load_all(&mut connection).await?;
         for contact in contacts.iter_mut() {
             contact.augment_supported_features(&mut connection).await?;
         }
@@ -534,22 +522,22 @@ impl CoreUser {
     }
 
     pub async fn try_contact(&self, user_id: &UserId) -> sqlx::Result<Option<Contact>> {
-        Contact::load(self.pool(), user_id).await
+        Contact::load(self.db().read().await?, user_id).await
     }
 
     pub async fn try_targeted_message_contact(
         &self,
         user_id: &UserId,
     ) -> sqlx::Result<Option<TargetedMessageContact>> {
-        TargetedMessageContact::load(self.pool(), user_id).await
+        TargetedMessageContact::load(self.db().read().await?, user_id).await
     }
 
     pub async fn username_contacts(&self) -> sqlx::Result<Vec<UsernameContact>> {
-        UsernameContact::load_all(self.pool()).await
+        UsernameContact::load_all(self.db().read().await?).await
     }
 
     pub async fn targeted_message_contacts(&self) -> sqlx::Result<Vec<TargetedMessageContact>> {
-        TargetedMessageContact::load_all(self.pool()).await
+        TargetedMessageContact::load_all(self.db().read().await?).await
     }
 
     pub(crate) fn create_own_client_reference(&self) -> QsReference {
@@ -573,14 +561,13 @@ impl CoreUser {
         &self,
         chat_id: ChatId,
     ) -> Result<Option<HashSet<UserId>>> {
-        let mut connection = self.pool().acquire().await?;
-        let Some(chat_id) = Chat::load(&mut connection, &chat_id).await? else {
-            return Ok(None);
-        };
-        let Some(group) = Group::load(&mut connection, chat_id.group_id()).await? else {
-            return Ok(None);
-        };
-        Ok(Some(group.members().collect()))
+        self.db()
+            .with_read_transaction(async |txn| {
+                Ok(Group::load_with_chat_id(&mut *txn, chat_id)
+                    .await?
+                    .map(|group| group.members().collect()))
+            })
+            .await
     }
 
     /// Returns None if there is no chat with the given id.
@@ -595,9 +582,7 @@ impl CoreUser {
         &self,
         chat_id: ChatId,
     ) -> Result<Option<HashSet<UserId>>> {
-        let Some(group) =
-            Group::load_with_chat_id(self.pool().acquire().await?.as_mut(), chat_id).await?
-        else {
+        let Some(group) = Group::load_with_chat_id(self.db().read().await?, chat_id).await? else {
             return Ok(None);
         };
         let users = group
@@ -610,16 +595,16 @@ impl CoreUser {
     }
 
     pub async fn pending_removes(&self, chat_id: ChatId) -> Option<Vec<UserId>> {
-        let mut connection = self.pool().acquire().await.ok()?;
-        let chat = Chat::load(&mut connection, &chat_id).await.ok()??;
-        let group = Group::load(&mut connection, chat.group_id()).await.ok()??;
-        Some(
-            group
-                .pending_removes()
-                .into_iter()
-                .map(|(_, removed)| removed)
-                .collect(),
-        )
+        Group::load_with_chat_id(self.db().read().await.ok()?, chat_id)
+            .await
+            .ok()?
+            .map(|group| {
+                group
+                    .pending_removes()
+                    .into_iter()
+                    .map(|(_, removed)| removed)
+                    .collect()
+            })
     }
 
     pub async fn listen_queue(
@@ -628,7 +613,7 @@ impl CoreUser {
         (impl Stream<Item = QueueEvent> + use<>, QsListenResponder),
         ListenQueueError,
     > {
-        let queue_ratchet = StorableQsQueueRatchet::load(self.pool()).await?;
+        let queue_ratchet = StorableQsQueueRatchet::load(self.db().read().await?).await?;
         let sequence_number_start = queue_ratchet.sequence_number();
         let api_client = self.inner.api_clients.default_client()?;
         let client_signing_key = &self.inner.key_store.qs_client_signing_key;
@@ -676,47 +661,51 @@ impl CoreUser {
 
     /// Mark all messages in the chat with the given chat id and
     /// with a timestamp older than the given timestamp as read.
-    pub async fn mark_as_read<T: IntoIterator<Item = (ChatId, DateTime<Utc>)>>(
+    pub async fn mark_as_read<T: IntoIterator<Item = (ChatId, DateTime<Utc>)> + Send>(
         &self,
         mark_as_read_data: T,
     ) -> anyhow::Result<()> {
-        let mut notifier = self.store_notifier();
-        Chat::mark_as_read(
-            self.pool().acquire().await?.as_mut(),
-            &mut notifier,
-            mark_as_read_data,
-        )
-        .await?;
-        notifier.notify();
+        self.db()
+            .with_write_transaction(async |txn| Chat::mark_as_read(txn, mark_as_read_data).await)
+            .await?;
         Ok(())
     }
 
     /// Returns how many messages are marked as unread across all chats.
     pub async fn global_unread_messages_count(&self) -> sqlx::Result<usize> {
-        Chat::global_unread_message_count(self.pool()).await
+        Chat::global_unread_message_count(self.db().read().await?).await
     }
 
     /// Returns how many messages in the chat with the given ID are
     /// marked as unread.
     pub async fn unread_messages_count(&self, chat_id: ChatId) -> usize {
-        Chat::unread_messages_count(self.pool(), chat_id)
+        let Ok(connection) = self
+            .db()
+            .read()
+            .await
+            .inspect_err(|error| error!(%error, "Failed to get read connection"))
+        else {
+            return 0;
+        };
+        Chat::unread_messages_count(connection, chat_id)
             .await
             .inspect_err(|error| error!(%error, "Error while fetching unread messages count"))
             .unwrap_or(0)
     }
 
     pub(crate) async fn try_messages_count(&self, chat_id: ChatId) -> sqlx::Result<usize> {
-        Chat::messages_count(self.pool(), chat_id).await
+        Chat::messages_count(self.db().read().await?, chat_id).await
     }
 
     pub(crate) async fn try_unread_messages_count(&self, chat_id: ChatId) -> sqlx::Result<usize> {
-        Chat::unread_messages_count(self.pool(), chat_id).await
+        Chat::unread_messages_count(self.db().read().await?, chat_id).await
     }
 
     /// Schedules the client's push token update on the QS.
     pub async fn update_push_token(&self, push_token: Option<PushToken>) -> Result<()> {
         let should_notify =
-            push_token_state::mark_pending_if_changed(self.pool(), push_token).await?;
+            push_token_state::mark_pending_if_changed(self.db().write().await?, push_token).await?;
+
         if should_notify {
             info!("Scheduling push token update");
             self.outbound_service().notify_push_token_update();
@@ -729,8 +718,7 @@ impl CoreUser {
     }
 
     pub(crate) async fn store_new_messages(
-        connection: &mut sqlx::SqliteConnection,
-        notifier: &mut StoreNotifier,
+        txn: &mut WriteDbTransaction<'_>,
         chat_id: ChatId,
         group_messages: Vec<TimestampedMessage>,
     ) -> Result<Vec<ChatMessage>> {
@@ -739,13 +727,13 @@ impl CoreUser {
             let message_id = MessageId::random();
             let mut message = ChatMessage::new(chat_id, message_id, timestamped_message);
             let attachment_records = Self::extract_attachments(&mut message);
-            message.store(&mut *connection, notifier).await?;
+            message.store(&mut *txn).await?;
             for (record, pending_record) in attachment_records {
-                if let Err(error) = record.store(&mut *connection, notifier, None).await {
+                if let Err(error) = record.store(&mut *txn, None).await {
                     error!(%error, "Failed to store attachment");
                     continue;
                 }
-                if let Err(error) = pending_record.store(&mut *connection, notifier).await {
+                if let Err(error) = pending_record.store(&mut *txn).await {
                     error!(%error, "Failed to store pending attachment");
                 }
             }
@@ -756,7 +744,7 @@ impl CoreUser {
 
     /// Returns the user profile of this [`CoreUser`].
     pub async fn own_user_profile(&self) -> sqlx::Result<UserProfile> {
-        IndexedUserProfile::load(self.pool(), self.user_id())
+        IndexedUserProfile::load(self.db().read().await?, self.user_id())
             .await
             // We unwrap here, because we know that the user exists.
             .map(|user_option| user_option.unwrap().into())
@@ -777,48 +765,49 @@ impl CoreUser {
 
     /// This function goes through all tables of the database and returns all columns that contain the query.
     pub async fn scan_database(&self, query: &str, strict: bool) -> anyhow::Result<Vec<String>> {
-        self.with_transaction(async |txn| {
-            let tables = query!("SELECT name FROM sqlite_schema WHERE type='table'")
-                .fetch_all(&mut **txn)
-                .await?;
+        self.db()
+            .with_read_transaction(async |txn| {
+                let tables = query!("SELECT name FROM sqlite_schema WHERE type='table'")
+                    .fetch_all(txn.as_mut())
+                    .await?;
 
-            let mut result = Vec::new();
+                let mut result = Vec::new();
 
-            for table in tables {
-                for row in sqlx::query(&format!("SELECT * FROM '{}'", table.name.unwrap()))
-                    .fetch_all(&mut **txn)
-                    .await?
-                {
-                    for i in 0..row.len() {
-                        let string = if let Ok(column) = row.try_get::<String, _>(i) {
-                            column
-                        } else if let Ok(column) = row.try_get::<Vec<u8>, _>(i) {
-                            String::from_utf8_lossy(&column).to_string()
-                        } else {
-                            // Unable to decode this type
-                            continue;
-                        };
+                for table in tables {
+                    for row in sqlx::query(&format!("SELECT * FROM '{}'", table.name.unwrap()))
+                        .fetch_all(txn.as_mut())
+                        .await?
+                    {
+                        for i in 0..row.len() {
+                            let string = if let Ok(column) = row.try_get::<String, _>(i) {
+                                column
+                            } else if let Ok(column) = row.try_get::<Vec<u8>, _>(i) {
+                                String::from_utf8_lossy(&column).to_string()
+                            } else {
+                                // Unable to decode this type
+                                continue;
+                            };
 
-                        if string.contains(query) {
-                            result.push(string.to_string());
-                            continue;
-                        }
-
-                        if !strict {
-                            // Try again without 0x18, because that's the CBOR unsigned byte indicator for Vec<u8>
-                            let string2 = string.replace('\x18', "");
-                            if string2.contains(query) {
+                            if string.contains(query) {
                                 result.push(string.to_string());
                                 continue;
+                            }
+
+                            if !strict {
+                                // Try again without 0x18, because that's the CBOR unsigned byte indicator for Vec<u8>
+                                let string2 = string.replace('\x18', "");
+                                if string2.contains(query) {
+                                    result.push(string.to_string());
+                                    continue;
+                                }
                             }
                         }
                     }
                 }
-            }
 
-            Ok(result)
-        })
-        .await
+                Ok(result)
+            })
+            .await
     }
 
     pub(crate) async fn execute_job<T, E, JobType>(&self, job: JobType) -> Result<T, JobError<E>>
@@ -827,29 +816,14 @@ impl CoreUser {
         E: std::error::Error + Send + Sync + 'static,
         JobType: Job<Output = T, DomainError = E>,
     {
-        let mut notifier = self.store_notifier();
-        let mut connection = self.pool().acquire().await?;
         let mut context = JobContext {
             api_clients: &self.inner.api_clients,
             http_client: &self.inner.http_client,
-            connection: &mut connection,
-            notifier: &mut notifier,
+            db: JobContextDb::Db(self.inner.db.clone()),
             key_store: &self.inner.key_store,
             now: Utc::now(),
         };
-        let value = job.execute(&mut context).await?;
-        notifier.notify();
-        Ok(value)
-    }
-}
-
-impl StoreExt for CoreUser {
-    fn pool(&self) -> &SqlitePool {
-        &self.inner.pool
-    }
-
-    fn notifier(&self) -> StoreNotifier {
-        StoreNotifier::new(self.inner.store_notifications_tx.clone())
+        job.execute(&mut context).await
     }
 }
 

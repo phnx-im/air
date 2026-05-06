@@ -9,12 +9,15 @@ use aircommon::{
 use chrono::{DateTime, Utc};
 use serde::{Deserialize, Serialize};
 use sqlx::{
-    Database, Decode, Encode, Sqlite, SqliteExecutor, Type, encode::IsNull, error::BoxDynError,
-    query, query_as, query_scalar, sqlite::SqliteTypeInfo,
+    Database, Decode, Encode, Sqlite, Type, encode::IsNull, error::BoxDynError, query, query_as,
+    query_scalar, sqlite::SqliteTypeInfo,
 };
 use uuid::Uuid;
 
-use crate::utils::persistence::open_air_db;
+use crate::{
+    db_access::{ReadConnection, WriteConnection},
+    utils::persistence::open_air_db,
+};
 
 use super::store::{ClientRecord, ClientRecordState, UserCreationState};
 
@@ -62,7 +65,7 @@ impl<'r> Decode<'r, Sqlite> for UserCreationState {
 
 impl UserCreationState {
     pub(super) async fn load(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         user_id: &UserId,
     ) -> sqlx::Result<Option<Self>> {
         let uuid = user_id.uuid();
@@ -73,11 +76,11 @@ impl UserCreationState {
             uuid,
             domain
         )
-        .fetch_optional(executor)
+        .fetch_optional(connection.as_mut())
         .await
     }
 
-    pub(super) async fn store(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+    pub(super) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
         let user_id = self.user_id();
         let uuid = user_id.uuid();
         let domain = user_id.domain();
@@ -89,7 +92,7 @@ impl UserCreationState {
             domain,
             self
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
         Ok(())
     }
@@ -148,11 +151,11 @@ impl From<SqlClientRecord> for ClientRecord {
 
 impl ClientRecord {
     pub async fn load_all_from_air_db(air_db_path: &str) -> sqlx::Result<Vec<Self>> {
-        let pool = open_air_db(air_db_path).await?;
-        Self::load_all(&pool).await
+        let db = open_air_db(air_db_path).await?;
+        Self::load_all(db.read().await?).await
     }
 
-    pub async fn load_all(executor: impl SqliteExecutor<'_>) -> sqlx::Result<Vec<Self>> {
+    pub(crate) async fn load_all(mut connection: impl ReadConnection) -> sqlx::Result<Vec<Self>> {
         let records = query_as!(
             SqlClientRecord,
             r#"
@@ -164,13 +167,13 @@ impl ClientRecord {
                 is_default
             FROM client_record"#
         )
-        .fetch_all(executor)
+        .fetch_all(connection.as_mut())
         .await?;
         Ok(records.into_iter().map(From::from).collect())
     }
 
     pub(crate) async fn load(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         user_id: &UserId,
     ) -> sqlx::Result<Option<Self>> {
         let uuid = user_id.uuid();
@@ -187,12 +190,12 @@ impl ClientRecord {
             uuid,
             domain
         )
-        .fetch_optional(executor)
+        .fetch_optional(connection.as_mut())
         .await
         .map(|res| res.map(From::from))
     }
 
-    pub(crate) async fn store(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+    pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
         let record_state_str = match self.client_record_state {
             ClientRecordState::InProgress => "in_progress",
             ClientRecordState::Finished => "finished",
@@ -209,13 +212,13 @@ impl ClientRecord {
             self.created_at,
             self.is_default,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
         Ok(())
     }
 
-    pub async fn set_default(
-        executor: impl SqliteExecutor<'_>,
+    pub(crate) async fn set_default(
+        mut connection: impl WriteConnection,
         user_id: &UserId,
     ) -> sqlx::Result<()> {
         let uuid = user_id.uuid();
@@ -225,13 +228,13 @@ impl ClientRecord {
             uuid,
             domain,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
         Ok(())
     }
 
     pub(crate) async fn delete(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl WriteConnection,
         user_id: &UserId,
     ) -> sqlx::Result<()> {
         let uuid = user_id.uuid();
@@ -241,7 +244,7 @@ impl ClientRecord {
             uuid,
             domain
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
         Ok(())
     }
@@ -256,7 +259,7 @@ mod tests {
     use sqlx::SqlitePool;
     use uuid::Uuid;
 
-    use crate::clients::create_user::BasicUserData;
+    use crate::{clients::create_user::BasicUserData, db_access::DbAccess};
 
     use super::*;
 
@@ -276,32 +279,33 @@ mod tests {
 
     #[sqlx::test]
     async fn persistence(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         let mut alice_record = test_client_record();
         let mut bob_record = test_client_record();
 
         // Storing and loading client records works
-        alice_record.store(&pool).await?;
-        bob_record.store(&pool).await?;
-        let records = ClientRecord::load_all(&pool).await?;
+        alice_record.store(pool.write().await?).await?;
+        bob_record.store(pool.write().await?).await?;
+        let records = ClientRecord::load_all(pool.read().await?).await?;
         assert_eq!(records, [alice_record.clone(), bob_record.clone()]);
 
         // Set default to alice set alice is_default
         alice_record.is_default = true;
-        ClientRecord::set_default(&pool, &alice_record.user_id).await?;
-        let records = ClientRecord::load_all(&pool).await?;
+        ClientRecord::set_default(pool.write().await?, &alice_record.user_id).await?;
+        let records = ClientRecord::load_all(pool.read().await?).await?;
         assert_eq!(records, [alice_record.clone(), bob_record.clone()]);
 
         // Set default to bob clears alice is_default
         alice_record.is_default = false;
         bob_record.is_default = true;
-        ClientRecord::set_default(&pool, &bob_record.user_id).await?;
-        let records = ClientRecord::load_all(&pool).await?;
+        ClientRecord::set_default(pool.write().await?, &bob_record.user_id).await?;
+        let records = ClientRecord::load_all(pool.read().await?).await?;
         assert_eq!(records, [alice_record.clone(), bob_record.clone()]);
 
         // Delete client records
-        ClientRecord::delete(&pool, &alice_record.user_id).await?;
-        ClientRecord::delete(&pool, &bob_record.user_id).await?;
-        let records = ClientRecord::load_all(&pool).await?;
+        ClientRecord::delete(pool.write().await?, &alice_record.user_id).await?;
+        ClientRecord::delete(pool.write().await?, &bob_record.user_id).await?;
+        let records = ClientRecord::load_all(pool.read().await?).await?;
         assert_eq!(records, []);
 
         Ok(())
