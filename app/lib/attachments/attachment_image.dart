@@ -215,6 +215,12 @@ class _AttachmentImageState extends State<AttachmentImage> {
     }
   }
 
+  /// Retries loading the image
+  void _retry() {
+    setState(() => _error = null);
+    unawaited(_load());
+  }
+
   /// Stops a running animation, or restarts a stopped one from the first frame.
   void _toggleAnimation() {
     if (_stopped) {
@@ -242,7 +248,18 @@ class _AttachmentImageState extends State<AttachmentImage> {
 
     final Widget? foreground;
     if (_error != null) {
-      foreground = const Align(child: AppIcon.circleAlert(size: 32));
+      foreground = IconButton(
+        onPressed: _retry,
+        style: IconButton.styleFrom(
+          backgroundColor: CustomColorScheme.of(
+            context,
+          ).backgroundBase.tertiary,
+        ),
+        icon: AppIcon.download(
+          size: 32,
+          color: CustomColorScheme.of(context).text.secondary,
+        ),
+      );
     } else if (_isAnimated == false) {
       foreground = Image(
         image: AttachmentImageProvider(
