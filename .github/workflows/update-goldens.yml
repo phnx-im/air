@@ -7,62 +7,62 @@ name: Update Goldens
 on: workflow_dispatch
 
 jobs:
-    update_flutter_goldens:
-        strategy:
-            matrix:
-                os: [ubuntu-latest, macos-latest, windows-latest]
+  update_flutter_goldens:
+    strategy:
+      matrix:
+        os: [ ubuntu-latest, macos-latest, windows-latest ]
 
-        name: Update Golden Files
-        runs-on: ${{ matrix.os }}
-        permissions:
-            contents: write
+    name: Update Golden Files
+    runs-on: ${{ matrix.os }}
+    permissions:
+      contents: write
 
-        defaults:
-            run:
-                shell: bash
+    defaults:
+      run:
+        shell: bash
 
-        steps:
-            - name: Checkout code
-              uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
-              with:
-                # Fetch all commit metadata (build number is derived from number of commits)
-                fetch-depth: 0
-                # Don't download historical file contents (blobs)
-                filter: blob:none
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          # Fetch all commit metadata (build number is derived from number of commits)
+          fetch-depth: 0
+          # Don't download historical file contents (blobs)
+          filter: blob:none
 
-            - id: setup-buildenv
-              name: Setup build environment
-              uses: ./.github/actions/setup-buildenv
+      - id: setup-buildenv
+        name: Setup build environment
+        uses: ./.github/actions/setup-buildenv
 
-            - name: Update goldens
-              run: just update-flutter-goldens
+      - name: Update goldens
+        run: just update-goldens
 
-            - name: Push changes
-              env:
-                  BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
-              run: |
-                  git config --local user.name 'github-actions[bot]'
-                  git config --local user.email 'github-actions[bot]@users.noreply.github.com'
+      - name: Push changes
+        env:
+          BRANCH_NAME: ${{ github.head_ref || github.ref_name }}
+        run: |
+          git config --local user.name 'github-actions[bot]'
+          git config --local user.email 'github-actions[bot]@users.noreply.github.com'
 
-                  git fetch origin $BRANCH_NAME
-                  git checkout $BRANCH_NAME
+          git fetch origin $BRANCH_NAME
+          git checkout $BRANCH_NAME
 
-                  git add app/test
-                  git commit -m "Update golden files" || echo "No changes to commit."
-                  git status
-                  git restore .
+          git add app/test
+          git commit -m "Update golden files" || echo "No changes to commit."
+          git status
+          git restore .
 
-                  # Retry push if there are upstream changes
-                  MAX_RETRIES=3
-                  COUNT=0
+          # Retry push if there are upstream changes
+          MAX_RETRIES=3
+          COUNT=0
 
-                  until git push; do
-                    COUNT=$((COUNT+1))
-                    if [ "$COUNT" -ge "$MAX_RETRIES" ]; then
-                      echo "Push failed after $MAX_RETRIES attempts."
-                      exit 1
-                    fi
-                    echo "Push failed, attempting to rebase and retry ($COUNT/$MAX_RETRIES)..."
-                    git fetch origin "$BRANCH_NAME"
-                    git rebase "origin/$BRANCH_NAME"
-                  done
+          until git push; do
+            COUNT=$((COUNT+1))
+            if [ "$COUNT" -ge "$MAX_RETRIES" ]; then
+              echo "Push failed after $MAX_RETRIES attempts."
+              exit 1
+            fi
+            echo "Push failed, attempting to rebase and retry ($COUNT/$MAX_RETRIES)..."
+            git fetch origin "$BRANCH_NAME"
+            git rebase "origin/$BRANCH_NAME"
+          done
