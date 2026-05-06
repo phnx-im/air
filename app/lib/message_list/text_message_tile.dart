@@ -1123,29 +1123,29 @@ class _ImageAttachmentContent extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        FocusScope.of(context).unfocus();
-        HapticFeedback.mediumImpact();
-        Navigator.of(context).push(imageViewerRoute(attachment: attachment));
-      },
-      child: Hero(
-        tag: imageViewerHeroTag(attachment),
-        transitionOnUserGestures: true,
-        child: ClipRRect(
-          borderRadius: _messageBorderRadius(
-            isSender,
-            flightPosition,
-            stackedOnTop: hasMessage,
-          ),
-          child: Container(
-            constraints: const BoxConstraints(maxHeight: 300),
-            child: AttachmentImage(
-              attachment: attachment,
-              imageMetadata: imageMetadata,
-              isSender: isSender,
-              fit: BoxFit.cover,
-            ),
+    return Hero(
+      tag: imageViewerHeroTag(attachment),
+      transitionOnUserGestures: true,
+      child: ClipRRect(
+        borderRadius: _messageBorderRadius(
+          isSender,
+          flightPosition,
+          stackedOnTop: hasMessage,
+        ),
+        child: Container(
+          constraints: const BoxConstraints(maxHeight: 300),
+          child: AttachmentImage(
+            attachment: attachment,
+            imageMetadata: imageMetadata,
+            isSender: isSender,
+            fit: BoxFit.cover,
+            onTap: () {
+              FocusScope.of(context).unfocus();
+              HapticFeedback.mediumImpact();
+              Navigator.of(
+                context,
+              ).push(imageViewerRoute(attachment: attachment));
+            },
           ),
         ),
       ),
