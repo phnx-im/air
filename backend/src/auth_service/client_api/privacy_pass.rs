@@ -411,10 +411,10 @@ mod tests {
 
         let challenge = build_challenge();
 
-        // Fresh user has 5 token remaining (the full GetInviteCode allowance). Requesting 6 exceeds
+        // Fresh user has 1 token remaining (the full GetInviteCode allowance). Requesting 2 exceeds
         // it, triggering the partial-quota path.
         let (token_request, _) =
-            AmortizedBatchTokenRequest::<Ristretto255>::new(public_key, &challenge, 6)?;
+            AmortizedBatchTokenRequest::<Ristretto255>::new(public_key, &challenge, 2)?;
         let err = service
             .as_issue_tokens(
                 user_record.user_id(),
@@ -436,7 +436,7 @@ mod tests {
             "token is available now, no wait needed"
         );
         assert_eq!(
-            tokens_available, 5,
+            tokens_available, 1,
             "one token remains in the current epoch"
         );
 
