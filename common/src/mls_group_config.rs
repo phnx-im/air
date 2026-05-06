@@ -88,7 +88,11 @@ pub const SUPPORTED_EXTENSIONS: &[ExtensionType] = &[
     ExtensionType::LastResort,
     ExtensionType::AppDataDictionary,
 ];
-pub const SUPPORTED_PROPOSALS: &[ProposalType] = REQUIRED_PROPOSALS;
+pub const SUPPORTED_PROPOSALS: &[ProposalType] = &[
+    ProposalType::Custom(FRIENDSHIP_PACKAGE_PROPOSAL_TYPE), // Also in REQUIRED_PROPOSALS
+    ProposalType::SelfRemove,                               // Also in REQUIRED_PROPOSALS
+    ProposalType::AppDataUpdate,
+];
 pub const SUPPORTED_CREDENTIALS: &[CredentialType] = REQUIRED_CREDENTIALS;
 pub const SUPPORTED_COMPONENTS: &[ComponentId] = &[AIR_COMPONENT_ID];
 

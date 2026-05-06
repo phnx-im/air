@@ -32,7 +32,7 @@ mls-assist = { path = "mls-assist" }
 
 aes-gcm = "0.10"
 anyhow = { version = "1.0.98", features = ["backtrace"] }
-apqmls = { git = "https://github.com/phnx-im/apqmls", rev = "2d51dd3ff845a5661a1fe81b82b553193487d2ca" }
+apqmls = { git = "https://github.com/phnx-im/apqmls", rev = "ebc525cc48505f9f2cdc9e87286b2b9c8840ea1a" }
 arboard = "3"
 argon2 = "0.5.3"
 async-trait = "0.1.53"
@@ -75,9 +75,9 @@ memmap2 = "0.9.5"
 metrics = "0.24.2"
 metrics-exporter-prometheus = { version = "0.17.2", default-features = false }
 mimi-room-policy = { git = "https://github.com/phnx-im/mimi-room-policy", rev = "6406e6d84c1219da3afcccb91007f2fdaaf61193" }
+mimi_content = { git = "https://github.com/phnx-im/mimi-content", rev = "c6e5ab7a7ede126906961332551c5e67c1081d3a", features = ["serde"] }
 minicbor = { version = "2.2.1", features = ["std"] }
 minicbor-serde = { version = "0.6", features = ["std"] }
-mimi_content = { git = "https://github.com/phnx-im/mimi-content", rev = "c6e5ab7a7ede126906961332551c5e67c1081d3a", features = ["serde"] }
 mockall = "0.13.1"
 mockito = "1.7.0"
 openmls = { version = "0.8.1", features = ["extensions-draft-08", "draft-ietf-mls-pq-ciphersuites"] }
@@ -152,15 +152,15 @@ openmls_basic_credential = { git = "https://github.com/boxdot/openmls", branch =
 
 # feat: add p384 support
 # <https://github.com/cryspen/hpke-rs/pull/150>
-hpke-rs = { git = "https://github.com/boxdot/hpke-rs", branch = "dima/p384" }
-hpke-rs-crypto = { git = "https://github.com/boxdot/hpke-rs", branch = "dima/p384" }
-hpke-rs-rust-crypto = { git = "https://github.com/boxdot/hpke-rs", branch = "dima/p384" }
+hpke-rs = { git = "https://github.com/cryspen/hpke-rs", rev = "42f9b421d499dec01dcb3fd80d639669d9669c73" }
+hpke-rs-crypto = { git = "https://github.com/cryspen/hpke-rs", rev = "42f9b421d499dec01dcb3fd80d639669d9669c73" }
+hpke-rs-rust-crypto = { git = "https://github.com/cryspen/hpke-rs", rev = "42f9b421d499dec01dcb3fd80d639669d9669c73" }
 # hpke-rs = { path = "../hpke-rs" }
 # hpke-rs-crypto = { path = "../hpke-rs/traits/" }
 # hpke-rs-rust-crypto = { path = "../hpke-rs/rust_crypto_provider/" }
 
-# [patch."https://github.com/phnx-im/apqmls"]
-# apqmls = { path = "../apqmls" }
+[patch."https://github.com/phnx-im/apqmls"]
+apqmls = { path = "../apqmls" }
 
 
 [profile.release]
