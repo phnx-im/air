@@ -163,10 +163,9 @@ class RustBuilder {
         '-p',
         environment.prof
         environment.crateInfo.packageName,
-        if (!environment.configuration.isDebug)
-          String.fromEnvironment("CI") == "true"
-              ? '--profile=ci-release'
-              : '--release',
+        Environment.cargoProfile
+          ? "--profile=${Environment.cargoProfile}"
+          : '--release',
         '--target',
         target.rust,
         '--target-dir',
