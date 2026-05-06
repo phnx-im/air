@@ -26,9 +26,7 @@ use airprotos::{
     delivery_service::v1::delivery_service_server,
     queue_service::v1::queue_service_server,
 };
-use airserver_test_harness::utils::setup::{
-    APQ_GROUP_BY_DEFAULT, TestBackend, TestBackendParams, TestUser,
-};
+use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams, TestUser};
 use chrono::Utc;
 use mimi_content::MimiContent;
 use rand::thread_rng;
@@ -656,13 +654,14 @@ async fn key_package_upload() {
             .encryption_key
     };
 
-    const N: usize = if APQ_GROUP_BY_DEFAULT {
-        APQ_KEY_PACKAGES + 1
+    // Number of key packages + 1 for the last resort key package
+    let n: usize = if setup.apq_groups {
+        APQ_KEY_PACKAGES
     } else {
-        KEY_PACKAGES + 1
-    };
+        KEY_PACKAGES
+    } + 1;
 
-    for _ in 0..N {
+    for _ in 0..n {
         let bob_encryption_key = create_chat_and_invite_bob(&mut setup).await;
         assert!(encryption_keys.insert(bob_encryption_key));
     }
@@ -686,7 +685,7 @@ async fn key_package_upload() {
     // Invite Bob again, should get a new KeyPackage
     let bob_encryption_key = create_chat_and_invite_bob(&mut setup).await;
     assert!(
-        N <= 1 || encryption_keys.insert(bob_encryption_key),
+        n <= 1 || encryption_keys.insert(bob_encryption_key),
         "Bob should have a new KeyPackage after uploading new ones"
     );
 }
