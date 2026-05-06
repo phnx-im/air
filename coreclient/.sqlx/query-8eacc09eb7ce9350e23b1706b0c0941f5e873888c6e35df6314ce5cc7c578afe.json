@@ -1,0 +1,68 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                g.group_id AS \"group_id: _\",\n                pq.group_id AS \"pq_group_id: _\",\n                identity_link_wrapper_key AS \"identity_link_wrapper_key: _\",\n                g.group_state_ear_key AS \"group_state_ear_key: _\",\n                pending_diff AS \"pending_diff: _\",\n                room_state AS \"room_state: _\",\n                g.self_updated_at AS \"self_updated_at: _\",\n                pq.group_state_ear_key AS \"pq_group_state_ear_key: _\",\n                pq.self_updated_at AS \"pq_self_updated_at: _\"\n            FROM \"group\" g\n            INNER JOIN chat c ON c.group_id = g.group_id\n            LEFT JOIN pq_group pq ON pq.t_group_id = g.group_id\n            WHERE c.chat_id = ?\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "group_id: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      },
+      {
+        "name": "pq_group_id: _",
+        "ordinal": 1,
+        "type_info": "Blob"
+      },
+      {
+        "name": "identity_link_wrapper_key: _",
+        "ordinal": 2,
+        "type_info": "Blob"
+      },
+      {
+        "name": "group_state_ear_key: _",
+        "ordinal": 3,
+        "type_info": "Blob"
+      },
+      {
+        "name": "pending_diff: _",
+        "ordinal": 4,
+        "type_info": "Blob"
+      },
+      {
+        "name": "room_state: _",
+        "ordinal": 5,
+        "type_info": "Blob"
+      },
+      {
+        "name": "self_updated_at: _",
+        "ordinal": 6,
+        "type_info": "Text"
+      },
+      {
+        "name": "pq_group_state_ear_key: _",
+        "ordinal": 7,
+        "type_info": "Blob"
+      },
+      {
+        "name": "pq_self_updated_at: _",
+        "ordinal": 8,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "8eacc09eb7ce9350e23b1706b0c0941f5e873888c6e35df6314ce5cc7c578afe"
+}
