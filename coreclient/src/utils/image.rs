@@ -3,11 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::{
-    fs::{self, File},
-    io::{BufReader, Cursor},
+    fs::{self},
+    io::Cursor,
     path::Path,
 };
 
+use anyhow::Context;
 use image::{
     AnimationDecoder, Delay, DynamicImage, GenericImageView, ImageBuffer, ImageDecoder,
     ImageFormat, ImageReader, Rgba,
@@ -81,11 +82,11 @@ pub(crate) fn load_attachment_image(
 
     let result = match format {
         ImageFormat::Gif => {
-            let decoder = GifDecoder::new(open_buffered(path)?)?;
+            let decoder = GifDecoder::new(reader.into_inner())?;
             load_animated_frames(decoder, file_size, format)?
         }
         ImageFormat::WebP => {
-            let decoder = WebPDecoder::new(open_buffered(path)?)?;
+            let decoder = WebPDecoder::new(reader.into_inner())?;
             if decoder.has_animation() {
                 load_animated_frames(decoder, file_size, format)?
             } else {
@@ -93,7 +94,7 @@ pub(crate) fn load_attachment_image(
             }
         }
         ImageFormat::Png => {
-            let decoder = PngDecoder::new(open_buffered(path)?)?;
+            let decoder = PngDecoder::new(reader.into_inner())?;
             if decoder.is_apng()? {
                 let apng = decoder.apng()?;
                 load_animated_frames(apng, file_size, format)?
@@ -129,10 +130,6 @@ pub fn image_is_animated(bytes: &[u8]) -> bool {
     }
 }
 
-fn open_buffered(path: &Path) -> anyhow::Result<BufReader<File>> {
-    Ok(BufReader::new(File::open(path)?))
-}
-
 /// Decodes a still image and re-encodes it as a single-frame WebP.
 fn load_still_image<D: ImageDecoder>(
     mut decoder: D,
@@ -156,10 +153,10 @@ fn load_still_image<D: ImageDecoder>(
     let mut encoder = webp_encoder(width, height)?;
     encoder
         .add_frame(&image_rgba, 0)
-        .map_err(|err| anyhow::anyhow!("WebP add_frame failed: {err:?}"))?;
+        .context("WebP add_frame failed")?;
     let webp_data = encoder
         .finalize(MIN_FRAME_DURATION_MS)
-        .map_err(|err| anyhow::anyhow!("WebP finalize failed: {err:?}"))?;
+        .context("WebP finalize failed")?;
 
     // `blurhash::encode` can only fail if the components dimension is out of range
     // => We should never get an error here.
@@ -206,7 +203,7 @@ fn load_animated_frames<'a, D: AnimationDecoder<'a>>(
     let mut timestamp_ms: i32 = 0;
     encoder
         .add_frame(first_buffer.as_raw(), timestamp_ms)
-        .map_err(|err| anyhow::anyhow!("WebP add_frame failed: {err:?}"))?;
+        .context("WebP add_frame failed")?;
     timestamp_ms = timestamp_ms.saturating_add(delay_to_ms(first_delay));
 
     for frame_result in frames {
@@ -223,13 +220,13 @@ fn load_animated_frames<'a, D: AnimationDecoder<'a>>(
         }
         encoder
             .add_frame(resized.as_raw(), timestamp_ms)
-            .map_err(|err| anyhow::anyhow!("WebP add_frame failed: {err:?}"))?;
+            .context("WebP add_frame failed")?;
         timestamp_ms = timestamp_ms.saturating_add(delay_to_ms(frame_delay));
     }
 
     let webp_data = encoder
         .finalize(timestamp_ms)
-        .map_err(|err| anyhow::anyhow!("WebP finalize failed: {err:?}"))?;
+        .context("WebP finalize failed")?;
 
     info!(
         from_bytes = file_size,
@@ -262,7 +259,7 @@ fn webp_encoder(width: u32, height: u32) -> anyhow::Result<webp_animation::Encod
             ..Default::default()
         },
     )
-    .map_err(|err| anyhow::anyhow!("WebP encoder init failed: {err:?}"))
+    .context("WebP encoder init failed")
 }
 
 /// Converts a frame delay to milliseconds, applying a floor to avoid
