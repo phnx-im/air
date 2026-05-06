@@ -20,7 +20,7 @@ const NOTIFICATION_CHANNEL_SIZE: usize = 1024;
 ///
 /// Used to collect all notifications and eventually send them all at once.
 #[derive(Debug)]
-pub struct StoreNotifier {
+pub(crate) struct StoreNotifier {
     tx: StoreNotificationsSender,
     notification: StoreNotification,
 }

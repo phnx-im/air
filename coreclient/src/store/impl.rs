@@ -120,9 +120,10 @@ impl Store for CoreUser {
     }
 
     async fn chat(&self, chat_id: ChatId) -> StoreResult<Option<Chat>> {
-        let mut connection = self.db().read().await?;
-        let txn = connection.begin().await?;
-        Ok(Chat::load(txn, &chat_id).await?)
+        self.db()
+            .with_read_transaction(async |txn| Chat::load(txn, &chat_id).await)
+            .await
+            .map_err(Into::into)
     }
 
     async fn chat_participants(&self, chat_id: ChatId) -> StoreResult<Option<HashSet<UserId>>> {
@@ -301,12 +302,14 @@ impl Store for CoreUser {
     }
 
     async fn first_unread_message(&self, chat_id: ChatId) -> StoreResult<Option<ChatMessage>> {
-        let mut connection = self.db().read().await?;
-        let txn = connection.begin().await?;
-        let chat = Chat::load(txn, &chat_id)
-            .await?
-            .with_context(|| format!("chat not found: {chat_id}"))?;
-        Ok(ChatMessage::first_unread_message(connection, chat_id, chat.last_read.into()).await?)
+        self.db()
+            .with_read_transaction(async |txn| {
+                let chat = Chat::load(&mut *txn, &chat_id)
+                    .await?
+                    .with_context(|| format!("chat not found: {chat_id}"))?;
+                Ok(ChatMessage::first_unread_message(txn, chat_id, chat.last_read.into()).await?)
+            })
+            .await
     }
 
     async fn message(&self, message_id: MessageId) -> StoreResult<Option<ChatMessage>> {

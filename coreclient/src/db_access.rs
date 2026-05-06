@@ -183,7 +183,7 @@ impl DbAccess {
 
 impl ReadDbConnection {
     /// Begin a read transaction.
-    pub(crate) async fn begin(&mut self) -> sqlx::Result<ReadDbTransaction<'_>> {
+    pub(super) async fn begin(&mut self) -> sqlx::Result<ReadDbTransaction<'_>> {
         let txn = self.conn.begin().await?;
         Ok(ReadDbTransaction { txn })
     }
@@ -313,15 +313,6 @@ impl WriteConnection for WriteDbConnection {
         &mut self.notifier
     }
 
-    #[cfg(test)]
-    async fn begin(&mut self) -> sqlx::Result<WriteDbTransaction<'_>> {
-        let (connection, notifier) = self.split();
-        Ok(WriteDbTransaction {
-            txn: begin_write_txn(connection).await?,
-            notifier,
-        })
-    }
-
     async fn with_transaction<T, E>(
         &mut self,
         f: impl AsyncFnOnce(&mut WriteDbTransaction<'_>) -> Result<T, E>,
@@ -377,22 +368,9 @@ where
         txn: begin_write_txn(connection).await?,
         notifier,
     };
-    
-    // if we fail in the closure, we avoid propagating notifications
-    let value = match f(&mut txn).await {
-        Ok(value) => value,
-        Err(error) => {
-            txn.notifier.clear();
-            return Err(error.into())
-        }
-    };
 
-    // don't notify on commit failure (rollback)
-    match txn.commit().await {
-        Ok(_) => Ok(value),
-        Err(error) => {
-            notifier.clear();
-            Err(error.into())
-        }
-    }
+    // if we fail in the closure, we avoid propagating notifications
+    let value = f(&mut txn).await.inspect_err(|_| txn.notifier.clear())?;
+    txn.commit().await?;
+    Ok(value)
 }

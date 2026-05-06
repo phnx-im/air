@@ -88,7 +88,9 @@ impl CoreUser {
         chat_id: ChatId,
         picture: Option<Vec<u8>>,
     ) -> Result<()> {
-        let chat = Chat::load(self.db().read().await?.begin().await?, &chat_id)
+        let chat = self
+            .db()
+            .with_read_transaction(async |txn| Chat::load(txn, &chat_id).await)
             .await?
             .ok_or_else(|| {
                 let id = chat_id.uuid();
@@ -111,7 +113,9 @@ impl CoreUser {
     }
 
     pub(crate) async fn set_chat_title(&self, chat_id: ChatId, title: String) -> Result<()> {
-        let chat = Chat::load(self.db().read().await?.begin().await?, &chat_id)
+        let chat = self
+            .db()
+            .with_read_transaction(async |txn| Chat::load(txn, &chat_id).await)
             .await?
             .ok_or_else(|| {
                 let id = chat_id.uuid();

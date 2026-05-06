@@ -552,15 +552,17 @@ impl CoreUser {
         &self,
         chat_id: ChatId,
     ) -> Result<Option<HashSet<UserId>>> {
-        let mut connection = self.db().read().await?;
-        let mut txn = connection.begin().await?;
-        let Some(chat_id) = Chat::load(&mut txn, &chat_id).await? else {
-            return Ok(None);
-        };
-        let Some(group) = Group::load(&mut txn, chat_id.group_id()).await? else {
-            return Ok(None);
-        };
-        Ok(Some(group.members().collect()))
+        self.db()
+            .with_read_transaction(async |txn| {
+                let Some(chat_id) = Chat::load(&mut *txn, &chat_id).await? else {
+                    return Ok(None);
+                };
+                let Some(group) = Group::load(txn, chat_id.group_id()).await? else {
+                    return Ok(None);
+                };
+                Ok(Some(group.members().collect()))
+            })
+            .await
     }
 
     /// Returns None if there is no chat with the given id.
@@ -589,17 +591,22 @@ impl CoreUser {
     }
 
     pub async fn pending_removes(&self, chat_id: ChatId) -> Option<Vec<UserId>> {
-        let mut connection = self.db().read().await.ok()?;
-        let mut txn = connection.begin().await.ok()?;
-        let chat = Chat::load(&mut txn, &chat_id).await.ok()??;
-        let group = Group::load(&mut txn, chat.group_id()).await.ok()??;
-        Some(
-            group
-                .pending_removes()
-                .into_iter()
-                .map(|(_, removed)| removed)
-                .collect(),
-        )
+        self.db()
+            .with_read_transaction(async |txn| -> anyhow::Result<_> {
+                let chat = Chat::load(&mut *txn, &chat_id)
+                    .await?
+                    .context("chat not found")?;
+                let group = Group::load(txn, chat.group_id())
+                    .await?
+                    .context("group not found")?;
+                Ok(group
+                    .pending_removes()
+                    .into_iter()
+                    .map(|(_, removed)| removed)
+                    .collect())
+            })
+            .await
+            .ok()
     }
 
     pub async fn listen_queue(
@@ -760,48 +767,49 @@ impl CoreUser {
 
     /// This function goes through all tables of the database and returns all columns that contain the query.
     pub async fn scan_database(&self, query: &str, strict: bool) -> anyhow::Result<Vec<String>> {
-        let mut connection = self.db().read().await?;
-        let mut txn = connection.begin().await?;
+        self.db()
+            .with_read_transaction(async |txn| {
+                let tables = query!("SELECT name FROM sqlite_schema WHERE type='table'")
+                    .fetch_all(txn.as_mut())
+                    .await?;
 
-        let tables = query!("SELECT name FROM sqlite_schema WHERE type='table'")
-            .fetch_all(txn.as_mut())
-            .await?;
+                let mut result = Vec::new();
 
-        let mut result = Vec::new();
+                for table in tables {
+                    for row in sqlx::query(&format!("SELECT * FROM '{}'", table.name.unwrap()))
+                        .fetch_all(txn.as_mut())
+                        .await?
+                    {
+                        for i in 0..row.len() {
+                            let string = if let Ok(column) = row.try_get::<String, _>(i) {
+                                column
+                            } else if let Ok(column) = row.try_get::<Vec<u8>, _>(i) {
+                                String::from_utf8_lossy(&column).to_string()
+                            } else {
+                                // Unable to decode this type
+                                continue;
+                            };
 
-        for table in tables {
-            for row in sqlx::query(&format!("SELECT * FROM '{}'", table.name.unwrap()))
-                .fetch_all(txn.as_mut())
-                .await?
-            {
-                for i in 0..row.len() {
-                    let string = if let Ok(column) = row.try_get::<String, _>(i) {
-                        column
-                    } else if let Ok(column) = row.try_get::<Vec<u8>, _>(i) {
-                        String::from_utf8_lossy(&column).to_string()
-                    } else {
-                        // Unable to decode this type
-                        continue;
-                    };
+                            if string.contains(query) {
+                                result.push(string.to_string());
+                                continue;
+                            }
 
-                    if string.contains(query) {
-                        result.push(string.to_string());
-                        continue;
-                    }
-
-                    if !strict {
-                        // Try again without 0x18, because that's the CBOR unsigned byte indicator for Vec<u8>
-                        let string2 = string.replace('\x18', "");
-                        if string2.contains(query) {
-                            result.push(string.to_string());
-                            continue;
+                            if !strict {
+                                // Try again without 0x18, because that's the CBOR unsigned byte indicator for Vec<u8>
+                                let string2 = string.replace('\x18', "");
+                                if string2.contains(query) {
+                                    result.push(string.to_string());
+                                    continue;
+                                }
+                            }
                         }
                     }
                 }
-            }
-        }
 
-        Ok(result)
+                Ok(result)
+            })
+            .await
     }
 
     pub(crate) async fn execute_job<T, E, JobType>(&self, job: JobType) -> Result<T, JobError<E>>
