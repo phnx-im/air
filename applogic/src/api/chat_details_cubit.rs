@@ -8,12 +8,12 @@ use std::{collections::HashMap, path::PathBuf, time::Duration};
 
 use aircommon::{
     OpenMlsRand, RustCrypto,
+    component::AirComponent,
     identifiers::{AttachmentId, UserId},
 };
 pub use aircoreclient::{
-    AcceptContactRequestError, AirComponentDebugInfo, AppDataDebugInfo, DebugCapabilities,
-    EncryptedGroupTitleDebugInfo, ExternalGroupProfileDebugInfo, GroupDataDebugInfo,
-    GroupDebugInfo, RequiredDebugCapabilities,
+    AcceptContactRequestError, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
+    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, RequiredDebugCapabilities,
 };
 use aircoreclient::{
     AttachmentProgress, Chat, ChatId, ChatMessage, MessageId, ProvisionAttachmentError,
@@ -166,11 +166,13 @@ impl ChatDetailsCubitBase {
         match delete_mode {
             DeleteMode::ForEveryone => {
                 // Send NullPart via network to delete for all participants
-                self.context
-                    .store
-                    .delete_message(self.context.chat_id, message_id)
-                    .await
-                    .inspect_err(|error| error!(%error, "Failed to send delete message"))?;
+                Box::pin(
+                    self.context
+                        .store
+                        .delete_message(self.context.chat_id, message_id),
+                )
+                .await
+                .inspect_err(|error| error!(%error, "Failed to send delete message"))?;
             }
             DeleteMode::ForMe => {
                 // Delete locally - completely remove the message from the database
@@ -821,12 +823,7 @@ pub struct _RequiredDebugCapabilities {
 #[frb(mirror(AppDataDebugInfo))]
 pub struct _AppDataDebugInfo {
     pub components: Vec<String>,
-    pub air_component: Option<AirComponentDebugInfo>,
-}
-
-#[frb(mirror(AirComponentDebugInfo))]
-pub struct _AirComponentDebugInfo {
-    pub encrypted_group_profiles: bool,
+    pub air_component: Option<AirComponent>,
 }
 
 #[frb(mirror(DebugCapabilities))]

@@ -13,10 +13,11 @@ use aircommon::{
     messages::{EncryptedQsQueueMessageCtype, QueueMessage, client_ds::QsQueueMessagePayload},
 };
 use sqlx::{
-    Database, Decode, Encode, Sqlite, SqliteExecutor, SqliteTransaction, Type, encode::IsNull,
-    error::BoxDynError, query, query_scalar,
+    Database, Decode, Encode, Sqlite, Type, encode::IsNull, error::BoxDynError, query, query_scalar,
 };
 use tracing::error;
+
+use crate::db_access::{ReadConnection, WriteConnection, WriteDbTransaction};
 
 use super::*;
 
@@ -98,7 +99,7 @@ pub(crate) type StorableQsQueueRatchet =
 
 impl StorableQsQueueRatchet {
     pub(crate) async fn initialize(
-        executor: impl SqliteExecutor<'_>,
+        connection: impl WriteConnection,
         ratcht_secret: RatchetSecret,
     ) -> sqlx::Result<()> {
         Self {
@@ -110,17 +111,17 @@ impl StorableQsQueueRatchet {
                 sqlx::Error::Decode(Box::new(error))
             })?,
         }
-        .store(executor)
+        .store(connection)
         .await?;
         Ok(())
     }
 
     /// Decrypt a `QueueMessage` received from the QS queue.
     pub(crate) async fn decrypt_qs_queue_message(
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         qs_message_ciphertext: QueueMessage,
     ) -> Result<QsQueueMessagePayload, DecryptQsQueueMessageError> {
-        let mut qs_queue_ratchet = StorableQsQueueRatchet::load(txn.as_mut()).await?;
+        let mut qs_queue_ratchet = StorableQsQueueRatchet::load(&mut *txn).await?;
 
         let message_seq_nr = qs_message_ciphertext.sequence_number;
         let ratchet_seq_nr = qs_queue_ratchet.sequence_number();
@@ -154,13 +155,13 @@ impl StorableQsQueueRatchet {
                 ratchet_seq_nr,
                 message_seq_nr,
             })?;
-        qs_queue_ratchet.update(txn.as_mut(), QueueType::Qs).await?;
+        qs_queue_ratchet.update(txn, QueueType::Qs).await?;
 
         Ok(payload)
     }
 
-    pub(crate) async fn load(executor: impl SqliteExecutor<'_>) -> sqlx::Result<Self> {
-        StorableQueueRatchet::load_internal(executor, QueueType::Qs).await
+    pub(crate) async fn load(connection: impl ReadConnection) -> sqlx::Result<Self> {
+        StorableQueueRatchet::load_internal(connection, QueueType::Qs).await
     }
 }
 
@@ -186,7 +187,7 @@ where
     Ciphertext: Unpin + Send,
     Payload: RatchetPayload<Ciphertext> + Unpin + Send,
 {
-    async fn store(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+    async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
         let sequence_number: i64 = self
             .queue_ratchet
             .sequence_number()
@@ -200,13 +201,13 @@ where
             self.queue_ratchet,
             sequence_number,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
         Ok(())
     }
 
     async fn load_internal(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         queue_type: QueueType,
     ) -> sqlx::Result<Self> {
         let queue_ratchet = query_scalar!(
@@ -215,7 +216,7 @@ where
             FROM queue_ratchet WHERE queue_type = ?"#,
             queue_type
         )
-        .fetch_one(executor)
+        .fetch_one(connection.as_mut())
         .await?;
         Ok(Self {
             queue_type,
@@ -225,7 +226,7 @@ where
 
     async fn update(
         &self,
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl WriteConnection,
         queue_type: QueueType,
     ) -> sqlx::Result<()> {
         let sequence_number: i64 = self
@@ -241,7 +242,7 @@ where
             sequence_number,
             queue_type
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
         Ok(())
     }

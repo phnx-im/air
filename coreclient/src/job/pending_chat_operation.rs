@@ -15,7 +15,7 @@ use chrono::{DateTime, Duration, Utc};
 use mimi_room_policy::RoleIndex;
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
-use sqlx::{SqliteConnection, SqliteTransaction, query, query_as, query_scalar};
+use sqlx::{query, query_as, query_scalar};
 use tracing::{debug, error, info};
 
 use crate::{
@@ -23,13 +23,12 @@ use crate::{
     chats::{GroupDataExt, messages::TimestampedMessage},
     clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
     contacts::ContactAddInfos,
+    db_access::{WriteConnection, WriteDbTransaction},
     groups::{
         Group, VerifiedGroup, client_auth_info::StorableClientCredential,
         handle_group_not_found_on_ds,
     },
     job::{Job, JobContext, JobError, chat_operation::ChatOperationError},
-    store::StoreNotifier,
-    utils::connection_ext::ConnectionExt,
 };
 
 // Having separate retry intervals for test and non-test is a hack until we can
@@ -116,7 +115,7 @@ impl Job for PendingChatOperation {
 
     async fn execute_logic(
         mut self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         match self.execute_internal(context).await {
             // Update retry_due at on network errors
@@ -125,7 +124,7 @@ impl Job for PendingChatOperation {
                 let retry_due = context.now + RETRY_INTERVAL;
                 #[cfg(any(test, feature = "test_utils"))]
                 let retry_due = context.now + RETRY_INTERVAL;
-                self.update_retry_due_at(&mut *context.connection, retry_due)
+                self.update_retry_due_at(context.db.write().await?, retry_due)
                     .await?;
                 let group_id = self.group.group_id();
                 info!(
@@ -139,9 +138,11 @@ impl Job for PendingChatOperation {
                 let group_id = self.group.group_id().clone();
                 error!(?group_id, "Group not found on DS; cleaning up local state");
                 context
-                    .connection
+                    .db
+                    .write()
+                    .await?
                     .with_transaction(async |txn| {
-                        handle_group_not_found_on_ds(txn, context.notifier, &group_id).await
+                        handle_group_not_found_on_ds(txn, &group_id).await
                     })
                     .await?;
                 Err(JobError::NotFound)
@@ -172,7 +173,7 @@ impl PendingChatOperation {
 
     pub async fn execute_internal(
         &mut self,
-        context: &mut JobContext<'_>,
+        context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         if let PendingChatOperationStatus::WaitingForQueueResponse = self.status {
             info!(
@@ -185,8 +186,7 @@ impl PendingChatOperation {
 
         let JobContext {
             api_clients,
-            connection,
-            notifier,
+            db,
             key_store,
             now,
             ..
@@ -212,9 +212,10 @@ impl PendingChatOperation {
             && message_epoch != self.group.mls_group().epoch()
             && self.number_of_attempts > 0
         {
-            *leave_params = connection
-                .with_transaction(async |txn| self.group.group_mut().stage_leave_group(txn, signer))
-                .await?;
+            *leave_params = self
+                .group
+                .group_mut()
+                .stage_leave_group(db.write().await?, signer)?;
         }
 
         let mut new_chat_picture = None;
@@ -246,7 +247,7 @@ impl PendingChatOperation {
             Err(error) => {
                 self.number_of_attempts += 1;
                 if !is_leave {
-                    let job_error = self.handle_error(connection, error).await?;
+                    let job_error = self.handle_error(context.db.write().await?, error).await?;
                     return Err(job_error);
                 }
 
@@ -266,9 +267,12 @@ impl PendingChatOperation {
         };
 
         // If any of the following fails, something is very wrong.
-        let messages = connection
+        let messages = db
+            .write()
+            .await?
             .with_transaction(async |txn| {
-                let Some(mut chat) = Chat::load_by_group_id(txn, self.group.group_id()).await?
+                let Some(mut chat) =
+                    Chat::load_by_group_id(&mut *txn, self.group.group_id()).await?
                 else {
                     bail!("Chat not found for group: {:?}", self.group.group_id());
                 };
@@ -277,7 +281,7 @@ impl PendingChatOperation {
                 // was already processed and merged by the QS path. The queue handler is running
                 // concurrently and might have acquired a transaction *before* this handler.
                 if is_commit
-                    && !PendingChatOperation::is_pending_for_chat(txn.as_mut(), chat.id()).await?
+                    && !PendingChatOperation::is_pending_for_chat(&mut *txn, chat.id()).await?
                 {
                     return Ok(vec![]);
                 }
@@ -292,7 +296,7 @@ impl PendingChatOperation {
                 let group_messages = if is_commit {
                     let (mut group_messages, group_data_bytes) = self
                         .group
-                        .merge_pending_commit(txn, None, ds_timestamp)
+                        .merge_pending_commit(&mut *txn, None, ds_timestamp)
                         .await?;
 
                     if let Some(bytes) = group_data_bytes {
@@ -305,7 +309,6 @@ impl PendingChatOperation {
                             // the profile data is already available locally.
                             update_chat_attributes(
                                 txn,
-                                notifier,
                                 &mut chat,
                                 &own_user_id,
                                 attributes,
@@ -344,27 +347,25 @@ impl PendingChatOperation {
                 // is either a delete operation or a leave operation, set the
                 // chat to inactive.
                 if !matches!(chat.status(), ChatStatus::Inactive(_)) && (is_delete || is_leave) {
-                    chat.set_inactive(txn.as_mut(), notifier, past_members)
-                        .await?;
+                    chat.set_inactive(&mut *txn, past_members).await?;
                 }
 
                 self.group
                     .group_mut()
-                    .store_update(txn.as_mut(), Some(ds_timestamp))
+                    .store_update(&mut *txn, Some(ds_timestamp))
                     .await?;
                 let messages =
-                    CoreUser::store_new_messages(&mut *txn, notifier, chat.id(), group_messages)
-                        .await?;
+                    CoreUser::store_new_messages(&mut *txn, chat.id(), group_messages).await?;
 
                 // Unless this is a leave operation that hasn't been confirmed
                 // by the DS, we can delete the pending operation now.
                 if !is_leave || ds_has_confirmed_leave {
-                    Self::delete(txn.as_mut(), self.group.group_id()).await?;
+                    Self::delete(txn, self.group.group_id()).await?;
                 } else {
                     // If it's a leave operation that hasn't been confirmed by
                     // the DS, we want to set a due date for retrying
                     let retry_due = *now + RETRY_INTERVAL;
-                    self.update_retry_due_at(txn.as_mut(), retry_due).await?;
+                    self.update_retry_due_at(txn, retry_due).await?;
                 }
 
                 Ok(messages)
@@ -376,7 +377,7 @@ impl PendingChatOperation {
 
     async fn handle_error(
         &mut self,
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         error: DsRequestError,
     ) -> Result<JobError<ChatOperationError>, JobError<ChatOperationError>> {
         debug!(?error, "DS request failed");
@@ -385,8 +386,7 @@ impl PendingChatOperation {
             // If we get a WrongEpochError, we know the commit was
             // either accepted on a previous try, or the DS rejected
             // it because another one got there first.
-            self.mark_as_waiting_for_queue_response(&mut *connection)
-                .await?;
+            self.mark_as_waiting_for_queue_response(connection).await?;
 
             Err(JobError::Blocked)
         } else if error.is_not_found() {
@@ -404,8 +404,11 @@ impl PendingChatOperation {
             // reached, we consider the operation failed and delete the job.
             connection
                 .with_transaction(async |txn| -> anyhow::Result<_> {
-                    self.group.group_mut().discard_pending_commit(txn).await?;
-                    Self::delete(txn.as_mut(), self.group.group_id()).await?;
+                    self.group
+                        .group_mut()
+                        .discard_pending_commit(&mut *txn)
+                        .await?;
+                    Self::delete(txn, self.group.group_id()).await?;
                     Ok(())
                 })
                 .await?;
@@ -425,16 +428,16 @@ impl PendingChatOperation {
 
     /// Creates and stores a PendingChatOperation for removing users.
     pub(super) async fn create_remove(
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         signer: &ClientSigningKey,
         chat_id: ChatId,
         target_users: Vec<UserId>,
     ) -> anyhow::Result<Self> {
-        let chat = Chat::load(txn.as_mut(), &chat_id)
+        let chat = Chat::load(&mut *txn, &chat_id)
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))?;
         let group_id = chat.group_id();
-        let mut group = Group::load_clean_verified(txn, group_id)
+        let mut group = Group::load_clean_verified(&mut *txn, group_id)
             .await?
             .with_context(|| format!("No group found for group ID {group_id:?}"))?;
 
@@ -447,62 +450,62 @@ impl PendingChatOperation {
 
         let params = group
             .group_mut()
-            .stage_remove(txn.as_mut(), signer, target_users)
+            .stage_remove(&mut *txn, signer, target_users)
             .await?;
 
         let job = Self::new(group, OperationType::other(params));
-        job.store(txn.as_mut()).await?;
+        job.store(txn).await?;
         Ok(job)
     }
 
     pub(super) async fn create_leave(
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         signer: &ClientSigningKey,
         chat_id: ChatId,
     ) -> anyhow::Result<Self> {
-        let chat = Chat::load(txn.as_mut(), &chat_id)
+        let chat = Chat::load(&mut *txn, &chat_id)
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}",))?;
         let group_id = chat.group_id();
-        let mut group = Group::load_clean_verified(txn, group_id)
+        let mut group = Group::load_clean_verified(&mut *txn, group_id)
             .await?
             .with_context(|| format!("Can't find group with id {group_id:?}"))?;
         let own_id = signer.credential().user_id();
         group.verify_role_change(own_id, own_id, RoleIndex::Outsider)?;
 
-        let params = group.group_mut().stage_leave_group(txn, signer)?;
+        let params = group.group_mut().stage_leave_group(&mut *txn, signer)?;
 
         let job = Self::new(group, OperationType::Leave(params));
-        job.store(txn.as_mut()).await?;
+        job.store(txn).await?;
         Ok(job)
     }
 
     pub(super) async fn create_update(
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         signer: &ClientSigningKey,
         chat_id: ChatId,
         new_group_data: Option<GroupData>,
         new_chat_picture: Option<Vec<u8>>,
     ) -> anyhow::Result<Self> {
-        let chat = Chat::load(txn.as_mut(), &chat_id)
+        let chat = Chat::load(&mut *txn, &chat_id)
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))?;
         let group_id = chat.group_id();
-        let mut group = Group::load_clean_verified(txn, group_id)
+        let mut group = Group::load_clean_verified(&mut *txn, group_id)
             .await?
             .with_context(|| format!("Can't find group with id {group_id:?}"))?;
         let group_data_bytes = new_group_data.map(|data| data.encode()).transpose()?;
 
         let params = group
             .group_mut()
-            .update(txn, signer, group_data_bytes)
+            .update(&mut *txn, signer, group_data_bytes)
             .await?;
 
         let job = Self::new(
             group,
             OperationType::other_with_picture(params, new_chat_picture),
         );
-        job.store(txn.as_mut()).await?;
+        job.store(txn).await?;
 
         Ok(job)
     }
@@ -511,44 +514,43 @@ impl PendingChatOperation {
     /// If the chat has only one member (the user themself), it is
     /// directly set to inactive instead.
     pub(super) async fn create_delete(
-        txn: &mut SqliteTransaction<'_>,
+        txn: &mut WriteDbTransaction<'_>,
         signer: &ClientSigningKey,
-        notifier: &mut StoreNotifier,
         chat_id: ChatId,
     ) -> anyhow::Result<Option<Self>> {
-        let mut chat = Chat::load(txn.as_mut(), &chat_id)
+        let mut chat = Chat::load(&mut *txn, &chat_id)
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))?;
 
         let group_id = chat.group_id();
-        let mut group = Group::load_clean_verified(txn, group_id)
+        let mut group = Group::load_clean_verified(&mut *txn, group_id)
             .await?
             .with_context(|| format!("Can't find group with id {group_id:?}"))?;
 
         let past_members: Vec<_> = group.members().collect();
 
         if past_members.len() == 1 {
-            chat.set_inactive(txn.as_mut(), notifier, past_members)
-                .await?;
+            chat.set_inactive(txn, past_members).await?;
             Ok(None)
         } else {
-            let message = group.group_mut().stage_delete(txn, signer).await?;
+            let message = group.group_mut().stage_delete(&mut *txn, signer).await?;
 
             let job = Self::new(group, OperationType::Delete(message));
-            job.store(txn.as_mut()).await?;
+            job.store(txn).await?;
             Ok(Some(job))
         }
     }
 
     pub(crate) async fn create_add(
-        connection: &mut SqliteConnection,
+        mut connection: impl WriteConnection,
         api_clients: &ApiClients,
         signer: &ClientSigningKey,
         chat_id: ChatId,
         new_members: Vec<UserId>,
     ) -> Result<Self, JobError<ChatOperationError>> {
         // Load local data to prepare add operation
-        let chat = Chat::load(&mut *connection, &chat_id)
+        let chat = connection
+            .with_transaction(async |txn| Chat::load(txn, &chat_id).await)
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))?;
 
@@ -558,13 +560,13 @@ impl PendingChatOperation {
 
         for new_member in &new_members {
             // Get the WAI keys and client credentials for the invited users.
-            let contact = Contact::load(&mut *connection, new_member)
+            let contact = Contact::load(&mut connection, new_member)
                 .await?
                 .with_context(|| format!("Can't find contact {new_member:?}"))?;
             contact_wai_keys.push(contact.wai_ear_key().clone());
 
             if let Some(client_credential) =
-                StorableClientCredential::load_by_user_id(&mut *connection, new_member).await?
+                StorableClientCredential::load_by_user_id(&mut connection, new_member).await?
             {
                 client_credentials.push(ClientCredential::from(client_credential));
             }
@@ -575,14 +577,16 @@ impl PendingChatOperation {
         // Fetch add infos from the server
         let mut contact_add_infos: Vec<ContactAddInfos> = Vec::with_capacity(contacts.len());
         for contact in contacts {
-            let add_info = contact.fetch_add_infos(connection, api_clients).await?;
+            let add_info = contact
+                .fetch_add_infos(&mut connection, api_clients)
+                .await?;
             contact_add_infos.push(add_info);
         }
 
         let group_id = chat.group_id();
         connection
             .with_transaction(async |txn| {
-                let mut group = Group::load_clean_verified(txn, group_id)
+                let mut group = Group::load_clean_verified(&mut *txn, group_id)
                     .await
                     .map_err(JobError::fatal)?
                     .with_context(|| format!("Can't find group with id {group_id:?}"))
@@ -599,7 +603,7 @@ impl PendingChatOperation {
                 let params = group
                     .group_mut()
                     .stage_invite(
-                        txn,
+                        &mut *txn,
                         signer,
                         contact_add_infos,
                         contact_wai_keys,
@@ -623,9 +627,10 @@ impl PendingChatOperation {
 
 mod persistence {
     use aircommon::codec::{BlobDecoded, BlobEncoded};
-    use sqlx::SqliteExecutor;
     use thiserror::Error;
     use uuid::Uuid;
+
+    use crate::db_access::{ReadConnection, WriteConnection, WriteDbTransaction};
 
     use super::*;
 
@@ -706,7 +711,7 @@ mod persistence {
     impl SqlPendingChatOperation {
         async fn into_pending_chat_operation(
             self,
-            connection: &mut SqliteConnection,
+            connection: impl ReadConnection,
         ) -> sqlx::Result<PendingChatOperation> {
             let group_id = GroupId::from_slice(&self.group_id);
             let group = Group::load_verified(connection, &group_id)
@@ -725,7 +730,7 @@ mod persistence {
     }
 
     impl PendingChatOperation {
-        pub(super) async fn store(&self, connection: &mut SqliteConnection) -> sqlx::Result<()> {
+        pub(super) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
             let operation_data = BlobEncoded(&self.operation);
             let group_id = self.group.group_id().as_slice();
             let operation_string = self.operation.to_string();
@@ -740,7 +745,7 @@ mod persistence {
                 self.retry_due_at,
                 PendingChatOperationStatus::ReadyToRetry as _
             )
-            .execute(connection)
+            .execute(connection.as_mut())
             .await?;
 
             Ok(())
@@ -748,7 +753,7 @@ mod persistence {
 
         pub(super) async fn update_retry_due_at(
             &mut self,
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl WriteConnection,
             retry_due: DateTime<Utc>,
         ) -> sqlx::Result<()> {
             let group_id = self.group.group_id().as_slice();
@@ -762,7 +767,7 @@ mod persistence {
                 number_of_attempts_i64,
                 group_id
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
 
             self.retry_due_at = Some(retry_due);
@@ -772,7 +777,7 @@ mod persistence {
 
         pub(super) async fn mark_as_waiting_for_queue_response(
             &self,
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl WriteConnection,
         ) -> sqlx::Result<()> {
             let group_id = self.group.group_id().as_slice();
             query!(
@@ -780,14 +785,14 @@ mod persistence {
                 PendingChatOperationStatus::WaitingForQueueResponse as _,
                 group_id
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
 
             Ok(())
         }
 
         pub(crate) async fn load_by_group_id(
-            connection: &mut SqliteConnection,
+            mut connection: impl ReadConnection,
             group_id: &GroupId,
         ) -> sqlx::Result<Option<Self>> {
             let group_id = group_id.as_slice();
@@ -803,7 +808,7 @@ mod persistence {
                 WHERE group_id = ?"#,
                 group_id
             )
-            .fetch_optional(&mut *connection)
+            .fetch_optional(connection.as_mut())
             .await?;
 
             let Some(sql_pending_operation) = sql_pending_operation else {
@@ -817,7 +822,7 @@ mod persistence {
         }
 
         pub(crate) async fn load(
-            txn: &mut SqliteTransaction<'_>,
+            mut connection: impl ReadConnection,
             chat_id: &ChatId,
         ) -> sqlx::Result<Option<Self>> {
             // Get the group id from the chat table and then load the pending operation.
@@ -834,7 +839,7 @@ mod persistence {
                 WHERE c.chat_id = ?"#,
                 chat_id
             )
-            .fetch_optional(txn.as_mut())
+            .fetch_optional(connection.as_mut())
             .await?;
 
             let Some(sql_pending_operation) = sql_pending_operation else {
@@ -842,13 +847,13 @@ mod persistence {
             };
 
             sql_pending_operation
-                .into_pending_chat_operation(txn)
+                .into_pending_chat_operation(connection)
                 .await
                 .map(Some)
         }
 
         pub(crate) async fn is_pending_for_chat(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl ReadConnection,
             chat_id: ChatId,
         ) -> sqlx::Result<bool> {
             let record = query!(
@@ -858,14 +863,14 @@ mod persistence {
             WHERE c.chat_id = ? LIMIT 1) AS row_exists",
                 chat_id,
             )
-            .fetch_one(executor)
+            .fetch_one(connection.as_mut())
             .await?;
             Ok(record.row_exists == 1)
         }
 
         /// Dequeue a PendingChatOperation for retry by the OutboundService.
         pub(crate) async fn dequeue(
-            txn: &mut SqliteTransaction<'_>,
+            txn: &mut WriteDbTransaction<'_>,
             task_id: Uuid,
             now: DateTime<Utc>,
         ) -> anyhow::Result<Option<Self>> {
@@ -917,7 +922,7 @@ mod persistence {
         }
 
         pub(crate) async fn delete(
-            executor: impl SqliteExecutor<'_>,
+            mut connection: impl WriteConnection,
             group_id: &GroupId,
         ) -> sqlx::Result<()> {
             let group_id = group_id.as_slice();
@@ -926,7 +931,7 @@ mod persistence {
                 "DELETE FROM pending_chat_operation WHERE group_id = ?",
                 group_id
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             Ok(())
         }
@@ -935,6 +940,8 @@ mod persistence {
 
 #[cfg(any(test, feature = "test_utils"))]
 pub mod test_utils {
+
+    use crate::db_access::ReadConnection;
 
     use super::*;
 
@@ -945,17 +952,17 @@ pub mod test_utils {
     }
 
     impl PendingChatOperationInfo {
-        pub async fn load(
-            txn: &mut SqliteTransaction<'_>,
+        pub(crate) async fn load(
+            connection: impl ReadConnection,
             chat_id: &ChatId,
         ) -> anyhow::Result<Option<Self>> {
-            let pco = PendingChatOperation::load(txn, chat_id).await?.map(|pco| {
-                PendingChatOperationInfo {
+            let pco = PendingChatOperation::load(connection, chat_id)
+                .await?
+                .map(|pco| PendingChatOperationInfo {
                     operation_type: pco.operation.to_string(),
                     request_status: pco.status.to_string(),
                     number_of_attempts: pco.number_of_attempts,
-                }
-            });
+                });
 
             Ok(pco)
         }
@@ -970,20 +977,19 @@ mod tests {
         identifiers::{QualifiedGroupId, UserId},
     };
     use chrono::{Duration, Utc};
-    use sqlx::SqlitePool;
     use uuid::Uuid;
 
     use crate::{
-        ChatAttributes, groups::GroupDataBytes, store::StoreNotifier,
+        ChatAttributes, db_access::DbAccess, groups::GroupDataBytes,
         utils::persistence::open_db_in_memory,
     };
 
     use super::*;
 
     async fn setup_group_and_chat()
-    -> anyhow::Result<(SqlitePool, VerifiedGroup, ChatId, ClientSigningKey)> {
-        let pool = open_db_in_memory().await?;
-        let mut connection = pool.acquire().await?;
+    -> anyhow::Result<(DbAccess, VerifiedGroup, ChatId, ClientSigningKey)> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let mut connection = pool.write().await?;
 
         let user_id = UserId::random("example.com".parse().unwrap());
         let (_aic_sk, signing_key) = create_test_credentials(user_id.clone());
@@ -1001,16 +1007,15 @@ mod tests {
             group_id.clone(),
             group_data_bytes,
         )?;
-        group.store(&mut *connection).await?;
+        group.store(&mut connection).await?;
         let group = VerifiedGroup::new_for_test(group);
 
-        let mut notifier = StoreNotifier::noop();
         let chat = Chat::new_group_chat(
             group_id.clone(),
             ChatAttributes::new("Test chat".into(), None),
         );
         let chat_id = chat.id();
-        chat.store(&mut connection, &mut notifier).await?;
+        chat.store(&mut connection).await?;
 
         Ok((pool, group, chat_id, signing_key))
     }
@@ -1018,17 +1023,15 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn store_and_load_roundtrip() -> anyhow::Result<()> {
         let (pool, mut group, chat_id, signing_key) = setup_group_and_chat().await?;
-        let mut connection = pool.acquire().await?;
 
         let leave_params = group
             .group_mut()
-            .stage_leave_group(&mut connection, &signing_key)?;
+            .stage_leave_group(pool.write().await?, &signing_key)?;
         let pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
 
-        pending.store(&mut connection).await?;
+        pending.store(pool.write().await?).await?;
 
-        let loaded = connection
-            .with_transaction(async |txn| PendingChatOperation::load(txn, &chat_id).await)
+        let loaded = PendingChatOperation::load(pool.read().await?, &chat_id)
             .await?
             .expect("Loading stored operation failed");
 
@@ -1042,7 +1045,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn update_retry_due_at_persists() -> anyhow::Result<()> {
         let (pool, mut group, chat_id, signing_key) = setup_group_and_chat().await?;
-        let mut connection = pool.acquire().await?;
+        let mut connection = pool.write().await?;
 
         let leave_params = group
             .group_mut()
@@ -1052,11 +1055,10 @@ mod tests {
 
         let new_timestamp = Utc::now() + Duration::seconds(30);
         pending
-            .update_retry_due_at(connection.as_mut(), new_timestamp)
+            .update_retry_due_at(&mut connection, new_timestamp)
             .await?;
 
-        let reloaded = connection
-            .with_transaction(async |txn| PendingChatOperation::load(txn, &chat_id).await)
+        let reloaded = PendingChatOperation::load(&mut connection, &chat_id)
             .await?
             .expect("should load");
         assert_eq!(reloaded.retry_due_at, Some(new_timestamp));
@@ -1067,7 +1069,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn mark_as_waiting_for_queue_response_updates_status() -> anyhow::Result<()> {
         let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
-        let mut connection = pool.acquire().await?;
+        let mut connection = pool.write().await?;
 
         let leave_params = group
             .group_mut()
@@ -1080,11 +1082,11 @@ mod tests {
         let now = Utc::now();
         connection
             .with_transaction(async |txn| {
-                let ready = PendingChatOperation::dequeue(txn, uuid, now).await?;
+                let ready = PendingChatOperation::dequeue(&mut *txn, uuid, now).await?;
                 assert!(ready.is_some());
 
                 pending
-                    .mark_as_waiting_for_queue_response(txn.as_mut())
+                    .mark_as_waiting_for_queue_response(&mut *txn)
                     .await?;
 
                 // After marking, it should no longer be returned for retries.
@@ -1100,7 +1102,7 @@ mod tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn delete_removes_pending_operation() -> anyhow::Result<()> {
         let (pool, mut group, chat_id, signing_key) = setup_group_and_chat().await?;
-        let mut connection = pool.acquire().await?;
+        let mut connection = pool.write().await?;
 
         let leave_params = group
             .group_mut()
@@ -1111,9 +1113,9 @@ mod tests {
         // Delete and ensure the row is gone.
         connection
             .with_transaction(async |txn| {
-                PendingChatOperation::delete(txn.as_mut(), pending.group.group_id()).await?;
+                PendingChatOperation::delete(&mut *txn, pending.group.group_id()).await?;
 
-                let loaded = PendingChatOperation::load(txn, &chat_id).await?;
+                let loaded = PendingChatOperation::load(&mut *txn, &chat_id).await?;
                 assert!(loaded.is_none());
 
                 let uuid = Uuid::new_v4();

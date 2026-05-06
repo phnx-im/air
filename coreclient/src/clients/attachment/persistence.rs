@@ -6,11 +6,14 @@ use aircommon::identifiers::AttachmentId;
 use chrono::{DateTime, Utc};
 use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
 use sqlx::{
-    Database, Decode, Encode, Sqlite, SqliteExecutor, Type, encode::IsNull, error::BoxDynError,
-    query, query_as, query_scalar,
+    Database, Decode, Encode, Sqlite, Type, encode::IsNull, error::BoxDynError, query, query_as,
+    query_scalar,
 };
 
-use crate::{ChatId, MessageId, store::StoreNotifier};
+use crate::{
+    ChatId, MessageId,
+    db_access::{ReadConnection, WriteConnection},
+};
 
 /// A record of an attachment.
 ///
@@ -136,8 +139,7 @@ impl<'r> Decode<'r, Sqlite> for AttachmentStatus {
 impl AttachmentRecord {
     pub(crate) async fn store(
         &self,
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
+        mut connection: impl WriteConnection,
         content: Option<&[u8]>,
     ) -> sqlx::Result<()> {
         query!(
@@ -158,14 +160,14 @@ impl AttachmentRecord {
             self.status,
             self.created_at,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
-        notifier.add(self.attachment_id);
+        connection.notifier().add(self.attachment_id);
         Ok(())
     }
 
     pub(crate) async fn load_all_pending(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
     ) -> sqlx::Result<Vec<AttachmentId>> {
         query_scalar!(
             r#"SELECT
@@ -175,12 +177,12 @@ impl AttachmentRecord {
             ORDER BY created_at ASC"#,
             AttachmentStatus::Pending
         )
-        .fetch_all(executor)
+        .fetch_all(connection.as_mut())
         .await
     }
 
     pub(crate) async fn load(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         attachment_id: AttachmentId,
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
@@ -197,12 +199,12 @@ impl AttachmentRecord {
                 WHERE attachment_id = ?"#,
             attachment_id
         )
-        .fetch_optional(executor)
+        .fetch_optional(connection.as_mut())
         .await
     }
 
     pub(crate) async fn status(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         attachment_id: AttachmentId,
     ) -> sqlx::Result<Option<AttachmentStatus>> {
         query_scalar!(
@@ -210,12 +212,12 @@ impl AttachmentRecord {
             FROM attachment WHERE attachment_id = ?"#,
             attachment_id,
         )
-        .fetch_optional(executor)
+        .fetch_optional(connection.as_mut())
         .await
     }
 
     pub(crate) async fn update_status(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl WriteConnection,
         attachment_id: AttachmentId,
         status: AttachmentStatus,
     ) -> sqlx::Result<()> {
@@ -224,14 +226,13 @@ impl AttachmentRecord {
             status,
             attachment_id,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
         Ok(())
     }
 
     pub(crate) async fn set_content(
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
+        mut connection: impl WriteConnection,
         attachment_id: AttachmentId,
         bytes: &[u8],
     ) -> sqlx::Result<()> {
@@ -241,14 +242,14 @@ impl AttachmentRecord {
             bytes,
             attachment_id,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
-        notifier.update(attachment_id);
+        connection.notifier().update(attachment_id);
         Ok(())
     }
 
     pub(crate) async fn load_content(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         attachment_id: AttachmentId,
     ) -> sqlx::Result<AttachmentContent> {
         struct SqlParts {
@@ -263,7 +264,7 @@ impl AttachmentRecord {
             FROM attachment WHERE attachment_id = ?"#,
             attachment_id
         )
-        .fetch_optional(executor)
+        .fetch_optional(connection.as_mut())
         .await?;
         match record {
             Some(record) => Ok(AttachmentContent::from_parts(record.content, record.status)),
@@ -272,10 +273,10 @@ impl AttachmentRecord {
     }
 
     pub(crate) async fn copy(
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
+        mut connection: impl WriteConnection,
         src_id: AttachmentId,
         dst_id: AttachmentId,
+        notify: bool,
     ) -> sqlx::Result<()> {
         query!(
             "INSERT INTO attachment (
@@ -293,24 +294,28 @@ impl AttachmentRecord {
             src_id,
             dst_id,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
-        notifier.add(dst_id);
+        if notify {
+            connection.notifier().add(dst_id);
+        }
         Ok(())
     }
 
     pub(crate) async fn delete(
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
+        mut connection: impl WriteConnection,
         attachment_id: AttachmentId,
+        notify: bool,
     ) -> sqlx::Result<()> {
         query!(
             "DELETE FROM attachment WHERE attachment_id = ?",
             attachment_id
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
-        notifier.remove(attachment_id);
+        if notify {
+            connection.notifier().remove(attachment_id);
+        }
         Ok(())
     }
 
@@ -319,8 +324,7 @@ impl AttachmentRecord {
     /// This is used for network deletions where the message content becomes NullPart
     /// but the message row remains (so FK cascade doesn't apply).
     pub(crate) async fn delete_by_message_id(
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
+        mut connection: impl WriteConnection,
         message_id: MessageId,
     ) -> sqlx::Result<()> {
         // Load attachment_ids and delete in one query with RETURNING
@@ -329,12 +333,12 @@ impl AttachmentRecord {
             RETURNING attachment_id AS "attachment_id: AttachmentId""#,
             message_id
         )
-        .fetch_all(executor)
+        .fetch_all(connection.as_mut())
         .await?;
 
         // Notify for each deleted attachment
         for id in attachment_ids {
-            notifier.remove(id);
+            connection.notifier().remove(id);
         }
         Ok(())
     }
@@ -343,7 +347,7 @@ impl AttachmentRecord {
     ///
     /// This is primarily used for test verification.
     pub(crate) async fn load_ids_by_message_id(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         message_id: MessageId,
     ) -> sqlx::Result<Vec<AttachmentId>> {
         query_scalar!(
@@ -352,7 +356,7 @@ impl AttachmentRecord {
             WHERE message_id = ?"#,
             message_id
         )
-        .fetch_all(executor)
+        .fetch_all(connection.as_mut())
         .await
     }
 }
@@ -371,11 +375,7 @@ pub(crate) struct PendingAttachmentRecord {
 }
 
 impl PendingAttachmentRecord {
-    pub(crate) async fn store(
-        &self,
-        executor: impl SqliteExecutor<'_>,
-        notifier: &mut StoreNotifier,
-    ) -> sqlx::Result<()> {
+    pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
         let size = self.size as i64;
         let enc_alg: u16 = self.enc_alg.into();
         let hash_alg: u8 = self.hash_alg.into();
@@ -399,14 +399,14 @@ impl PendingAttachmentRecord {
             hash_alg,
             self.hash,
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
-        notifier.add(self.attachment_id);
+        connection.notifier().add(self.attachment_id);
         Ok(())
     }
 
     pub(crate) async fn load_pending(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl ReadConnection,
         attachment_id: AttachmentId,
     ) -> sqlx::Result<Option<Self>> {
         struct SqlPendingAttachmentRecord {
@@ -436,7 +436,7 @@ impl PendingAttachmentRecord {
             "#,
             attachment_id
         )
-        .fetch_optional(executor)
+        .fetch_optional(connection.as_mut())
         .await?;
         Ok(record.map(
             |SqlPendingAttachmentRecord {
@@ -463,14 +463,14 @@ impl PendingAttachmentRecord {
     }
 
     pub(crate) async fn delete(
-        executor: impl SqliteExecutor<'_>,
+        mut connection: impl WriteConnection,
         attachment_id: AttachmentId,
     ) -> sqlx::Result<()> {
         query!(
             "DELETE FROM pending_attachment WHERE attachment_id = ?",
             attachment_id
         )
-        .execute(executor)
+        .execute(connection.as_mut())
         .await?;
         Ok(())
     }
@@ -482,8 +482,9 @@ pub(crate) mod test {
     use sqlx::Pool;
     use uuid::Uuid;
 
-    use crate::chats::{
-        messages::persistence::tests::test_chat_message, persistence::tests::test_chat,
+    use crate::{
+        chats::{messages::persistence::tests::test_chat_message, persistence::tests::test_chat},
+        db_access::DbAccess,
     };
 
     use super::*;
@@ -504,19 +505,19 @@ pub(crate) mod test {
 
     #[sqlx::test]
     async fn attachment_record_store_and_load(pool: Pool<Sqlite>) -> anyhow::Result<()> {
-        let mut notifier = StoreNotifier::noop();
+        let pool = DbAccess::for_tests(pool);
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
-            .await?;
+        chat.store(pool.write().await?).await?;
         let message = test_chat_message(chat.id());
-        message.store(&pool, &mut notifier).await?;
+        message.store(pool.write().await?).await?;
         let record = test_attachment_record(chat.id(), message.id());
 
         // Store the record
-        record.store(&pool, &mut notifier, None).await?;
+        record.store(pool.write().await?, None).await?;
 
         // Load the record
-        let loaded_record = AttachmentRecord::load(&pool, record.attachment_id).await?;
+        let loaded_record =
+            AttachmentRecord::load(pool.read().await?, record.attachment_id).await?;
         assert_eq!(loaded_record.as_ref(), Some(&record));
 
         Ok(())
@@ -524,51 +525,60 @@ pub(crate) mod test {
 
     #[sqlx::test]
     async fn attachment_content_lifecycle(pool: Pool<Sqlite>) -> anyhow::Result<()> {
-        let mut notifier = StoreNotifier::noop();
+        let pool = DbAccess::for_tests(pool);
+
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
-            .await?;
+        chat.store(pool.write().await?).await?;
         let message = test_chat_message(chat.id());
-        message.store(&pool, &mut notifier).await?;
+        message.store(pool.write().await?).await?;
         let record = test_attachment_record(chat.id(), message.id());
 
         // 1. Store the record with no content, status should be Pending.
-        record.store(&pool, &mut notifier, None).await?;
-        let loaded_content = AttachmentRecord::load_content(&pool, record.attachment_id).await?;
+        record.store(pool.write().await?, None).await?;
+        let loaded_content =
+            AttachmentRecord::load_content(pool.read().await?, record.attachment_id).await?;
         assert_eq!(loaded_content, AttachmentContent::Pending);
 
         // 2. Update status to Downloading
-        AttachmentRecord::update_status(&pool, record.attachment_id, AttachmentStatus::Downloading)
-            .await?;
-        let loaded_content = AttachmentRecord::load_content(&pool, record.attachment_id).await?;
+        AttachmentRecord::update_status(
+            pool.write().await?,
+            record.attachment_id,
+            AttachmentStatus::Downloading,
+        )
+        .await?;
+        let loaded_content =
+            AttachmentRecord::load_content(pool.read().await?, record.attachment_id).await?;
         assert_eq!(loaded_content, AttachmentContent::Downloading);
 
         // 3. Set the content, which should move the status to Ready
         let content = b"some_image_content".to_vec();
-        AttachmentRecord::set_content(&pool, &mut notifier, record.attachment_id, &content).await?;
+        AttachmentRecord::set_content(pool.write().await?, record.attachment_id, &content).await?;
 
         // Verify content and status
-        let loaded_content = AttachmentRecord::load_content(&pool, record.attachment_id).await?;
+        let loaded_content =
+            AttachmentRecord::load_content(pool.read().await?, record.attachment_id).await?;
         assert_eq!(loaded_content, AttachmentContent::Ready(content.clone()));
 
-        let loaded_record = AttachmentRecord::load(&pool, record.attachment_id)
+        let loaded_record = AttachmentRecord::load(pool.read().await?, record.attachment_id)
             .await?
             .unwrap();
         assert_eq!(loaded_record.status, AttachmentStatus::Ready);
 
         // 4. Update status to Failed
         AttachmentRecord::update_status(
-            &pool,
+            pool.write().await?,
             record.attachment_id,
             AttachmentStatus::DownloadFailed,
         )
         .await?;
-        let loaded_content = AttachmentRecord::load_content(&pool, record.attachment_id).await?;
+        let loaded_content =
+            AttachmentRecord::load_content(pool.read().await?, record.attachment_id).await?;
         assert_eq!(loaded_content, AttachmentContent::DownloadFailed);
 
         // 5. Check loading content for a non-existent attachment
         let non_existent_id = AttachmentId::new(Uuid::new_v4());
-        let loaded_content = AttachmentRecord::load_content(&pool, non_existent_id).await?;
+        let loaded_content =
+            AttachmentRecord::load_content(pool.read().await?, non_existent_id).await?;
         assert_eq!(loaded_content, AttachmentContent::None);
 
         Ok(())
@@ -576,33 +586,33 @@ pub(crate) mod test {
 
     #[sqlx::test]
     async fn load_all_pending_attachments(pool: Pool<Sqlite>) -> anyhow::Result<()> {
-        let mut notifier = StoreNotifier::noop();
+        let pool = DbAccess::for_tests(pool);
+
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
-            .await?;
+        chat.store(pool.write().await?).await?;
         let message = test_chat_message(chat.id());
-        message.store(&pool, &mut notifier).await?;
+        message.store(pool.write().await?).await?;
 
         // Create and store a few attachments with different statuses
         let created_at = Utc::now().round_subsecs(6);
         let mut pending_record_1 = test_attachment_record(chat.id(), message.id());
         pending_record_1.created_at = created_at;
-        pending_record_1.store(&pool, &mut notifier, None).await?;
+        pending_record_1.store(pool.write().await?, None).await?;
 
         let downloading_record = AttachmentRecord {
             status: AttachmentStatus::Downloading,
             ..test_attachment_record(chat.id(), message.id())
         };
-        downloading_record.store(&pool, &mut notifier, None).await?;
+        downloading_record.store(pool.write().await?, None).await?;
 
         let mut pending_record_2 = test_attachment_record(chat.id(), message.id());
         pending_record_2.created_at = created_at
             .checked_add_signed(chrono::Duration::milliseconds(10))
             .unwrap();
-        pending_record_2.store(&pool, &mut notifier, None).await?;
+        pending_record_2.store(pool.write().await?, None).await?;
 
         // Load all pending attachments
-        let pending_ids = AttachmentRecord::load_all_pending(&pool).await?;
+        let pending_ids = AttachmentRecord::load_all_pending(pool.read().await?).await?;
 
         // Check that only the pending ones are returned, in ascending order of creation
         assert_eq!(
@@ -618,18 +628,17 @@ pub(crate) mod test {
 
     #[sqlx::test]
     async fn pending_attachment_record_cycle(pool: Pool<Sqlite>) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
         tracing_subscriber::fmt::try_init().ok();
 
-        let mut notifier = StoreNotifier::noop();
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
-            .await?;
+        chat.store(pool.write().await?).await?;
         let message = test_chat_message(chat.id());
-        message.store(&pool, &mut notifier).await?;
+        message.store(pool.write().await?).await?;
 
         // 1. Create the base AttachmentRecord in Pending state
         let attachment_record = test_attachment_record(chat.id(), message.id());
-        attachment_record.store(&pool, &mut notifier, None).await?;
+        attachment_record.store(pool.write().await?, None).await?;
 
         // 2. Create and store the PendingAttachmentRecord
         let pending_record = PendingAttachmentRecord {
@@ -642,19 +651,26 @@ pub(crate) mod test {
             hash_alg: HashAlgorithm::Sha3_512,
             hash: b"hash".to_vec(),
         };
-        pending_record.store(&pool, &mut notifier).await?;
+        pending_record.store(pool.write().await?).await?;
 
         // 3. Load the pending record and verify it's correct
-        let loaded_pending =
-            PendingAttachmentRecord::load_pending(&pool, attachment_record.attachment_id).await?;
+        let loaded_pending = PendingAttachmentRecord::load_pending(
+            pool.read().await?,
+            attachment_record.attachment_id,
+        )
+        .await?;
         assert_eq!(loaded_pending, Some(pending_record));
 
         // 4. Delete the pending record
-        PendingAttachmentRecord::delete(&pool, attachment_record.attachment_id).await?;
+        PendingAttachmentRecord::delete(pool.write().await?, attachment_record.attachment_id)
+            .await?;
 
         // 5. Try to load it again and assert it's gone
-        let loaded_pending_after_delete =
-            PendingAttachmentRecord::load_pending(&pool, attachment_record.attachment_id).await?;
+        let loaded_pending_after_delete = PendingAttachmentRecord::load_pending(
+            pool.read().await?,
+            attachment_record.attachment_id,
+        )
+        .await?;
         assert_eq!(loaded_pending_after_delete, None);
 
         Ok(())
@@ -664,16 +680,15 @@ pub(crate) mod test {
     async fn load_pending_for_non_pending_attachment_fails(
         pool: Pool<Sqlite>,
     ) -> anyhow::Result<()> {
-        let mut notifier = StoreNotifier::noop();
+        let pool = DbAccess::for_tests(pool);
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
-            .await?;
+        chat.store(pool.write().await?).await?;
         let message = test_chat_message(chat.id());
-        message.store(&pool, &mut notifier).await?;
+        message.store(pool.write().await?).await?;
 
         // 1. Create the base AttachmentRecord and a PendingAttachmentRecord
         let attachment_record = test_attachment_record(chat.id(), message.id());
-        attachment_record.store(&pool, &mut notifier, None).await?;
+        attachment_record.store(pool.write().await?, None).await?;
 
         let pending_record = PendingAttachmentRecord {
             attachment_id: attachment_record.attachment_id,
@@ -685,19 +700,22 @@ pub(crate) mod test {
             hash_alg: HashAlgorithm::Sha3_512,
             hash: b"hash".to_vec(),
         };
-        pending_record.store(&pool, &mut notifier).await?;
+        pending_record.store(pool.write().await?).await?;
 
         // 2. Update the status of the base attachment to something other than Pending
         AttachmentRecord::update_status(
-            &pool,
+            pool.write().await?,
             attachment_record.attachment_id,
             AttachmentStatus::Downloading,
         )
         .await?;
 
         // 3. Try to load the pending record. It should fail because the join on status=1 fails.
-        let loaded_pending =
-            PendingAttachmentRecord::load_pending(&pool, attachment_record.attachment_id).await?;
+        let loaded_pending = PendingAttachmentRecord::load_pending(
+            pool.read().await?,
+            attachment_record.attachment_id,
+        )
+        .await?;
         assert!(loaded_pending.is_none());
 
         Ok(())
@@ -705,13 +723,12 @@ pub(crate) mod test {
 
     #[sqlx::test]
     async fn attachment_record_update_status(pool: Pool<Sqlite>) -> anyhow::Result<()> {
-        let mut notifier = StoreNotifier::noop();
+        let pool = DbAccess::for_tests(pool);
 
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
-            .await?;
+        chat.store(pool.write().await?).await?;
         let message = test_chat_message(chat.id());
-        message.store(&pool, &mut notifier).await?;
+        message.store(pool.write().await?).await?;
 
         let attachment_id = AttachmentId::new(Uuid::new_v4());
         let created_at = Utc::now().round_subsecs(6);
@@ -727,14 +744,20 @@ pub(crate) mod test {
 
         let content = b"some_image_content".to_vec();
 
-        record.store(&pool, &mut notifier, Some(&content)).await?;
-        let loaded_record = AttachmentRecord::load(&pool, attachment_id).await?;
+        record.store(pool.write().await?, Some(&content)).await?;
+        let loaded_record = AttachmentRecord::load(pool.read().await?, attachment_id).await?;
         assert_eq!(loaded_record.unwrap(), record);
-        let loaded_content = AttachmentRecord::load_content(&pool, attachment_id).await?;
+        let loaded_content =
+            AttachmentRecord::load_content(pool.read().await?, attachment_id).await?;
         assert_eq!(loaded_content, AttachmentContent::Pending);
 
-        AttachmentRecord::update_status(&pool, attachment_id, AttachmentStatus::Ready).await?;
-        let loaded_record = AttachmentRecord::load(&pool, attachment_id).await?;
+        AttachmentRecord::update_status(
+            pool.write().await?,
+            attachment_id,
+            AttachmentStatus::Ready,
+        )
+        .await?;
+        let loaded_record = AttachmentRecord::load(pool.read().await?, attachment_id).await?;
         assert_eq!(
             loaded_record.unwrap(),
             AttachmentRecord {
@@ -742,7 +765,8 @@ pub(crate) mod test {
                 ..record
             }
         );
-        let loaded_content = AttachmentRecord::load_content(&pool, attachment_id).await?;
+        let loaded_content =
+            AttachmentRecord::load_content(pool.read().await?, attachment_id).await?;
         assert_eq!(loaded_content, AttachmentContent::Ready(content));
 
         Ok(())
@@ -750,29 +774,30 @@ pub(crate) mod test {
 
     #[sqlx::test]
     async fn delete_message_cascade_attachment(pool: Pool<Sqlite>) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
         use crate::ChatMessage;
 
-        let mut notifier = StoreNotifier::noop();
-
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
-            .await?;
+        chat.store(pool.write().await?).await?;
         let message = test_chat_message(chat.id());
-        message.store(&pool, &mut notifier).await?;
+        message.store(pool.write().await?).await?;
         let record = test_attachment_record(chat.id(), message.id());
 
         // Store the attachment
-        record.store(&pool, &mut notifier, None).await?;
+        record.store(pool.write().await?, None).await?;
 
         // Verify attachment exists
-        let loaded_record = AttachmentRecord::load(&pool, record.attachment_id).await?;
+        let loaded_record =
+            AttachmentRecord::load(pool.read().await?, record.attachment_id).await?;
         assert!(loaded_record.is_some());
 
         // Delete the message - FK cascade should delete the attachment
-        ChatMessage::delete(&pool, &mut notifier, message.id()).await?;
+        ChatMessage::delete(pool.write().await?, message.id()).await?;
 
         // Verify the attachment is gone (FK cascade)
-        let loaded_record = AttachmentRecord::load(&pool, record.attachment_id).await?;
+        let loaded_record =
+            AttachmentRecord::load(pool.read().await?, record.attachment_id).await?;
         assert!(
             loaded_record.is_none(),
             "Attachment should be deleted by FK cascade when message is deleted"
@@ -783,39 +808,39 @@ pub(crate) mod test {
 
     #[sqlx::test]
     async fn delete_attachment_by_message_id(pool: Pool<Sqlite>) -> anyhow::Result<()> {
-        let mut notifier = StoreNotifier::noop();
+        let pool = DbAccess::for_tests(pool);
 
         let chat = test_chat();
-        chat.store(pool.acquire().await?.as_mut(), &mut notifier)
-            .await?;
+        chat.store(pool.write().await?).await?;
         let message = test_chat_message(chat.id());
-        message.store(&pool, &mut notifier).await?;
+        message.store(pool.write().await?).await?;
 
         // Create two attachments for the same message
         let record1 = test_attachment_record(chat.id(), message.id());
         let record2 = test_attachment_record(chat.id(), message.id());
 
-        record1.store(&pool, &mut notifier, None).await?;
-        record2.store(&pool, &mut notifier, None).await?;
+        record1.store(pool.write().await?, None).await?;
+        record2.store(pool.write().await?, None).await?;
 
         // Verify both attachments exist
-        let loaded1 = AttachmentRecord::load(&pool, record1.attachment_id).await?;
-        let loaded2 = AttachmentRecord::load(&pool, record2.attachment_id).await?;
+        let loaded1 = AttachmentRecord::load(pool.read().await?, record1.attachment_id).await?;
+        let loaded2 = AttachmentRecord::load(pool.read().await?, record2.attachment_id).await?;
         assert!(loaded1.is_some());
         assert!(loaded2.is_some());
 
         // Also verify load_ids_by_message_id returns both
-        let ids = AttachmentRecord::load_ids_by_message_id(&pool, message.id()).await?;
+        let ids =
+            AttachmentRecord::load_ids_by_message_id(pool.read().await?, message.id()).await?;
         assert_eq!(ids.len(), 2);
         assert!(ids.contains(&record1.attachment_id));
         assert!(ids.contains(&record2.attachment_id));
 
         // Delete attachments by message_id
-        AttachmentRecord::delete_by_message_id(&pool, &mut notifier, message.id()).await?;
+        AttachmentRecord::delete_by_message_id(pool.write().await?, message.id()).await?;
 
         // Verify both attachments are gone
-        let loaded1 = AttachmentRecord::load(&pool, record1.attachment_id).await?;
-        let loaded2 = AttachmentRecord::load(&pool, record2.attachment_id).await?;
+        let loaded1 = AttachmentRecord::load(pool.read().await?, record1.attachment_id).await?;
+        let loaded2 = AttachmentRecord::load(pool.read().await?, record2.attachment_id).await?;
         assert!(
             loaded1.is_none(),
             "First attachment should be deleted by delete_by_message_id"
@@ -826,7 +851,8 @@ pub(crate) mod test {
         );
 
         // Verify load_ids_by_message_id returns empty
-        let ids = AttachmentRecord::load_ids_by_message_id(&pool, message.id()).await?;
+        let ids =
+            AttachmentRecord::load_ids_by_message_id(pool.read().await?, message.id()).await?;
         assert!(ids.is_empty());
 
         Ok(())

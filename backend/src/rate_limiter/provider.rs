@@ -90,7 +90,7 @@ pub(crate) mod persistence {
             Ok(())
         }
 
-        /// Delete all expried allowances.
+        /// Delete all expired allowances.
         #[allow(dead_code)]
         pub(in crate::rate_limiter) async fn delete_expired(
             connection: impl PgExecutor<'_>,

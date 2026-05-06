@@ -29,16 +29,22 @@ impl ChatMessageQueue {
 mod persistence {
     use aircommon::time::TimeStamp;
     use mimi_content::MessageStatus;
-    use sqlx::{SqliteExecutor, SqliteTransaction, query, query_as, query_scalar};
+    use sqlx::{query, query_as, query_scalar};
     use tracing::debug;
     use uuid::Uuid;
 
-    use crate::{clients::attachment::persistence::PendingAttachmentRecord, store::StoreNotifier};
+    use crate::{
+        clients::attachment::persistence::PendingAttachmentRecord,
+        db_access::{WriteConnection, WriteDbTransaction},
+    };
 
     use super::*;
 
     impl ChatMessageQueue {
-        pub(crate) async fn enqueue(&self, executor: impl SqliteExecutor<'_>) -> sqlx::Result<()> {
+        pub(crate) async fn enqueue(
+            &self,
+            mut connection: impl WriteConnection,
+        ) -> sqlx::Result<()> {
             debug!(
                 ?self.message_id, "Enqueueing chat message"
             );
@@ -55,13 +61,13 @@ mod persistence {
                 self.attachment_id,
                 now,
             )
-            .execute(executor)
+            .execute(connection.as_mut())
             .await?;
             Ok(())
         }
 
         pub(crate) async fn dequeue(
-            txn: &mut SqliteTransaction<'_>,
+            txn: &mut WriteDbTransaction<'_>,
             task_id: Uuid,
         ) -> anyhow::Result<Option<(ChatId, MessageId)>> {
             let Some(message_id) = query_scalar!(
@@ -110,7 +116,7 @@ mod persistence {
         }
 
         pub(crate) async fn remove(
-            txn: &mut SqliteTransaction<'_>,
+            txn: &mut WriteDbTransaction<'_>,
             message_id: MessageId,
         ) -> sqlx::Result<()> {
             let attachment_id = query_scalar!(
@@ -124,7 +130,7 @@ mod persistence {
             .await?;
 
             if let Some(attachment_id) = attachment_id {
-                PendingAttachmentRecord::delete(txn.as_mut(), attachment_id).await?;
+                PendingAttachmentRecord::delete(txn, attachment_id).await?;
             }
 
             Ok(())
@@ -132,8 +138,7 @@ mod persistence {
 
         pub(crate) async fn remove_and_mark_as_failed(
             &self,
-            txn: &mut SqliteTransaction<'_>,
-            notifier: &mut StoreNotifier,
+            txn: &mut WriteDbTransaction<'_>,
         ) -> sqlx::Result<()> {
             let failed_status: u8 = MessageStatus::Error.into();
             query!(
@@ -157,7 +162,7 @@ mod persistence {
             )
             .execute(txn.as_mut())
             .await?;
-            notifier.update(self.message_id);
+            txn.notifier().update(self.message_id);
             Ok(())
         }
 
@@ -168,8 +173,7 @@ mod persistence {
         /// - Delete all pending attachments associated with the queued messages
         /// - Notify about all marked messages
         pub(crate) async fn remove_all_and_and_mark_as_failed(
-            txn: &mut SqliteTransaction<'_>,
-            notifier: &mut StoreNotifier,
+            txn: &mut WriteDbTransaction<'_>,
         ) -> sqlx::Result<()> {
             let failed_status: u8 = MessageStatus::Error.into();
             let marked_messages: Vec<MessageId> = query_scalar!(
@@ -192,7 +196,7 @@ mod persistence {
             .await?;
 
             for message_id in marked_messages {
-                notifier.update(message_id);
+                txn.notifier().update(message_id);
             }
 
             Ok(())
