@@ -19,6 +19,8 @@ import 'package:air/widgets/anchored_list/controller.dart';
 import 'package:air/widgets/widgets.dart';
 
 import 'chat_tile.dart';
+import 'date_divider.dart';
+import 'floating_date_header.dart';
 import 'message_cubit.dart';
 import 'message_list_cubit.dart';
 import 'scroll_to_bottom_controller.dart';
@@ -70,6 +72,16 @@ class _MessageListViewState extends State<MessageListView>
   StreamSubscription<Set<MessageId>>? _incomingMessagesSubscription;
   bool _initialUnreadScrollHandled = false;
 
+  /// Whether the user is currently scrolling (or has scrolled within the
+  /// last [_floatingHeaderHideDelay]). Drives the floating date header's
+  /// fade-in/out so the pill stays out of the way when the user isn't
+  /// actively orienting in the timeline.
+  ///
+  /// We use a [ValueNotifier] (rather than [State.setState]) so the change
+  /// only rebuilds the header itself, not the surrounding tree.
+  final ValueNotifier<bool> _scrollActive = ValueNotifier<bool>(false);
+  Timer? _floatingHeaderHideTimer;
+
   @override
   void initState() {
     super.initState();
@@ -108,6 +120,8 @@ class _MessageListViewState extends State<MessageListView>
       _markCurrentVisibleMessageAsRead,
     );
     _listController.dispose();
+    _floatingHeaderHideTimer?.cancel();
+    _scrollActive.dispose();
     super.dispose();
   }
 
@@ -188,6 +202,31 @@ class _MessageListViewState extends State<MessageListView>
     );
   }
 
+  /// Shows the floating header during active scroll and hides it again
+  /// after [_floatingHeaderHideDelay] of inactivity.
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollUpdateNotification) {
+      _floatingHeaderHideTimer?.cancel();
+      _scrollActive.value = true;
+    } else if (notification is ScrollEndNotification) {
+      _floatingHeaderHideTimer?.cancel();
+      _floatingHeaderHideTimer = Timer(_floatingHeaderHideDelay, () {
+        if (!mounted) return;
+        _scrollActive.value = false;
+      });
+    }
+    return false;
+  }
+
+  /// Resolves the timestamp of the message with [id], for the floating
+  /// header. Returns null if the id is unknown or the loaded data has been
+  /// trimmed past it.
+  DateTime? _resolveMessageTimestamp(Object id) {
+    if (id is! MessageId) return null;
+    final state = context.read<MessageListCubit>().state;
+    return state.messageById(id)?.timestamp;
+  }
+
   void _handleCommand(MessageListCommand command) {
     switch (command) {
       case MessageListCommand_ScrollToBottom():
@@ -244,6 +283,16 @@ class _MessageListViewState extends State<MessageListView>
     const fadeBleeding = Spacings.xl;
     // How much the list should be inset
     final topInset = mediaPadding.top + fadeBleeding;
+    // Y-coordinate of the floating date pill's top edge. Sits just below
+    // the safe area, in the toolbar zone — the inline divider is hidden
+    // when its pill reaches this slot, making the swap visually in-place.
+    final pillTop = mediaPadding.top + Spacings.s;
+    // Item-top y-coordinate at or above which the inline-to-floating pill swap
+    // fires. The inline divider's pill sits [Spacings.l] below the divider's
+    // top, so when an item's top reaches this y, its pill aligns with
+    // [pillTop]. Both the inline-pill hide and the floating-pill show gate on
+    // this threshold so they stay in sync.
+    final swapTopThreshold = pillTop - Spacings.l;
     // Height of the safe area above the toolbar
     final statusBarHeight = max(mediaPadding.top - kToolbarHeight, 0.0);
     // Total height of the fade
@@ -252,30 +301,50 @@ class _MessageListViewState extends State<MessageListView>
     final bgColor = CustomColorScheme.of(context).backgroundBase.primary;
 
     Widget buildAnchoredList({double bottomPadding = 0.0}) {
-      return AnchoredList<UiChatMessage>(
-        data: context.read<MessageListCubit>().messageData,
-        controller: _listController,
-        idExtractor: (msg) => msg.id,
-        topPadding: topInset,
-        bottomPadding: bottomPadding,
-        canLoadOlder: state.hasOlder,
-        canLoadNewer: state.hasNewer,
-        onLoadOlder: () {
-          context.read<MessageListCubit>().loadOlder();
-        },
-        onLoadNewer: () {
-          context.read<MessageListCubit>().loadNewer();
-        },
-        onLoadAround: (id) async {
-          if (id is MessageId) {
-            await context.read<MessageListCubit>().jumpToMessage(messageId: id);
-          }
-        },
-        itemBuilder: (context, message, index) {
-          return _buildMessageTile(state, message);
-        },
+      return NotificationListener<ScrollNotification>(
+        onNotification: _handleScrollNotification,
+        child: AnchoredList<UiChatMessage>(
+          data: context.read<MessageListCubit>().messageData,
+          controller: _listController,
+          idExtractor: (msg) => msg.id,
+          topPadding: topInset,
+          bottomPadding: bottomPadding,
+          oldestVisibleTopThreshold: swapTopThreshold,
+          canLoadOlder: state.hasOlder,
+          canLoadNewer: state.hasNewer,
+          onLoadOlder: () {
+            context.read<MessageListCubit>().loadOlder();
+          },
+          onLoadNewer: () {
+            context.read<MessageListCubit>().loadNewer();
+          },
+          onLoadAround: (id) async {
+            if (id is MessageId) {
+              await context.read<MessageListCubit>().jumpToMessage(
+                messageId: id,
+              );
+            }
+          },
+          itemBuilder: (context, message, index) {
+            return _buildMessageTile(state, message, index);
+          },
+        ),
       );
     }
+
+    final floatingHeader = Positioned(
+      top: pillTop,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: FloatingDateHeader(
+          oldestVisibleId: _listController.oldestVisibleId,
+          isOldestVisibleHoisted: _listController.isOldestVisibleHoisted,
+          resolveTimestamp: _resolveMessageTimestamp,
+          scrollActive: _scrollActive,
+        ),
+      ),
+    );
 
     // Status bar cover: solid block above the toolbar.
     final statusBarCover = Positioned.fill(
@@ -299,7 +368,12 @@ class _MessageListViewState extends State<MessageListView>
     if (composerHeightListenable == null) {
       return Stack(
         clipBehavior: Clip.none,
-        children: [buildAnchoredList(), statusBarCover, headerFade],
+        children: [
+          buildAnchoredList(),
+          statusBarCover,
+          headerFade,
+          floatingHeader,
+        ],
       );
     }
     // Layer the list, a bottom fade gradient, and a manual scrollbar so that:
@@ -360,6 +434,7 @@ class _MessageListViewState extends State<MessageListView>
                 bottomSafeCover,
                 statusBarCover,
                 headerFade,
+                floatingHeader,
               ],
             ),
           ),
@@ -368,16 +443,20 @@ class _MessageListViewState extends State<MessageListView>
     );
   }
 
-  /// Builds a single message row, optionally preceded by the unread divider.
+  /// Builds a single message row, optionally preceded by date and unread
+  /// dividers (in that visual order, top-to-bottom).
   Widget _buildMessageTile(
     MessageListStateWrapper state,
     UiChatMessage message,
+    int index,
   ) {
     final animated = _animatingMessages.contains(message.id);
 
     final isFirstUnread =
         state.firstUnreadIndex != null &&
         state.messageAt(state.firstUnreadIndex!)?.id == message.id;
+
+    final showDateDivider = _shouldShowDateDivider(state, message, index);
 
     Widget tile = _MessageTileCubitHost(
       key: ValueKey(message.id),
@@ -390,19 +469,69 @@ class _MessageListViewState extends State<MessageListView>
       ),
     );
 
-    // Insert "N unread messages" divider above the first unread message.
-    if (isFirstUnread) {
-      final unreadCount = state.messageData.length - state.firstUnreadIndex!;
-      tile = Column(
-        children: [
-          UnreadDivider(count: unreadCount),
-          tile,
-        ],
-      );
-    }
+    if (!showDateDivider && !isFirstUnread) return tile;
 
-    return tile;
+    final unreadCount = isFirstUnread
+        ? state.messageData.length - state.firstUnreadIndex!
+        : 0;
+    // The inline [DateDivider] is hidden (but keeps its layout space) only
+    // once its pill has actually risen to the floating pill's slot — i.e.
+    // when this message is the oldest visible *and* the controller reports
+    // it as hoisted. The floating header gates on the same boolean so the
+    // swap is symmetric.
+    final inlineDivider = showDateDivider
+        ? AnimatedBuilder(
+            animation: Listenable.merge([
+              _listController.oldestVisibleId,
+              _listController.isOldestVisibleHoisted,
+            ]),
+            builder: (context, child) {
+              final isOldest =
+                  _listController.currentOldestVisibleId == message.id;
+              final hoisted = _listController.isOldestVisibleHoisted.value;
+              return Visibility(
+                visible: !(isOldest && hoisted),
+                maintainSize: true,
+                maintainAnimation: true,
+                maintainState: true,
+                child: child!,
+              );
+            },
+            child: DateDivider(date: message.timestamp),
+          )
+        : null;
+    return Column(
+      children: [
+        ?inlineDivider,
+        if (isFirstUnread) UnreadDivider(count: unreadCount),
+        tile,
+      ],
+    );
   }
+
+  /// True when [message] is the first message of its local day visible in the
+  /// list. We render a divider above the topmost loaded message only when no
+  /// older messages remain to load.
+  bool _shouldShowDateDivider(
+    MessageListStateWrapper state,
+    UiChatMessage message,
+    int index,
+  ) {
+    final olderIndex = index + 1;
+    if (olderIndex >= state.messageData.length) {
+      return !state.hasOlder;
+    }
+    final older = state.messageData[olderIndex];
+    return !_isSameLocalDay(older.timestamp, message.timestamp);
+  }
+}
+
+bool _isSameLocalDay(DateTime a, DateTime b) {
+  final aLocal = a.toLocal();
+  final bLocal = b.toLocal();
+  return aLocal.year == bLocal.year &&
+      aLocal.month == bLocal.month &&
+      aLocal.day == bLocal.day;
 }
 
 const double _bottomGap = Spacings.s;
@@ -411,6 +540,10 @@ const double _bottomGap = Spacings.s;
 /// Chosen comfortably larger than the animation duration so the tile always
 /// has time to mount and play the animation once.
 const Duration _animationWindow = motionLong;
+
+/// Delay between scroll settling and the floating date header fading out,
+/// so the label remains briefly readable after the user stops scrolling.
+const Duration _floatingHeaderHideDelay = motionLong;
 
 /// Owns a [MessageCubit] for a single message tile.
 ///

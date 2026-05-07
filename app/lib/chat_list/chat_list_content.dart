@@ -663,7 +663,7 @@ String formatTimestamp(
       now.difference(timestamp).inMinutes,
     ),
     TimestampCategory.today => DateFormat(timePattern).format(timestamp),
-    TimestampCategory.yesterday => loc.timestamp_yesterday,
+    TimestampCategory.yesterday => loc.date_yesterday,
     TimestampCategory.thisWeek => DateFormat.E(locale).format(timestamp),
     TimestampCategory.thisYear => DateFormat(
       _stripYear(datePattern),
