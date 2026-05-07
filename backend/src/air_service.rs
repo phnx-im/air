@@ -4,7 +4,7 @@
 
 use aircommon::identifiers::Fqdn;
 use semver::VersionReq;
-use sqlx::{Executor, PgPool};
+use sqlx::{Connection, Executor, PgConnection, PgPool};
 use thiserror::Error;
 use tracing::info;
 
@@ -37,8 +37,8 @@ pub trait BackendService: Sized {
         domain: Fqdn,
         client_version_req: Option<semver::VersionReq>,
     ) -> Result<Self, ServiceCreationError> {
-        let connection =
-            PgPool::connect(&database_settings.connection_string_without_database()).await?;
+        let mut connection =
+            PgConnection::connect(&database_settings.connection_string_without_database()).await?;
 
         let db_name = database_settings.name.as_str();
         let db_exists = sqlx::query!(
@@ -47,7 +47,7 @@ pub trait BackendService: Sized {
             )",
             db_name,
         )
-        .fetch_one(&connection)
+        .fetch_one(&mut connection)
         .await?;
 
         if !db_exists.exists.unwrap_or(false) {

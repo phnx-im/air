@@ -19,6 +19,7 @@ use airserver::{
 use anyhow::{Context, bail};
 use clap::Parser;
 use tokio::net::TcpListener;
+use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 #[tokio::main]
@@ -136,6 +137,15 @@ async fn main() -> anyhow::Result<()> {
         network: network_provider.clone(),
     };
 
+    let shutdown = CancellationToken::new();
+    tokio::spawn({
+        let shutdown = shutdown.clone();
+        async move {
+            let _ = tokio::signal::ctrl_c().await;
+            shutdown.cancel();
+        }
+    });
+
     // Start the server
     let server = run(
         ServerRunParams {
@@ -146,6 +156,7 @@ async fn main() -> anyhow::Result<()> {
             qs,
             qs_connector,
             rate_limits: configuration.ratelimits,
+            shutdown,
         },
         #[cfg(any(feature = "test_utils", test))]
         Ok,

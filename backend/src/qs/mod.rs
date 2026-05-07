@@ -61,6 +61,8 @@
 //! smaller than the smallest requested one and responds with the requested
 //! messages.
 
+use std::sync::Arc;
+
 use aircommon::{
     identifiers::{Fqdn, QsClientId},
     messages::{QueueMessage, client_ds::DsEventMessage, push_token::PushToken},
@@ -70,6 +72,7 @@ use client_id_decryption_key::StorableClientIdDecryptionKey;
 use metrics::describe_gauge;
 use semver::VersionReq;
 use sqlx::PgPool;
+use tokio_util::sync::{CancellationToken, DropGuard};
 
 use crate::{
     air_service::{BackendService, ServiceCreationError},
@@ -96,6 +99,8 @@ pub struct Qs {
     db_pool: PgPool,
     queues: Queues,
     client_version_req: Option<VersionReq>,
+    stop: CancellationToken,
+    _stop: Arc<DropGuard>,
 }
 
 pub(crate) const METRIC_AIR_QS_TOTAL_USERS: &str = "air_qs_total_users";
@@ -121,13 +126,16 @@ impl BackendService for Qs {
                 .map_err(|e| ServiceCreationError::InitializationFailed(Box::new(e)))?;
         }
 
-        let queues = Queues::new(db_pool.clone()).await?;
+        let stop = CancellationToken::new();
+        let queues = Queues::new(db_pool.clone(), stop.clone()).await?;
 
         Ok(Self {
             domain,
             db_pool,
             queues,
             client_version_req,
+            stop: stop.clone(),
+            _stop: Arc::new(stop.drop_guard()),
         })
     }
 

@@ -14,7 +14,7 @@ use airbackend::{
     auth_service::AuthService,
     ds::{Ds, storage::Storage},
     qs::Qs,
-    settings::RateLimitsSettings,
+    settings::{DatabaseSettings, RateLimitsSettings},
 };
 use aircommon::identifiers::Fqdn;
 use airserver::{
@@ -22,7 +22,14 @@ use airserver::{
     enqueue_provider::SimpleEnqueueProvider, network_provider::MockNetworkProvider,
     push_notification_provider::ProductionPushNotificationProvider, run,
 };
+use sqlx::{Connection, PgConnection, Row};
+use tokio::{
+    runtime::Handle,
+    task::{JoinHandle, block_in_place},
+};
+use tokio_util::sync::CancellationToken;
 use tonic::Status;
+use tracing::info;
 use uuid::Uuid;
 
 use crate::{
@@ -41,11 +48,81 @@ const TEST_RATE_LIMITS: RateLimitsSettings = RateLimitsSettings {
     burst: 1000,
 };
 
+pub struct SpawnedApp {
+    pub address: SocketAddr,
+    pub control_handle: ControlHandle,
+    pub codes: Vec<String>,
+    db_settings: DatabaseSettings,
+    db_names: DbNames,
+    stop: CancellationToken,
+    server_handle: Option<JoinHandle<()>>,
+}
+
+struct DbNames {
+    ds: Uuid,
+    as_: Uuid,
+    qs: Uuid,
+}
+
+impl DbNames {
+    pub fn random() -> Self {
+        Self {
+            ds: Uuid::new_v4(),
+            as_: Uuid::new_v4(),
+            qs: Uuid::new_v4(),
+        }
+    }
+}
+
+impl SpawnedApp {
+    async fn cleanup(&mut self) {
+        // Drop test databases
+        for db_name in [self.db_names.as_, self.db_names.ds, self.db_names.qs] {
+            let mut db_settings = self.db_settings.clone();
+            db_settings.name = db_name.to_string();
+            let mut connection =
+                PgConnection::connect(&db_settings.connection_string_without_database())
+                    .await
+                    .unwrap();
+
+            let db_size: String = sqlx::query(&format!(
+                r#"SELECT pg_size_pretty( pg_database_size('{db_name}'))"#
+            ))
+            .fetch_one(&mut connection)
+            .await
+            .unwrap()
+            .try_get(0)
+            .unwrap();
+
+            sqlx::query(&format!(r#"DROP DATABASE "{db_name}""#))
+                .execute(&mut connection)
+                .await
+                .unwrap();
+            info!(%db_name, db_size, "Dropped test database");
+        }
+    }
+}
+
+impl Drop for SpawnedApp {
+    fn drop(&mut self) {
+        self.stop.cancel();
+        if let Some(handle) = self.server_handle.take() {
+            block_in_place(|| {
+                Handle::current().block_on(async move {
+                    handle.await.expect("Server stopped with an error");
+                    self.cleanup().await;
+                });
+            });
+        }
+        info!("Test server stopped");
+    }
+}
+
 pub(crate) async fn spawn_app(
     domain: Fqdn,
     network_provider: MockNetworkProvider,
     params: TestBackendParams,
-) -> (SocketAddr, ControlHandle, Vec<String>) {
+) -> SpawnedApp {
     init_test_tracing();
 
     let TestBackendParams {
@@ -59,7 +136,6 @@ pub(crate) async fn spawn_app(
     // Load configuration
     let mut configuration = get_configuration_from_str(BASE_CONFIG, LOCAL_CONFIG)
         .expect("Could not load configuration.");
-    configuration.database.name = Uuid::new_v4().to_string();
 
     // Port binding
     let mut listen = configuration.application.listen;
@@ -86,7 +162,10 @@ pub(crate) async fn spawn_app(
 
     let address = listener.local_addr().unwrap();
 
+    let db_names = DbNames::random();
+
     // DS storage provider
+    configuration.database.name = db_names.ds.to_string();
     let mut ds = Ds::new(
         &configuration.database,
         domain.clone(),
@@ -103,7 +182,7 @@ pub(crate) async fn spawn_app(
     ds.set_storage(Storage::new(storage_config));
 
     // New database name for the AS provider
-    configuration.database.name = Uuid::new_v4().to_string();
+    configuration.database.name = db_names.as_.to_string();
 
     let mut auth_service = AuthService::new(
         &configuration.database,
@@ -131,7 +210,7 @@ pub(crate) async fn spawn_app(
     }
 
     // New database name for the QS provider
-    configuration.database.name = Uuid::new_v4().to_string();
+    configuration.database.name = db_names.qs.to_string();
 
     let qs = Qs::new(
         &configuration.database,
@@ -150,6 +229,7 @@ pub(crate) async fn spawn_app(
     };
 
     // Start the server
+    let stop = CancellationToken::new();
     let server = run(
         ServerRunParams {
             listener,
@@ -159,14 +239,25 @@ pub(crate) async fn spawn_app(
             qs,
             qs_connector,
             rate_limits: rate_limits.unwrap_or(TEST_RATE_LIMITS),
+            shutdown: stop.clone(),
         },
         interceptor,
     )
     .await;
 
     // Execute the server in the background
-    tokio::spawn(server);
+    let server_handle = tokio::spawn(async move {
+        server.await.expect("Server stopped with an error");
+    });
 
     // Return the address
-    (address, control_handle, codes)
+    SpawnedApp {
+        address,
+        control_handle,
+        codes,
+        db_settings: configuration.database,
+        db_names,
+        stop,
+        server_handle: Some(server_handle),
+    }
 }

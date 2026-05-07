@@ -37,8 +37,8 @@ pub(crate) struct UsernameQueues {
 }
 
 impl UsernameQueues {
-    pub(crate) async fn new(pool: PgPool) -> sqlx::Result<Self> {
-        let pg_listener_task_handle = spawn_pg_listener_task(pool.clone()).await?;
+    pub(crate) async fn new(pool: PgPool, stop: CancellationToken) -> sqlx::Result<Self> {
+        let pg_listener_task_handle = spawn_pg_listener_task(pool.clone(), stop).await?;
         Ok(Self {
             pool,
             pg_listener_task_handle,
@@ -522,7 +522,9 @@ mod test {
     async fn enqueue_and_listen_single_message(pool: PgPool) {
         let hash = UsernameHash::new([1; 32]);
         store_username(&pool, hash).await.unwrap();
-        let queues = UsernameQueues::new(pool).await.unwrap();
+        let queues = UsernameQueues::new(pool, CancellationToken::new())
+            .await
+            .unwrap();
 
         let payload = new_payload("hello");
         let msg1_id = queues.enqueue(&hash, payload.clone()).await.unwrap();
@@ -550,7 +552,9 @@ mod test {
     async fn listen_again_refetches_messages(pool: PgPool) {
         let hash = UsernameHash::new([1; 32]);
         store_username(&pool, hash).await.unwrap();
-        let queues = UsernameQueues::new(pool).await.unwrap();
+        let queues = UsernameQueues::new(pool, CancellationToken::new())
+            .await
+            .unwrap();
 
         let payload1 = new_payload("msg1");
         let payload2 = new_payload("msg2");
@@ -597,7 +601,9 @@ mod test {
     async fn ack_removes_messages(pool: PgPool) {
         let hash = UsernameHash::new([1; 32]);
         store_username(&pool, hash).await.unwrap();
-        let queues = UsernameQueues::new(pool).await.unwrap();
+        let queues = UsernameQueues::new(pool, CancellationToken::new())
+            .await
+            .unwrap();
 
         let payload1 = new_payload("msg1");
         let payload2 = new_payload("msg2");
@@ -636,7 +642,9 @@ mod test {
     async fn new_listener_cancels_previous_one(pool: PgPool) {
         let hash = UsernameHash::new([1; 32]);
         store_username(&pool, hash).await.unwrap();
-        let queues = UsernameQueues::new(pool).await.unwrap();
+        let queues = UsernameQueues::new(pool, CancellationToken::new())
+            .await
+            .unwrap();
 
         let payload1 = new_payload("msg1");
 
@@ -672,7 +680,9 @@ mod test {
     async fn listen_emits_none_when_empty_and_waits(pool: PgPool) {
         let hash = UsernameHash::new([1; 32]);
         store_username(&pool, hash).await.unwrap();
-        let queues = UsernameQueues::new(pool).await.unwrap();
+        let queues = UsernameQueues::new(pool, CancellationToken::new())
+            .await
+            .unwrap();
 
         let mut stream = pin!(queues.listen(hash).await.unwrap());
 
@@ -716,14 +726,18 @@ mod test {
 
     #[sqlx::test]
     async fn ack_non_existent_message(pool: PgPool) {
-        let queues = UsernameQueues::new(pool).await.unwrap();
+        let queues = UsernameQueues::new(pool, CancellationToken::new())
+            .await
+            .unwrap();
         let result = queues.ack(Uuid::new_v4()).await;
         assert!(result.is_ok());
     }
 
     #[sqlx::test]
     async fn enqueue_non_existent_queue(pool: PgPool) {
-        let queues = UsernameQueues::new(pool).await.unwrap();
+        let queues = UsernameQueues::new(pool, CancellationToken::new())
+            .await
+            .unwrap();
         let hash = UsernameHash::new([1; 32]);
 
         let payload = new_payload("msg");
