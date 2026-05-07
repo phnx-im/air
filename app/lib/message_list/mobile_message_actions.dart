@@ -6,9 +6,9 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
-import 'package:air/ui/components/context_menu/context_menu_ui.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/components/context_menu/context_menu_item_ui.dart';
+import 'package:air/ds/components/context_menu/context_menu_ui.dart';
 
 const double _mobileActionRowHeight = 56.0;
 
@@ -89,9 +89,9 @@ class _MobileMessageActionView extends StatelessWidget {
     // Layout inputs derived from the current overlay and safe areas.
     final mediaQuery = MediaQuery.of(context);
     final size = mediaQuery.size;
-    final safeTop = mediaQuery.padding.top + Spacings.m;
-    final safeBottom = mediaQuery.padding.bottom + Spacings.m;
-    const gap = Spacings.l;
+    final safeTop = mediaQuery.padding.top + Spacing.px24;
+    final safeBottom = mediaQuery.padding.bottom + Spacing.px24;
+    const gap = Spacing.px32;
     final messageHeight = anchorRect.height;
     final messageWidth = anchorRect.width;
 
@@ -219,8 +219,8 @@ class _MobileMessageActionView extends StatelessWidget {
             ),
             if (sheetHeight > 0)
               Positioned(
-                left: alignEnd ? null : Spacings.m,
-                right: alignEnd ? Spacings.m : null,
+                left: alignEnd ? null : Spacing.px24,
+                right: alignEnd ? Spacing.px24 : null,
                 top: sheetTop,
                 child: _MobileContextMenu(
                   animation: animation,

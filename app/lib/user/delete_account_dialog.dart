@@ -2,16 +2,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/ui/components/modal/app_dialog.dart';
-import 'package:air/ui/icons/app_icons.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/components/modal/app_dialog.dart';
+import 'package:air/ds/foundations/icons/app_icons.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
 import 'package:air/user/user.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
@@ -50,13 +50,13 @@ class DeleteAccountDialog extends HookWidget {
               ),
             ),
           ),
-          const SizedBox(height: Spacings.m),
+          const SizedBox(height: Spacing.px24),
 
           Center(
             child: AppIcon.circleAlert(size: 40, color: colors.function.danger),
           ),
 
-          const SizedBox(height: Spacings.m),
+          const SizedBox(height: Spacing.px24),
 
           Text(
             loc.deleteAccountScreen_explanatoryText,
@@ -66,7 +66,7 @@ class DeleteAccountDialog extends HookWidget {
             ),
           ),
 
-          const SizedBox(height: Spacings.xs),
+          const SizedBox(height: Spacing.px12),
 
           TextFormField(
             autocorrect: false,
@@ -81,10 +81,10 @@ class DeleteAccountDialog extends HookWidget {
                 isConfirmed.value = value == _confirmationText,
           ),
 
-          const SizedBox(height: Spacings.xs),
+          const SizedBox(height: Spacing.px12),
 
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
+            padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
             child: Text(
               loc.deleteAccountScreen_confirmationInputLabel,
               style: TextStyle(
@@ -94,7 +94,7 @@ class DeleteAccountDialog extends HookWidget {
             ),
           ),
 
-          const SizedBox(height: Spacings.m),
+          const SizedBox(height: Spacing.px24),
 
           Row(
             children: [
@@ -112,7 +112,7 @@ class DeleteAccountDialog extends HookWidget {
                 ),
               ),
 
-              const SizedBox(width: Spacings.xs),
+              const SizedBox(width: Spacing.px12),
 
               Expanded(
                 child: AppDialogProgressButton(

@@ -4,11 +4,11 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/user/user.dart';
-import 'package:air/util/dialog.dart';
+import 'package:air/ds/components/modal/dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -39,7 +39,7 @@ class BlockContactButton extends StatelessWidget {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        spacing: Spacings.xs,
+        spacing: Spacing.px12,
         children: [
           Text(
             loc.blockContactButton_text,
