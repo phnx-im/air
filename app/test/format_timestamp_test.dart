@@ -156,7 +156,7 @@ void main() {
           locale: locale,
           now: fixedNow,
         ),
-        equals(loc.timestamp_yesterday),
+        equals(loc.date_yesterday),
       );
     });
 

@@ -565,7 +565,10 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String get timestamp_yesterday => 'Hier';
+  String get date_today => 'Aujourd’hui';
+
+  @override
+  String get date_yesterday => 'Hier';
 
   @override
   String get messageBubble_sending => 'Envoi en cours';
