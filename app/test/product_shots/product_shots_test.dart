@@ -524,10 +524,14 @@ Future<void> _precacheImages(WidgetTester tester) async {
   await tester.runAsync(() async {
     final elements = tester.elementList(find.byType(DecoratedBox));
     for (Element element in elements) {
-      DecoratedBox widget = element.widget as DecoratedBox;
-      BoxDecoration decoration = widget.decoration as BoxDecoration;
-      if (decoration.image != null) {
-        await precacheImage(decoration.image!.image, element);
+      final widget = element.widget as DecoratedBox;
+      final image = switch (widget.decoration) {
+        BoxDecoration(:final image) => image,
+        ShapeDecoration(:final image) => image,
+        _ => null,
+      };
+      if (image != null) {
+        await precacheImage(image.image, element);
       }
     }
 
