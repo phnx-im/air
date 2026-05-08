@@ -23,7 +23,6 @@ use crate::{
     clients::{CONNECTION_PACKAGES, CoreUser},
     db_access::{WriteConnection, WriteDbConnection},
     privacy_pass,
-    store::StoreResult,
     usernames::connection_packages::StorableConnectionPackage,
 };
 
@@ -55,10 +54,7 @@ impl CoreUser {
     /// Registers a new username on the server and adds it locally.
     ///
     /// Returns a username record on success, or `None` if the username was already present.
-    pub(crate) async fn add_username(
-        &self,
-        username: Username,
-    ) -> StoreResult<Option<UsernameRecord>> {
+    pub async fn add_username(&self, username: Username) -> anyhow::Result<Option<UsernameRecord>> {
         let signing_key = UsernameSigningKey::generate()?;
         let username_inner = username.clone();
         let hash = spawn_blocking(move || username_inner.calculate_hash()).await??;
@@ -157,10 +153,10 @@ impl CoreUser {
     }
 
     /// Deletes the username on the server and removes it locally.
-    pub(crate) async fn remove_username(
+    pub async fn remove_username(
         &self,
         username: &Username,
-    ) -> StoreResult<UsernameDeleteResponse> {
+    ) -> anyhow::Result<UsernameDeleteResponse> {
         let record = UsernameRecord::load(self.db().read().await?, username)
             .await?
             .context("no username found")?;
@@ -192,7 +188,7 @@ impl CoreUser {
         Ok(res)
     }
 
-    pub(crate) async fn remove_username_locally(&self, username: &Username) -> StoreResult<()> {
+    pub(crate) async fn remove_username_locally(&self, username: &Username) -> anyhow::Result<()> {
         UsernameRecord::delete(self.db().write().await?, username).await?;
         Ok(())
     }

@@ -5,7 +5,7 @@
 use std::time::Duration;
 
 use aircommon::time::TimeStamp;
-use aircoreclient::{EventMessage, Message, SystemMessage, store::Store};
+use aircoreclient::{EventMessage, Message, SystemMessage};
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::TimeZone;
 use tokio::task::spawn_blocking;

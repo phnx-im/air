@@ -35,7 +35,6 @@ use crate::{
     db_access::WriteDbTransaction,
     groups::{Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider},
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
-    store::Store,
     user_profiles::IndexedUserProfile,
 };
 
@@ -146,7 +145,7 @@ impl CoreUser {
     ///
     /// The group chat must contain the user to connect to. Returns the [`ChatId`] of the newly
     /// created connection chat.
-    pub(crate) async fn add_contact_from_group(
+    pub async fn add_contact_from_group(
         &self,
         chat_id: ChatId,
         user_id: UserId,

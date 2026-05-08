@@ -9,7 +9,7 @@ use mimi_content::{
 };
 use tracing::{error, warn};
 
-use crate::{groups::Group, store::Store};
+use crate::{clients::CoreUser, groups::Group};
 
 use super::*;
 
@@ -311,7 +311,7 @@ impl Message {
     /// notifications.
     pub async fn string_representation(
         &self,
-        store: &impl Store,
+        core_user: &CoreUser,
         chat_type: &ChatType,
     ) -> Option<String> {
         match self {
@@ -335,7 +335,7 @@ impl Message {
                 };
                 let repr = match chat_type {
                     ChatType::TargetedMessageConnection(_) | ChatType::Group => {
-                        let display_name = store
+                        let display_name = core_user
                             .user_profile(&content_message.sender)
                             .await
                             .display_name;
@@ -349,7 +349,7 @@ impl Message {
                 Some(repr)
             }
             Message::Event(event_message) => match &event_message {
-                EventMessage::System(system) => Some(system.string_representation(store).await),
+                EventMessage::System(system) => Some(system.string_representation(core_user).await),
                 EventMessage::Error(error) => Some(error.message().to_string()),
             },
         }
@@ -551,16 +551,16 @@ pub enum SystemMessage {
 }
 
 impl SystemMessage {
-    async fn string_representation(&self, store: &impl Store) -> String {
+    async fn string_representation(&self, core_user: &CoreUser) -> String {
         match self {
             SystemMessage::Add(adder, added) => {
-                let adder_display_name = store.user_profile(adder).await.display_name;
-                let added_display_name = store.user_profile(added).await.display_name;
+                let adder_display_name = core_user.user_profile(adder).await.display_name;
+                let added_display_name = core_user.user_profile(added).await.display_name;
                 format!("{adder_display_name} added {added_display_name} to the chat")
             }
             SystemMessage::Remove(remover, removed) => {
-                let remover_display_name = store.user_profile(remover).await.display_name;
-                let removed_display_name = store.user_profile(removed).await.display_name;
+                let remover_display_name = core_user.user_profile(remover).await.display_name;
+                let removed_display_name = core_user.user_profile(removed).await.display_name;
                 format!("{remover_display_name} removed {removed_display_name} from the chat")
             }
             SystemMessage::ChangeTitle {
@@ -568,13 +568,13 @@ impl SystemMessage {
                 old_title,
                 new_title,
             } => {
-                let user_display_name = store.user_profile(user_id).await.display_name;
+                let user_display_name = core_user.user_profile(user_id).await.display_name;
                 format!(
                     "{user_display_name} changed the group name from \"{old_title}\" to \"{new_title}\""
                 )
             }
             SystemMessage::ChangePicture(user_id) => {
-                let user_display_name = store.user_profile(user_id).await.display_name;
+                let user_display_name = core_user.user_profile(user_id).await.display_name;
                 format!("{user_display_name} changed the group picture")
             }
             SystemMessage::NewHandleConnectionChat(user_handle) => {
@@ -589,7 +589,7 @@ impl SystemMessage {
                 contact: user_id,
                 user_handle,
             } => {
-                let user_display_name = store.user_profile(user_id).await.display_name;
+                let user_display_name = core_user.user_profile(user_id).await.display_name;
                 let base_str = format!("You connected with {user_display_name}");
                 if let Some(username) = user_handle {
                     let username_str = username.plaintext();
@@ -602,7 +602,7 @@ impl SystemMessage {
                 sender: user_id,
                 user_handle,
             } => {
-                let display_name = store.user_profile(user_id).await.display_name;
+                let display_name = core_user.user_profile(user_id).await.display_name;
                 let username = user_handle.plaintext();
                 format!(
                     "{display_name} sent you a contact request through your username {username}."
@@ -612,17 +612,17 @@ impl SystemMessage {
                 sender: user_id,
                 chat_name,
             } => {
-                let display_name = store.user_profile(user_id).await.display_name;
+                let display_name = core_user.user_profile(user_id).await.display_name;
                 format!(
                     "{display_name} sent you a contact request through the group chat {chat_name}."
                 )
             }
             SystemMessage::NewDirectConnectionChat(user_id) => {
-                let display_name = store.user_profile(user_id).await.display_name;
+                let display_name = core_user.user_profile(user_id).await.display_name;
                 format!("You requested a connection with {display_name}")
             }
             SystemMessage::CreateGroup(user_id) => {
-                let user_display_name = store.user_profile(user_id).await.display_name;
+                let user_display_name = core_user.user_profile(user_id).await.display_name;
                 format!("{user_display_name} created the group")
             }
         }

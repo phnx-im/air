@@ -159,16 +159,13 @@ impl CoreUser {
             .await
     }
 
-    pub(crate) async fn message(
-        &self,
-        message_id: MessageId,
-    ) -> anyhow::Result<Option<ChatMessage>> {
+    pub async fn message(&self, message_id: MessageId) -> anyhow::Result<Option<ChatMessage>> {
         ChatMessage::load(self.db().read().await?, message_id)
             .await
             .map_err(Into::into)
     }
 
-    pub(crate) async fn prev_message(
+    pub async fn prev_message(
         &self,
         chat_id: ChatId,
         message_id: MessageId,
@@ -178,7 +175,7 @@ impl CoreUser {
             .map_err(Into::into)
     }
 
-    pub(crate) async fn next_message(
+    pub async fn next_message(
         &self,
         chat_id: ChatId,
         message_id: MessageId,
@@ -252,6 +249,9 @@ impl CoreUser {
         self.db()
             .with_read_transaction(async |txn| Chat::load(txn, chat_id).await)
             .await
+            .inspect_err(|error| {
+                error!(%chat_id, %error, "Failed to load chat");
+            })
             .ok()
             .flatten()
     }

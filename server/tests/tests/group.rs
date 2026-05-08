@@ -10,7 +10,6 @@ use aircoreclient::{
         process::process_qs::{QsProcessEventResult, QsStreamProcessor},
         queue_event,
     },
-    store::Store,
 };
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::{DateTime, Duration, Utc};

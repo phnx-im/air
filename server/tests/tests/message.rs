@@ -5,9 +5,7 @@
 use mimi_content::{MessageStatus, MimiContent};
 use rand::{Rng, distributions::Alphanumeric, rngs::OsRng};
 
-use aircoreclient::{
-    ChatId, ChatMessage, MimiContentExt, ReadReceiptsSetting, clients::CoreUser, store::Store,
-};
+use aircoreclient::{ChatId, ChatMessage, MimiContentExt, ReadReceiptsSetting, clients::CoreUser};
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

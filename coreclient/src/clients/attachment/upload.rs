@@ -45,7 +45,6 @@ use crate::{
         },
     },
     groups::Group,
-    store::Store,
     utils::image::{ReencodedAttachmentImage, load_attachment_image},
 };
 

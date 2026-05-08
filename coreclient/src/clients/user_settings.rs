@@ -5,10 +5,7 @@
 use anyhow::bail;
 use tracing::error;
 
-use crate::{
-    clients::CoreUser,
-    store::{StoreResult, UserSetting},
-};
+use crate::clients::CoreUser;
 
 impl CoreUser {
     /// Loads a user setting
@@ -41,10 +38,19 @@ impl CoreUser {
         }
     }
 
-    pub async fn set_user_setting<T: UserSetting>(&self, value: &T) -> StoreResult<()> {
+    pub async fn set_user_setting<T: UserSetting>(&self, value: &T) -> anyhow::Result<()> {
         UserSettingRecord::store(self.db().write().await?, T::KEY, T::encode(value)?).await?;
         Ok(())
     }
+}
+
+pub trait UserSetting: Send + Sync {
+    const KEY: &'static str;
+
+    fn encode(&self) -> anyhow::Result<Vec<u8>>;
+    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self>
+    where
+        Self: Sized;
 }
 
 pub struct ReadReceiptsSetting(pub bool);
@@ -52,11 +58,11 @@ pub struct ReadReceiptsSetting(pub bool);
 impl UserSetting for ReadReceiptsSetting {
     const KEY: &'static str = "read_receipts";
 
-    fn encode(&self) -> StoreResult<Vec<u8>> {
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
         Ok(vec![self.0 as u8])
     }
 
-    fn decode(bytes: Vec<u8>) -> StoreResult<Self> {
+    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
         match bytes.as_slice() {
             [byte] => Ok(Self(*byte != 0)),
             _ => bail!("invalid read_receipts bytes"),

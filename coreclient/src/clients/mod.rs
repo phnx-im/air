@@ -55,7 +55,6 @@ use crate::{
     job::{Job, JobContext, JobContextDb, JobError},
     key_stores::queue_ratchets::StorableQsQueueRatchet,
     outbound_service::OutboundService,
-    store::Store,
     utils::{
         global_lock::GlobalLock,
         image::resize_profile_image,
@@ -321,7 +320,7 @@ impl CoreUser {
         &self.inner.key_store
     }
 
-    pub fn nofity(&self, notification: StoreNotification) {
+    pub fn send_store_notification(&self, notification: StoreNotification) {
         if !notification.is_empty() {
             self.inner.db.notifier_tx.notify(notification);
         }
@@ -331,7 +330,9 @@ impl CoreUser {
     ///
     /// All notifications sent after this function was called are observed as items of the returned
     /// stream.
-    pub fn subscribe(&self) -> impl Stream<Item = Arc<StoreNotification>> + Send + 'static {
+    pub fn store_notifications(
+        &self,
+    ) -> impl Stream<Item = Arc<StoreNotification>> + Send + 'static {
         self.inner.db.notifier_tx.subscribe()
     }
 
@@ -339,11 +340,13 @@ impl CoreUser {
     ///
     /// Unlike `subscribe_to_store_notifications`, this function does not remove stored
     /// notifications from the persisted queue.
-    pub fn subscribe_iter(&self) -> impl Iterator<Item = Arc<StoreNotification>> + Send + 'static {
+    pub fn pending_store_notifications(
+        &self,
+    ) -> impl Iterator<Item = Arc<StoreNotification>> + Send + 'static {
         self.inner.db.notifier_tx.subscribe_iter()
     }
 
-    pub async fn enqueue_notification(&self, notification: &StoreNotification) -> Result<()> {
+    pub async fn enqueue_store_notification(&self, notification: &StoreNotification) -> Result<()> {
         notification.enqueue(self.db().write().await?).await?;
         Ok(())
     }
@@ -702,10 +705,6 @@ impl CoreUser {
 
     pub(crate) async fn try_messages_count(&self, chat_id: ChatId) -> sqlx::Result<usize> {
         Chat::messages_count(self.db().read().await?, chat_id).await
-    }
-
-    pub(crate) async fn try_unread_messages_count(&self, chat_id: ChatId) -> sqlx::Result<usize> {
-        Chat::unread_messages_count(self.db().read().await?, chat_id).await
     }
 
     /// Schedules the client's push token update on the QS.
