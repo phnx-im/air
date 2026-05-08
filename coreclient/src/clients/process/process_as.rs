@@ -34,7 +34,7 @@ use crate::{
         },
     },
     contacts::UsernameContact,
-    db_access::{ReadConnection, WriteConnection},
+    db::access::{ReadConnection, WriteConnection},
     groups::ProfileInfo,
     job::{Job, JobContext, JobContextDb},
     usernames::connection_packages::StorableConnectionPackage,

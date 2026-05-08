@@ -15,7 +15,7 @@ use thiserror::Error;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus,
-    db_access::WriteConnection,
+    db::access::WriteConnection,
     groups::Group,
     job::{Job, JobContext, JobContextDb, JobError, pending_chat_operation::PendingChatOperation},
 };

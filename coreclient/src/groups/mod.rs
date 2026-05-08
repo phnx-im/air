@@ -77,7 +77,7 @@ use crate::{
         targeted_message::TargetedMessageContent,
     },
     contacts::ContactAddInfos,
-    db_access::{WriteConnection, WriteDbTransaction},
+    db::access::{WriteConnection, WriteDbTransaction},
     groups::client_auth_info::VerifiableClientCredentialExt,
     key_stores::as_credentials::AsCredentials,
     outbound_service::resync::Resync,
@@ -1445,7 +1445,7 @@ mod handle_group_not_found_tests {
 
     use crate::{
         Chat, ChatAttributes, ChatStatus, clients::block_contact::BlockedContact,
-        db_access::DbAccess, groups::GroupDataBytes, utils::persistence::open_db_in_memory,
+        db::access::DbAccess, groups::GroupDataBytes, utils::persistence::open_db_in_memory,
     };
 
     use super::*;

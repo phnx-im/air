@@ -18,7 +18,7 @@ use uuid::Uuid;
 
 use crate::{
     contacts::PartialContactType,
-    db_access::{WriteConnection, WriteTransaction},
+    db::access::{WriteConnection, WriteTransaction},
     groups::GroupDataBytes,
 };
 

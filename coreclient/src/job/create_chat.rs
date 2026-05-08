@@ -16,7 +16,7 @@ use tracing::error;
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage,
     chats::GroupDataExt,
-    db_access::WriteConnection,
+    db::access::WriteConnection,
     groups::Group,
     job::{Job, JobContext, JobError},
     key_stores::indexed_keys::StorableIndexedKey,

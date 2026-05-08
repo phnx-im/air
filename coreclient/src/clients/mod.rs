@@ -50,7 +50,7 @@ use crate::{
     Asset, PartialContact, UsernameRecord,
     clients::event_loop::{EventLoop, EventLoopSender},
     contacts::{TargetedMessageContact, UsernameContact},
-    db_access::{DbAccess, ReadConnection, WriteDbTransaction},
+    db::access::{DbAccess, ReadConnection, WriteDbTransaction},
     groups::Group,
     job::{Job, JobContext, JobContextDb, JobError},
     key_stores::queue_ratchets::StorableQsQueueRatchet,
@@ -71,8 +71,8 @@ use crate::{
     },
     clients::connection_offer::FriendshipPackage,
     contacts::Contact,
+    db::notification::DbNotification,
     key_stores::MemoryUserKeyStore,
-    store::StoreNotification,
     user_profiles::IndexedUserProfile,
     utils::persistence::{open_air_db, open_client_db},
 };
@@ -320,7 +320,7 @@ impl CoreUser {
         &self.inner.key_store
     }
 
-    pub fn send_store_notification(&self, notification: StoreNotification) {
+    pub fn send_store_notification(&self, notification: DbNotification) {
         if !notification.is_empty() {
             self.inner.db.notifier_tx.notify(notification);
         }
@@ -330,9 +330,7 @@ impl CoreUser {
     ///
     /// All notifications sent after this function was called are observed as items of the returned
     /// stream.
-    pub fn store_notifications(
-        &self,
-    ) -> impl Stream<Item = Arc<StoreNotification>> + Send + 'static {
+    pub fn store_notifications(&self) -> impl Stream<Item = Arc<DbNotification>> + Send + 'static {
         self.inner.db.notifier_tx.subscribe()
     }
 
@@ -342,17 +340,17 @@ impl CoreUser {
     /// notifications from the persisted queue.
     pub fn pending_store_notifications(
         &self,
-    ) -> impl Iterator<Item = Arc<StoreNotification>> + Send + 'static {
+    ) -> impl Iterator<Item = Arc<DbNotification>> + Send + 'static {
         self.inner.db.notifier_tx.subscribe_iter()
     }
 
-    pub async fn enqueue_store_notification(&self, notification: &StoreNotification) -> Result<()> {
+    pub async fn enqueue_store_notification(&self, notification: &DbNotification) -> Result<()> {
         notification.enqueue(self.db().write().await?).await?;
         Ok(())
     }
 
-    pub async fn dequeue_store_notification(&self) -> Result<StoreNotification> {
-        Ok(StoreNotification::dequeue(self.db().write().await?).await?)
+    pub async fn dequeue_store_notification(&self) -> Result<DbNotification> {
+        Ok(DbNotification::dequeue(self.db().write().await?).await?)
     }
 
     /// Signals that new store notifications were persisted and should be drained.

@@ -21,7 +21,7 @@ use airapiclient::ApiClient;
 
 use crate::{
     clients::{CONNECTION_PACKAGES, CoreUser},
-    db_access::{WriteConnection, WriteDbConnection},
+    db::access::{WriteConnection, WriteDbConnection},
     privacy_pass,
     usernames::connection_packages::StorableConnectionPackage,
 };

@@ -11,7 +11,7 @@ use tracing::debug;
 use tracing::warn;
 use uuid::Uuid;
 
-use crate::db_access::WriteDbTransaction;
+use crate::db::access::WriteDbTransaction;
 use crate::groups::handle_group_not_found_on_ds;
 use crate::job::pending_chat_operation::PendingChatOperation;
 use crate::outbound_service::resync::Resync;

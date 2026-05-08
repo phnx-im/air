@@ -20,7 +20,7 @@ use openmls_rust_crypto::RustCrypto;
 use crate::{
     ChatId,
     clients::api_clients::ApiClients,
-    db_access::{ReadConnection, WriteConnection},
+    db::access::{ReadConnection, WriteConnection},
     groups::{Group, client_auth_info::StorableClientCredential},
     key_stores::{as_credentials::AsCredentials, indexed_keys::StorableIndexedKey},
     user_profiles::IndexedUserProfile,
