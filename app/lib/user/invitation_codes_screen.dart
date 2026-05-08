@@ -4,12 +4,12 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/components/app_scaffold.dart';
-import 'package:air/ui/components/button/button.dart';
-import 'package:air/ui/icons/icons.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/components/app_scaffold.dart';
+import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/foundations/icons/icons.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
@@ -56,9 +56,9 @@ class InvitationCodesView extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: Spacings.s),
+                const SizedBox(height: Spacing.px16),
                 const _InvitationCodesList(),
-                const SizedBox(height: Spacings.m),
+                const SizedBox(height: Spacing.px24),
                 Row(
                   children: [
                     const Spacer(),
@@ -82,7 +82,7 @@ class InvitationCodesView extends StatelessWidget {
                     const Spacer(),
                   ],
                 ),
-                const SizedBox(height: Spacings.s),
+                const SizedBox(height: Spacing.px16),
                 Row(
                   children: [
                     const Spacer(),
@@ -105,7 +105,7 @@ class InvitationCodesView extends StatelessWidget {
                     const Spacer(),
                   ],
                 ),
-                const SizedBox(height: Spacings.m),
+                const SizedBox(height: Spacing.px24),
                 const _InfoText(),
               ],
             ),
@@ -159,7 +159,7 @@ class _InvitationCodesList extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: colors.backgroundElevated.primary,
-        borderRadius: BorderRadius.circular(Spacings.s),
+        borderRadius: BorderRadius.circular(Spacing.px16),
       ),
       child: Column(
         children: invitationCodes.isEmpty
@@ -199,11 +199,11 @@ class _InvitationCodeItem extends StatelessWidget {
     return InkWell(
       onTap: () => _handleCopy(context),
       mouseCursor: SystemMouseCursors.click,
-      borderRadius: BorderRadius.circular(Spacings.s),
+      borderRadius: BorderRadius.circular(Spacing.px16),
       child: Padding(
         padding: const EdgeInsets.symmetric(
-          horizontal: Spacings.s,
-          vertical: Spacings.xs,
+          horizontal: Spacing.px16,
+          vertical: Spacing.px12,
         ),
         child: Row(
           children: [
@@ -217,7 +217,7 @@ class _InvitationCodeItem extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: Spacings.xs),
+            const SizedBox(width: Spacing.px12),
             AppIcon.copy(size: 24, color: colors.text.tertiary),
           ],
         ),
@@ -258,11 +258,11 @@ class _InvitationTokenItem extends StatelessWidget {
     return InkWell(
       onTap: () => _handleUnlock(context),
       mouseCursor: SystemMouseCursors.click,
-      borderRadius: BorderRadius.circular(Spacings.s),
+      borderRadius: BorderRadius.circular(Spacing.px16),
       child: Padding(
         padding: const EdgeInsets.symmetric(
-          horizontal: Spacings.s,
-          vertical: Spacings.xs,
+          horizontal: Spacing.px16,
+          vertical: Spacing.px12,
         ),
         child: Row(
           children: [
@@ -315,8 +315,8 @@ class _InvitationCodeEmptyItem extends StatelessWidget {
 
     return Padding(
       padding: const EdgeInsets.symmetric(
-        horizontal: Spacings.s,
-        vertical: Spacings.xs,
+        horizontal: Spacing.px16,
+        vertical: Spacing.px12,
       ),
       child: Row(
         children: [
@@ -350,12 +350,12 @@ class _InfoText extends StatelessWidget {
     final loc = AppLocalizations.of(context);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(loc.invitationCodesScreen_infoText1, style: style),
-          const SizedBox(height: Spacings.xs),
+          const SizedBox(height: Spacing.px12),
           Text(loc.invitationCodesScreen_infoText2, style: style),
         ],
       ),

@@ -2,12 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/ui/colors/palette.dart';
+import 'package:air/ds/foundations/palette.dart';
 import 'package:flutter/material.dart';
 import 'package:air/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/util/cached_memory_image.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';

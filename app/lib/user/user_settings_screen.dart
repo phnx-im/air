@@ -7,10 +7,10 @@ import 'dart:io';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/icons/app_icons.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/foundations/icons/app_icons.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/debouncer.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -51,7 +51,7 @@ class UserSettingsView extends StatelessWidget {
     final bgColor = colors.backgroundBase.primary;
 
     final content = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
       child: Align(
         alignment: Alignment.topCenter,
         child: Container(
@@ -120,31 +120,31 @@ class _Sections extends StatelessWidget {
 
         const _UserAvatar(),
 
-        const SizedBox(height: Spacings.xs),
+        const SizedBox(height: Spacing.px12),
         const _DisplayName(),
 
-        const SizedBox(height: Spacings.m),
+        const SizedBox(height: Spacing.px24),
         const _UsernamesSection(),
 
-        const SizedBox(height: Spacings.m),
+        const SizedBox(height: Spacing.px24),
         _SectionHeader(text: loc.userSettingsScreen_settingsSection),
 
-        const SizedBox(height: Spacings.xs),
+        const SizedBox(height: Spacing.px12),
         const _CommonSettings(),
 
-        if (isMobilePlatform) const SizedBox(height: Spacings.xs),
+        if (isMobilePlatform) const SizedBox(height: Spacing.px12),
         if (isMobilePlatform) _MobileSettings(),
 
-        if (isDesktopPlatform) const SizedBox(height: Spacings.xs),
+        if (isDesktopPlatform) const SizedBox(height: Spacing.px12),
         if (isDesktopPlatform) const _DesktopSettings(),
 
-        const SizedBox(height: Spacings.m),
+        const SizedBox(height: Spacing.px24),
         const _HelpSection(),
 
-        const SizedBox(height: Spacings.m),
+        const SizedBox(height: Spacing.px24),
         const _AccountSection(),
 
-        const SizedBox(height: Spacings.l + Spacings.xxs),
+        const SizedBox(height: Spacing.px32 + Spacing.px8),
       ],
     );
   }
@@ -227,7 +227,7 @@ class _DisplayName extends StatelessWidget {
       children: [
         FieldLabel(loc.userSettingsScreen_displayNameLabel),
 
-        const SizedBox(height: Spacings.xs),
+        const SizedBox(height: Spacing.px12),
 
         _FieldContainer(
           onTap: () => {
@@ -240,7 +240,7 @@ class _DisplayName extends StatelessWidget {
           child: Row(children: [Text(displayName)]),
         ),
 
-        const SizedBox(height: Spacings.xs),
+        const SizedBox(height: Spacing.px12),
 
         FieldLabel(loc.userSettingsScreen_profileDescription),
       ],
@@ -271,7 +271,7 @@ class _UsernamesSection extends StatelessWidget {
 
         ...usernames.expand(
           (username) => [
-            const SizedBox(height: Spacings.xs),
+            const SizedBox(height: Spacing.px12),
             _FieldContainer(
               child: Row(
                 children: [
@@ -297,7 +297,7 @@ class _UsernamesSection extends StatelessWidget {
         ),
 
         if (usernames.isEmpty || usernames.length < 5) ...[
-          const SizedBox(height: Spacings.xs),
+          const SizedBox(height: Spacing.px12),
           _FieldContainer(
             onTap: () => showDialog(
               context: context,
@@ -313,7 +313,7 @@ class _UsernamesSection extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: Spacings.xs),
+          const SizedBox(height: Spacing.px12),
           FieldLabel(loc.userSettingsScreen_userNamesDescription),
         ],
       ],
@@ -335,11 +335,11 @@ class _CommonSettings extends HookWidget {
       children: [
         const _InviteCodes(),
 
-        const SizedBox(height: Spacings.xs),
+        const SizedBox(height: Spacing.px12),
 
         const _LanguageSetting(),
 
-        const SizedBox(height: Spacings.xs),
+        const SizedBox(height: Spacing.px12),
         _SwitchField(
           onSubmit: (value) {
             context.read<UserSettingsCubit>().setReadReceipts(
@@ -351,7 +351,7 @@ class _CommonSettings extends HookWidget {
           label: loc.userSettingsScreen_readReceipts,
         ),
 
-        const SizedBox(height: Spacings.xs),
+        const SizedBox(height: Spacing.px12),
 
         FieldLabel(loc.userSettingsScreen_readReceiptsDescription),
       ],
@@ -384,7 +384,7 @@ class _InviteCodes extends StatelessWidget {
         children: [
           AppIcon.users(color: colors.text.secondary, size: 24),
 
-          const SizedBox(width: Spacings.xs),
+          const SizedBox(width: Spacing.px12),
 
           Expanded(child: Text(loc.userSettingsScreen_inviteCodes)),
 
@@ -462,7 +462,7 @@ class _LanguageSetting extends StatelessWidget {
           child: Row(
             children: [
               AppIcon.globe(color: colors.text.secondary, size: 24),
-              const SizedBox(width: Spacings.xs),
+              const SizedBox(width: Spacing.px12),
               Expanded(child: Text(option.label)),
             ],
           ),
@@ -495,7 +495,7 @@ class _MobileSettings extends HookWidget {
           },
         ),
 
-        const SizedBox(height: Spacings.xs),
+        const SizedBox(height: Spacing.px12),
 
         FieldLabel(loc.userSettingsScreen_sendWithEnterDescription),
       ],
@@ -528,7 +528,7 @@ class _DesktopSettings extends HookWidget {
             loc.userSettingsScreen_interfaceScale,
             style: TextStyle(fontSize: BodyFontSize.base.size),
           ),
-          const SizedBox(width: Spacings.xs),
+          const SizedBox(width: Spacing.px12),
           Expanded(
             child: Slider(
               min: 50,
@@ -572,7 +572,7 @@ class _HelpSection extends HookWidget {
       children: [
         _SectionHeader(text: loc.userSettingsScreen_helpSection),
 
-        const SizedBox(height: Spacings.xs),
+        const SizedBox(height: Spacing.px12),
         _FieldContainer(
           onTap: () {
             Navigator.of(context).push(
@@ -589,7 +589,7 @@ class _HelpSection extends HookWidget {
           ),
         ),
 
-        const SizedBox(height: Spacings.xs),
+        const SizedBox(height: Spacing.px12),
         _FieldContainer(
           onTap: () {
             // copy to clipboard
@@ -611,7 +611,7 @@ class _HelpSection extends HookWidget {
           ),
         ),
 
-        const SizedBox(height: Spacings.xs),
+        const SizedBox(height: Spacing.px12),
         _FieldContainer(
           onTap: () {
             Navigator.of(context).push(
@@ -644,7 +644,7 @@ class _AccountSection extends StatelessWidget {
       children: [
         _SectionHeader(text: loc.userSettingsScreen_accountSection),
 
-        const SizedBox(height: Spacings.xs),
+        const SizedBox(height: Spacing.px12),
         _FieldContainer(
           onTap: () {
             showDialog(
@@ -677,7 +677,7 @@ class FieldLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
       child: Text(
         text,
         style: TextStyle(
@@ -697,7 +697,7 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
       child: Text(
         text,
         style: TextStyle(
@@ -773,9 +773,9 @@ class _FieldContainer extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             color: colors.backgroundBase.secondary,
-            borderRadius: BorderRadius.circular(Spacings.s),
+            borderRadius: BorderRadius.circular(Spacing.px16),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: Spacings.xs),
+          padding: const EdgeInsets.symmetric(horizontal: Spacing.px12),
           height: height,
           child: child,
         ),

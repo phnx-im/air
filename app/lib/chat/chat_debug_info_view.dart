@@ -3,12 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/components/app_scaffold.dart';
-import 'package:air/ui/components/button/button.dart';
-import 'package:air/ui/typography/font_size.dart';
-import 'package:air/ui/typography/monospace.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/components/app_scaffold.dart';
+import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/foundations/font_size.dart';
+import 'package:air/ds/foundations/monospace.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -43,7 +43,7 @@ class ChatDebugInfoView extends HookWidget {
         ),
         AsyncSnapshot(hasError: true, :final error) => Center(
           child: Padding(
-            padding: const EdgeInsets.all(Spacings.s),
+            padding: const EdgeInsets.all(Spacing.px16),
             child: Text(
               error.toString(),
               style: TextStyle(
@@ -84,7 +84,7 @@ class _GroupDebugInfoBody extends StatelessWidget {
 
     return ListView(
       children: [
-        const SizedBox(height: Spacings.s),
+        const SizedBox(height: Spacing.px16),
         const _SectionHeader('Overview'),
         _InfoCard(
           children: [
@@ -111,26 +111,26 @@ class _GroupDebugInfoBody extends StatelessWidget {
           ],
         ),
         if (info.groupData != null) ...[
-          const SizedBox(height: Spacings.s),
+          const SizedBox(height: Spacing.px16),
           const _SectionHeader('Group Data'),
           _GroupDataInfoCard(data: info.groupData!),
         ],
         if (info.requiredCapabilities != null) ...[
-          const SizedBox(height: Spacings.s),
+          const SizedBox(height: Spacing.px16),
           const _SectionHeader('Required Capabilities'),
           _RequiredCapabilitiesCard(caps: info.requiredCapabilities!),
         ],
-        const SizedBox(height: Spacings.s),
+        const SizedBox(height: Spacing.px16),
         _SectionHeader('Members (${sortedMembers.length})'),
         for (final entry in sortedMembers) ...[
-          const SizedBox(height: Spacings.xs),
+          const SizedBox(height: Spacing.px12),
           _MemberCard(
             leafIndex: entry.key,
             caps: entry.value,
             isOwn: entry.key == info.ownLeafIndex,
           ),
         ],
-        const SizedBox(height: Spacings.l),
+        const SizedBox(height: Spacing.px32),
         _RequestResyncButton(onTapped: onRequestResync),
       ],
     );
@@ -166,7 +166,7 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: Spacings.xxs),
+      padding: const EdgeInsets.symmetric(vertical: Spacing.px8),
       child: Text(
         title.toUpperCase(),
         style: TextStyle(
@@ -189,8 +189,8 @@ class _CardSectionHeader extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(
-        horizontal: Spacings.s,
-        vertical: Spacings.xs,
+        horizontal: Spacing.px16,
+        vertical: Spacing.px12,
       ),
       child: Text(
         title,
@@ -226,7 +226,7 @@ class _InfoCard extends StatelessWidget {
             if (i < children.length - 1)
               Divider(
                 height: 1,
-                indent: Spacings.s,
+                indent: Spacing.px16,
                 color: colors.separator.secondary,
               ),
           ],
@@ -272,8 +272,8 @@ class _InfoRow extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       child: Padding(
         padding: const EdgeInsets.symmetric(
-          horizontal: Spacings.s,
-          vertical: Spacings.xs,
+          horizontal: Spacing.px16,
+          vertical: Spacing.px12,
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -407,8 +407,8 @@ class _MemberCard extends StatelessWidget {
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(
-              horizontal: Spacings.s,
-              vertical: Spacings.xs,
+              horizontal: Spacing.px16,
+              vertical: Spacing.px12,
             ),
             child: Row(
               children: [
@@ -421,7 +421,7 @@ class _MemberCard extends StatelessWidget {
                   ),
                 ),
                 if (isOwn) ...[
-                  const SizedBox(width: Spacings.xxs),
+                  const SizedBox(width: Spacing.px8),
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 6,
@@ -446,43 +446,43 @@ class _MemberCard extends StatelessWidget {
           ),
           Divider(
             height: 1,
-            indent: Spacings.s,
+            indent: Spacing.px16,
             color: colors.separator.secondary,
           ),
           _InfoRow(label: 'User ID', value: caps.userId, monospace: true),
           Divider(
             height: 1,
-            indent: Spacings.s,
+            indent: Spacing.px16,
             color: colors.separator.secondary,
           ),
           _InfoRow(label: 'Display Name', value: caps.displayName),
           Divider(
             height: 1,
-            indent: Spacings.s,
+            indent: Spacing.px16,
             color: colors.separator.secondary,
           ),
           _ChipListRow(label: 'Versions', values: caps.versions),
           Divider(
             height: 1,
-            indent: Spacings.s,
+            indent: Spacing.px16,
             color: colors.separator.secondary,
           ),
           _ChipListRow(label: 'Ciphersuites', values: caps.ciphersuites),
           Divider(
             height: 1,
-            indent: Spacings.s,
+            indent: Spacing.px16,
             color: colors.separator.secondary,
           ),
           _ChipListRow(label: 'Extensions', values: caps.extensions),
           Divider(
             height: 1,
-            indent: Spacings.s,
+            indent: Spacing.px16,
             color: colors.separator.secondary,
           ),
           _ChipListRow(label: 'Proposals', values: caps.proposals),
           Divider(
             height: 1,
-            indent: Spacings.s,
+            indent: Spacing.px16,
             color: colors.separator.secondary,
           ),
           _ChipListRow(
@@ -491,7 +491,7 @@ class _MemberCard extends StatelessWidget {
           ),
           Divider(
             height: 1,
-            indent: Spacings.s,
+            indent: Spacing.px16,
             color: colors.separator.secondary,
           ),
           _ChipListRow(
@@ -535,8 +535,8 @@ class _ChipListRow extends StatelessWidget {
       borderRadius: BorderRadius.circular(12),
       child: Padding(
         padding: const EdgeInsets.symmetric(
-          horizontal: Spacings.s,
-          vertical: Spacings.xs,
+          horizontal: Spacing.px16,
+          vertical: Spacing.px12,
         ),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
@@ -553,8 +553,8 @@ class _ChipListRow extends StatelessWidget {
             ),
             Expanded(
               child: Wrap(
-                spacing: Spacings.xxs,
-                runSpacing: Spacings.xxs,
+                spacing: Spacing.px8,
+                runSpacing: Spacing.px8,
                 children: [for (final value in values) _Chip(value)],
               ),
             ),

@@ -4,7 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:air/core/core.dart';
-import 'package:air/theme/theme.dart';
+import 'package:air/ds/theme/theme.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:provider/provider.dart';
@@ -118,8 +118,11 @@ class _ClientRecordsList extends StatelessWidget {
               context,
             ).textTheme.bodySmall?.copyWith(color: textColor),
             leading: Transform.translate(
-              offset: const Offset(0, Spacings.xxs),
-              child: UserAvatar(profile: record.userProfile, size: Spacings.xl),
+              offset: const Offset(0, Spacing.px8),
+              child: UserAvatar(
+                profile: record.userProfile,
+                size: Spacing.px48,
+              ),
             ),
             title: Text(record.userProfile.displayName + currentUserSuffix),
             subtitle: Text(

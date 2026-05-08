@@ -5,9 +5,9 @@
 import 'dart:async';
 
 import 'package:air/message_list/emoji_repository.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/message_list/widgets/suggestion_overlay.dart';
 import 'package:air/message_list/widgets/text_autocomplete.dart';
 import 'package:flutter/material.dart';
@@ -96,7 +96,7 @@ class EmojiAutocompleteStrategy
   SuggestionOverlayStyle overlayStyle(BuildContext context) {
     return SuggestionOverlayStyle(
       backgroundColor: CustomColorScheme.of(context).backgroundElevated.primary,
-      borderRadius: BorderRadius.circular(Spacings.s),
+      borderRadius: BorderRadius.circular(Spacing.px16),
       elevation: 8,
       maxWidth: 320,
     );
@@ -116,8 +116,8 @@ class EmojiAutocompleteStrategy
     return Container(
       color: backgroundColor,
       padding: const EdgeInsets.symmetric(
-        horizontal: Spacings.s,
-        vertical: Spacings.xxs,
+        horizontal: Spacing.px16,
+        vertical: Spacing.px8,
       ),
       child: Row(
         children: [
@@ -125,7 +125,7 @@ class EmojiAutocompleteStrategy
             suggestion.emoji,
             style: TextStyle(fontSize: BodyFontSize.large1.size),
           ),
-          const SizedBox(width: Spacings.xxs),
+          const SizedBox(width: Spacing.px8),
           Expanded(
             child: Text(
               ':${_displayShortcodes[suggestion] ?? suggestion.shortcodes.first}:',
