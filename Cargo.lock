@@ -267,7 +267,6 @@ dependencies = [
  "tokio-util",
  "tracing",
  "tracing-subscriber",
- "trait-variant",
  "url",
  "uuid",
  "webpx",
