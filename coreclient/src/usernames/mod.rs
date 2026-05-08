@@ -31,6 +31,27 @@ pub(crate) mod connection_packages;
 mod persistence;
 
 impl CoreUser {
+    /// Check whether a username exists on the AS. Relatively expensive operation, as it
+    /// requires computation of a username hash.
+    ///
+    /// Returns the computed hash of the username if it exists, otherwise `None`.
+    pub async fn check_username_exists(
+        &self,
+        username: Username,
+    ) -> anyhow::Result<Option<UsernameHash>> {
+        let hash = spawn_blocking(move || username.calculate_hash()).await??;
+        let username_exists = self.api_client()?.as_check_username_exists(hash).await?;
+        Ok(username_exists.then_some(hash))
+    }
+
+    pub async fn usernames(&self) -> anyhow::Result<Vec<Username>> {
+        Ok(UsernameRecord::load_all_usernames(self.db().read().await?).await?)
+    }
+
+    pub async fn username_records(&self) -> anyhow::Result<Vec<UsernameRecord>> {
+        Ok(UsernameRecord::load_all(self.db().read().await?).await?)
+    }
+
     /// Registers a new username on the server and adds it locally.
     ///
     /// Returns a username record on success, or `None` if the username was already present.

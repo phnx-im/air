@@ -51,7 +51,7 @@ use crate::{
 
 impl CoreUser {
     /// Uploads an attachment and sends a message containing it.
-    pub(crate) async fn upload_attachment(
+    pub async fn upload_attachment(
         &self,
         chat_id: ChatId,
         path: &Path,

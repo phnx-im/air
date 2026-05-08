@@ -52,10 +52,13 @@ pub enum AddUsernameContactError {
 }
 
 impl CoreUser {
-    /// Create a connection via a username.
+    /// Create a connection with a new user via their username.
     ///
-    /// The hash of the username must be pre-computed before calling this function.
-    pub(crate) async fn add_contact_via_username(
+    /// Returns the [`ChatId`] of the newly created connection chat, or `None` if the username does
+    /// not exist.
+    ///
+    /// The hash must be pre-computed before calling this function.
+    pub async fn add_contact(
         &self,
         username: Username,
         hash: UsernameHash,
@@ -139,9 +142,11 @@ impl CoreUser {
             .await
     }
 
-    /// Create a connection with a user through a targeted message in a shared
-    /// chat.
-    pub(crate) async fn add_contact_via_targeted_message(
+    /// Create a connection with a new user via an existing group chat.
+    ///
+    /// The group chat must contain the user to connect to. Returns the [`ChatId`] of the newly
+    /// created connection chat.
+    pub(crate) async fn add_contact_from_group(
         &self,
         chat_id: ChatId,
         user_id: UserId,

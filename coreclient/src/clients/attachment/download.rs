@@ -30,7 +30,7 @@ use crate::{
 };
 
 impl CoreUser {
-    pub(crate) fn download_attachment(
+    pub fn download_attachment(
         &self,
         attachment_id: AttachmentId,
     ) -> (

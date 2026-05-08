@@ -2,13 +2,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::UserId;
+use aircommon::{
+    identifiers::{MimiId, UserId},
+    time::TimeStamp,
+};
 use anyhow::{Context, Result, anyhow, bail};
 use mimi_room_policy::VerifiedRoomState;
 use tracing::error;
 
 use crate::{
-    ChatAttributes, ChatType, MessageId,
+    ChatAttributes, ChatType, MessageDraft, MessageId,
     chats::{Chat, PendingConnectionInfo, messages::ChatMessage},
     groups::Group,
     job::{chat_operation::ChatOperation, create_chat::CreateChat},
@@ -21,11 +24,7 @@ impl CoreUser {
     /// Create new chat.
     ///
     /// Returns the id of the newly created chat.
-    pub(crate) async fn create_chat(
-        &self,
-        title: String,
-        picture: Option<Vec<u8>>,
-    ) -> Result<ChatId> {
+    pub async fn create_chat(&self, title: String, picture: Option<Vec<u8>>) -> Result<ChatId> {
         let resized_picture = match picture {
             Some(picture) => {
                 Some(tokio::task::spawn_blocking(move || resize_profile_image(&picture)).await??)
@@ -48,12 +47,23 @@ impl CoreUser {
     /// more than one effect on the group. As a result this function returns a
     /// vector of [`ChatMessage`]s that represents the changes to the
     /// group. Note that these returned message have already been persisted.
-    pub(crate) async fn delete_chat(&self, chat_id: ChatId) -> Result<Vec<ChatMessage>> {
+    pub async fn delete_chat(&self, chat_id: ChatId) -> Result<Vec<ChatMessage>> {
         let job = ChatOperation::delete_chat(chat_id);
         Ok(self.execute_job(job).await?)
     }
 
-    pub(crate) async fn erase_chat(&self, chat_id: ChatId) -> Result<()> {
+    /// Returns the list of all chat ids in the order they should be displayed:
+    ///
+    /// 1. First return all chats having a draft ordered by the timestamp of the draft, descending.
+    /// 2. Then return all chats ordered by the timestamp of the last message, descending.
+    pub async fn ordered_chat_ids(&self) -> anyhow::Result<Vec<ChatId>> {
+        Ok(Chat::load_ordered_ids(self.db().read().await?).await?)
+    }
+
+    /// Erases the chat data with the given [`ChatId`].
+    ///
+    /// Must not be called before the chat is deleted.
+    pub async fn erase_chat(&self, chat_id: ChatId) -> Result<()> {
         self.db()
             .with_write_transaction(async |txn| {
                 let chat = Chat::load(&mut *txn, &chat_id)
@@ -77,17 +87,13 @@ impl CoreUser {
             .await
     }
 
-    pub(crate) async fn leave_chat(&self, chat_id: ChatId) -> Result<()> {
+    pub async fn leave_chat(&self, chat_id: ChatId) -> Result<()> {
         let job = ChatOperation::leave_chat(chat_id);
         self.execute_job(job).await?;
         Ok(())
     }
 
-    pub(crate) async fn set_chat_picture(
-        &self,
-        chat_id: ChatId,
-        picture: Option<Vec<u8>>,
-    ) -> Result<()> {
+    pub async fn set_chat_picture(&self, chat_id: ChatId, picture: Option<Vec<u8>>) -> Result<()> {
         let chat = self
             .db()
             .with_read_transaction(async |txn| Chat::load(txn, &chat_id).await)
@@ -107,12 +113,13 @@ impl CoreUser {
         let new_attributes = ChatAttributes::new(chat.attributes.title, resized_picture_option);
 
         // Update the group and send out the update
-        self.update_key(chat_id, Some(new_attributes)).await?;
+        self.update_key_with_attributes(chat_id, Some(new_attributes))
+            .await?;
 
         Ok(())
     }
 
-    pub(crate) async fn set_chat_title(&self, chat_id: ChatId, title: String) -> Result<()> {
+    pub async fn set_chat_title(&self, chat_id: ChatId, title: String) -> Result<()> {
         let chat = self
             .db()
             .with_read_transaction(async |txn| Chat::load(txn, &chat_id).await)
@@ -128,9 +135,28 @@ impl CoreUser {
         let new_attributes = ChatAttributes::new(title, chat.attributes.picture);
 
         // Update the group and send out the update
-        self.update_key(chat_id, Some(new_attributes)).await?;
+        self.update_key_with_attributes(chat_id, Some(new_attributes))
+            .await?;
 
         Ok(())
+    }
+
+    /// Mark the chat with the given [`ChatId`] as read until the given message id (including).
+    ///
+    /// Returns whether the chat was marked as read and the message ids of the messages that were
+    /// marked as read.
+    pub async fn mark_chat_as_read(
+        &self,
+        chat_id: ChatId,
+        until: MessageId,
+    ) -> anyhow::Result<(bool, Vec<(MessageId, MimiId)>)> {
+        self.db()
+            .with_write_transaction(async |txn| {
+                Chat::mark_as_read_until_message_id(txn, chat_id, until, self.user_id())
+                    .await
+                    .map_err(From::from)
+            })
+            .await
     }
 
     pub(crate) async fn message(
@@ -162,6 +188,66 @@ impl CoreUser {
             .map_err(Into::into)
     }
 
+    pub async fn first_unread_message(
+        &self,
+        chat_id: ChatId,
+    ) -> anyhow::Result<Option<ChatMessage>> {
+        self.db()
+            .with_read_transaction(async |txn| {
+                let chat = Chat::load(&mut *txn, &chat_id)
+                    .await?
+                    .with_context(|| format!("chat not found: {chat_id}"))?;
+                Ok(ChatMessage::first_unread_message(txn, chat_id, chat.last_read.into()).await?)
+            })
+            .await
+    }
+
+    pub async fn last_message(&self, chat_id: ChatId) -> anyhow::Result<Option<ChatMessage>> {
+        Ok(ChatMessage::last_message(self.db().read().await?, chat_id).await?)
+    }
+
+    pub async fn last_message_by_user(
+        &self,
+        chat_id: ChatId,
+        user_id: &UserId,
+    ) -> anyhow::Result<Option<ChatMessage>> {
+        Ok(
+            ChatMessage::last_content_message_by_user(self.db().read().await?, chat_id, user_id)
+                .await?,
+        )
+    }
+
+    pub async fn message_draft(&self, chat_id: ChatId) -> anyhow::Result<Option<MessageDraft>> {
+        Ok(MessageDraft::load(self.db().read().await?, chat_id).await?)
+    }
+
+    pub async fn store_message_draft(
+        &self,
+        chat_id: ChatId,
+        message_draft: Option<&MessageDraft>,
+    ) -> anyhow::Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| {
+                if let Some(message_draft) = message_draft {
+                    message_draft.store(txn, chat_id).await?;
+                } else {
+                    MessageDraft::delete(txn, chat_id).await?;
+                }
+                Ok(())
+            })
+            .await
+    }
+
+    pub async fn commit_all_message_drafts(&self) -> anyhow::Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| Ok(MessageDraft::commit_all(txn).await?))
+            .await
+    }
+
+    pub async fn messages_count(&self, chat_id: ChatId) -> anyhow::Result<usize> {
+        Ok(self.try_messages_count(chat_id).await?)
+    }
+
     pub async fn chat(&self, chat_id: &ChatId) -> Option<Chat> {
         self.db()
             .with_read_transaction(async |txn| Chat::load(txn, chat_id).await)
@@ -171,7 +257,7 @@ impl CoreUser {
     }
 
     /// Get the most recent `number_of_messages` messages from the chat with the given [`ChatId`].
-    pub(crate) async fn get_messages(
+    pub async fn messages(
         &self,
         chat_id: ChatId,
         number_of_messages: usize,
@@ -179,6 +265,74 @@ impl CoreUser {
         ChatMessage::load_multiple(self.db().read().await?, chat_id, number_of_messages as u32)
             .await
             .map_err(Into::into)
+    }
+
+    pub async fn messages_before(
+        &self,
+        chat_id: ChatId,
+        before: TimeStamp,
+        before_id: MessageId,
+        limit: usize,
+    ) -> anyhow::Result<(Vec<ChatMessage>, bool)> {
+        Ok(ChatMessage::load_before(
+            self.db().read().await?,
+            chat_id,
+            before,
+            before_id,
+            limit as u32,
+        )
+        .await?)
+    }
+
+    pub async fn messages_after(
+        &self,
+        chat_id: ChatId,
+        after: TimeStamp,
+        after_id: MessageId,
+        limit: usize,
+    ) -> anyhow::Result<(Vec<ChatMessage>, bool)> {
+        Ok(ChatMessage::load_after(
+            self.db().read().await?,
+            chat_id,
+            after,
+            after_id,
+            limit as u32,
+        )
+        .await?)
+    }
+
+    pub async fn messages_from(
+        &self,
+        chat_id: ChatId,
+        from: TimeStamp,
+        from_id: MessageId,
+        limit: usize,
+    ) -> anyhow::Result<(Vec<ChatMessage>, bool)> {
+        Ok(ChatMessage::load_starting_from(
+            self.db().read().await?,
+            chat_id,
+            from,
+            from_id,
+            limit as u32,
+        )
+        .await?)
+    }
+
+    pub async fn messages_around(
+        &self,
+        chat_id: ChatId,
+        anchor: TimeStamp,
+        anchor_id: MessageId,
+        half_limit: usize,
+    ) -> anyhow::Result<(Vec<ChatMessage>, bool, bool)> {
+        Ok(ChatMessage::load_around(
+            self.db().read().await?,
+            chat_id,
+            anchor,
+            anchor_id,
+            half_limit as u32,
+        )
+        .await?)
     }
 
     pub async fn load_room_state(&self, chat_id: &ChatId) -> Result<(UserId, VerifiedRoomState)> {

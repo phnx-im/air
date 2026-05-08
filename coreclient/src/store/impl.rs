@@ -127,7 +127,8 @@ impl Store for CoreUser {
     }
 
     async fn chat_participants(&self, chat_id: ChatId) -> StoreResult<Option<HashSet<UserId>>> {
-        self.try_chat_participants(chat_id).await
+        todo!()
+        // self.try_chat_participants(chat_id).await
     }
 
     async fn delete_chat(&self, chat_id: ChatId) -> StoreResult<Vec<ChatMessage>> {
@@ -143,7 +144,7 @@ impl Store for CoreUser {
     }
 
     async fn update_key(&self, chat_id: ChatId) -> StoreResult<Vec<ChatMessage>> {
-        self.update_key(chat_id, None).await
+        self.update_key(chat_id).await
     }
 
     async fn remove_users(
@@ -171,7 +172,7 @@ impl Store for CoreUser {
         username: Username,
         hash: UsernameHash,
     ) -> StoreResult<Result<ChatId, AddUsernameContactError>> {
-        self.add_contact_via_username(username, hash).await
+        self.add_contact(username, hash).await
     }
 
     async fn add_contact_from_group(
@@ -179,8 +180,7 @@ impl Store for CoreUser {
         chat_id: ChatId,
         user_id: UserId,
     ) -> StoreResult<ChatId> {
-        self.add_contact_via_targeted_message(chat_id, user_id)
-            .await
+        self.add_contact_from_group(chat_id, user_id).await
     }
 
     async fn block_contact(&self, user_id: UserId) -> StoreResult<()> {
@@ -230,7 +230,7 @@ impl Store for CoreUser {
     }
 
     async fn messages(&self, chat_id: ChatId, limit: usize) -> StoreResult<Vec<ChatMessage>> {
-        self.get_messages(chat_id, limit).await
+        self.messages(chat_id, limit).await
     }
 
     async fn messages_before(
@@ -490,19 +490,19 @@ impl Store for CoreUser {
     }
 
     fn notify(&self, notification: StoreNotification) {
-        self.send_store_notification(notification);
+        self.nofity(notification);
     }
 
     fn subscribe(&self) -> impl Stream<Item = Arc<StoreNotification>> + Send + 'static {
-        self.subscribe_to_store_notifications()
+        self.subscribe()
     }
 
     fn subscribe_iter(&self) -> impl Iterator<Item = Arc<StoreNotification>> + Send + 'static {
-        self.subscribe_iter_to_store_notifications()
+        self.subscribe_iter()
     }
 
     async fn enqueue_notification(&self, notification: &StoreNotification) -> StoreResult<()> {
-        self.enqueue_store_notification(notification).await
+        self.enqueue_notification(notification).await
     }
 
     async fn dequeue_notification(&self) -> StoreResult<StoreNotification> {

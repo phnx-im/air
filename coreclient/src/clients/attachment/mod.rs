@@ -13,6 +13,8 @@ use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
 pub use upload::{ProvisionAttachmentError, UploadTaskError};
 use url::Url;
 
+use crate::{MessageId, clients::CoreUser};
+
 mod aead;
 mod content;
 mod download;
@@ -20,6 +22,33 @@ pub(crate) mod persistence;
 mod process;
 pub(crate) mod progress;
 mod upload;
+
+impl CoreUser {
+    pub async fn pending_attachments(&self) -> anyhow::Result<Vec<AttachmentId>> {
+        Ok(AttachmentRecord::load_all_pending(self.db().read().await?).await?)
+    }
+
+    pub async fn load_attachment(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> anyhow::Result<AttachmentContent> {
+        Ok(AttachmentRecord::load_content(self.db().read().await?, attachment_id).await?)
+    }
+
+    pub async fn attachment_status(
+        &self,
+        attachment_id: AttachmentId,
+    ) -> anyhow::Result<Option<AttachmentStatus>> {
+        Ok(AttachmentRecord::status(self.db().read().await?, attachment_id).await?)
+    }
+
+    pub async fn attachment_ids_for_message(
+        &self,
+        message_id: MessageId,
+    ) -> anyhow::Result<Vec<AttachmentId>> {
+        Ok(AttachmentRecord::load_ids_by_message_id(self.db().read().await?, message_id).await?)
+    }
+}
 
 #[derive(TlsSize, TlsSerialize, TlsDeserializeBytes)]
 struct AttachmentBytes {

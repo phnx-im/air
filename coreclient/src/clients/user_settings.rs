@@ -3,8 +3,49 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use anyhow::bail;
+use tracing::error;
 
-use crate::store::{StoreResult, UserSetting};
+use crate::{
+    clients::CoreUser,
+    store::{StoreResult, UserSetting},
+};
+
+impl CoreUser {
+    /// Loads a user setting
+    ///
+    /// If the setting is not found, or loading or decoding failed, `None` is returned.
+    pub async fn user_setting<T: UserSetting>(&self) -> Option<T> {
+        let connection = self
+            .db()
+            .read()
+            .await
+            .inspect_err(|error| {
+                error!(%error, "Failed to acquire read connection while loading user settings; \
+                    resetting to default");
+            })
+            .ok()?;
+
+        match UserSettingRecord::load(connection, T::KEY).await {
+            Ok(Some(bytes)) => match T::decode(bytes) {
+                Ok(value) => Some(value),
+                Err(error) => {
+                    error!(%error, "Failed to decode user setting; resetting to default");
+                    None
+                }
+            },
+            Ok(None) => None,
+            Err(error) => {
+                error!(%error, "Failed to load user setting; resetting to default");
+                None
+            }
+        }
+    }
+
+    pub async fn set_user_setting<T: UserSetting>(&self, value: &T) -> StoreResult<()> {
+        UserSettingRecord::store(self.db().write().await?, T::KEY, T::encode(value)?).await?;
+        Ok(())
+    }
+}
 
 pub struct ReadReceiptsSetting(pub bool);
 
