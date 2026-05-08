@@ -145,6 +145,9 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
   /// height cache. 8 is generous — most jumps converge in 2–3 iterations.
   static const _maxOffscreenJumpAttempts = 8;
 
+  /// Maximum re-alignment attempts after the target is on screen.
+  static const _maxAlignmentAttempts = 4;
+
   @override
   void initState() {
     super.initState();
@@ -795,9 +798,10 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
     }
   }
 
-  /// Estimates the scroll offset that would place item at [index] at the
-  /// top of the viewport. Because the list is reversed (offset 0 = bottom),
-  /// we need: item's cumulative offset − viewport height + item height.
+  /// Estimates the scroll offset that would place item at [index] just
+  /// below the top inset ([widget.topPadding]). Because the list is
+  /// reversed (offset 0 = bottom), we need: item's cumulative offset −
+  /// viewport height + item height + top inset.
   double _topAlignedOffset(int index) {
     final offset = _estimateOffsetAtIndex(index);
     final targetId = widget.idExtractor(widget.data[index]);
@@ -805,7 +809,7 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
     final viewportBox = _viewportBox;
     if (viewportBox == null) return offset;
     final viewportHeight = viewportBox.size.height;
-    return offset - viewportHeight + itemHeight;
+    return offset - viewportHeight + itemHeight + widget.topPadding;
   }
 
   void _executeJumpScroll() {
@@ -824,20 +828,28 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
     _jumpToOffscreenTarget(targetId, index, attempt: 0);
   }
 
-  /// Scrolls so that [targetId] sits at the top of the viewport.
-  /// Used when the item is already laid out and visible — the offset
-  /// needed is simply current pixels minus the item's current top.
-  void _alignVisibleTarget(Object targetId) {
+  /// Scrolls so that [targetId] sits just below the top inset
+  /// ([widget.topPadding]). Used when the item is already laid out and
+  /// visible — the offset needed is the current pixels minus the item's
+  /// distance from the inset.
+  void _alignVisibleTarget(Object targetId, {int attempt = 0}) {
     if (!_scrollController.hasClients || _jumpState.targetId != targetId) {
       return;
     }
 
     final currentTop = _itemTopInViewport(targetId);
-    if (currentTop == null) return;
+    if (currentTop == null) {
+      _jumpState.onScrollComplete();
+      return;
+    }
 
-    // Shift the scroll position by exactly how far the item is from
-    // the viewport's top edge.
-    final desiredOffset = _scrollController.position.pixels - currentTop;
+    final delta = currentTop - widget.topPadding;
+    if (delta.abs() < _jumpAlignmentTolerance) {
+      _jumpState.onScrollComplete();
+      return;
+    }
+
+    final desiredOffset = _scrollController.position.pixels - delta;
     final clampedOffset = desiredOffset
         .clamp(
           _scrollController.position.minScrollExtent,
@@ -852,7 +864,16 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
     }
 
     _scrollController.jumpTo(clampedOffset);
-    _jumpState.onScrollComplete();
+
+    if (attempt >= _maxAlignmentAttempts) {
+      _jumpState.onScrollComplete();
+      return;
+    }
+
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _alignVisibleTarget(targetId, attempt: attempt + 1);
+    });
   }
 
   /// Iteratively jumps toward an off-screen item.
