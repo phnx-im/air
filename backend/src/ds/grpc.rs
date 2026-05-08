@@ -570,8 +570,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         })?;
 
         // Create t group state
-        let (t_client_credential, t_qgid, t_group_state, t_ear_key) = Self::extract_group_state(
-            &self,
+        let (t_client_credential, t_qgid, t_group_state, t_ear_key) = self.extract_group_state(
             payload
                 .clone()
                 .t_group_data
