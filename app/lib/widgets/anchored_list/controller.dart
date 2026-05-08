@@ -29,14 +29,21 @@ class ScrollToBottomCommand extends AnchoredListCommand {
 /// Provides the following capabilities:
 ///  - **Commands** — [goToId] and [scrollToBottom] queue a command that the
 ///    widget processes on the next frame.
-///  - **Observation** — [isAtBottom] and [newestVisibleId] expose live
-///    viewport state via [ValueListenable]s so callers can react without
-///    polling (e.g. showing a "jump to latest" button).
+///  - **Observation** — [isAtBottom], [newestVisibleId], [oldestVisibleId],
+///    and [isOldestVisibleHoisted] expose live viewport state via
+///    [ValueListenable]s so callers can react without polling (e.g. showing
+///    a "jump to latest" button or a floating date header anchored to the
+///    top of the viewport).
 class AnchoredListController extends ChangeNotifier {
   final ValueNotifier<bool> isAtBottomNotifier = ValueNotifier<bool>(true);
   final ValueNotifier<Object?> newestVisibleIdNotifier = ValueNotifier<Object?>(
     null,
   );
+  final ValueNotifier<Object?> oldestVisibleIdNotifier = ValueNotifier<Object?>(
+    null,
+  );
+  final ValueNotifier<bool> isOldestVisibleHoistedNotifier =
+      ValueNotifier<bool>(false);
   ScrollController? scrollController;
   AnchoredListCommand? _pendingCommand;
 
@@ -44,7 +51,19 @@ class AnchoredListController extends ChangeNotifier {
   ValueListenable<bool> get isAtBottom => isAtBottomNotifier;
 
   /// The newest currently visible item ID, if known.
+  ///
+  /// In a chat-style reversed list this is the item visually at the bottom
+  /// of the viewport.
   ValueListenable<Object?> get newestVisibleId => newestVisibleIdNotifier;
+
+  /// The oldest currently visible item ID, if known.
+  ValueListenable<Object?> get oldestVisibleId => oldestVisibleIdNotifier;
+
+  /// True when the oldest visible item's top edge has reached or passed
+  /// `AnchoredList.oldestVisibleTopThreshold` (or `topPadding` if the
+  /// threshold is not set).
+  ValueListenable<bool> get isOldestVisibleHoisted =>
+      isOldestVisibleHoistedNotifier;
 
   /// The current scroll position, if attached.
   ScrollPosition? get position =>
@@ -52,6 +71,9 @@ class AnchoredListController extends ChangeNotifier {
 
   /// The newest currently visible item ID, if attached.
   Object? get currentNewestVisibleId => newestVisibleIdNotifier.value;
+
+  /// The oldest currently visible item ID, if attached.
+  Object? get currentOldestVisibleId => oldestVisibleIdNotifier.value;
 
   /// Navigate to the message with [id].
   ///
@@ -80,6 +102,8 @@ class AnchoredListController extends ChangeNotifier {
   void dispose() {
     isAtBottomNotifier.dispose();
     newestVisibleIdNotifier.dispose();
+    oldestVisibleIdNotifier.dispose();
+    isOldestVisibleHoistedNotifier.dispose();
     super.dispose();
   }
 }

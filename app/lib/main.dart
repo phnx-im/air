@@ -7,11 +7,13 @@ import 'package:air/core/frb_generated.dart' show RustLib;
 import 'package:air/util/logging.dart';
 import 'package:air/util/platform.dart';
 import 'package:flutter/material.dart';
+import 'package:intl/date_symbol_data_local.dart';
 import 'package:path/path.dart' as p;
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
+  await initializeDateFormatting();
   await RustLib.init();
 
   final cacheDir = await getCacheDirectory();

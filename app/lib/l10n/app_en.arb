@@ -188,7 +188,8 @@
       }
     }
   },
-  "timestamp_yesterday": "Yesterday",
+  "date_today": "Today",
+  "date_yesterday": "Yesterday",
 
   "messageBubble_sending": "Sending",
   "messageBubble_failedToSend": "Failed to send",
