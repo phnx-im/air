@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
@@ -54,9 +54,9 @@ class ContactUsScreen extends StatelessWidget {
       ),
       backgroundColor: colors.backgroundBase.secondary,
       body: SafeArea(
-        minimum: const EdgeInsets.only(bottom: Spacings.l + Spacings.xxs),
+        minimum: const EdgeInsets.only(bottom: Spacing.px32 + Spacing.px8),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
+          padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
           child: Align(
             alignment: Alignment.topCenter,
             child: Container(
@@ -67,8 +67,8 @@ class ContactUsScreen extends StatelessWidget {
                 data: theme.copyWith(
                   inputDecorationTheme: theme.inputDecorationTheme.copyWith(
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: Spacings.xxs,
-                      vertical: Spacings.xxs,
+                      horizontal: Spacing.px8,
+                      vertical: Spacing.px8,
                     ),
                     isDense: true,
                     border: _outlineInputBorder,
@@ -123,7 +123,7 @@ class _EmailForm extends HookWidget {
         child: Column(
           children: [
             // Spacing for the label of Subject Dropdown field (when selected)
-            const SizedBox(height: Spacings.xxs),
+            const SizedBox(height: Spacing.px8),
 
             // Subject Dropdown
             DropdownButtonFormField<String>(
@@ -140,7 +140,7 @@ class _EmailForm extends HookWidget {
               onChanged: (value) => selectedSubject.value = value,
               validator: (value) => _validateSubject(value, loc),
             ),
-            const SizedBox(height: Spacings.s),
+            const SizedBox(height: Spacing.px16),
 
             // Email Body
             TextFormField(
@@ -161,7 +161,7 @@ class _EmailForm extends HookWidget {
                 shape: WidgetStatePropertyAll(
                   RoundedRectangleBorder(
                     borderRadius: BorderRadius.all(
-                      Radius.circular(Spacings.xs),
+                      Radius.circular(Spacing.px12),
                     ),
                   ),
                 ),
@@ -219,6 +219,6 @@ class _UrlLauncher implements UrlLauncher {
 }
 
 const _outlineInputBorder = OutlineInputBorder(
-  borderRadius: BorderRadius.all(Radius.circular(Spacings.s)),
+  borderRadius: BorderRadius.all(Radius.circular(Spacing.px16)),
   borderSide: BorderSide(width: 0, style: BorderStyle.none),
 );

@@ -3,10 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/chat/chat_details.dart';
-import 'package:air/theme/spacings.dart';
+import 'package:air/ds/foundations/spacing.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:air/ui/colors/themes.dart';
+import 'package:air/ds/foundations/themes.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 
@@ -61,7 +61,7 @@ class _ChatListViewState extends State<ChatListView> {
   @override
   Widget build(BuildContext context) {
     final bgColor = ChatListContainer.backgroundColor(context);
-    const fadeBleeding = Spacings.xs;
+    const fadeBleeding = Spacing.px12;
     // Content top/bottom padding includes a small bleed below the header so
     // chat rows don't snap right against it.
     const contentInset = kToolbarHeight + fadeBleeding;

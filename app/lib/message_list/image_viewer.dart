@@ -7,9 +7,9 @@ import 'dart:math' as math;
 
 import 'package:air/attachments/attachment_image_provider.dart';
 import 'package:air/core/core.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/theme/responsive_screen.dart';
-import 'package:air/ui/icons/app_icons.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/theme/responsive_screen.dart';
+import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:air/widgets/app_bar_x_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';

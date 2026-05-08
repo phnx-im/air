@@ -6,11 +6,11 @@ import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/components/button/button.dart';
-import 'package:air/ui/components/modal/app_dialog.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/components/modal/app_dialog.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/avatar.dart' show UserAvatar;
@@ -90,7 +90,7 @@ class ContactRequestDialog extends HookWidget {
             ),
           ),
 
-          const SizedBox(height: Spacings.l),
+          const SizedBox(height: Spacing.px32),
 
           InkWell(
             onTap: () {
@@ -105,7 +105,7 @@ class ContactRequestDialog extends HookWidget {
           ),
 
           if (senderProfile.profilePicture != null) ...[
-            const SizedBox(height: Spacings.xxs),
+            const SizedBox(height: Spacing.px8),
             Text(
               loc.contactRequestDialog_avatarHint,
               style: TextStyle(
@@ -115,7 +115,7 @@ class ContactRequestDialog extends HookWidget {
             ),
           ],
 
-          const SizedBox(height: Spacings.l),
+          const SizedBox(height: Spacing.px32),
 
           Text(
             message,
@@ -126,7 +126,7 @@ class ContactRequestDialog extends HookWidget {
             textAlign: .center,
           ),
 
-          const SizedBox(height: Spacings.l),
+          const SizedBox(height: Spacing.px32),
 
           Row(
             children: [
@@ -139,7 +139,7 @@ class ContactRequestDialog extends HookWidget {
                   label: loc.contactRequestDialog_cancel,
                 ),
               ),
-              const SizedBox(width: Spacings.xs),
+              const SizedBox(width: Spacing.px12),
               const Expanded(child: _AcceptButton()),
             ],
           ),

@@ -7,13 +7,13 @@ import 'dart:typed_data';
 
 import 'package:air/core/api/markdown.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/spacings.dart';
-import 'package:air/ui/colors/palette.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/components/modal/app_dialog.dart';
-import 'package:air/ui/icons/app_icons.dart';
-import 'package:air/ui/typography/font_size.dart';
-import 'package:air/ui/typography/monospace.dart';
+import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/palette.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/components/modal/app_dialog.dart';
+import 'package:air/ds/foundations/icons/app_icons.dart';
+import 'package:air/ds/foundations/font_size.dart';
+import 'package:air/ds/foundations/monospace.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:air/message_list/jumbo_emoji.dart';
@@ -62,8 +62,8 @@ Widget buildBlockElement(
     ),
     BlockElement_Quote(:final field0) => Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: Spacings.xs,
-        vertical: Spacings.xxs,
+        horizontal: Spacing.px12,
+        vertical: Spacing.px8,
       ),
       decoration: BoxDecoration(
         borderRadius: const BorderRadius.all(Radius.circular(12)),
@@ -187,8 +187,8 @@ Widget buildBlockElement(
               .map(
                 (itemBlocks) => Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: Spacings.xs,
-                    vertical: Spacings.xxxs,
+                    horizontal: Spacing.px12,
+                    vertical: Spacing.px4,
                   ),
                   child: DefaultTextStyle(
                     style: const TextStyle(fontWeight: FontWeight.bold),
@@ -217,8 +217,8 @@ Widget buildBlockElement(
                 .map(
                   (itemBlocks) => Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: Spacings.xs,
-                      vertical: Spacings.xxxs,
+                      horizontal: Spacing.px12,
+                      vertical: Spacing.px4,
                     ),
                     child: Column(
                       spacing: BodyFontSize.base.size,
@@ -364,10 +364,7 @@ InlineSpan buildInlineElement(
     InlineElement_TaskListMarker(:final field0) => WidgetSpan(
       alignment: PlaceholderAlignment.middle,
       child: Padding(
-        padding: const EdgeInsets.only(
-          left: Spacings.xxxs,
-          right: Spacings.xxs,
-        ),
+        padding: const EdgeInsets.only(left: Spacing.px4, right: Spacing.px8),
         child: field0
             ? AppIcon.squareCheck(
                 size: 20,
@@ -426,7 +423,7 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
           children: [
             Center(
               child: Column(
-                spacing: Spacings.xxs,
+                spacing: Spacing.px8,
                 children: [
                   Text(
                     loc.linkConfirmation_title,
@@ -455,7 +452,7 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
               ),
             ),
 
-            const SizedBox(height: Spacings.m),
+            const SizedBox(height: Spacing.px24),
             Row(
               children: [
                 Expanded(
@@ -466,7 +463,7 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
                     child: Text(loc.linkConfirmation_cancel),
                   ),
                 ),
-                const SizedBox(width: Spacings.xs),
+                const SizedBox(width: Spacing.px12),
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () {

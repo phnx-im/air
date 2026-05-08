@@ -4,7 +4,7 @@
 
 import 'package:air/chat/contact_details.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ui/components/app_scaffold.dart';
+import 'package:air/ds/components/app_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/effects/motion.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/motion.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -60,7 +60,7 @@ class ChatTile extends StatelessWidget {
     };
 
     final tile = ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: Spacings.s),
+      contentPadding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
       dense: true,
       visualDensity: const VisualDensity(horizontal: 0, vertical: -4),
       minVerticalPadding: 0,

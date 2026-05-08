@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/chat/contact_details.dart';
-import 'package:air/ui/components/app_scaffold.dart';
+import 'package:air/ds/components/app_scaffold.dart';
 import 'package:flutter/material.dart';
 import 'package:air/core/core.dart';
 import 'package:air/user/user.dart';

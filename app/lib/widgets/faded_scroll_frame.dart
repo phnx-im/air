@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/ui/components/navigation/navigation_tokens.dart';
+import 'package:air/ds/components/navigation/navigation_tokens.dart';
 import 'package:air/widgets/edge_fade.dart';
 import 'package:flutter/material.dart';
 

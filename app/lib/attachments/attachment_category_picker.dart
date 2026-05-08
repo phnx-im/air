@@ -5,9 +5,9 @@
 import 'dart:io';
 
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/icons/app_icons.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:flutter/material.dart';
 
 typedef AttachmentCategoryCallback = void Function(AttachmentCategory category);
@@ -81,9 +81,9 @@ class _AttachmentCategoryButton extends StatelessWidget {
             onPressed: onPressed,
           ),
         ),
-        const SizedBox(height: Spacings.xxs),
+        const SizedBox(height: Spacing.px8),
         Text(label),
-        const SizedBox(height: Spacings.xxs),
+        const SizedBox(height: Spacing.px8),
       ],
     );
   }
