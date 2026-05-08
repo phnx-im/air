@@ -38,6 +38,7 @@ pub struct AuthService {
     client_version_req: Option<VersionReq>,
     invitation_only: bool,
     unredeemable_code: Option<Arc<str>>,
+    stop: CancellationToken,
     _stop: Arc<DropGuard>,
 }
 
@@ -83,6 +84,7 @@ impl BackendService for AuthService {
             client_version_req,
             invitation_only: true,
             unredeemable_code: None,
+            stop: stop.clone(),
             _stop: Arc::new(stop.drop_guard()),
         };
 
