@@ -7,7 +7,7 @@ use aircommon::{identifiers::UserId, time::TimeStamp};
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage,
     chats::messages::TimestampedMessage,
-    db_access::{WriteConnection, WriteDbTransaction},
+    db::access::{WriteConnection, WriteDbTransaction},
     job::chat_operation::ChatOperation,
 };
 

@@ -25,8 +25,11 @@ use sqlx::{
 };
 use tracing::{error, info};
 
-use crate::{clients::store::ClientRecord, db_access::DbAccess};
-use crate::{store::StoreNotificationsSender, utils::global_lock::GlobalLock};
+use crate::{
+    clients::store::ClientRecord,
+    db::{access::DbAccess, notification::DbNotificationsSender},
+    utils::global_lock::GlobalLock,
+};
 
 pub(crate) const AIR_DB_NAME: &str = "air.db";
 
@@ -60,7 +63,7 @@ pub(crate) async fn open_air_db(db_path: &str) -> sqlx::Result<DbAccess> {
 
     migrate!("migrations/air").run(&pool).await?;
 
-    Ok(DbAccess::new(pool, StoreNotificationsSender::new()))
+    Ok(DbAccess::new(pool, DbNotificationsSender::new()))
 }
 
 #[cfg(feature = "test_utils")]
@@ -170,7 +173,7 @@ pub async fn open_client_db(user_id: &UserId, client_db_path: &str) -> sqlx::Res
 
     migrate!().run(&pool).await?;
 
-    Ok(DbAccess::new(pool, StoreNotificationsSender::new()))
+    Ok(DbAccess::new(pool, DbNotificationsSender::new()))
 }
 
 pub(crate) fn open_lock_file(db_path: &str) -> std::io::Result<GlobalLock> {

@@ -11,7 +11,7 @@ use aircommon::identifiers::UserId;
 use aircoreclient::{
     DisplayName, UserProfile,
     clients::CoreUser,
-    store::{StoreEntityId, StoreNotification, StoreOperation},
+    db::notification::{DbEntityId, DbNotification, DbOperation},
 };
 use flutter_rust_bridge::frb;
 use tokio::sync::{mpsc, watch};
@@ -297,11 +297,11 @@ impl ProfileLoadingTask {
 
     async fn process_notification(
         &self,
-        notification: Arc<StoreNotification>,
+        notification: Arc<DbNotification>,
     ) -> Vec<(UserId, Option<UserProfile>)> {
         let mut changed_profiles = Vec::new();
         for (entity_id, op) in notification.ops.iter() {
-            let StoreEntityId::User(user_id) = entity_id else {
+            let DbEntityId::User(user_id) = entity_id else {
                 continue;
             };
 
@@ -311,12 +311,12 @@ impl ProfileLoadingTask {
             }
 
             // We consider Add/Update to be of higher precedence than Remove
-            if op.contains(StoreOperation::Add) || op.contains(StoreOperation::Update) {
+            if op.contains(DbOperation::Add) || op.contains(DbOperation::Update) {
                 changed_profiles.push((
                     user_id.clone(),
                     Some(self.core_user.user_profile(user_id).await),
                 ));
-            } else if op.contains(StoreOperation::Remove) {
+            } else if op.contains(DbOperation::Remove) {
                 changed_profiles.push((user_id.clone(), None));
             }
         }

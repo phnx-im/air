@@ -20,7 +20,7 @@ use tracing::{debug, error, info};
 
 use crate::{
     clients::api_clients::ApiClients,
-    db_access::DbAccess,
+    db::access::DbAccess,
     job::{Job, JobContext, JobContextDb, JobError},
     key_stores::MemoryUserKeyStore,
     outbound_service::error::OutboundServiceRunError,

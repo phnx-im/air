@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatStatus, ChatType, MessageId,
-    db_access::{
+    db::access::{
         ReadConnection, ReadTransaction, WriteConnection, WriteDbTransaction, WriteTransaction,
     },
     utils::persistence::GroupIdWrapper,
@@ -848,7 +848,7 @@ pub mod tests {
         InactiveChat, MessageDraft,
         chats::messages::persistence::tests::{test_chat_message, test_chat_message_at},
         clients::block_contact::BlockedContact,
-        db_access::DbAccess,
+        db::access::DbAccess,
     };
 
     use super::*;

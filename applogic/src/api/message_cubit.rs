@@ -9,7 +9,7 @@ use std::sync::Arc;
 use aircoreclient::{
     MessageId,
     clients::CoreUser,
-    store::{StoreNotification, StoreOperation},
+    db::notification::{DbNotification, DbOperation},
 };
 use flutter_rust_bridge::frb;
 use tokio::sync::watch;
@@ -105,7 +105,7 @@ impl MessageContext {
 
     fn spawn(
         self,
-        store_notifications: impl Stream<Item = Arc<StoreNotification>> + Send + Unpin + 'static,
+        store_notifications: impl Stream<Item = Arc<DbNotification>> + Send + Unpin + 'static,
         stop: CancellationToken,
     ) {
         spawn_from_sync(async move {
@@ -136,7 +136,7 @@ impl MessageContext {
 
     async fn store_notifications_loop(
         &self,
-        mut store_notifications: impl Stream<Item = Arc<StoreNotification>> + Unpin,
+        mut store_notifications: impl Stream<Item = Arc<DbNotification>> + Unpin,
         stop: CancellationToken,
     ) {
         loop {
@@ -153,13 +153,13 @@ impl MessageContext {
         }
     }
 
-    async fn process_store_notification(&self, notification: &StoreNotification) {
+    async fn process_store_notification(&self, notification: &DbNotification) {
         let op = notification
             .ops
             .get(&self.message_id.into())
             .copied()
             .unwrap_or_default();
-        if op.contains(StoreOperation::Add) || op.contains(StoreOperation::Update) {
+        if op.contains(DbOperation::Add) || op.contains(DbOperation::Update) {
             self.load_and_emit_state().await;
         }
     }

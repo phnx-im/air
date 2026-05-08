@@ -23,7 +23,7 @@ use crate::{
     chats::{GroupDataExt, messages::TimestampedMessage},
     clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
     contacts::ContactAddInfos,
-    db_access::{WriteConnection, WriteDbTransaction},
+    db::access::{WriteConnection, WriteDbTransaction},
     groups::{
         Group, VerifiedGroup, client_auth_info::StorableClientCredential,
         handle_group_not_found_on_ds,
@@ -630,7 +630,7 @@ mod persistence {
     use thiserror::Error;
     use uuid::Uuid;
 
-    use crate::db_access::{ReadConnection, WriteConnection, WriteDbTransaction};
+    use crate::db::access::{ReadConnection, WriteConnection, WriteDbTransaction};
 
     use super::*;
 
@@ -941,7 +941,7 @@ mod persistence {
 #[cfg(any(test, feature = "test_utils"))]
 pub mod test_utils {
 
-    use crate::db_access::ReadConnection;
+    use crate::db::access::ReadConnection;
 
     use super::*;
 
@@ -980,7 +980,7 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
-        ChatAttributes, db_access::DbAccess, groups::GroupDataBytes,
+        ChatAttributes, db::access::DbAccess, groups::GroupDataBytes,
         utils::persistence::open_db_in_memory,
     };
 

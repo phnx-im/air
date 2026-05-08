@@ -5,7 +5,7 @@
 use aircommon::{crypto::indexed_aead::keys::UserProfileKeyIndex, identifiers::UserId};
 use sqlx::{query, query_as};
 
-use crate::db_access::{DbAccess, ReadConnection, WriteConnection};
+use crate::db::access::{DbAccess, ReadConnection, WriteConnection};
 
 use super::{Asset, IndexedUserProfile, UserProfile, display_name::BaseDisplayName};
 
@@ -126,8 +126,8 @@ impl IndexedUserProfile {
 }
 
 impl UserProfile {
-    pub async fn load(db_access: &DbAccess, user_id: &UserId) -> sqlx::Result<Option<Self>> {
-        IndexedUserProfile::load(db_access.read().await?, user_id)
+    pub async fn load(db: &DbAccess, user_id: &UserId) -> sqlx::Result<Option<Self>> {
+        IndexedUserProfile::load(db.read().await?, user_id)
             .await
             .map(|res| res.map(From::from))
     }
@@ -138,7 +138,7 @@ mod tests {
     use aircommon::crypto::indexed_aead::keys::UserProfileKey;
     use sqlx::SqlitePool;
 
-    use crate::{Asset, db_access::DbAccess, key_stores::indexed_keys::StorableIndexedKey};
+    use crate::{Asset, db::access::DbAccess, key_stores::indexed_keys::StorableIndexedKey};
 
     use super::*;
 

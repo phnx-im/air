@@ -51,7 +51,7 @@ use crate::{
         user_settings::ReadReceiptsSetting,
     },
     contacts::{PartialContact, PartialContactType},
-    db_access::{WriteConnection, WriteDbTransaction},
+    db::access::{WriteConnection, WriteDbTransaction},
     groups::{
         Group, VerifiedGroup, client_auth_info::StorableClientCredential,
         process::ProcessMessageResult,
@@ -1320,7 +1320,7 @@ mod tests {
         ChatMessage, ContentMessage, MessageId,
         chats::persistence::tests::test_chat,
         clients::process::process_qs::handle_message_edit,
-        db_access::{DbAccess, WriteConnection},
+        db::access::{DbAccess, WriteConnection},
     };
 
     /// Editing a message (without deleting) should not update any `in_reply_to` references.

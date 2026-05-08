@@ -12,14 +12,14 @@ use sqlx::{
 };
 use tracing::debug;
 
-use crate::store::{StoreNotificationsSender, StoreNotifier};
+use super::notification::{DbNotificationsSender, DbNotifier};
 
 /// Abstraction over a database connection pool providing read and write
 /// access, and a [`StoreNotifier`] for tracking database changes.
 #[derive(Debug, Clone)]
 pub struct DbAccess {
     pool: SqlitePool,
-    pub(crate) notifier_tx: StoreNotificationsSender,
+    pub(crate) notifier_tx: DbNotificationsSender,
 }
 
 /// A read-only database connection.
@@ -52,8 +52,8 @@ pub(crate) struct ReadDbTransaction<'a> {
 #[derive(Debug)]
 pub(crate) struct WriteDbConnection {
     conn: PoolConnection<Sqlite>,
-    notifier_tx: StoreNotificationsSender,
-    notifier: StoreNotifier,
+    notifier_tx: DbNotificationsSender,
+    notifier: DbNotifier,
 }
 
 /// A write database transaction.
@@ -67,7 +67,7 @@ pub(crate) struct WriteDbConnection {
 #[must_use = "transactions must be committed or rolled back"]
 pub(crate) struct WriteDbTransaction<'a> {
     txn: SqliteTransaction<'a>,
-    notifier: &'a mut StoreNotifier,
+    notifier: &'a mut DbNotifier,
 }
 
 /// A read-only database connection or transaction.
@@ -81,10 +81,10 @@ pub(crate) trait WriteConnection: ReadConnection + AsMut<SqliteConnection> + Sen
     /// Split the connection into a connection and a [`StoreNotifier`].
     ///
     /// Useful when notifier needs to be accessed after the connection was used by value.
-    fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier);
+    fn split(&mut self) -> (&mut SqliteConnection, &mut DbNotifier);
 
     /// Get a reference to the [`StoreNotifier`].
-    fn notifier(&mut self) -> &mut StoreNotifier;
+    fn notifier(&mut self) -> &mut DbNotifier;
 
     /// Begin a new write transaction.
     fn begin<'a>(&'a mut self) -> impl Future<Output = sqlx::Result<WriteDbTransaction<'a>>> {
@@ -118,7 +118,7 @@ pub(crate) trait WriteConnection: ReadConnection + AsMut<SqliteConnection> + Sen
 
 impl DbAccess {
     /// Create a new [`DbAccess`] from a database connection pool.
-    pub(crate) fn new(pool: SqlitePool, notifier_tx: StoreNotificationsSender) -> Self {
+    pub(crate) fn new(pool: SqlitePool, notifier_tx: DbNotificationsSender) -> Self {
         Self { pool, notifier_tx }
     }
 
@@ -127,13 +127,13 @@ impl DbAccess {
     pub(crate) fn for_tests(pool: SqlitePool) -> Self {
         Self {
             pool,
-            notifier_tx: StoreNotificationsSender::new(),
+            notifier_tx: DbNotificationsSender::new(),
         }
     }
 
     /// Create a new [`StoreNotifier`] for this [`DbAccess`].
-    fn notifier(&self) -> StoreNotifier {
-        StoreNotifier::new(self.notifier_tx.clone())
+    fn notifier(&self) -> DbNotifier {
+        DbNotifier::new(self.notifier_tx.clone())
     }
 
     /// Acquire a read-only database connection.
@@ -183,7 +183,7 @@ impl DbAccess {
 
 impl ReadDbConnection {
     /// Begin a read transaction.
-    pub(super) async fn begin(&mut self) -> sqlx::Result<ReadDbTransaction<'_>> {
+    pub(crate) async fn begin(&mut self) -> sqlx::Result<ReadDbTransaction<'_>> {
         let txn = self.conn.begin().await?;
         Ok(ReadDbTransaction { txn })
     }
@@ -194,7 +194,7 @@ impl WriteDbConnection {
     pub(crate) fn notify(&mut self) {
         let notifier = std::mem::replace(
             &mut self.notifier,
-            StoreNotifier::new(self.notifier_tx.clone()),
+            DbNotifier::new(self.notifier_tx.clone()),
         );
         notifier.notify();
     }
@@ -280,11 +280,11 @@ impl<C> WriteConnection for &mut C
 where
     C: WriteConnection,
 {
-    fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier) {
+    fn split(&mut self) -> (&mut SqliteConnection, &mut DbNotifier) {
         (*self).split()
     }
 
-    fn notifier(&mut self) -> &mut StoreNotifier {
+    fn notifier(&mut self) -> &mut DbNotifier {
         (*self).notifier()
     }
 
@@ -305,11 +305,11 @@ impl ReadConnection for WriteDbConnection {}
 impl ReadConnection for WriteDbTransaction<'_> {}
 
 impl WriteConnection for WriteDbConnection {
-    fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier) {
+    fn split(&mut self) -> (&mut SqliteConnection, &mut DbNotifier) {
         (&mut self.conn, &mut self.notifier)
     }
 
-    fn notifier(&mut self) -> &mut StoreNotifier {
+    fn notifier(&mut self) -> &mut DbNotifier {
         &mut self.notifier
     }
 
@@ -326,11 +326,11 @@ impl WriteConnection for WriteDbConnection {
 }
 
 impl WriteConnection for WriteDbTransaction<'_> {
-    fn split(&mut self) -> (&mut SqliteConnection, &mut StoreNotifier) {
+    fn split(&mut self) -> (&mut SqliteConnection, &mut DbNotifier) {
         (self.txn.as_mut(), self.notifier)
     }
 
-    fn notifier(&mut self) -> &mut StoreNotifier {
+    fn notifier(&mut self) -> &mut DbNotifier {
         self.notifier
     }
 
@@ -359,7 +359,7 @@ async fn begin_write_txn(connection: &mut SqliteConnection) -> sqlx::Result<Sqli
 async fn with_write_transaction_impl<T, E>(
     f: impl AsyncFnOnce(&mut WriteDbTransaction<'_>) -> Result<T, E>,
     connection: &mut SqliteConnection,
-    notifier: &mut StoreNotifier,
+    notifier: &mut DbNotifier,
 ) -> Result<T, E>
 where
     E: From<sqlx::Error>,
