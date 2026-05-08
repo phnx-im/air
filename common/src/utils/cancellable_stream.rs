@@ -1,4 +1,4 @@
-// SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+// SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
@@ -20,7 +20,7 @@ use tokio_util::sync::{CancellationToken, DropGuard, WaitForCancellationFutureOw
 /// **not** lazy in the sense that the underlying stream first has to yield an item to observe
 /// cancellation.
 #[pin_project]
-pub(crate) struct CancellableStream<S> {
+pub struct CancellableStream<S> {
     #[pin]
     stream: S,
     #[pin]
@@ -28,7 +28,8 @@ pub(crate) struct CancellableStream<S> {
 }
 
 impl<S> CancellableStream<S> {
-    pub(crate) fn new(stream: S, cancel: CancellationToken) -> Self {
+    #[inline]
+    pub fn new(stream: S, cancel: CancellationToken) -> Self {
         Self {
             stream,
             cancel_fut: Some(cancel.cancelled_owned()),
@@ -36,7 +37,7 @@ impl<S> CancellableStream<S> {
     }
 }
 
-impl<S: Stream + Unpin> Stream for CancellableStream<S> {
+impl<S: Stream> Stream for CancellableStream<S> {
     type Item = S::Item;
 
     fn poll_next(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Option<Self::Item>> {
@@ -68,14 +69,15 @@ impl<S: Stream + Unpin> Stream for CancellableStream<S> {
 /// This is useful when you want to bind a lifetime of some resource to the lifetime of the stream.
 /// E.g. use with [`CancellableStream`] to create a dependency between two streams.
 #[pin_project]
-pub(crate) struct CancellingStream<S> {
+pub struct CancellingStream<S> {
     #[pin]
     stream: S,
     cancel: Option<DropGuard>,
 }
 
 impl<S> CancellingStream<S> {
-    pub(crate) fn new(stream: S, cancel: CancellationToken) -> Self {
+    #[inline]
+    pub fn new(stream: S, cancel: CancellationToken) -> Self {
         Self {
             stream,
             cancel: Some(cancel.drop_guard()),

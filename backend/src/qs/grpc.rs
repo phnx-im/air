@@ -18,6 +18,7 @@ use aircommon::{
         UpdateClientRecordParams, UpdateUserRecordParams,
     },
     time::TimeStamp,
+    utils::CancellableStream,
 };
 use displaydoc::Display;
 use semver::Version;
@@ -476,7 +477,7 @@ impl QueueService for GrpcQs {
         ));
 
         let responses = select_until_first_ends(
-            events.map(Ok),
+            CancellableStream::new(events, self.qs.stop.clone()).map(Ok),
             ReceiverStream::new(requests_responses_rx).map(Err),
         );
 

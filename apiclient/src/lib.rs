@@ -21,7 +21,6 @@ pub mod as_api;
 pub mod ds_api;
 mod metadata;
 pub mod qs_api;
-pub(crate) mod util;
 
 /// The port used for localhost connections.
 ///
