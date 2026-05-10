@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:async';
+
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
@@ -46,6 +48,8 @@ class AnchoredListController extends ChangeNotifier {
       ValueNotifier<bool>(false);
   ScrollController? scrollController;
   AnchoredListCommand? _pendingCommand;
+  final StreamController<Object> _jumpedToIdController =
+      StreamController<Object>.broadcast();
 
   /// Whether the list is currently at or near the bottom.
   ValueListenable<bool> get isAtBottom => isAtBottomNotifier;
@@ -98,8 +102,15 @@ class AnchoredListController extends ChangeNotifier {
     return cmd;
   }
 
+  /// Fires after a jump-to-id scroll has completed.
+  Stream<Object> get jumpedToId => _jumpedToIdController.stream;
+
+  /// Called by the widget when a jump-to-id scroll completes.
+  void notifyJumpedToId(Object id) => _jumpedToIdController.add(id);
+
   @override
   void dispose() {
+    _jumpedToIdController.close();
     isAtBottomNotifier.dispose();
     newestVisibleIdNotifier.dispose();
     oldestVisibleIdNotifier.dispose();

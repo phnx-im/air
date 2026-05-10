@@ -221,14 +221,60 @@ void main() {
       controller.goToId(20);
       await tester.pumpAndSettle();
 
-      final viewportTopY =
-          tester.getTopLeft(find.byType(AnchoredList<int>)).dy;
+      final viewportTopY = tester.getTopLeft(find.byType(AnchoredList<int>)).dy;
       final targetRect = await rectOf(tester, 20);
       final relativeTop = targetRect.top - viewportTopY;
       expect(relativeTop, closeTo(topPadding, 0.5));
     });
 
-    testWidgets('on-screen jump lands target below the top inset', (
+    testWidgets(
+      'on-screen jump aligns target when it straddles the top inset',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 800);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final data = AnchoredListData<int>(List.generate(40, (index) => index));
+        final controller = AnchoredListController();
+        const topPadding = 120.0;
+
+        await tester.pumpWidget(
+          buildSubject(
+            data: data,
+            controller: controller,
+            canLoadNewer: false,
+            onLoadNewer: () {},
+            topPadding: topPadding,
+          ),
+        );
+        await tester.pump();
+
+        // Land at item 20 (top inset), then nudge the scroll so item 18
+        // sits partially under the top inset — clipped, not fully visible.
+        controller.goToId(20);
+        await tester.pumpAndSettle();
+        controller.position!.jumpTo(controller.position!.pixels - 240);
+        await tester.pump();
+
+        final viewportTopY = tester
+            .getTopLeft(find.byType(AnchoredList<int>))
+            .dy;
+        final clippedTop = (await rectOf(tester, 18)).top - viewportTopY;
+        expect(clippedTop, lessThan(topPadding));
+        expect(clippedTop, greaterThan(0));
+
+        controller.goToId(18);
+        await tester.pumpAndSettle();
+
+        final alignedTop = (await rectOf(tester, 18)).top - viewportTopY;
+        expect(alignedTop, closeTo(topPadding, 0.5));
+      },
+    );
+
+    testWidgets('on-screen jump leaves a fully-visible target in place', (
       tester,
     ) async {
       tester.view.physicalSize = const Size(400, 800);
@@ -253,19 +299,20 @@ void main() {
       );
       await tester.pump();
 
-      // Scroll item 18 into view but below the inset, then jump to it.
+      // After landing at 20 (top inset), 18 sits two rows below it, well
+      // inside the unobscured viewport.
       controller.goToId(20);
       await tester.pumpAndSettle();
-      expect(find.byKey(const ValueKey('item-18')), findsOneWidget);
+
+      final pixelsBefore = controller.position!.pixels;
+      final rectBefore = await rectOf(tester, 18);
 
       controller.goToId(18);
       await tester.pumpAndSettle();
 
-      final viewportTopY =
-          tester.getTopLeft(find.byType(AnchoredList<int>)).dy;
-      final targetRect = await rectOf(tester, 18);
-      final relativeTop = targetRect.top - viewportTopY;
-      expect(relativeTop, closeTo(topPadding, 0.5));
+      // No scroll, no movement: highlight is the only effect.
+      expect(controller.position!.pixels, pixelsBefore);
+      expect((await rectOf(tester, 18)).top, rectBefore.top);
     });
 
     testWidgets('jumps land below the top inset across clustered heights', (
@@ -282,11 +329,12 @@ void main() {
       // match any cluster's actual height. This catches alignment that
       // relies on cache averages instead of measuring the rendered box.
       final heights = <int, double>{
-        for (var i = 0; i < 40; i++) i: i < 10
-            ? 40.0
-            : i < 25
-                ? 200.0
-                : 80.0,
+        for (var i = 0; i < 40; i++)
+          i: i < 10
+              ? 40.0
+              : i < 25
+              ? 200.0
+              : 80.0,
       };
       final data = AnchoredListData<int>(List.generate(40, (index) => index));
       final controller = AnchoredListController();
@@ -309,8 +357,9 @@ void main() {
         controller.goToId(target);
         await tester.pumpAndSettle();
 
-        final viewportTopY =
-            tester.getTopLeft(find.byType(AnchoredList<int>)).dy;
+        final viewportTopY = tester
+            .getTopLeft(find.byType(AnchoredList<int>))
+            .dy;
         final targetRect = await rectOf(tester, target);
         final relativeTop = targetRect.top - viewportTopY;
         expect(
@@ -356,8 +405,9 @@ void main() {
         controller.goToId(target);
         await tester.pumpAndSettle();
 
-        final viewportTopY =
-            tester.getTopLeft(find.byType(AnchoredList<int>)).dy;
+        final viewportTopY = tester
+            .getTopLeft(find.byType(AnchoredList<int>))
+            .dy;
         final targetRect = await rectOf(tester, target);
         final relativeTop = targetRect.top - viewportTopY;
         expect(

@@ -21,6 +21,7 @@ import 'package:air/widgets/widgets.dart';
 import 'chat_tile.dart';
 import 'date_divider.dart';
 import 'floating_date_header.dart';
+import 'jump_highlight.dart';
 import 'message_cubit.dart';
 import 'message_list_cubit.dart';
 import 'scroll_to_bottom_controller.dart';
@@ -265,7 +266,10 @@ class _MessageListViewState extends State<MessageListView>
     final composerHeightListenable =
         widget.scrollToBottomController?.composerHeight;
 
-    return _buildList(composerHeightListenable, state);
+    return JumpHighlightScope(
+      jumpedToId: _listController.jumpedToId,
+      child: _buildList(composerHeightListenable, state),
+    );
   }
 
   /// Builds the [AnchoredList], wiring pagination and jump-to-message
