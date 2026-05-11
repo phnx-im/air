@@ -543,6 +543,10 @@ impl OutboundServiceContext {
         }
 
         let migration_attrs = legacy_group_data_migration(&group);
+        if migration_attrs.is_some() {
+            info!(%chat_id, "Migrating legacy group data");
+        }
+
         let job = ChatOperation::update(chat_id, migration_attrs);
         let res = self.execute_job(job).await;
 
@@ -575,16 +579,15 @@ fn legacy_group_data_migration(group: &Group) -> Option<ChatAttributes> {
         return None; // Already migrated
     }
 
-    let (title, _) = group_data.into_parts(group.identity_link_wrapper_key());
+    let (Some(title), _) = group_data.into_parts(group.identity_link_wrapper_key()) else {
+        return None;
+    };
 
     let legacy_group_data: LegacyGroupData =
         PersistenceCodec::from_slice(group_data_bytes.bytes()).ok()?;
 
     let picture = legacy_group_data.picture?;
-    Some(ChatAttributes::new(
-        title.unwrap_or_default(),
-        Some(picture),
-    ))
+    Some(ChatAttributes::new(title, Some(picture)))
 }
 
 mod persistence {

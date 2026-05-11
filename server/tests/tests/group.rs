@@ -969,12 +969,12 @@ async fn legacy_group_data_migration() {
     // Alice fetches the Bob's commit and sees system message
     let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
     let result = alice_user.fully_process_qs_messages(qs_messages).await;
-    alice_user.outbound_service().run_once().await;
     assert!(
         result.errors.is_empty(),
         "Alice should process Bob's commit without errors: {:?}",
         result.errors
     );
+    alice_user.outbound_service().run_once().await;
     let last_message = alice_user.last_message(chat_id).await.unwrap().unwrap();
     assert_matches!(
         last_message.message(),
