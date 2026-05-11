@@ -53,7 +53,7 @@ tracing.workspace = true
 trait-variant.workspace = true
 url.workspace = true
 uuid = { workspace = true, features = ["v4", "serde"] }
-webp.workspace = true
+webpx.workspace = true
 
 [dev-dependencies]
 airbackend.workspace = true

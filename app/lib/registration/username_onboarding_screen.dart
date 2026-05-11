@@ -6,10 +6,10 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/registration/registration.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/components/desktop/width_constraints.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/components/desktop/width_constraints.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/username_input_formatter.dart';
@@ -103,7 +103,7 @@ class UsernameOnboardingScreen extends HookWidget {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: backgroundColor,
-        actionsPadding: const EdgeInsets.symmetric(horizontal: Spacings.s),
+        actionsPadding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
         actions: [
           TextButton(
             onPressed: isSubmitting.value ? null : skip,
@@ -121,8 +121,8 @@ class UsernameOnboardingScreen extends HookWidget {
                     builder: (context, constraints) {
                       return SingleChildScrollView(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: Spacings.s,
-                          vertical: Spacings.xs,
+                          horizontal: Spacing.px16,
+                          vertical: Spacing.px12,
                         ),
                         child: Form(
                           key: formKey,
@@ -135,7 +135,7 @@ class UsernameOnboardingScreen extends HookWidget {
                                 textAlign: TextAlign.left,
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
-                              const SizedBox(height: Spacings.m),
+                              const SizedBox(height: Spacing.px24),
                               _UsernameTextField(
                                 controller: controller,
                                 focusNode: focusNode,
@@ -155,7 +155,7 @@ class UsernameOnboardingScreen extends HookWidget {
                   ),
                 ),
                 _AddButton(isSubmitting: isSubmitting.value, onPressed: submit),
-                const SizedBox(height: Spacings.s),
+                const SizedBox(height: Spacing.px16),
               ],
             ),
           ),
@@ -206,7 +206,7 @@ class _AddButton extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
     final loc = AppLocalizations.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: Spacings.m),
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.px24),
       width: isSmallScreen(context) ? double.infinity : null,
       child: OutlinedButton(
         style: OutlinedButtonTheme.of(context).style!.copyWith(
@@ -258,10 +258,10 @@ class _UsernameTextField extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: Spacings.xxs,
+      spacing: Spacing.px8,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: Spacings.xxs),
+          padding: const EdgeInsets.only(left: Spacing.px8),
           child: Text(
             loc.usernameOnboarding_usernameInputName,
             style: TextStyle(

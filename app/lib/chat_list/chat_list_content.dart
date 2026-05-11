@@ -11,10 +11,10 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/message_list/display_message_tile.dart';
 import 'package:air/navigation/navigation.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/icons/app_icons.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/foundations/icons/app_icons.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
@@ -135,8 +135,8 @@ class _ChatSeparator extends StatelessWidget {
     return Divider(
       height: 0.5,
       thickness: 0.5,
-      indent: Spacings.s + Spacings.xl + Spacings.xs,
-      endIndent: Spacings.s,
+      indent: Spacing.px16 + Spacing.px48 + Spacing.px12,
+      endIndent: Spacing.px16,
       color: CustomColorScheme.of(context).separator.secondary,
     );
   }
@@ -150,7 +150,7 @@ class _NoChats extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     return Container(
       alignment: AlignmentDirectional.center,
-      padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
       child: Text(
         loc.chatList_emptyMessage,
         style: TextStyle(color: CustomColorScheme.of(context).text.secondary),
@@ -176,10 +176,10 @@ class _ListTile extends StatelessWidget {
       behavior: HitTestBehavior.opaque,
       child: Container(
         padding: const EdgeInsets.fromLTRB(
-          Spacings.s,
-          Spacings.s,
-          Spacings.s,
-          Spacings.xs,
+          Spacing.px16,
+          Spacing.px16,
+          Spacing.px16,
+          Spacing.px12,
         ),
         decoration: BoxDecoration(
           color: isSelected
@@ -197,7 +197,7 @@ class _ListTile extends StatelessWidget {
             return Row(
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               crossAxisAlignment: .start,
-              spacing: Spacings.xs,
+              spacing: Spacing.px12,
               children: [
                 ChatAvatar(chatId: chat.id, size: 48),
                 Expanded(
@@ -230,7 +230,7 @@ class _ListTileTop extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      spacing: Spacings.xs,
+      spacing: Spacing.px12,
       children: [
         Expanded(child: _ChatTitle(title: chat.title)),
         _LastUpdated(chat: chat),
@@ -262,7 +262,7 @@ class _ListTileBottom extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: .center,
-      spacing: Spacings.xs,
+      spacing: Spacing.px12,
       children: [
         if (!isBlocked)
           Expanded(
@@ -292,7 +292,7 @@ class _BlockedBadge extends StatelessWidget {
     return Row(
       children: [
         AppIcon.ban(size: 16, color: color),
-        const SizedBox(width: Spacings.xxxs),
+        const SizedBox(width: Spacing.px4),
         Text(
           loc.chatList_blocked,
           style: TextStyle(
@@ -333,7 +333,7 @@ class _TrailingIndicator extends StatelessWidget {
     if (lastSender != ownClientId) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.only(right: Spacings.xxs),
+      padding: const EdgeInsets.only(right: Spacing.px8),
       child: MessageStatusIndicator(status: lastMessage.status),
     );
   }
@@ -356,7 +356,7 @@ class _UnreadBadge extends StatelessWidget {
     return Container(
       alignment: AlignmentDirectional.center,
       constraints: const BoxConstraints(minHeight: 24, minWidth: 40),
-      padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(1000),
@@ -576,7 +576,7 @@ class _LastUpdatedState extends State<_LastUpdated> {
   @override
   Widget build(BuildContext context) {
     return Baseline(
-      baseline: Spacings.xs,
+      baseline: Spacing.px12,
       baselineType: TextBaseline.alphabetic,
       child: Text(
         _displayTimestamp,
@@ -598,7 +598,7 @@ class _ChatTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Baseline(
-      baseline: Spacings.s,
+      baseline: Spacing.px16,
       baselineType: TextBaseline.alphabetic,
       child: Text(
         title,
@@ -663,7 +663,7 @@ String formatTimestamp(
       now.difference(timestamp).inMinutes,
     ),
     TimestampCategory.today => DateFormat(timePattern).format(timestamp),
-    TimestampCategory.yesterday => loc.timestamp_yesterday,
+    TimestampCategory.yesterday => loc.date_yesterday,
     TimestampCategory.thisWeek => DateFormat.E(locale).format(timestamp),
     TimestampCategory.thisYear => DateFormat(
       _stripYear(datePattern),

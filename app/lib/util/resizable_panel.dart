@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:flutter/material.dart';
-import 'package:air/ui/colors/themes.dart';
+import 'package:air/ds/foundations/themes.dart';
 
 /// Left panel which can be resized by dragging the handle
 class ResizablePanel extends StatefulWidget {

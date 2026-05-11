@@ -11,8 +11,8 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/message_list/message_list.dart';
 import 'package:air/navigation/navigation_cubit.dart';
-import 'package:air/ui/colors/palette.dart';
-import 'package:air/ui/components/navigation/app_tab_bar.dart';
+import 'package:air/ds/foundations/palette.dart';
+import 'package:air/ds/components/navigation/app_tab_bar.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -249,7 +249,14 @@ void main() {
           attachmentId: any(named: "attachmentId"),
           chunkEventCallback: any(named: "chunkEventCallback"),
         ),
-      ).thenAnswer((_) => Future.value(jupiterAttachmentImage.data));
+      ).thenAnswer(
+        (_) => Future.value(
+          LoadedImageAttachment(
+            bytes: jupiterAttachmentImage.data,
+            isAnimated: false,
+          ),
+        ),
+      );
       when(
         () => attachmentsRepository.statusStream(
           attachmentId: any(named: "attachmentId"),
@@ -507,16 +514,24 @@ void testProductShot(
 ///
 /// This is necessary in tests, otherwise the images will not be rendered.
 ///
-/// Will be called inside `tester.runAsync`. Otherwise, `precacheImage` will never complete due
-/// to fake-async.
+/// Will be called inside `tester.runAsync`. Otherwise, `precacheImage` will
+/// never complete due to fake-async.
 Future<void> _precacheImages(WidgetTester tester) async {
+  // [AttachmentImage] inserts its [Image] child only after an async
+  // classification step resolves; settle once so the tree contains every
+  // [Image] we need to precache.
+  await tester.pumpAndSettle();
   await tester.runAsync(() async {
     final elements = tester.elementList(find.byType(DecoratedBox));
     for (Element element in elements) {
-      DecoratedBox widget = element.widget as DecoratedBox;
-      BoxDecoration decoration = widget.decoration as BoxDecoration;
-      if (decoration.image != null) {
-        await precacheImage(decoration.image!.image, element);
+      final widget = element.widget as DecoratedBox;
+      final image = switch (widget.decoration) {
+        BoxDecoration(:final image) => image,
+        ShapeDecoration(:final image) => image,
+        _ => null,
+      };
+      if (image != null) {
+        await precacheImage(image.image, element);
       }
     }
 

@@ -58,6 +58,7 @@ class AnchoredList<T> extends StatefulWidget {
     this.physics,
     this.topPadding = 0.0,
     this.bottomPadding = 0.0,
+    this.oldestVisibleTopThreshold,
     super.key,
   });
 
@@ -90,6 +91,11 @@ class AnchoredList<T> extends StatefulWidget {
   final ScrollPhysics? physics;
   final double topPadding;
   final double bottomPadding;
+
+  /// Viewport-y threshold used *only* when computing
+  /// [AnchoredListController.oldestVisibleId]. An item counts as below the
+  /// inset when its bottom edge sits below this y-coordinate.
+  final double? oldestVisibleTopThreshold;
 
   @override
   State<AnchoredList<T>> createState() => _AnchoredListState<T>();
@@ -666,10 +672,12 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
     if (!_scrollController.hasClients) {
       _controller.isAtBottomNotifier.value = true;
       _controller.newestVisibleIdNotifier.value = null;
+      _controller.oldestVisibleIdNotifier.value = null;
+      _controller.isOldestVisibleHoistedNotifier.value = false;
       return;
     }
     _updateIsAtBottom(_scrollController.position);
-    _updateNewestVisibleId();
+    _updateVisibleIds();
   }
 
   // -- Pagination --
@@ -679,7 +687,7 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
         notification is ScrollEndNotification) {
       _checkPagination(notification.metrics);
       _updateIsAtBottom(notification.metrics);
-      _updateNewestVisibleId();
+      _updateVisibleIds();
       _scheduleViewportStateRefresh();
     }
     _processPendingCommand();
@@ -721,12 +729,30 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
         metrics.pixels <= widget.stickToBottomThreshold;
   }
 
-  void _updateNewestVisibleId() {
+  void _updateVisibleIds() {
     final visibleItems = _visibleItemSnapshots();
+    // visibleItems is sorted top-to-bottom by visual position. In a reversed
+    // list the topmost on screen is the oldest in the data, and the bottommost
+    // is the newest.
+    final topInset = widget.oldestVisibleTopThreshold ?? widget.topPadding;
+    Object? oldestVisible;
+    var oldestVisibleHoisted = false;
+    for (final item in visibleItems) {
+      final bottom = item.top + _estimatedHeight(item.id);
+      if (bottom > topInset) {
+        oldestVisible = item.id;
+        oldestVisibleHoisted = item.top <= topInset;
+        break;
+      }
+    }
     final newestVisible = visibleItems.isEmpty ? null : visibleItems.last.id;
     if (_controller.newestVisibleIdNotifier.value != newestVisible) {
       _controller.newestVisibleIdNotifier.value = newestVisible;
     }
+    if (_controller.oldestVisibleIdNotifier.value != oldestVisible) {
+      _controller.oldestVisibleIdNotifier.value = oldestVisible;
+    }
+    _controller.isOldestVisibleHoistedNotifier.value = oldestVisibleHoisted;
   }
 
   // -- Jump-to-message --

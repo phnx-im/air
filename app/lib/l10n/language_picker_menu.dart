@@ -6,10 +6,10 @@ import 'dart:async';
 
 import 'package:air/l10n/app_locale_cubit.dart';
 import 'package:air/l10n/language_options.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/components/context_menu/context_menu.dart';
-import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
-import 'package:air/ui/icons/app_icons.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/components/context_menu/context_menu.dart';
+import 'package:air/ds/components/context_menu/context_menu_item_ui.dart';
+import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

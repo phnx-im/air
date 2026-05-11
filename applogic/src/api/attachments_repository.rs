@@ -8,6 +8,7 @@ use aircommon::identifiers::AttachmentId;
 use aircoreclient::{
     AttachmentContent, AttachmentProgress, AttachmentProgressEvent, AttachmentStatus,
     clients::CoreUser,
+    image_is_animated,
     store::{Store, StoreEntityId, StoreOperation},
 };
 use anyhow::{Context, bail};
@@ -119,14 +120,14 @@ impl AttachmentsRepository {
         &self,
         attachment_id: AttachmentId,
         chunk_event_callback: impl Fn(u64) -> DartFnFuture<()> + Send + 'static,
-    ) -> anyhow::Result<Vec<u8>> {
+    ) -> anyhow::Result<LoadedImageAttachment> {
         // Remove cancelled handles
         self.in_progress.retain(|_, handle| !handle.is_cancelled());
 
-        match self.store.load_attachment(attachment_id).await? {
-            AttachmentContent::Ready(bytes) => Ok(bytes),
-            AttachmentContent::Uploading(bytes) => Ok(bytes),
-            AttachmentContent::UploadFailed(bytes) => Ok(bytes),
+        let bytes = match self.store.load_attachment(attachment_id).await? {
+            AttachmentContent::Ready(bytes)
+            | AttachmentContent::Uploading(bytes)
+            | AttachmentContent::UploadFailed(bytes) => bytes,
             AttachmentContent::Pending => {
                 debug!(?attachment_id, "Attachment is pending; spawn download task");
                 let handle = spawn_download_task(
@@ -137,16 +138,16 @@ impl AttachmentsRepository {
                     attachment_id,
                 );
                 self.track_attachment_download(attachment_id, handle, chunk_event_callback)
-                    .await
+                    .await?
             }
             AttachmentContent::Downloading => {
                 let handle = self.in_progress.get(&attachment_id).as_deref().cloned();
                 if let Some(handle) = handle {
                     self.track_attachment_download(attachment_id, handle, chunk_event_callback)
-                        .await
+                        .await?
                 } else {
                     match self.store.load_attachment(attachment_id).await? {
-                        AttachmentContent::Ready(bytes) => Ok(bytes),
+                        AttachmentContent::Ready(bytes) => bytes,
                         _ => bail!("Attachment download failed"),
                     }
                 }
@@ -155,7 +156,10 @@ impl AttachmentsRepository {
             AttachmentContent::DownloadFailed | AttachmentContent::Unknown => {
                 bail!("Attachment download failed")
             }
-        }
+        };
+
+        let is_animated = image_is_animated(&bytes);
+        Ok(LoadedImageAttachment { bytes, is_animated })
     }
 
     pub fn cancel(&self, attachment_id: AttachmentId) {
@@ -350,4 +354,10 @@ pub enum UiAttachmentStatus {
     Completed,
     /// Failed to upload or download
     Failed,
+}
+
+/// Bytes of an image attachment and an animation classification.
+pub struct LoadedImageAttachment {
+    pub bytes: Vec<u8>,
+    pub is_animated: bool,
 }

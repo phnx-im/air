@@ -1,0 +1,54 @@
+// SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/widgets/widgets.dart';
+import 'package:flutter/material.dart';
+
+class AppScaffold extends StatelessWidget {
+  const AppScaffold({
+    super.key,
+    this.title,
+    this.onTitleLongPress,
+    this.backgroundColor,
+    required this.child,
+  });
+
+  final String? title;
+  final Function()? onTitleLongPress;
+  final Color? backgroundColor;
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: backgroundColor,
+      appBar: AppBar(
+        elevation: 0,
+        scrolledUnderElevation: 0,
+        clipBehavior: Clip.none,
+        backgroundColor: backgroundColor,
+        leading: const AppBarBackButton(),
+        title: title != null
+            ? GestureDetector(
+                onLongPress: onTitleLongPress,
+                child: Text(
+                  title!,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+              )
+            : null,
+      ),
+      body: SafeArea(
+        minimum: const EdgeInsets.only(
+          left: Spacing.px16,
+          right: Spacing.px16,
+          bottom: 40,
+        ),
+        child: child,
+      ),
+    );
+  }
+}

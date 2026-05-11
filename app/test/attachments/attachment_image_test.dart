@@ -9,7 +9,7 @@
 import 'package:air/attachments/attachments.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
+import 'package:air/ds/theme/theme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -47,11 +47,11 @@ class _ImageTestBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(Spacings.sm),
+      borderRadius: BorderRadius.circular(Spacing.px20),
       child: Container(
         constraints: const BoxConstraints(maxHeight: 300, maxWidth: 300),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(Spacings.sm),
+          borderRadius: BorderRadius.circular(Spacing.px20),
         ),
         child: AttachmentImage(
           attachment: file.copyWith(attachmentId: attachmentId),
@@ -95,11 +95,11 @@ void main() {
             localizationsDelegates: AppLocalizations.localizationsDelegates,
             home: Scaffold(
               body: Padding(
-                padding: const EdgeInsets.all(Spacings.s),
+                padding: const EdgeInsets.all(Spacing.px16),
                 child: SizedBox(
                   width: double.infinity,
                   child: Column(
-                    spacing: Spacings.s,
+                    spacing: Spacing.px16,
                     crossAxisAlignment: .center,
                     children: [
                       for (final attachmentId in testStatuses.keys) ...[

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
 import 'package:flutter/material.dart';
 
 class UnreadDivider extends StatelessWidget {
@@ -19,8 +19,8 @@ class UnreadDivider extends StatelessWidget {
     ).messageList_unreadMessages(count);
     return Padding(
       padding: const EdgeInsets.symmetric(
-        horizontal: Spacings.m,
-        vertical: Spacings.l,
+        horizontal: Spacing.px24,
+        vertical: Spacing.px32,
       ),
       child: Row(
         children: [
@@ -30,7 +30,7 @@ class UnreadDivider extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
+            padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
             child: DecoratedBox(
               decoration: ShapeDecoration(
                 color: CustomColorScheme.of(context).function.toggleBlack,
@@ -38,8 +38,8 @@ class UnreadDivider extends StatelessWidget {
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: Spacings.s,
-                  vertical: Spacings.xxxs,
+                  horizontal: Spacing.px16,
+                  vertical: Spacing.px4,
                 ),
                 child: Text(
                   label,

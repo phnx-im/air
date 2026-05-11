@@ -555,7 +555,10 @@ class AppLocalizationsSv extends AppLocalizations {
   }
 
   @override
-  String get timestamp_yesterday => 'Igår';
+  String get date_today => 'Idag';
+
+  @override
+  String get date_yesterday => 'Igår';
 
   @override
   String get messageBubble_sending => 'Skickar';

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:collection/collection.dart';
@@ -53,8 +53,8 @@ class MemberSelectionList extends HookWidget {
 
     return ListView.separated(
       padding: const EdgeInsets.symmetric(
-        horizontal: Spacings.s,
-        vertical: Spacings.xs,
+        horizontal: Spacing.px16,
+        vertical: Spacing.px12,
       ),
       itemCount: sortedContacts.length,
       separatorBuilder: (context, index) => Divider(

@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/api/types.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 
@@ -32,10 +32,10 @@ class MemberListItem extends StatelessWidget {
 
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      minVerticalPadding: Spacings.xs,
+      minVerticalPadding: Spacing.px12,
       enabled: enabled,
       onTap: onTap,
-      leading: UserAvatar(profile: profile, size: Spacings.l),
+      leading: UserAvatar(profile: profile, size: Spacing.px32),
       title: Text(
         displayName,
         style: TextStyle(

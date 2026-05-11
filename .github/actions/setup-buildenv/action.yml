@@ -79,7 +79,20 @@ runs:
       run: mkdir -p "${{ inputs.sccache-dir }}"
 
     - name: Setup Rust GitHub Actions cache
+      if: github.ref == 'refs/heads/main'
       uses: actions/cache@v5
+      with:
+        path: |
+          ${{ inputs.sccache-dir }}
+          ~/.cargo
+          ~/.rustup
+        key: "sccache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/actions/setup-buildenv/action.yml', 'Cargo.lock', '.config/cargo.toml', 'rust-toolchain.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
+        restore-keys: |
+          sccache-${{ runner.os }}-${{ runner.arch }}
+
+    - name: Download Rust GitHub Actions cache
+      if: github.ref != 'refs/heads/main'
+      uses: actions/cache/restore@v5
       with:
         path: |
           ${{ inputs.sccache-dir }}
@@ -124,7 +137,15 @@ runs:
     ## rustup
 
     - name: Configure Rust toolchain cache
+      if: github.ref == 'refs/heads/main'
       uses: actions/cache@v5
+      with:
+        path: ~/.rustup
+        key: rust-toolchain-${{ hashFiles('rust-toolchain.toml' ) }}
+
+    - name: Download Rust toolchain cache
+      if: github.ref != 'refs/heads/main'
+      uses: actions/cache/restore@v5
       with:
         path: ~/.rustup
         key: rust-toolchain-${{ hashFiles('rust-toolchain.toml' ) }}
@@ -165,7 +186,7 @@ runs:
 
     - if: inputs.flutter == 'true'
       name: Setup Flutter SDK
-      uses: flutter-actions/setup-flutter@v4
+      uses: gferon/setup-flutter@1d849067b1961950d28aa76b231a2a88ce045b2e
       with:
         channel: stable
         version: 3.41.4
