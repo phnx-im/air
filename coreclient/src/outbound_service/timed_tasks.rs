@@ -2,8 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::USERNAME_REFRESH_THRESHOLD;
-use airprotos::auth_service::v1::OperationType;
+use aircommon::{codec::PersistenceCodec, identifiers::USERNAME_REFRESH_THRESHOLD};
+use airprotos::{auth_service::v1::OperationType, client::group::GroupData};
 use chrono::{DateTime, Duration, Utc};
 use openmls::prelude::OpenMlsProvider;
 use openmls_rust_crypto::OpenMlsRustCrypto;
@@ -13,7 +13,8 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::{
-    Chat, ChatId,
+    Chat, ChatAttributes, ChatId,
+    chats::GroupDataExt,
     groups::Group,
     job::{
         JobError,
@@ -541,7 +542,8 @@ impl OutboundServiceContext {
             return Ok(false);
         }
 
-        let job = ChatOperation::update(chat_id, None);
+        let migration_attrs = legacy_group_data_migration(&group);
+        let job = ChatOperation::update(chat_id, migration_attrs);
         let res = self.execute_job(job).await;
 
         match res {
@@ -555,6 +557,34 @@ impl OutboundServiceContext {
             }
         }
     }
+}
+
+/// Migrates the group data from the legacy format to the new format.
+///
+/// The legacy format is the format where title and picture were stored in the group data as is.
+fn legacy_group_data_migration(group: &Group) -> Option<ChatAttributes> {
+    #[derive(serde::Deserialize)]
+    struct LegacyGroupData {
+        picture: Option<Vec<u8>>,
+    }
+
+    let group_data_bytes = group.group_data()?;
+    let group_data = GroupData::decode(&group_data_bytes).ok()?;
+
+    if group_data.external_group_profile.is_some() {
+        return None; // Already migrated
+    }
+
+    let (title, _) = group_data.into_parts(group.identity_link_wrapper_key());
+
+    let legacy_group_data: LegacyGroupData =
+        PersistenceCodec::from_slice(group_data_bytes.bytes()).ok()?;
+
+    let picture = legacy_group_data.picture?;
+    Some(ChatAttributes::new(
+        title.unwrap_or_default(),
+        Some(picture),
+    ))
 }
 
 mod persistence {

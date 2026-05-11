@@ -3,12 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 use openmls::group::Member;
 
-use aircommon::identifiers::QualifiedGroupId;
+use aircommon::{codec::PersistenceCodec, identifiers::QualifiedGroupId};
 use openmls::prelude::GroupId;
 use uuid::Uuid;
 
 use crate::{
-    job::pending_chat_operation::test_utils::PendingChatOperationInfo,
+    groups::GroupDataBytes,
+    job::pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
     outbound_service::resync::Resync,
 };
 
@@ -108,5 +109,41 @@ impl CoreUser {
         self.db()
             .with_read_transaction(async |txn| PendingChatOperationInfo::load(txn, &chat_id).await)
             .await
+    }
+
+    /// Set the group title and picture of the given chat in the legacy format.
+    ///
+    /// Useful for testing migrations of the group data format.
+    pub async fn set_legacy_group_data(
+        &self,
+        chat_id: ChatId,
+        title: String,
+        picture: Option<Vec<u8>>,
+    ) -> anyhow::Result<()> {
+        #[derive(serde::Serialize)]
+        struct LegacyGroupData {
+            title: String,
+            picture: Option<Vec<u8>>,
+        }
+
+        let legacy_group_data: GroupDataBytes =
+            PersistenceCodec::to_vec(&LegacyGroupData { title, picture })?.into();
+
+        let op = self
+            .db()
+            .with_write_transaction(async |txn| {
+                PendingChatOperation::create_update_with_raw_group_data(
+                    txn,
+                    self.signing_key(),
+                    chat_id,
+                    Some(legacy_group_data),
+                    None,
+                )
+                .await
+            })
+            .await?;
+        self.execute_job(op).await?;
+
+        Ok(())
     }
 }

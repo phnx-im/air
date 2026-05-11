@@ -4,8 +4,9 @@
 
 use std::slice;
 
+use aircommon::assert_matches;
 use aircoreclient::{
-    DisplayName, UserProfile,
+    DisplayName, EventMessage, Message, SystemMessage, UserProfile,
     clients::{
         process::process_qs::{QsProcessEventResult, QsStreamProcessor},
         queue_event,
@@ -908,4 +909,88 @@ async fn qs_stream_processor_partially_processes_messages() {
             QsProcessEventResult::PartiallyProcessed { .. } => unreachable!(),
         }
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Legacy group data migration", skip_all)]
+async fn legacy_group_data_migration() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let title = "Test Title".to_string();
+    let picture = test_picture_bytes();
+
+    // Alice sets the group title and picture in the legacy format
+    let alice_user = &setup.get_user(&alice).user;
+    alice_user
+        .set_legacy_group_data(chat_id, title.clone(), Some(picture.clone()))
+        .await
+        .unwrap();
+
+    // Bob fetches Alice's commit
+    let bob_user = &setup.get_user(&bob).user;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Bob should process Alice's updates without errors: {:?}",
+        result.errors
+    );
+
+    let bob_chat = bob_user.chat(&chat_id).await.unwrap();
+    assert_eq!(bob_chat.attributes().title(), &title);
+    assert!(
+        bob_chat.attributes().picture.is_none(),
+        "Bob should not see picture before migration"
+    );
+
+    // Bob runs group update via the outbound service which executes the migration
+    bob_user
+        .set_self_updated_at(chat_id, DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    bob_user
+        .outbound_service()
+        .schedule_self_update(DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    bob_user.outbound_service().run_once().await;
+
+    // Bob should now see the picture
+    let bob_chat = bob_user.chat(&chat_id).await.unwrap();
+    assert_eq!(bob_chat.attributes().title(), &title);
+    assert_eq!(bob_chat.attributes().picture.as_ref(), Some(&picture));
+
+    // Alice fetches the Bob's commit and sees system message
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    let result = alice_user.fully_process_qs_messages(qs_messages).await;
+    alice_user.outbound_service().run_once().await;
+    assert!(
+        result.errors.is_empty(),
+        "Alice should process Bob's commit without errors: {:?}",
+        result.errors
+    );
+    let last_message = alice_user.last_message(chat_id).await.unwrap().unwrap();
+    assert_matches!(
+        last_message.message(),
+        Message::Event(EventMessage::System(SystemMessage::ChangePicture(user_id)))
+        if user_id == &bob,
+        "Alice should see Bob's picture change as system message"
+    );
+
+    // Add charlie to the group chat
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &charlie).await;
+    setup.invite_to_group(chat_id, &alice, vec![&charlie]).await;
+
+    // Charlie should see the picture because it was migrated
+    let charlie_user = &setup.get_user(&charlie).user;
+    let charlie_chat = charlie_user.chat(&chat_id).await.unwrap();
+    assert_eq!(charlie_chat.attributes().title(), &title);
+    assert_eq!(charlie_chat.attributes().picture.as_ref(), Some(&picture));
 }
