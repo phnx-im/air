@@ -788,11 +788,12 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
     if (cmd == null) return;
 
     switch (cmd) {
-      case GoToIdCommand(:final id):
+      case GoToIdCommand(:final id, :final intent):
         _jumpState.requestJump(
           id,
           isIdLoaded: (id) => _idToIndex.containsKey(id),
           onLoadAround: (id) => widget.onLoadAround?.call(id),
+          intent: intent,
         );
         if (_jumpState.phase == AnchoredListJumpPhase.scrolling) {
           _executeJumpScroll();
@@ -946,13 +947,15 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
   }
 
   /// Resets jump state and, if [reachedTarget], notifies the controller
-  /// so listeners (e.g. target highlight) can react. Aborted jumps
-  /// (target disappeared, exhausted retries off-screen) don't notify.
+  /// with the jump's [JumpIntent] so listeners can react per situation.
+  /// Aborted jumps (target disappeared, exhausted retries off-screen)
+  /// don't notify.
   void _completeJump({required bool reachedTarget}) {
     final targetId = _jumpState.targetId;
+    final intent = _jumpState.intent;
     _jumpState.onScrollComplete();
     if (reachedTarget && targetId != null) {
-      _controller.notifyJumpedToId(targetId);
+      _controller.notifyJumpedToId(targetId, intent: intent);
     }
   }
 

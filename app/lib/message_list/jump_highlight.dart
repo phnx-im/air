@@ -6,9 +6,10 @@ import 'dart:async';
 
 import 'package:air/ds/foundations/spacing.dart';
 import 'package:air/ds/foundations/themes.dart';
+import 'package:air/widgets/anchored_list/controller.dart';
 import 'package:flutter/widgets.dart';
 
-/// Provides the stream of jump target IDs to descendants.
+/// Provides the stream of jump completion events to descendants.
 class JumpHighlightScope extends InheritedWidget {
   const JumpHighlightScope({
     super.key,
@@ -16,9 +17,9 @@ class JumpHighlightScope extends InheritedWidget {
     required super.child,
   });
 
-  final Stream<Object> jumpedToId;
+  final Stream<JumpedToEvent> jumpedToId;
 
-  static Stream<Object>? maybeOf(BuildContext context) {
+  static Stream<JumpedToEvent>? maybeOf(BuildContext context) {
     return context
         .dependOnInheritedWidgetOfExactType<JumpHighlightScope>()
         ?.jumpedToId;
@@ -64,7 +65,7 @@ class _JumpHighlightState extends State<JumpHighlight>
 
   late final AnimationController _controller;
   late final Animation<double> _animation;
-  StreamSubscription<Object>? _subscription;
+  StreamSubscription<JumpedToEvent>? _subscription;
 
   @override
   void initState() {
@@ -94,9 +95,16 @@ class _JumpHighlightState extends State<JumpHighlight>
     super.didChangeDependencies();
     final stream = JumpHighlightScope.maybeOf(context);
     _subscription?.cancel();
-    _subscription = stream?.where((id) => id == widget.id).listen((_) {
-      _controller.forward(from: 0.0);
-    });
+    // Only react to user-driven jumps to a quoted message. Initial
+    // first-unread positioning shouldn't trigger the highlight.
+    _subscription = stream
+        ?.where(
+          (event) =>
+              event.id == widget.id && event.intent == JumpIntent.quotedMessage,
+        )
+        .listen((_) {
+          _controller.forward(from: 0.0);
+        });
   }
 
   @override

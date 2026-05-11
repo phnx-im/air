@@ -7,6 +7,20 @@ import 'dart:async';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 
+/// States why a jump was requested:
+///
+/// - [quotedMessage]: navigating to a message that was quoted
+/// - [firstUnread]: landing on the first unread message
+enum JumpIntent { quotedMessage, firstUnread }
+
+/// Emitted on [AnchoredListController.jumpedToId] when a jump-to-id
+/// scroll completes successfully.
+class JumpedToEvent {
+  const JumpedToEvent(this.id, this.intent);
+  final Object id;
+  final JumpIntent intent;
+}
+
 /// Command types the controller queues for the widget to execute.
 ///
 /// Only one command is pending at a time — issuing a new command replaces
@@ -16,8 +30,9 @@ sealed class AnchoredListCommand {
 }
 
 class GoToIdCommand extends AnchoredListCommand {
-  const GoToIdCommand(this.id);
+  const GoToIdCommand(this.id, this.intent);
   final Object id;
+  final JumpIntent intent;
 }
 
 class ScrollToBottomCommand extends AnchoredListCommand {
@@ -48,8 +63,8 @@ class AnchoredListController extends ChangeNotifier {
       ValueNotifier<bool>(false);
   ScrollController? scrollController;
   AnchoredListCommand? _pendingCommand;
-  final StreamController<Object> _jumpedToIdController =
-      StreamController<Object>.broadcast();
+  final StreamController<JumpedToEvent> _jumpedToIdController =
+      StreamController<JumpedToEvent>.broadcast();
 
   /// Whether the list is currently at or near the bottom.
   ValueListenable<bool> get isAtBottom => isAtBottomNotifier;
@@ -84,8 +99,11 @@ class AnchoredListController extends ChangeNotifier {
   /// The widget decides the scroll strategy: if the item is already
   /// visible it animates smoothly, otherwise it jumps instantly.
   /// If not loaded, triggers `onLoadAround`.
-  void goToId(Object id) {
-    _pendingCommand = GoToIdCommand(id);
+  ///
+  /// [intent] describes the situation triggering the jump and is
+  /// forwarded on [jumpedToId] so consumers can react accordingly.
+  void goToId(Object id, {required JumpIntent intent}) {
+    _pendingCommand = GoToIdCommand(id, intent);
     notifyListeners();
   }
 
@@ -103,10 +121,11 @@ class AnchoredListController extends ChangeNotifier {
   }
 
   /// Fires after a jump-to-id scroll has completed.
-  Stream<Object> get jumpedToId => _jumpedToIdController.stream;
+  Stream<JumpedToEvent> get jumpedToId => _jumpedToIdController.stream;
 
   /// Called by the widget when a jump-to-id scroll completes.
-  void notifyJumpedToId(Object id) => _jumpedToIdController.add(id);
+  void notifyJumpedToId(Object id, {required JumpIntent intent}) =>
+      _jumpedToIdController.add(JumpedToEvent(id, intent));
 
   @override
   void dispose() {

@@ -233,7 +233,7 @@ class _MessageListViewState extends State<MessageListView>
       case MessageListCommand_ScrollToBottom():
         _listController.scrollToBottom(duration: Duration.zero);
       case MessageListCommand_ScrollToId(:final messageId):
-        _listController.goToId(messageId);
+        _listController.goToId(messageId, intent: JumpIntent.quotedMessage);
     }
   }
 
@@ -247,7 +247,7 @@ class _MessageListViewState extends State<MessageListView>
     _initialUnreadScrollHandled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _listController.goToId(message.id);
+        _listController.goToId(message.id, intent: JumpIntent.firstUnread);
       }
     });
   }

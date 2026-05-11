@@ -218,7 +218,7 @@ void main() {
       );
       await tester.pump();
 
-      controller.goToId(20);
+      controller.goToId(20, intent: JumpIntent.quotedMessage);
       await tester.pumpAndSettle();
 
       final viewportTopY = tester.getTopLeft(find.byType(AnchoredList<int>)).dy;
@@ -254,7 +254,7 @@ void main() {
 
         // Land at item 20 (top inset), then nudge the scroll so item 18
         // sits partially under the top inset — clipped, not fully visible.
-        controller.goToId(20);
+        controller.goToId(20, intent: JumpIntent.quotedMessage);
         await tester.pumpAndSettle();
         controller.position!.jumpTo(controller.position!.pixels - 240);
         await tester.pump();
@@ -266,7 +266,7 @@ void main() {
         expect(clippedTop, lessThan(topPadding));
         expect(clippedTop, greaterThan(0));
 
-        controller.goToId(18);
+        controller.goToId(18, intent: JumpIntent.quotedMessage);
         await tester.pumpAndSettle();
 
         final alignedTop = (await rectOf(tester, 18)).top - viewportTopY;
@@ -301,13 +301,13 @@ void main() {
 
       // After landing at 20 (top inset), 18 sits two rows below it, well
       // inside the unobscured viewport.
-      controller.goToId(20);
+      controller.goToId(20, intent: JumpIntent.quotedMessage);
       await tester.pumpAndSettle();
 
       final pixelsBefore = controller.position!.pixels;
       final rectBefore = await rectOf(tester, 18);
 
-      controller.goToId(18);
+      controller.goToId(18, intent: JumpIntent.quotedMessage);
       await tester.pumpAndSettle();
 
       // No scroll, no movement: highlight is the only effect.
@@ -354,7 +354,7 @@ void main() {
 
       // Probe across each cluster.
       for (final target in const [12, 20, 30, 35]) {
-        controller.goToId(target);
+        controller.goToId(target, intent: JumpIntent.quotedMessage);
         await tester.pumpAndSettle();
 
         final viewportTopY = tester
@@ -402,7 +402,7 @@ void main() {
 
       // Probe several targets — both odd (tall) and even (short).
       for (final target in const [10, 13, 20, 25, 30]) {
-        controller.goToId(target);
+        controller.goToId(target, intent: JumpIntent.quotedMessage);
         await tester.pumpAndSettle();
 
         final viewportTopY = tester
