@@ -52,8 +52,6 @@ const DEFAULT_MLS_VERSION: ProtocolVersion = ProtocolVersion::Mls10;
 const DEFAULT_CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
 // Required capabilities
-const REQUIRED_PROTOCOL_VERSIONS: &[ProtocolVersion] = &[DEFAULT_MLS_VERSION];
-const REQUIRED_CIPHERSUITES: &[Ciphersuite] = &[DEFAULT_CIPHERSUITE];
 const REQUIRED_EXTENSIONS: &[ExtensionType] = &[
     ExtensionType::Unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE),
     ExtensionType::Unknown(GROUP_DATA_EXTENSION_TYPE),
@@ -81,19 +79,6 @@ pub const SUPPORTED_EXTENSIONS: &[ExtensionType] = REQUIRED_EXTENSIONS;
 pub const SUPPORTED_PROPOSALS: &[ProposalType] = REQUIRED_PROPOSALS;
 pub const SUPPORTED_CREDENTIALS: &[CredentialType] = REQUIRED_CREDENTIALS;
 pub const SUPPORTED_COMPONENTS: &[ComponentId] = &[AIR_COMPONENT_ID];
-
-/// Capabilities that are required to be a member of a group.
-///
-/// Warning: changing this capabilities requires backwards compatibility considerations.
-pub fn default_required_group_capabilities() -> Capabilities {
-    Capabilities::new(
-        Some(REQUIRED_PROTOCOL_VERSIONS),
-        Some(REQUIRED_CIPHERSUITES),
-        Some(REQUIRED_EXTENSIONS),
-        Some(REQUIRED_PROPOSALS),
-        Some(REQUIRED_CREDENTIALS),
-    )
-}
 
 /// Capabilities that are used in the leaf node.
 pub fn default_leaf_node_capabilities() -> Capabilities {
