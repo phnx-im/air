@@ -25,7 +25,7 @@ use crate::{
     contacts::ContactAddInfos,
     db_access::{WriteConnection, WriteDbTransaction},
     groups::{
-        Group, VerifiedGroup, client_auth_info::StorableClientCredential,
+        Group, GroupDataBytes, VerifiedGroup, client_auth_info::StorableClientCredential,
         handle_group_not_found_on_ds,
     },
     job::{Job, JobContext, JobError, chat_operation::ChatOperationError},
@@ -498,12 +498,11 @@ impl PendingChatOperation {
         .await
     }
 
-    #[cfg(any(test, feature = "test_utils"))]
     pub(crate) async fn create_update_with_raw_group_data(
         txn: &mut WriteDbTransaction<'_>,
         signer: &ClientSigningKey,
         chat_id: ChatId,
-        group_data_bytes: Option<crate::groups::GroupDataBytes>,
+        group_data_bytes: Option<GroupDataBytes>,
         new_chat_picture: Option<Vec<u8>>,
     ) -> anyhow::Result<Self> {
         let chat = Chat::load(&mut *txn, &chat_id)
