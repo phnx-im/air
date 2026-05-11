@@ -6,6 +6,7 @@ use aircommon::identifiers::Fqdn;
 use semver::VersionReq;
 use sqlx::{Connection, Executor, PgConnection, PgPool};
 use thiserror::Error;
+use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 use crate::{errors::StorageError, settings::DatabaseSettings};
@@ -36,6 +37,7 @@ pub trait BackendService: Sized {
         database_settings: &DatabaseSettings,
         domain: Fqdn,
         client_version_req: Option<semver::VersionReq>,
+        stop: CancellationToken,
     ) -> Result<Self, ServiceCreationError> {
         let mut connection =
             PgConnection::connect(&database_settings.connection_string_without_database()).await?;
@@ -60,20 +62,21 @@ pub trait BackendService: Sized {
 
         let db_pool = PgPool::connect(&database_settings.connection_string()).await?;
 
-        Self::new_from_pool(db_pool, domain, client_version_req).await
+        Self::new_from_pool(db_pool, domain, client_version_req, stop).await
     }
 
     async fn new_from_pool(
         db_pool: PgPool,
         domain: Fqdn,
         client_version_req: Option<VersionReq>,
+        stop: CancellationToken,
     ) -> Result<Self, ServiceCreationError> {
         info!("Running database migration");
         sqlx::migrate!("./migrations").run(&db_pool).await?;
         info!("Database migration successful");
 
         Self::describe_metrics();
-        Self::initialize(db_pool, domain, client_version_req).await
+        Self::initialize(db_pool, domain, client_version_req, stop).await
     }
 
     fn describe_metrics() {}
@@ -82,5 +85,6 @@ pub trait BackendService: Sized {
         db_pool: PgPool,
         domain: Fqdn,
         client_version_req: Option<VersionReq>,
+        stop: CancellationToken,
     ) -> Result<Self, ServiceCreationError>;
 }

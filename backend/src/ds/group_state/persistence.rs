@@ -144,6 +144,7 @@ impl StorableDsGroupData<true> {
 mod test {
     use aircommon::{crypto::aead::Ciphertext, identifiers::QualifiedGroupId, time::TimeStamp};
     use sqlx::PgPool;
+    use tokio_util::sync::CancellationToken;
     use uuid::Uuid;
 
     use crate::{
@@ -167,9 +168,14 @@ mod test {
 
     #[sqlx::test]
     async fn reserve_group_id(pool: PgPool) {
-        let ds = Ds::new_from_pool(pool, "example.com".parse().unwrap(), None)
-            .await
-            .expect("Error creating ephemeral Ds instance.");
+        let ds = Ds::new_from_pool(
+            pool,
+            "example.com".parse().unwrap(),
+            None,
+            CancellationToken::new(),
+        )
+        .await
+        .expect("Error creating ephemeral Ds instance.");
 
         // Sample a random group id and reserve it
         let group_uuid = Uuid::new_v4();
@@ -186,9 +192,14 @@ mod test {
 
     #[sqlx::test]
     async fn group_state_lifecycle(pool: PgPool) {
-        let ds = Ds::new_from_pool(pool, "example.com".parse().unwrap(), None)
-            .await
-            .expect("Error creating ephemeral Ds instance.");
+        let ds = Ds::new_from_pool(
+            pool,
+            "example.com".parse().unwrap(),
+            None,
+            CancellationToken::new(),
+        )
+        .await
+        .expect("Error creating ephemeral Ds instance.");
 
         let test_state = Ciphertext::dummy();
 
@@ -270,7 +281,13 @@ mod test {
 
     #[sqlx::test]
     async fn load(pool: PgPool) -> anyhow::Result<()> {
-        let ds = Ds::new_from_pool(pool.clone(), "example.com".parse().unwrap(), None).await?;
+        let ds = Ds::new_from_pool(
+            pool.clone(),
+            "example.com".parse().unwrap(),
+            None,
+            CancellationToken::new(),
+        )
+        .await?;
         let (qgid, group) = store_random_group(&pool, &ds).await?;
 
         let mut connection = pool.acquire().await?;
@@ -282,7 +299,13 @@ mod test {
 
     #[sqlx::test]
     async fn update(pool: PgPool) -> anyhow::Result<()> {
-        let ds = Ds::new_from_pool(pool.clone(), "example.com".parse().unwrap(), None).await?;
+        let ds = Ds::new_from_pool(
+            pool.clone(),
+            "example.com".parse().unwrap(),
+            None,
+            CancellationToken::new(),
+        )
+        .await?;
         let (qgid, group) = store_random_group(&pool, &ds).await?;
 
         let mut connection = pool.acquire().await?;
@@ -303,7 +326,13 @@ mod test {
 
     #[sqlx::test]
     async fn delete(pool: PgPool) -> anyhow::Result<()> {
-        let ds = Ds::new_from_pool(pool.clone(), "example.com".parse().unwrap(), None).await?;
+        let ds = Ds::new_from_pool(
+            pool.clone(),
+            "example.com".parse().unwrap(),
+            None,
+            CancellationToken::new(),
+        )
+        .await?;
         let (qgid, group) = store_random_group(&pool, &ds).await?;
 
         let mut connection = pool.acquire().await?;

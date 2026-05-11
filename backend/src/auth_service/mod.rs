@@ -12,7 +12,7 @@ use credentials::{
 use semver::VersionReq;
 use sqlx::PgPool;
 use thiserror::Error;
-use tokio_util::sync::{CancellationToken, DropGuard};
+use tokio_util::sync::CancellationToken;
 use usernames::UsernameQueues;
 
 use crate::{
@@ -39,7 +39,6 @@ pub struct AuthService {
     invitation_only: bool,
     unredeemable_code: Option<Arc<str>>,
     stop: CancellationToken,
-    _stop: Arc<DropGuard>,
 }
 
 impl AuthService {
@@ -75,8 +74,8 @@ impl BackendService for AuthService {
         db_pool: PgPool,
         domain: Fqdn,
         client_version_req: Option<VersionReq>,
+        stop: CancellationToken,
     ) -> Result<Self, ServiceCreationError> {
-        let stop = CancellationToken::new();
         let username_queues = UsernameQueues::new(db_pool.clone(), stop.clone()).await?;
         let auth_service = Self {
             db_pool,
@@ -84,8 +83,7 @@ impl BackendService for AuthService {
             client_version_req,
             invitation_only: true,
             unredeemable_code: None,
-            stop: stop.clone(),
-            _stop: Arc::new(stop.drop_guard()),
+            stop,
         };
 
         // Check if there is an active AS signing key

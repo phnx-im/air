@@ -164,12 +164,15 @@ pub(crate) async fn spawn_app(
 
     let db_names = DbNames::random();
 
+    let stop = CancellationToken::new();
+
     // DS storage provider
     configuration.database.name = db_names.ds.to_string();
     let mut ds = Ds::new(
         &configuration.database,
         domain.clone(),
         client_version_req.clone(),
+        stop.clone(),
     )
     .await
     .expect("Failed to connect to database.");
@@ -188,6 +191,7 @@ pub(crate) async fn spawn_app(
         &configuration.database,
         domain.clone(),
         client_version_req.clone(),
+        stop.clone(),
     )
     .await
     .expect("Failed to connect to database.");
@@ -216,6 +220,7 @@ pub(crate) async fn spawn_app(
         &configuration.database,
         domain.clone(),
         client_version_req.clone(),
+        stop.clone(),
     )
     .await
     .expect("Failed to connect to database.");
@@ -229,7 +234,6 @@ pub(crate) async fn spawn_app(
     };
 
     // Start the server
-    let stop = CancellationToken::new();
     let server = run(
         ServerRunParams {
             listener,

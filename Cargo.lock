@@ -83,7 +83,6 @@ dependencies = [
  "futures-util",
  "mimi-room-policy",
  "mls-assist",
- "pin-project",
  "semver",
  "shadow-rs",
  "thiserror 2.0.18",

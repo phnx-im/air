@@ -76,15 +76,17 @@ async fn main() -> anyhow::Result<()> {
         host = configuration.database.host,
         "Connecting to postgres server",
     );
-    let mut counter = 0;
+    let shutdown = CancellationToken::new();
     let mut ds_result = Ds::new(
         &configuration.database,
         domain.clone(),
         version_req.cloned(),
+        shutdown.clone(),
     )
     .await;
 
     // Try again for 10 times each second in case the postgres server is coming up.
+    let mut counter = 0;
     while let Err(e) = ds_result {
         info!("Failed to connect to postgres server: {}", e);
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
@@ -96,6 +98,7 @@ async fn main() -> anyhow::Result<()> {
             &configuration.database,
             domain.clone(),
             version_req.cloned(),
+            shutdown.clone(),
         )
         .await;
     }
@@ -112,6 +115,7 @@ async fn main() -> anyhow::Result<()> {
         &configuration.database,
         domain.clone(),
         version_req.cloned(),
+        shutdown.clone(),
     )
     .await
     .expect("Failed to connect to database.");
@@ -122,6 +126,7 @@ async fn main() -> anyhow::Result<()> {
         &configuration.database,
         domain.clone(),
         version_req.cloned(),
+        shutdown.clone(),
     )
     .await
     .expect("Failed to connect to database.");
@@ -137,7 +142,6 @@ async fn main() -> anyhow::Result<()> {
         network: network_provider.clone(),
     };
 
-    let shutdown = CancellationToken::new();
     tokio::spawn({
         let shutdown = shutdown.clone();
         async move {
