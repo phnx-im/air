@@ -242,7 +242,23 @@ class _AttachmentImageState extends State<AttachmentImage> {
 
     final Widget? foreground;
     if (_error != null) {
-      foreground = const Align(child: AppIcon.circleAlert(size: 32));
+      foreground = Align(
+        child: IconButton(
+          onPressed: () {
+            setState(() => _error = null);
+            unawaited(_load());
+          },
+          style: IconButton.styleFrom(
+            backgroundColor: CustomColorScheme.of(
+              context,
+            ).backgroundBase.tertiary,
+          ),
+          icon: AppIcon.download(
+            size: 32,
+            color: CustomColorScheme.of(context).text.secondary,
+          ),
+        ),
+      );
     } else if (_isAnimated == false) {
       foreground = Image(
         image: AttachmentImageProvider(
