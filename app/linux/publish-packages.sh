@@ -15,8 +15,7 @@
 #                                     (auto-detected from package if omitted)
 #   -k, --gpg-key   GPG_KEY_ID        GPG key fingerprint/email to sign with
 #                                     (or env GPG_KEY_ID)
-#       --no-sign                     Skip GPG signing entirely
-#       --s3-endpoint URL             S3 endpoint URL (or env AWS_S3_ENDPOINT)
+#       --s3-endpoint URL             S3 endpoint URL (or env S3_ENDPOINT)
 #       --repository-base-url URL     Public download base URL shown in client-
 #                                     setup instructions (or env REPOSITORY_BASE_URL)
 #       --dry-run                     Print aws commands without executing them
@@ -27,11 +26,10 @@
 #   RPM: createrepo_c (or createrepo), rpm, gpg, aws
 #
 # Environment variables (all overridable via flags):
-#   S3_BUCKET, S3_PREFIX, GPG_KEY_ID, GPG_PASSPHRASE, AWS_S3_ENDPOINT,
+#   S3_BUCKET, S3_PREFIX, GPG_KEY_ID, GPG_PASSPHRASE, S3_ENDPOINT,
 #   REPOSITORY_BASE_URL, TRACK
 #
-#   AWS_S3_ENDPOINT overrides the S3 endpoint URL (e.g. for MinIO, Cloudflare R2,
-#   Backblaze B2). When unset, the default AWS S3 endpoint is used.
+#   S3_ENDPOINT overrides the S3 endpoint URL (e.g. for MinIO, Cloudflare R2 etc.). When unset, the default AWS S3 endpoint is used.
 #
 # Examples:
 #   # Upload a .deb
@@ -42,8 +40,8 @@
 #   S3_BUCKET=my-repo GPG_KEY_ID=releases@example.com \
 #     ./publish-pkg-repo.sh myapp-1.0.x86_64.rpm
 #
-#   # Dry-run without signing
-#   ./publish-pkg-repo.sh --dry-run --no-sign -b my-repo myapp_1.0_amd64.deb
+#   # Dry-run
+#   ./publish-pkg-repo.sh --dry-run -b my-repo -k releases@example.com myapp_1.0_amd64.deb
 
 set -euo pipefail
 
@@ -69,9 +67,8 @@ TRACK="${TRACK:-testing}"
 COMPONENT="main"
 ARCH=""
 GPG_KEY="${GPG_KEY_ID:-}"
-SIGN=true
 DRY_RUN=false
-S3_ENDPOINT="${AWS_S3_ENDPOINT:-}"
+S3_ENDPOINT="${S3_ENDPOINT:-}"
 REPOSITORY_BASE_URL="${REPOSITORY_BASE_URL:-}"
 # Persistent build directory under the invocation cwd. Kept on disk so repeat
 # publishes can reuse downloaded packages and repodata across runs.
@@ -91,7 +88,6 @@ while [[ $# -gt 0 ]]; do
     --track)        TRACK="$2";       shift 2 ;;
     -a|--arch)      ARCH="$2";        shift 2 ;;
     -k|--gpg-key)   GPG_KEY="$2";     shift 2 ;;
-    --no-sign)      SIGN=false;       shift   ;;
     --s3-endpoint)  S3_ENDPOINT="$2"; shift 2 ;;
     --repository-base-url)     REPOSITORY_BASE_URL="$2";    shift 2 ;;
     --dry-run)      DRY_RUN=true;     shift   ;;
@@ -105,7 +101,7 @@ done
 [[ -n "$PKG_FILE" ]]  || die "No package file specified. Run with -h for usage."
 [[ -f "$PKG_FILE" ]]  || die "File not found: $PKG_FILE"
 [[ -n "$BUCKET" ]]    || die "S3 bucket not set (--s3-bucket / S3_BUCKET)."
-$SIGN && [[ -z "$GPG_KEY" ]] && die "GPG key not set (--gpg-key / GPG_KEY_ID). Use --no-sign to skip."
+[[ -n "$GPG_KEY" ]]   || die "GPG key not set (--gpg-key / GPG_KEY_ID)."
 
 # Auto-detect package type
 if [[ -z "$PKG_TYPE" ]]; then
@@ -211,17 +207,14 @@ publish_deb() {
   info "Staging package into pool..."
   cp "$PKG_FILE" "${pool_dir}/"
 
-  # Sign the .deb with dpkg-sig (optional)
-  if $SIGN; then
-    require gpg
-    info "Signing .deb with GPG key: $GPG_KEY"
-    if command -v dpkg-sig &>/dev/null; then
-      run_gpg --export --armor "$GPG_KEY" > "${key_dir}/gpg-key.asc"
-      dpkg-sig --sign builder -k "$GPG_KEY" "${pool_dir}/$(basename "$PKG_FILE")"
-    else
-      warn "dpkg-sig not found — skipping per-package signature (Release will still be signed)."
-      run_gpg --export --armor "$GPG_KEY" > "${key_dir}/gpg-key.asc"
-    fi
+  # Sign the .deb with dpkg-sig
+  require gpg
+  info "Signing .deb with GPG key: $GPG_KEY"
+  run_gpg --export --armor "$GPG_KEY" > "${key_dir}/gpg-key.asc"
+  if command -v dpkg-sig &>/dev/null; then
+    dpkg-sig --sign builder -k "$GPG_KEY" "${pool_dir}/$(basename "$PKG_FILE")"
+  else
+    warn "dpkg-sig not found — skipping per-package signature (Release will still be signed)."
   fi
 
   # Generate Packages index
@@ -247,18 +240,16 @@ publish_deb() {
     release "$release_dir" > "${release_dir}/Release"
 
   # Sign Release
-  if $SIGN; then
-    info "Signing Release file..."
-    run_gpg --default-key "$GPG_KEY" \
-      --armor --detach-sign \
-      --output "${release_dir}/Release.gpg" \
-      "${release_dir}/Release"
+  info "Signing Release file..."
+  run_gpg --default-key "$GPG_KEY" \
+    --armor --detach-sign \
+    --output "${release_dir}/Release.gpg" \
+    "${release_dir}/Release"
 
-    run_gpg --default-key "$GPG_KEY" \
-      --armor --clearsign \
-      --output "${release_dir}/InRelease" \
-      "${release_dir}/Release"
-  fi
+  run_gpg --default-key "$GPG_KEY" \
+    --armor --clearsign \
+    --output "${release_dir}/InRelease" \
+    "${release_dir}/Release"
 
   # Upload to S3
   info "Uploading pool (immutable, long TTL)..."
@@ -271,12 +262,10 @@ publish_deb() {
     --cache-control "public, max-age=300" \
     --acl public-read
 
-  if $SIGN && [[ -f "${key_dir}/gpg-key.asc" ]]; then
-    info "Uploading public GPG key..."
-    aws_cmd s3 sync "${key_dir}" "${s3_deb}" \
-      --cache-control "public, max-age=86400" \
-      --acl public-read
-  fi
+  info "Uploading public GPG key..."
+  aws_cmd s3 sync "${key_dir}" "${s3_deb}" \
+    --cache-control "public, max-age=86400" \
+    --acl public-read
 
   ok "DEB repository published to ${s3_deb}"
   echo
@@ -329,56 +318,65 @@ publish_rpm() {
   cp "$PKG_FILE" "${repo_dir}/"
 
   # Sign the .rpm
-  if $SIGN; then
-    require gpg
-    info "Signing .rpm with GPG key: $GPG_KEY"
+  require gpg
+  info "Signing .rpm with GPG key: $GPG_KEY"
 
-    # Export key into RPM keyring (rpmmacros approach)
-    local macros_file="${HOME}/.rpmmacros"
-    local macros_bak=""
-    if [[ -f "$macros_file" ]]; then
-      macros_bak="$(mktemp)"
-      cp "$macros_file" "$macros_bak"
-    fi
+  # Export key into RPM keyring (rpmmacros approach)
+  local macros_file="${HOME}/.rpmmacros"
+  local macros_bak=""
+  if [[ -f "$macros_file" ]]; then
+    macros_bak="$(mktemp)"
+    cp "$macros_file" "$macros_bak"
+  fi
 
-    cat > "$macros_file" <<EOF
+  cat > "$macros_file" <<EOF
 %_signature gpg
 %_gpg_name  ${GPG_KEY}
 %_gpg_path  ${GNUPGHOME:-${HOME}/.gnupg}
 %__gpg      $(command -v gpg)
 EOF
 
-    if [[ -n "${GPG_PASSPHRASE:-}" ]]; then
-      echo "${GPG_PASSPHRASE}" | \
-        rpm --addsign "${repo_dir}/$(basename "$PKG_FILE")" \
-          --define "_gpg_sign_cmd_extra_args --passphrase-fd 0 --pinentry-mode loopback"
-    else
-      rpm --addsign "${repo_dir}/$(basename "$PKG_FILE")"
-    fi
-
-    # Restore original .rpmmacros
-    if [[ -n "$macros_bak" ]]; then
-      mv "$macros_bak" "$macros_file"
-    else
-      rm -f "$macros_file"
-    fi
-
-    # Export public key for clients
-    run_gpg --export --armor "$GPG_KEY" > "${key_dir}/gpg-key.asc"
+  if [[ -n "${GPG_PASSPHRASE:-}" ]]; then
+    echo "${GPG_PASSPHRASE}" | \
+      rpm --addsign "${repo_dir}/$(basename "$PKG_FILE")" \
+        --define "_gpg_sign_cmd_extra_args --passphrase-fd 0 --pinentry-mode loopback"
+  else
+    rpm --addsign "${repo_dir}/$(basename "$PKG_FILE")"
   fi
+
+  # Restore original .rpmmacros
+  if [[ -n "$macros_bak" ]]; then
+    mv "$macros_bak" "$macros_file"
+  else
+    rm -f "$macros_file"
+  fi
+
+  # Export public key for clients
+  run_gpg --export --armor "$GPG_KEY" > "${key_dir}/gpg-key.asc"
 
   # Generate repodata
   info "Running ${createrepo_bin}..."
   "$createrepo_bin" --update "$repo_dir"
 
   # Sign repomd.xml
-  if $SIGN; then
-    info "Signing repomd.xml..."
-    run_gpg --default-key "$GPG_KEY" \
-      --armor --detach-sign \
-      --output "${repo_dir}/repodata/repomd.xml.asc" \
-      "${repo_dir}/repodata/repomd.xml"
-  fi
+  info "Signing repomd.xml..."
+  run_gpg --default-key "$GPG_KEY" \
+    --armor --detach-sign \
+    --output "${repo_dir}/repodata/repomd.xml.asc" \
+    "${repo_dir}/repodata/repomd.xml"
+
+  # Generate a .repo file so clients can install with a single
+  # `dnf config-manager --add-repo <url>` command.
+  local repo_file="${key_dir}/${BUCKET}.repo"
+  {
+    echo "[air]"
+    echo "name=Air Messenger builds"
+    echo "baseurl=${REPOSITORY_BASE_URL}/rpm/${COMPONENT}/${ARCH}"
+    echo "enabled=1"
+    echo "gpgcheck=1"
+    echo "repo_gpgcheck=1"
+    echo "gpgkey=${REPOSITORY_BASE_URL}/rpm/gpg-key.asc"
+  } > "$repo_file"
 
   # Upload to S3
   info "Uploading .rpm packages (immutable, long TTL)..."
@@ -393,26 +391,15 @@ EOF
     --cache-control "public, max-age=300" \
     --acl public-read
 
-  if $SIGN && [[ -f "${key_dir}/gpg-key.asc" ]]; then
-    info "Uploading public GPG key..."
-    aws_cmd s3 sync "${key_dir}" "${s3_rpm}" \
-      --cache-control "public, max-age=86400" \
-      --acl public-read
-  fi
+  info "Uploading GPG key and .repo descriptor..."
+  aws_cmd s3 sync "${key_dir}" "${s3_rpm}" \
+    --cache-control "public, max-age=86400" \
+    --acl public-read
 
   ok "RPM repository published to ${s3_rpm}"
   echo
   echo "Client setup:"
-  echo "  sudo rpm --import ${REPOSITORY_BASE_URL}/rpm/gpg-key.asc"
-  echo "  cat <<'EOF' | sudo tee /etc/yum.repos.d/${BUCKET}.repo"
-  echo "  [${BUCKET}]"
-  echo "  name=${BUCKET} repository"
-  echo "  baseurl=${REPOSITORY_BASE_URL}/rpm/${COMPONENT}/${ARCH}"
-  echo "  enabled=1"
-  echo "  gpgcheck=1"
-  echo "  repo_gpgcheck=1"
-  echo "  gpgkey=${REPOSITORY_BASE_URL}/rpm/gpg-key.asc"
-  echo "  EOF"
+  echo "  sudo dnf config-manager --add-repo ${REPOSITORY_BASE_URL}/rpm/${BUCKET}.repo"
 }
 
 # Entry point
@@ -421,7 +408,7 @@ info "Type    : $PKG_TYPE"
 info "Bucket  : s3://${BUCKET}"
 info "Track   : $TRACK"
 info "Workdir : $WORKDIR"
-$SIGN && info "GPG key : $GPG_KEY" || info "Signing : DISABLED"
+info "GPG key : $GPG_KEY"
 $DRY_RUN && warn "Dry-run mode — no changes will be made."
 echo
 

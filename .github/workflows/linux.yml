@@ -81,6 +81,9 @@ jobs:
 
       - name: Upload packages
         working-directory: app/linux
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           apt-get update -qq
           apt-get install -y apt-ftparchive awscli createrepo_c gpg rpmsign
