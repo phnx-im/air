@@ -5,11 +5,11 @@
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/components/desktop/width_constraints.dart';
-import 'package:air/ui/icons/app_icons.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/components/desktop/width_constraints.dart';
+import 'package:air/ds/foundations/icons/app_icons.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:air/util/cached_memory_image.dart';
@@ -60,8 +60,8 @@ class SignUpScreen extends HookWidget {
                         keyboardDismissBehavior:
                             ScrollViewKeyboardDismissBehavior.onDrag,
                         padding: const EdgeInsets.symmetric(
-                          horizontal: Spacings.s,
-                          vertical: Spacings.xs,
+                          horizontal: Spacing.px16,
+                          vertical: Spacing.px12,
                         ),
                         child: _Form(
                           formKey: formKey,
@@ -72,14 +72,14 @@ class SignUpScreen extends HookWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: Spacings.m),
+                  padding: const EdgeInsets.symmetric(horizontal: Spacing.px24),
                   width: isSmallScreen(context) ? double.infinity : null,
                   child: _SignUpButton(
                     formKey: formKey,
                     showErrors: showErrors,
                   ),
                 ),
-                const SizedBox(height: Spacings.s),
+                const SizedBox(height: Spacing.px16),
               ],
             ),
           ),
@@ -120,14 +120,14 @@ class _Form extends HookWidget {
               style: Theme.of(context).textTheme.bodyMedium,
               textAlign: TextAlign.left,
             ),
-            const SizedBox(height: Spacings.l),
+            const SizedBox(height: Spacing.px32),
 
             GestureDetector(
               onTap: () => _pickAvatar(context),
               onLongPress: () => serverFieldVisible.value = true,
               child: const _UserAvatarPicker(),
             ),
-            const SizedBox(height: Spacings.l),
+            const SizedBox(height: Spacing.px32),
 
             ConstrainedBox(
               constraints: textFormConstraints,
@@ -142,7 +142,7 @@ class _Form extends HookWidget {
                 style: Theme.of(context).textTheme.bodyMedium,
                 textAlign: TextAlign.left,
               ),
-              const SizedBox(height: Spacings.s),
+              const SizedBox(height: Spacing.px16),
 
               ConstrainedBox(
                 constraints: textFormConstraints,
@@ -152,7 +152,7 @@ class _Form extends HookWidget {
               ),
             ],
 
-            const SizedBox(height: Spacings.s),
+            const SizedBox(height: Spacing.px16),
           ],
         ),
       ),
@@ -240,10 +240,10 @@ class _DisplayNameTextField extends HookWidget {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: Spacings.xxs,
+      spacing: Spacing.px8,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: Spacings.xxs),
+          padding: const EdgeInsets.only(left: Spacing.px8),
           child: Text(
             loc.signUpScreen_displayNameInputName,
             style: TextStyle(

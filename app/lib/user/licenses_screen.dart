@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
+import 'package:air/ds/theme/theme.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 
@@ -22,7 +22,7 @@ class LicensesScreen extends StatelessWidget {
       ),
       body: const SafeArea(
         child: Padding(
-          padding: EdgeInsets.all(Spacings.s),
+          padding: EdgeInsets.all(Spacing.px16),
           child: Text("TODO"),
         ),
       ),

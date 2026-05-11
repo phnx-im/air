@@ -4,12 +4,12 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/components/app_scaffold.dart';
-import 'package:air/ui/icons/app_icons.dart';
-import 'package:air/ui/typography/font_size.dart';
-import 'package:air/ui/typography/monospace.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/components/app_scaffold.dart';
+import 'package:air/ds/foundations/icons/app_icons.dart';
+import 'package:air/ds/foundations/font_size.dart';
+import 'package:air/ds/foundations/monospace.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/widgets.dart';
@@ -51,11 +51,11 @@ class SafetyCodeView extends StatelessWidget {
       alignment: Alignment.topCenter,
       child: Column(
         children: [
-          const SizedBox(height: Spacings.xs),
+          const SizedBox(height: Spacing.px12),
 
           UserAvatar(profile: profile, size: 192),
 
-          const SizedBox(height: Spacings.s),
+          const SizedBox(height: Spacing.px16),
 
           Text(
             profile.displayName,
@@ -65,13 +65,13 @@ class SafetyCodeView extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: Spacings.m),
+          const SizedBox(height: Spacing.px24),
 
           _SafetyCode(userId: profile.userId),
 
-          const SizedBox(height: Spacings.m),
+          const SizedBox(height: Spacing.px24),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
+            padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
             child: Text(
               style: TextStyle(
                 fontSize: BodyFontSize.small1.size,
@@ -130,21 +130,21 @@ class _SafetyCode extends HookWidget {
           color: colors.backgroundBase.secondary,
         ),
         padding: const EdgeInsets.symmetric(
-          vertical: Spacings.s,
-          horizontal: Spacings.m,
+          vertical: Spacing.px16,
+          horizontal: Spacing.px24,
         ),
         child: Column(
           children: [
             Text(p1, style: codeStyle),
             Text(p2, style: codeStyle),
             Text(p3, style: codeStyle),
-            const SizedBox(height: Spacings.m),
+            const SizedBox(height: Spacing.px24),
             Row(
               mainAxisSize: .min,
               mainAxisAlignment: .center,
               children: [
                 AppIcon.copy(color: colors.text.tertiary, size: 16),
-                const SizedBox(width: Spacings.xxs),
+                const SizedBox(width: Spacing.px8),
                 Text(
                   loc.safetyCodeScreen_tapToCopy,
                   style: TextStyle(

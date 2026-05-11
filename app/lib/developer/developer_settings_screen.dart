@@ -9,13 +9,13 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:air/core/core.dart';
 import 'package:air/navigation/navigation.dart';
-import 'package:air/ui/colors/palette.dart';
-import 'package:air/ui/colors/themes.dart';
+import 'package:air/ds/foundations/palette.dart';
+import 'package:air/ds/foundations/themes.dart';
 import 'package:air/user/user.dart';
-import 'package:air/theme/theme.dart';
+import 'package:air/ds/theme/theme.dart';
 import 'package:air/util/platform.dart';
 import 'package:air/widgets/widgets.dart';
-import 'package:air/ui/icons/app_icons.dart';
+import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:provider/provider.dart';
 
 import 'user_debug_info_panel.dart';
@@ -217,8 +217,8 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                     const _SectionHeader("Debug Info"),
                     Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: Spacings.xs,
-                        vertical: Spacings.xxs,
+                        horizontal: Spacing.px12,
+                        vertical: Spacing.px8,
                       ),
                       child: UserDebugInfoPanel(user: user),
                     ),
@@ -275,8 +275,8 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.symmetric(
-        vertical: Spacings.xxs,
-        horizontal: Spacings.xs,
+        vertical: Spacing.px8,
+        horizontal: Spacing.px12,
       ),
       child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
     );

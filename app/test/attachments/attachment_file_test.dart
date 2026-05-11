@@ -5,8 +5,8 @@
 import 'package:air/attachments/attachments.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -56,12 +56,12 @@ class _FileTestBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: Spacings.s,
-        vertical: Spacings.xxs,
+        horizontal: Spacing.px16,
+        vertical: Spacing.px8,
       ),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(Spacings.sm),
+        borderRadius: BorderRadius.circular(Spacing.px20),
       ),
       child: AttachmentFile(
         attachment: attachment ?? file.copyWith(attachmentId: attachmentId),
@@ -106,11 +106,11 @@ void main() {
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
                 home: Scaffold(
                   body: Padding(
-                    padding: const EdgeInsets.all(Spacings.s),
+                    padding: const EdgeInsets.all(Spacing.px16),
                     child: SizedBox(
                       width: double.infinity,
                       child: Column(
-                        spacing: Spacings.s,
+                        spacing: Spacing.px16,
                         crossAxisAlignment: .end,
                         children: children(context),
                       ),
