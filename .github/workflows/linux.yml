@@ -53,6 +53,8 @@ jobs:
           path: app/build/linux/x64/release/bundle
 
   linux-publish:
+    environment: linux-packages
+
     needs: linux-build
     runs-on: ubuntu-latest
 
@@ -78,9 +80,10 @@ jobs:
         run: RELEASE=${{ needs.linux-build.outputs.build-number }} just build-deb build-rpm
 
       - name: Upload packages
-        uses: actions/upload-artifact@v6
-        with:
-          name: linux-x64-packages
-          path: |
-            app/linux/*.deb
-            app/linux/*.rpm
+        working-directory: app/linux
+        run: |
+          apt-get update -qq
+          apt-get install -y apt-ftparchive awscli createrepo_c gpg rpmsign
+          echo "${{ secrets.GPG_SIGNING_KEY }}" | base64 -d | gpg --import
+          ./publish-packages.sh air-*.rpm
+          ./publish-packages.sh air-*.deb

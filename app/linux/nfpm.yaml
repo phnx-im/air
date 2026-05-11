@@ -17,12 +17,19 @@ license: "AGPL-3.0-or-later"
 overrides:
   rpm:    
     contents:
-    - src: ../build/linux/x64/release/bundle
-      dst: /usr/lib64/air/
-      type: tree
+    - src: ../build/linux/x64/release/bundle/air
+      dst: /usr/lib64/air/air
+      file_info:
+        mode: 0755
     - src: /usr/lib64/air/air
       dst: /usr/bin/air
       type: symlink
+    - src: ../build/linux/x64/release/bundle/data
+      dst: /usr/lib64/air/data
+      type: tree
+    - src: ../build/linux/x64/release/bundle/lib
+      dst: /usr/lib64/air/lib
+      type: tree
     - src: ./ms.air.desktop
       dst: /usr/share/applications/ms.air.desktop
     - src: ./ms.air.service
@@ -35,7 +42,6 @@ overrides:
       - gtk3 >= 3.24.51
   deb:
     contents:
-    # we have to mark binaries as executable in DEB packages
     - src: ../build/linux/x64/release/bundle/air
       dst: /usr/lib/x86_64-linux-gnu/air/air
       file_info:
