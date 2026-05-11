@@ -243,6 +243,7 @@ impl Group {
             .with_group_id(group_id.clone())
             .with_capabilities(default_required_group_capabilities())
             .with_group_context_extensions(gc_extensions)
+            .with_leaf_node_extensions(default_leaf_node_extensions())?
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
             .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
