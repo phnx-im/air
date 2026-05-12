@@ -217,7 +217,7 @@ install-fvm:
     bash install-fvm.sh 4.0.5
 
 [working-directory: 'app']
-build platform:
+build platform $APP_FLAVOR="production":
     if [[ "${CI:-false}" != "true" ]]; then just flutter build {{ platform }}; fi
 
 [linux]

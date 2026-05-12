@@ -16,8 +16,11 @@
 #   -k, --gpg-key   GPG_KEY_ID        GPG key fingerprint/email to sign with
 #                                     (or env GPG_KEY_ID)
 #       --s3-endpoint URL             S3 endpoint URL (or env S3_ENDPOINT)
-#       --repository-base-url URL     Public download base URL shown in client-
-#                                     setup instructions (or env REPOSITORY_BASE_URL)
+#       --repository-base-url URL     Public download base URL (bucket root)
+#                                     shown in client-setup instructions
+#                                     (or env REPOSITORY_BASE_URL). The script
+#                                     appends "/deb" or "/rpm" automatically.
+#                                     Required.
 #       --dry-run                     Print aws commands without executing them
 #   -h, --help                        Show this help
 #
@@ -102,6 +105,7 @@ done
 [[ -f "$PKG_FILE" ]]  || die "File not found: $PKG_FILE"
 [[ -n "$BUCKET" ]]    || die "S3 bucket not set (--s3-bucket / S3_BUCKET)."
 [[ -n "$GPG_KEY" ]]   || die "GPG key not set (--gpg-key / GPG_KEY_ID)."
+[[ -n "$REPOSITORY_BASE_URL" ]] || die "Repository base URL not set (--repository-base-url / REPOSITORY_BASE_URL)."
 
 # Auto-detect package type
 if [[ -z "$PKG_TYPE" ]]; then
@@ -113,11 +117,11 @@ if [[ -z "$PKG_TYPE" ]]; then
 fi
 [[ "$PKG_TYPE" == "deb" || "$PKG_TYPE" == "rpm" ]] || die "Invalid type: $PKG_TYPE"
 
-# Trim any trailing slash so client-setup snippets don't end up with "//".
-# Fall back to a placeholder when no base URL was provided, so the snippet is
-# still copy-pasteable as a template.
+# Trim any trailing slash so client-setup snippets don't end up with "//", then
+# build the type-specific URL — REPOSITORY_BASE_URL is the bucket root and the
+# script owns the "/deb" or "/rpm" segment.
 REPOSITORY_BASE_URL="${REPOSITORY_BASE_URL%/}"
-REPOSITORY_BASE_URL="${REPOSITORY_BASE_URL:-https://<cdn-or-bucket-url>}"
+REPO_URL="${REPOSITORY_BASE_URL}/${PKG_TYPE}"
 
 # Many S3-compatible providers (Upcloud, some MinIO versions, etc.) reject the
 # newer flow checksums that AWS CLI v2 sends by default, producing errors like
@@ -175,6 +179,93 @@ s3_path() {
   fi
 }
 
+# Keep only the N most recent versions of each package per architecture so the
+# pool doesn't grow unbounded across releases. Files are removed from the local
+# working tree; the subsequent upload uses `aws s3 sync --delete` to propagate
+# the removals to S3.
+KEEP_VERSIONS=10
+
+prune_deb_pool() {
+  local pool="$1"
+  local keep="${2:-$KEEP_VERSIONS}"
+  shopt -s nullglob
+  local debs=("$pool"/*.deb)
+  shopt -u nullglob
+  [[ ${#debs[@]} -eq 0 ]] && return
+
+  # Group by "<Package>_<Architecture>", sort each group newest-first using
+  # dpkg's version comparison (handles epochs, ~rc/~beta, etc.), then delete
+  # everything past the first $keep entries.
+  declare -A groups
+  local deb name arch ver key
+  for deb in "${debs[@]}"; do
+    name="$(dpkg-deb -f "$deb" Package)"
+    arch="$(dpkg-deb -f "$deb" Architecture)"
+    ver="$(dpkg-deb -f "$deb" Version)"
+    key="${name}_${arch}"
+    groups[$key]+="${ver}|${deb}"$'\n'
+  done
+
+  local removed=0
+  for key in "${!groups[@]}"; do
+    local versions=() files=()
+    while IFS='|' read -r ver file; do
+      [[ -z "$file" ]] && continue
+      versions+=("$ver")
+      files+=("$file")
+    done <<< "${groups[$key]}"
+
+    # Selection sort: repeatedly pull the newest remaining entry out.
+    # O(n²) is fine — package counts per group stay small.
+    local sorted=() i max_idx
+    while [[ ${#versions[@]} -gt 0 ]]; do
+      max_idx=0
+      for ((i = 1; i < ${#versions[@]}; i++)); do
+        if dpkg --compare-versions "${versions[$i]}" gt "${versions[$max_idx]}"; then
+          max_idx=$i
+        fi
+      done
+      sorted+=("${files[$max_idx]}")
+      versions=("${versions[@]:0:max_idx}" "${versions[@]:max_idx+1}")
+      files=("${files[@]:0:max_idx}" "${files[@]:max_idx+1}")
+    done
+
+    for ((i = keep; i < ${#sorted[@]}; i++)); do
+      info "Pruning old package: $(basename "${sorted[$i]}")"
+      rm -f "${sorted[$i]}"
+      removed=$((removed + 1))
+    done
+  done
+  if (( removed > 0 )); then
+    info "Pruned $removed old .deb(s); keeping last $keep per package/arch."
+  fi
+}
+
+prune_rpm_packages() {
+  local repo_dir="$1"
+  local keep="${2:-$KEEP_VERSIONS}"
+
+  if ! command -v repomanage &>/dev/null; then
+    warn "repomanage not found (install dnf-utils), skipping prune of old RPMs."
+    return
+  fi
+
+  local old_pkgs
+  old_pkgs="$(repomanage --old --keep="$keep" "$repo_dir" 2>/dev/null || true)"
+  [[ -z "$old_pkgs" ]] && return
+
+  local removed=0
+  while IFS= read -r pkg; do
+    [[ -z "$pkg" ]] && continue
+    info "Pruning old package: $(basename "$pkg")"
+    rm -f "$pkg"
+    removed=$((removed + 1))
+  done <<< "$old_pkgs"
+  if (( removed > 0 )); then
+    info "Pruned $removed old .rpm(s); keeping last $keep per package."
+  fi
+}
+
 # DEB publishing
 publish_deb() {
   require apt-ftparchive dpkg-deb aws
@@ -185,9 +276,10 @@ publish_deb() {
     info "Detected architecture: $ARCH"
   fi
 
-  local pool_dir="${WORKDIR}/pool/${COMPONENT}"
-  local dists_dir="${WORKDIR}/dists/${TRACK}/${COMPONENT}/binary-${ARCH}"
-  local key_dir="${WORKDIR}/keys"
+  local deb_root="${WORKDIR}/deb"
+  local pool_dir="${deb_root}/pool/${COMPONENT}"
+  local dists_dir="${deb_root}/dists/${TRACK}/${COMPONENT}/binary-${ARCH}"
+  local key_dir="${deb_root}/keys"
   mkdir -p "$pool_dir" "$dists_dir" "$key_dir"
 
   local s3_deb
@@ -199,9 +291,12 @@ publish_deb() {
   # package. Without this, every publish would silently orphan old .debs by
   # producing an index that lists only the current upload.
   info "Syncing existing pool from ${s3_deb}/pool..."
-  aws_cmd s3 sync "${s3_deb}/pool" "${WORKDIR}/pool"
+  aws_cmd s3 sync "${s3_deb}/pool" "${deb_root}/pool"
   info "Syncing existing dists from ${s3_deb}/dists/${TRACK}..."
-  aws_cmd s3 sync "${s3_deb}/dists/${TRACK}" "${WORKDIR}/dists/${TRACK}"
+  aws_cmd s3 sync "${s3_deb}/dists/${TRACK}" "${deb_root}/dists/${TRACK}"
+
+  # Prune old packages from the local pool before staging the new one
+  #prune_deb_pool "$pool_dir"
 
   # Copy package into pool
   info "Staging package into pool..."
@@ -218,18 +313,20 @@ publish_deb() {
   fi
 
   # Generate Packages index
+  # cd into deb_root so apt-ftparchive embeds "pool/${COMPONENT}/..." (relative
+  # to dists/) in the Filename: field, matching the URL clients construct.
   info "Running apt-ftparchive packages..."
   (
-    cd "$WORKDIR"
+    cd "$deb_root"
     apt-ftparchive packages "pool/${COMPONENT}" > "${dists_dir}/Packages"
-    gzip  -9 -k "${dists_dir}/Packages"
-    bzip2 -9 -k "${dists_dir}/Packages"
-    xz    -9 -k "${dists_dir}/Packages"
+    gzip  -9 -f -k "${dists_dir}/Packages"
+    bzip2 -9 -f -k "${dists_dir}/Packages"
+    xz    -9 -f -k "${dists_dir}/Packages"
   )
 
   # Generate Release
   info "Running apt-ftparchive release..."
-  local release_dir="${WORKDIR}/dists/${TRACK}"
+  local release_dir="${deb_root}/dists/${TRACK}"
   apt-ftparchive \
     -o "APT::FTPArchive::Release::Origin=Custom"     \
     -o "APT::FTPArchive::Release::Label=Custom"      \
@@ -253,12 +350,13 @@ publish_deb() {
 
   # Upload to S3
   info "Uploading pool (immutable, long TTL)..."
-  aws_cmd s3 sync "${WORKDIR}/pool" "${s3_deb}/pool" \
+  aws_cmd s3 sync "${deb_root}/pool" "${s3_deb}/pool" \
+    --delete \
     --cache-control "public, max-age=31536000, immutable" \
     --acl public-read
 
   info "Uploading dists (index files, short TTL)..."
-  aws_cmd s3 sync "${WORKDIR}/dists" "${s3_deb}/dists" \
+  aws_cmd s3 sync "${deb_root}/dists" "${s3_deb}/dists" \
     --cache-control "public, max-age=300" \
     --acl public-read
 
@@ -270,10 +368,10 @@ publish_deb() {
   ok "DEB repository published to ${s3_deb}"
   echo
   echo "Client setup:"
-  echo "  curl -fsSL ${REPOSITORY_BASE_URL}/deb/gpg-key.asc \\"
+  echo "  curl -fsSL ${REPO_URL}/gpg-key.asc \\"
   echo "    | sudo gpg --dearmor -o /usr/share/keyrings/${BUCKET}-keyring.gpg"
   echo "  echo \"deb [signed-by=/usr/share/keyrings/${BUCKET}-keyring.gpg] \\"
-  echo "    ${REPOSITORY_BASE_URL}/deb ${TRACK} ${COMPONENT}\" \\"
+  echo "    ${REPO_URL} ${TRACK} ${COMPONENT}\" \\"
   echo "    | sudo tee /etc/apt/sources.list.d/${BUCKET}.list"
   echo "  sudo apt update"
 }
@@ -299,8 +397,9 @@ publish_rpm() {
     info "Detected architecture: $ARCH"
   fi
 
-  local repo_dir="${WORKDIR}/${COMPONENT}/${ARCH}"
-  local key_dir="${WORKDIR}/keys"
+  local rpm_root="${WORKDIR}/rpm"
+  local repo_dir="${rpm_root}/${COMPONENT}/${ARCH}"
+  local key_dir="${rpm_root}/keys"
   mkdir -p "$repo_dir" "$key_dir"
 
   local s3_rpm
@@ -312,6 +411,9 @@ publish_rpm() {
   # instead of producing a repo that only references the new package.
   info "Syncing existing repo from ${s3_rpm}/${COMPONENT}/${ARCH}..."
   aws_cmd s3 sync "${s3_rpm}/${COMPONENT}/${ARCH}" "${repo_dir}"
+
+  # Prune old packages before staging the new one
+  prune_rpm_packages "$repo_dir"
 
   # Copy package
   info "Staging package..."
@@ -371,16 +473,17 @@ EOF
   {
     echo "[air]"
     echo "name=Air Messenger builds"
-    echo "baseurl=${REPOSITORY_BASE_URL}/rpm/${COMPONENT}/${ARCH}"
+    echo "baseurl=${REPO_URL}/${COMPONENT}/${ARCH}"
     echo "enabled=1"
     echo "gpgcheck=1"
     echo "repo_gpgcheck=1"
-    echo "gpgkey=${REPOSITORY_BASE_URL}/rpm/gpg-key.asc"
+    echo "gpgkey=${REPO_URL}/gpg-key.asc"
   } > "$repo_file"
 
   # Upload to S3
   info "Uploading .rpm packages (immutable, long TTL)..."
   aws_cmd s3 sync "${repo_dir}" "${s3_rpm}/${COMPONENT}/${ARCH}" \
+    --delete \
     --exclude "repodata/*" \
     --cache-control "public, max-age=31536000, immutable" \
     --acl public-read
@@ -399,16 +502,15 @@ EOF
   ok "RPM repository published to ${s3_rpm}"
   echo
   echo "Client setup:"
-  echo "  sudo dnf config-manager --add-repo ${REPOSITORY_BASE_URL}/rpm/${BUCKET}.repo"
+  echo "  sudo dnf config-manager --add-repo ${REPO_URL}/${BUCKET}.repo"
 }
 
 # Entry point
-info "Package : $(basename "$PKG_FILE")"
-info "Type    : $PKG_TYPE"
-info "Bucket  : s3://${BUCKET}"
-info "Track   : $TRACK"
-info "Workdir : $WORKDIR"
-info "GPG key : $GPG_KEY"
+info "Package  : $(basename "$PKG_FILE")"
+info "Base URL : ${REPOSITORY_BASE_URL}"
+info "Track    : $TRACK"
+info "Workdir  : $WORKDIR"
+info "GPG key  : $GPG_KEY"
 $DRY_RUN && warn "Dry-run mode — no changes will be made."
 echo
 
