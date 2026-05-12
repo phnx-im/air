@@ -241,22 +241,7 @@ class _AttachmentImageState extends State<AttachmentImage> {
     final blurhash = BlurHash(hash: widget.imageMetadata.blurhash);
 
     final Widget? foreground;
-    if (_error != null) {
-      foreground = Align(
-        child: _BlurredPill(
-          child: IconButton(
-            onPressed: () {
-              setState(() => _error = null);
-              unawaited(_load());
-            },
-            icon: AppIcon.download(
-              size: 24,
-              color: CustomColorScheme.of(context).text.primary,
-            ),
-          ),
-        ),
-      );
-    } else if (_isAnimated == false) {
+    if (_isAnimated == false) {
       foreground = Image(
         image: AttachmentImageProvider(
           attachment: widget.attachment,
@@ -293,6 +278,7 @@ class _AttachmentImageState extends State<AttachmentImage> {
             size: widget.attachment.size,
             isSender: widget.isSender,
             isAnimationPaused: isAnimationPaused,
+            onTapDownload: () => _load(),
           ),
         ],
       ),
@@ -307,12 +293,15 @@ class AttachmentImageOverlay extends HookWidget {
     required this.size,
     required this.isSender,
     required this.isAnimationPaused,
+    required this.onTapDownload,
   });
 
   final AttachmentId attachmentId;
   final int size;
   final bool isSender;
   final bool isAnimationPaused;
+
+  final VoidCallback onTapDownload;
 
   @override
   Widget build(BuildContext context) {
@@ -324,59 +313,58 @@ class AttachmentImageOverlay extends HookWidget {
     );
     final uploadStatus = useStream<UiAttachmentStatus>(uploadStatusSteam);
 
-    final loc = AppLocalizations.of(context);
     final colors = CustomColorScheme.of(context);
 
     return Align(
       alignment: Alignment.center,
       child: switch (uploadStatus.data) {
         UiAttachmentStatus_Pending() ||
-        UiAttachmentStatus_Failed() when isSender => OutlinedButton(
-          onPressed: () {
-            context.read<ChatDetailsCubit>().retryUploadAttachment(
-              attachmentId,
-            );
-          },
-          child: Row(
-            mainAxisAlignment: .center,
-            mainAxisSize: MainAxisSize.min,
+        UiAttachmentStatus_Failed() when isSender => _BlurredPill(
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              const AppIcon.upload(size: 16),
-              const SizedBox(width: Spacing.px4),
-              Text(
-                loc.attachment_tryAgain,
-                style: TextStyle(
-                  color: colors.text.primary,
-                  fontSize: LabelFontSize.base.size,
-                ),
+              IconButton(
+                onPressed: () => context
+                    .read<ChatDetailsCubit>()
+                    .retryUploadAttachment(attachmentId),
+                icon: const AppIcon.upload(size: 24),
               ),
             ],
           ),
         ),
-        UiAttachmentStatus_Progress(field0: final loaded) when isSender =>
-          _BlurredPill(
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    colors.text.primary,
-                  ),
-                  backgroundColor: Colors.transparent,
-                  value: loaded / BigInt.from(size),
-                ),
-                IconButton(
-                  onPressed: () {
-                    context.read<AttachmentsRepository>().cancel(
-                      attachmentId: attachmentId,
-                    );
-                  },
-                  icon: const AppIcon.x(size: 24),
-                ),
-              ],
-            ),
+        UiAttachmentStatus_Pending() ||
+        UiAttachmentStatus_Failed() when !isSender => _BlurredPill(
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                onPressed: onTapDownload,
+                icon: const AppIcon.download(size: 24),
+              ),
+            ],
           ),
+        ),
+        UiAttachmentStatus_Progress(field0: final loaded) => _BlurredPill(
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(colors.text.primary),
+                backgroundColor: Colors.transparent,
+                value: loaded / BigInt.from(size),
+              ),
+              IconButton(
+                onPressed: () {
+                  context.read<AttachmentsRepository>().cancel(
+                    attachmentId: attachmentId,
+                  );
+                },
+                icon: const AppIcon.x(size: 24),
+              ),
+            ],
+          ),
+        ),
         _ when isAnimationPaused => IgnorePointer(
           child: _BlurredPill(
             child: AppIcon.rotateCw(size: 24, color: colors.text.primary),

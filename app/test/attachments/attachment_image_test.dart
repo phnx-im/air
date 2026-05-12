@@ -40,9 +40,10 @@ Map<AttachmentId, UiAttachmentStatus> testStatuses = {
 };
 
 class _ImageTestBubble extends StatelessWidget {
-  const _ImageTestBubble({required this.attachmentId});
+  const _ImageTestBubble({required this.attachmentId, required this.isSender});
 
   final AttachmentId attachmentId;
+  final bool isSender;
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +57,7 @@ class _ImageTestBubble extends StatelessWidget {
         child: AttachmentImage(
           attachment: file.copyWith(attachmentId: attachmentId),
           imageMetadata: file.imageMetadata!,
-          isSender: true,
+          isSender: isSender,
           fit: BoxFit.cover,
         ),
       ),
@@ -84,7 +85,7 @@ void main() {
     );
   });
 
-  group('AttachmentImage', () {
+  group('AttachmentImage Upload', () {
     Widget buildSubject() => Builder(
       builder: (context) {
         return RepositoryProvider<AttachmentsRepository>.value(
@@ -103,7 +104,10 @@ void main() {
                     crossAxisAlignment: .center,
                     children: [
                       for (final attachmentId in testStatuses.keys) ...[
-                        _ImageTestBubble(attachmentId: attachmentId),
+                        _ImageTestBubble(
+                          attachmentId: attachmentId,
+                          isSender: true,
+                        ),
                       ],
                     ],
                   ),
@@ -126,7 +130,7 @@ void main() {
 
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/attachment_image.png'),
+        matchesGoldenFile('goldens/attachment_upload_image.png'),
       );
     });
 
@@ -143,7 +147,74 @@ void main() {
 
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/attachment_image_dark_mode.png'),
+        matchesGoldenFile('goldens/attachment_image_upload_dark_mode.png'),
+      );
+    });
+  });
+
+  group('AttachmentImage Download', () {
+    Widget buildSubject() => Builder(
+      builder: (context) {
+        return RepositoryProvider<AttachmentsRepository>.value(
+          value: attachmentsRepository,
+          child: MaterialApp(
+            debugShowCheckedModeBanner: false,
+            theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+            localizationsDelegates: AppLocalizations.localizationsDelegates,
+            home: Scaffold(
+              body: Padding(
+                padding: const EdgeInsets.all(Spacing.px16),
+                child: SizedBox(
+                  width: double.infinity,
+                  child: Column(
+                    spacing: Spacing.px16,
+                    crossAxisAlignment: .center,
+                    children: [
+                      for (final attachmentId in testStatuses.keys) ...[
+                        _ImageTestBubble(
+                          attachmentId: attachmentId,
+                          isSender: false,
+                        ),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ),
+        );
+      },
+    );
+
+    testWidgets('renders correctly', (tester) async {
+      tester.platformDispatcher.views.first.physicalSize = physicalSize;
+      addTearDown(() {
+        tester.platformDispatcher.views.first.resetPhysicalSize();
+      });
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/attachment_image_download.png'),
+      );
+    });
+
+    testWidgets('renders correctly (dark mode)', (tester) async {
+      tester.platformDispatcher.views.first.physicalSize = physicalSize;
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      addTearDown(() {
+        tester.platformDispatcher.views.first.resetPhysicalSize();
+        tester.platformDispatcher.clearPlatformBrightnessTestValue();
+      });
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/attachment_image_download_dark_mode.png'),
       );
     });
   });
