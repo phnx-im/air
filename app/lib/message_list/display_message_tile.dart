@@ -5,10 +5,10 @@
 import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/palette.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/palette.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/user/users_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -24,9 +24,9 @@ class DisplayMessageTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: Spacings.m),
+      padding: const EdgeInsets.symmetric(vertical: Spacing.px24),
       child: Column(
-        spacing: Spacings.xxxs,
+        spacing: Spacing.px4,
         children: [
           Container(
             child: switch (eventMessage) {
@@ -76,15 +76,15 @@ class _SystemMessageContent extends StatelessWidget {
       _ => Center(
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(Spacings.s),
+            borderRadius: BorderRadius.circular(Spacing.px16),
             border: Border.all(
               color: CustomColorScheme.of(context).separator.secondary,
               width: 2,
             ),
           ),
           padding: const EdgeInsets.symmetric(
-            horizontal: Spacings.s,
-            vertical: Spacings.xs,
+            horizontal: Spacing.px16,
+            vertical: Spacing.px12,
           ),
           child: _SystemMessageText(message: message),
         ),

@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/icons/app_icons.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:flutter/material.dart';
 
 class MemberSearchField extends StatelessWidget {
@@ -24,10 +24,10 @@ class MemberSearchField extends StatelessWidget {
     final customColorScheme = CustomColorScheme.of(context);
     return Padding(
       padding: const EdgeInsets.only(
-        left: Spacings.s,
-        right: Spacings.s,
-        top: Spacings.m,
-        bottom: Spacings.xxs,
+        left: Spacing.px16,
+        right: Spacing.px16,
+        top: Spacing.px24,
+        bottom: Spacing.px8,
       ),
       child: TextField(
         controller: controller,

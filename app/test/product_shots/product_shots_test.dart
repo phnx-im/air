@@ -11,8 +11,8 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/message_list/message_list.dart';
 import 'package:air/navigation/navigation_cubit.dart';
-import 'package:air/ui/colors/palette.dart';
-import 'package:air/ui/components/navigation/app_tab_bar.dart';
+import 'package:air/ds/foundations/palette.dart';
+import 'package:air/ds/components/navigation/app_tab_bar.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -524,10 +524,14 @@ Future<void> _precacheImages(WidgetTester tester) async {
   await tester.runAsync(() async {
     final elements = tester.elementList(find.byType(DecoratedBox));
     for (Element element in elements) {
-      DecoratedBox widget = element.widget as DecoratedBox;
-      BoxDecoration decoration = widget.decoration as BoxDecoration;
-      if (decoration.image != null) {
-        await precacheImage(decoration.image!.image, element);
+      final widget = element.widget as DecoratedBox;
+      final image = switch (widget.decoration) {
+        BoxDecoration(:final image) => image,
+        ShapeDecoration(:final image) => image,
+        _ => null,
+      };
+      if (image != null) {
+        await precacheImage(image.image, element);
       }
     }
 

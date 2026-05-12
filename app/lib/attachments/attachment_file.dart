@@ -5,10 +5,10 @@
 import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/typography/font_size.dart';
-import 'package:air/ui/icons/app_icons.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/foundations/font_size.dart';
+import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
@@ -31,7 +31,7 @@ class AttachmentFile extends HookWidget {
 
     return Row(
       mainAxisSize: MainAxisSize.min,
-      spacing: Spacings.s,
+      spacing: Spacing.px16,
       children: [
         isSender
             ? _UploadStatus(

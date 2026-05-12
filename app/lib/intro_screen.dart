@@ -2,22 +2,22 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/ui/icons/icons.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/foundations/icons/icons.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
-import 'package:air/ui/colors/themes.dart';
+import 'package:air/ds/foundations/themes.dart';
 import 'package:air/user/user.dart';
-import 'package:air/theme/theme.dart';
+import 'package:air/ds/theme/theme.dart';
 import 'package:air/util/notification_permissions.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-import 'ui/components/desktop/width_constraints.dart';
+import 'package:air/ds/components/desktop/width_constraints.dart';
 
 class IntroScreen extends StatelessWidget {
   const IntroScreen({super.key});
@@ -61,7 +61,7 @@ class IntroScreen extends StatelessWidget {
             const Align(
               alignment: Alignment.topLeft,
               child: Padding(
-                padding: EdgeInsets.only(left: Spacings.m, top: Spacings.m),
+                padding: EdgeInsets.only(left: Spacing.px24, top: Spacing.px24),
                 child: _LanguagePicker(),
               ),
             ),
@@ -78,9 +78,9 @@ class IntroScreen extends StatelessWidget {
                         width: double.infinity,
                         child: Padding(
                           padding: const EdgeInsets.only(
-                            left: Spacings.m,
-                            right: Spacings.m,
-                            top: Spacings.l + Spacings.xxs,
+                            left: Spacing.px24,
+                            right: Spacing.px24,
+                            top: Spacing.px32 + Spacing.px8,
                           ),
                           child: OutlinedButton(
                             style: OutlinedButtonTheme.of(context).style!
@@ -107,7 +107,7 @@ class IntroScreen extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(height: Spacings.s),
+                      const SizedBox(height: Spacing.px16),
                     ],
                   ),
                 ),
@@ -151,7 +151,7 @@ class _LanguagePicker extends StatelessWidget {
                 ),
                 child: AppIcon.globe(color: colors.text.secondary, size: 18),
               ),
-              const SizedBox(width: Spacings.xs),
+              const SizedBox(width: Spacing.px12),
               Text(
                 option.label,
                 style: TextStyle(

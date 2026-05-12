@@ -987,11 +987,17 @@ abstract class AppLocalizations {
   /// **'{count}m'**
   String timestamp_minutesAgo(int count);
 
-  /// No description provided for @timestamp_yesterday.
+  /// No description provided for @date_today.
+  ///
+  /// In en, this message translates to:
+  /// **'Today'**
+  String get date_today;
+
+  /// No description provided for @date_yesterday.
   ///
   /// In en, this message translates to:
   /// **'Yesterday'**
-  String get timestamp_yesterday;
+  String get date_yesterday;
 
   /// No description provided for @messageBubble_sending.
   ///

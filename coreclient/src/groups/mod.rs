@@ -54,8 +54,7 @@ use aircommon::{
         AIR_COMPONENT_ID, GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, SUPPORTED_COMPONENTS,
         default_app_data_dictionary_extension, default_group_required_extensions,
         default_leaf_node_capabilities, default_leaf_node_extensions,
-        default_mls_group_join_config, default_required_group_capabilities,
-        default_sender_ratchet_configuration,
+        default_mls_group_join_config, default_sender_ratchet_configuration,
     },
     time::TimeStamp,
     utils::removed_client,
@@ -265,8 +264,9 @@ impl Group {
 
         let mls_group = MlsGroup::builder()
             .with_group_id(group_id.clone())
-            .with_capabilities(default_required_group_capabilities())
+            .with_capabilities(default_leaf_node_capabilities())
             .with_group_context_extensions(gc_extensions)
+            .with_leaf_node_extensions(default_leaf_node_extensions())?
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
             .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)

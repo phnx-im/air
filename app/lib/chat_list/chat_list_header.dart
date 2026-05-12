@@ -6,12 +6,12 @@ import 'package:air/chat_list/chat_list_cubit.dart';
 import 'package:air/chat_list/add_contact_dialog.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/components/button/glass_circle_button.dart';
-import 'package:air/ui/icons/app_icons.dart';
-import 'package:air/ui/components/context_menu/context_menu.dart';
-import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/components/button/glass_circle_button.dart';
+import 'package:air/ds/foundations/icons/app_icons.dart';
+import 'package:air/ds/components/context_menu/context_menu.dart';
+import 'package:air/ds/components/context_menu/context_menu_item_ui.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
@@ -29,7 +29,7 @@ class ChatListHeader extends StatelessWidget {
     final isMobile = isSmallScreen(context);
 
     return Padding(
-      padding: const EdgeInsets.only(left: Spacings.sm, right: Spacings.s),
+      padding: const EdgeInsets.only(left: Spacing.px20, right: Spacing.px16),
       child: SizedBox(
         height: kToolbarHeight,
         child: Row(
@@ -80,7 +80,7 @@ class _Avatar extends StatelessWidget {
           final profile = context.select(
             (UsersCubit cubit) => cubit.state.profile(userId: null),
           );
-          return UserAvatar(profile: profile, size: Spacings.l);
+          return UserAvatar(profile: profile, size: Spacing.px32);
         },
       ),
     );

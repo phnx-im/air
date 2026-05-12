@@ -5,7 +5,7 @@
 import 'package:air/chat/safety_code_screen.dart';
 import 'package:air/core/api/user_cubit.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ui/components/app_scaffold.dart';
+import 'package:air/ds/components/app_scaffold.dart';
 import 'package:air/user/user_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

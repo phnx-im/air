@@ -58,12 +58,11 @@ pub const APQ_CIPHERSUITE: ApqCiphersuite =
     ApqCiphersuite::new(DEFAULT_CIPHERSUITE, PQ_CIPHERSUITE);
 
 // Required capabilities
-const REQUIRED_PROTOCOL_VERSIONS: &[ProtocolVersion] = &[DEFAULT_MLS_VERSION];
-const REQUIRED_CIPHERSUITES: &[Ciphersuite] = &[DEFAULT_CIPHERSUITE];
 const REQUIRED_EXTENSIONS: &[ExtensionType] = &[
     ExtensionType::Unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE),
     ExtensionType::Unknown(GROUP_DATA_EXTENSION_TYPE),
     ExtensionType::LastResort,
+    ExtensionType::AppDataDictionary,
 ];
 const REQUIRED_PROPOSALS: &[ProposalType] = &[
     ProposalType::Custom(FRIENDSHIP_PACKAGE_PROPOSAL_TYPE),
@@ -82,12 +81,7 @@ pub fn default_group_required_extensions() -> RequiredCapabilitiesExtension {
 // Supported capabilities (subset of required capabilities)
 pub const SUPPORTED_PROTOCOL_VERSIONS: &[ProtocolVersion] = &[DEFAULT_MLS_VERSION];
 pub const SUPPORTED_CIPHERSUITES: &[Ciphersuite] = &[DEFAULT_CIPHERSUITE];
-pub const SUPPORTED_EXTENSIONS: &[ExtensionType] = &[
-    ExtensionType::Unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE),
-    ExtensionType::Unknown(GROUP_DATA_EXTENSION_TYPE),
-    ExtensionType::LastResort,
-    ExtensionType::AppDataDictionary,
-];
+pub const SUPPORTED_EXTENSIONS: &[ExtensionType] = REQUIRED_EXTENSIONS;
 pub const SUPPORTED_PROPOSALS: &[ProposalType] = &[
     ProposalType::Custom(FRIENDSHIP_PACKAGE_PROPOSAL_TYPE), // Also in REQUIRED_PROPOSALS
     ProposalType::SelfRemove,                               // Also in REQUIRED_PROPOSALS
@@ -95,19 +89,6 @@ pub const SUPPORTED_PROPOSALS: &[ProposalType] = &[
 ];
 pub const SUPPORTED_CREDENTIALS: &[CredentialType] = REQUIRED_CREDENTIALS;
 pub const SUPPORTED_COMPONENTS: &[ComponentId] = &[AIR_COMPONENT_ID];
-
-/// Capabilities that are required to be a member of a group.
-///
-/// Warning: changing this capabilities requires backwards compatibility considerations.
-pub fn default_required_group_capabilities() -> Capabilities {
-    Capabilities::new(
-        Some(REQUIRED_PROTOCOL_VERSIONS),
-        Some(REQUIRED_CIPHERSUITES),
-        Some(REQUIRED_EXTENSIONS),
-        Some(REQUIRED_PROPOSALS),
-        Some(REQUIRED_CREDENTIALS),
-    )
-}
 
 /// Capabilities that are used in the leaf node.
 pub fn default_leaf_node_capabilities() -> Capabilities {
@@ -183,12 +164,6 @@ mod test {
 
     #[test]
     fn required_capabilities_is_subset_of_supported_capabilities() {
-        for version in REQUIRED_PROTOCOL_VERSIONS {
-            assert!(SUPPORTED_PROTOCOL_VERSIONS.contains(version));
-        }
-        for ciphersuite in REQUIRED_CIPHERSUITES {
-            assert!(SUPPORTED_CIPHERSUITES.contains(ciphersuite));
-        }
         for extension in REQUIRED_EXTENSIONS {
             assert!(SUPPORTED_EXTENSIONS.contains(extension));
         }
@@ -222,15 +197,7 @@ mod test {
         let _ = default_key_package_extensions();
     }
 
-    #[test]
-    fn default_required_group_capabilities_stability() {
-        let capabilities = default_required_group_capabilities();
-        let bytes = PersistenceCodec::to_vec(&capabilities).unwrap();
-        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
-        insta::assert_snapshot!(diag);
-    }
-
-    /// Default extensions can be extended but must be backwards compatible.
+    /// Default extensions can be extended by must be backwards compatible.
     #[test]
     fn default_extensions_stability() {
         let leaf_node_extensions = default_leaf_node_extensions();

@@ -11,5 +11,5 @@ export 'avatar.dart';
 export 'edge_fade.dart';
 export 'faded_scroll_frame.dart';
 export 'message_status_icon.dart';
-export 'progress_button.dart';
+export 'package:air/ds/components/button/progress_button.dart';
 export 'username_input_formatter.dart';

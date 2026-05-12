@@ -41,14 +41,14 @@ use tracing::{debug, error, info, warn};
 use crate::{
     ChatAttributes, ChatMessage, ChatStatus, ContentMessage, Message, MimiContentExt,
     SystemMessage,
-    chats::{GroupDataExt, StatusRecord, messages::edit::MessageEdit},
+    chats::{GroupDataExt, GroupDataProfilePart, StatusRecord, messages::edit::MessageEdit},
     clients::{
         QsListenResponder,
         attachment::AttachmentRecord,
         block_contact::{BlockedContact, BlockedContactError},
         process::process_as::{ConnectionInfoSource, TargetedMessageSource},
         targeted_message::TargetedMessageContent,
-        update_key::update_chat_title,
+        update_key::{update_chat_attributes, update_chat_title},
         user_settings::ReadReceiptsSetting,
     },
     contacts::{PartialContact, PartialContactType},
@@ -338,23 +338,28 @@ impl CoreUser {
         // group data.
         let group_data_bytes = group.group_data().context("No group data")?;
         let group_data = GroupData::decode(&group_data_bytes)?;
-        let (title, external_group_profile) =
-            group_data.into_parts(group.identity_link_wrapper_key());
+        let (title, group_profile_part) = group_data.into_parts(group.identity_link_wrapper_key());
         let title = title.context("No group title")?;
-        let attributes = ChatAttributes {
+        let mut attributes = ChatAttributes {
             title,
             picture: None, // Group picture is not yet available
         };
-        if let Some(external_group_profile) = external_group_profile {
-            Self::schedule_fetch_group_profile(
-                &mut *txn,
-                group_id.clone(),
-                sender_user_id.clone(),
-                ds_timestamp,
-                external_group_profile,
-            )
-            .await?;
-        }
+        match group_profile_part {
+            Some(GroupDataProfilePart::ExternalProfile(external_group_profile)) => {
+                Self::schedule_fetch_group_profile(
+                    &mut *txn,
+                    group_id.clone(),
+                    sender_user_id.clone(),
+                    ds_timestamp,
+                    external_group_profile,
+                )
+                .await?;
+            }
+            Some(GroupDataProfilePart::LegacyPicture(picture)) => {
+                attributes.picture = Some(picture);
+            }
+            None => (),
+        };
 
         let chat = Chat::new_group_chat(group_id.clone(), attributes);
         let own_profile_key = UserProfileKey::load_own(&mut *txn).await?;
@@ -908,29 +913,52 @@ impl CoreUser {
 
         if let Some(group_data_bytes) = group_data_bytes {
             let group_data = GroupData::decode(&group_data_bytes)?;
-            let (chat_title, external_group_profile) =
+            let (chat_title, group_profile_part) =
                 group_data.into_parts(group.identity_link_wrapper_key());
-            if let Some(external_group_profile) = external_group_profile {
-                Self::schedule_fetch_group_profile(
-                    &mut *txn,
-                    chat.group_id().clone(),
-                    sender_client_credential.user_id().clone(),
-                    ds_timestamp,
-                    external_group_profile,
-                )
-                .await?;
-            }
-            if let Some(title) = chat_title {
-                // Update chat title according to new group data
-                update_chat_title(
-                    txn,
-                    &mut chat,
-                    sender_client_credential.user_id(),
-                    title,
-                    ds_timestamp,
-                    &mut group_messages,
-                )
-                .await?;
+            let chat_picture = match group_profile_part {
+                Some(GroupDataProfilePart::ExternalProfile(external_group_profile)) => {
+                    Self::schedule_fetch_group_profile(
+                        &mut *txn,
+                        chat.group_id().clone(),
+                        sender_client_credential.user_id().clone(),
+                        ds_timestamp,
+                        external_group_profile,
+                    )
+                    .await?;
+                    None
+                }
+                Some(GroupDataProfilePart::LegacyPicture(picture)) => Some(picture),
+                None => None,
+            };
+            // Update chat title according to new group data
+            match (chat_title, chat_picture) {
+                (Some(title), Some(picture)) => {
+                    update_chat_attributes(
+                        txn,
+                        &mut chat,
+                        sender_client_credential.user_id(),
+                        ChatAttributes {
+                            title,
+                            picture: Some(picture),
+                        },
+                        ds_timestamp,
+                        &mut group_messages,
+                    )
+                    .await?;
+                }
+                (Some(title), None) => {
+                    update_chat_title(
+                        txn,
+                        &mut chat,
+                        sender_client_credential.user_id(),
+                        title,
+                        ds_timestamp,
+                        &mut group_messages,
+                    )
+                    .await?;
+                }
+                (None, Some(_)) => error!("Received group data with legacy picture and no title"),
+                (None, None) => (),
             }
         }
 

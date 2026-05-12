@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::USERNAME_REFRESH_THRESHOLD;
-use airprotos::auth_service::v1::OperationType;
+use airprotos::{auth_service::v1::OperationType, client::group::GroupData};
 use chrono::{DateTime, Duration, Utc};
 use openmls::prelude::OpenMlsProvider;
 use openmls_rust_crypto::OpenMlsRustCrypto;
@@ -13,7 +13,8 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::{
-    Chat, ChatId,
+    Chat, ChatAttributes, ChatId,
+    chats::{GroupDataExt, GroupDataProfilePart},
     groups::Group,
     job::{
         JobError,
@@ -622,7 +623,12 @@ impl OutboundServiceContext {
             return Ok(false);
         }
 
-        let job = ChatOperation::update(chat_id, None);
+        let migration_attrs = legacy_group_data_migration(&group);
+        if migration_attrs.is_some() {
+            info!(%chat_id, "Migrating legacy group data");
+        }
+
+        let job = ChatOperation::update(chat_id, migration_attrs);
         let res = self.execute_job(job).await;
 
         match res {
@@ -636,6 +642,25 @@ impl OutboundServiceContext {
             }
         }
     }
+}
+
+/// Migrates the group data from the legacy format to the new format.
+///
+/// The legacy format is the format where title and picture were stored in the group data verbatim.
+fn legacy_group_data_migration(group: &Group) -> Option<ChatAttributes> {
+    let group_data_bytes = group.group_data()?;
+    let group_data = GroupData::decode(&group_data_bytes).ok()?;
+    let has_encrypted_title = group_data.encrypted_title.is_some();
+    let (title, profile) = group_data.into_parts(group.identity_link_wrapper_key());
+    let Some(title) = title else {
+        return None; // Ignore groups without title
+    };
+    let legacy_picture = match profile {
+        Some(GroupDataProfilePart::LegacyPicture(picture)) => Some(picture),
+        _ if has_encrypted_title => return None, // Already migrated
+        _ => None,
+    };
+    Some(ChatAttributes::new(title, legacy_picture))
 }
 
 mod persistence {

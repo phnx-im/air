@@ -911,6 +911,90 @@ async fn qs_stream_processor_partially_processes_messages() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Legacy group data migration", skip_all)]
+async fn legacy_group_data_migration() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let title = "Test Title".to_string();
+    let picture = test_picture_bytes();
+
+    // Alice sets the group title and picture in the legacy format
+    let alice_user = &setup.get_user(&alice).user;
+    alice_user
+        .set_legacy_group_data(chat_id, title.clone(), Some(picture.clone()))
+        .await
+        .unwrap();
+
+    // Bob fetches Alice's commit
+    let bob_user = &setup.get_user(&bob).user;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Bob should process Alice's updates without errors: {:?}",
+        result.errors
+    );
+
+    // Bob can decode the legacy title and inline picture immediately
+    let bob_chat = bob_user.chat(&chat_id).await.unwrap();
+    assert_eq!(bob_chat.attributes().title(), &title);
+    assert_eq!(bob_chat.attributes().picture.as_ref(), Some(&picture));
+    let group_data = bob_user.group_data(chat_id).await.unwrap().unwrap();
+    assert_eq!(group_data.legacy_title.as_ref(), Some(&title));
+    assert!(
+        group_data.external_group_profile.is_none(),
+        "Group should not have ExternalGroupProfile before migration"
+    );
+
+    // Bob runs self-update which migrates the group data to the new format
+    bob_user
+        .set_self_updated_at(chat_id, DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    bob_user
+        .outbound_service()
+        .schedule_self_update(DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    bob_user.outbound_service().run_once().await;
+
+    // Bob migrated the group data to the new format
+    let group_data = bob_user.group_data(chat_id).await.unwrap().unwrap();
+    assert_eq!(bob_chat.attributes().title(), &title);
+    assert_eq!(bob_chat.attributes().picture.as_ref(), Some(&picture));
+    assert_eq!(group_data.legacy_title.as_ref(), Some(&title)); // Still set for old clients
+    assert!(group_data.legacy_picture.is_none());
+    assert!(group_data.encrypted_title.is_some());
+    assert!(group_data.external_group_profile.is_some());
+
+    // Alice fetches the Bob's commit
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    let result = alice_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Alice should process Bob's commit without errors: {:?}",
+        result.errors
+    );
+    alice_user.outbound_service().run_once().await;
+
+    // Alices sees the group title and picture in new format
+    let alice_chat = alice_user.chat(&chat_id).await.unwrap();
+    let group_data = alice_user.group_data(chat_id).await.unwrap().unwrap();
+    assert_eq!(alice_chat.attributes().title(), &title);
+    assert_eq!(alice_chat.attributes().picture.as_ref(), Some(&picture));
+    assert_eq!(group_data.legacy_title.as_ref(), Some(&title)); // Still set for old clients
+    assert!(group_data.legacy_picture.is_none());
+    assert!(group_data.encrypted_title.is_some());
+    assert!(group_data.external_group_profile.is_some());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Create APQ group test", skip_all)]
 async fn create_apq_group() {
     let mut setup = TestBackend::single().await;

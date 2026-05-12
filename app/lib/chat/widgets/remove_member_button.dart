@@ -4,11 +4,11 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/components/button/button.dart' show AppButtonTone;
-import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/components/button/button.dart' show AppButtonTone;
+import 'package:air/ds/components/modal/bottom_sheet_modal.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -45,8 +45,8 @@ class RemoveMemberButton extends StatelessWidget {
         padding: WidgetStatePropertyAll(
           compact
               ? const EdgeInsets.symmetric(
-                  horizontal: Spacings.s,
-                  vertical: Spacings.xxxs,
+                  horizontal: Spacing.px16,
+                  vertical: Spacing.px4,
                 )
               : null,
         ),

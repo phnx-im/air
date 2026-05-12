@@ -15,14 +15,14 @@ import 'package:air/message_list/message_list_cubit.dart';
 import 'package:air/message_list/mobile_message_actions.dart';
 import 'package:air/message_list/timestamp.dart';
 import 'package:air/navigation/navigation.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/components/button/button.dart';
-import 'package:air/ui/components/context_menu/context_menu.dart';
-import 'package:air/ui/components/context_menu/context_menu_item_ui.dart';
-import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
-import 'package:air/ui/icons/app_icons.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/components/context_menu/context_menu.dart';
+import 'package:air/ds/components/context_menu/context_menu_item_ui.dart';
+import 'package:air/ds/components/modal/bottom_sheet_modal.dart';
+import 'package:air/ds/foundations/icons/app_icons.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/platform.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -39,21 +39,22 @@ import 'package:logging/logging.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'image_viewer.dart';
+import 'jump_highlight.dart';
 import 'message_renderer.dart';
 import 'swipe_to_reply.dart';
 
 final _log = Logger('MessageTile');
 
 const double _bubbleMaxWidthFactor = 5 / 6;
-const double largeCornerRadius = Spacings.sm;
-const double smallCornerRadius = Spacings.xxs;
-const double messageHorizontalPadding = Spacings.s;
-const double messageVerticalPadding = Spacings.xxs;
-const double senderAvatarSize = Spacings.l;
-const double senderAvatarVerticalOffset = Spacings.xxxs;
-const double senderLabelBottomGap = Spacings.xxxs / 2;
+const double largeCornerRadius = Spacing.px20;
+const double smallCornerRadius = Spacing.px8;
+const double messageHorizontalPadding = Spacing.px16;
+const double messageVerticalPadding = Spacing.px8;
+const double senderAvatarSize = Spacing.px32;
+const double senderAvatarVerticalOffset = Spacing.px4;
+const double senderLabelBottomGap = Spacing.px4 / 2;
 const double incomingContentInset =
-    senderAvatarSize + Spacings.xs + messageHorizontalPadding;
+    senderAvatarSize + Spacing.px12 + messageHorizontalPadding;
 
 const _messagePadding = EdgeInsets.symmetric(
   horizontal: messageHorizontalPadding,
@@ -184,7 +185,7 @@ class _IncomingMessageTile extends StatelessWidget {
         if (showSenderLabel)
           Padding(
             padding: const EdgeInsets.only(
-              top: Spacings.xs,
+              top: Spacing.px12,
               bottom: senderLabelBottomGap,
               left: incomingContentInset,
             ),
@@ -209,7 +210,7 @@ class _IncomingMessageTile extends StatelessWidget {
                     )
                   : const SizedBox.shrink(),
             ),
-            const SizedBox(width: Spacings.xs),
+            const SizedBox(width: Spacing.px12),
             Expanded(
               child: _MessageView(
                 messageId: messageId,
@@ -235,7 +236,7 @@ class _IncomingMessageTile extends StatelessWidget {
               status: status,
             ),
           ),
-        if (flightPosition.isLast) const SizedBox(height: Spacings.xxs),
+        if (flightPosition.isLast) const SizedBox(height: Spacing.px8),
       ],
     );
   }
@@ -301,6 +302,7 @@ class _MessageView extends HookWidget {
 
     Widget buildMessageBubble({required bool enableSelection}) {
       return _MessageContent(
+        messageId: messageId,
         content: contentMessage.content,
         inReplyToMessage: inReplyToMessage,
         isSender: isSender,
@@ -422,7 +424,7 @@ class _MessageView extends HookWidget {
       return Container(
         key: messageKey,
         padding: EdgeInsets.only(
-          top: flightPosition.isFirst ? Spacings.xxxs : 0,
+          top: flightPosition.isFirst ? Spacing.px4 : 0,
           bottom: includeMetadata && flightPosition.isLast ? 5 : 0,
         ),
         child: Column(
@@ -531,7 +533,7 @@ class _MessageView extends HookWidget {
         direction: isSender
             ? ContextMenuDirection.left
             : ContextMenuDirection.right,
-        offset: const Offset(Spacings.xxs, 0),
+        offset: const Offset(Spacing.px8, 0),
         controller: contextMenuController,
         menuItems: menuItems,
         cursorPosition: cursorPositionNotifier,
@@ -699,7 +701,7 @@ class _MessageMetadataRowState extends State<_MessageMetadataRow> {
     final isError = widget.status == UiMessageStatus.error;
     final isSending = widget.status == UiMessageStatus.sending;
     final showTimestamp = !isError && !(isSending && _showSending);
-    final double leadingSpacing = widget.isSender ? Spacings.s : 0;
+    final double leadingSpacing = widget.isSender ? Spacing.px16 : 0;
 
     return SelectionContainer.disabled(
       child: Column(
@@ -718,7 +720,7 @@ class _MessageMetadataRowState extends State<_MessageMetadataRow> {
               children: [
                 SizedBox(width: leadingSpacing),
                 if (showTimestamp) Timestamp(widget.timestamp),
-                if (showMessageStatus) const SizedBox(width: Spacings.xxxs),
+                if (showMessageStatus) const SizedBox(width: Spacing.px4),
                 if (showMessageStatus && isError)
                   Text(
                     style: TextStyle(
@@ -737,10 +739,10 @@ class _MessageMetadataRowState extends State<_MessageMetadataRow> {
                   ),
                 if (showMessageStatus &&
                     (isError || (isSending && _showSending)))
-                  const SizedBox(width: Spacings.xxxs),
+                  const SizedBox(width: Spacing.px4),
                 if (showMessageStatus)
                   MessageStatusIndicator(status: widget.status),
-                const SizedBox(width: Spacings.xs),
+                const SizedBox(width: Spacing.px12),
               ],
             ),
           ),
@@ -752,6 +754,7 @@ class _MessageMetadataRowState extends State<_MessageMetadataRow> {
 
 class _MessageContent extends StatelessWidget {
   const _MessageContent({
+    required this.messageId,
     required this.content,
     required this.inReplyToMessage,
     required this.isSender,
@@ -763,6 +766,7 @@ class _MessageContent extends StatelessWidget {
     required this.enableSelection,
   });
 
+  final MessageId messageId;
   final UiMimiContent content;
   final UiInReplyToMessage? inReplyToMessage;
   final bool isSender;
@@ -902,9 +906,9 @@ class _MessageContent extends StatelessWidget {
               },
               child: Padding(
                 padding: const EdgeInsets.only(
-                  left: Spacings.xs,
-                  right: Spacings.xs,
-                  top: Spacings.xs,
+                  left: Spacing.px12,
+                  right: Spacing.px12,
+                  top: Spacing.px12,
                 ),
                 child: InReplyToBubble(
                   inReplyTo: inReplyTo,
@@ -921,44 +925,49 @@ class _MessageContent extends StatelessWidget {
       messageBubble = IntrinsicWidth(child: messageBubble);
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 1.5),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: _messageBorderRadius(isSender, flightPosition),
-          color: nakedContent
-              ? Colors.transparent
-              : isSender
-              ? colors.message.selfBackground
-              : colors.message.otherBackground,
-        ),
-        child: DefaultTextStyle.merge(
-          child: Column(
-            crossAxisAlignment: .end,
-            children: [
-              messageBubble,
-              if (isEdited)
-                Padding(
-                  padding: const EdgeInsets.only(
-                    left: Spacings.s,
-                    right: Spacings.s,
-                    bottom: Spacings.xxs,
-                  ),
-                  child: SelectionContainer.disabled(
-                    child: Text(
-                      loc.textMessage_edited,
-                      style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                        color: isSender
-                            ? colors.message.selfEditedLabel
-                            : colors.message.otherEditedLabel,
-                      ),
-                    ),
+    final borderRadius = _messageBorderRadius(isSender, flightPosition);
+    final baseColor = isSender
+        ? colors.message.selfBackground
+        : colors.message.otherBackground;
+    final bubbleContent = DefaultTextStyle.merge(
+      child: Column(
+        crossAxisAlignment: .end,
+        children: [
+          messageBubble,
+          if (isEdited)
+            Padding(
+              padding: const EdgeInsets.only(
+                left: Spacing.px16,
+                right: Spacing.px16,
+                bottom: Spacing.px8,
+              ),
+              child: SelectionContainer.disabled(
+                child: Text(
+                  loc.textMessage_edited,
+                  style: Theme.of(context).textTheme.bodySmall!.copyWith(
+                    color: isSender
+                        ? colors.message.selfEditedLabel
+                        : colors.message.otherEditedLabel,
                   ),
                 ),
-            ],
-          ),
-        ),
+              ),
+            ),
+        ],
       ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 1.5),
+      // Jumbo emoji renders without a bubble background, we skip the jump
+      // highlight
+      child: nakedContent
+          ? bubbleContent
+          : JumpHighlight(
+              id: messageId,
+              borderRadius: borderRadius,
+              baseColor: baseColor,
+              child: bubbleContent,
+            ),
     );
   }
 }

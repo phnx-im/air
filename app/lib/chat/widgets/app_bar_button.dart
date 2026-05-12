@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/theme/spacings.dart';
+import 'package:air/ds/foundations/spacing.dart';
 import 'package:flutter/material.dart';
 
 class AppBarButton extends StatelessWidget {
@@ -22,13 +22,13 @@ class AppBarButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
       child: SizedBox(
         height: _buttonHeight,
         child: OutlinedButton(
           onPressed: onPressed,
           style: OutlinedButton.styleFrom(
-            padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
+            padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
             minimumSize: const Size(0, _buttonHeight),
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             visualDensity: VisualDensity.compact,
