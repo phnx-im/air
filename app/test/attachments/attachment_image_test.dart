@@ -18,7 +18,7 @@ import 'package:mocktail/mocktail.dart';
 import '../helpers.dart';
 import '../mocks.dart';
 
-const physicalSize = Size(1000, 1800);
+const physicalSize = Size(1000, 2400);
 
 final file = UiAttachment(
   attachmentId: 42.attachmentId(),
@@ -102,9 +102,15 @@ void main() {
                   spacing: Spacing.px16,
                   crossAxisAlignment: .center,
                   children: [
-                    for (final attachmentId in testStatuses.keys) ...[
+                    for (final testStatus in testStatuses.entries) ...[
+                      Text(switch (testStatus.value) {
+                        UiAttachmentStatus_Pending() => "Pending",
+                        UiAttachmentStatus_Progress() => "Progress",
+                        UiAttachmentStatus_Completed() => "Completed",
+                        UiAttachmentStatus_Failed() => "Failed",
+                      }),
                       _ImageTestBubble(
-                        attachmentId: attachmentId,
+                        attachmentId: testStatus.key,
                         isSender: isSender,
                       ),
                     ],
