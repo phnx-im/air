@@ -86,7 +86,7 @@ jobs:
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y apt-ftparchive awscli createrepo_c gpg rpmsign
+          sudo apt-get install -y apt-ftparchive awscli createrepo_c dpkg-sig gpg rpmsign
           echo "${{ secrets.GPG_SIGNING_KEY }}" | base64 -d | gpg --import
           ./publish-packages.sh air-*.rpm
           ./publish-packages.sh air-*.deb
