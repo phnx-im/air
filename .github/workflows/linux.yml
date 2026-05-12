@@ -71,10 +71,10 @@ jobs:
       - name: Install just
         uses: extractions/setup-just@v3
 
-      - name: Install nfpm
+      - name: Install dependencies
         run: |
           echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
-          sudo apt-get update && sudo apt-get install -y nfpm
+          sudo apt-get update && sudo apt-get install -y apt-ftparchive awscli createrepo_c dpkg-sig gpg nfpm rpmsign
 
       - name: Build packages
         run: RELEASE=${{ needs.linux-build.outputs.build-number }} just build-deb build-rpm
@@ -85,8 +85,6 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
         run: |
-          sudo apt-get update -qq
-          sudo apt-get install -y apt-ftparchive awscli createrepo_c dpkg-sig gpg rpmsign
           echo "${{ secrets.GPG_SIGNING_KEY }}" | base64 -d | gpg --import
           ./publish-packages.sh air-*.rpm
           ./publish-packages.sh air-*.deb
