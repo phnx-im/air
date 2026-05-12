@@ -142,13 +142,7 @@ async fn main() -> anyhow::Result<()> {
         network: network_provider.clone(),
     };
 
-    tokio::spawn({
-        let shutdown = shutdown.clone();
-        async move {
-            let _ = tokio::signal::ctrl_c().await;
-            shutdown.cancel();
-        }
-    });
+    tokio::spawn(listen_to_sigterm(shutdown.clone()));
 
     // Start the server
     let server = run(
@@ -170,3 +164,22 @@ async fn main() -> anyhow::Result<()> {
     server.await?;
     Ok(())
 }
+
+#[cfg(unix)]
+async fn listen_to_sigterm(shutdown: CancellationToken) {
+    use tokio::signal::unix::{SignalKind, signal};
+
+    let mut sigterm = match signal(SignalKind::terminate()) {
+        Ok(sigterm) => sigterm,
+        Err(error) => {
+            tracing::error!(%error, "Failed to register SIGTERM handler");
+            return;
+        }
+    };
+    sigterm.recv().await;
+    tracing::info!("SIGTERM received, shutting down");
+    shutdown.cancel();
+}
+
+#[cfg(not(unix))]
+async fn listen_to_sigterm(_shutdown: CancellationToken) {}
