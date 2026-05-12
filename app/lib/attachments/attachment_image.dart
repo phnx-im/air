@@ -243,19 +243,16 @@ class _AttachmentImageState extends State<AttachmentImage> {
     final Widget? foreground;
     if (_error != null) {
       foreground = Align(
-        child: IconButton(
-          onPressed: () {
-            setState(() => _error = null);
-            unawaited(_load());
-          },
-          style: IconButton.styleFrom(
-            backgroundColor: CustomColorScheme.of(
-              context,
-            ).backgroundBase.tertiary,
-          ),
-          icon: AppIcon.download(
-            size: 32,
-            color: CustomColorScheme.of(context).text.secondary,
+        child: _BlurredPill(
+          child: IconButton(
+            onPressed: () {
+              setState(() => _error = null);
+              unawaited(_load());
+            },
+            icon: AppIcon.download(
+              size: 24,
+              color: CustomColorScheme.of(context).text.primary,
+            ),
           ),
         ),
       );
