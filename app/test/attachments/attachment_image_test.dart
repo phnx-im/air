@@ -85,47 +85,47 @@ void main() {
     );
   });
 
-  group('AttachmentImage Upload', () {
-    Widget buildSubject() => Builder(
-      builder: (context) {
-        return RepositoryProvider<AttachmentsRepository>.value(
-          value: attachmentsRepository,
-          child: MaterialApp(
-            debugShowCheckedModeBanner: false,
-            theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            home: Scaffold(
-              body: Padding(
-                padding: const EdgeInsets.all(Spacing.px16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: Column(
-                    spacing: Spacing.px16,
-                    crossAxisAlignment: .center,
-                    children: [
-                      for (final attachmentId in testStatuses.keys) ...[
-                        _ImageTestBubble(
-                          attachmentId: attachmentId,
-                          isSender: true,
-                        ),
-                      ],
+  Widget buildSubject({required bool isSender}) => Builder(
+    builder: (context) {
+      return RepositoryProvider<AttachmentsRepository>.value(
+        value: attachmentsRepository,
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(
+            body: Padding(
+              padding: const EdgeInsets.all(Spacing.px16),
+              child: SizedBox(
+                width: double.infinity,
+                child: Column(
+                  spacing: Spacing.px16,
+                  crossAxisAlignment: .center,
+                  children: [
+                    for (final attachmentId in testStatuses.keys) ...[
+                      _ImageTestBubble(
+                        attachmentId: attachmentId,
+                        isSender: isSender,
+                      ),
                     ],
-                  ),
+                  ],
                 ),
               ),
             ),
           ),
-        );
-      },
-    );
+        ),
+      );
+    },
+  );
 
+  group('AttachmentImage Upload', () {
     testWidgets('renders correctly', (tester) async {
       tester.platformDispatcher.views.first.physicalSize = physicalSize;
       addTearDown(() {
         tester.platformDispatcher.views.first.resetPhysicalSize();
       });
 
-      await tester.pumpWidget(buildSubject());
+      await tester.pumpWidget(buildSubject(isSender: true));
       await tester.pumpAndSettle();
 
       await expectLater(
@@ -142,7 +142,7 @@ void main() {
         tester.platformDispatcher.clearPlatformBrightnessTestValue();
       });
 
-      await tester.pumpWidget(buildSubject());
+      await tester.pumpWidget(buildSubject(isSender: true));
       await tester.pumpAndSettle();
 
       await expectLater(
@@ -153,46 +153,13 @@ void main() {
   });
 
   group('AttachmentImage Download', () {
-    Widget buildSubject() => Builder(
-      builder: (context) {
-        return RepositoryProvider<AttachmentsRepository>.value(
-          value: attachmentsRepository,
-          child: MaterialApp(
-            debugShowCheckedModeBanner: false,
-            theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            home: Scaffold(
-              body: Padding(
-                padding: const EdgeInsets.all(Spacing.px16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: Column(
-                    spacing: Spacing.px16,
-                    crossAxisAlignment: .center,
-                    children: [
-                      for (final attachmentId in testStatuses.keys) ...[
-                        _ImageTestBubble(
-                          attachmentId: attachmentId,
-                          isSender: false,
-                        ),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-            ),
-          ),
-        );
-      },
-    );
-
     testWidgets('renders correctly', (tester) async {
       tester.platformDispatcher.views.first.physicalSize = physicalSize;
       addTearDown(() {
         tester.platformDispatcher.views.first.resetPhysicalSize();
       });
 
-      await tester.pumpWidget(buildSubject());
+      await tester.pumpWidget(buildSubject(isSender: false));
       await tester.pumpAndSettle();
 
       await expectLater(
@@ -209,7 +176,7 @@ void main() {
         tester.platformDispatcher.clearPlatformBrightnessTestValue();
       });
 
-      await tester.pumpWidget(buildSubject());
+      await tester.pumpWidget(buildSubject(isSender: false));
       await tester.pumpAndSettle();
 
       await expectLater(
