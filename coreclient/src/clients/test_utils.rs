@@ -7,7 +7,10 @@ use aircommon::{codec::PersistenceCodec, identifiers::QualifiedGroupId};
 use openmls::prelude::GroupId;
 use uuid::Uuid;
 
+use airprotos::client::group::GroupData;
+
 use crate::{
+    chats::GroupDataExt,
     groups::GroupDataBytes,
     job::pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
     outbound_service::resync::Resync,
@@ -145,5 +148,19 @@ impl CoreUser {
         self.execute_job(op).await?;
 
         Ok(())
+    }
+
+    pub async fn group_data(&self, chat_id: ChatId) -> anyhow::Result<Option<GroupData>> {
+        let Some(group) = self
+            .db()
+            .with_read_transaction(async |txn| Group::load_with_chat_id(txn, chat_id).await)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let Some(bytes) = group.group_data() else {
+            return Ok(None);
+        };
+        Ok(Some(GroupData::decode(&bytes)?))
     }
 }

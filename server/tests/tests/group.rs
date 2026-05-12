@@ -4,9 +4,8 @@
 
 use std::slice;
 
-use aircommon::assert_matches;
 use aircoreclient::{
-    DisplayName, EventMessage, Message, SystemMessage, UserProfile,
+    DisplayName, UserProfile,
     clients::{
         process::process_qs::{QsProcessEventResult, QsStreamProcessor},
         queue_event,
@@ -942,14 +941,18 @@ async fn legacy_group_data_migration() {
         result.errors
     );
 
+    // Bob can decode the legacy title and inline picture immediately
     let bob_chat = bob_user.chat(&chat_id).await.unwrap();
     assert_eq!(bob_chat.attributes().title(), &title);
+    assert_eq!(bob_chat.attributes().picture.as_ref(), Some(&picture));
+    let group_data = bob_user.group_data(chat_id).await.unwrap().unwrap();
+    assert_eq!(group_data.legacy_title.as_ref(), Some(&title));
     assert!(
-        bob_chat.attributes().picture.is_none(),
-        "Bob should not see picture before migration"
+        group_data.external_group_profile.is_none(),
+        "Group should not have ExternalGroupProfile before migration"
     );
 
-    // Bob runs group update via the outbound service which executes the migration
+    // Bob runs self-update which migrates the group data to the new format
     bob_user
         .set_self_updated_at(chat_id, DateTime::UNIX_EPOCH)
         .await
@@ -961,12 +964,16 @@ async fn legacy_group_data_migration() {
         .unwrap();
     bob_user.outbound_service().run_once().await;
 
-    // Bob should now see the picture
-    let bob_chat = bob_user.chat(&chat_id).await.unwrap();
+    // Bob migrated the group data to the new format
+    let group_data = bob_user.group_data(chat_id).await.unwrap().unwrap();
     assert_eq!(bob_chat.attributes().title(), &title);
     assert_eq!(bob_chat.attributes().picture.as_ref(), Some(&picture));
+    assert_eq!(group_data.legacy_title.as_ref(), Some(&title)); // Still set for old clients
+    assert!(group_data.legacy_picture.is_none());
+    assert!(group_data.encrypted_title.is_some());
+    assert!(group_data.external_group_profile.is_some());
 
-    // Alice fetches the Bob's commit and sees system message
+    // Alice fetches the Bob's commit
     let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
     let result = alice_user.fully_process_qs_messages(qs_messages).await;
     assert!(
@@ -975,22 +982,14 @@ async fn legacy_group_data_migration() {
         result.errors
     );
     alice_user.outbound_service().run_once().await;
-    let last_message = alice_user.last_message(chat_id).await.unwrap().unwrap();
-    assert_matches!(
-        last_message.message(),
-        Message::Event(EventMessage::System(SystemMessage::ChangePicture(user_id)))
-        if user_id == &bob,
-        "Alice should see Bob's picture change as system message"
-    );
 
-    // Add charlie to the group chat
-    let charlie = setup.add_user().await;
-    setup.connect_users(&alice, &charlie).await;
-    setup.invite_to_group(chat_id, &alice, vec![&charlie]).await;
-
-    // Charlie should see the picture because it was migrated
-    let charlie_user = &setup.get_user(&charlie).user;
-    let charlie_chat = charlie_user.chat(&chat_id).await.unwrap();
-    assert_eq!(charlie_chat.attributes().title(), &title);
-    assert_eq!(charlie_chat.attributes().picture.as_ref(), Some(&picture));
+    // Alices sees the group title and picture in new format
+    let alice_chat = alice_user.chat(&chat_id).await.unwrap();
+    let group_data = alice_user.group_data(chat_id).await.unwrap().unwrap();
+    assert_eq!(alice_chat.attributes().title(), &title);
+    assert_eq!(alice_chat.attributes().picture.as_ref(), Some(&picture));
+    assert_eq!(group_data.legacy_title.as_ref(), Some(&title)); // Still set for old clients
+    assert!(group_data.legacy_picture.is_none());
+    assert!(group_data.encrypted_title.is_some());
+    assert!(group_data.external_group_profile.is_some());
 }

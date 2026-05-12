@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{codec::PersistenceCodec, identifiers::USERNAME_REFRESH_THRESHOLD};
+use aircommon::identifiers::USERNAME_REFRESH_THRESHOLD;
 use airprotos::{auth_service::v1::OperationType, client::group::GroupData};
 use chrono::{DateTime, Duration, Utc};
 use openmls::prelude::OpenMlsProvider;
@@ -14,7 +14,7 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatAttributes, ChatId,
-    chats::GroupDataExt,
+    chats::{GroupDataExt, GroupDataProfilePart},
     groups::Group,
     job::{
         JobError,
@@ -565,29 +565,21 @@ impl OutboundServiceContext {
 
 /// Migrates the group data from the legacy format to the new format.
 ///
-/// The legacy format is the format where title and picture were stored in the group data as is.
+/// The legacy format is the format where title and picture were stored in the group data verbatim.
 fn legacy_group_data_migration(group: &Group) -> Option<ChatAttributes> {
-    #[derive(serde::Deserialize)]
-    struct LegacyGroupData {
-        picture: Option<Vec<u8>>,
-    }
-
     let group_data_bytes = group.group_data()?;
     let group_data = GroupData::decode(&group_data_bytes).ok()?;
-
-    if group_data.external_group_profile.is_some() {
-        return None; // Already migrated
-    }
-
-    let (Some(title), _) = group_data.into_parts(group.identity_link_wrapper_key()) else {
-        return None;
+    let has_encrypted_title = group_data.encrypted_title.is_some();
+    let (title, profile) = group_data.into_parts(group.identity_link_wrapper_key());
+    let Some(title) = title else {
+        return None; // Ignore groups without title
     };
-
-    let legacy_group_data: LegacyGroupData =
-        PersistenceCodec::from_slice(group_data_bytes.bytes()).ok()?;
-
-    let picture = legacy_group_data.picture?;
-    Some(ChatAttributes::new(title, Some(picture)))
+    let legacy_picture = match profile {
+        Some(GroupDataProfilePart::LegacyPicture(picture)) => Some(picture),
+        _ if has_encrypted_title => return None, // Already migrated
+        _ => None,
+    };
+    Some(ChatAttributes::new(title, legacy_picture))
 }
 
 mod persistence {
