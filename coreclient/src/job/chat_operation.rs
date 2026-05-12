@@ -320,6 +320,7 @@ impl ChatOperation {
                 encrypted_title: Some(encrypted_title),
                 external_group_profile: Some(external),
                 legacy_title: Some(group_profile.title),
+                legacy_picture: None,
             };
             (Some(group_data), attributes.picture)
         } else {

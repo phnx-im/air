@@ -1067,11 +1067,7 @@ impl TestBackend {
         let user_chats_before = user.chats().await;
 
         let group_name = Uuid::new_v4().to_string();
-        let group_picture_bytes_option = Some(test_picture_bytes());
-        let chat_id = user
-            .create_chat(group_name.clone(), group_picture_bytes_option.clone())
-            .await
-            .unwrap();
+        let chat_id = user.create_chat(group_name.clone(), None).await.unwrap();
         let mut user_chats_after = user.chats().await;
         let new_chat_position = user_chats_after
             .iter()
@@ -1082,11 +1078,6 @@ impl TestBackend {
         assert!(chat.status() == &ChatStatus::Active);
         assert!(chat.chat_type() == &ChatType::Group);
         assert_eq!(chat.attributes().title(), &group_name);
-        let stored_picture = chat.attributes().picture();
-        assert!(
-            stored_picture.is_some() && !stored_picture.unwrap().is_empty(),
-            "stored chat picture should be present"
-        );
         user_chats_before
             .into_iter()
             .zip(user_chats_after)
