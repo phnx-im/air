@@ -570,7 +570,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         })?;
 
         // Create t group state
-        let (t_client_credential, t_qgid, t_group_state, t_ear_key) = self.extract_group_state(
+        let (t_qgid, t_group_state, t_ear_key) = self.extract_group_state(
             payload
                 .clone()
                 .t_group_data
@@ -579,6 +579,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             &creator_client_reference,
             &room_state,
         )?;
+        let t_client_credential = Self::extract_credential(&t_group_state.group)?;
 
         // Configure and apply rate-limiting
         let rl_key = RlKey::new(
@@ -607,20 +608,16 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .map_err(InvalidSignature)?;
 
         // Extract pq group state
-        let (pq_client_credential, pq_qgid, pq_group_state, pq_ear_key) =
-            Self::extract_group_state(
-                &self,
-                payload.pq_group_data.ok_or_missing_field("pq_group_data")?,
-                &encrypted_user_profile_key,
-                &creator_client_reference,
-                &room_state,
-            )?;
+        let (pq_qgid, pq_group_state, pq_ear_key) = Self::extract_group_state(
+            &self,
+            payload.pq_group_data.ok_or_missing_field("pq_group_data")?,
+            &encrypted_user_profile_key,
+            &creator_client_reference,
+            &room_state,
+        )?;
 
-        if t_client_credential != pq_client_credential {
-            return Err(Status::invalid_argument(
-                "t and pq client credentials do not match",
-            ));
-        }
+        // Check that the t and pq client signature keys match
+        Self::verify_signing_key(&pq_group_state.group, t_client_credential.verifying_key())?;
 
         // Encrypt and store group state
         let t_reserved_group_id = self
@@ -1240,7 +1237,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .group()
             .leaf(pq_sender_index)
             .ok_or(Status::invalid_argument("unknown pq sender"))?;
-        if t_sender.credential() != pq_sender.credential() {
+        if t_sender.signature_key() != pq_sender.signature_key() {
             return Err(Status::invalid_argument(
                 "t and pq credentials do not match",
             ));

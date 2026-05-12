@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::ClientCredential,
+    credentials::{ClientCredential, keys::ClientVerifyingKey},
     crypto::aead::keys::{EncryptedUserProfileKey, GroupStateEarKey},
     identifiers::{QsReference, QualifiedGroupId},
 };
@@ -38,15 +38,7 @@ impl<Qep: QsConnector> GrpcDs<Qep> {
         encrypted_user_profile_key: &EncryptedUserProfileKey,
         creator_client_reference: &QsReference,
         room_state: &VerifiedRoomState,
-    ) -> Result<
-        (
-            ClientCredential,
-            QualifiedGroupId,
-            DsGroupState,
-            GroupStateEarKey,
-        ),
-        Status,
-    > {
+    ) -> Result<(QualifiedGroupId, DsGroupState, GroupStateEarKey), Status> {
         let qgid = data.validated_qgid(self.ds.own_domain())?;
         let ear_key = data.ear_key()?;
 
@@ -75,18 +67,6 @@ impl<Qep: QsConnector> GrpcDs<Qep> {
             error!(%error, "failed to create t_group");
             Status::internal("failed to create t_group")
         })?;
-        let members = group.members().collect::<Vec<_>>();
-
-        let &[own_leaf] = &members.as_slice() else {
-            error!(members = %members.len(), "group must have exactly one member");
-            return Err(Status::invalid_argument(
-                "group must have exactly one member",
-            ));
-        };
-
-        let credential =
-            ClientCredential::tls_deserialize_exact_bytes(own_leaf.credential.serialized_content())
-                .map_err(|_| Status::invalid_argument("invalid credential"))?;
 
         let state = DsGroupState::new(
             provider,
@@ -96,6 +76,46 @@ impl<Qep: QsConnector> GrpcDs<Qep> {
             room_state.clone(),
         );
 
-        Ok((credential, qgid, state, ear_key))
+        Ok((qgid, state, ear_key))
+    }
+
+    pub(super) fn extract_credential(group: &Group) -> Result<ClientCredential, Status> {
+        let mut members = group.members().fuse();
+        match (members.next(), members.next()) {
+            (Some(member), None) => ClientCredential::tls_deserialize_exact_bytes(
+                member.credential.serialized_content(),
+            )
+            .map_err(|_| Status::invalid_argument("invalid credential")),
+            _ => {
+                error!("group must have exactly one member");
+                Err(Status::invalid_argument(
+                    "group must have exactly one member",
+                ))
+            }
+        }
+    }
+
+    pub(super) fn verify_signing_key(
+        group: &Group,
+        verifying_key: &ClientVerifyingKey,
+    ) -> Result<(), Status> {
+        let mut members = group.members().fuse();
+        match (members.next(), members.next()) {
+            (Some(member), None) => {
+                if member.signature_key != verifying_key.as_slice() {
+                    Err(Status::invalid_argument(
+                        "t and pq client signature keys do not match",
+                    ))
+                } else {
+                    Ok(())
+                }
+            }
+            _ => {
+                error!("group must have exactly one member");
+                Err(Status::invalid_argument(
+                    "group must have exactly one member",
+                ))
+            }
+        }
     }
 }

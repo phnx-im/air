@@ -15,8 +15,8 @@ use aircommon::{
 use anyhow::Result;
 use apqmls::{authentication::ApqCredentialWithKey, messages::ApqKeyPackage};
 use openmls::prelude::{
-    CredentialWithKey, Extension, KeyPackage, KeyPackageRef, LastResortExtension, OpenMlsProvider,
-    SignaturePublicKey, UnknownExtension,
+    Credential, CredentialType, CredentialWithKey, Extension, KeyPackage, KeyPackageRef,
+    LastResortExtension, OpenMlsProvider, SignaturePublicKey, UnknownExtension,
 };
 use openmls_traits::storage::StorageProvider;
 use tls_codec::Serialize as TlsSerializeTrait;
@@ -132,15 +132,24 @@ impl MemoryUserKeyStore {
         qs_client_id: &QsClientId,
         last_resort: bool,
     ) -> Result<ApqKeyPackage> {
-        let credential_with_key = CredentialWithKey {
+        let t_credential = CredentialWithKey {
             credential: self.signing_key.credential().try_into()?,
             signature_key: SignaturePublicKey::from(
                 self.signing_key.credential().verifying_key().clone(),
             ),
         };
+
+        // Skip storing the same credential twice
+        let pq_credential = CredentialWithKey {
+            credential: Credential::new(CredentialType::Basic, Vec::new()),
+            signature_key: SignaturePublicKey::from(
+                self.signing_key.credential().verifying_key().clone(),
+            ),
+        };
+
         let apq_credential_with_key = ApqCredentialWithKey {
-            t_credential: credential_with_key.clone(),
-            pq_credential: credential_with_key,
+            t_credential,
+            pq_credential,
         };
 
         let mut leaf_node_extensions = default_leaf_node_extensions();

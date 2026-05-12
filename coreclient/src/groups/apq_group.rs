@@ -16,7 +16,9 @@ use apqmls::{ApqMlsGroup, authentication::ApqCredentialWithKey};
 use mimi_room_policy::{RoomPolicy, VerifiedRoomState};
 use openmls::{
     group::{GroupId, MlsGroup, PURE_PLAINTEXT_WIRE_FORMAT_POLICY},
-    prelude::{CredentialWithKey, Extension, Extensions, UnknownExtension},
+    prelude::{
+        Credential, CredentialType, CredentialWithKey, Extension, Extensions, UnknownExtension,
+    },
 };
 use openmls_traits::OpenMlsProvider;
 use tls_codec::Serialize;
@@ -69,13 +71,18 @@ impl Group {
         let gc_extensions =
             Extensions::from_vec(vec![group_data_extension, required_capabilities])?;
 
-        let credential_with_key = CredentialWithKey {
+        let t_credential = CredentialWithKey {
             credential: signer.credential().try_into()?,
             signature_key: signer.credential().verifying_key().clone().into(),
         };
+        // Skip storing the same credential twice
+        let pq_credential = CredentialWithKey {
+            credential: Credential::new(CredentialType::Basic, Vec::new()),
+            signature_key: signer.credential().verifying_key().clone().into(),
+        };
         let apq_credential_with_key = ApqCredentialWithKey {
-            t_credential: credential_with_key.clone(),
-            pq_credential: credential_with_key,
+            t_credential,
+            pq_credential,
         };
 
         let (t_group, pq_group) = ApqMlsGroup::builder()

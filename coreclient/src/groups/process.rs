@@ -451,7 +451,7 @@ impl Group {
             &mut pq.mls_group,
             &AirOpenMlsProvider::new(txn.as_mut()),
             message,
-            |cred_a, cred_b| cred_a == cred_b,
+            |_, _| true, // PQ-credential is always empty
         ) {
             Ok(pm) => pm,
             Err(ApqProcessMessageError::Processing(ProcessMessageError::ValidationError(

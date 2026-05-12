@@ -88,13 +88,13 @@ impl Contact {
         let client_credential = match &key_package {
             ContactKeyPackage::Traditional(key_package) => key_package.leaf_node().credential(),
             ContactKeyPackage::Apq(key_package) => {
-                let t_credential = key_package.t_credential();
-                let pq_credential = key_package.pq_credential();
+                let t_signature_key = key_package.t_key_package().leaf_node().signature_key();
+                let pq_signature_key = key_package.pq_key_package().leaf_node().signature_key();
                 ensure!(
-                    t_credential == pq_credential,
-                    "APQ key packages must have the same credentials"
+                    t_signature_key == pq_signature_key,
+                    "APQ key packages must have the same signature keys"
                 );
-                t_credential
+                key_package.t_credential()
             }
         };
         let verifiable_client_credential =

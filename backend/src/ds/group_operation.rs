@@ -342,20 +342,6 @@ impl DsGroupState {
             }
         };
 
-        let _sender = VerifiableClientCredential::from_basic_credential(
-            self.group
-                .leaf(sender_index.leaf_index())
-                .ok_or_else(|| {
-                    error!("Leaf of PQ sender not found");
-                    GroupOperationError::InvalidMessage
-                })?
-                .credential(),
-        )
-        .map_err(|e| {
-            error!(%e, "Credential in leaf of PQ sender is invalid");
-            GroupOperationError::InvalidMessage
-        })?;
-
         let adds_users = staged_commit.add_proposals().count() != 0;
 
         let pq_welcome = if adds_users {
