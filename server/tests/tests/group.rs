@@ -453,7 +453,7 @@ async fn fetch_group_profile_on_invite() {
     // Record Alice's group attributes (title and resized picture set during create_group)
     let alice_user = &setup.get_user(&alice).user;
     let alice_chat = alice_user.chat(&chat_id).await.unwrap();
-    let attributes = alice_chat.attributes.unwrap();
+    let attributes = alice_chat.attributes().unwrap().clone();
     let expected_title = attributes.title;
     let expected_picture = attributes.picture;
 
@@ -523,7 +523,7 @@ async fn fetch_group_profile_on_update() {
 
     // Record Alice's stored picture (may be resized relative to test_picture_bytes)
     let chat = alice_user.chat(&chat_id).await.unwrap();
-    let expected_picture = chat.attributes.unwrap().picture;
+    let expected_picture = chat.attributes().unwrap().picture.clone();
 
     // Bob fetches Alice's commits: this schedules FetchGroupProfileOperations
     let bob_user = &setup.get_user(&bob).user;

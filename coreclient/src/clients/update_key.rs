@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{identifiers::UserId, time::TimeStamp};
-use anyhow::Context;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatType, SystemMessage,
@@ -49,9 +48,8 @@ pub(crate) async fn update_chat_attributes(
         message_buffer,
     )
     .await?;
-    match chat.chat_type {
-        ChatType::Group => {
-            let attrs = chat.attributes().context("Group chat without attributes")?;
+    match &chat.chat_type {
+        ChatType::Group(attrs) => {
             if attrs.picture != new_chat_attributes.picture {
                 chat.set_picture(&mut *txn, new_chat_attributes.picture)
                     .await?;
@@ -83,9 +81,8 @@ pub(crate) async fn update_chat_title(
     ds_timestamp: TimeStamp,
     message_buffer: &mut Vec<TimestampedMessage>,
 ) -> anyhow::Result<()> {
-    match chat.chat_type {
-        ChatType::Group => {
-            let attrs = chat.attributes().context("Group chat without attributes")?;
+    match &chat.chat_type {
+        ChatType::Group(attrs) => {
             let old_title = attrs.title.clone();
             chat.set_title(connection, new_title.clone()).await?;
             let system_message = SystemMessage::ChangeTitle {

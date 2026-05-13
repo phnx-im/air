@@ -28,7 +28,7 @@ extension UiChatDetailsExtension on UiChatDetails {
     UiChatType_Connection(field0: final profile) => profile.displayName,
     UiChatType_TargetedMessageConnection(field0: final profile) =>
       "⏳${profile.displayName}",
-    UiChatType_Group(field0: final attributes) => attributes.title ?? "",
+    UiChatType_Group(field0: final attributes) => attributes.title,
     UiChatType_PendingConnection(field0: final profile) =>
       "⏳${profile.displayName}",
   };

@@ -717,7 +717,7 @@ pub(super) async fn load_chat_details(store: &impl Store, chat: Chat) -> UiChatD
         .unwrap_or_default() // default is UNIX_EPOCH
         .with_timezone(&Local);
 
-    let chat_type = UiChatType::load_from_chat_type(store, chat.chat_type, chat.attributes).await;
+    let chat_type = UiChatType::load_from_chat_type(store, chat.chat_type).await;
 
     let draft = store
         .message_draft(chat.id)

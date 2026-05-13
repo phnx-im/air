@@ -92,7 +92,6 @@ pub struct Chat {
     pub last_message_at: Option<DateTime<Utc>>,
     pub status: ChatStatus,
     pub chat_type: ChatType,
-    pub attributes: Option<ChatAttributes>,
 }
 
 impl Chat {
@@ -105,7 +104,6 @@ impl Chat {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::HandleConnection(username),
-            attributes: None,
         }
     }
 
@@ -118,7 +116,6 @@ impl Chat {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::TargetedMessageConnection(user_id),
-            attributes: None,
         }
     }
 
@@ -130,8 +127,7 @@ impl Chat {
             last_read: Utc::now(),
             last_message_at: None,
             status: ChatStatus::Active,
-            chat_type: ChatType::Group,
-            attributes: Some(attributes),
+            chat_type: ChatType::Group(attributes),
         }
     }
 
@@ -143,7 +139,6 @@ impl Chat {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::PendingConnection(user_id),
-            attributes: None,
         }
     }
 
@@ -175,7 +170,10 @@ impl Chat {
     }
 
     pub fn attributes(&self) -> Option<&ChatAttributes> {
-        self.attributes.as_ref()
+        match &self.chat_type {
+            ChatType::Group(attributes) => Some(attributes),
+            _ => None,
+        }
     }
 
     pub fn last_read(&self) -> DateTime<Utc> {
@@ -197,8 +195,8 @@ impl Chat {
         picture: Option<Vec<u8>>,
     ) -> anyhow::Result<()> {
         Self::update_picture(connection, self.id, picture.as_deref()).await?;
-        let Some(attributes) = &mut self.attributes else {
-            bail!("Cannot set picture for group chat without attributes");
+        let ChatType::Group(attributes) = &mut self.chat_type else {
+            bail!("Cannot set picture for non-group chat");
         };
         attributes.set_picture(picture);
         Ok(())
@@ -209,8 +207,8 @@ impl Chat {
         connection: impl WriteConnection,
         title: String,
     ) -> anyhow::Result<()> {
-        let Some(attributes) = &mut self.attributes else {
-            bail!("Cannot set title for group chat without attributes");
+        let ChatType::Group(attributes) = &mut self.chat_type else {
+            bail!("Cannot set title for non-group chat");
         };
         Self::update_title(connection, self.id, &title).await?;
         attributes.set_title(title);
@@ -277,7 +275,7 @@ pub enum ChatType {
     /// A connection chat that is confirmed by the other party and for which we have received the
     /// necessary secrets.
     Connection(UserId),
-    Group,
+    Group(ChatAttributes),
     /// A connection chat which was established via a targeted message and is not yet confirmed by the other
     /// party. (outgoing)
     TargetedMessageConnection(UserId),
@@ -301,7 +299,7 @@ impl ChatType {
 
     pub(crate) fn is_connection(&self) -> bool {
         match self {
-            ChatType::Group => false,
+            ChatType::Group(_) => false,
             ChatType::HandleConnection(_)
             | ChatType::Connection(_)
             | ChatType::TargetedMessageConnection(_)
@@ -309,7 +307,7 @@ impl ChatType {
         }
     }
 
-    pub(crate) fn is_group(&self) -> bool {
+    pub fn is_group(&self) -> bool {
         !self.is_connection()
     }
 }

@@ -10954,7 +10954,7 @@ impl SseDecode for crate::api::attachments_repository::UiAttachmentStatus {
 impl SseDecode for crate::api::types::UiChatAttributes {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_title = <Option<String>>::sse_decode(deserializer);
+        let mut var_title = <String>::sse_decode(deserializer);
         let mut var_picture = <Option<crate::api::types::ImageData>>::sse_decode(deserializer);
         return crate::api::types::UiChatAttributes {
             title: var_title,
@@ -16233,7 +16233,7 @@ impl SseEncode for crate::api::attachments_repository::UiAttachmentStatus {
 impl SseEncode for crate::api::types::UiChatAttributes {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <Option<String>>::sse_encode(self.title, serializer);
+        <String>::sse_encode(self.title, serializer);
         <Option<crate::api::types::ImageData>>::sse_encode(self.picture, serializer);
     }
 }

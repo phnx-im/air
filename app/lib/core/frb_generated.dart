@@ -9632,7 +9632,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (arr.length != 2)
       throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
     return UiChatAttributes(
-      title: dco_decode_opt_String(arr[0]),
+      title: dco_decode_String(arr[0]),
       picture: dco_decode_opt_box_autoadd_image_data(arr[1]),
     );
   }
@@ -12952,7 +12952,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   UiChatAttributes sse_decode_ui_chat_attributes(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_title = sse_decode_opt_String(deserializer);
+    var var_title = sse_decode_String(deserializer);
     var var_picture = sse_decode_opt_box_autoadd_image_data(deserializer);
     return UiChatAttributes(title: var_title, picture: var_picture);
   }
@@ -16444,7 +16444,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_opt_String(self.title, serializer);
+    sse_encode_String(self.title, serializer);
     sse_encode_opt_box_autoadd_image_data(self.picture, serializer);
   }
 

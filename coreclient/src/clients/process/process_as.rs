@@ -316,12 +316,10 @@ impl CoreUser {
                         let origin_chat = Chat::load(&mut *txn, &origin_chat_id)
                             .await?
                             .context("no origin chat")?;
-                        let origin_chat_title = origin_chat
-                            .attributes
-                            .as_ref()
-                            .context("group chat without attributes")?
-                            .title
-                            .clone();
+                        let origin_chat_title = match origin_chat.chat_type {
+                            crate::ChatType::Group(attributes) => attributes.title,
+                            _ => bail!("Non-group chat as targeted message origin"),
+                        };
                         SystemMessage::ReceivedDirectConnectionRequest {
                             sender: contact.user_id.clone(),
                             chat_name: origin_chat_title,

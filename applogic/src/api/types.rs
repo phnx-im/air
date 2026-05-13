@@ -267,11 +267,7 @@ impl UiChatType {
     /// If the user profile cannot be loaded, or is not set, a minimal user profile is returned
     /// with the display name derived from the client id.
     #[frb(ignore)]
-    pub(crate) async fn load_from_chat_type(
-        store: &impl Store,
-        chat_type: ChatType,
-        attributes: Option<ChatAttributes>,
-    ) -> Self {
+    pub(crate) async fn load_from_chat_type(store: &impl Store, chat_type: ChatType) -> Self {
         match chat_type {
             ChatType::HandleConnection(handle) => Self::HandleConnection(UiUsername::from(handle)),
             ChatType::Connection(user_id) => {
@@ -284,7 +280,7 @@ impl UiChatType {
                 let profile = UiUserProfile::from_profile(user_profile);
                 Self::TargetedMessageConnection(profile)
             }
-            ChatType::Group => Self::Group(attributes.into()),
+            ChatType::Group(attributes) => Self::Group(attributes.into()),
             ChatType::PendingConnection(user_id) => {
                 let user_profile = store.user_profile(&user_id).await;
                 let profile = UiUserProfile::from_profile(user_profile);
@@ -294,25 +290,20 @@ impl UiChatType {
     }
 }
 
-/// Attributes of a chat
+/// Attributes of a group chat
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct UiChatAttributes {
     /// Title of the chat
-    ///
-    /// Only set for group chats
-    pub title: Option<String>,
+    pub title: String,
     /// Optional picture of the chat
     pub picture: Option<ImageData>,
 }
 
-impl From<Option<ChatAttributes>> for UiChatAttributes {
-    fn from(attributes: Option<ChatAttributes>) -> Self {
-        let (title, picture) = attributes
-            .map(|ChatAttributes { title, picture }| (title, picture))
-            .unzip();
+impl From<ChatAttributes> for UiChatAttributes {
+    fn from(ChatAttributes { title, picture }: ChatAttributes) -> Self {
         Self {
             title,
-            picture: picture.flatten().map(ImageData::from_bytes),
+            picture: picture.map(ImageData::from_bytes),
         }
     }
 }

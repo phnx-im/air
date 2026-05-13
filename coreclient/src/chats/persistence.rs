@@ -71,7 +71,7 @@ impl SqlChat {
                 }
             }
             (None, None, Some(username)) => ChatType::HandleConnection(username),
-            _ => ChatType::Group,
+            _ => ChatType::Group(ChatAttributes { title, picture }),
         };
 
         let status = match (is_active, is_blocked) {
@@ -82,10 +82,6 @@ impl SqlChat {
             )),
         };
 
-        let attributes = chat_type
-            .is_group()
-            .then_some(ChatAttributes { title, picture });
-
         Some(Chat {
             id: chat_id,
             group_id,
@@ -93,7 +89,6 @@ impl SqlChat {
             last_message_at,
             status,
             chat_type,
-            attributes,
         })
     }
 
@@ -157,7 +152,7 @@ impl Chat {
                 Some(user_id.domain().clone()),
                 None,
             ),
-            ChatType::Group => (true, false, None, None, None),
+            ChatType::Group(_) => (true, false, None, None, None),
             ChatType::TargetedMessageConnection(user_id) => (
                 false,
                 false,
@@ -698,7 +693,7 @@ impl Chat {
                 .execute(connection.as_mut())
                 .await?;
             }
-            ChatType::Group => {
+            ChatType::Group(_) => {
                 query!(
                     "UPDATE chat SET
                         connection_user_uuid = NULL,
@@ -864,8 +859,7 @@ pub mod tests {
             last_read: Utc::now(),
             last_message_at: None,
             status: ChatStatus::Active,
-            chat_type: ChatType::Group,
-            attributes: Some(ChatAttributes {
+            chat_type: ChatType::Group(ChatAttributes {
                 title: "Test chat".to_string(),
                 picture: None,
             }),
@@ -1026,7 +1020,10 @@ pub mod tests {
         let new_picture = [1, 2, 3];
         Chat::update_picture(&mut txn, chat.id, Some(&new_picture)).await?;
 
-        chat.attributes.as_mut().unwrap().picture = Some(new_picture.to_vec());
+        let ChatType::Group(attributes) = &mut chat.chat_type else {
+            panic!("expected group chat");
+        };
+        attributes.picture = Some(new_picture.to_vec());
 
         let loaded = Chat::load(txn, &chat.id).await?.unwrap();
         assert_eq!(loaded, chat);

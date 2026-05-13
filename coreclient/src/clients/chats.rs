@@ -96,8 +96,8 @@ impl CoreUser {
                 let id = chat_id.uuid();
                 anyhow!("Can't find chat with id {id}")
             })?;
-        let Some(attributes) = chat.attributes else {
-            bail!("Cannot set picture for chat without attributes");
+        let ChatType::Group(attributes) = chat.chat_type else {
+            bail!("Cannot set picture for non-group chat");
         };
 
         let resized_picture_option = tokio::task::spawn_blocking(|| {
@@ -125,8 +125,8 @@ impl CoreUser {
                 let id = chat_id.uuid();
                 anyhow!("Can't find chat with id {id}")
             })?;
-        let Some(attributes) = chat.attributes else {
-            bail!("Cannot set title for chat without attributes");
+        let ChatType::Group(attributes) = chat.chat_type else {
+            bail!("Cannot set title for non-group chat");
         };
         if title == attributes.title {
             // No change

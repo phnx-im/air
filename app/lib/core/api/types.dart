@@ -111,17 +111,15 @@ class MessageId {
           uuid == other.uuid;
 }
 
-/// Attributes of a chat
+/// Attributes of a group chat
 class UiChatAttributes {
   /// Title of the chat
-  ///
-  /// Only set for group chats
-  final String? title;
+  final String title;
 
   /// Optional picture of the chat
   final ImageData? picture;
 
-  const UiChatAttributes({this.title, this.picture});
+  const UiChatAttributes({required this.title, this.picture});
 
   @override
   int get hashCode => title.hashCode ^ picture.hashCode;

@@ -1065,7 +1065,7 @@ impl TestBackend {
         let chat = user_chats_after.remove(new_chat_position);
         assert!(chat.id() == chat_id);
         assert!(chat.status() == &ChatStatus::Active);
-        assert!(chat.chat_type() == &ChatType::Group);
+        assert!(chat.chat_type().is_group());
         assert_eq!(chat.attributes().unwrap().title(), &group_name);
         user_chats_before
             .into_iter()
@@ -1171,7 +1171,7 @@ impl TestBackend {
             let chat = invitee_chats_after.remove(new_chat_position);
             assert!(chat.id() == chat_id);
             assert!(chat.status() == &ChatStatus::Active);
-            assert!(chat.chat_type() == &ChatType::Group);
+            assert!(chat.chat_type().is_group());
             assert_eq!(
                 chat.attributes().unwrap().title(),
                 inviter_chat.attributes().unwrap().title()
@@ -1338,7 +1338,7 @@ impl TestBackend {
             } else {
                 panic!("chat should be inactive.")
             }
-            assert!(chat.chat_type() == &ChatType::Group);
+            assert!(chat.chat_type().is_group());
             for chat in removed_chats_after {
                 assert!(removed_chats_before.iter().any(|c| c.id() == chat.id()))
             }
@@ -1571,7 +1571,7 @@ impl TestBackend {
                     .await
                     .into_iter()
                     .filter(|chat| {
-                        chat.chat_type() == &ChatType::Group && chat.status() == &ChatStatus::Active
+                        chat.chat_type().is_group() && chat.status() == &ChatStatus::Active
                     })
                     .choose(rng)
                 {
@@ -1620,7 +1620,7 @@ impl TestBackend {
                     .await
                     .into_iter()
                     .filter(|chat| {
-                        chat.chat_type() == &ChatType::Group && chat.status() == &ChatStatus::Active
+                        chat.chat_type().is_group() && chat.status() == &ChatStatus::Active
                     })
                     .choose(rng)
                 {
@@ -1659,7 +1659,7 @@ impl TestBackend {
                     .await
                     .into_iter()
                     .filter(|chat| {
-                        chat.chat_type() == &ChatType::Group && chat.status() == &ChatStatus::Active
+                        chat.chat_type().is_group() && chat.status() == &ChatStatus::Active
                     })
                     .choose(rng)
                 {
