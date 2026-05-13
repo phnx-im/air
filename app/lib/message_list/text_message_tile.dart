@@ -39,6 +39,7 @@ import 'package:logging/logging.dart';
 import 'package:share_plus/share_plus.dart';
 
 import 'image_viewer.dart';
+import 'jump_highlight.dart';
 import 'message_renderer.dart';
 import 'swipe_to_reply.dart';
 
@@ -301,6 +302,7 @@ class _MessageView extends HookWidget {
 
     Widget buildMessageBubble({required bool enableSelection}) {
       return _MessageContent(
+        messageId: messageId,
         content: contentMessage.content,
         inReplyToMessage: inReplyToMessage,
         isSender: isSender,
@@ -752,6 +754,7 @@ class _MessageMetadataRowState extends State<_MessageMetadataRow> {
 
 class _MessageContent extends StatelessWidget {
   const _MessageContent({
+    required this.messageId,
     required this.content,
     required this.inReplyToMessage,
     required this.isSender,
@@ -763,6 +766,7 @@ class _MessageContent extends StatelessWidget {
     required this.enableSelection,
   });
 
+  final MessageId messageId;
   final UiMimiContent content;
   final UiInReplyToMessage? inReplyToMessage;
   final bool isSender;
@@ -921,44 +925,49 @@ class _MessageContent extends StatelessWidget {
       messageBubble = IntrinsicWidth(child: messageBubble);
     }
 
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 1.5),
-      child: DecoratedBox(
-        decoration: BoxDecoration(
-          borderRadius: _messageBorderRadius(isSender, flightPosition),
-          color: nakedContent
-              ? Colors.transparent
-              : isSender
-              ? colors.message.selfBackground
-              : colors.message.otherBackground,
-        ),
-        child: DefaultTextStyle.merge(
-          child: Column(
-            crossAxisAlignment: .end,
-            children: [
-              messageBubble,
-              if (isEdited)
-                Padding(
-                  padding: const EdgeInsets.only(
-                    left: Spacing.px16,
-                    right: Spacing.px16,
-                    bottom: Spacing.px8,
-                  ),
-                  child: SelectionContainer.disabled(
-                    child: Text(
-                      loc.textMessage_edited,
-                      style: Theme.of(context).textTheme.bodySmall!.copyWith(
-                        color: isSender
-                            ? colors.message.selfEditedLabel
-                            : colors.message.otherEditedLabel,
-                      ),
-                    ),
+    final borderRadius = _messageBorderRadius(isSender, flightPosition);
+    final baseColor = isSender
+        ? colors.message.selfBackground
+        : colors.message.otherBackground;
+    final bubbleContent = DefaultTextStyle.merge(
+      child: Column(
+        crossAxisAlignment: .end,
+        children: [
+          messageBubble,
+          if (isEdited)
+            Padding(
+              padding: const EdgeInsets.only(
+                left: Spacing.px16,
+                right: Spacing.px16,
+                bottom: Spacing.px8,
+              ),
+              child: SelectionContainer.disabled(
+                child: Text(
+                  loc.textMessage_edited,
+                  style: Theme.of(context).textTheme.bodySmall!.copyWith(
+                    color: isSender
+                        ? colors.message.selfEditedLabel
+                        : colors.message.otherEditedLabel,
                   ),
                 ),
-            ],
-          ),
-        ),
+              ),
+            ),
+        ],
       ),
+    );
+
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 1.5),
+      // Jumbo emoji renders without a bubble background, we skip the jump
+      // highlight
+      child: nakedContent
+          ? bubbleContent
+          : JumpHighlight(
+              id: messageId,
+              borderRadius: borderRadius,
+              baseColor: baseColor,
+              child: bubbleContent,
+            ),
     );
   }
 }

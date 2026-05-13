@@ -222,6 +222,7 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
             // title.
             external_group_profile: None,
             legacy_title: Some(title),
+            legacy_picture: None,
         }
         .encode()?;
 

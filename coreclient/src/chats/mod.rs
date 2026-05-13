@@ -343,13 +343,23 @@ pub(crate) trait GroupDataExt {
     /// Encodes the group data as bytes to be stored in the group data extension.
     fn encode(&self) -> Result<GroupDataBytes, codec::Error>;
 
-    /// Returns the chat title and the external group profile.
+    /// Returns the chat title and the group data profile.
     ///
     /// The title is decrypted from the group context if it is present.
     fn into_parts(
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> (Option<String>, Option<ExternalGroupProfile>);
+    ) -> (Option<String>, Option<GroupDataProfilePart>);
+}
+
+/// Part of the group data that is stored in the group data extension.
+///
+/// It is either the external group profile or the legacy picture.
+pub(crate) enum GroupDataProfilePart {
+    /// External group profile stored in the object storage
+    ExternalProfile(ExternalGroupProfile),
+    /// Legacy picture stored as a blob
+    LegacyPicture(Vec<u8>),
 }
 
 impl GroupDataExt for GroupData {
@@ -364,9 +374,10 @@ impl GroupDataExt for GroupData {
     fn into_parts(
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> (Option<String>, Option<ExternalGroupProfile>) {
+    ) -> (Option<String>, Option<GroupDataProfilePart>) {
         let Self {
             legacy_title,
+            legacy_picture,
             encrypted_title,
             external_group_profile,
         } = self;
@@ -381,6 +392,11 @@ impl GroupDataExt for GroupData {
         } else {
             legacy_title
         };
-        (title, external_group_profile)
+
+        let profile = external_group_profile
+            .map(GroupDataProfilePart::ExternalProfile)
+            .or_else(|| legacy_picture.map(GroupDataProfilePart::LegacyPicture));
+
+        (title, profile)
     }
 }
