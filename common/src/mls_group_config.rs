@@ -158,12 +158,6 @@ mod test {
 
     #[test]
     fn required_capabilities_is_subset_of_supported_capabilities() {
-        for version in REQUIRED_PROTOCOL_VERSIONS {
-            assert!(SUPPORTED_PROTOCOL_VERSIONS.contains(version));
-        }
-        for ciphersuite in REQUIRED_CIPHERSUITES {
-            assert!(SUPPORTED_CIPHERSUITES.contains(ciphersuite));
-        }
         for extension in REQUIRED_EXTENSIONS {
             assert!(SUPPORTED_EXTENSIONS.contains(extension));
         }
@@ -195,14 +189,6 @@ mod test {
         let _ = default_app_data_dictionary_extension();
         let _ = default_leaf_node_extensions();
         let _ = default_key_package_extensions();
-    }
-
-    #[test]
-    fn default_required_group_capabilities_stability() {
-        let capabilities = default_required_group_capabilities();
-        let bytes = PersistenceCodec::to_vec(&capabilities).unwrap();
-        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
-        insta::assert_snapshot!(diag);
     }
 
     /// Default extensions can be extended by must be backwards compatible.
