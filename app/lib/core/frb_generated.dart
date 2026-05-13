@@ -8098,7 +8098,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
     return AirFeatures(
       encryptedGroupProfiles: dco_decode_bool(arr[0]),
-      emptyConnectionGroupTitles: dco_decode_bool(arr[1]),
+      emptyConnectionGroupAttributes: dco_decode_bool(arr[1]),
     );
   }
 
@@ -10955,10 +10955,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   AirFeatures sse_decode_air_features(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_encryptedGroupProfiles = sse_decode_bool(deserializer);
-    var var_emptyConnectionGroupTitles = sse_decode_bool(deserializer);
+    var var_emptyConnectionGroupAttributes = sse_decode_bool(deserializer);
     return AirFeatures(
       encryptedGroupProfiles: var_encryptedGroupProfiles,
-      emptyConnectionGroupTitles: var_emptyConnectionGroupTitles,
+      emptyConnectionGroupAttributes: var_emptyConnectionGroupAttributes,
     );
   }
 
@@ -14554,7 +14554,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_air_features(AirFeatures self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_bool(self.encryptedGroupProfiles, serializer);
-    sse_encode_bool(self.emptyConnectionGroupTitles, serializer);
+    sse_encode_bool(self.emptyConnectionGroupAttributes, serializer);
   }
 
   @protected

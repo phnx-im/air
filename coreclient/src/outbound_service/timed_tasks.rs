@@ -599,7 +599,7 @@ fn legacy_group_data_migration(
     is_connection: bool,
     erase_attributes: bool,
 ) -> Option<ChatAttributes> {
-    if !is_connection || !erase_attributes {
+    if is_connection && !erase_attributes {
         // No migration is done for connection chats that don't need to erase data.
         return None;
     }

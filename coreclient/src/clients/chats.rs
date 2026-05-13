@@ -126,7 +126,7 @@ impl CoreUser {
                 anyhow!("Can't find chat with id {id}")
             })?;
         let Some(attributes) = chat.attributes else {
-            bail!("Cannot set picture for chat without attributes");
+            bail!("Cannot set title for chat without attributes");
         };
         if title == attributes.title {
             // No change

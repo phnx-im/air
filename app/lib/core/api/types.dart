@@ -30,7 +30,7 @@ sealed class AirComponent with _$AirComponent {
 sealed class AirFeatures with _$AirFeatures {
   const factory AirFeatures({
     required bool encryptedGroupProfiles,
-    required bool emptyConnectionGroupTitles,
+    required bool emptyConnectionGroupAttributes,
   }) = _AirFeatures;
 }
 

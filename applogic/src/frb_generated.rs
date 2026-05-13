@@ -8238,7 +8238,7 @@ const _: fn() = || {
     {
         let AirFeatures = None::<crate::api::types::AirFeatures>.unwrap();
         let _: bool = AirFeatures.encrypted_group_profiles;
-        let _: bool = AirFeatures.empty_connection_group_titles;
+        let _: bool = AirFeatures.empty_connection_group_attributes;
     }
     {
         let AppDataDebugInfo = None::<crate::api::chat_details_cubit::AppDataDebugInfo>.unwrap();
@@ -9212,10 +9212,10 @@ impl SseDecode for crate::api::types::AirFeatures {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_encryptedGroupProfiles = <bool>::sse_decode(deserializer);
-        let mut var_emptyConnectionGroupTitles = <bool>::sse_decode(deserializer);
+        let mut var_emptyConnectionGroupAttributes = <bool>::sse_decode(deserializer);
         return crate::api::types::AirFeatures {
             encrypted_group_profiles: var_encryptedGroupProfiles,
-            empty_connection_group_titles: var_emptyConnectionGroupTitles,
+            empty_connection_group_attributes: var_emptyConnectionGroupAttributes,
         };
     }
 }
@@ -12249,7 +12249,7 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::AirFeatures
         [
             self.0.encrypted_group_profiles.into_into_dart().into_dart(),
             self.0
-                .empty_connection_group_titles
+                .empty_connection_group_attributes
                 .into_into_dart()
                 .into_dart(),
         ]
@@ -14815,7 +14815,7 @@ impl SseEncode for crate::api::types::AirFeatures {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.encrypted_group_profiles, serializer);
-        <bool>::sse_encode(self.empty_connection_group_titles, serializer);
+        <bool>::sse_encode(self.empty_connection_group_attributes, serializer);
     }
 }
 

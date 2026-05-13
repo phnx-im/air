@@ -806,5 +806,5 @@ struct _AirComponent {
 #[frb(dart_metadata = ("freezed"))]
 struct _AirFeatures {
     pub encrypted_group_profiles: bool,
-    pub empty_connection_group_titles: bool,
+    pub empty_connection_group_attributes: bool,
 }

@@ -514,6 +514,13 @@ class _MemberCard extends StatelessWidget {
               if (caps.appData?.airComponent?.features.encryptedGroupProfiles ==
                   true)
                 'encrypted_group_profiles',
+              if (caps
+                      .appData
+                      ?.airComponent
+                      ?.features
+                      .emptyConnectionGroupAttributes ==
+                  true)
+                'empty_connection_group_attributes',
             ],
           ),
         ],

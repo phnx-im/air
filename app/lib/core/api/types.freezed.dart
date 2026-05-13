@@ -160,7 +160,7 @@ $AirFeaturesCopyWith<$Res> get features {
 /// @nodoc
 mixin _$AirFeatures {
 
- bool get encryptedGroupProfiles; bool get emptyConnectionGroupTitles;
+ bool get encryptedGroupProfiles; bool get emptyConnectionGroupAttributes;
 /// Create a copy of AirFeatures
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -171,16 +171,16 @@ $AirFeaturesCopyWith<AirFeatures> get copyWith => _$AirFeaturesCopyWithImpl<AirF
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AirFeatures&&(identical(other.encryptedGroupProfiles, encryptedGroupProfiles) || other.encryptedGroupProfiles == encryptedGroupProfiles)&&(identical(other.emptyConnectionGroupTitles, emptyConnectionGroupTitles) || other.emptyConnectionGroupTitles == emptyConnectionGroupTitles));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AirFeatures&&(identical(other.encryptedGroupProfiles, encryptedGroupProfiles) || other.encryptedGroupProfiles == encryptedGroupProfiles)&&(identical(other.emptyConnectionGroupAttributes, emptyConnectionGroupAttributes) || other.emptyConnectionGroupAttributes == emptyConnectionGroupAttributes));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,encryptedGroupProfiles,emptyConnectionGroupTitles);
+int get hashCode => Object.hash(runtimeType,encryptedGroupProfiles,emptyConnectionGroupAttributes);
 
 @override
 String toString() {
-  return 'AirFeatures(encryptedGroupProfiles: $encryptedGroupProfiles, emptyConnectionGroupTitles: $emptyConnectionGroupTitles)';
+  return 'AirFeatures(encryptedGroupProfiles: $encryptedGroupProfiles, emptyConnectionGroupAttributes: $emptyConnectionGroupAttributes)';
 }
 
 
@@ -191,7 +191,7 @@ abstract mixin class $AirFeaturesCopyWith<$Res>  {
   factory $AirFeaturesCopyWith(AirFeatures value, $Res Function(AirFeatures) _then) = _$AirFeaturesCopyWithImpl;
 @useResult
 $Res call({
- bool encryptedGroupProfiles, bool emptyConnectionGroupTitles
+ bool encryptedGroupProfiles, bool emptyConnectionGroupAttributes
 });
 
 
@@ -208,10 +208,10 @@ class _$AirFeaturesCopyWithImpl<$Res>
 
 /// Create a copy of AirFeatures
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? encryptedGroupProfiles = null,Object? emptyConnectionGroupTitles = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? encryptedGroupProfiles = null,Object? emptyConnectionGroupAttributes = null,}) {
   return _then(_self.copyWith(
 encryptedGroupProfiles: null == encryptedGroupProfiles ? _self.encryptedGroupProfiles : encryptedGroupProfiles // ignore: cast_nullable_to_non_nullable
-as bool,emptyConnectionGroupTitles: null == emptyConnectionGroupTitles ? _self.emptyConnectionGroupTitles : emptyConnectionGroupTitles // ignore: cast_nullable_to_non_nullable
+as bool,emptyConnectionGroupAttributes: null == emptyConnectionGroupAttributes ? _self.emptyConnectionGroupAttributes : emptyConnectionGroupAttributes // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
@@ -224,11 +224,11 @@ as bool,
 
 
 class _AirFeatures implements AirFeatures {
-  const _AirFeatures({required this.encryptedGroupProfiles, required this.emptyConnectionGroupTitles});
+  const _AirFeatures({required this.encryptedGroupProfiles, required this.emptyConnectionGroupAttributes});
   
 
 @override final  bool encryptedGroupProfiles;
-@override final  bool emptyConnectionGroupTitles;
+@override final  bool emptyConnectionGroupAttributes;
 
 /// Create a copy of AirFeatures
 /// with the given fields replaced by the non-null parameter values.
@@ -240,16 +240,16 @@ _$AirFeaturesCopyWith<_AirFeatures> get copyWith => __$AirFeaturesCopyWithImpl<_
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AirFeatures&&(identical(other.encryptedGroupProfiles, encryptedGroupProfiles) || other.encryptedGroupProfiles == encryptedGroupProfiles)&&(identical(other.emptyConnectionGroupTitles, emptyConnectionGroupTitles) || other.emptyConnectionGroupTitles == emptyConnectionGroupTitles));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AirFeatures&&(identical(other.encryptedGroupProfiles, encryptedGroupProfiles) || other.encryptedGroupProfiles == encryptedGroupProfiles)&&(identical(other.emptyConnectionGroupAttributes, emptyConnectionGroupAttributes) || other.emptyConnectionGroupAttributes == emptyConnectionGroupAttributes));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,encryptedGroupProfiles,emptyConnectionGroupTitles);
+int get hashCode => Object.hash(runtimeType,encryptedGroupProfiles,emptyConnectionGroupAttributes);
 
 @override
 String toString() {
-  return 'AirFeatures(encryptedGroupProfiles: $encryptedGroupProfiles, emptyConnectionGroupTitles: $emptyConnectionGroupTitles)';
+  return 'AirFeatures(encryptedGroupProfiles: $encryptedGroupProfiles, emptyConnectionGroupAttributes: $emptyConnectionGroupAttributes)';
 }
 
 
@@ -260,7 +260,7 @@ abstract mixin class _$AirFeaturesCopyWith<$Res> implements $AirFeaturesCopyWith
   factory _$AirFeaturesCopyWith(_AirFeatures value, $Res Function(_AirFeatures) _then) = __$AirFeaturesCopyWithImpl;
 @override @useResult
 $Res call({
- bool encryptedGroupProfiles, bool emptyConnectionGroupTitles
+ bool encryptedGroupProfiles, bool emptyConnectionGroupAttributes
 });
 
 
@@ -277,10 +277,10 @@ class __$AirFeaturesCopyWithImpl<$Res>
 
 /// Create a copy of AirFeatures
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? encryptedGroupProfiles = null,Object? emptyConnectionGroupTitles = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? encryptedGroupProfiles = null,Object? emptyConnectionGroupAttributes = null,}) {
   return _then(_AirFeatures(
 encryptedGroupProfiles: null == encryptedGroupProfiles ? _self.encryptedGroupProfiles : encryptedGroupProfiles // ignore: cast_nullable_to_non_nullable
-as bool,emptyConnectionGroupTitles: null == emptyConnectionGroupTitles ? _self.emptyConnectionGroupTitles : emptyConnectionGroupTitles // ignore: cast_nullable_to_non_nullable
+as bool,emptyConnectionGroupAttributes: null == emptyConnectionGroupAttributes ? _self.emptyConnectionGroupAttributes : emptyConnectionGroupAttributes // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
