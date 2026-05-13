@@ -438,7 +438,7 @@ publish_rpm() {
 EOF
 
   if [[ -n "${GPG_PASSPHRASE:-}" ]]; then
-    echo "${GPG_PASSPHRASE}" | \
+    printenv GPG_PASSPHRASE | \
       rpm --addsign "${repo_dir}/$(basename "$PKG_FILE")" \
         --define "_gpg_sign_cmd_extra_args --passphrase-fd 0 --pinentry-mode loopback"
   else

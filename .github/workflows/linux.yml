@@ -82,12 +82,21 @@ jobs:
       - name: Build packages
         run: RELEASE=${{ needs.linux-build.outputs.build-number }} just build-deb build-rpm
 
+      - name: Configure GPG agent for no TTY
+        run: |
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+          gpg-connect-agent reloadagent /bye
+          echo "${{ secrets.GPG_SIGNING_KEY }}" | gpg --batch --import
+
       - name: Upload packages
         working-directory: app/linux
         env:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
         run: |
-          echo "${{ secrets.GPG_SIGNING_KEY }}" | base64 -d | gpg --import
           ./publish-packages.sh air-*.rpm
           ./publish-packages.sh air-*.deb
