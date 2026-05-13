@@ -4,6 +4,7 @@
 // ignore_for_file: unreachable_switch_default, prefer_const_constructors, camel_case_types
 import 'package:convert/convert.dart';
 
+
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
@@ -12,19 +13,22 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:uuid/uuid.dart';
 import 'types.dart';
 
-// These functions are ignored because they are not marked as `pub`: `cancel_notifications`, `get_active_notifications`, `send_notification`
+
+            // These functions are ignored because they are not marked as `pub`: `cancel_notifications`, `get_active_notifications`, `send_notification`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `Callbacks`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<DartNotificationService>>
-abstract class DartNotificationService implements RustOpaqueInterface {
-  factory DartNotificationService({
-    required FutureOr<void> Function(NotificationContent) send,
-    required FutureOr<List<NotificationHandle>> Function() getActive,
-    required FutureOr<void> Function(List<NotificationId>) cancel,
-  }) => RustLib.instance.api.crateApiNotificationsDartNotificationServiceNew(
-    send: send,
-    getActive: getActive,
-    cancel: cancel,
-  );
-}
+
+            
+
+            
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<DartNotificationService>>
+                abstract class DartNotificationService implements RustOpaqueInterface {
+                    factory DartNotificationService({required FutureOr<void> Function(NotificationContent) send , required FutureOr<List<NotificationHandle>> Function() getActive , required FutureOr<void> Function(List<NotificationId>) cancel })=>RustLib.instance.api.crateApiNotificationsDartNotificationServiceNew(send: send, getActive: getActive, cancel: cancel);
+
+
+
+                    
+                }
+                
+            

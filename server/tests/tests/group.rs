@@ -377,10 +377,11 @@ async fn update_group_data() {
         .chat(&chat_id)
         .await
         .unwrap()
-        .attributes
-        .picture
+        .attributes()
         .unwrap()
-        .clone();
+        .picture()
+        .unwrap()
+        .to_owned();
 
     // Bob and Charlie should now have the updated group picture
     for user_id in [&bob, &charlie] {
@@ -398,10 +399,11 @@ async fn update_group_data() {
             .chat(&chat_id)
             .await
             .unwrap()
-            .attributes
-            .picture
+            .attributes()
             .unwrap()
-            .clone();
+            .picture()
+            .unwrap()
+            .to_owned();
         assert_eq!(actual_picture, expected_picture);
     }
 
@@ -423,7 +425,14 @@ async fn update_group_data() {
             "{:?} should process Bob's update without errors",
             user_id
         );
-        let actual_title = user.chat(&chat_id).await.unwrap().attributes.title.clone();
+        let actual_title = user
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .attributes()
+            .unwrap()
+            .title
+            .clone();
         assert_eq!(actual_title, title);
     }
 }
@@ -444,8 +453,9 @@ async fn fetch_group_profile_on_invite() {
     // Record Alice's group attributes (title and resized picture set during create_group)
     let alice_user = &setup.get_user(&alice).user;
     let alice_chat = alice_user.chat(&chat_id).await.unwrap();
-    let expected_title = alice_chat.attributes().title().to_owned();
-    let expected_picture = alice_chat.attributes().picture.clone();
+    let attributes = alice_chat.attributes.unwrap();
+    let expected_title = attributes.title;
+    let expected_picture = attributes.picture;
 
     // Alice invites Bob; the encrypted group profile is already uploaded from group creation
     alice_user
@@ -466,7 +476,7 @@ async fn fetch_group_profile_on_invite() {
 
     // Bob sees the group title immediately after processing the invitation, but not the picture
     let bob_chat = bob_user.chat(&chat_id).await.unwrap();
-    assert_eq!(bob_chat.attributes().title(), &expected_title);
+    assert_eq!(bob_chat.attributes().unwrap().title(), &expected_title);
 
     // Bob runs the outbound service: this executes FetchGroupProfileOperation,
     // downloading and decrypting the encrypted group profile from object storage
@@ -474,8 +484,8 @@ async fn fetch_group_profile_on_invite() {
 
     // Bob should have the correct group attributes after fetching the encrypted profile
     let bob_chat = bob_user.chat(&chat_id).await.unwrap();
-    assert_eq!(bob_chat.attributes().title(), &expected_title);
-    assert_eq!(bob_chat.attributes().picture, expected_picture);
+    assert_eq!(bob_chat.attributes().unwrap().title(), &expected_title);
+    assert_eq!(bob_chat.attributes().unwrap().picture, expected_picture);
 }
 
 /// Tests that after a group title and picture update, other members fetch the new encrypted group
@@ -492,12 +502,12 @@ async fn fetch_group_profile_on_update() {
     setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
 
     let chat = setup.get_user(&alice).user.chat(&chat_id).await.unwrap();
-    let title = chat.attributes().title().to_owned();
+    let title = chat.attributes().unwrap().title().to_owned();
 
     // Bob sees the group title of group immediately
     let bob_user = &setup.get_user(&bob).user;
     let bob_chat = bob_user.chat(&chat_id).await.unwrap();
-    assert_eq!(bob_chat.attributes().title(), &title);
+    assert_eq!(bob_chat.attributes().unwrap().title(), &title);
 
     // Alice updates the group title and picture
     let new_title = "Updated Group Title".to_string();
@@ -512,13 +522,8 @@ async fn fetch_group_profile_on_update() {
         .unwrap();
 
     // Record Alice's stored picture (may be resized relative to test_picture_bytes)
-    let expected_picture = alice_user
-        .chat(&chat_id)
-        .await
-        .unwrap()
-        .attributes
-        .picture
-        .clone();
+    let chat = alice_user.chat(&chat_id).await.unwrap();
+    let expected_picture = chat.attributes.unwrap().picture;
 
     // Bob fetches Alice's commits: this schedules FetchGroupProfileOperations
     let bob_user = &setup.get_user(&bob).user;
@@ -536,8 +541,11 @@ async fn fetch_group_profile_on_update() {
 
     // Bob should see the updated title and picture
     let bob_chat = bob_user.chat(&chat_id).await.unwrap();
-    assert_eq!(bob_chat.attributes().title(), &new_title);
-    assert_eq!(bob_chat.attributes().picture, expected_picture);
+    assert_eq!(bob_chat.attributes().unwrap().title(), &new_title);
+    assert_eq!(
+        bob_chat.attributes().unwrap().picture(),
+        expected_picture.as_deref()
+    );
 }
 
 /// This test checks that bob can leave a group where he missed a commit. He leaves the group only
@@ -943,8 +951,11 @@ async fn legacy_group_data_migration() {
 
     // Bob can decode the legacy title and inline picture immediately
     let bob_chat = bob_user.chat(&chat_id).await.unwrap();
-    assert_eq!(bob_chat.attributes().title(), &title);
-    assert_eq!(bob_chat.attributes().picture.as_ref(), Some(&picture));
+    assert_eq!(bob_chat.attributes().unwrap().title(), &title);
+    assert_eq!(
+        bob_chat.attributes().unwrap().picture(),
+        Some(picture.as_slice())
+    );
     let group_data = bob_user.group_data(chat_id).await.unwrap().unwrap();
     assert_eq!(group_data.legacy_title.as_ref(), Some(&title));
     assert!(
@@ -966,8 +977,11 @@ async fn legacy_group_data_migration() {
 
     // Bob migrated the group data to the new format
     let group_data = bob_user.group_data(chat_id).await.unwrap().unwrap();
-    assert_eq!(bob_chat.attributes().title(), &title);
-    assert_eq!(bob_chat.attributes().picture.as_ref(), Some(&picture));
+    assert_eq!(bob_chat.attributes().unwrap().title(), &title);
+    assert_eq!(
+        bob_chat.attributes().unwrap().picture(),
+        Some(picture.as_slice())
+    );
     assert_eq!(group_data.legacy_title.as_ref(), Some(&title)); // Still set for old clients
     assert!(group_data.legacy_picture.is_none());
     assert!(group_data.encrypted_title.is_some());
@@ -986,8 +1000,11 @@ async fn legacy_group_data_migration() {
     // Alices sees the group title and picture in new format
     let alice_chat = alice_user.chat(&chat_id).await.unwrap();
     let group_data = alice_user.group_data(chat_id).await.unwrap().unwrap();
-    assert_eq!(alice_chat.attributes().title(), &title);
-    assert_eq!(alice_chat.attributes().picture.as_ref(), Some(&picture));
+    assert_eq!(alice_chat.attributes().unwrap().title(), &title);
+    assert_eq!(
+        alice_chat.attributes().unwrap().picture(),
+        Some(picture.as_slice())
+    );
     assert_eq!(group_data.legacy_title.as_ref(), Some(&title)); // Still set for old clients
     assert!(group_data.legacy_picture.is_none());
     assert!(group_data.encrypted_title.is_some());

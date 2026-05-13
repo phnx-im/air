@@ -4,6 +4,7 @@
 // ignore_for_file: unreachable_switch_default, prefer_const_constructors, camel_case_types
 import 'package:convert/convert.dart';
 
+
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
@@ -17,109 +18,147 @@ import 'types.dart';
 import 'user.dart';
 part 'user_cubit.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `core_user`, `emit_stored_notifications`, `new`, `notification_service`, `show_notifications`, `spawn_emit_stored_notifications`, `spawn_load`
+            // These functions are ignored because they are not marked as `pub`: `core_user`, `emit_stored_notifications`, `new`, `notification_service`, `show_notifications`, `spawn_emit_stored_notifications`, `spawn_load`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CubitContext`, `NotificationContext`, `UiUserInner`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `drop`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
-class intArray12 extends NonGrowableListView<int> {
-  static const arraySize = 12;
 
-  @internal
-  List<int> get inner => _inner;
-  final List<int> _inner;
+            
 
-  intArray12(this._inner) : assert(_inner.length == arraySize), super(_inner);
+            
+            class intArray12 extends NonGrowableListView<int> {
+                static const arraySize = 12;
 
-  intArray12.init(int fill) : this(List<int>.filled(arraySize, fill));
-}
+                @internal
+                List<int> get inner => _inner;
+                final List<int> _inner;
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UiUser>>
-abstract class UiUser implements RustOpaqueInterface {
-  bool get unsupportedVersion;
+                intArray12(this._inner)
+                    : assert(_inner.length == arraySize),
+                      super(_inner);
+  
+                intArray12.init(int fill): this(List<int>.filled(arraySize,fill));
+              }
+            
 
-  UiUserId get userId;
 
-  List<UiUsername> get usernames;
-}
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UiUser>>
+                abstract class UiUser implements RustOpaqueInterface {
+                     bool get unsupportedVersion;
 
-// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserCubitBase>>
-abstract class UserCubitBase implements RustOpaqueInterface {
-  Future<ChatId> addContactFromGroup({
-    required ChatId chatId,
-    required UiUserId userId,
-  });
 
-  Future<bool> addUsername({required UiUsername username});
+ UiUserId get userId;
 
-  /// Adds multiple users to the chat with the given [`ChatId`].
-  ///
-  /// If one of the users cannot be added, an error is returned and the chat is not modified,
-  /// that is, other users are *not* added to the chat too.
-  Future<InviteUsersError?> addUsersToChat(
-    ChatId chatId,
-    List<UiUserId> userIds,
-  );
 
-  Future<List<UiContact>> addableContacts({required ChatId chatId});
+ List<UiUsername> get usernames;
 
-  Future<void> blockContact({required UiUserId userId});
 
-  Future<UsernameHash?> checkUsernameExists({required UiUsername username});
 
-  Future<void> close();
+                    
+                }
+                
 
-  Future<UiContact?> contact({required UiUserId userId});
 
-  Future<List<UiContact>> get contacts;
+                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserCubitBase>>
+                abstract class UserCubitBase implements RustOpaqueInterface {
+                     Future<ChatId>  addContactFromGroup({required ChatId chatId , required UiUserId userId });
 
-  Future<void> deleteAccount({
-    required String dbPath,
-    required String confirmationText,
-  });
 
-  Future<void> deleteChat(ChatId chatId);
+ Future<bool>  addUsername({required UiUsername username });
 
-  bool get isClosed;
 
-  Future<void> leaveChat(ChatId chatId);
+/// Adds multiple users to the chat with the given [`ChatId`].
+///
+/// If one of the users cannot be added, an error is returned and the chat is not modified,
+/// that is, other users are *not* added to the chat too.
+ Future<InviteUsersError?>  addUsersToChat(ChatId chatId, List<UiUserId> userIds);
 
-  factory UserCubitBase({
-    required User user,
-    required NavigationCubitBase navigation,
-  }) => RustLib.instance.api.crateApiUserCubitUserCubitBaseNew(
-    user: user,
-    navigation: navigation,
-  );
 
-  Future<void> removeUserFromChat(ChatId chatId, UiUserId userId);
+ Future<List<UiContact>>  addableContacts({required ChatId chatId });
 
-  Future<void> removeUsername({required UiUsername username});
 
-  Future<void> reportSpam({required UiUserId spammerId});
+ Future<void>  blockContact({required UiUserId userId });
 
-  /// Returns the pair of safety codes of the logged-in user and the given user.
-  ///
-  /// The order of the codes is stable and is determined by their lexicographical order.
-  Future<intArray12> safetyCodes({required UiUserId otherUserId});
 
-  Future<void> setAppState({required AppState appState});
+ Future<UsernameHash?>  checkUsernameExists({required UiUsername username });
 
-  /// Set the display name and/or profile picture of the user.
-  Future<void> setProfile({String? displayName, Uint8List? profilePicture});
 
-  UiUser get state;
+ Future<void>  close();
 
-  Stream<UiUser> stream();
 
-  Future<void> unblockContact({required UiUserId userId});
-}
+ Future<UiContact?>  contact({required UiUserId userId });
 
-enum AppState { mobileBackground, desktopBackground, foreground }
+
+ Future<List<UiContact>> get contacts;
+
+
+ Future<void>  deleteAccount({required String dbPath , required String confirmationText });
+
+
+ Future<void>  deleteChat(ChatId chatId);
+
+
+ bool get isClosed;
+
+
+ Future<void>  leaveChat(ChatId chatId);
+
+
+factory UserCubitBase({required User user , required NavigationCubitBase navigation })=>RustLib.instance.api.crateApiUserCubitUserCubitBaseNew(user: user, navigation: navigation);
+
+
+ Future<void>  removeUserFromChat(ChatId chatId, UiUserId userId);
+
+
+ Future<void>  removeUsername({required UiUsername username });
+
+
+ Future<void>  reportSpam({required UiUserId spammerId });
+
+
+/// Returns the pair of safety codes of the logged-in user and the given user.
+///
+/// The order of the codes is stable and is determined by their lexicographical order.
+ Future<intArray12>  safetyCodes({required UiUserId otherUserId });
+
+
+ Future<void>  setAppState({required AppState appState });
+
+
+/// Set the display name and/or profile picture of the user.
+ Future<void>  setProfile({String? displayName , Uint8List? profilePicture });
+
+
+ UiUser get state;
+
+
+ Stream<UiUser>  stream();
+
+
+ Future<void>  unblockContact({required UiUserId userId });
+
+
+
+                    
+                }
+                
+
+enum AppState {
+                    mobileBackground,
+desktopBackground,
+foreground,
+                    ;
+                    
+                }
 
 @freezed
-sealed class InviteUsersError with _$InviteUsersError {
-  const InviteUsersError._();
+                sealed class InviteUsersError with _$InviteUsersError  {
+                    const InviteUsersError._();
 
-  const factory InviteUsersError.incompatibleClient({required String reason}) =
-      InviteUsersError_IncompatibleClient;
-}
+                     const factory InviteUsersError.incompatibleClient({   required String reason , }) = InviteUsersError_IncompatibleClient;
+
+                    
+
+                    
+                }
+            

@@ -1444,8 +1444,8 @@ mod handle_group_not_found_tests {
     use uuid::Uuid;
 
     use crate::{
-        Chat, ChatAttributes, ChatStatus, clients::block_contact::BlockedContact,
-        db_access::DbAccess, groups::GroupDataBytes, utils::persistence::open_db_in_memory,
+        Chat, ChatStatus, clients::block_contact::BlockedContact, db_access::DbAccess,
+        groups::GroupDataBytes, utils::persistence::open_db_in_memory,
     };
 
     use super::*;
@@ -1472,11 +1472,7 @@ mod handle_group_not_found_tests {
         )?;
         group.store(&mut connection).await?;
 
-        let chat = Chat::new_targeted_message_chat(
-            group_id.clone(),
-            ChatAttributes::new("Blocked chat".into(), None),
-            blocked_user_id.clone(),
-        );
+        let chat = Chat::new_targeted_message_chat(group_id.clone(), blocked_user_id.clone());
         let chat_id = chat.id();
         chat.store(&mut connection).await?;
 

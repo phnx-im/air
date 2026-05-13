@@ -135,7 +135,7 @@ async fn connect_users_via_targeted_message() {
     );
     assert_eq!(
         *chat_name,
-        group_chat.attributes().title,
+        group_chat.attributes().unwrap().title,
         "System message should have the correct chat title"
     );
     let Message::Event(EventMessage::System(SystemMessage::AcceptedConnectionRequest {

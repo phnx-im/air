@@ -41,8 +41,8 @@ impl SqlChat {
     fn convert(self, past_members: Vec<SqlPastMember>) -> Option<Chat> {
         let Self {
             chat_id,
-            chat_title,
-            chat_picture,
+            chat_title: title,
+            chat_picture: picture,
             group_id: GroupIdWrapper(group_id),
             last_read,
             last_message_at,
@@ -82,6 +82,14 @@ impl SqlChat {
             )),
         };
 
+        let attributes = match chat_type {
+            ChatType::Group => Some(ChatAttributes { title, picture }),
+            ChatType::HandleConnection(_)
+            | ChatType::Connection(_)
+            | ChatType::TargetedMessageConnection(_)
+            | ChatType::PendingConnection(_) => None,
+        };
+
         Some(Chat {
             id: chat_id,
             group_id,
@@ -89,10 +97,7 @@ impl SqlChat {
             last_message_at,
             status,
             chat_type,
-            attributes: ChatAttributes {
-                title: chat_title,
-                picture: chat_picture,
-            },
+            attributes,
         })
     }
 
@@ -128,13 +133,13 @@ impl Chat {
     ///
     /// On conflict, the chat is **not** removed but updated.
     pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
-        info!(
-            id =% self.id,
-            title =% self.attributes().title(),
-            "Storing chat"
-        );
-        let title = self.attributes().title();
-        let picture = self.attributes().picture();
+        let title = self.attributes().map(|attrs| attrs.title());
+        info!(id =% self.id, ?title, "Storing chat");
+        let title = title.unwrap_or_default();
+        let picture = self
+            .attributes()
+            .map(|attrs| attrs.picture())
+            .unwrap_or_default();
         let group_id = self.group_id.as_slice();
         let (is_active, past_members) = match self.status() {
             ChatStatus::Inactive(inactive_chat) => (false, inactive_chat.past_members().to_vec()),
@@ -364,7 +369,7 @@ impl Chat {
         Ok(chat.convert(members))
     }
 
-    pub(super) async fn update_picture(
+    pub(crate) async fn update_picture(
         mut connection: impl WriteConnection,
         chat_id: ChatId,
         chat_picture: Option<&[u8]>,
@@ -380,7 +385,7 @@ impl Chat {
         Ok(())
     }
 
-    pub(super) async fn update_title(
+    pub(crate) async fn update_title(
         mut connection: impl WriteConnection,
         chat_id: ChatId,
         chat_title: &str,
@@ -864,10 +869,10 @@ pub mod tests {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::Group,
-            attributes: ChatAttributes {
+            attributes: Some(ChatAttributes {
                 title: "Test chat".to_string(),
                 picture: None,
-            },
+            }),
         }
     }
 
@@ -1025,7 +1030,7 @@ pub mod tests {
         let new_picture = [1, 2, 3];
         Chat::update_picture(&mut txn, chat.id, Some(&new_picture)).await?;
 
-        chat.attributes.picture = Some(new_picture.to_vec());
+        chat.attributes.as_mut().unwrap().picture = Some(new_picture.to_vec());
 
         let loaded = Chat::load(txn, &chat.id).await?.unwrap();
         assert_eq!(loaded, chat);

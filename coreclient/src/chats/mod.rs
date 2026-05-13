@@ -10,6 +10,7 @@ use aircommon::{
     identifiers::{Fqdn, QualifiedGroupId, UserId, Username},
 };
 use airprotos::client::group::{ExternalGroupProfile, GroupData};
+use anyhow::bail;
 use chrono::{DateTime, Utc};
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
@@ -91,15 +92,11 @@ pub struct Chat {
     pub last_message_at: Option<DateTime<Utc>>,
     pub status: ChatStatus,
     pub chat_type: ChatType,
-    pub attributes: ChatAttributes,
+    pub attributes: Option<ChatAttributes>,
 }
 
 impl Chat {
-    pub(crate) fn new_handle_chat(
-        group_id: GroupId,
-        attributes: ChatAttributes,
-        username: Username,
-    ) -> Self {
+    pub(crate) fn new_handle_chat(group_id: GroupId, username: Username) -> Self {
         let id = ChatId::try_from(&group_id).unwrap();
         Self {
             id,
@@ -108,15 +105,11 @@ impl Chat {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::HandleConnection(username),
-            attributes,
+            attributes: None,
         }
     }
 
-    pub(crate) fn new_targeted_message_chat(
-        group_id: GroupId,
-        attributes: ChatAttributes,
-        user_id: UserId,
-    ) -> Self {
+    pub(crate) fn new_targeted_message_chat(group_id: GroupId, user_id: UserId) -> Self {
         let id = ChatId::try_from(&group_id).unwrap();
         Self {
             id,
@@ -125,7 +118,7 @@ impl Chat {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::TargetedMessageConnection(user_id),
-            attributes,
+            attributes: None,
         }
     }
 
@@ -138,15 +131,11 @@ impl Chat {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::Group,
-            attributes,
+            attributes: Some(attributes),
         }
     }
 
-    pub(crate) fn new_pending_connection_chat(
-        group_id: GroupId,
-        user_id: UserId,
-        attributes: ChatAttributes,
-    ) -> Self {
+    pub(crate) fn new_pending_connection_chat(group_id: GroupId, user_id: UserId) -> Self {
         Self {
             id: ChatId::try_from(&group_id).unwrap(),
             group_id,
@@ -154,7 +143,7 @@ impl Chat {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::PendingConnection(user_id),
-            attributes,
+            attributes: None,
         }
     }
 
@@ -181,8 +170,8 @@ impl Chat {
         &self.status
     }
 
-    pub fn attributes(&self) -> &ChatAttributes {
-        &self.attributes
+    pub fn attributes(&self) -> Option<&ChatAttributes> {
+        self.attributes.as_ref()
     }
 
     pub fn last_read(&self) -> DateTime<Utc> {
@@ -202,9 +191,12 @@ impl Chat {
         &mut self,
         connection: impl WriteConnection,
         picture: Option<Vec<u8>>,
-    ) -> sqlx::Result<()> {
+    ) -> anyhow::Result<()> {
         Self::update_picture(connection, self.id, picture.as_deref()).await?;
-        self.attributes.set_picture(picture);
+        let Some(attributes) = &mut self.attributes else {
+            bail!("Cannot set picture for group chat without attributes");
+        };
+        attributes.set_picture(picture);
         Ok(())
     }
 
@@ -212,9 +204,12 @@ impl Chat {
         &mut self,
         connection: impl WriteConnection,
         title: String,
-    ) -> sqlx::Result<()> {
+    ) -> anyhow::Result<()> {
+        let Some(attributes) = &mut self.attributes else {
+            bail!("Cannot set title for group chat without attributes");
+        };
         Self::update_title(connection, self.id, &title).await?;
-        self.attributes.set_title(title);
+        attributes.set_title(title);
         Ok(())
     }
 
@@ -302,6 +297,8 @@ impl ChatType {
 }
 
 /// Attributes of a chat.
+///
+/// Currently, only group chats have attributes.
 ///
 /// This type is only an in-memory representation of the chat attributes. It is not used to be
 /// communicated with other clients. For that, see its counterpart [`GroupData`].

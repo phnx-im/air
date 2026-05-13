@@ -8238,6 +8238,7 @@ const _: fn() = || {
     {
         let AirFeatures = None::<crate::api::types::AirFeatures>.unwrap();
         let _: bool = AirFeatures.encrypted_group_profiles;
+        let _: bool = AirFeatures.empty_connection_group_titles;
     }
     {
         let AppDataDebugInfo = None::<crate::api::chat_details_cubit::AppDataDebugInfo>.unwrap();
@@ -9209,8 +9210,10 @@ impl SseDecode for crate::api::types::AirFeatures {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_encryptedGroupProfiles = <bool>::sse_decode(deserializer);
+        let mut var_emptyConnectionGroupTitles = <bool>::sse_decode(deserializer);
         return crate::api::types::AirFeatures {
             encrypted_group_profiles: var_encryptedGroupProfiles,
+            empty_connection_group_titles: var_emptyConnectionGroupTitles,
         };
     }
 }
@@ -10945,7 +10948,7 @@ impl SseDecode for crate::api::attachments_repository::UiAttachmentStatus {
 impl SseDecode for crate::api::types::UiChatAttributes {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_title = <String>::sse_decode(deserializer);
+        let mut var_title = <Option<String>>::sse_decode(deserializer);
         let mut var_picture = <Option<crate::api::types::ImageData>>::sse_decode(deserializer);
         return crate::api::types::UiChatAttributes {
             title: var_title,
@@ -10961,7 +10964,6 @@ impl SseDecode for crate::api::types::UiChatDetails {
         let mut var_status = <crate::api::types::UiChatStatus>::sse_decode(deserializer);
         let mut var_chatType = <crate::api::types::UiChatType>::sse_decode(deserializer);
         let mut var_lastUsed = <chrono::DateTime<chrono::Local>>::sse_decode(deserializer);
-        let mut var_attributes = <crate::api::types::UiChatAttributes>::sse_decode(deserializer);
         let mut var_messagesCount = <usize>::sse_decode(deserializer);
         let mut var_unreadMessages = <usize>::sse_decode(deserializer);
         let mut var_lastMessage =
@@ -10972,7 +10974,6 @@ impl SseDecode for crate::api::types::UiChatDetails {
             status: var_status,
             chat_type: var_chatType,
             last_used: var_lastUsed,
-            attributes: var_attributes,
             messages_count: var_messagesCount,
             unread_messages: var_unreadMessages,
             last_message: var_lastMessage,
@@ -11044,7 +11045,9 @@ impl SseDecode for crate::api::types::UiChatType {
                 return crate::api::types::UiChatType::TargetedMessageConnection(var_field0);
             }
             3 => {
-                return crate::api::types::UiChatType::Group;
+                let mut var_field0 =
+                    <crate::api::types::UiChatAttributes>::sse_decode(deserializer);
+                return crate::api::types::UiChatType::Group(var_field0);
             }
             4 => {
                 let mut var_field0 = <crate::api::types::UiUserProfile>::sse_decode(deserializer);
@@ -12237,7 +12240,14 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::AirComponen
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::AirFeatures> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [self.0.encrypted_group_profiles.into_into_dart().into_dart()].into_dart()
+        [
+            self.0.encrypted_group_profiles.into_into_dart().into_dart(),
+            self.0
+                .empty_connection_group_titles
+                .into_into_dart()
+                .into_dart(),
+        ]
+        .into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
@@ -13462,7 +13472,6 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiChatDetails {
             self.status.into_into_dart().into_dart(),
             self.chat_type.into_into_dart().into_dart(),
             self.last_used.into_into_dart().into_dart(),
-            self.attributes.into_into_dart().into_dart(),
             self.messages_count.into_into_dart().into_dart(),
             self.unread_messages.into_into_dart().into_dart(),
             self.last_message.into_into_dart().into_dart(),
@@ -13547,7 +13556,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiChatType {
             crate::api::types::UiChatType::TargetedMessageConnection(field0) => {
                 [2.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::types::UiChatType::Group => [3.into_dart()].into_dart(),
+            crate::api::types::UiChatType::Group(field0) => {
+                [3.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+            }
             crate::api::types::UiChatType::PendingConnection(field0) => {
                 [4.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
@@ -14796,6 +14807,7 @@ impl SseEncode for crate::api::types::AirFeatures {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <bool>::sse_encode(self.encrypted_group_profiles, serializer);
+        <bool>::sse_encode(self.empty_connection_group_titles, serializer);
     }
 }
 
@@ -16211,7 +16223,7 @@ impl SseEncode for crate::api::attachments_repository::UiAttachmentStatus {
 impl SseEncode for crate::api::types::UiChatAttributes {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <String>::sse_encode(self.title, serializer);
+        <Option<String>>::sse_encode(self.title, serializer);
         <Option<crate::api::types::ImageData>>::sse_encode(self.picture, serializer);
     }
 }
@@ -16223,7 +16235,6 @@ impl SseEncode for crate::api::types::UiChatDetails {
         <crate::api::types::UiChatStatus>::sse_encode(self.status, serializer);
         <crate::api::types::UiChatType>::sse_encode(self.chat_type, serializer);
         <chrono::DateTime<chrono::Local>>::sse_encode(self.last_used, serializer);
-        <crate::api::types::UiChatAttributes>::sse_encode(self.attributes, serializer);
         <usize>::sse_encode(self.messages_count, serializer);
         <usize>::sse_encode(self.unread_messages, serializer);
         <Option<crate::api::types::UiChatMessage>>::sse_encode(self.last_message, serializer);
@@ -16284,8 +16295,9 @@ impl SseEncode for crate::api::types::UiChatType {
                 <i32>::sse_encode(2, serializer);
                 <crate::api::types::UiUserProfile>::sse_encode(field0, serializer);
             }
-            crate::api::types::UiChatType::Group => {
+            crate::api::types::UiChatType::Group(field0) => {
                 <i32>::sse_encode(3, serializer);
+                <crate::api::types::UiChatAttributes>::sse_encode(field0, serializer);
             }
             crate::api::types::UiChatType::PendingConnection(field0) => {
                 <i32>::sse_encode(4, serializer);

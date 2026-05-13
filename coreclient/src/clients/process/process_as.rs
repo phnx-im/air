@@ -34,13 +34,13 @@ use crate::{
         },
     },
     contacts::UsernameContact,
-    db_access::{ReadConnection, WriteConnection},
+    db_access::WriteConnection,
     groups::ProfileInfo,
     job::{Job, JobContext, JobContextDb},
     usernames::connection_packages::StorableConnectionPackage,
 };
 
-use super::{AsCredentials, Chat, ChatAttributes, ChatId, CoreUser, FriendshipPackage};
+use super::{AsCredentials, Chat, ChatId, CoreUser};
 
 pub(crate) enum ConnectionInfoSource {
     ConnectionOffer(Box<ConnectionOfferSource>),
@@ -260,48 +260,46 @@ impl CoreUser {
                 .await?;
         }
 
+        let sender_user_id = sender_client_credential.user_id();
+
+        // Create pending unconfirmed chat
+        let (chat, partial_contact) = Self::create_pending_connection_chat(
+            &connection_info.connection_group_id,
+            sender_user_id.clone(),
+            username_connection_info.as_ref(),
+        )
+        .await?;
+
+        // Create pending connection info
+        let (username, connection_offer_hash, connection_package_hash) =
+            if let Some(UsernameConnectionInfo {
+                connection_offer_hash,
+                connection_package_hash,
+                username,
+            }) = username_connection_info
+            {
+                (
+                    Some(username),
+                    Some(connection_offer_hash),
+                    Some(connection_package_hash),
+                )
+            } else {
+                (None, None, None)
+            };
+        let pending_chat = PendingConnectionInfo {
+            chat_id: chat.id(),
+            created_at: TimeStamp::now(),
+            connection_info,
+            handle: username,
+            connection_offer_hash,
+            connection_package_hash,
+        };
+
         context
             .db
             .write()
             .await?
             .with_transaction(async |txn| {
-                let sender_user_id = sender_client_credential.user_id();
-
-                // Create pending unconfirmed chat
-                let (chat, partial_contact) = Self::create_pending_connection_chat(
-                    &mut *txn,
-                    &connection_info.connection_group_id,
-                    sender_user_id.clone(),
-                    connection_info.friendship_package.clone(),
-                    username_connection_info.as_ref(),
-                )
-                .await?;
-
-                // Create pending connection info
-                let (username, connection_offer_hash, connection_package_hash) =
-                    if let Some(UsernameConnectionInfo {
-                        connection_offer_hash,
-                        connection_package_hash,
-                        username,
-                    }) = username_connection_info
-                    {
-                        (
-                            Some(username),
-                            Some(connection_offer_hash),
-                            Some(connection_package_hash),
-                        )
-                    } else {
-                        (None, None, None)
-                    };
-                let pending_chat = PendingConnectionInfo {
-                    chat_id: chat.id(),
-                    created_at: TimeStamp::now(),
-                    connection_info,
-                    handle: username,
-                    connection_offer_hash,
-                    connection_package_hash,
-                };
-
                 // Create system messages for receipt and acceptance
                 let received_system_message = match &partial_contact {
                     PartialContact::Username(contact) => {
@@ -318,9 +316,15 @@ impl CoreUser {
                         let origin_chat = Chat::load(&mut *txn, &origin_chat_id)
                             .await?
                             .context("no origin chat")?;
+                        let origin_chat_title = origin_chat
+                            .attributes
+                            .as_ref()
+                            .context("group chat without attributes")?
+                            .title
+                            .clone();
                         SystemMessage::ReceivedDirectConnectionRequest {
                             sender: contact.user_id.clone(),
-                            chat_name: origin_chat.attributes.title.clone(),
+                            chat_name: origin_chat_title,
                         }
                     }
                 };
@@ -380,20 +384,11 @@ impl CoreUser {
     }
 
     async fn create_pending_connection_chat(
-        connection: impl ReadConnection,
         group_id: &GroupId,
         sender_user_id: UserId,
-        _friendship_package: FriendshipPackage,
         username_connection_info: Option<&UsernameConnectionInfo>,
     ) -> anyhow::Result<(Chat, PartialContact)> {
-        let display_name = Self::user_profile_internal(connection, &sender_user_id)
-            .await
-            .display_name;
-        let chat = Chat::new_pending_connection_chat(
-            group_id.clone(),
-            sender_user_id.clone(),
-            ChatAttributes::new(display_name.to_string(), None),
-        );
+        let chat = Chat::new_pending_connection_chat(group_id.clone(), sender_user_id.clone());
 
         // FIXME(901): For incoming contacts, there is no EAR key but it is required.
         let random_ear_key = FriendshipPackageEarKey::random()?;

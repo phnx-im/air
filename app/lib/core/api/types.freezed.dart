@@ -160,7 +160,7 @@ $AirFeaturesCopyWith<$Res> get features {
 /// @nodoc
 mixin _$AirFeatures {
 
- bool get encryptedGroupProfiles;
+ bool get encryptedGroupProfiles; bool get emptyConnectionGroupTitles;
 /// Create a copy of AirFeatures
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -171,16 +171,16 @@ $AirFeaturesCopyWith<AirFeatures> get copyWith => _$AirFeaturesCopyWithImpl<AirF
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AirFeatures&&(identical(other.encryptedGroupProfiles, encryptedGroupProfiles) || other.encryptedGroupProfiles == encryptedGroupProfiles));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AirFeatures&&(identical(other.encryptedGroupProfiles, encryptedGroupProfiles) || other.encryptedGroupProfiles == encryptedGroupProfiles)&&(identical(other.emptyConnectionGroupTitles, emptyConnectionGroupTitles) || other.emptyConnectionGroupTitles == emptyConnectionGroupTitles));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,encryptedGroupProfiles);
+int get hashCode => Object.hash(runtimeType,encryptedGroupProfiles,emptyConnectionGroupTitles);
 
 @override
 String toString() {
-  return 'AirFeatures(encryptedGroupProfiles: $encryptedGroupProfiles)';
+  return 'AirFeatures(encryptedGroupProfiles: $encryptedGroupProfiles, emptyConnectionGroupTitles: $emptyConnectionGroupTitles)';
 }
 
 
@@ -191,7 +191,7 @@ abstract mixin class $AirFeaturesCopyWith<$Res>  {
   factory $AirFeaturesCopyWith(AirFeatures value, $Res Function(AirFeatures) _then) = _$AirFeaturesCopyWithImpl;
 @useResult
 $Res call({
- bool encryptedGroupProfiles
+ bool encryptedGroupProfiles, bool emptyConnectionGroupTitles
 });
 
 
@@ -208,9 +208,10 @@ class _$AirFeaturesCopyWithImpl<$Res>
 
 /// Create a copy of AirFeatures
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? encryptedGroupProfiles = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? encryptedGroupProfiles = null,Object? emptyConnectionGroupTitles = null,}) {
   return _then(_self.copyWith(
 encryptedGroupProfiles: null == encryptedGroupProfiles ? _self.encryptedGroupProfiles : encryptedGroupProfiles // ignore: cast_nullable_to_non_nullable
+as bool,emptyConnectionGroupTitles: null == emptyConnectionGroupTitles ? _self.emptyConnectionGroupTitles : emptyConnectionGroupTitles // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
@@ -223,10 +224,11 @@ as bool,
 
 
 class _AirFeatures implements AirFeatures {
-  const _AirFeatures({required this.encryptedGroupProfiles});
+  const _AirFeatures({required this.encryptedGroupProfiles, required this.emptyConnectionGroupTitles});
   
 
 @override final  bool encryptedGroupProfiles;
+@override final  bool emptyConnectionGroupTitles;
 
 /// Create a copy of AirFeatures
 /// with the given fields replaced by the non-null parameter values.
@@ -238,16 +240,16 @@ _$AirFeaturesCopyWith<_AirFeatures> get copyWith => __$AirFeaturesCopyWithImpl<_
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AirFeatures&&(identical(other.encryptedGroupProfiles, encryptedGroupProfiles) || other.encryptedGroupProfiles == encryptedGroupProfiles));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AirFeatures&&(identical(other.encryptedGroupProfiles, encryptedGroupProfiles) || other.encryptedGroupProfiles == encryptedGroupProfiles)&&(identical(other.emptyConnectionGroupTitles, emptyConnectionGroupTitles) || other.emptyConnectionGroupTitles == emptyConnectionGroupTitles));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,encryptedGroupProfiles);
+int get hashCode => Object.hash(runtimeType,encryptedGroupProfiles,emptyConnectionGroupTitles);
 
 @override
 String toString() {
-  return 'AirFeatures(encryptedGroupProfiles: $encryptedGroupProfiles)';
+  return 'AirFeatures(encryptedGroupProfiles: $encryptedGroupProfiles, emptyConnectionGroupTitles: $emptyConnectionGroupTitles)';
 }
 
 
@@ -258,7 +260,7 @@ abstract mixin class _$AirFeaturesCopyWith<$Res> implements $AirFeaturesCopyWith
   factory _$AirFeaturesCopyWith(_AirFeatures value, $Res Function(_AirFeatures) _then) = __$AirFeaturesCopyWithImpl;
 @override @useResult
 $Res call({
- bool encryptedGroupProfiles
+ bool encryptedGroupProfiles, bool emptyConnectionGroupTitles
 });
 
 
@@ -275,9 +277,10 @@ class __$AirFeaturesCopyWithImpl<$Res>
 
 /// Create a copy of AirFeatures
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? encryptedGroupProfiles = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? encryptedGroupProfiles = null,Object? emptyConnectionGroupTitles = null,}) {
   return _then(_AirFeatures(
 encryptedGroupProfiles: null == encryptedGroupProfiles ? _self.encryptedGroupProfiles : encryptedGroupProfiles // ignore: cast_nullable_to_non_nullable
+as bool,emptyConnectionGroupTitles: null == emptyConnectionGroupTitles ? _self.emptyConnectionGroupTitles : emptyConnectionGroupTitles // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
@@ -637,22 +640,22 @@ String toString() {
 /// @nodoc
 mixin _$UiChatType {
 
-
+ Object get field0;
 
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatType);
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatType&&const DeepCollectionEquality().equals(other.field0, field0));
 }
 
 
 @override
-int get hashCode => runtimeType.hashCode;
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(field0));
 
 @override
 String toString() {
-  return 'UiChatType()';
+  return 'UiChatType(field0: $field0)';
 }
 
 
@@ -672,7 +675,7 @@ class UiChatType_HandleConnection extends UiChatType {
   const UiChatType_HandleConnection(this.field0): super._();
   
 
- final  UiUsername field0;
+@override final  UiUsername field0;
 
 /// Create a copy of UiChatType
 /// with the given fields replaced by the non-null parameter values.
@@ -747,7 +750,7 @@ class UiChatType_Connection extends UiChatType {
   const UiChatType_Connection(this.field0): super._();
   
 
- final  UiUserProfile field0;
+@override final  UiUserProfile field0;
 
 /// Create a copy of UiChatType
 /// with the given fields replaced by the non-null parameter values.
@@ -813,7 +816,7 @@ class UiChatType_TargetedMessageConnection extends UiChatType {
   const UiChatType_TargetedMessageConnection(this.field0): super._();
   
 
- final  UiUserProfile field0;
+@override final  UiUserProfile field0;
 
 /// Create a copy of UiChatType
 /// with the given fields replaced by the non-null parameter values.
@@ -876,33 +879,67 @@ as UiUserProfile,
 
 
 class UiChatType_Group extends UiChatType {
-  const UiChatType_Group(): super._();
+  const UiChatType_Group(this.field0): super._();
   
 
+@override final  UiChatAttributes field0;
 
-
+/// Create a copy of UiChatType
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiChatType_GroupCopyWith<UiChatType_Group> get copyWith => _$UiChatType_GroupCopyWithImpl<UiChatType_Group>(this, _$identity);
 
 
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatType_Group);
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatType_Group&&(identical(other.field0, field0) || other.field0 == field0));
 }
 
 
 @override
-int get hashCode => runtimeType.hashCode;
+int get hashCode => Object.hash(runtimeType,field0);
 
 @override
 String toString() {
-  return 'UiChatType.group()';
+  return 'UiChatType.group(field0: $field0)';
 }
 
 
 }
 
+/// @nodoc
+abstract mixin class $UiChatType_GroupCopyWith<$Res> implements $UiChatTypeCopyWith<$Res> {
+  factory $UiChatType_GroupCopyWith(UiChatType_Group value, $Res Function(UiChatType_Group) _then) = _$UiChatType_GroupCopyWithImpl;
+@useResult
+$Res call({
+ UiChatAttributes field0
+});
 
 
+
+
+}
+/// @nodoc
+class _$UiChatType_GroupCopyWithImpl<$Res>
+    implements $UiChatType_GroupCopyWith<$Res> {
+  _$UiChatType_GroupCopyWithImpl(this._self, this._then);
+
+  final UiChatType_Group _self;
+  final $Res Function(UiChatType_Group) _then;
+
+/// Create a copy of UiChatType
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(UiChatType_Group(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as UiChatAttributes,
+  ));
+}
+
+
+}
 
 /// @nodoc
 
@@ -911,7 +948,7 @@ class UiChatType_PendingConnection extends UiChatType {
   const UiChatType_PendingConnection(this.field0): super._();
   
 
- final  UiUserProfile field0;
+@override final  UiUserProfile field0;
 
 /// Create a copy of UiChatType
 /// with the given fields replaced by the non-null parameter values.

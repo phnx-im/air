@@ -4,12 +4,17 @@
 // ignore_for_file: unreachable_switch_default, prefer_const_constructors, camel_case_types
 import 'package:convert/convert.dart';
 
+
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-// These functions are ignored because they are not marked as `pub`: `first_tokens`, `truncate_clean`
 
-String usernameFromDisplay({required String display}) => RustLib.instance.api
-    .crateApiUsernameSuggestionsUsernameFromDisplay(display: display);
+            // These functions are ignored because they are not marked as `pub`: `first_tokens`, `truncate_clean`
+
+
+            String  usernameFromDisplay({required String display }) => RustLib.instance.api.crateApiUsernameSuggestionsUsernameFromDisplay(display: display);
+
+            
+            

@@ -3,9 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{identifiers::UserId, time::TimeStamp};
+use anyhow::Context;
 
 use crate::{
-    Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage,
+    Chat, ChatAttributes, ChatId, ChatMessage, ChatType, SystemMessage,
     chats::messages::TimestampedMessage,
     db_access::{WriteConnection, WriteDbTransaction},
     job::chat_operation::ChatOperation,
@@ -48,12 +49,27 @@ pub(crate) async fn update_chat_attributes(
         message_buffer,
     )
     .await?;
-    if chat.attributes.picture != new_chat_attributes.picture {
-        chat.set_picture(&mut *txn, new_chat_attributes.picture)
-            .await?;
-        let system_message = SystemMessage::ChangePicture(sender_id.clone());
-        let group_message = TimestampedMessage::system_message(system_message, ds_timestamp);
-        message_buffer.push(group_message);
+    match chat.chat_type {
+        ChatType::Group => {
+            let attrs = chat.attributes().context("Group chat without attributes")?;
+            if attrs.picture != new_chat_attributes.picture {
+                chat.set_picture(&mut *txn, new_chat_attributes.picture)
+                    .await?;
+                let system_message = SystemMessage::ChangePicture(sender_id.clone());
+                let group_message =
+                    TimestampedMessage::system_message(system_message, ds_timestamp);
+                message_buffer.push(group_message);
+            }
+        }
+        ChatType::HandleConnection(_)
+        | ChatType::Connection(_)
+        | ChatType::TargetedMessageConnection(_)
+        | ChatType::PendingConnection(_) => {
+            // Only allow to remove the picture of a connection chat from the local db
+            if new_chat_attributes.picture.is_none() {
+                Chat::update_picture(txn, chat.id, None).await?;
+            }
+        }
     }
 
     Ok(())
@@ -67,16 +83,28 @@ pub(crate) async fn update_chat_title(
     ds_timestamp: TimeStamp,
     message_buffer: &mut Vec<TimestampedMessage>,
 ) -> anyhow::Result<()> {
-    if chat.attributes.title != new_title {
-        let old_title = chat.attributes.title.clone();
-        chat.set_title(connection, new_title.clone()).await?;
-        let system_message = SystemMessage::ChangeTitle {
-            user_id: sender_id.clone(),
-            old_title,
-            new_title,
-        };
-        let group_message = TimestampedMessage::system_message(system_message, ds_timestamp);
-        message_buffer.push(group_message);
+    match chat.chat_type {
+        ChatType::Group => {
+            let attrs = chat.attributes().context("Group chat without attributes")?;
+            let old_title = attrs.title.clone();
+            chat.set_title(connection, new_title.clone()).await?;
+            let system_message = SystemMessage::ChangeTitle {
+                user_id: sender_id.clone(),
+                old_title,
+                new_title,
+            };
+            let group_message = TimestampedMessage::system_message(system_message, ds_timestamp);
+            message_buffer.push(group_message);
+        }
+        ChatType::HandleConnection(_)
+        | ChatType::Connection(_)
+        | ChatType::TargetedMessageConnection(_)
+        | ChatType::PendingConnection(_) => {
+            // Only allow to remove the title of a connection chat from the local db
+            if new_title.is_empty() {
+                Chat::update_title(connection, chat.id, "").await?;
+            }
+        }
     }
     Ok(())
 }

@@ -4,6 +4,7 @@
 // ignore_for_file: unreachable_switch_default, prefer_const_constructors, camel_case_types
 import 'package:convert/convert.dart';
 
+
 // ignore_for_file: unused_import, unused_element, unnecessary_import, duplicate_ignore, invalid_use_of_internal_member, annotate_overrides, non_constant_identifier_names, curly_braces_in_flow_control_structures, prefer_const_literals_to_create_immutables, unused_field
 
 import 'api/attachments_repository.dart';
@@ -36,4749 +37,2196 @@ import 'notifications.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated_io.dart';
 import 'package:uuid/uuid.dart';
 
-abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
-  RustLibApiImplPlatform({
-    required super.handler,
-    required super.wire,
-    required super.generalizedFrbRustBinding,
-    required super.portManager,
-  });
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_AttachmentsRepositoryPtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepositoryPtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ChatDetailsCubitBasePtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBasePtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ChatListCubitBasePtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBasePtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_ChatsRepositoryPtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepositoryPtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_DartNotificationServicePtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationServicePtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_InvitationCodesCubitBasePtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBasePtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_LogWriterPtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriterPtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_MemberDetailsCubitBasePtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBasePtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_MessageCubitBasePtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBasePtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_MessageListCubitBasePtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBasePtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_NavigationCubitBasePtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBasePtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_UiRoomStatePtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomStatePtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_UiUserPtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUserPtr;
-
-  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_UserPtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserPtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_UserCubitBasePtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBasePtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_UserSettingsCubitBasePtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBasePtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_UsernameHashPtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHashPtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_UsersCubitBasePtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBasePtr;
-
-  CrossPlatformFinalizerArg
-  get rust_arc_decrement_strong_count_UsersStatePtr => wire
-      ._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersStatePtr;
-
-  @protected
-  AnyhowException dco_decode_AnyhowException(dynamic raw);
-
-  @protected
-  AttachmentsRepository
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(
-    dynamic raw,
-  );
-
-  @protected
-  ChatDetailsCubitBase
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  ChatListCubitBase
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  ChatsRepository
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
-    dynamic raw,
-  );
-
-  @protected
-  DartNotificationService
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
-    dynamic raw,
-  );
-
-  @protected
-  InvitationCodesCubitBase
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  LogWriter
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
-    dynamic raw,
-  );
-
-  @protected
-  MemberDetailsCubitBase
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  MessageCubitBase
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  MessageListCubitBase
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  NavigationCubitBase
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  UiRoomState
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
-    dynamic raw,
-  );
-
-  @protected
-  UiUser
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
-    dynamic raw,
-  );
-
-  @protected
-  User
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    dynamic raw,
-  );
-
-  @protected
-  UserCubitBase
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  UserSettingsCubitBase
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  UsernameHash
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
-    dynamic raw,
-  );
-
-  @protected
-  UsersCubitBase
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  UsersState
-  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
-    dynamic raw,
-  );
-
-  @protected
-  AttachmentsRepository
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(
-    dynamic raw,
-  );
-
-  @protected
-  ChatDetailsCubitBase
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  ChatListCubitBase
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  ChatsRepository
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
-    dynamic raw,
-  );
-
-  @protected
-  DartNotificationService
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
-    dynamic raw,
-  );
-
-  @protected
-  InvitationCodesCubitBase
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  LogWriter
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
-    dynamic raw,
-  );
-
-  @protected
-  MemberDetailsCubitBase
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  MessageCubitBase
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  MessageListCubitBase
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  NavigationCubitBase
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  UiRoomState
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
-    dynamic raw,
-  );
-
-  @protected
-  UiUser
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
-    dynamic raw,
-  );
-
-  @protected
-  User
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    dynamic raw,
-  );
-
-  @protected
-  UserCubitBase
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  UserSettingsCubitBase
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  UsersCubitBase
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  UsersState
-  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
-    dynamic raw,
-  );
-
-  @protected
-  int dco_decode_CastedPrimitive_u_64(dynamic raw);
-
-  @protected
-  intArray12 dco_decode_CastedPrimitive_u_64_array_12(dynamic raw);
-
-  @protected
-  int dco_decode_CastedPrimitive_usize(dynamic raw);
-
-  @protected
-  DateTime dco_decode_Chrono_Local(dynamic raw);
-
-  @protected
-  DateTime dco_decode_Chrono_Utc(dynamic raw);
-
-  @protected
-  FutureOr<List<NotificationHandle>> Function()
-  dco_decode_DartFn_Inputs__Output_list_notification_handle_AnyhowException(
-    dynamic raw,
-  );
-
-  @protected
-  FutureOr<void> Function(List<NotificationId>)
-  dco_decode_DartFn_Inputs_list_notification_id_Output_unit_AnyhowException(
-    dynamic raw,
-  );
-
-  @protected
-  FutureOr<void> Function(NotificationContent)
-  dco_decode_DartFn_Inputs_notification_content_Output_unit_AnyhowException(
-    dynamic raw,
-  );
-
-  @protected
-  FutureOr<void> Function(BigInt)
-  dco_decode_DartFn_Inputs_u_64_Output_unit_AnyhowException(dynamic raw);
-
-  @protected
-  Object dco_decode_DartOpaque(dynamic raw);
-
-  @protected
-  Map<int, DebugCapabilities> dco_decode_Map_u_32_debug_capabilities_None(
-    dynamic raw,
-  );
-
-  @protected
-  AttachmentsRepository
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(
-    dynamic raw,
-  );
-
-  @protected
-  ChatDetailsCubitBase
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  ChatListCubitBase
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  ChatsRepository
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
-    dynamic raw,
-  );
-
-  @protected
-  DartNotificationService
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
-    dynamic raw,
-  );
-
-  @protected
-  InvitationCodesCubitBase
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  LogWriter
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
-    dynamic raw,
-  );
-
-  @protected
-  MemberDetailsCubitBase
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  MessageCubitBase
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  MessageListCubitBase
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  NavigationCubitBase
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  UiRoomState
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
-    dynamic raw,
-  );
-
-  @protected
-  UiUser
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
-    dynamic raw,
-  );
-
-  @protected
-  User
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    dynamic raw,
-  );
-
-  @protected
-  UserCubitBase
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  UserSettingsCubitBase
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  UsernameHash
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
-    dynamic raw,
-  );
-
-  @protected
-  UsersCubitBase
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(
-    dynamic raw,
-  );
-
-  @protected
-  UsersState
-  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
-    dynamic raw,
-  );
-
-  @protected
-  RustStreamSink<UiUser>
-  dco_decode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser_Sse(
-    dynamic raw,
-  );
-
-  @protected
-  RustStreamSink<UsersState>
-  dco_decode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState_Sse(
-    dynamic raw,
-  );
-
-  @protected
-  RustStreamSink<ChatDetailsState> dco_decode_StreamSink_chat_details_state_Sse(
-    dynamic raw,
-  );
-
-  @protected
-  RustStreamSink<ChatListState> dco_decode_StreamSink_chat_list_state_Sse(
-    dynamic raw,
-  );
-
-  @protected
-  RustStreamSink<InvitationCodesState>
-  dco_decode_StreamSink_invitation_codes_state_Sse(dynamic raw);
-
-  @protected
-  RustStreamSink<LogEntry> dco_decode_StreamSink_log_entry_Sse(dynamic raw);
-
-  @protected
-  RustStreamSink<MemberDetailsState>
-  dco_decode_StreamSink_member_details_state_Sse(dynamic raw);
-
-  @protected
-  RustStreamSink<MessageListState> dco_decode_StreamSink_message_list_state_Sse(
-    dynamic raw,
-  );
-
-  @protected
-  RustStreamSink<MessageListTransition>
-  dco_decode_StreamSink_message_list_transition_Sse(dynamic raw);
-
-  @protected
-  RustStreamSink<MessageState> dco_decode_StreamSink_message_state_Sse(
-    dynamic raw,
-  );
-
-  @protected
-  RustStreamSink<NavigationState> dco_decode_StreamSink_navigation_state_Sse(
-    dynamic raw,
-  );
-
-  @protected
-  RustStreamSink<UiAttachmentStatus>
-  dco_decode_StreamSink_ui_attachment_status_Sse(dynamic raw);
-
-  @protected
-  RustStreamSink<UserSettings> dco_decode_StreamSink_user_settings_Sse(
-    dynamic raw,
-  );
-
-  @protected
-  String dco_decode_String(dynamic raw);
-
-  @protected
-  UuidValue dco_decode_Uuid(dynamic raw);
-
-  @protected
-  AcceptContactRequestError dco_decode_accept_contact_request_error(
-    dynamic raw,
-  );
-
-  @protected
-  AddUsernameContactError dco_decode_add_username_contact_error(dynamic raw);
-
-  @protected
-  AirComponent dco_decode_air_component(dynamic raw);
-
-  @protected
-  AirFeatures dco_decode_air_features(dynamic raw);
-
-  @protected
-  AppDataDebugInfo dco_decode_app_data_debug_info(dynamic raw);
-
-  @protected
-  AppState dco_decode_app_state(dynamic raw);
-
-  @protected
-  AttachmentId dco_decode_attachment_id(dynamic raw);
-
-  @protected
-  BlockElement dco_decode_block_element(dynamic raw);
-
-  @protected
-  bool dco_decode_bool(dynamic raw);
-
-  @protected
-  UiRoomState
-  dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
-    dynamic raw,
-  );
-
-  @protected
-  User
-  dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    dynamic raw,
-  );
-
-  @protected
-  UsernameHash
-  dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
-    dynamic raw,
-  );
-
-  @protected
-  AcceptContactRequestError dco_decode_box_autoadd_accept_contact_request_error(
-    dynamic raw,
-  );
-
-  @protected
-  AddUsernameContactError dco_decode_box_autoadd_add_username_contact_error(
-    dynamic raw,
-  );
-
-  @protected
-  AirComponent dco_decode_box_autoadd_air_component(dynamic raw);
-
-  @protected
-  AirFeatures dco_decode_box_autoadd_air_features(dynamic raw);
-
-  @protected
-  AppDataDebugInfo dco_decode_box_autoadd_app_data_debug_info(dynamic raw);
-
-  @protected
-  AttachmentId dco_decode_box_autoadd_attachment_id(dynamic raw);
-
-  @protected
-  bool dco_decode_box_autoadd_bool(dynamic raw);
-
-  @protected
-  ChatId dco_decode_box_autoadd_chat_id(dynamic raw);
-
-  @protected
-  DeveloperSettingsScreenType
-  dco_decode_box_autoadd_developer_settings_screen_type(dynamic raw);
-
-  @protected
-  EncryptedGroupTitleDebugInfo
-  dco_decode_box_autoadd_encrypted_group_title_debug_info(dynamic raw);
-
-  @protected
-  ExternalGroupProfileDebugInfo
-  dco_decode_box_autoadd_external_group_profile_debug_info(dynamic raw);
-
-  @protected
-  double dco_decode_box_autoadd_f_64(dynamic raw);
-
-  @protected
-  GroupDataDebugInfo dco_decode_box_autoadd_group_data_debug_info(dynamic raw);
-
-  @protected
-  HomeNavigationState dco_decode_box_autoadd_home_navigation_state(dynamic raw);
-
-  @protected
-  ImageData dco_decode_box_autoadd_image_data(dynamic raw);
-
-  @protected
-  IntroScreenType dco_decode_box_autoadd_intro_screen_type(dynamic raw);
-
-  @protected
-  InvitationCode dco_decode_box_autoadd_invitation_code(dynamic raw);
-
-  @protected
-  InviteUsersError dco_decode_box_autoadd_invite_users_error(dynamic raw);
-
-  @protected
-  MessageContent dco_decode_box_autoadd_message_content(dynamic raw);
-
-  @protected
-  MessageId dco_decode_box_autoadd_message_id(dynamic raw);
-
-  @protected
-  MessageListCommand dco_decode_box_autoadd_message_list_command(dynamic raw);
-
-  @protected
-  MessageState dco_decode_box_autoadd_message_state(dynamic raw);
-
-  @protected
-  PlatformPushToken dco_decode_box_autoadd_platform_push_token(dynamic raw);
-
-  @protected
-  (UiMimiId, UiInReplyToMessage)
-  dco_decode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(dynamic raw);
-
-  @protected
-  RequestInvitationCodeError
-  dco_decode_box_autoadd_request_invitation_code_error(dynamic raw);
-
-  @protected
-  RequiredDebugCapabilities dco_decode_box_autoadd_required_debug_capabilities(
-    dynamic raw,
-  );
-
-  @protected
-  TokenId dco_decode_box_autoadd_token_id(dynamic raw);
-
-  @protected
-  UiChatDetails dco_decode_box_autoadd_ui_chat_details(dynamic raw);
-
-  @protected
-  UiChatMessage dco_decode_box_autoadd_ui_chat_message(dynamic raw);
-
-  @protected
-  UiContact dco_decode_box_autoadd_ui_contact(dynamic raw);
-
-  @protected
-  UiErrorMessage dco_decode_box_autoadd_ui_error_message(dynamic raw);
-
-  @protected
-  UiEventMessage dco_decode_box_autoadd_ui_event_message(dynamic raw);
-
-  @protected
-  UiImageMetadata dco_decode_box_autoadd_ui_image_metadata(dynamic raw);
-
-  @protected
-  UiInReplyToMessage dco_decode_box_autoadd_ui_in_reply_to_message(dynamic raw);
-
-  @protected
-  UiInactiveChat dco_decode_box_autoadd_ui_inactive_chat(dynamic raw);
-
-  @protected
-  UiMessageDraft dco_decode_box_autoadd_ui_message_draft(dynamic raw);
-
-  @protected
-  UiMimiContent dco_decode_box_autoadd_ui_mimi_content(dynamic raw);
-
-  @protected
-  UiSystemMessage dco_decode_box_autoadd_ui_system_message(dynamic raw);
-
-  @protected
-  UiUserId dco_decode_box_autoadd_ui_user_id(dynamic raw);
-
-  @protected
-  UiUserProfile dco_decode_box_autoadd_ui_user_profile(dynamic raw);
-
-  @protected
-  UiUsername dco_decode_box_autoadd_ui_username(dynamic raw);
-
-  @protected
-  UploadAttachmentError dco_decode_box_autoadd_upload_attachment_error(
-    dynamic raw,
-  );
-
-  @protected
-  UsernameValidationError dco_decode_box_autoadd_username_validation_error(
-    dynamic raw,
-  );
-
-  @protected
-  UiContentMessage dco_decode_box_ui_content_message(dynamic raw);
-
-  @protected
-  ChatDetailsState dco_decode_chat_details_state(dynamic raw);
-
-  @protected
-  ChatId dco_decode_chat_id(dynamic raw);
-
-  @protected
-  ChatListState dco_decode_chat_list_state(dynamic raw);
-
-  @protected
-  DebugCapabilities dco_decode_debug_capabilities(dynamic raw);
-
-  @protected
-  DeleteMode dco_decode_delete_mode(dynamic raw);
-
-  @protected
-  DeveloperSettingsScreenType dco_decode_developer_settings_screen_type(
-    dynamic raw,
-  );
-
-  @protected
-  EncryptedGroupTitleDebugInfo dco_decode_encrypted_group_title_debug_info(
-    dynamic raw,
-  );
-
-  @protected
-  ExternalGroupProfileDebugInfo dco_decode_external_group_profile_debug_info(
-    dynamic raw,
-  );
-
-  @protected
-  double dco_decode_f_64(dynamic raw);
-
-  @protected
-  GroupDataDebugInfo dco_decode_group_data_debug_info(dynamic raw);
-
-  @protected
-  GroupDebugInfo dco_decode_group_debug_info(dynamic raw);
-
-  @protected
-  HomeNavigationState dco_decode_home_navigation_state(dynamic raw);
-
-  @protected
-  HomeTab dco_decode_home_tab(dynamic raw);
-
-  @protected
-  int dco_decode_i_32(dynamic raw);
-
-  @protected
-  PlatformInt64 dco_decode_i_64(dynamic raw);
-
-  @protected
-  ImageData dco_decode_image_data(dynamic raw);
-
-  @protected
-  InlineElement dco_decode_inline_element(dynamic raw);
-
-  @protected
-  IntroScreenType dco_decode_intro_screen_type(dynamic raw);
-
-  @protected
-  InvitationCode dco_decode_invitation_code(dynamic raw);
-
-  @protected
-  InvitationCodesState dco_decode_invitation_codes_state(dynamic raw);
-
-  @protected
-  InviteUsersError dco_decode_invite_users_error(dynamic raw);
-
-  @protected
-  PlatformInt64 dco_decode_isize(dynamic raw);
-
-  @protected
-  List<int> dco_decode_list_CastedPrimitive_u_64(dynamic raw);
-
-  @protected
-  List<String> dco_decode_list_String(dynamic raw);
-
-  @protected
-  List<ChatId> dco_decode_list_chat_id(dynamic raw);
-
-  @protected
-  List<IntroScreenType> dco_decode_list_intro_screen_type(dynamic raw);
-
-  @protected
-  List<List<List<RangedBlockElement>>>
-  dco_decode_list_list_list_ranged_block_element(dynamic raw);
-
-  @protected
-  List<List<RangedBlockElement>> dco_decode_list_list_ranged_block_element(
-    dynamic raw,
-  );
-
-  @protected
-  List<MessageListChange> dco_decode_list_message_list_change(dynamic raw);
-
-  @protected
-  List<NotificationHandle> dco_decode_list_notification_handle(dynamic raw);
-
-  @protected
-  List<NotificationId> dco_decode_list_notification_id(dynamic raw);
-
-  @protected
-  List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
-
-  @protected
-  Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
-
-  @protected
-  List<RangedBlockElement> dco_decode_list_ranged_block_element(dynamic raw);
-
-  @protected
-  List<RangedCodeBlock> dco_decode_list_ranged_code_block(dynamic raw);
-
-  @protected
-  List<RangedInlineElement> dco_decode_list_ranged_inline_element(dynamic raw);
-
-  @protected
-  List<(int, DebugCapabilities)> dco_decode_list_record_u_32_debug_capabilities(
-    dynamic raw,
-  );
-
-  @protected
-  List<TimedTaskDebugInfo> dco_decode_list_timed_task_debug_info(dynamic raw);
-
-  @protected
-  List<UiAttachment> dco_decode_list_ui_attachment(dynamic raw);
-
-  @protected
-  List<UiChatMessage> dco_decode_list_ui_chat_message(dynamic raw);
-
-  @protected
-  List<UiClientRecord> dco_decode_list_ui_client_record(dynamic raw);
-
-  @protected
-  List<UiContact> dco_decode_list_ui_contact(dynamic raw);
-
-  @protected
-  List<UiInvitationCode> dco_decode_list_ui_invitation_code(dynamic raw);
-
-  @protected
-  List<UiUserId> dco_decode_list_ui_user_id(dynamic raw);
-
-  @protected
-  List<UiUsername> dco_decode_list_ui_username(dynamic raw);
-
-  @protected
-  LoadedImageAttachment dco_decode_loaded_image_attachment(dynamic raw);
-
-  @protected
-  LogEntry dco_decode_log_entry(dynamic raw);
-
-  @protected
-  LogEntryLevel dco_decode_log_entry_level(dynamic raw);
-
-  @protected
-  MemberDetailsState dco_decode_member_details_state(dynamic raw);
-
-  @protected
-  MessageContent dco_decode_message_content(dynamic raw);
-
-  @protected
-  MessageId dco_decode_message_id(dynamic raw);
-
-  @protected
-  MessageListChange dco_decode_message_list_change(dynamic raw);
-
-  @protected
-  MessageListCommand dco_decode_message_list_command(dynamic raw);
-
-  @protected
-  MessageListState dco_decode_message_list_state(dynamic raw);
-
-  @protected
-  MessageListTransition dco_decode_message_list_transition(dynamic raw);
-
-  @protected
-  MessageListTransitionKind dco_decode_message_list_transition_kind(
-    dynamic raw,
-  );
-
-  @protected
-  MessageState dco_decode_message_state(dynamic raw);
-
-  @protected
-  NavigationState dco_decode_navigation_state(dynamic raw);
-
-  @protected
-  NotificationContent dco_decode_notification_content(dynamic raw);
-
-  @protected
-  NotificationHandle dco_decode_notification_handle(dynamic raw);
-
-  @protected
-  NotificationId dco_decode_notification_id(dynamic raw);
-
-  @protected
-  int? dco_decode_opt_CastedPrimitive_usize(dynamic raw);
-
-  @protected
-  String? dco_decode_opt_String(dynamic raw);
-
-  @protected
-  UiRoomState?
-  dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
-    dynamic raw,
-  );
-
-  @protected
-  User?
-  dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    dynamic raw,
-  );
-
-  @protected
-  UsernameHash?
-  dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
-    dynamic raw,
-  );
-
-  @protected
-  AcceptContactRequestError?
-  dco_decode_opt_box_autoadd_accept_contact_request_error(dynamic raw);
-
-  @protected
-  AddUsernameContactError?
-  dco_decode_opt_box_autoadd_add_username_contact_error(dynamic raw);
-
-  @protected
-  AirComponent? dco_decode_opt_box_autoadd_air_component(dynamic raw);
-
-  @protected
-  AirFeatures? dco_decode_opt_box_autoadd_air_features(dynamic raw);
-
-  @protected
-  AppDataDebugInfo? dco_decode_opt_box_autoadd_app_data_debug_info(dynamic raw);
-
-  @protected
-  bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
-
-  @protected
-  ChatId? dco_decode_opt_box_autoadd_chat_id(dynamic raw);
-
-  @protected
-  DeveloperSettingsScreenType?
-  dco_decode_opt_box_autoadd_developer_settings_screen_type(dynamic raw);
-
-  @protected
-  EncryptedGroupTitleDebugInfo?
-  dco_decode_opt_box_autoadd_encrypted_group_title_debug_info(dynamic raw);
-
-  @protected
-  ExternalGroupProfileDebugInfo?
-  dco_decode_opt_box_autoadd_external_group_profile_debug_info(dynamic raw);
-
-  @protected
-  double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
-
-  @protected
-  GroupDataDebugInfo? dco_decode_opt_box_autoadd_group_data_debug_info(
-    dynamic raw,
-  );
-
-  @protected
-  ImageData? dco_decode_opt_box_autoadd_image_data(dynamic raw);
-
-  @protected
-  InviteUsersError? dco_decode_opt_box_autoadd_invite_users_error(dynamic raw);
-
-  @protected
-  MessageContent? dco_decode_opt_box_autoadd_message_content(dynamic raw);
-
-  @protected
-  MessageId? dco_decode_opt_box_autoadd_message_id(dynamic raw);
-
-  @protected
-  MessageListCommand? dco_decode_opt_box_autoadd_message_list_command(
-    dynamic raw,
-  );
-
-  @protected
-  PlatformPushToken? dco_decode_opt_box_autoadd_platform_push_token(
-    dynamic raw,
-  );
-
-  @protected
-  (UiMimiId, UiInReplyToMessage)?
-  dco_decode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
-    dynamic raw,
-  );
-
-  @protected
-  RequestInvitationCodeError?
-  dco_decode_opt_box_autoadd_request_invitation_code_error(dynamic raw);
-
-  @protected
-  RequiredDebugCapabilities?
-  dco_decode_opt_box_autoadd_required_debug_capabilities(dynamic raw);
-
-  @protected
-  UiChatDetails? dco_decode_opt_box_autoadd_ui_chat_details(dynamic raw);
-
-  @protected
-  UiChatMessage? dco_decode_opt_box_autoadd_ui_chat_message(dynamic raw);
-
-  @protected
-  UiContact? dco_decode_opt_box_autoadd_ui_contact(dynamic raw);
-
-  @protected
-  UiImageMetadata? dco_decode_opt_box_autoadd_ui_image_metadata(dynamic raw);
-
-  @protected
-  UiInReplyToMessage? dco_decode_opt_box_autoadd_ui_in_reply_to_message(
-    dynamic raw,
-  );
-
-  @protected
-  UiMessageDraft? dco_decode_opt_box_autoadd_ui_message_draft(dynamic raw);
-
-  @protected
-  UiUserId? dco_decode_opt_box_autoadd_ui_user_id(dynamic raw);
-
-  @protected
-  UiUsername? dco_decode_opt_box_autoadd_ui_username(dynamic raw);
-
-  @protected
-  UploadAttachmentError? dco_decode_opt_box_autoadd_upload_attachment_error(
-    dynamic raw,
-  );
-
-  @protected
-  UsernameValidationError? dco_decode_opt_box_autoadd_username_validation_error(
-    dynamic raw,
-  );
-
-  @protected
-  List<String>? dco_decode_opt_list_String(dynamic raw);
-
-  @protected
-  Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
-
-  @protected
-  PlatformPushToken dco_decode_platform_push_token(dynamic raw);
-
-  @protected
-  RangedBlockElement dco_decode_ranged_block_element(dynamic raw);
-
-  @protected
-  RangedCodeBlock dco_decode_ranged_code_block(dynamic raw);
-
-  @protected
-  RangedInlineElement dco_decode_ranged_inline_element(dynamic raw);
 
-  @protected
-  (int, DebugCapabilities) dco_decode_record_u_32_debug_capabilities(
-    dynamic raw,
-  );
 
-  @protected
-  (UiMimiId, UiInReplyToMessage)
-  dco_decode_record_ui_mimi_id_ui_in_reply_to_message(dynamic raw);
 
-  @protected
-  RequestInvitationCodeError dco_decode_request_invitation_code_error(
-    dynamic raw,
-  );
+                abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
+                  RustLibApiImplPlatform({
+                    required super.handler,
+                    required super.wire,
+                    required super.generalizedFrbRustBinding,
+                    required super.portManager,
+                  });
 
-  @protected
-  RequiredDebugCapabilities dco_decode_required_debug_capabilities(dynamic raw);
+                  CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_AttachmentsRepositoryPtr => wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepositoryPtr;
 
-  @protected
-  TimedTaskDebugInfo dco_decode_timed_task_debug_info(dynamic raw);
+CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_ChatDetailsCubitBasePtr => wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBasePtr;
 
-  @protected
-  TokenId dco_decode_token_id(dynamic raw);
+CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_ChatListCubitBasePtr => wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBasePtr;
 
-  @protected
-  int dco_decode_u_32(dynamic raw);
+CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_ChatsRepositoryPtr => wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepositoryPtr;
 
-  @protected
-  BigInt dco_decode_u_64(dynamic raw);
+CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_DartNotificationServicePtr => wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationServicePtr;
 
-  @protected
-  int dco_decode_u_8(dynamic raw);
+CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_InvitationCodesCubitBasePtr => wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBasePtr;
 
-  @protected
-  U8Array32 dco_decode_u_8_array_32(dynamic raw);
+CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_LogWriterPtr => wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriterPtr;
 
-  @protected
-  UiAttachment dco_decode_ui_attachment(dynamic raw);
+CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_MemberDetailsCubitBasePtr => wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBasePtr;
 
-  @protected
-  UiAttachmentStatus dco_decode_ui_attachment_status(dynamic raw);
+CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_MessageCubitBasePtr => wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBasePtr;
 
-  @protected
-  UiChatAttributes dco_decode_ui_chat_attributes(dynamic raw);
+CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_MessageListCubitBasePtr => wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBasePtr;
 
-  @protected
-  UiChatDetails dco_decode_ui_chat_details(dynamic raw);
+CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_NavigationCubitBasePtr => wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBasePtr;
 
-  @protected
-  UiChatMessage dco_decode_ui_chat_message(dynamic raw);
+CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_UiRoomStatePtr => wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomStatePtr;
 
-  @protected
-  UiChatStatus dco_decode_ui_chat_status(dynamic raw);
+CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_UiUserPtr => wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUserPtr;
 
-  @protected
-  UiChatType dco_decode_ui_chat_type(dynamic raw);
+CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_UserPtr => wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserPtr;
 
-  @protected
-  UiClientRecord dco_decode_ui_client_record(dynamic raw);
+CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_UserCubitBasePtr => wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBasePtr;
 
-  @protected
-  UiContact dco_decode_ui_contact(dynamic raw);
+CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_UserSettingsCubitBasePtr => wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBasePtr;
 
-  @protected
-  UiContentMessage dco_decode_ui_content_message(dynamic raw);
+CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_UsernameHashPtr => wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHashPtr;
 
-  @protected
-  UiErrorMessage dco_decode_ui_error_message(dynamic raw);
+CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_UsersCubitBasePtr => wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBasePtr;
 
-  @protected
-  UiEventMessage dco_decode_ui_event_message(dynamic raw);
+CrossPlatformFinalizerArg get rust_arc_decrement_strong_count_UsersStatePtr => wire._rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersStatePtr;
 
-  @protected
-  UiFlightPosition dco_decode_ui_flight_position(dynamic raw);
-
-  @protected
-  UiImageMetadata dco_decode_ui_image_metadata(dynamic raw);
-
-  @protected
-  UiInReplyToMessage dco_decode_ui_in_reply_to_message(dynamic raw);
-
-  @protected
-  UiInactiveChat dco_decode_ui_inactive_chat(dynamic raw);
-
-  @protected
-  UiInvitationCode dco_decode_ui_invitation_code(dynamic raw);
-
-  @protected
-  UiMessage dco_decode_ui_message(dynamic raw);
-
-  @protected
-  UiMessageDraft dco_decode_ui_message_draft(dynamic raw);
-
-  @protected
-  UiMessageStatus dco_decode_ui_message_status(dynamic raw);
-
-  @protected
-  UiMimiContent dco_decode_ui_mimi_content(dynamic raw);
-
-  @protected
-  UiMimiId dco_decode_ui_mimi_id(dynamic raw);
-
-  @protected
-  UiSystemMessage dco_decode_ui_system_message(dynamic raw);
-
-  @protected
-  UiUserId dco_decode_ui_user_id(dynamic raw);
-
-  @protected
-  UiUserProfile dco_decode_ui_user_profile(dynamic raw);
-
-  @protected
-  UiUsername dco_decode_ui_username(dynamic raw);
-
-  @protected
-  void dco_decode_unit(dynamic raw);
-
-  @protected
-  UploadAttachmentError dco_decode_upload_attachment_error(dynamic raw);
-
-  @protected
-  UserDebugInfo dco_decode_user_debug_info(dynamic raw);
-
-  @protected
-  UserSettings dco_decode_user_settings(dynamic raw);
-
-  @protected
-  UsernameValidationError dco_decode_username_validation_error(dynamic raw);
-
-  @protected
-  BigInt dco_decode_usize(dynamic raw);
-
-  @protected
-  AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
-
-  @protected
-  AttachmentsRepository
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ChatDetailsCubitBase
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ChatListCubitBase
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ChatsRepository
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  DartNotificationService
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  InvitationCodesCubitBase
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  LogWriter
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MemberDetailsCubitBase
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageCubitBase
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageListCubitBase
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  NavigationCubitBase
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiRoomState
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiUser
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  User
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UserCubitBase
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UserSettingsCubitBase
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UsernameHash
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UsersCubitBase
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UsersState
-  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  AttachmentsRepository
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ChatDetailsCubitBase
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ChatListCubitBase
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ChatsRepository
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  DartNotificationService
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  InvitationCodesCubitBase
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  LogWriter
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MemberDetailsCubitBase
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageCubitBase
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageListCubitBase
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  NavigationCubitBase
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiRoomState
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiUser
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  User
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UserCubitBase
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UserSettingsCubitBase
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UsersCubitBase
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UsersState
-  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  int sse_decode_CastedPrimitive_u_64(SseDeserializer deserializer);
-
-  @protected
-  intArray12 sse_decode_CastedPrimitive_u_64_array_12(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  int sse_decode_CastedPrimitive_usize(SseDeserializer deserializer);
-
-  @protected
-  DateTime sse_decode_Chrono_Local(SseDeserializer deserializer);
-
-  @protected
-  DateTime sse_decode_Chrono_Utc(SseDeserializer deserializer);
-
-  @protected
-  Object sse_decode_DartOpaque(SseDeserializer deserializer);
-
-  @protected
-  Map<int, DebugCapabilities> sse_decode_Map_u_32_debug_capabilities_None(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  AttachmentsRepository
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ChatDetailsCubitBase
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ChatListCubitBase
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ChatsRepository
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  DartNotificationService
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  InvitationCodesCubitBase
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  LogWriter
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MemberDetailsCubitBase
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageCubitBase
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageListCubitBase
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  NavigationCubitBase
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiRoomState
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiUser
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  User
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UserCubitBase
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UserSettingsCubitBase
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UsernameHash
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UsersCubitBase
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UsersState
-  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RustStreamSink<UiUser>
-  sse_decode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser_Sse(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RustStreamSink<UsersState>
-  sse_decode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState_Sse(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RustStreamSink<ChatDetailsState> sse_decode_StreamSink_chat_details_state_Sse(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RustStreamSink<ChatListState> sse_decode_StreamSink_chat_list_state_Sse(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RustStreamSink<InvitationCodesState>
-  sse_decode_StreamSink_invitation_codes_state_Sse(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RustStreamSink<LogEntry> sse_decode_StreamSink_log_entry_Sse(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RustStreamSink<MemberDetailsState>
-  sse_decode_StreamSink_member_details_state_Sse(SseDeserializer deserializer);
-
-  @protected
-  RustStreamSink<MessageListState> sse_decode_StreamSink_message_list_state_Sse(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RustStreamSink<MessageListTransition>
-  sse_decode_StreamSink_message_list_transition_Sse(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RustStreamSink<MessageState> sse_decode_StreamSink_message_state_Sse(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RustStreamSink<NavigationState> sse_decode_StreamSink_navigation_state_Sse(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RustStreamSink<UiAttachmentStatus>
-  sse_decode_StreamSink_ui_attachment_status_Sse(SseDeserializer deserializer);
-
-  @protected
-  RustStreamSink<UserSettings> sse_decode_StreamSink_user_settings_Sse(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  String sse_decode_String(SseDeserializer deserializer);
-
-  @protected
-  UuidValue sse_decode_Uuid(SseDeserializer deserializer);
-
-  @protected
-  AcceptContactRequestError sse_decode_accept_contact_request_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  AddUsernameContactError sse_decode_add_username_contact_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  AirComponent sse_decode_air_component(SseDeserializer deserializer);
-
-  @protected
-  AirFeatures sse_decode_air_features(SseDeserializer deserializer);
-
-  @protected
-  AppDataDebugInfo sse_decode_app_data_debug_info(SseDeserializer deserializer);
-
-  @protected
-  AppState sse_decode_app_state(SseDeserializer deserializer);
-
-  @protected
-  AttachmentId sse_decode_attachment_id(SseDeserializer deserializer);
-
-  @protected
-  BlockElement sse_decode_block_element(SseDeserializer deserializer);
-
-  @protected
-  bool sse_decode_bool(SseDeserializer deserializer);
-
-  @protected
-  UiRoomState
-  sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  User
-  sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UsernameHash
-  sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  AcceptContactRequestError sse_decode_box_autoadd_accept_contact_request_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  AddUsernameContactError sse_decode_box_autoadd_add_username_contact_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  AirComponent sse_decode_box_autoadd_air_component(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  AirFeatures sse_decode_box_autoadd_air_features(SseDeserializer deserializer);
-
-  @protected
-  AppDataDebugInfo sse_decode_box_autoadd_app_data_debug_info(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  AttachmentId sse_decode_box_autoadd_attachment_id(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  bool sse_decode_box_autoadd_bool(SseDeserializer deserializer);
-
-  @protected
-  ChatId sse_decode_box_autoadd_chat_id(SseDeserializer deserializer);
-
-  @protected
-  DeveloperSettingsScreenType
-  sse_decode_box_autoadd_developer_settings_screen_type(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  EncryptedGroupTitleDebugInfo
-  sse_decode_box_autoadd_encrypted_group_title_debug_info(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ExternalGroupProfileDebugInfo
-  sse_decode_box_autoadd_external_group_profile_debug_info(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
-
-  @protected
-  GroupDataDebugInfo sse_decode_box_autoadd_group_data_debug_info(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  HomeNavigationState sse_decode_box_autoadd_home_navigation_state(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ImageData sse_decode_box_autoadd_image_data(SseDeserializer deserializer);
-
-  @protected
-  IntroScreenType sse_decode_box_autoadd_intro_screen_type(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  InvitationCode sse_decode_box_autoadd_invitation_code(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  InviteUsersError sse_decode_box_autoadd_invite_users_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageContent sse_decode_box_autoadd_message_content(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageId sse_decode_box_autoadd_message_id(SseDeserializer deserializer);
-
-  @protected
-  MessageListCommand sse_decode_box_autoadd_message_list_command(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageState sse_decode_box_autoadd_message_state(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  PlatformPushToken sse_decode_box_autoadd_platform_push_token(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  (UiMimiId, UiInReplyToMessage)
-  sse_decode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RequestInvitationCodeError
-  sse_decode_box_autoadd_request_invitation_code_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RequiredDebugCapabilities sse_decode_box_autoadd_required_debug_capabilities(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  TokenId sse_decode_box_autoadd_token_id(SseDeserializer deserializer);
-
-  @protected
-  UiChatDetails sse_decode_box_autoadd_ui_chat_details(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiChatMessage sse_decode_box_autoadd_ui_chat_message(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiContact sse_decode_box_autoadd_ui_contact(SseDeserializer deserializer);
-
-  @protected
-  UiErrorMessage sse_decode_box_autoadd_ui_error_message(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiEventMessage sse_decode_box_autoadd_ui_event_message(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiImageMetadata sse_decode_box_autoadd_ui_image_metadata(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiInReplyToMessage sse_decode_box_autoadd_ui_in_reply_to_message(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiInactiveChat sse_decode_box_autoadd_ui_inactive_chat(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiMessageDraft sse_decode_box_autoadd_ui_message_draft(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiMimiContent sse_decode_box_autoadd_ui_mimi_content(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiSystemMessage sse_decode_box_autoadd_ui_system_message(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiUserId sse_decode_box_autoadd_ui_user_id(SseDeserializer deserializer);
-
-  @protected
-  UiUserProfile sse_decode_box_autoadd_ui_user_profile(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiUsername sse_decode_box_autoadd_ui_username(SseDeserializer deserializer);
-
-  @protected
-  UploadAttachmentError sse_decode_box_autoadd_upload_attachment_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UsernameValidationError sse_decode_box_autoadd_username_validation_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiContentMessage sse_decode_box_ui_content_message(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ChatDetailsState sse_decode_chat_details_state(SseDeserializer deserializer);
-
-  @protected
-  ChatId sse_decode_chat_id(SseDeserializer deserializer);
-
-  @protected
-  ChatListState sse_decode_chat_list_state(SseDeserializer deserializer);
-
-  @protected
-  DebugCapabilities sse_decode_debug_capabilities(SseDeserializer deserializer);
-
-  @protected
-  DeleteMode sse_decode_delete_mode(SseDeserializer deserializer);
-
-  @protected
-  DeveloperSettingsScreenType sse_decode_developer_settings_screen_type(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  EncryptedGroupTitleDebugInfo sse_decode_encrypted_group_title_debug_info(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ExternalGroupProfileDebugInfo sse_decode_external_group_profile_debug_info(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  double sse_decode_f_64(SseDeserializer deserializer);
-
-  @protected
-  GroupDataDebugInfo sse_decode_group_data_debug_info(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  GroupDebugInfo sse_decode_group_debug_info(SseDeserializer deserializer);
-
-  @protected
-  HomeNavigationState sse_decode_home_navigation_state(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  HomeTab sse_decode_home_tab(SseDeserializer deserializer);
-
-  @protected
-  int sse_decode_i_32(SseDeserializer deserializer);
-
-  @protected
-  PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
-
-  @protected
-  ImageData sse_decode_image_data(SseDeserializer deserializer);
-
-  @protected
-  InlineElement sse_decode_inline_element(SseDeserializer deserializer);
-
-  @protected
-  IntroScreenType sse_decode_intro_screen_type(SseDeserializer deserializer);
-
-  @protected
-  InvitationCode sse_decode_invitation_code(SseDeserializer deserializer);
-
-  @protected
-  InvitationCodesState sse_decode_invitation_codes_state(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  InviteUsersError sse_decode_invite_users_error(SseDeserializer deserializer);
-
-  @protected
-  PlatformInt64 sse_decode_isize(SseDeserializer deserializer);
-
-  @protected
-  List<int> sse_decode_list_CastedPrimitive_u_64(SseDeserializer deserializer);
-
-  @protected
-  List<String> sse_decode_list_String(SseDeserializer deserializer);
-
-  @protected
-  List<ChatId> sse_decode_list_chat_id(SseDeserializer deserializer);
-
-  @protected
-  List<IntroScreenType> sse_decode_list_intro_screen_type(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<List<List<RangedBlockElement>>>
-  sse_decode_list_list_list_ranged_block_element(SseDeserializer deserializer);
-
-  @protected
-  List<List<RangedBlockElement>> sse_decode_list_list_ranged_block_element(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<MessageListChange> sse_decode_list_message_list_change(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<NotificationHandle> sse_decode_list_notification_handle(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<NotificationId> sse_decode_list_notification_id(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
-
-  @protected
-  Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
-
-  @protected
-  List<RangedBlockElement> sse_decode_list_ranged_block_element(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<RangedCodeBlock> sse_decode_list_ranged_code_block(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<RangedInlineElement> sse_decode_list_ranged_inline_element(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<(int, DebugCapabilities)> sse_decode_list_record_u_32_debug_capabilities(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<TimedTaskDebugInfo> sse_decode_list_timed_task_debug_info(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<UiAttachment> sse_decode_list_ui_attachment(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<UiChatMessage> sse_decode_list_ui_chat_message(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<UiClientRecord> sse_decode_list_ui_client_record(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<UiContact> sse_decode_list_ui_contact(SseDeserializer deserializer);
-
-  @protected
-  List<UiInvitationCode> sse_decode_list_ui_invitation_code(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<UiUserId> sse_decode_list_ui_user_id(SseDeserializer deserializer);
-
-  @protected
-  List<UiUsername> sse_decode_list_ui_username(SseDeserializer deserializer);
-
-  @protected
-  LoadedImageAttachment sse_decode_loaded_image_attachment(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  LogEntry sse_decode_log_entry(SseDeserializer deserializer);
-
-  @protected
-  LogEntryLevel sse_decode_log_entry_level(SseDeserializer deserializer);
-
-  @protected
-  MemberDetailsState sse_decode_member_details_state(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageContent sse_decode_message_content(SseDeserializer deserializer);
-
-  @protected
-  MessageId sse_decode_message_id(SseDeserializer deserializer);
-
-  @protected
-  MessageListChange sse_decode_message_list_change(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageListCommand sse_decode_message_list_command(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageListState sse_decode_message_list_state(SseDeserializer deserializer);
-
-  @protected
-  MessageListTransition sse_decode_message_list_transition(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageListTransitionKind sse_decode_message_list_transition_kind(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageState sse_decode_message_state(SseDeserializer deserializer);
-
-  @protected
-  NavigationState sse_decode_navigation_state(SseDeserializer deserializer);
-
-  @protected
-  NotificationContent sse_decode_notification_content(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  NotificationHandle sse_decode_notification_handle(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  NotificationId sse_decode_notification_id(SseDeserializer deserializer);
-
-  @protected
-  int? sse_decode_opt_CastedPrimitive_usize(SseDeserializer deserializer);
-
-  @protected
-  String? sse_decode_opt_String(SseDeserializer deserializer);
-
-  @protected
-  UiRoomState?
-  sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  User?
-  sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UsernameHash?
-  sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  AcceptContactRequestError?
-  sse_decode_opt_box_autoadd_accept_contact_request_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  AddUsernameContactError?
-  sse_decode_opt_box_autoadd_add_username_contact_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  AirComponent? sse_decode_opt_box_autoadd_air_component(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  AirFeatures? sse_decode_opt_box_autoadd_air_features(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  AppDataDebugInfo? sse_decode_opt_box_autoadd_app_data_debug_info(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
-
-  @protected
-  ChatId? sse_decode_opt_box_autoadd_chat_id(SseDeserializer deserializer);
-
-  @protected
-  DeveloperSettingsScreenType?
-  sse_decode_opt_box_autoadd_developer_settings_screen_type(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  EncryptedGroupTitleDebugInfo?
-  sse_decode_opt_box_autoadd_encrypted_group_title_debug_info(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ExternalGroupProfileDebugInfo?
-  sse_decode_opt_box_autoadd_external_group_profile_debug_info(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
-
-  @protected
-  GroupDataDebugInfo? sse_decode_opt_box_autoadd_group_data_debug_info(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  ImageData? sse_decode_opt_box_autoadd_image_data(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  InviteUsersError? sse_decode_opt_box_autoadd_invite_users_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageContent? sse_decode_opt_box_autoadd_message_content(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageId? sse_decode_opt_box_autoadd_message_id(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  MessageListCommand? sse_decode_opt_box_autoadd_message_list_command(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  PlatformPushToken? sse_decode_opt_box_autoadd_platform_push_token(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  (UiMimiId, UiInReplyToMessage)?
-  sse_decode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RequestInvitationCodeError?
-  sse_decode_opt_box_autoadd_request_invitation_code_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RequiredDebugCapabilities?
-  sse_decode_opt_box_autoadd_required_debug_capabilities(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiChatDetails? sse_decode_opt_box_autoadd_ui_chat_details(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiChatMessage? sse_decode_opt_box_autoadd_ui_chat_message(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiContact? sse_decode_opt_box_autoadd_ui_contact(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiImageMetadata? sse_decode_opt_box_autoadd_ui_image_metadata(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiInReplyToMessage? sse_decode_opt_box_autoadd_ui_in_reply_to_message(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiMessageDraft? sse_decode_opt_box_autoadd_ui_message_draft(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiUserId? sse_decode_opt_box_autoadd_ui_user_id(SseDeserializer deserializer);
-
-  @protected
-  UiUsername? sse_decode_opt_box_autoadd_ui_username(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UploadAttachmentError? sse_decode_opt_box_autoadd_upload_attachment_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UsernameValidationError? sse_decode_opt_box_autoadd_username_validation_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  List<String>? sse_decode_opt_list_String(SseDeserializer deserializer);
-
-  @protected
-  Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
-
-  @protected
-  PlatformPushToken sse_decode_platform_push_token(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RangedBlockElement sse_decode_ranged_block_element(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RangedCodeBlock sse_decode_ranged_code_block(SseDeserializer deserializer);
-
-  @protected
-  RangedInlineElement sse_decode_ranged_inline_element(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  (int, DebugCapabilities) sse_decode_record_u_32_debug_capabilities(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  (UiMimiId, UiInReplyToMessage)
-  sse_decode_record_ui_mimi_id_ui_in_reply_to_message(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RequestInvitationCodeError sse_decode_request_invitation_code_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  RequiredDebugCapabilities sse_decode_required_debug_capabilities(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  TimedTaskDebugInfo sse_decode_timed_task_debug_info(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  TokenId sse_decode_token_id(SseDeserializer deserializer);
-
-  @protected
-  int sse_decode_u_32(SseDeserializer deserializer);
-
-  @protected
-  BigInt sse_decode_u_64(SseDeserializer deserializer);
-
-  @protected
-  int sse_decode_u_8(SseDeserializer deserializer);
-
-  @protected
-  U8Array32 sse_decode_u_8_array_32(SseDeserializer deserializer);
-
-  @protected
-  UiAttachment sse_decode_ui_attachment(SseDeserializer deserializer);
-
-  @protected
-  UiAttachmentStatus sse_decode_ui_attachment_status(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiChatAttributes sse_decode_ui_chat_attributes(SseDeserializer deserializer);
-
-  @protected
-  UiChatDetails sse_decode_ui_chat_details(SseDeserializer deserializer);
-
-  @protected
-  UiChatMessage sse_decode_ui_chat_message(SseDeserializer deserializer);
-
-  @protected
-  UiChatStatus sse_decode_ui_chat_status(SseDeserializer deserializer);
-
-  @protected
-  UiChatType sse_decode_ui_chat_type(SseDeserializer deserializer);
-
-  @protected
-  UiClientRecord sse_decode_ui_client_record(SseDeserializer deserializer);
-
-  @protected
-  UiContact sse_decode_ui_contact(SseDeserializer deserializer);
-
-  @protected
-  UiContentMessage sse_decode_ui_content_message(SseDeserializer deserializer);
-
-  @protected
-  UiErrorMessage sse_decode_ui_error_message(SseDeserializer deserializer);
-
-  @protected
-  UiEventMessage sse_decode_ui_event_message(SseDeserializer deserializer);
-
-  @protected
-  UiFlightPosition sse_decode_ui_flight_position(SseDeserializer deserializer);
-
-  @protected
-  UiImageMetadata sse_decode_ui_image_metadata(SseDeserializer deserializer);
-
-  @protected
-  UiInReplyToMessage sse_decode_ui_in_reply_to_message(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UiInactiveChat sse_decode_ui_inactive_chat(SseDeserializer deserializer);
-
-  @protected
-  UiInvitationCode sse_decode_ui_invitation_code(SseDeserializer deserializer);
-
-  @protected
-  UiMessage sse_decode_ui_message(SseDeserializer deserializer);
-
-  @protected
-  UiMessageDraft sse_decode_ui_message_draft(SseDeserializer deserializer);
-
-  @protected
-  UiMessageStatus sse_decode_ui_message_status(SseDeserializer deserializer);
-
-  @protected
-  UiMimiContent sse_decode_ui_mimi_content(SseDeserializer deserializer);
-
-  @protected
-  UiMimiId sse_decode_ui_mimi_id(SseDeserializer deserializer);
-
-  @protected
-  UiSystemMessage sse_decode_ui_system_message(SseDeserializer deserializer);
-
-  @protected
-  UiUserId sse_decode_ui_user_id(SseDeserializer deserializer);
-
-  @protected
-  UiUserProfile sse_decode_ui_user_profile(SseDeserializer deserializer);
-
-  @protected
-  UiUsername sse_decode_ui_username(SseDeserializer deserializer);
-
-  @protected
-  void sse_decode_unit(SseDeserializer deserializer);
-
-  @protected
-  UploadAttachmentError sse_decode_upload_attachment_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UserDebugInfo sse_decode_user_debug_info(SseDeserializer deserializer);
-
-  @protected
-  UserSettings sse_decode_user_settings(SseDeserializer deserializer);
-
-  @protected
-  UsernameValidationError sse_decode_username_validation_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  BigInt sse_decode_usize(SseDeserializer deserializer);
-
-  @protected
-  void sse_encode_AnyhowException(
-    AnyhowException self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(
-    AttachmentsRepository self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
-    ChatDetailsCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
-    ChatListCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
-    ChatsRepository self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
-    DartNotificationService self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
-    InvitationCodesCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
-    LogWriter self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(
-    MemberDetailsCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(
-    MessageCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    MessageListCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
-    NavigationCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
-    UiRoomState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
-    UiUser self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    User self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    UserCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
-    UserSettingsCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
-    UsernameHash self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(
-    UsersCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
-    UsersState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(
-    AttachmentsRepository self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
-    ChatDetailsCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
-    ChatListCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
-    ChatsRepository self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
-    DartNotificationService self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
-    InvitationCodesCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
-    LogWriter self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(
-    MemberDetailsCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(
-    MessageCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    MessageListCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
-    NavigationCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
-    UiRoomState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
-    UiUser self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    User self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    UserCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
-    UserSettingsCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(
-    UsersCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
-    UsersState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_CastedPrimitive_u_64(int self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_CastedPrimitive_u_64_array_12(
-    intArray12 self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_CastedPrimitive_usize(int self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_Chrono_Local(DateTime self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_Chrono_Utc(DateTime self, SseSerializer serializer);
-
-  @protected
-  void
-  sse_encode_DartFn_Inputs__Output_list_notification_handle_AnyhowException(
-    FutureOr<List<NotificationHandle>> Function() self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_DartFn_Inputs_list_notification_id_Output_unit_AnyhowException(
-    FutureOr<void> Function(List<NotificationId>) self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_DartFn_Inputs_notification_content_Output_unit_AnyhowException(
-    FutureOr<void> Function(NotificationContent) self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_DartFn_Inputs_u_64_Output_unit_AnyhowException(
-    FutureOr<void> Function(BigInt) self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_DartOpaque(Object self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_Map_u_32_debug_capabilities_None(
-    Map<int, DebugCapabilities> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(
-    AttachmentsRepository self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
-    ChatDetailsCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
-    ChatListCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
-    ChatsRepository self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
-    DartNotificationService self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
-    InvitationCodesCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
-    LogWriter self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(
-    MemberDetailsCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(
-    MessageCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    MessageListCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
-    NavigationCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
-    UiRoomState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
-    UiUser self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    User self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    UserCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
-    UserSettingsCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
-    UsernameHash self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(
-    UsersCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
-    UsersState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser_Sse(
-    RustStreamSink<UiUser> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState_Sse(
-    RustStreamSink<UsersState> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_StreamSink_chat_details_state_Sse(
-    RustStreamSink<ChatDetailsState> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_StreamSink_chat_list_state_Sse(
-    RustStreamSink<ChatListState> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_StreamSink_invitation_codes_state_Sse(
-    RustStreamSink<InvitationCodesState> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_StreamSink_log_entry_Sse(
-    RustStreamSink<LogEntry> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_StreamSink_member_details_state_Sse(
-    RustStreamSink<MemberDetailsState> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_StreamSink_message_list_state_Sse(
-    RustStreamSink<MessageListState> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_StreamSink_message_list_transition_Sse(
-    RustStreamSink<MessageListTransition> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_StreamSink_message_state_Sse(
-    RustStreamSink<MessageState> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_StreamSink_navigation_state_Sse(
-    RustStreamSink<NavigationState> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_StreamSink_ui_attachment_status_Sse(
-    RustStreamSink<UiAttachmentStatus> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_StreamSink_user_settings_Sse(
-    RustStreamSink<UserSettings> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_String(String self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_Uuid(UuidValue self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_accept_contact_request_error(
-    AcceptContactRequestError self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_add_username_contact_error(
-    AddUsernameContactError self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_air_component(AirComponent self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_air_features(AirFeatures self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_app_data_debug_info(
-    AppDataDebugInfo self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_app_state(AppState self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_attachment_id(AttachmentId self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_block_element(BlockElement self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_bool(bool self, SseSerializer serializer);
-
-  @protected
-  void
-  sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
-    UiRoomState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    User self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
-    UsernameHash self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_accept_contact_request_error(
-    AcceptContactRequestError self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_add_username_contact_error(
-    AddUsernameContactError self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_air_component(
-    AirComponent self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_air_features(
-    AirFeatures self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_app_data_debug_info(
-    AppDataDebugInfo self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_attachment_id(
-    AttachmentId self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_box_autoadd_chat_id(ChatId self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_box_autoadd_developer_settings_screen_type(
-    DeveloperSettingsScreenType self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_encrypted_group_title_debug_info(
-    EncryptedGroupTitleDebugInfo self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_external_group_profile_debug_info(
-    ExternalGroupProfileDebugInfo self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_box_autoadd_group_data_debug_info(
-    GroupDataDebugInfo self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_home_navigation_state(
-    HomeNavigationState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_image_data(
-    ImageData self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_intro_screen_type(
-    IntroScreenType self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_invitation_code(
-    InvitationCode self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_invite_users_error(
-    InviteUsersError self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_message_content(
-    MessageContent self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_message_id(
-    MessageId self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_message_list_command(
-    MessageListCommand self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_message_state(
-    MessageState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_platform_push_token(
-    PlatformPushToken self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
-    (UiMimiId, UiInReplyToMessage) self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_request_invitation_code_error(
-    RequestInvitationCodeError self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_required_debug_capabilities(
-    RequiredDebugCapabilities self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_token_id(TokenId self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_box_autoadd_ui_chat_details(
-    UiChatDetails self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_ui_chat_message(
-    UiChatMessage self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_ui_contact(
-    UiContact self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_ui_error_message(
-    UiErrorMessage self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_ui_event_message(
-    UiEventMessage self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_ui_image_metadata(
-    UiImageMetadata self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_ui_in_reply_to_message(
-    UiInReplyToMessage self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_ui_inactive_chat(
-    UiInactiveChat self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_ui_message_draft(
-    UiMessageDraft self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_ui_mimi_content(
-    UiMimiContent self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_ui_system_message(
-    UiSystemMessage self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_ui_user_id(
-    UiUserId self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_ui_user_profile(
-    UiUserProfile self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_ui_username(
-    UiUsername self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_upload_attachment_error(
-    UploadAttachmentError self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_username_validation_error(
-    UsernameValidationError self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_ui_content_message(
-    UiContentMessage self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_chat_details_state(
-    ChatDetailsState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_chat_id(ChatId self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_chat_list_state(ChatListState self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_debug_capabilities(
-    DebugCapabilities self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_delete_mode(DeleteMode self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_developer_settings_screen_type(
-    DeveloperSettingsScreenType self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_encrypted_group_title_debug_info(
-    EncryptedGroupTitleDebugInfo self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_external_group_profile_debug_info(
-    ExternalGroupProfileDebugInfo self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_f_64(double self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_group_data_debug_info(
-    GroupDataDebugInfo self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_group_debug_info(
-    GroupDebugInfo self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_home_navigation_state(
-    HomeNavigationState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_home_tab(HomeTab self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_i_32(int self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_image_data(ImageData self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_inline_element(InlineElement self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_intro_screen_type(
-    IntroScreenType self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_invitation_code(
-    InvitationCode self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_invitation_codes_state(
-    InvitationCodesState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_invite_users_error(
-    InviteUsersError self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_isize(PlatformInt64 self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_list_CastedPrimitive_u_64(
-    List<int> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_String(List<String> self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_list_chat_id(List<ChatId> self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_list_intro_screen_type(
-    List<IntroScreenType> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_list_list_ranged_block_element(
-    List<List<List<RangedBlockElement>>> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_list_ranged_block_element(
-    List<List<RangedBlockElement>> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_message_list_change(
-    List<MessageListChange> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_notification_handle(
-    List<NotificationHandle> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_notification_id(
-    List<NotificationId> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_list_prim_u_8_strict(
-    Uint8List self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_ranged_block_element(
-    List<RangedBlockElement> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_ranged_code_block(
-    List<RangedCodeBlock> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_ranged_inline_element(
-    List<RangedInlineElement> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_record_u_32_debug_capabilities(
-    List<(int, DebugCapabilities)> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_timed_task_debug_info(
-    List<TimedTaskDebugInfo> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_ui_attachment(
-    List<UiAttachment> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_ui_chat_message(
-    List<UiChatMessage> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_ui_client_record(
-    List<UiClientRecord> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_ui_contact(
-    List<UiContact> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_ui_invitation_code(
-    List<UiInvitationCode> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_ui_user_id(
-    List<UiUserId> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_list_ui_username(
-    List<UiUsername> self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_loaded_image_attachment(
-    LoadedImageAttachment self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_log_entry(LogEntry self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_log_entry_level(LogEntryLevel self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_member_details_state(
-    MemberDetailsState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_message_content(
-    MessageContent self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_message_id(MessageId self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_message_list_change(
-    MessageListChange self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_message_list_command(
-    MessageListCommand self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_message_list_state(
-    MessageListState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_message_list_transition(
-    MessageListTransition self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_message_list_transition_kind(
-    MessageListTransitionKind self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_message_state(MessageState self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_navigation_state(
-    NavigationState self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_notification_content(
-    NotificationContent self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_notification_handle(
-    NotificationHandle self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_notification_id(
-    NotificationId self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_CastedPrimitive_usize(
-    int? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_String(String? self, SseSerializer serializer);
-
-  @protected
-  void
-  sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
-    UiRoomState? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    User? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
-    UsernameHash? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_accept_contact_request_error(
-    AcceptContactRequestError? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_add_username_contact_error(
-    AddUsernameContactError? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_air_component(
-    AirComponent? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_air_features(
-    AirFeatures? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_app_data_debug_info(
-    AppDataDebugInfo? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_opt_box_autoadd_chat_id(
-    ChatId? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_developer_settings_screen_type(
-    DeveloperSettingsScreenType? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_encrypted_group_title_debug_info(
-    EncryptedGroupTitleDebugInfo? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_external_group_profile_debug_info(
-    ExternalGroupProfileDebugInfo? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_opt_box_autoadd_group_data_debug_info(
-    GroupDataDebugInfo? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_image_data(
-    ImageData? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_invite_users_error(
-    InviteUsersError? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_message_content(
-    MessageContent? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_message_id(
-    MessageId? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_message_list_command(
-    MessageListCommand? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_platform_push_token(
-    PlatformPushToken? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
-    (UiMimiId, UiInReplyToMessage)? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_request_invitation_code_error(
-    RequestInvitationCodeError? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_required_debug_capabilities(
-    RequiredDebugCapabilities? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_ui_chat_details(
-    UiChatDetails? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_ui_chat_message(
-    UiChatMessage? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_ui_contact(
-    UiContact? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_ui_image_metadata(
-    UiImageMetadata? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_ui_in_reply_to_message(
-    UiInReplyToMessage? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_ui_message_draft(
-    UiMessageDraft? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_ui_user_id(
-    UiUserId? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_ui_username(
-    UiUsername? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_upload_attachment_error(
-    UploadAttachmentError? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_box_autoadd_username_validation_error(
-    UsernameValidationError? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_opt_list_String(List<String>? self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_opt_list_prim_u_8_strict(
-    Uint8List? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_platform_push_token(
-    PlatformPushToken self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ranged_block_element(
-    RangedBlockElement self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ranged_code_block(
-    RangedCodeBlock self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ranged_inline_element(
-    RangedInlineElement self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_record_u_32_debug_capabilities(
-    (int, DebugCapabilities) self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_record_ui_mimi_id_ui_in_reply_to_message(
-    (UiMimiId, UiInReplyToMessage) self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_request_invitation_code_error(
-    RequestInvitationCodeError self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_required_debug_capabilities(
-    RequiredDebugCapabilities self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_timed_task_debug_info(
-    TimedTaskDebugInfo self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_token_id(TokenId self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_u_32(int self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_u_64(BigInt self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_u_8(int self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_u_8_array_32(U8Array32 self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_ui_attachment(UiAttachment self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_ui_attachment_status(
-    UiAttachmentStatus self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ui_chat_attributes(
-    UiChatAttributes self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ui_chat_details(UiChatDetails self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_ui_chat_message(UiChatMessage self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_ui_chat_status(UiChatStatus self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_ui_chat_type(UiChatType self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_ui_client_record(
-    UiClientRecord self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ui_contact(UiContact self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_ui_content_message(
-    UiContentMessage self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ui_error_message(
-    UiErrorMessage self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ui_event_message(
-    UiEventMessage self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ui_flight_position(
-    UiFlightPosition self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ui_image_metadata(
-    UiImageMetadata self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ui_in_reply_to_message(
-    UiInReplyToMessage self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ui_inactive_chat(
-    UiInactiveChat self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ui_invitation_code(
-    UiInvitationCode self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ui_message(UiMessage self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_ui_message_draft(
-    UiMessageDraft self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ui_message_status(
-    UiMessageStatus self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ui_mimi_content(UiMimiContent self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_ui_mimi_id(UiMimiId self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_ui_system_message(
-    UiSystemMessage self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_ui_user_id(UiUserId self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_ui_user_profile(UiUserProfile self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_ui_username(UiUsername self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_unit(void self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_upload_attachment_error(
-    UploadAttachmentError self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_user_debug_info(UserDebugInfo self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_user_settings(UserSettings self, SseSerializer serializer);
-
-  @protected
-  void sse_encode_username_validation_error(
-    UsernameValidationError self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_usize(BigInt self, SseSerializer serializer);
-}
+
+
+                  @protected AnyhowException dco_decode_AnyhowException(dynamic raw);
+
+@protected AttachmentsRepository dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(dynamic raw);
+
+@protected ChatDetailsCubitBase dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(dynamic raw);
+
+@protected ChatListCubitBase dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(dynamic raw);
+
+@protected ChatsRepository dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(dynamic raw);
+
+@protected DartNotificationService dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(dynamic raw);
+
+@protected InvitationCodesCubitBase dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(dynamic raw);
+
+@protected LogWriter dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(dynamic raw);
+
+@protected MemberDetailsCubitBase dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(dynamic raw);
+
+@protected MessageCubitBase dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(dynamic raw);
+
+@protected MessageListCubitBase dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(dynamic raw);
+
+@protected NavigationCubitBase dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(dynamic raw);
+
+@protected UiRoomState dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(dynamic raw);
+
+@protected UiUser dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(dynamic raw);
+
+@protected User dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(dynamic raw);
+
+@protected UserCubitBase dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(dynamic raw);
+
+@protected UserSettingsCubitBase dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(dynamic raw);
+
+@protected UsernameHash dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(dynamic raw);
+
+@protected UsersCubitBase dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(dynamic raw);
+
+@protected UsersState dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(dynamic raw);
+
+@protected AttachmentsRepository dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(dynamic raw);
+
+@protected ChatDetailsCubitBase dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(dynamic raw);
+
+@protected ChatListCubitBase dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(dynamic raw);
+
+@protected ChatsRepository dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(dynamic raw);
+
+@protected DartNotificationService dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(dynamic raw);
+
+@protected InvitationCodesCubitBase dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(dynamic raw);
+
+@protected LogWriter dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(dynamic raw);
+
+@protected MemberDetailsCubitBase dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(dynamic raw);
+
+@protected MessageCubitBase dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(dynamic raw);
+
+@protected MessageListCubitBase dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(dynamic raw);
+
+@protected NavigationCubitBase dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(dynamic raw);
+
+@protected UiRoomState dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(dynamic raw);
+
+@protected UiUser dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(dynamic raw);
+
+@protected User dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(dynamic raw);
+
+@protected UserCubitBase dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(dynamic raw);
+
+@protected UserSettingsCubitBase dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(dynamic raw);
+
+@protected UsersCubitBase dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(dynamic raw);
+
+@protected UsersState dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(dynamic raw);
+
+@protected int dco_decode_CastedPrimitive_u_64(dynamic raw);
+
+@protected intArray12 dco_decode_CastedPrimitive_u_64_array_12(dynamic raw);
+
+@protected int dco_decode_CastedPrimitive_usize(dynamic raw);
+
+@protected DateTime dco_decode_Chrono_Local(dynamic raw);
+
+@protected DateTime dco_decode_Chrono_Utc(dynamic raw);
+
+@protected FutureOr<List<NotificationHandle>> Function() dco_decode_DartFn_Inputs__Output_list_notification_handle_AnyhowException(dynamic raw);
+
+@protected FutureOr<void> Function(List<NotificationId>) dco_decode_DartFn_Inputs_list_notification_id_Output_unit_AnyhowException(dynamic raw);
+
+@protected FutureOr<void> Function(NotificationContent) dco_decode_DartFn_Inputs_notification_content_Output_unit_AnyhowException(dynamic raw);
+
+@protected FutureOr<void> Function(BigInt) dco_decode_DartFn_Inputs_u_64_Output_unit_AnyhowException(dynamic raw);
+
+@protected Object dco_decode_DartOpaque(dynamic raw);
+
+@protected Map<int, DebugCapabilities> dco_decode_Map_u_32_debug_capabilities_None(dynamic raw);
+
+@protected AttachmentsRepository dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(dynamic raw);
+
+@protected ChatDetailsCubitBase dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(dynamic raw);
+
+@protected ChatListCubitBase dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(dynamic raw);
+
+@protected ChatsRepository dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(dynamic raw);
+
+@protected DartNotificationService dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(dynamic raw);
+
+@protected InvitationCodesCubitBase dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(dynamic raw);
+
+@protected LogWriter dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(dynamic raw);
+
+@protected MemberDetailsCubitBase dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(dynamic raw);
+
+@protected MessageCubitBase dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(dynamic raw);
+
+@protected MessageListCubitBase dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(dynamic raw);
+
+@protected NavigationCubitBase dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(dynamic raw);
+
+@protected UiRoomState dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(dynamic raw);
+
+@protected UiUser dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(dynamic raw);
+
+@protected User dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(dynamic raw);
+
+@protected UserCubitBase dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(dynamic raw);
+
+@protected UserSettingsCubitBase dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(dynamic raw);
+
+@protected UsernameHash dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(dynamic raw);
+
+@protected UsersCubitBase dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(dynamic raw);
+
+@protected UsersState dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(dynamic raw);
+
+@protected RustStreamSink<UiUser> dco_decode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser_Sse(dynamic raw);
+
+@protected RustStreamSink<UsersState> dco_decode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState_Sse(dynamic raw);
+
+@protected RustStreamSink<ChatDetailsState> dco_decode_StreamSink_chat_details_state_Sse(dynamic raw);
+
+@protected RustStreamSink<ChatListState> dco_decode_StreamSink_chat_list_state_Sse(dynamic raw);
+
+@protected RustStreamSink<InvitationCodesState> dco_decode_StreamSink_invitation_codes_state_Sse(dynamic raw);
+
+@protected RustStreamSink<LogEntry> dco_decode_StreamSink_log_entry_Sse(dynamic raw);
+
+@protected RustStreamSink<MemberDetailsState> dco_decode_StreamSink_member_details_state_Sse(dynamic raw);
+
+@protected RustStreamSink<MessageListState> dco_decode_StreamSink_message_list_state_Sse(dynamic raw);
+
+@protected RustStreamSink<MessageListTransition> dco_decode_StreamSink_message_list_transition_Sse(dynamic raw);
+
+@protected RustStreamSink<MessageState> dco_decode_StreamSink_message_state_Sse(dynamic raw);
+
+@protected RustStreamSink<NavigationState> dco_decode_StreamSink_navigation_state_Sse(dynamic raw);
+
+@protected RustStreamSink<UiAttachmentStatus> dco_decode_StreamSink_ui_attachment_status_Sse(dynamic raw);
+
+@protected RustStreamSink<UserSettings> dco_decode_StreamSink_user_settings_Sse(dynamic raw);
+
+@protected String dco_decode_String(dynamic raw);
+
+@protected UuidValue dco_decode_Uuid(dynamic raw);
+
+@protected AcceptContactRequestError dco_decode_accept_contact_request_error(dynamic raw);
+
+@protected AddUsernameContactError dco_decode_add_username_contact_error(dynamic raw);
+
+@protected AirComponent dco_decode_air_component(dynamic raw);
+
+@protected AirFeatures dco_decode_air_features(dynamic raw);
+
+@protected AppDataDebugInfo dco_decode_app_data_debug_info(dynamic raw);
+
+@protected AppState dco_decode_app_state(dynamic raw);
+
+@protected AttachmentId dco_decode_attachment_id(dynamic raw);
+
+@protected BlockElement dco_decode_block_element(dynamic raw);
+
+@protected bool dco_decode_bool(dynamic raw);
+
+@protected UiRoomState dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(dynamic raw);
+
+@protected User dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(dynamic raw);
+
+@protected UsernameHash dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(dynamic raw);
+
+@protected AcceptContactRequestError dco_decode_box_autoadd_accept_contact_request_error(dynamic raw);
+
+@protected AddUsernameContactError dco_decode_box_autoadd_add_username_contact_error(dynamic raw);
+
+@protected AirComponent dco_decode_box_autoadd_air_component(dynamic raw);
+
+@protected AirFeatures dco_decode_box_autoadd_air_features(dynamic raw);
+
+@protected AppDataDebugInfo dco_decode_box_autoadd_app_data_debug_info(dynamic raw);
+
+@protected AttachmentId dco_decode_box_autoadd_attachment_id(dynamic raw);
+
+@protected bool dco_decode_box_autoadd_bool(dynamic raw);
+
+@protected ChatId dco_decode_box_autoadd_chat_id(dynamic raw);
+
+@protected DeveloperSettingsScreenType dco_decode_box_autoadd_developer_settings_screen_type(dynamic raw);
+
+@protected EncryptedGroupTitleDebugInfo dco_decode_box_autoadd_encrypted_group_title_debug_info(dynamic raw);
+
+@protected ExternalGroupProfileDebugInfo dco_decode_box_autoadd_external_group_profile_debug_info(dynamic raw);
+
+@protected double dco_decode_box_autoadd_f_64(dynamic raw);
+
+@protected GroupDataDebugInfo dco_decode_box_autoadd_group_data_debug_info(dynamic raw);
+
+@protected HomeNavigationState dco_decode_box_autoadd_home_navigation_state(dynamic raw);
+
+@protected ImageData dco_decode_box_autoadd_image_data(dynamic raw);
+
+@protected IntroScreenType dco_decode_box_autoadd_intro_screen_type(dynamic raw);
+
+@protected InvitationCode dco_decode_box_autoadd_invitation_code(dynamic raw);
+
+@protected InviteUsersError dco_decode_box_autoadd_invite_users_error(dynamic raw);
+
+@protected MessageContent dco_decode_box_autoadd_message_content(dynamic raw);
+
+@protected MessageId dco_decode_box_autoadd_message_id(dynamic raw);
+
+@protected MessageListCommand dco_decode_box_autoadd_message_list_command(dynamic raw);
+
+@protected MessageState dco_decode_box_autoadd_message_state(dynamic raw);
+
+@protected PlatformPushToken dco_decode_box_autoadd_platform_push_token(dynamic raw);
+
+@protected (UiMimiId,UiInReplyToMessage) dco_decode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(dynamic raw);
+
+@protected RequestInvitationCodeError dco_decode_box_autoadd_request_invitation_code_error(dynamic raw);
+
+@protected RequiredDebugCapabilities dco_decode_box_autoadd_required_debug_capabilities(dynamic raw);
+
+@protected TokenId dco_decode_box_autoadd_token_id(dynamic raw);
+
+@protected UiChatAttributes dco_decode_box_autoadd_ui_chat_attributes(dynamic raw);
+
+@protected UiChatDetails dco_decode_box_autoadd_ui_chat_details(dynamic raw);
+
+@protected UiChatMessage dco_decode_box_autoadd_ui_chat_message(dynamic raw);
+
+@protected UiContact dco_decode_box_autoadd_ui_contact(dynamic raw);
+
+@protected UiErrorMessage dco_decode_box_autoadd_ui_error_message(dynamic raw);
+
+@protected UiEventMessage dco_decode_box_autoadd_ui_event_message(dynamic raw);
+
+@protected UiImageMetadata dco_decode_box_autoadd_ui_image_metadata(dynamic raw);
+
+@protected UiInReplyToMessage dco_decode_box_autoadd_ui_in_reply_to_message(dynamic raw);
+
+@protected UiInactiveChat dco_decode_box_autoadd_ui_inactive_chat(dynamic raw);
+
+@protected UiMessageDraft dco_decode_box_autoadd_ui_message_draft(dynamic raw);
+
+@protected UiMimiContent dco_decode_box_autoadd_ui_mimi_content(dynamic raw);
+
+@protected UiSystemMessage dco_decode_box_autoadd_ui_system_message(dynamic raw);
+
+@protected UiUserId dco_decode_box_autoadd_ui_user_id(dynamic raw);
+
+@protected UiUserProfile dco_decode_box_autoadd_ui_user_profile(dynamic raw);
+
+@protected UiUsername dco_decode_box_autoadd_ui_username(dynamic raw);
+
+@protected UploadAttachmentError dco_decode_box_autoadd_upload_attachment_error(dynamic raw);
+
+@protected UsernameValidationError dco_decode_box_autoadd_username_validation_error(dynamic raw);
+
+@protected UiContentMessage dco_decode_box_ui_content_message(dynamic raw);
+
+@protected ChatDetailsState dco_decode_chat_details_state(dynamic raw);
+
+@protected ChatId dco_decode_chat_id(dynamic raw);
+
+@protected ChatListState dco_decode_chat_list_state(dynamic raw);
+
+@protected DebugCapabilities dco_decode_debug_capabilities(dynamic raw);
+
+@protected DeleteMode dco_decode_delete_mode(dynamic raw);
+
+@protected DeveloperSettingsScreenType dco_decode_developer_settings_screen_type(dynamic raw);
+
+@protected EncryptedGroupTitleDebugInfo dco_decode_encrypted_group_title_debug_info(dynamic raw);
+
+@protected ExternalGroupProfileDebugInfo dco_decode_external_group_profile_debug_info(dynamic raw);
+
+@protected double dco_decode_f_64(dynamic raw);
+
+@protected GroupDataDebugInfo dco_decode_group_data_debug_info(dynamic raw);
+
+@protected GroupDebugInfo dco_decode_group_debug_info(dynamic raw);
+
+@protected HomeNavigationState dco_decode_home_navigation_state(dynamic raw);
+
+@protected HomeTab dco_decode_home_tab(dynamic raw);
+
+@protected int dco_decode_i_32(dynamic raw);
+
+@protected PlatformInt64 dco_decode_i_64(dynamic raw);
+
+@protected ImageData dco_decode_image_data(dynamic raw);
+
+@protected InlineElement dco_decode_inline_element(dynamic raw);
+
+@protected IntroScreenType dco_decode_intro_screen_type(dynamic raw);
+
+@protected InvitationCode dco_decode_invitation_code(dynamic raw);
+
+@protected InvitationCodesState dco_decode_invitation_codes_state(dynamic raw);
+
+@protected InviteUsersError dco_decode_invite_users_error(dynamic raw);
+
+@protected PlatformInt64 dco_decode_isize(dynamic raw);
+
+@protected List<int> dco_decode_list_CastedPrimitive_u_64(dynamic raw);
+
+@protected List<String> dco_decode_list_String(dynamic raw);
+
+@protected List<ChatId> dco_decode_list_chat_id(dynamic raw);
+
+@protected List<IntroScreenType> dco_decode_list_intro_screen_type(dynamic raw);
+
+@protected List<List<List<RangedBlockElement>>> dco_decode_list_list_list_ranged_block_element(dynamic raw);
+
+@protected List<List<RangedBlockElement>> dco_decode_list_list_ranged_block_element(dynamic raw);
+
+@protected List<MessageListChange> dco_decode_list_message_list_change(dynamic raw);
+
+@protected List<NotificationHandle> dco_decode_list_notification_handle(dynamic raw);
+
+@protected List<NotificationId> dco_decode_list_notification_id(dynamic raw);
+
+@protected List<int> dco_decode_list_prim_u_8_loose(dynamic raw);
+
+@protected Uint8List dco_decode_list_prim_u_8_strict(dynamic raw);
+
+@protected List<RangedBlockElement> dco_decode_list_ranged_block_element(dynamic raw);
+
+@protected List<RangedCodeBlock> dco_decode_list_ranged_code_block(dynamic raw);
+
+@protected List<RangedInlineElement> dco_decode_list_ranged_inline_element(dynamic raw);
+
+@protected List<(int,DebugCapabilities)> dco_decode_list_record_u_32_debug_capabilities(dynamic raw);
+
+@protected List<TimedTaskDebugInfo> dco_decode_list_timed_task_debug_info(dynamic raw);
+
+@protected List<UiAttachment> dco_decode_list_ui_attachment(dynamic raw);
+
+@protected List<UiChatMessage> dco_decode_list_ui_chat_message(dynamic raw);
+
+@protected List<UiClientRecord> dco_decode_list_ui_client_record(dynamic raw);
+
+@protected List<UiContact> dco_decode_list_ui_contact(dynamic raw);
+
+@protected List<UiInvitationCode> dco_decode_list_ui_invitation_code(dynamic raw);
+
+@protected List<UiUserId> dco_decode_list_ui_user_id(dynamic raw);
+
+@protected List<UiUsername> dco_decode_list_ui_username(dynamic raw);
+
+@protected LoadedImageAttachment dco_decode_loaded_image_attachment(dynamic raw);
+
+@protected LogEntry dco_decode_log_entry(dynamic raw);
+
+@protected LogEntryLevel dco_decode_log_entry_level(dynamic raw);
+
+@protected MemberDetailsState dco_decode_member_details_state(dynamic raw);
+
+@protected MessageContent dco_decode_message_content(dynamic raw);
+
+@protected MessageId dco_decode_message_id(dynamic raw);
+
+@protected MessageListChange dco_decode_message_list_change(dynamic raw);
+
+@protected MessageListCommand dco_decode_message_list_command(dynamic raw);
+
+@protected MessageListState dco_decode_message_list_state(dynamic raw);
+
+@protected MessageListTransition dco_decode_message_list_transition(dynamic raw);
+
+@protected MessageListTransitionKind dco_decode_message_list_transition_kind(dynamic raw);
+
+@protected MessageState dco_decode_message_state(dynamic raw);
+
+@protected NavigationState dco_decode_navigation_state(dynamic raw);
+
+@protected NotificationContent dco_decode_notification_content(dynamic raw);
+
+@protected NotificationHandle dco_decode_notification_handle(dynamic raw);
+
+@protected NotificationId dco_decode_notification_id(dynamic raw);
+
+@protected int? dco_decode_opt_CastedPrimitive_usize(dynamic raw);
+
+@protected String? dco_decode_opt_String(dynamic raw);
+
+@protected UiRoomState? dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(dynamic raw);
+
+@protected User? dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(dynamic raw);
+
+@protected UsernameHash? dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(dynamic raw);
+
+@protected AcceptContactRequestError? dco_decode_opt_box_autoadd_accept_contact_request_error(dynamic raw);
+
+@protected AddUsernameContactError? dco_decode_opt_box_autoadd_add_username_contact_error(dynamic raw);
+
+@protected AirComponent? dco_decode_opt_box_autoadd_air_component(dynamic raw);
+
+@protected AirFeatures? dco_decode_opt_box_autoadd_air_features(dynamic raw);
+
+@protected AppDataDebugInfo? dco_decode_opt_box_autoadd_app_data_debug_info(dynamic raw);
+
+@protected bool? dco_decode_opt_box_autoadd_bool(dynamic raw);
+
+@protected ChatId? dco_decode_opt_box_autoadd_chat_id(dynamic raw);
+
+@protected DeveloperSettingsScreenType? dco_decode_opt_box_autoadd_developer_settings_screen_type(dynamic raw);
+
+@protected EncryptedGroupTitleDebugInfo? dco_decode_opt_box_autoadd_encrypted_group_title_debug_info(dynamic raw);
+
+@protected ExternalGroupProfileDebugInfo? dco_decode_opt_box_autoadd_external_group_profile_debug_info(dynamic raw);
+
+@protected double? dco_decode_opt_box_autoadd_f_64(dynamic raw);
+
+@protected GroupDataDebugInfo? dco_decode_opt_box_autoadd_group_data_debug_info(dynamic raw);
+
+@protected ImageData? dco_decode_opt_box_autoadd_image_data(dynamic raw);
+
+@protected InviteUsersError? dco_decode_opt_box_autoadd_invite_users_error(dynamic raw);
+
+@protected MessageContent? dco_decode_opt_box_autoadd_message_content(dynamic raw);
+
+@protected MessageId? dco_decode_opt_box_autoadd_message_id(dynamic raw);
+
+@protected MessageListCommand? dco_decode_opt_box_autoadd_message_list_command(dynamic raw);
+
+@protected PlatformPushToken? dco_decode_opt_box_autoadd_platform_push_token(dynamic raw);
+
+@protected (UiMimiId,UiInReplyToMessage)? dco_decode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(dynamic raw);
+
+@protected RequestInvitationCodeError? dco_decode_opt_box_autoadd_request_invitation_code_error(dynamic raw);
+
+@protected RequiredDebugCapabilities? dco_decode_opt_box_autoadd_required_debug_capabilities(dynamic raw);
+
+@protected UiChatDetails? dco_decode_opt_box_autoadd_ui_chat_details(dynamic raw);
+
+@protected UiChatMessage? dco_decode_opt_box_autoadd_ui_chat_message(dynamic raw);
+
+@protected UiContact? dco_decode_opt_box_autoadd_ui_contact(dynamic raw);
+
+@protected UiImageMetadata? dco_decode_opt_box_autoadd_ui_image_metadata(dynamic raw);
+
+@protected UiInReplyToMessage? dco_decode_opt_box_autoadd_ui_in_reply_to_message(dynamic raw);
+
+@protected UiMessageDraft? dco_decode_opt_box_autoadd_ui_message_draft(dynamic raw);
+
+@protected UiUserId? dco_decode_opt_box_autoadd_ui_user_id(dynamic raw);
+
+@protected UiUsername? dco_decode_opt_box_autoadd_ui_username(dynamic raw);
+
+@protected UploadAttachmentError? dco_decode_opt_box_autoadd_upload_attachment_error(dynamic raw);
+
+@protected UsernameValidationError? dco_decode_opt_box_autoadd_username_validation_error(dynamic raw);
+
+@protected List<String>? dco_decode_opt_list_String(dynamic raw);
+
+@protected Uint8List? dco_decode_opt_list_prim_u_8_strict(dynamic raw);
+
+@protected PlatformPushToken dco_decode_platform_push_token(dynamic raw);
+
+@protected RangedBlockElement dco_decode_ranged_block_element(dynamic raw);
+
+@protected RangedCodeBlock dco_decode_ranged_code_block(dynamic raw);
+
+@protected RangedInlineElement dco_decode_ranged_inline_element(dynamic raw);
+
+@protected (int,DebugCapabilities) dco_decode_record_u_32_debug_capabilities(dynamic raw);
+
+@protected (UiMimiId,UiInReplyToMessage) dco_decode_record_ui_mimi_id_ui_in_reply_to_message(dynamic raw);
+
+@protected RequestInvitationCodeError dco_decode_request_invitation_code_error(dynamic raw);
+
+@protected RequiredDebugCapabilities dco_decode_required_debug_capabilities(dynamic raw);
+
+@protected TimedTaskDebugInfo dco_decode_timed_task_debug_info(dynamic raw);
+
+@protected TokenId dco_decode_token_id(dynamic raw);
+
+@protected int dco_decode_u_32(dynamic raw);
+
+@protected BigInt dco_decode_u_64(dynamic raw);
+
+@protected int dco_decode_u_8(dynamic raw);
+
+@protected U8Array32 dco_decode_u_8_array_32(dynamic raw);
+
+@protected UiAttachment dco_decode_ui_attachment(dynamic raw);
+
+@protected UiAttachmentStatus dco_decode_ui_attachment_status(dynamic raw);
+
+@protected UiChatAttributes dco_decode_ui_chat_attributes(dynamic raw);
+
+@protected UiChatDetails dco_decode_ui_chat_details(dynamic raw);
+
+@protected UiChatMessage dco_decode_ui_chat_message(dynamic raw);
+
+@protected UiChatStatus dco_decode_ui_chat_status(dynamic raw);
+
+@protected UiChatType dco_decode_ui_chat_type(dynamic raw);
+
+@protected UiClientRecord dco_decode_ui_client_record(dynamic raw);
+
+@protected UiContact dco_decode_ui_contact(dynamic raw);
+
+@protected UiContentMessage dco_decode_ui_content_message(dynamic raw);
+
+@protected UiErrorMessage dco_decode_ui_error_message(dynamic raw);
+
+@protected UiEventMessage dco_decode_ui_event_message(dynamic raw);
+
+@protected UiFlightPosition dco_decode_ui_flight_position(dynamic raw);
+
+@protected UiImageMetadata dco_decode_ui_image_metadata(dynamic raw);
+
+@protected UiInReplyToMessage dco_decode_ui_in_reply_to_message(dynamic raw);
+
+@protected UiInactiveChat dco_decode_ui_inactive_chat(dynamic raw);
+
+@protected UiInvitationCode dco_decode_ui_invitation_code(dynamic raw);
+
+@protected UiMessage dco_decode_ui_message(dynamic raw);
+
+@protected UiMessageDraft dco_decode_ui_message_draft(dynamic raw);
+
+@protected UiMessageStatus dco_decode_ui_message_status(dynamic raw);
+
+@protected UiMimiContent dco_decode_ui_mimi_content(dynamic raw);
+
+@protected UiMimiId dco_decode_ui_mimi_id(dynamic raw);
+
+@protected UiSystemMessage dco_decode_ui_system_message(dynamic raw);
+
+@protected UiUserId dco_decode_ui_user_id(dynamic raw);
+
+@protected UiUserProfile dco_decode_ui_user_profile(dynamic raw);
+
+@protected UiUsername dco_decode_ui_username(dynamic raw);
+
+@protected void dco_decode_unit(dynamic raw);
+
+@protected UploadAttachmentError dco_decode_upload_attachment_error(dynamic raw);
+
+@protected UserDebugInfo dco_decode_user_debug_info(dynamic raw);
+
+@protected UserSettings dco_decode_user_settings(dynamic raw);
+
+@protected UsernameValidationError dco_decode_username_validation_error(dynamic raw);
+
+@protected BigInt dco_decode_usize(dynamic raw);
+
+@protected AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
+
+@protected AttachmentsRepository sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(SseDeserializer deserializer);
+
+@protected ChatDetailsCubitBase sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(SseDeserializer deserializer);
+
+@protected ChatListCubitBase sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(SseDeserializer deserializer);
+
+@protected ChatsRepository sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(SseDeserializer deserializer);
+
+@protected DartNotificationService sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(SseDeserializer deserializer);
+
+@protected InvitationCodesCubitBase sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(SseDeserializer deserializer);
+
+@protected LogWriter sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(SseDeserializer deserializer);
+
+@protected MemberDetailsCubitBase sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(SseDeserializer deserializer);
+
+@protected MessageCubitBase sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(SseDeserializer deserializer);
+
+@protected MessageListCubitBase sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(SseDeserializer deserializer);
+
+@protected NavigationCubitBase sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(SseDeserializer deserializer);
+
+@protected UiRoomState sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(SseDeserializer deserializer);
+
+@protected UiUser sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(SseDeserializer deserializer);
+
+@protected User sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(SseDeserializer deserializer);
+
+@protected UserCubitBase sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(SseDeserializer deserializer);
+
+@protected UserSettingsCubitBase sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(SseDeserializer deserializer);
+
+@protected UsernameHash sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(SseDeserializer deserializer);
+
+@protected UsersCubitBase sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(SseDeserializer deserializer);
+
+@protected UsersState sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(SseDeserializer deserializer);
+
+@protected AttachmentsRepository sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(SseDeserializer deserializer);
+
+@protected ChatDetailsCubitBase sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(SseDeserializer deserializer);
+
+@protected ChatListCubitBase sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(SseDeserializer deserializer);
+
+@protected ChatsRepository sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(SseDeserializer deserializer);
+
+@protected DartNotificationService sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(SseDeserializer deserializer);
+
+@protected InvitationCodesCubitBase sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(SseDeserializer deserializer);
+
+@protected LogWriter sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(SseDeserializer deserializer);
+
+@protected MemberDetailsCubitBase sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(SseDeserializer deserializer);
+
+@protected MessageCubitBase sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(SseDeserializer deserializer);
+
+@protected MessageListCubitBase sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(SseDeserializer deserializer);
+
+@protected NavigationCubitBase sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(SseDeserializer deserializer);
+
+@protected UiRoomState sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(SseDeserializer deserializer);
+
+@protected UiUser sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(SseDeserializer deserializer);
+
+@protected User sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(SseDeserializer deserializer);
+
+@protected UserCubitBase sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(SseDeserializer deserializer);
+
+@protected UserSettingsCubitBase sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(SseDeserializer deserializer);
+
+@protected UsersCubitBase sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(SseDeserializer deserializer);
+
+@protected UsersState sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(SseDeserializer deserializer);
+
+@protected int sse_decode_CastedPrimitive_u_64(SseDeserializer deserializer);
+
+@protected intArray12 sse_decode_CastedPrimitive_u_64_array_12(SseDeserializer deserializer);
+
+@protected int sse_decode_CastedPrimitive_usize(SseDeserializer deserializer);
+
+@protected DateTime sse_decode_Chrono_Local(SseDeserializer deserializer);
+
+@protected DateTime sse_decode_Chrono_Utc(SseDeserializer deserializer);
+
+@protected Object sse_decode_DartOpaque(SseDeserializer deserializer);
+
+@protected Map<int, DebugCapabilities> sse_decode_Map_u_32_debug_capabilities_None(SseDeserializer deserializer);
+
+@protected AttachmentsRepository sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(SseDeserializer deserializer);
+
+@protected ChatDetailsCubitBase sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(SseDeserializer deserializer);
+
+@protected ChatListCubitBase sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(SseDeserializer deserializer);
+
+@protected ChatsRepository sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(SseDeserializer deserializer);
+
+@protected DartNotificationService sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(SseDeserializer deserializer);
+
+@protected InvitationCodesCubitBase sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(SseDeserializer deserializer);
+
+@protected LogWriter sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(SseDeserializer deserializer);
+
+@protected MemberDetailsCubitBase sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(SseDeserializer deserializer);
+
+@protected MessageCubitBase sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(SseDeserializer deserializer);
+
+@protected MessageListCubitBase sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(SseDeserializer deserializer);
+
+@protected NavigationCubitBase sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(SseDeserializer deserializer);
+
+@protected UiRoomState sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(SseDeserializer deserializer);
+
+@protected UiUser sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(SseDeserializer deserializer);
+
+@protected User sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(SseDeserializer deserializer);
+
+@protected UserCubitBase sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(SseDeserializer deserializer);
+
+@protected UserSettingsCubitBase sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(SseDeserializer deserializer);
+
+@protected UsernameHash sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(SseDeserializer deserializer);
+
+@protected UsersCubitBase sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(SseDeserializer deserializer);
+
+@protected UsersState sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(SseDeserializer deserializer);
+
+@protected RustStreamSink<UiUser> sse_decode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser_Sse(SseDeserializer deserializer);
+
+@protected RustStreamSink<UsersState> sse_decode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState_Sse(SseDeserializer deserializer);
+
+@protected RustStreamSink<ChatDetailsState> sse_decode_StreamSink_chat_details_state_Sse(SseDeserializer deserializer);
+
+@protected RustStreamSink<ChatListState> sse_decode_StreamSink_chat_list_state_Sse(SseDeserializer deserializer);
+
+@protected RustStreamSink<InvitationCodesState> sse_decode_StreamSink_invitation_codes_state_Sse(SseDeserializer deserializer);
+
+@protected RustStreamSink<LogEntry> sse_decode_StreamSink_log_entry_Sse(SseDeserializer deserializer);
+
+@protected RustStreamSink<MemberDetailsState> sse_decode_StreamSink_member_details_state_Sse(SseDeserializer deserializer);
+
+@protected RustStreamSink<MessageListState> sse_decode_StreamSink_message_list_state_Sse(SseDeserializer deserializer);
+
+@protected RustStreamSink<MessageListTransition> sse_decode_StreamSink_message_list_transition_Sse(SseDeserializer deserializer);
+
+@protected RustStreamSink<MessageState> sse_decode_StreamSink_message_state_Sse(SseDeserializer deserializer);
+
+@protected RustStreamSink<NavigationState> sse_decode_StreamSink_navigation_state_Sse(SseDeserializer deserializer);
+
+@protected RustStreamSink<UiAttachmentStatus> sse_decode_StreamSink_ui_attachment_status_Sse(SseDeserializer deserializer);
+
+@protected RustStreamSink<UserSettings> sse_decode_StreamSink_user_settings_Sse(SseDeserializer deserializer);
+
+@protected String sse_decode_String(SseDeserializer deserializer);
+
+@protected UuidValue sse_decode_Uuid(SseDeserializer deserializer);
+
+@protected AcceptContactRequestError sse_decode_accept_contact_request_error(SseDeserializer deserializer);
+
+@protected AddUsernameContactError sse_decode_add_username_contact_error(SseDeserializer deserializer);
+
+@protected AirComponent sse_decode_air_component(SseDeserializer deserializer);
+
+@protected AirFeatures sse_decode_air_features(SseDeserializer deserializer);
+
+@protected AppDataDebugInfo sse_decode_app_data_debug_info(SseDeserializer deserializer);
+
+@protected AppState sse_decode_app_state(SseDeserializer deserializer);
+
+@protected AttachmentId sse_decode_attachment_id(SseDeserializer deserializer);
+
+@protected BlockElement sse_decode_block_element(SseDeserializer deserializer);
+
+@protected bool sse_decode_bool(SseDeserializer deserializer);
+
+@protected UiRoomState sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(SseDeserializer deserializer);
+
+@protected User sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(SseDeserializer deserializer);
+
+@protected UsernameHash sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(SseDeserializer deserializer);
+
+@protected AcceptContactRequestError sse_decode_box_autoadd_accept_contact_request_error(SseDeserializer deserializer);
+
+@protected AddUsernameContactError sse_decode_box_autoadd_add_username_contact_error(SseDeserializer deserializer);
+
+@protected AirComponent sse_decode_box_autoadd_air_component(SseDeserializer deserializer);
+
+@protected AirFeatures sse_decode_box_autoadd_air_features(SseDeserializer deserializer);
+
+@protected AppDataDebugInfo sse_decode_box_autoadd_app_data_debug_info(SseDeserializer deserializer);
+
+@protected AttachmentId sse_decode_box_autoadd_attachment_id(SseDeserializer deserializer);
+
+@protected bool sse_decode_box_autoadd_bool(SseDeserializer deserializer);
+
+@protected ChatId sse_decode_box_autoadd_chat_id(SseDeserializer deserializer);
+
+@protected DeveloperSettingsScreenType sse_decode_box_autoadd_developer_settings_screen_type(SseDeserializer deserializer);
+
+@protected EncryptedGroupTitleDebugInfo sse_decode_box_autoadd_encrypted_group_title_debug_info(SseDeserializer deserializer);
+
+@protected ExternalGroupProfileDebugInfo sse_decode_box_autoadd_external_group_profile_debug_info(SseDeserializer deserializer);
+
+@protected double sse_decode_box_autoadd_f_64(SseDeserializer deserializer);
+
+@protected GroupDataDebugInfo sse_decode_box_autoadd_group_data_debug_info(SseDeserializer deserializer);
+
+@protected HomeNavigationState sse_decode_box_autoadd_home_navigation_state(SseDeserializer deserializer);
+
+@protected ImageData sse_decode_box_autoadd_image_data(SseDeserializer deserializer);
+
+@protected IntroScreenType sse_decode_box_autoadd_intro_screen_type(SseDeserializer deserializer);
+
+@protected InvitationCode sse_decode_box_autoadd_invitation_code(SseDeserializer deserializer);
+
+@protected InviteUsersError sse_decode_box_autoadd_invite_users_error(SseDeserializer deserializer);
+
+@protected MessageContent sse_decode_box_autoadd_message_content(SseDeserializer deserializer);
+
+@protected MessageId sse_decode_box_autoadd_message_id(SseDeserializer deserializer);
+
+@protected MessageListCommand sse_decode_box_autoadd_message_list_command(SseDeserializer deserializer);
+
+@protected MessageState sse_decode_box_autoadd_message_state(SseDeserializer deserializer);
+
+@protected PlatformPushToken sse_decode_box_autoadd_platform_push_token(SseDeserializer deserializer);
+
+@protected (UiMimiId,UiInReplyToMessage) sse_decode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(SseDeserializer deserializer);
+
+@protected RequestInvitationCodeError sse_decode_box_autoadd_request_invitation_code_error(SseDeserializer deserializer);
+
+@protected RequiredDebugCapabilities sse_decode_box_autoadd_required_debug_capabilities(SseDeserializer deserializer);
+
+@protected TokenId sse_decode_box_autoadd_token_id(SseDeserializer deserializer);
+
+@protected UiChatAttributes sse_decode_box_autoadd_ui_chat_attributes(SseDeserializer deserializer);
+
+@protected UiChatDetails sse_decode_box_autoadd_ui_chat_details(SseDeserializer deserializer);
+
+@protected UiChatMessage sse_decode_box_autoadd_ui_chat_message(SseDeserializer deserializer);
+
+@protected UiContact sse_decode_box_autoadd_ui_contact(SseDeserializer deserializer);
+
+@protected UiErrorMessage sse_decode_box_autoadd_ui_error_message(SseDeserializer deserializer);
+
+@protected UiEventMessage sse_decode_box_autoadd_ui_event_message(SseDeserializer deserializer);
+
+@protected UiImageMetadata sse_decode_box_autoadd_ui_image_metadata(SseDeserializer deserializer);
+
+@protected UiInReplyToMessage sse_decode_box_autoadd_ui_in_reply_to_message(SseDeserializer deserializer);
+
+@protected UiInactiveChat sse_decode_box_autoadd_ui_inactive_chat(SseDeserializer deserializer);
+
+@protected UiMessageDraft sse_decode_box_autoadd_ui_message_draft(SseDeserializer deserializer);
+
+@protected UiMimiContent sse_decode_box_autoadd_ui_mimi_content(SseDeserializer deserializer);
+
+@protected UiSystemMessage sse_decode_box_autoadd_ui_system_message(SseDeserializer deserializer);
+
+@protected UiUserId sse_decode_box_autoadd_ui_user_id(SseDeserializer deserializer);
+
+@protected UiUserProfile sse_decode_box_autoadd_ui_user_profile(SseDeserializer deserializer);
+
+@protected UiUsername sse_decode_box_autoadd_ui_username(SseDeserializer deserializer);
+
+@protected UploadAttachmentError sse_decode_box_autoadd_upload_attachment_error(SseDeserializer deserializer);
+
+@protected UsernameValidationError sse_decode_box_autoadd_username_validation_error(SseDeserializer deserializer);
+
+@protected UiContentMessage sse_decode_box_ui_content_message(SseDeserializer deserializer);
+
+@protected ChatDetailsState sse_decode_chat_details_state(SseDeserializer deserializer);
+
+@protected ChatId sse_decode_chat_id(SseDeserializer deserializer);
+
+@protected ChatListState sse_decode_chat_list_state(SseDeserializer deserializer);
+
+@protected DebugCapabilities sse_decode_debug_capabilities(SseDeserializer deserializer);
+
+@protected DeleteMode sse_decode_delete_mode(SseDeserializer deserializer);
+
+@protected DeveloperSettingsScreenType sse_decode_developer_settings_screen_type(SseDeserializer deserializer);
+
+@protected EncryptedGroupTitleDebugInfo sse_decode_encrypted_group_title_debug_info(SseDeserializer deserializer);
+
+@protected ExternalGroupProfileDebugInfo sse_decode_external_group_profile_debug_info(SseDeserializer deserializer);
+
+@protected double sse_decode_f_64(SseDeserializer deserializer);
+
+@protected GroupDataDebugInfo sse_decode_group_data_debug_info(SseDeserializer deserializer);
+
+@protected GroupDebugInfo sse_decode_group_debug_info(SseDeserializer deserializer);
+
+@protected HomeNavigationState sse_decode_home_navigation_state(SseDeserializer deserializer);
+
+@protected HomeTab sse_decode_home_tab(SseDeserializer deserializer);
+
+@protected int sse_decode_i_32(SseDeserializer deserializer);
+
+@protected PlatformInt64 sse_decode_i_64(SseDeserializer deserializer);
+
+@protected ImageData sse_decode_image_data(SseDeserializer deserializer);
+
+@protected InlineElement sse_decode_inline_element(SseDeserializer deserializer);
+
+@protected IntroScreenType sse_decode_intro_screen_type(SseDeserializer deserializer);
+
+@protected InvitationCode sse_decode_invitation_code(SseDeserializer deserializer);
+
+@protected InvitationCodesState sse_decode_invitation_codes_state(SseDeserializer deserializer);
+
+@protected InviteUsersError sse_decode_invite_users_error(SseDeserializer deserializer);
+
+@protected PlatformInt64 sse_decode_isize(SseDeserializer deserializer);
+
+@protected List<int> sse_decode_list_CastedPrimitive_u_64(SseDeserializer deserializer);
+
+@protected List<String> sse_decode_list_String(SseDeserializer deserializer);
+
+@protected List<ChatId> sse_decode_list_chat_id(SseDeserializer deserializer);
+
+@protected List<IntroScreenType> sse_decode_list_intro_screen_type(SseDeserializer deserializer);
+
+@protected List<List<List<RangedBlockElement>>> sse_decode_list_list_list_ranged_block_element(SseDeserializer deserializer);
+
+@protected List<List<RangedBlockElement>> sse_decode_list_list_ranged_block_element(SseDeserializer deserializer);
+
+@protected List<MessageListChange> sse_decode_list_message_list_change(SseDeserializer deserializer);
+
+@protected List<NotificationHandle> sse_decode_list_notification_handle(SseDeserializer deserializer);
+
+@protected List<NotificationId> sse_decode_list_notification_id(SseDeserializer deserializer);
+
+@protected List<int> sse_decode_list_prim_u_8_loose(SseDeserializer deserializer);
+
+@protected Uint8List sse_decode_list_prim_u_8_strict(SseDeserializer deserializer);
+
+@protected List<RangedBlockElement> sse_decode_list_ranged_block_element(SseDeserializer deserializer);
+
+@protected List<RangedCodeBlock> sse_decode_list_ranged_code_block(SseDeserializer deserializer);
+
+@protected List<RangedInlineElement> sse_decode_list_ranged_inline_element(SseDeserializer deserializer);
+
+@protected List<(int,DebugCapabilities)> sse_decode_list_record_u_32_debug_capabilities(SseDeserializer deserializer);
+
+@protected List<TimedTaskDebugInfo> sse_decode_list_timed_task_debug_info(SseDeserializer deserializer);
+
+@protected List<UiAttachment> sse_decode_list_ui_attachment(SseDeserializer deserializer);
+
+@protected List<UiChatMessage> sse_decode_list_ui_chat_message(SseDeserializer deserializer);
+
+@protected List<UiClientRecord> sse_decode_list_ui_client_record(SseDeserializer deserializer);
+
+@protected List<UiContact> sse_decode_list_ui_contact(SseDeserializer deserializer);
+
+@protected List<UiInvitationCode> sse_decode_list_ui_invitation_code(SseDeserializer deserializer);
+
+@protected List<UiUserId> sse_decode_list_ui_user_id(SseDeserializer deserializer);
+
+@protected List<UiUsername> sse_decode_list_ui_username(SseDeserializer deserializer);
+
+@protected LoadedImageAttachment sse_decode_loaded_image_attachment(SseDeserializer deserializer);
+
+@protected LogEntry sse_decode_log_entry(SseDeserializer deserializer);
+
+@protected LogEntryLevel sse_decode_log_entry_level(SseDeserializer deserializer);
+
+@protected MemberDetailsState sse_decode_member_details_state(SseDeserializer deserializer);
+
+@protected MessageContent sse_decode_message_content(SseDeserializer deserializer);
+
+@protected MessageId sse_decode_message_id(SseDeserializer deserializer);
+
+@protected MessageListChange sse_decode_message_list_change(SseDeserializer deserializer);
+
+@protected MessageListCommand sse_decode_message_list_command(SseDeserializer deserializer);
+
+@protected MessageListState sse_decode_message_list_state(SseDeserializer deserializer);
+
+@protected MessageListTransition sse_decode_message_list_transition(SseDeserializer deserializer);
+
+@protected MessageListTransitionKind sse_decode_message_list_transition_kind(SseDeserializer deserializer);
+
+@protected MessageState sse_decode_message_state(SseDeserializer deserializer);
+
+@protected NavigationState sse_decode_navigation_state(SseDeserializer deserializer);
+
+@protected NotificationContent sse_decode_notification_content(SseDeserializer deserializer);
+
+@protected NotificationHandle sse_decode_notification_handle(SseDeserializer deserializer);
+
+@protected NotificationId sse_decode_notification_id(SseDeserializer deserializer);
+
+@protected int? sse_decode_opt_CastedPrimitive_usize(SseDeserializer deserializer);
+
+@protected String? sse_decode_opt_String(SseDeserializer deserializer);
+
+@protected UiRoomState? sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(SseDeserializer deserializer);
+
+@protected User? sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(SseDeserializer deserializer);
+
+@protected UsernameHash? sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(SseDeserializer deserializer);
+
+@protected AcceptContactRequestError? sse_decode_opt_box_autoadd_accept_contact_request_error(SseDeserializer deserializer);
+
+@protected AddUsernameContactError? sse_decode_opt_box_autoadd_add_username_contact_error(SseDeserializer deserializer);
+
+@protected AirComponent? sse_decode_opt_box_autoadd_air_component(SseDeserializer deserializer);
+
+@protected AirFeatures? sse_decode_opt_box_autoadd_air_features(SseDeserializer deserializer);
+
+@protected AppDataDebugInfo? sse_decode_opt_box_autoadd_app_data_debug_info(SseDeserializer deserializer);
+
+@protected bool? sse_decode_opt_box_autoadd_bool(SseDeserializer deserializer);
+
+@protected ChatId? sse_decode_opt_box_autoadd_chat_id(SseDeserializer deserializer);
+
+@protected DeveloperSettingsScreenType? sse_decode_opt_box_autoadd_developer_settings_screen_type(SseDeserializer deserializer);
+
+@protected EncryptedGroupTitleDebugInfo? sse_decode_opt_box_autoadd_encrypted_group_title_debug_info(SseDeserializer deserializer);
+
+@protected ExternalGroupProfileDebugInfo? sse_decode_opt_box_autoadd_external_group_profile_debug_info(SseDeserializer deserializer);
+
+@protected double? sse_decode_opt_box_autoadd_f_64(SseDeserializer deserializer);
+
+@protected GroupDataDebugInfo? sse_decode_opt_box_autoadd_group_data_debug_info(SseDeserializer deserializer);
+
+@protected ImageData? sse_decode_opt_box_autoadd_image_data(SseDeserializer deserializer);
+
+@protected InviteUsersError? sse_decode_opt_box_autoadd_invite_users_error(SseDeserializer deserializer);
+
+@protected MessageContent? sse_decode_opt_box_autoadd_message_content(SseDeserializer deserializer);
+
+@protected MessageId? sse_decode_opt_box_autoadd_message_id(SseDeserializer deserializer);
+
+@protected MessageListCommand? sse_decode_opt_box_autoadd_message_list_command(SseDeserializer deserializer);
+
+@protected PlatformPushToken? sse_decode_opt_box_autoadd_platform_push_token(SseDeserializer deserializer);
+
+@protected (UiMimiId,UiInReplyToMessage)? sse_decode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(SseDeserializer deserializer);
+
+@protected RequestInvitationCodeError? sse_decode_opt_box_autoadd_request_invitation_code_error(SseDeserializer deserializer);
+
+@protected RequiredDebugCapabilities? sse_decode_opt_box_autoadd_required_debug_capabilities(SseDeserializer deserializer);
+
+@protected UiChatDetails? sse_decode_opt_box_autoadd_ui_chat_details(SseDeserializer deserializer);
+
+@protected UiChatMessage? sse_decode_opt_box_autoadd_ui_chat_message(SseDeserializer deserializer);
+
+@protected UiContact? sse_decode_opt_box_autoadd_ui_contact(SseDeserializer deserializer);
+
+@protected UiImageMetadata? sse_decode_opt_box_autoadd_ui_image_metadata(SseDeserializer deserializer);
+
+@protected UiInReplyToMessage? sse_decode_opt_box_autoadd_ui_in_reply_to_message(SseDeserializer deserializer);
+
+@protected UiMessageDraft? sse_decode_opt_box_autoadd_ui_message_draft(SseDeserializer deserializer);
+
+@protected UiUserId? sse_decode_opt_box_autoadd_ui_user_id(SseDeserializer deserializer);
+
+@protected UiUsername? sse_decode_opt_box_autoadd_ui_username(SseDeserializer deserializer);
+
+@protected UploadAttachmentError? sse_decode_opt_box_autoadd_upload_attachment_error(SseDeserializer deserializer);
+
+@protected UsernameValidationError? sse_decode_opt_box_autoadd_username_validation_error(SseDeserializer deserializer);
+
+@protected List<String>? sse_decode_opt_list_String(SseDeserializer deserializer);
+
+@protected Uint8List? sse_decode_opt_list_prim_u_8_strict(SseDeserializer deserializer);
+
+@protected PlatformPushToken sse_decode_platform_push_token(SseDeserializer deserializer);
+
+@protected RangedBlockElement sse_decode_ranged_block_element(SseDeserializer deserializer);
+
+@protected RangedCodeBlock sse_decode_ranged_code_block(SseDeserializer deserializer);
+
+@protected RangedInlineElement sse_decode_ranged_inline_element(SseDeserializer deserializer);
+
+@protected (int,DebugCapabilities) sse_decode_record_u_32_debug_capabilities(SseDeserializer deserializer);
+
+@protected (UiMimiId,UiInReplyToMessage) sse_decode_record_ui_mimi_id_ui_in_reply_to_message(SseDeserializer deserializer);
+
+@protected RequestInvitationCodeError sse_decode_request_invitation_code_error(SseDeserializer deserializer);
+
+@protected RequiredDebugCapabilities sse_decode_required_debug_capabilities(SseDeserializer deserializer);
+
+@protected TimedTaskDebugInfo sse_decode_timed_task_debug_info(SseDeserializer deserializer);
+
+@protected TokenId sse_decode_token_id(SseDeserializer deserializer);
+
+@protected int sse_decode_u_32(SseDeserializer deserializer);
+
+@protected BigInt sse_decode_u_64(SseDeserializer deserializer);
+
+@protected int sse_decode_u_8(SseDeserializer deserializer);
+
+@protected U8Array32 sse_decode_u_8_array_32(SseDeserializer deserializer);
+
+@protected UiAttachment sse_decode_ui_attachment(SseDeserializer deserializer);
+
+@protected UiAttachmentStatus sse_decode_ui_attachment_status(SseDeserializer deserializer);
+
+@protected UiChatAttributes sse_decode_ui_chat_attributes(SseDeserializer deserializer);
+
+@protected UiChatDetails sse_decode_ui_chat_details(SseDeserializer deserializer);
+
+@protected UiChatMessage sse_decode_ui_chat_message(SseDeserializer deserializer);
+
+@protected UiChatStatus sse_decode_ui_chat_status(SseDeserializer deserializer);
+
+@protected UiChatType sse_decode_ui_chat_type(SseDeserializer deserializer);
+
+@protected UiClientRecord sse_decode_ui_client_record(SseDeserializer deserializer);
+
+@protected UiContact sse_decode_ui_contact(SseDeserializer deserializer);
+
+@protected UiContentMessage sse_decode_ui_content_message(SseDeserializer deserializer);
+
+@protected UiErrorMessage sse_decode_ui_error_message(SseDeserializer deserializer);
+
+@protected UiEventMessage sse_decode_ui_event_message(SseDeserializer deserializer);
+
+@protected UiFlightPosition sse_decode_ui_flight_position(SseDeserializer deserializer);
+
+@protected UiImageMetadata sse_decode_ui_image_metadata(SseDeserializer deserializer);
+
+@protected UiInReplyToMessage sse_decode_ui_in_reply_to_message(SseDeserializer deserializer);
+
+@protected UiInactiveChat sse_decode_ui_inactive_chat(SseDeserializer deserializer);
+
+@protected UiInvitationCode sse_decode_ui_invitation_code(SseDeserializer deserializer);
+
+@protected UiMessage sse_decode_ui_message(SseDeserializer deserializer);
+
+@protected UiMessageDraft sse_decode_ui_message_draft(SseDeserializer deserializer);
+
+@protected UiMessageStatus sse_decode_ui_message_status(SseDeserializer deserializer);
+
+@protected UiMimiContent sse_decode_ui_mimi_content(SseDeserializer deserializer);
+
+@protected UiMimiId sse_decode_ui_mimi_id(SseDeserializer deserializer);
+
+@protected UiSystemMessage sse_decode_ui_system_message(SseDeserializer deserializer);
+
+@protected UiUserId sse_decode_ui_user_id(SseDeserializer deserializer);
+
+@protected UiUserProfile sse_decode_ui_user_profile(SseDeserializer deserializer);
+
+@protected UiUsername sse_decode_ui_username(SseDeserializer deserializer);
+
+@protected void sse_decode_unit(SseDeserializer deserializer);
+
+@protected UploadAttachmentError sse_decode_upload_attachment_error(SseDeserializer deserializer);
+
+@protected UserDebugInfo sse_decode_user_debug_info(SseDeserializer deserializer);
+
+@protected UserSettings sse_decode_user_settings(SseDeserializer deserializer);
+
+@protected UsernameValidationError sse_decode_username_validation_error(SseDeserializer deserializer);
+
+@protected BigInt sse_decode_usize(SseDeserializer deserializer);
+
+@protected void sse_encode_AnyhowException(AnyhowException self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(AttachmentsRepository self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(ChatDetailsCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(ChatListCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(ChatsRepository self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(DartNotificationService self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(InvitationCodesCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(LogWriter self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(MemberDetailsCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(MessageCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(MessageListCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(NavigationCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(UiRoomState self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(UiUser self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(User self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(UserCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(UserSettingsCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(UsernameHash self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(UsersCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(UsersState self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(AttachmentsRepository self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(ChatDetailsCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(ChatListCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(ChatsRepository self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(DartNotificationService self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(InvitationCodesCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(LogWriter self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(MemberDetailsCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(MessageCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(MessageListCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(NavigationCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(UiRoomState self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(UiUser self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(User self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(UserCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(UserSettingsCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(UsersCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(UsersState self, SseSerializer serializer);
+
+@protected void sse_encode_CastedPrimitive_u_64(int self, SseSerializer serializer);
+
+@protected void sse_encode_CastedPrimitive_u_64_array_12(intArray12 self, SseSerializer serializer);
+
+@protected void sse_encode_CastedPrimitive_usize(int self, SseSerializer serializer);
+
+@protected void sse_encode_Chrono_Local(DateTime self, SseSerializer serializer);
+
+@protected void sse_encode_Chrono_Utc(DateTime self, SseSerializer serializer);
+
+@protected void sse_encode_DartFn_Inputs__Output_list_notification_handle_AnyhowException(FutureOr<List<NotificationHandle>> Function() self, SseSerializer serializer);
+
+@protected void sse_encode_DartFn_Inputs_list_notification_id_Output_unit_AnyhowException(FutureOr<void> Function(List<NotificationId>) self, SseSerializer serializer);
+
+@protected void sse_encode_DartFn_Inputs_notification_content_Output_unit_AnyhowException(FutureOr<void> Function(NotificationContent) self, SseSerializer serializer);
+
+@protected void sse_encode_DartFn_Inputs_u_64_Output_unit_AnyhowException(FutureOr<void> Function(BigInt) self, SseSerializer serializer);
+
+@protected void sse_encode_DartOpaque(Object self, SseSerializer serializer);
+
+@protected void sse_encode_Map_u_32_debug_capabilities_None(Map<int, DebugCapabilities> self, SseSerializer serializer);
+
+@protected void sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(AttachmentsRepository self, SseSerializer serializer);
+
+@protected void sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(ChatDetailsCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(ChatListCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(ChatsRepository self, SseSerializer serializer);
+
+@protected void sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(DartNotificationService self, SseSerializer serializer);
+
+@protected void sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(InvitationCodesCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(LogWriter self, SseSerializer serializer);
+
+@protected void sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(MemberDetailsCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(MessageCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(MessageListCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(NavigationCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(UiRoomState self, SseSerializer serializer);
+
+@protected void sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(UiUser self, SseSerializer serializer);
+
+@protected void sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(User self, SseSerializer serializer);
+
+@protected void sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(UserCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(UserSettingsCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(UsernameHash self, SseSerializer serializer);
+
+@protected void sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(UsersCubitBase self, SseSerializer serializer);
+
+@protected void sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(UsersState self, SseSerializer serializer);
+
+@protected void sse_encode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser_Sse(RustStreamSink<UiUser> self, SseSerializer serializer);
+
+@protected void sse_encode_StreamSink_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState_Sse(RustStreamSink<UsersState> self, SseSerializer serializer);
+
+@protected void sse_encode_StreamSink_chat_details_state_Sse(RustStreamSink<ChatDetailsState> self, SseSerializer serializer);
+
+@protected void sse_encode_StreamSink_chat_list_state_Sse(RustStreamSink<ChatListState> self, SseSerializer serializer);
+
+@protected void sse_encode_StreamSink_invitation_codes_state_Sse(RustStreamSink<InvitationCodesState> self, SseSerializer serializer);
+
+@protected void sse_encode_StreamSink_log_entry_Sse(RustStreamSink<LogEntry> self, SseSerializer serializer);
+
+@protected void sse_encode_StreamSink_member_details_state_Sse(RustStreamSink<MemberDetailsState> self, SseSerializer serializer);
+
+@protected void sse_encode_StreamSink_message_list_state_Sse(RustStreamSink<MessageListState> self, SseSerializer serializer);
+
+@protected void sse_encode_StreamSink_message_list_transition_Sse(RustStreamSink<MessageListTransition> self, SseSerializer serializer);
+
+@protected void sse_encode_StreamSink_message_state_Sse(RustStreamSink<MessageState> self, SseSerializer serializer);
+
+@protected void sse_encode_StreamSink_navigation_state_Sse(RustStreamSink<NavigationState> self, SseSerializer serializer);
+
+@protected void sse_encode_StreamSink_ui_attachment_status_Sse(RustStreamSink<UiAttachmentStatus> self, SseSerializer serializer);
+
+@protected void sse_encode_StreamSink_user_settings_Sse(RustStreamSink<UserSettings> self, SseSerializer serializer);
+
+@protected void sse_encode_String(String self, SseSerializer serializer);
+
+@protected void sse_encode_Uuid(UuidValue self, SseSerializer serializer);
+
+@protected void sse_encode_accept_contact_request_error(AcceptContactRequestError self, SseSerializer serializer);
+
+@protected void sse_encode_add_username_contact_error(AddUsernameContactError self, SseSerializer serializer);
+
+@protected void sse_encode_air_component(AirComponent self, SseSerializer serializer);
+
+@protected void sse_encode_air_features(AirFeatures self, SseSerializer serializer);
+
+@protected void sse_encode_app_data_debug_info(AppDataDebugInfo self, SseSerializer serializer);
+
+@protected void sse_encode_app_state(AppState self, SseSerializer serializer);
+
+@protected void sse_encode_attachment_id(AttachmentId self, SseSerializer serializer);
+
+@protected void sse_encode_block_element(BlockElement self, SseSerializer serializer);
+
+@protected void sse_encode_bool(bool self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(UiRoomState self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(User self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(UsernameHash self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_accept_contact_request_error(AcceptContactRequestError self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_add_username_contact_error(AddUsernameContactError self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_air_component(AirComponent self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_air_features(AirFeatures self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_app_data_debug_info(AppDataDebugInfo self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_attachment_id(AttachmentId self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_chat_id(ChatId self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_developer_settings_screen_type(DeveloperSettingsScreenType self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_encrypted_group_title_debug_info(EncryptedGroupTitleDebugInfo self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_external_group_profile_debug_info(ExternalGroupProfileDebugInfo self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_f_64(double self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_group_data_debug_info(GroupDataDebugInfo self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_home_navigation_state(HomeNavigationState self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_image_data(ImageData self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_intro_screen_type(IntroScreenType self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_invitation_code(InvitationCode self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_invite_users_error(InviteUsersError self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_message_content(MessageContent self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_message_id(MessageId self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_message_list_command(MessageListCommand self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_message_state(MessageState self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_platform_push_token(PlatformPushToken self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message((UiMimiId,UiInReplyToMessage) self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_request_invitation_code_error(RequestInvitationCodeError self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_required_debug_capabilities(RequiredDebugCapabilities self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_token_id(TokenId self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_ui_chat_attributes(UiChatAttributes self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_ui_chat_details(UiChatDetails self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_ui_chat_message(UiChatMessage self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_ui_contact(UiContact self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_ui_error_message(UiErrorMessage self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_ui_event_message(UiEventMessage self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_ui_image_metadata(UiImageMetadata self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_ui_in_reply_to_message(UiInReplyToMessage self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_ui_inactive_chat(UiInactiveChat self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_ui_message_draft(UiMessageDraft self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_ui_mimi_content(UiMimiContent self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_ui_system_message(UiSystemMessage self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_ui_user_id(UiUserId self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_ui_user_profile(UiUserProfile self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_ui_username(UiUsername self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_upload_attachment_error(UploadAttachmentError self, SseSerializer serializer);
+
+@protected void sse_encode_box_autoadd_username_validation_error(UsernameValidationError self, SseSerializer serializer);
+
+@protected void sse_encode_box_ui_content_message(UiContentMessage self, SseSerializer serializer);
+
+@protected void sse_encode_chat_details_state(ChatDetailsState self, SseSerializer serializer);
+
+@protected void sse_encode_chat_id(ChatId self, SseSerializer serializer);
+
+@protected void sse_encode_chat_list_state(ChatListState self, SseSerializer serializer);
+
+@protected void sse_encode_debug_capabilities(DebugCapabilities self, SseSerializer serializer);
+
+@protected void sse_encode_delete_mode(DeleteMode self, SseSerializer serializer);
+
+@protected void sse_encode_developer_settings_screen_type(DeveloperSettingsScreenType self, SseSerializer serializer);
+
+@protected void sse_encode_encrypted_group_title_debug_info(EncryptedGroupTitleDebugInfo self, SseSerializer serializer);
+
+@protected void sse_encode_external_group_profile_debug_info(ExternalGroupProfileDebugInfo self, SseSerializer serializer);
+
+@protected void sse_encode_f_64(double self, SseSerializer serializer);
+
+@protected void sse_encode_group_data_debug_info(GroupDataDebugInfo self, SseSerializer serializer);
+
+@protected void sse_encode_group_debug_info(GroupDebugInfo self, SseSerializer serializer);
+
+@protected void sse_encode_home_navigation_state(HomeNavigationState self, SseSerializer serializer);
+
+@protected void sse_encode_home_tab(HomeTab self, SseSerializer serializer);
+
+@protected void sse_encode_i_32(int self, SseSerializer serializer);
+
+@protected void sse_encode_i_64(PlatformInt64 self, SseSerializer serializer);
+
+@protected void sse_encode_image_data(ImageData self, SseSerializer serializer);
+
+@protected void sse_encode_inline_element(InlineElement self, SseSerializer serializer);
+
+@protected void sse_encode_intro_screen_type(IntroScreenType self, SseSerializer serializer);
+
+@protected void sse_encode_invitation_code(InvitationCode self, SseSerializer serializer);
+
+@protected void sse_encode_invitation_codes_state(InvitationCodesState self, SseSerializer serializer);
+
+@protected void sse_encode_invite_users_error(InviteUsersError self, SseSerializer serializer);
+
+@protected void sse_encode_isize(PlatformInt64 self, SseSerializer serializer);
+
+@protected void sse_encode_list_CastedPrimitive_u_64(List<int> self, SseSerializer serializer);
+
+@protected void sse_encode_list_String(List<String> self, SseSerializer serializer);
+
+@protected void sse_encode_list_chat_id(List<ChatId> self, SseSerializer serializer);
+
+@protected void sse_encode_list_intro_screen_type(List<IntroScreenType> self, SseSerializer serializer);
+
+@protected void sse_encode_list_list_list_ranged_block_element(List<List<List<RangedBlockElement>>> self, SseSerializer serializer);
+
+@protected void sse_encode_list_list_ranged_block_element(List<List<RangedBlockElement>> self, SseSerializer serializer);
+
+@protected void sse_encode_list_message_list_change(List<MessageListChange> self, SseSerializer serializer);
+
+@protected void sse_encode_list_notification_handle(List<NotificationHandle> self, SseSerializer serializer);
+
+@protected void sse_encode_list_notification_id(List<NotificationId> self, SseSerializer serializer);
+
+@protected void sse_encode_list_prim_u_8_loose(List<int> self, SseSerializer serializer);
+
+@protected void sse_encode_list_prim_u_8_strict(Uint8List self, SseSerializer serializer);
+
+@protected void sse_encode_list_ranged_block_element(List<RangedBlockElement> self, SseSerializer serializer);
+
+@protected void sse_encode_list_ranged_code_block(List<RangedCodeBlock> self, SseSerializer serializer);
+
+@protected void sse_encode_list_ranged_inline_element(List<RangedInlineElement> self, SseSerializer serializer);
+
+@protected void sse_encode_list_record_u_32_debug_capabilities(List<(int,DebugCapabilities)> self, SseSerializer serializer);
+
+@protected void sse_encode_list_timed_task_debug_info(List<TimedTaskDebugInfo> self, SseSerializer serializer);
+
+@protected void sse_encode_list_ui_attachment(List<UiAttachment> self, SseSerializer serializer);
+
+@protected void sse_encode_list_ui_chat_message(List<UiChatMessage> self, SseSerializer serializer);
+
+@protected void sse_encode_list_ui_client_record(List<UiClientRecord> self, SseSerializer serializer);
+
+@protected void sse_encode_list_ui_contact(List<UiContact> self, SseSerializer serializer);
+
+@protected void sse_encode_list_ui_invitation_code(List<UiInvitationCode> self, SseSerializer serializer);
+
+@protected void sse_encode_list_ui_user_id(List<UiUserId> self, SseSerializer serializer);
+
+@protected void sse_encode_list_ui_username(List<UiUsername> self, SseSerializer serializer);
+
+@protected void sse_encode_loaded_image_attachment(LoadedImageAttachment self, SseSerializer serializer);
+
+@protected void sse_encode_log_entry(LogEntry self, SseSerializer serializer);
+
+@protected void sse_encode_log_entry_level(LogEntryLevel self, SseSerializer serializer);
+
+@protected void sse_encode_member_details_state(MemberDetailsState self, SseSerializer serializer);
+
+@protected void sse_encode_message_content(MessageContent self, SseSerializer serializer);
+
+@protected void sse_encode_message_id(MessageId self, SseSerializer serializer);
+
+@protected void sse_encode_message_list_change(MessageListChange self, SseSerializer serializer);
+
+@protected void sse_encode_message_list_command(MessageListCommand self, SseSerializer serializer);
+
+@protected void sse_encode_message_list_state(MessageListState self, SseSerializer serializer);
+
+@protected void sse_encode_message_list_transition(MessageListTransition self, SseSerializer serializer);
+
+@protected void sse_encode_message_list_transition_kind(MessageListTransitionKind self, SseSerializer serializer);
+
+@protected void sse_encode_message_state(MessageState self, SseSerializer serializer);
+
+@protected void sse_encode_navigation_state(NavigationState self, SseSerializer serializer);
+
+@protected void sse_encode_notification_content(NotificationContent self, SseSerializer serializer);
+
+@protected void sse_encode_notification_handle(NotificationHandle self, SseSerializer serializer);
+
+@protected void sse_encode_notification_id(NotificationId self, SseSerializer serializer);
+
+@protected void sse_encode_opt_CastedPrimitive_usize(int? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_String(String? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(UiRoomState? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(User? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(UsernameHash? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_accept_contact_request_error(AcceptContactRequestError? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_add_username_contact_error(AddUsernameContactError? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_air_component(AirComponent? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_air_features(AirFeatures? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_app_data_debug_info(AppDataDebugInfo? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_bool(bool? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_chat_id(ChatId? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_developer_settings_screen_type(DeveloperSettingsScreenType? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_encrypted_group_title_debug_info(EncryptedGroupTitleDebugInfo? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_external_group_profile_debug_info(ExternalGroupProfileDebugInfo? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_f_64(double? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_group_data_debug_info(GroupDataDebugInfo? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_image_data(ImageData? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_invite_users_error(InviteUsersError? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_message_content(MessageContent? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_message_id(MessageId? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_message_list_command(MessageListCommand? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_platform_push_token(PlatformPushToken? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message((UiMimiId,UiInReplyToMessage)? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_request_invitation_code_error(RequestInvitationCodeError? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_required_debug_capabilities(RequiredDebugCapabilities? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_ui_chat_details(UiChatDetails? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_ui_chat_message(UiChatMessage? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_ui_contact(UiContact? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_ui_image_metadata(UiImageMetadata? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_ui_in_reply_to_message(UiInReplyToMessage? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_ui_message_draft(UiMessageDraft? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_ui_user_id(UiUserId? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_ui_username(UiUsername? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_upload_attachment_error(UploadAttachmentError? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_box_autoadd_username_validation_error(UsernameValidationError? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_list_String(List<String>? self, SseSerializer serializer);
+
+@protected void sse_encode_opt_list_prim_u_8_strict(Uint8List? self, SseSerializer serializer);
+
+@protected void sse_encode_platform_push_token(PlatformPushToken self, SseSerializer serializer);
+
+@protected void sse_encode_ranged_block_element(RangedBlockElement self, SseSerializer serializer);
+
+@protected void sse_encode_ranged_code_block(RangedCodeBlock self, SseSerializer serializer);
+
+@protected void sse_encode_ranged_inline_element(RangedInlineElement self, SseSerializer serializer);
+
+@protected void sse_encode_record_u_32_debug_capabilities((int,DebugCapabilities) self, SseSerializer serializer);
+
+@protected void sse_encode_record_ui_mimi_id_ui_in_reply_to_message((UiMimiId,UiInReplyToMessage) self, SseSerializer serializer);
+
+@protected void sse_encode_request_invitation_code_error(RequestInvitationCodeError self, SseSerializer serializer);
+
+@protected void sse_encode_required_debug_capabilities(RequiredDebugCapabilities self, SseSerializer serializer);
+
+@protected void sse_encode_timed_task_debug_info(TimedTaskDebugInfo self, SseSerializer serializer);
+
+@protected void sse_encode_token_id(TokenId self, SseSerializer serializer);
+
+@protected void sse_encode_u_32(int self, SseSerializer serializer);
+
+@protected void sse_encode_u_64(BigInt self, SseSerializer serializer);
+
+@protected void sse_encode_u_8(int self, SseSerializer serializer);
+
+@protected void sse_encode_u_8_array_32(U8Array32 self, SseSerializer serializer);
+
+@protected void sse_encode_ui_attachment(UiAttachment self, SseSerializer serializer);
+
+@protected void sse_encode_ui_attachment_status(UiAttachmentStatus self, SseSerializer serializer);
+
+@protected void sse_encode_ui_chat_attributes(UiChatAttributes self, SseSerializer serializer);
+
+@protected void sse_encode_ui_chat_details(UiChatDetails self, SseSerializer serializer);
+
+@protected void sse_encode_ui_chat_message(UiChatMessage self, SseSerializer serializer);
+
+@protected void sse_encode_ui_chat_status(UiChatStatus self, SseSerializer serializer);
+
+@protected void sse_encode_ui_chat_type(UiChatType self, SseSerializer serializer);
+
+@protected void sse_encode_ui_client_record(UiClientRecord self, SseSerializer serializer);
+
+@protected void sse_encode_ui_contact(UiContact self, SseSerializer serializer);
+
+@protected void sse_encode_ui_content_message(UiContentMessage self, SseSerializer serializer);
+
+@protected void sse_encode_ui_error_message(UiErrorMessage self, SseSerializer serializer);
+
+@protected void sse_encode_ui_event_message(UiEventMessage self, SseSerializer serializer);
+
+@protected void sse_encode_ui_flight_position(UiFlightPosition self, SseSerializer serializer);
+
+@protected void sse_encode_ui_image_metadata(UiImageMetadata self, SseSerializer serializer);
+
+@protected void sse_encode_ui_in_reply_to_message(UiInReplyToMessage self, SseSerializer serializer);
+
+@protected void sse_encode_ui_inactive_chat(UiInactiveChat self, SseSerializer serializer);
+
+@protected void sse_encode_ui_invitation_code(UiInvitationCode self, SseSerializer serializer);
+
+@protected void sse_encode_ui_message(UiMessage self, SseSerializer serializer);
+
+@protected void sse_encode_ui_message_draft(UiMessageDraft self, SseSerializer serializer);
+
+@protected void sse_encode_ui_message_status(UiMessageStatus self, SseSerializer serializer);
+
+@protected void sse_encode_ui_mimi_content(UiMimiContent self, SseSerializer serializer);
+
+@protected void sse_encode_ui_mimi_id(UiMimiId self, SseSerializer serializer);
+
+@protected void sse_encode_ui_system_message(UiSystemMessage self, SseSerializer serializer);
+
+@protected void sse_encode_ui_user_id(UiUserId self, SseSerializer serializer);
+
+@protected void sse_encode_ui_user_profile(UiUserProfile self, SseSerializer serializer);
+
+@protected void sse_encode_ui_username(UiUsername self, SseSerializer serializer);
+
+@protected void sse_encode_unit(void self, SseSerializer serializer);
+
+@protected void sse_encode_upload_attachment_error(UploadAttachmentError self, SseSerializer serializer);
+
+@protected void sse_encode_user_debug_info(UserDebugInfo self, SseSerializer serializer);
+
+@protected void sse_encode_user_settings(UserSettings self, SseSerializer serializer);
+
+@protected void sse_encode_username_validation_error(UsernameValidationError self, SseSerializer serializer);
+
+@protected void sse_encode_usize(BigInt self, SseSerializer serializer);
+                }
+                
+
 
 // Section: wire_class
 
-class RustLibWire implements BaseWire {
-  factory RustLibWire.fromExternalLibrary(ExternalLibrary lib) =>
-      RustLibWire(lib.ffiDynamicLibrary);
-
-  /// Holds the symbol lookup function.
-  final ffi.Pointer<T> Function<T extends ffi.NativeType>(String symbolName)
-  _lookup;
-
-  /// The symbols are looked up in [dynamicLibrary].
-  RustLibWire(ffi.DynamicLibrary dynamicLibrary)
-    : _lookup = dynamicLibrary.lookup;
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepositoryPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepositoryPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepositoryPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepositoryPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBasePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBasePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBasePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBasePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepositoryPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepositoryPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepositoryPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepositoryPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationServicePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationServicePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationServicePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationServicePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBasePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBasePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriterPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriterPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriterPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriterPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBasePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBasePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBasePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBasePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBasePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBasePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBasePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBasePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomStatePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomStatePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomStatePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomStatePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUserPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUserPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUserPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUserPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBasePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBasePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBasePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBasePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHashPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHashPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHashPtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHashPtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBasePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBasePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBasePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersStatePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState',
-      );
-  late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState =
-      _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersStatePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-
-  void
-  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
-    ffi.Pointer<ffi.Void> ptr,
-  ) {
-    return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
-      ptr,
-    );
-  }
-
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersStatePtr =
-      _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>(
-        'frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState',
-      );
-  late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState =
-      _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersStatePtr
-          .asFunction<void Function(ffi.Pointer<ffi.Void>)>();
-}
+
+        class RustLibWire implements BaseWire {
+
+            factory RustLibWire.fromExternalLibrary(ExternalLibrary lib) =>
+              RustLibWire(lib.ffiDynamicLibrary);
+        
+            /// Holds the symbol lookup function.
+            final ffi.Pointer<T> Function<T extends ffi.NativeType>(String symbolName)
+                _lookup;
+  
+            /// The symbols are looked up in [dynamicLibrary].
+            RustLibWire(ffi.DynamicLibrary dynamicLibrary)
+                : _lookup = dynamicLibrary.lookup;
+
+            
+            void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepositoryPtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository');
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository = _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepositoryPtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepositoryPtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository');
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepository = _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerAttachmentsRepositoryPtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBasePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase');
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase = _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBasePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBasePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase');
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase = _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBasePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBasePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase');
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase = _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBasePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBasePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase');
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBase = _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatListCubitBasePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepositoryPtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository');
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository = _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepositoryPtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepositoryPtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository');
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepository = _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatsRepositoryPtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationServicePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService');
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService = _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationServicePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationServicePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService');
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationService = _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerDartNotificationServicePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBasePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase');
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase = _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBasePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBasePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase');
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase = _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBasePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriterPtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter');
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter = _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriterPtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriterPtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter');
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter = _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriterPtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBasePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase');
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase = _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBasePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBasePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase');
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBase = _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMemberDetailsCubitBasePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBasePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase');
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase = _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBasePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBasePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase');
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBase = _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageCubitBasePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBasePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase');
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase = _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBasePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBasePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase');
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBase = _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerMessageListCubitBasePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBasePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase');
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase = _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBasePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBasePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase');
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBase = _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerNavigationCubitBasePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomStatePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState');
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState = _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomStatePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomStatePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState');
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState = _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomStatePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUserPtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser');
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser = _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUserPtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUserPtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser');
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUser = _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiUserPtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserPtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser');
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser = _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserPtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserPtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser');
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser = _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserPtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBasePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase');
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase = _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBasePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBasePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase');
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase = _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBasePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBasePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase');
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase = _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBasePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBasePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase');
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBase = _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserSettingsCubitBasePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHashPtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash');
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash = _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHashPtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHashPtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash');
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash = _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHashPtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBasePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase');
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase = _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBasePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBasePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase');
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBase = _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersCubitBasePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersStatePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState');
+            late final _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState = _rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersStatePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+            void rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
+              ffi.Pointer<ffi.Void> ptr,
+            ) {
+              return _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState(
+                ptr,
+              );
+            }
+
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersStatePtr = _lookup<ffi.NativeFunction<ffi.Void Function(ffi.Pointer<ffi.Void>)>>('frbgen_air_rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState');
+            late final _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersState = _rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsersStatePtr.asFunction<void Function(ffi.Pointer<ffi.Void>)>();
+            
+        }
+        
