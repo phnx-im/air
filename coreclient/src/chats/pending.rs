@@ -259,11 +259,6 @@ impl CoreUser {
         // nuke the local connection group and chat so we don't end up with an orphan chat
         // that has no matching contact row in the local database.
         if let Err(error) = mark_result {
-            error!(
-                %error,
-                %chat_id,
-                "Failed to finalize accepted connection; nuking local group and chat"
-            );
             if let Err(cleanup_error) = self
                 .db()
                 .with_write_transaction(async |txn| -> anyhow::Result<_> {
@@ -280,7 +275,9 @@ impl CoreUser {
                 );
             }
 
-            anyhow::bail!("failed to mark chat as accepted connection, deleting chat+group!");
+            return Err(
+                error.context("Failed to finalize accepted connection; nuked local group and chat")
+            );
         }
 
         Ok(Ok(()))
