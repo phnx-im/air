@@ -24,6 +24,7 @@ env:
 jobs:
   android-publish:
     runs-on: ubuntu-latest
+    environment: google-play-store
 
     steps:
       - name: Checkout code
