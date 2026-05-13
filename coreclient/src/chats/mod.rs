@@ -159,6 +159,10 @@ impl Chat {
         &self.chat_type
     }
 
+    pub fn is_connection(&self) -> bool {
+        self.chat_type.is_connection()
+    }
+
     pub fn is_unconfirmed(&self) -> bool {
         matches!(
             self.chat_type,
@@ -294,6 +298,20 @@ impl ChatType {
             _ => None,
         }
     }
+
+    pub(crate) fn is_connection(&self) -> bool {
+        match self {
+            ChatType::Group => false,
+            ChatType::HandleConnection(_)
+            | ChatType::Connection(_)
+            | ChatType::TargetedMessageConnection(_)
+            | ChatType::PendingConnection(_) => true,
+        }
+    }
+
+    pub(crate) fn is_group(&self) -> bool {
+        !self.is_connection()
+    }
 }
 
 /// Attributes of a chat.
@@ -311,6 +329,17 @@ pub struct ChatAttributes {
 impl ChatAttributes {
     pub fn new(title: String, picture: Option<Vec<u8>>) -> Self {
         Self { title, picture }
+    }
+
+    pub(crate) fn empty() -> Self {
+        Self {
+            title: String::new(),
+            picture: None,
+        }
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.title.is_empty() && self.picture.is_none()
     }
 
     pub fn title(&self) -> &str {

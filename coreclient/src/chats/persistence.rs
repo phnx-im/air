@@ -82,13 +82,9 @@ impl SqlChat {
             )),
         };
 
-        let attributes = match chat_type {
-            ChatType::Group => Some(ChatAttributes { title, picture }),
-            ChatType::HandleConnection(_)
-            | ChatType::Connection(_)
-            | ChatType::TargetedMessageConnection(_)
-            | ChatType::PendingConnection(_) => None,
-        };
+        let attributes = chat_type
+            .is_group()
+            .then_some(ChatAttributes { title, picture });
 
         Some(Chat {
             id: chat_id,

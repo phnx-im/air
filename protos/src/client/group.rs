@@ -53,6 +53,24 @@ pub struct GroupData {
     pub external_group_profile: Option<ExternalGroupProfile>,
 }
 
+impl GroupData {
+    pub fn empty() -> Self {
+        Self {
+            encrypted_title: None,
+            external_group_profile: None,
+            legacy_title: None,
+            legacy_picture: None,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.legacy_title.is_none()
+            && self.legacy_picture.is_none()
+            && self.encrypted_title.is_none()
+            && self.external_group_profile.is_none()
+    }
+}
+
 /// External encrypted group profile in the object storage.
 ///
 /// This type is similar to the `ExternalPart` in the [MIMI Message Content draft].
