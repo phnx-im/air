@@ -13,7 +13,7 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::{
-    Chat, ChatAttributes, ChatId, ChatType,
+    Chat, ChatAttributes, ChatId,
     chats::{GroupDataExt, GroupDataProfilePart},
     groups::Group,
     job::{
@@ -559,7 +559,7 @@ impl OutboundServiceContext {
                 let user_id = self.key_store.signing_key.credential().user_id();
                 group
                     .member_air_component(user_id)
-                    .map(|component| component.features.empty_connection_group_titles)
+                    .map(|component| component.features.empty_connection_group_attributes)
                     .unwrap_or(false)
             } else {
                 false

@@ -8285,6 +8285,8 @@ const _: fn() = || {
     {
         let GroupDataDebugInfo =
             None::<crate::api::chat_details_cubit::GroupDataDebugInfo>.unwrap();
+        let _: Option<String> = GroupDataDebugInfo.legacy_title;
+        let _: bool = GroupDataDebugInfo.legacy_picture;
         let _: Option<crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo> =
             GroupDataDebugInfo.encrypted_title;
         let _: Option<crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo> =
@@ -9454,6 +9456,8 @@ impl SseDecode for f64 {
 impl SseDecode for crate::api::chat_details_cubit::GroupDataDebugInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_legacyTitle = <Option<String>>::sse_decode(deserializer);
+        let mut var_legacyPicture = <bool>::sse_decode(deserializer);
         let mut var_encryptedTitle = <Option<
             crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo,
         >>::sse_decode(deserializer);
@@ -9461,6 +9465,8 @@ impl SseDecode for crate::api::chat_details_cubit::GroupDataDebugInfo {
             crate::api::chat_details_cubit::ExternalGroupProfileDebugInfo,
         >>::sse_decode(deserializer);
         return crate::api::chat_details_cubit::GroupDataDebugInfo {
+            legacy_title: var_legacyTitle,
+            legacy_picture: var_legacyPicture,
             encrypted_title: var_encryptedTitle,
             external_group_profile: var_externalGroupProfile,
         };
@@ -12565,6 +12571,8 @@ impl flutter_rust_bridge::IntoDart
 {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
+            self.0.legacy_title.into_into_dart().into_dart(),
+            self.0.legacy_picture.into_into_dart().into_dart(),
             self.0.encrypted_title.into_into_dart().into_dart(),
             self.0.external_group_profile.into_into_dart().into_dart(),
         ]
@@ -15014,6 +15022,8 @@ impl SseEncode for f64 {
 impl SseEncode for crate::api::chat_details_cubit::GroupDataDebugInfo {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<String>>::sse_encode(self.legacy_title, serializer);
+        <bool>::sse_encode(self.legacy_picture, serializer);
         <Option<crate::api::chat_details_cubit::EncryptedGroupTitleDebugInfo>>::sse_encode(
             self.encrypted_title,
             serializer,
