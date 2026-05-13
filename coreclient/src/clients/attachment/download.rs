@@ -41,7 +41,10 @@ impl CoreUser {
         let fut = self
             .clone()
             .download_attachment_impl(attachment_id, progress_tx);
-        (progress, fut)
+        (progress, async move {
+            tokio::time::sleep(Duration::from_secs(10)).await;
+            fut.await
+        })
     }
 
     async fn download_attachment_impl(

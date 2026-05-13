@@ -27,6 +27,7 @@ abstract class AttachmentsRepository implements RustOpaqueInterface {
 
   Future<LoadedImageAttachment> loadImageAttachment({
     required AttachmentId attachmentId,
+    required bool retryDownloadIfFailed,
     required FutureOr<void> Function(BigInt) chunkEventCallback,
   });
 

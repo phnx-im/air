@@ -98,13 +98,17 @@ class _AttachmentImageState extends State<AttachmentImage> {
   }
 
   /// Loads the encoded bytes and (if not already memoized) classifies them.
-  Future<void> _load() async {
+  Future<void> _load({bool tryDownloadOnError = false}) async {
     final id = widget.attachment.attachmentId;
     try {
       if (!mounted) return;
       final loaded = await context
           .read<AttachmentsRepository>()
-          .loadImageAttachment(attachmentId: id, chunkEventCallback: (_) {});
+          .loadImageAttachment(
+            attachmentId: id,
+            tryDownloadOnError: tryDownloadOnError,
+            chunkEventCallback: (_) {},
+          );
       if (!mounted) return;
       _animationFlagCache[id] = loaded.isAnimated;
       if (!loaded.isAnimated) {
@@ -305,13 +309,14 @@ class AttachmentImageOverlay extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final uploadStatusSteam = useMemoized(
+    final retries = useState(0);
+    final statusStream = useMemoized(
       () => context.read<AttachmentsRepository>().statusStream(
         attachmentId: attachmentId,
       ),
-      [attachmentId],
+      [attachmentId, retries.value],
     );
-    final uploadStatus = useStream<UiAttachmentStatus>(uploadStatusSteam);
+    final uploadStatus = useStream<UiAttachmentStatus>(statusStream);
 
     final colors = CustomColorScheme.of(context);
 
@@ -324,9 +329,12 @@ class AttachmentImageOverlay extends HookWidget {
             alignment: Alignment.center,
             children: [
               IconButton(
-                onPressed: () => context
-                    .read<ChatDetailsCubit>()
-                    .retryUploadAttachment(attachmentId),
+                onPressed: () {
+                  retries.value++;
+                  context.read<ChatDetailsCubit>().retryUploadAttachment(
+                    attachmentId,
+                  );
+                },
                 icon: const AppIcon.upload(size: 24),
               ),
             ],
@@ -338,7 +346,10 @@ class AttachmentImageOverlay extends HookWidget {
             alignment: Alignment.center,
             children: [
               IconButton(
-                onPressed: onTapDownload,
+                onPressed: () {
+                  retries.value++;
+                  onTapDownload();
+                },
                 icon: const AppIcon.download(size: 24),
               ),
             ],

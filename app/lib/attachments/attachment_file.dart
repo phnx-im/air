@@ -81,11 +81,12 @@ class _UploadStatus extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
+    final retryGen = useState(0);
     final uploadStatusSteam = useMemoized(
       () => context.read<AttachmentsRepository>().statusStream(
         attachmentId: attachmentId,
       ),
-      [attachmentId],
+      [attachmentId, retryGen.value],
     );
     final uploadStatus = useStream<UiAttachmentStatus>(uploadStatusSteam);
 
@@ -98,6 +99,7 @@ class _UploadStatus extends HookWidget {
         UiAttachmentStatus_Pending() ||
         UiAttachmentStatus_Failed() => IconButton(
           onPressed: () {
+            retryGen.value++;
             context.read<ChatDetailsCubit>().retryUploadAttachment(
               attachmentId,
             );

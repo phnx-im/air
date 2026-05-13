@@ -247,6 +247,7 @@ void main() {
       when(
         () => attachmentsRepository.loadImageAttachment(
           attachmentId: any(named: "attachmentId"),
+          tryDownloadOnError: false,
           chunkEventCallback: any(named: "chunkEventCallback"),
         ),
       ).thenAnswer(

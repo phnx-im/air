@@ -119,10 +119,23 @@ impl AttachmentsRepository {
     pub async fn load_image_attachment(
         &self,
         attachment_id: AttachmentId,
+        retry_download_if_failed: bool,
         chunk_event_callback: impl Fn(u64) -> DartFnFuture<()> + Send + 'static,
     ) -> anyhow::Result<LoadedImageAttachment> {
         // Remove cancelled handles
         self.in_progress.retain(|_, handle| !handle.is_cancelled());
+
+        let spawn_download = async move |chunk_event_callback| {
+            let handle = spawn_download_task(
+                &self.store,
+                &self.cancel,
+                None,
+                &self.in_progress,
+                attachment_id,
+            );
+            self.track_attachment_download(attachment_id, handle, chunk_event_callback)
+                .await
+        };
 
         let bytes = match self.store.load_attachment(attachment_id).await? {
             AttachmentContent::Ready(bytes)
@@ -130,15 +143,14 @@ impl AttachmentsRepository {
             | AttachmentContent::UploadFailed(bytes) => bytes,
             AttachmentContent::Pending => {
                 debug!(?attachment_id, "Attachment is pending; spawn download task");
-                let handle = spawn_download_task(
-                    &self.store,
-                    &self.cancel,
-                    None,
-                    &self.in_progress,
-                    attachment_id,
+                spawn_download(chunk_event_callback).await?
+            }
+            AttachmentContent::DownloadFailed if retry_download_if_failed => {
+                debug!(
+                    ?attachment_id,
+                    "Attachment failed to download but a retry was requested; spawn download task"
                 );
-                self.track_attachment_download(attachment_id, handle, chunk_event_callback)
-                    .await?
+                spawn_download(chunk_event_callback).await?
             }
             AttachmentContent::Downloading => {
                 let handle = self.in_progress.get(&attachment_id).as_deref().cloned();
