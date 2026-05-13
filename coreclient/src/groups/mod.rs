@@ -212,6 +212,19 @@ impl Group {
             })
     }
 
+    pub(crate) fn members_air_component(&self) -> impl Iterator<Item = Option<AirComponent>> {
+        self.mls_group.members().map(|member| {
+            let leaf_node = self.mls_group.public_group().leaf(member.index)?;
+            let dict = leaf_node.extensions().app_data_dictionary()?;
+            let data = dict.dictionary().get(&AIR_COMPONENT_ID)?;
+            AirComponent::from_bytes(data)
+                .inspect_err(|error| {
+                    error!(%error, "Failed to deserialize member air component");
+                })
+                .ok()
+        })
+    }
+
     /// Create a group.
     pub(super) fn create_group(
         mut connection: impl WriteConnection,
@@ -1431,6 +1444,86 @@ mod test_utils {
         ) -> sqlx::Result<()> {
             Chat::set_self_updated_at(self.db().write().await?, chat_id, self_updated_at).await
         }
+    }
+}
+
+#[cfg(feature = "test_utils")]
+impl Group {
+    /// Creates a self-update commit forcing a specific [`AirComponent`] into the leaf node.
+    ///
+    /// Useful for simulating old clients that lack certain feature flags.
+    pub(crate) async fn update_with_air_component(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &ClientSigningKey,
+        air_component: AirComponent,
+    ) -> Result<GroupOperationParamsOut> {
+        let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
+            new_encrypted_user_profile_keys: Vec::new(),
+        }))
+        .tls_serialize_detached()?;
+
+        let own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
+        let leaf_node_parameters =
+            Self::forced_air_component_leaf_params(own_leaf_node.extensions(), air_component)?;
+
+        self.mls_group.set_aad(aad);
+        let (mls_message, group_info) = {
+            let provider = AirOpenMlsProvider::new(txn.as_mut());
+            let (mls_message, _welcome_option, group_info_option) = self
+                .mls_group
+                .commit_builder()
+                .force_self_update(true)
+                .leaf_node_parameters(leaf_node_parameters)
+                .load_psks(provider.storage())?
+                .create_group_info(true)
+                .build(provider.rand(), provider.crypto(), signer, |_| true)?
+                .stage_commit(&provider)?
+                .into_contents();
+            (
+                mls_message,
+                group_info_option.ok_or_else(|| anyhow!("No group info after commit"))?,
+            )
+        };
+
+        let commit = AssistedMessageOut::new(mls_message, Some(group_info.into()));
+        Ok(GroupOperationParamsOut {
+            commit,
+            add_users_info_option: None,
+        })
+    }
+
+    fn forced_air_component_leaf_params(
+        leaf_node_extensions: &Extensions<LeafNode>,
+        air_component: AirComponent,
+    ) -> anyhow::Result<LeafNodeParameters> {
+        let mut leaf_node_parameters =
+            LeafNodeParameters::builder().with_capabilities(default_leaf_node_capabilities());
+
+        let mut dict = leaf_node_extensions
+            .app_data_dictionary()
+            .map(|e| e.dictionary().clone())
+            .unwrap_or_default();
+
+        // Ensure AppComponents entry is present
+        if dict.get(&ComponentType::AppComponents.into()).is_none() {
+            dict.insert(
+                ComponentType::AppComponents.into(),
+                ComponentsList {
+                    component_ids: SUPPORTED_COMPONENTS.to_vec(),
+                }
+                .tls_serialize_detached()?,
+            );
+        }
+        // Force the given air component, overriding whatever was there before
+        dict.insert(AIR_COMPONENT_ID, air_component.to_bytes()?);
+
+        let mut new_leaf_node_extensions = leaf_node_extensions.clone();
+        new_leaf_node_extensions.add_or_replace(Extension::AppDataDictionary(
+            AppDataDictionaryExtension::new(dict),
+        ))?;
+        leaf_node_parameters = leaf_node_parameters.with_extensions(new_leaf_node_extensions);
+        Ok(leaf_node_parameters.build())
     }
 }
 

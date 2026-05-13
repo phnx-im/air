@@ -556,11 +556,11 @@ impl OutboundServiceContext {
             // For connection chats, that support empty connection group titles, we can erase the data.
             let is_connection = chat.is_connection();
             let erase_attributes = if is_connection {
-                let user_id = self.key_store.signing_key.credential().user_id();
-                group
-                    .member_air_component(user_id)
-                    .map(|component| component.features.empty_connection_group_attributes)
-                    .unwrap_or(false)
+                group.members_air_component().all(|component| {
+                    component
+                        .map(|component| component.features.empty_connection_group_attributes)
+                        .unwrap_or(false)
+                })
             } else {
                 false
             };
