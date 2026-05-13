@@ -16,7 +16,7 @@ use anyhow::{Context, bail, ensure};
 use mimi_room_policy::RoleIndex;
 use openmls::treesync::errors::LeafNodeValidationError;
 use tls_codec::DeserializeBytes;
-use tracing::{instrument, warn};
+use tracing::{error, instrument, warn};
 
 use crate::{
     Chat, ChatId, ChatType, PartialContact, SystemMessage, TargetedMessageContact,
@@ -225,7 +225,8 @@ impl CoreUser {
 
         // Mark the chat as an accepted connection and mark partial contact as complete, also
         // remove the pending connection info.
-        self.db()
+        let mark_result = self
+            .db()
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
                 chat.set_chat_type(&mut *txn, &ChatType::Connection(sender_user_id.clone()))
                     .await?;
@@ -252,7 +253,35 @@ impl CoreUser {
                 }
                 Ok(())
             })
-            .await?;
+            .await;
+
+        // If marking the connection as accepted failed (e.g. inserting the contact failed),
+        // nuke the local connection group and chat so we don't end up with an orphan chat
+        // that has no matching contact row in the local database.
+        if let Err(error) = mark_result {
+            error!(
+                %error,
+                %chat_id,
+                "Failed to finalize accepted connection; nuking local group and chat"
+            );
+            if let Err(cleanup_error) = self
+                .db()
+                .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                    Group::delete_from_db(txn, chat.group_id()).await?;
+                    Chat::delete(&mut *txn, chat_id).await?;
+                    Ok(())
+                })
+                .await
+            {
+                error!(
+                    %cleanup_error,
+                    %chat_id,
+                    "Failed to clean up local group/chat after finalize error"
+                );
+            }
+
+            anyhow::bail!("failed to mark chat as accepted connection, deleting chat+group!");
+        }
 
         Ok(Ok(()))
     }
