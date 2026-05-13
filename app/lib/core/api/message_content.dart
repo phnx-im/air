@@ -4,7 +4,6 @@
 // ignore_for_file: unreachable_switch_default, prefer_const_constructors, camel_case_types
 import 'package:convert/convert.dart';
 
-
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
@@ -15,72 +14,63 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
 part 'message_content.freezed.dart';
 
-            // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `hash`, `hash`, `hash`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `hash`, `hash`, `hash`
 
+/// Mirror of the [`AttachmentId`] type
+class AttachmentId {
+  final UuidValue uuid;
 
-            
+  const AttachmentId({required this.uuid});
 
-            /// Mirror of the [`AttachmentId`] type
-class AttachmentId  {
-                final UuidValue uuid;
+  @override
+  String toString() => 'AttachmentId($uuid)';
 
-                const AttachmentId({required this.uuid ,});
+  @override
+  int get hashCode => uuid.hashCode;
 
-                
-                
-    @override
-    String toString() => 'AttachmentId($uuid)';
-
-
-                
-        @override
-        int get hashCode => uuid.hashCode;
-        
-
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is AttachmentId &&
-                runtimeType == other.runtimeType
-                && uuid == other.uuid;
-        
-            }
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AttachmentId &&
+          runtimeType == other.runtimeType &&
+          uuid == other.uuid;
+}
 
 @freezed
-sealed class UiAttachment with _$UiAttachment  {
-                
-                const factory UiAttachment({ required  AttachmentId attachmentId, required  String filename, required  String contentType,  String? description, required  int size,  UiImageMetadata? imageMetadata,}) = _UiAttachment;
-                
-                
-                
-            }
+sealed class UiAttachment with _$UiAttachment {
+  const factory UiAttachment({
+    required AttachmentId attachmentId,
+    required String filename,
+    required String contentType,
+    String? description,
+    required int size,
+    UiImageMetadata? imageMetadata,
+  }) = _UiAttachment;
+}
 
 @freezed
-sealed class UiImageMetadata with _$UiImageMetadata  {
-                
-                const factory UiImageMetadata({ required  String blurhash, required  int width, required  int height,}) = _UiImageMetadata;
-                
-                
-                
-            }
+sealed class UiImageMetadata with _$UiImageMetadata {
+  const factory UiImageMetadata({
+    required String blurhash,
+    required int width,
+    required int height,
+  }) = _UiImageMetadata;
+}
 
 /// The actual content of a message
 @freezed
-sealed class UiMimiContent with _$UiMimiContent  {
-                
-                const factory UiMimiContent({  Uint8List? replaces, required  Uint8List topicId,  Uint8List? inReplyTo,  String? plainBody,  MessageContent? content, required  List<UiAttachment> attachments,}) = _UiMimiContent;
-                
-                
-                
-            }
+sealed class UiMimiContent with _$UiMimiContent {
+  const factory UiMimiContent({
+    Uint8List? replaces,
+    required Uint8List topicId,
+    Uint8List? inReplyTo,
+    String? plainBody,
+    MessageContent? content,
+    required List<UiAttachment> attachments,
+  }) = _UiMimiContent;
+}
 
 @freezed
-sealed class UiMimiId with _$UiMimiId  {
-                
-                const factory UiMimiId({ required  U8Array32 field0,}) = _UiMimiId;
-                
-                
-                
-            }
-            
+sealed class UiMimiId with _$UiMimiId {
+  const factory UiMimiId({required U8Array32 field0}) = _UiMimiId;
+}

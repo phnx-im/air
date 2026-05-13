@@ -4,7 +4,6 @@
 // ignore_for_file: unreachable_switch_default, prefer_const_constructors, camel_case_types
 import 'package:convert/convert.dart';
 
-
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
@@ -15,70 +14,54 @@ import 'types.dart';
 import 'user_cubit.dart';
 part 'chat_list_cubit.freezed.dart';
 
-            // These functions are ignored because they are not marked as `pub`: `load_and_emit_state`, `new`, `process_store_notification`, `spawn`, `store_notifications_loop`
+// These functions are ignored because they are not marked as `pub`: `load_and_emit_state`, `new`, `process_store_notification`, `spawn`, `store_notifications_loop`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ChatListContext`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `eq`, `fmt`, `hash`
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatListCubitBase>>
+abstract class ChatListCubitBase implements RustOpaqueInterface {
+  Future<void> close();
 
-            
+  /// Creates a new 1:1 connection with the given user via a username.
+  ///
+  /// Returns `None` if the provided username does not exist.
+  Future<AddUsernameContactError?> createContactChat({
+    required UiUsername username,
+    required UsernameHash hash,
+  });
 
-            
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatListCubitBase>>
-                abstract class ChatListCubitBase implements RustOpaqueInterface {
-                     Future<void>  close();
+  /// Creates a new group chat with the given name and optional picture.
+  ///
+  /// After the chat is created, the current user is the only member of the group.
+  Future<ChatId> createGroupChat({
+    required String groupName,
+    Uint8List? picture,
+  });
 
+  bool get isClosed;
 
-/// Creates a new 1:1 connection with the given user via a username.
-///
-/// Returns `None` if the provided username does not exist.
- Future<AddUsernameContactError?>  createContactChat({required UiUsername username , required UsernameHash hash });
+  /// Creates a new chat list cubit.
+  ///
+  /// Loads the list of chats in the background and listens to the changes in the
+  /// chats.
+  factory ChatListCubitBase({required UserCubitBase userCubit}) => RustLib
+      .instance
+      .api
+      .crateApiChatListCubitChatListCubitBaseNew(userCubit: userCubit);
 
+  ChatListState get state;
 
-/// Creates a new group chat with the given name and optional picture.
-///
-/// After the chat is created, the current user is the only member of the group.
- Future<ChatId>  createGroupChat({required String groupName , Uint8List? picture });
+  Stream<ChatListState> stream();
+}
 
-
- bool get isClosed;
-
-
-/// Creates a new chat list cubit.
-///
-/// Loads the list of chats in the background and listens to the changes in the
-/// chats.
-factory ChatListCubitBase({required UserCubitBase userCubit })=>RustLib.instance.api.crateApiChatListCubitChatListCubitBaseNew(userCubit: userCubit);
-
-
- ChatListState get state;
-
-
- Stream<ChatListState>  stream();
-
-
-
-                    
-                }
-                
-
-
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UsernameHash>>
-                abstract class UsernameHash implements RustOpaqueInterface {
-                    
-
-                    
-                }
-                
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UsernameHash>>
+abstract class UsernameHash implements RustOpaqueInterface {}
 
 /// Represents the state of the list of chat.
 @freezed
-sealed class ChatListState with _$ChatListState  {
-                const ChatListState._();
-                const factory ChatListState({ required  List<ChatId> chatIds,}) = _ChatListState;
-                static Future<ChatListState>  default_()=>RustLib.instance.api.crateApiChatListCubitChatListStateDefault();
-
-
-                
-                
-            }
-            
+sealed class ChatListState with _$ChatListState {
+  const ChatListState._();
+  const factory ChatListState({required List<ChatId> chatIds}) = _ChatListState;
+  static Future<ChatListState> default_() =>
+      RustLib.instance.api.crateApiChatListCubitChatListStateDefault();
+}

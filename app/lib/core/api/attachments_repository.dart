@@ -4,7 +4,6 @@
 // ignore_for_file: unreachable_switch_default, prefer_const_constructors, camel_case_types
 import 'package:convert/convert.dart';
 
-
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
@@ -15,80 +14,70 @@ import 'package:uuid/uuid.dart';
 import 'user_cubit.dart';
 part 'attachments_repository.freezed.dart';
 
-            // These functions are ignored because they are not marked as `pub`: `attachment_downloads_loop`, `cancellation_token`, `in_progress`, `is_cancelled`, `new`, `spawn_attachment_downloads`, `spawn_download_task`, `track_attachment_download`, `with_cancellation`
+// These functions are ignored because they are not marked as `pub`: `attachment_downloads_loop`, `cancellation_token`, `in_progress`, `is_cancelled`, `new`, `spawn_attachment_downloads`, `spawn_download_task`, `track_attachment_download`, `with_cancellation`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AttachmentTaskHandle`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentsRepository>>
+abstract class AttachmentsRepository implements RustOpaqueInterface {
+  Future<void> cancel({required AttachmentId attachmentId});
 
-            
+  /// Load attachment's data from database
+  Future<Uint8List?> loadAttachment({required AttachmentId attachmentId});
 
-            
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentsRepository>>
-                abstract class AttachmentsRepository implements RustOpaqueInterface {
-                     Future<void>  cancel({required AttachmentId attachmentId });
+  Future<LoadedImageAttachment> loadImageAttachment({
+    required AttachmentId attachmentId,
+    required FutureOr<void> Function(BigInt) chunkEventCallback,
+  });
 
+  factory AttachmentsRepository({required UserCubitBase userCubit}) => RustLib
+      .instance
+      .api
+      .crateApiAttachmentsRepositoryAttachmentsRepositoryNew(
+        userCubit: userCubit,
+      );
 
-/// Load attachment's data from database
- Future<Uint8List?>  loadAttachment({required AttachmentId attachmentId });
+  Future<void> saveAttachment({
+    required AttachmentId attachmentId,
+    required String path,
+  });
 
-
- Future<LoadedImageAttachment>  loadImageAttachment({required AttachmentId attachmentId , required FutureOr<void> Function(BigInt) chunkEventCallback });
-
-
-factory AttachmentsRepository({required UserCubitBase userCubit })=>RustLib.instance.api.crateApiAttachmentsRepositoryAttachmentsRepositoryNew(userCubit: userCubit);
-
-
- Future<void>  saveAttachment({required AttachmentId attachmentId , required String path });
-
-
- Stream<UiAttachmentStatus>  statusStream({required AttachmentId attachmentId });
-
-
-
-                    
-                }
-                
+  Stream<UiAttachmentStatus> statusStream({required AttachmentId attachmentId});
+}
 
 /// Bytes of an image attachment and an animation classification.
-class LoadedImageAttachment  {
-                final Uint8List bytes;
-final bool isAnimated;
+class LoadedImageAttachment {
+  final Uint8List bytes;
+  final bool isAnimated;
 
-                const LoadedImageAttachment({required this.bytes ,required this.isAnimated ,});
+  const LoadedImageAttachment({required this.bytes, required this.isAnimated});
 
-                
-                
+  @override
+  int get hashCode => bytes.hashCode ^ isAnimated.hashCode;
 
-                
-        @override
-        int get hashCode => bytes.hashCode^isAnimated.hashCode;
-        
-
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is LoadedImageAttachment &&
-                runtimeType == other.runtimeType
-                && bytes == other.bytes&& isAnimated == other.isAnimated;
-        
-            }
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LoadedImageAttachment &&
+          runtimeType == other.runtimeType &&
+          bytes == other.bytes &&
+          isAnimated == other.isAnimated;
+}
 
 @freezed
-                sealed class UiAttachmentStatus with _$UiAttachmentStatus  {
-                    const UiAttachmentStatus._();
+sealed class UiAttachmentStatus with _$UiAttachmentStatus {
+  const UiAttachmentStatus._();
 
-                     /// Not in progress
-const factory UiAttachmentStatus.pending() = UiAttachmentStatus_Pending;
- /// Uploading or downloading
-const factory UiAttachmentStatus.progress(  BigInt field0,) = UiAttachmentStatus_Progress;
- /// Done uploading or downloading
-const factory UiAttachmentStatus.completed() = UiAttachmentStatus_Completed;
- /// Failed to upload or download
-const factory UiAttachmentStatus.failed() = UiAttachmentStatus_Failed;
+  /// Not in progress
+  const factory UiAttachmentStatus.pending() = UiAttachmentStatus_Pending;
 
-                    
+  /// Uploading or downloading
+  const factory UiAttachmentStatus.progress(BigInt field0) =
+      UiAttachmentStatus_Progress;
 
-                    
-                }
-            
+  /// Done uploading or downloading
+  const factory UiAttachmentStatus.completed() = UiAttachmentStatus_Completed;
+
+  /// Failed to upload or download
+  const factory UiAttachmentStatus.failed() = UiAttachmentStatus_Failed;
+}

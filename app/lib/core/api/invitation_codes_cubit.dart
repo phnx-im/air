@@ -4,7 +4,6 @@
 // ignore_for_file: unreachable_switch_default, prefer_const_constructors, camel_case_types
 import 'package:convert/convert.dart';
 
-
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
@@ -13,89 +12,68 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'user_cubit.dart';
 part 'invitation_codes_cubit.freezed.dart';
 
-            // These functions are ignored because they are not marked as `pub`: `load_and_emit_state`, `try_load_and_emit_state`
+// These functions are ignored because they are not marked as `pub`: `load_and_emit_state`, `try_load_and_emit_state`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `from`, `from`, `hash`, `hash`
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<InvitationCodesCubitBase>>
+abstract class InvitationCodesCubitBase implements RustOpaqueInterface {
+  Future<void> clearCopiedCodes();
 
-            
+  Future<void> close();
 
-            
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<InvitationCodesCubitBase>>
-                abstract class InvitationCodesCubitBase implements RustOpaqueInterface {
-                     Future<void>  clearCopiedCodes();
+  bool get isClosed;
 
+  Future<void> markInvitationCodeAsCopied({required String copiedCode});
 
- Future<void>  close();
+  factory InvitationCodesCubitBase({required UserCubitBase userCubit}) =>
+      RustLib.instance.api
+          .crateApiInvitationCodesCubitInvitationCodesCubitBaseNew(
+            userCubit: userCubit,
+          );
 
+  Future<RequestInvitationCodeError?> requestInvitationCode({
+    required TokenId tokenId,
+  });
 
- bool get isClosed;
+  InvitationCodesState get state;
 
-
- Future<void>  markInvitationCodeAsCopied({required String copiedCode });
-
-
-factory InvitationCodesCubitBase({required UserCubitBase userCubit })=>RustLib.instance.api.crateApiInvitationCodesCubitInvitationCodesCubitBaseNew(userCubit: userCubit);
-
-
- Future<RequestInvitationCodeError?>  requestInvitationCode({required TokenId tokenId });
-
-
- InvitationCodesState get state;
-
-
- Stream<InvitationCodesState>  stream();
-
-
-
-                    
-                }
-                
+  Stream<InvitationCodesState> stream();
+}
 
 @freezed
-sealed class InvitationCode with _$InvitationCode  {
-                
-                const factory InvitationCode({ required  String code, required  bool copied, required  DateTime createdAt,}) = _InvitationCode;
-                
-                
-                
-            }
+sealed class InvitationCode with _$InvitationCode {
+  const factory InvitationCode({
+    required String code,
+    required bool copied,
+    required DateTime createdAt,
+  }) = _InvitationCode;
+}
 
 @freezed
-sealed class InvitationCodesState with _$InvitationCodesState  {
-                const InvitationCodesState._();
-                const factory InvitationCodesState({ required  List<UiInvitationCode> codes,}) = _InvitationCodesState;
-                static Future<InvitationCodesState>  default_()=>RustLib.instance.api.crateApiInvitationCodesCubitInvitationCodesStateDefault();
+sealed class InvitationCodesState with _$InvitationCodesState {
+  const InvitationCodesState._();
+  const factory InvitationCodesState({required List<UiInvitationCode> codes}) =
+      _InvitationCodesState;
+  static Future<InvitationCodesState> default_() => RustLib.instance.api
+      .crateApiInvitationCodesCubitInvitationCodesStateDefault();
+}
 
-
-                
-                
-            }
-
-enum RequestInvitationCodeError {
-                    globalQuotaExceeded,
-                    ;
-                    
-                }
+enum RequestInvitationCodeError { globalQuotaExceeded }
 
 /// An ID of a privacy pass token stored locally.
 @freezed
-sealed class TokenId with _$TokenId  {
-                
-                const factory TokenId({ required  PlatformInt64 id, required  DateTime createdAt,}) = _TokenId;
-                
-                
-                
-            }
+sealed class TokenId with _$TokenId {
+  const factory TokenId({
+    required PlatformInt64 id,
+    required DateTime createdAt,
+  }) = _TokenId;
+}
 
 @freezed
-                sealed class UiInvitationCode with _$UiInvitationCode  {
-                    const UiInvitationCode._();
+sealed class UiInvitationCode with _$UiInvitationCode {
+  const UiInvitationCode._();
 
-                     const factory UiInvitationCode.token(  TokenId field0,) = UiInvitationCode_Token;
- const factory UiInvitationCode.code(  InvitationCode field0,) = UiInvitationCode_Code;
-
-                    
-
-                    
-                }
-            
+  const factory UiInvitationCode.token(TokenId field0) = UiInvitationCode_Token;
+  const factory UiInvitationCode.code(InvitationCode field0) =
+      UiInvitationCode_Code;
+}

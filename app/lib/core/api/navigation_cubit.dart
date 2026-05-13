@@ -4,7 +4,6 @@
 // ignore_for_file: unreachable_switch_default, prefer_const_constructors, camel_case_types
 import 'package:convert/convert.dart';
 
-
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
@@ -15,81 +14,55 @@ import 'package:uuid/uuid.dart';
 import 'types.dart';
 part 'navigation_cubit.freezed.dart';
 
-            // These functions are ignored because they are not marked as `pub`: `home`, `intro`, `subscribe`
+// These functions are ignored because they are not marked as `pub`: `home`, `intro`, `subscribe`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NavigationCubitBase>>
+abstract class NavigationCubitBase implements RustOpaqueInterface {
+  Future<void> close();
 
-            
+  Future<void> closeChat();
 
-            
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NavigationCubitBase>>
-                abstract class NavigationCubitBase implements RustOpaqueInterface {
-                     Future<void>  close();
+  bool get isClosed;
 
+  factory NavigationCubitBase({
+    required DartNotificationService notificationService,
+  }) => RustLib.instance.api.crateApiNavigationCubitNavigationCubitBaseNew(
+    notificationService: notificationService,
+  );
 
- Future<void>  closeChat();
+  Future<void> openAddMembers();
 
+  Future<void> openChat({required ChatId chatId});
 
- bool get isClosed;
+  Future<void> openChatDetails();
 
+  Future<void> openCreateGroup();
 
-factory NavigationCubitBase({required DartNotificationService notificationService })=>RustLib.instance.api.crateApiNavigationCubitNavigationCubitBaseNew(notificationService: notificationService);
+  Future<void> openDeveloperSettings({
+    required DeveloperSettingsScreenType screen,
+  });
 
+  Future<void> openGroupMembers();
 
- Future<void>  openAddMembers();
+  Future<void> openHome();
 
+  Future<void> openInto();
 
- Future<void>  openChat({required ChatId chatId });
+  Future<void> openIntroScreen({required IntroScreenType screen});
 
+  Future<void> openMemberDetails({required UiUserId member});
 
- Future<void>  openChatDetails();
+  bool pop();
 
+  NavigationState get state;
 
- Future<void>  openCreateGroup();
+  Stream<NavigationState> stream();
 
+  Future<void> switchTab({required HomeTab tab});
+}
 
- Future<void>  openDeveloperSettings({required DeveloperSettingsScreenType screen });
-
-
- Future<void>  openGroupMembers();
-
-
- Future<void>  openHome();
-
-
- Future<void>  openInto();
-
-
- Future<void>  openIntroScreen({required IntroScreenType screen });
-
-
- Future<void>  openMemberDetails({required UiUserId member });
-
-
- bool  pop();
-
-
- NavigationState get state;
-
-
- Stream<NavigationState>  stream();
-
-
- Future<void>  switchTab({required HomeTab tab });
-
-
-
-                    
-                }
-                
-
-enum DeveloperSettingsScreenType {
-                    root,
-changeUser,
-logs,
-                    ;
-                    
-                }
+enum DeveloperSettingsScreenType { root, changeUser, logs }
 
 /// Chats screen: main screen of the app
 ///
@@ -98,52 +71,57 @@ logs,
 /// way by just storing true/false or an optional value representing if a
 /// screen is opened.
 @freezed
-sealed class HomeNavigationState with _$HomeNavigationState  {
-                const HomeNavigationState._();
-                const factory HomeNavigationState({@Default(false)  bool chatOpen,  ChatId? chatId,  DeveloperSettingsScreenType? developerSettingsScreen,  UiUserId? memberDetails,@Default(HomeTab.chats)  HomeTab activeTab,@Default(false)  bool chatDetailsOpen,@Default(false)  bool addMembersOpen,@Default(false)  bool groupMembersOpen,@Default(false)  bool createGroupOpen,}) = _HomeNavigationState;
-                static Future<HomeNavigationState>  default_()=>RustLib.instance.api.crateApiNavigationCubitHomeNavigationStateDefault();
-
-
-                
-                
-            }
+sealed class HomeNavigationState with _$HomeNavigationState {
+  const HomeNavigationState._();
+  const factory HomeNavigationState({
+    @Default(false) bool chatOpen,
+    ChatId? chatId,
+    DeveloperSettingsScreenType? developerSettingsScreen,
+    UiUserId? memberDetails,
+    @Default(HomeTab.chats) HomeTab activeTab,
+    @Default(false) bool chatDetailsOpen,
+    @Default(false) bool addMembersOpen,
+    @Default(false) bool groupMembersOpen,
+    @Default(false) bool createGroupOpen,
+  }) = _HomeNavigationState;
+  static Future<HomeNavigationState> default_() =>
+      RustLib.instance.api.crateApiNavigationCubitHomeNavigationStateDefault();
+}
 
 /// Primary destinations exposed in the mobile tab bar and desktop sidebar.
 enum HomeTab {
-                    chats,
-profile,
-                    ;
-                    static Future<HomeTab>  default_()=>RustLib.instance.api.crateApiNavigationCubitHomeTabDefault();
+  chats,
+  profile;
 
-
-                }
-
-@freezed
-                sealed class IntroScreenType with _$IntroScreenType  {
-                    const IntroScreenType._();
-
-                     const factory IntroScreenType.invitationCode() = IntroScreenType_InvitationCode;
- const factory IntroScreenType.signUp() = IntroScreenType_SignUp;
- const factory IntroScreenType.usernameOnboarding() = IntroScreenType_UsernameOnboarding;
- const factory IntroScreenType.developerSettings(  DeveloperSettingsScreenType field0,) = IntroScreenType_DeveloperSettings;
-
-                    
-
-                    
-                }
+  static Future<HomeTab> default_() =>
+      RustLib.instance.api.crateApiNavigationCubitHomeTabDefault();
+}
 
 @freezed
-                sealed class NavigationState with _$NavigationState  {
-                    const NavigationState._();
+sealed class IntroScreenType with _$IntroScreenType {
+  const IntroScreenType._();
 
-                     /// Intro screen: welcome and registration screen
-///
-/// The first screen is always the intro screen is not part of the list of screens.
-const factory NavigationState.intro({  @Default([]) List<IntroScreenType> screens , }) = NavigationState_Intro;
- const factory NavigationState.home({  @Default(HomeNavigationState()) HomeNavigationState home , }) = NavigationState_Home;
+  const factory IntroScreenType.invitationCode() =
+      IntroScreenType_InvitationCode;
+  const factory IntroScreenType.signUp() = IntroScreenType_SignUp;
+  const factory IntroScreenType.usernameOnboarding() =
+      IntroScreenType_UsernameOnboarding;
+  const factory IntroScreenType.developerSettings(
+    DeveloperSettingsScreenType field0,
+  ) = IntroScreenType_DeveloperSettings;
+}
 
-                    
+@freezed
+sealed class NavigationState with _$NavigationState {
+  const NavigationState._();
 
-                    
-                }
-            
+  /// Intro screen: welcome and registration screen
+  ///
+  /// The first screen is always the intro screen is not part of the list of screens.
+  const factory NavigationState.intro({
+    @Default([]) List<IntroScreenType> screens,
+  }) = NavigationState_Intro;
+  const factory NavigationState.home({
+    @Default(HomeNavigationState()) HomeNavigationState home,
+  }) = NavigationState_Home;
+}

@@ -4,7 +4,6 @@
 // ignore_for_file: unreachable_switch_default, prefer_const_constructors, camel_case_types
 import 'package:convert/convert.dart';
 
-
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
@@ -21,131 +20,120 @@ import 'user_cubit.dart';
 import 'user_settings_cubit.dart';
 part 'chat_details_cubit.freezed.dart';
 
-            // These functions are ignored because they are not marked as `pub`: `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `store_draft_from_state`, `update_state_task`, `upload_attachment_impl`
+// These functions are ignored because they are not marked as `pub`: `load_and_emit_state`, `load_chat_details`, `load_chat_details`, `new`, `store_draft_from_state`, `update_state_task`, `upload_attachment_impl`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `ChatDetailsContext`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `clone`, `eq`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `into_ui_result`
 // These functions are ignored (category: IgnoreBecauseNotAllowedOwner): `into_ui_result`
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>>
+abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
+  Future<AcceptContactRequestError?> acceptContactRequest();
 
-            
+  Future<GroupDebugInfo> chatDebugInfo();
 
-            
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>>
-                abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
-                     Future<AcceptContactRequestError?>  acceptContactRequest();
+  Future<void> close();
 
+  Future<void> deleteMessage({
+    required MessageId messageId,
+    required DeleteMode deleteMode,
+  });
 
- Future<GroupDebugInfo>  chatDebugInfo();
+  Future<void> editMessage({MessageId? messageId});
 
+  bool get isClosed;
 
- Future<void>  close();
+  /// Marks the chat as read until the given message id (including).
+  ///
+  /// The calls to this method are debounced with a fixed delay.
+  Future<void> markAsRead({
+    required MessageId untilMessageId,
+    required DateTime untilTimestamp,
+  });
 
+  /// Creates a new cubit for the given chat.
+  ///
+  /// The cubit will fetch the chat details and the list of members. It will also listen to the
+  /// changes in the chat and update the state accordingly.
+  factory ChatDetailsCubitBase({
+    required UserCubitBase userCubit,
+    required UserSettingsCubitBase userSettingsCubit,
+    required ChatId chatId,
+    required ChatsRepository chatsRepository,
+    required AttachmentsRepository attachmentsRepository,
+    required bool withMembers,
+  }) => RustLib.instance.api.crateApiChatDetailsCubitChatDetailsCubitBaseNew(
+    userCubit: userCubit,
+    userSettingsCubit: userSettingsCubit,
+    chatId: chatId,
+    chatsRepository: chatsRepository,
+    attachmentsRepository: attachmentsRepository,
+    withMembers: withMembers,
+  );
 
- Future<void>  deleteMessage({required MessageId messageId , required DeleteMode deleteMode });
+  Future<void> replyToMessage({required MessageId messageId});
 
+  Future<void> requestResync();
 
- Future<void>  editMessage({MessageId? messageId });
+  Future<void> resetDraft();
 
+  Future<void> resetDraftReply();
 
- bool get isClosed;
+  Future<UploadAttachmentError?> retryUploadAttachment({
+    required AttachmentId attachmentId,
+  });
 
+  /// Sends a message to the chat.
+  ///
+  /// The not yet sent message is immediately stored in the local store and then the message is
+  /// send to the DS.
+  Future<void> sendMessage({required String messageText});
 
-/// Marks the chat as read until the given message id (including).
-///
-/// The calls to this method are debounced with a fixed delay.
- Future<void>  markAsRead({required MessageId untilMessageId , required DateTime untilTimestamp });
+  /// Sets the chat picture.
+  ///
+  /// When `bytes` is `None`, the chat picture is removed.
+  Future<void> setChatPicture({Uint8List? bytes});
 
+  Future<void> setChatTitle({required String title});
 
-/// Creates a new cubit for the given chat.
-///
-/// The cubit will fetch the chat details and the list of members. It will also listen to the
-/// changes in the chat and update the state accordingly.
-factory ChatDetailsCubitBase({required UserCubitBase userCubit , required UserSettingsCubitBase userSettingsCubit , required ChatId chatId , required ChatsRepository chatsRepository , required AttachmentsRepository attachmentsRepository , required bool withMembers })=>RustLib.instance.api.crateApiChatDetailsCubitChatDetailsCubitBaseNew(userCubit: userCubit, userSettingsCubit: userSettingsCubit, chatId: chatId, chatsRepository: chatsRepository, attachmentsRepository: attachmentsRepository, withMembers: withMembers);
+  ChatDetailsState get state;
 
+  Future<void> storeDraft({
+    required String draftMessage,
+    required bool isCommitted,
+  });
 
- Future<void>  replyToMessage({required MessageId messageId });
+  Stream<ChatDetailsState> stream();
 
-
- Future<void>  requestResync();
-
-
- Future<void>  resetDraft();
-
-
- Future<void>  resetDraftReply();
-
-
- Future<UploadAttachmentError?>  retryUploadAttachment({required AttachmentId attachmentId });
-
-
-/// Sends a message to the chat.
-///
-/// The not yet sent message is immediately stored in the local store and then the message is
-/// send to the DS.
- Future<void>  sendMessage({required String messageText });
-
-
-/// Sets the chat picture.
-///
-/// When `bytes` is `None`, the chat picture is removed.
- Future<void>  setChatPicture({Uint8List? bytes });
-
-
- Future<void>  setChatTitle({required String title });
-
-
- ChatDetailsState get state;
-
-
- Future<void>  storeDraft({required String draftMessage , required bool isCommitted });
-
-
- Stream<ChatDetailsState>  stream();
-
-
- Future<UploadAttachmentError?>  uploadAttachment({required String path });
-
-
-
-                    
-                }
-                
+  Future<UploadAttachmentError?> uploadAttachment({required String path});
+}
 
 @freezed
-                sealed class AcceptContactRequestError with _$AcceptContactRequestError  {
-                    const AcceptContactRequestError._();
+sealed class AcceptContactRequestError with _$AcceptContactRequestError {
+  const AcceptContactRequestError._();
 
-                     const factory AcceptContactRequestError.incompatibleClient({   required String reason , }) = AcceptContactRequestError_IncompatibleClient;
+  const factory AcceptContactRequestError.incompatibleClient({
+    required String reason,
+  }) = AcceptContactRequestError_IncompatibleClient;
+}
 
-                    
+class AppDataDebugInfo {
+  final List<String> components;
+  final AirComponent? airComponent;
 
-                    
-                }
+  const AppDataDebugInfo({required this.components, this.airComponent});
 
-class AppDataDebugInfo  {
-                final List<String> components;
-final AirComponent? airComponent;
+  @override
+  int get hashCode => components.hashCode ^ airComponent.hashCode;
 
-                const AppDataDebugInfo({required this.components ,this.airComponent ,});
-
-                
-                
-
-                
-        @override
-        int get hashCode => components.hashCode^airComponent.hashCode;
-        
-
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is AppDataDebugInfo &&
-                runtimeType == other.runtimeType
-                && components == other.components&& airComponent == other.airComponent;
-        
-            }
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is AppDataDebugInfo &&
+          runtimeType == other.runtimeType &&
+          components == other.components &&
+          airComponent == other.airComponent;
+}
 
 /// The state of a single chat
 ///
@@ -153,189 +141,236 @@ final AirComponent? airComponent;
 ///
 /// Also see [`ChatDetailsCubitBase`].
 @freezed
-sealed class ChatDetailsState with _$ChatDetailsState  {
-                const ChatDetailsState._();
-                const factory ChatDetailsState({  UiChatDetails? chat, required  List<UiUserId> members,}) = _ChatDetailsState;
-                static Future<ChatDetailsState>  default_()=>RustLib.instance.api.crateApiChatDetailsCubitChatDetailsStateDefault();
+sealed class ChatDetailsState with _$ChatDetailsState {
+  const ChatDetailsState._();
+  const factory ChatDetailsState({
+    UiChatDetails? chat,
+    required List<UiUserId> members,
+  }) = _ChatDetailsState;
+  static Future<ChatDetailsState> default_() =>
+      RustLib.instance.api.crateApiChatDetailsCubitChatDetailsStateDefault();
+}
 
+class DebugCapabilities {
+  final String userId;
+  final String displayName;
+  final List<String> versions;
+  final List<String> ciphersuites;
+  final List<String> extensions;
+  final List<String> proposals;
+  final AppDataDebugInfo? appData;
 
-                
-                
-            }
+  const DebugCapabilities({
+    required this.userId,
+    required this.displayName,
+    required this.versions,
+    required this.ciphersuites,
+    required this.extensions,
+    required this.proposals,
+    this.appData,
+  });
 
-class DebugCapabilities  {
-                final String userId;
-final String displayName;
-final List<String> versions;
-final List<String> ciphersuites;
-final List<String> extensions;
-final List<String> proposals;
-final AppDataDebugInfo? appData;
+  @override
+  int get hashCode =>
+      userId.hashCode ^
+      displayName.hashCode ^
+      versions.hashCode ^
+      ciphersuites.hashCode ^
+      extensions.hashCode ^
+      proposals.hashCode ^
+      appData.hashCode;
 
-                const DebugCapabilities({required this.userId ,required this.displayName ,required this.versions ,required this.ciphersuites ,required this.extensions ,required this.proposals ,this.appData ,});
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is DebugCapabilities &&
+          runtimeType == other.runtimeType &&
+          userId == other.userId &&
+          displayName == other.displayName &&
+          versions == other.versions &&
+          ciphersuites == other.ciphersuites &&
+          extensions == other.extensions &&
+          proposals == other.proposals &&
+          appData == other.appData;
+}
 
-                
-                
+class EncryptedGroupTitleDebugInfo {
+  final String ciphertext;
+  final String nonce;
+  final String aad;
 
-                
-        @override
-        int get hashCode => userId.hashCode^displayName.hashCode^versions.hashCode^ciphersuites.hashCode^extensions.hashCode^proposals.hashCode^appData.hashCode;
-        
+  const EncryptedGroupTitleDebugInfo({
+    required this.ciphertext,
+    required this.nonce,
+    required this.aad,
+  });
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is DebugCapabilities &&
-                runtimeType == other.runtimeType
-                && userId == other.userId&& displayName == other.displayName&& versions == other.versions&& ciphersuites == other.ciphersuites&& extensions == other.extensions&& proposals == other.proposals&& appData == other.appData;
-        
-            }
+  @override
+  int get hashCode => ciphertext.hashCode ^ nonce.hashCode ^ aad.hashCode;
 
-class EncryptedGroupTitleDebugInfo  {
-                final String ciphertext;
-final String nonce;
-final String aad;
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is EncryptedGroupTitleDebugInfo &&
+          runtimeType == other.runtimeType &&
+          ciphertext == other.ciphertext &&
+          nonce == other.nonce &&
+          aad == other.aad;
+}
 
-                const EncryptedGroupTitleDebugInfo({required this.ciphertext ,required this.nonce ,required this.aad ,});
+class ExternalGroupProfileDebugInfo {
+  final String objectId;
+  final BigInt size;
+  final String? encAlg;
+  final String aad;
+  final String nonce;
+  final String hashAlg;
+  final String contentHash;
 
-                
-                
+  const ExternalGroupProfileDebugInfo({
+    required this.objectId,
+    required this.size,
+    this.encAlg,
+    required this.aad,
+    required this.nonce,
+    required this.hashAlg,
+    required this.contentHash,
+  });
 
-                
-        @override
-        int get hashCode => ciphertext.hashCode^nonce.hashCode^aad.hashCode;
-        
+  @override
+  int get hashCode =>
+      objectId.hashCode ^
+      size.hashCode ^
+      encAlg.hashCode ^
+      aad.hashCode ^
+      nonce.hashCode ^
+      hashAlg.hashCode ^
+      contentHash.hashCode;
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is EncryptedGroupTitleDebugInfo &&
-                runtimeType == other.runtimeType
-                && ciphertext == other.ciphertext&& nonce == other.nonce&& aad == other.aad;
-        
-            }
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ExternalGroupProfileDebugInfo &&
+          runtimeType == other.runtimeType &&
+          objectId == other.objectId &&
+          size == other.size &&
+          encAlg == other.encAlg &&
+          aad == other.aad &&
+          nonce == other.nonce &&
+          hashAlg == other.hashAlg &&
+          contentHash == other.contentHash;
+}
 
-class ExternalGroupProfileDebugInfo  {
-                final String objectId;
-final BigInt size;
-final String? encAlg;
-final String aad;
-final String nonce;
-final String hashAlg;
-final String contentHash;
+class GroupDataDebugInfo {
+  final EncryptedGroupTitleDebugInfo? encryptedTitle;
+  final ExternalGroupProfileDebugInfo? externalGroupProfile;
 
-                const ExternalGroupProfileDebugInfo({required this.objectId ,required this.size ,this.encAlg ,required this.aad ,required this.nonce ,required this.hashAlg ,required this.contentHash ,});
+  const GroupDataDebugInfo({this.encryptedTitle, this.externalGroupProfile});
 
-                
-                
+  @override
+  int get hashCode => encryptedTitle.hashCode ^ externalGroupProfile.hashCode;
 
-                
-        @override
-        int get hashCode => objectId.hashCode^size.hashCode^encAlg.hashCode^aad.hashCode^nonce.hashCode^hashAlg.hashCode^contentHash.hashCode;
-        
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GroupDataDebugInfo &&
+          runtimeType == other.runtimeType &&
+          encryptedTitle == other.encryptedTitle &&
+          externalGroupProfile == other.externalGroupProfile;
+}
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is ExternalGroupProfileDebugInfo &&
-                runtimeType == other.runtimeType
-                && objectId == other.objectId&& size == other.size&& encAlg == other.encAlg&& aad == other.aad&& nonce == other.nonce&& hashAlg == other.hashAlg&& contentHash == other.contentHash;
-        
-            }
+class GroupDebugInfo {
+  final String groupId;
+  final BigInt epoch;
+  final String ciphersuite;
+  final List<String> versions;
+  final int ownLeafIndex;
+  final String? selfUpdatedAt;
+  final BigInt pendingProposals;
+  final bool hasPendingCommit;
+  final RequiredDebugCapabilities? requiredCapabilities;
+  final Map<int, DebugCapabilities> members;
+  final GroupDataDebugInfo? groupData;
 
-class GroupDataDebugInfo  {
-                final EncryptedGroupTitleDebugInfo? encryptedTitle;
-final ExternalGroupProfileDebugInfo? externalGroupProfile;
+  const GroupDebugInfo({
+    required this.groupId,
+    required this.epoch,
+    required this.ciphersuite,
+    required this.versions,
+    required this.ownLeafIndex,
+    this.selfUpdatedAt,
+    required this.pendingProposals,
+    required this.hasPendingCommit,
+    this.requiredCapabilities,
+    required this.members,
+    this.groupData,
+  });
 
-                const GroupDataDebugInfo({this.encryptedTitle ,this.externalGroupProfile ,});
+  @override
+  int get hashCode =>
+      groupId.hashCode ^
+      epoch.hashCode ^
+      ciphersuite.hashCode ^
+      versions.hashCode ^
+      ownLeafIndex.hashCode ^
+      selfUpdatedAt.hashCode ^
+      pendingProposals.hashCode ^
+      hasPendingCommit.hashCode ^
+      requiredCapabilities.hashCode ^
+      members.hashCode ^
+      groupData.hashCode;
 
-                
-                
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is GroupDebugInfo &&
+          runtimeType == other.runtimeType &&
+          groupId == other.groupId &&
+          epoch == other.epoch &&
+          ciphersuite == other.ciphersuite &&
+          versions == other.versions &&
+          ownLeafIndex == other.ownLeafIndex &&
+          selfUpdatedAt == other.selfUpdatedAt &&
+          pendingProposals == other.pendingProposals &&
+          hasPendingCommit == other.hasPendingCommit &&
+          requiredCapabilities == other.requiredCapabilities &&
+          members == other.members &&
+          groupData == other.groupData;
+}
 
-                
-        @override
-        int get hashCode => encryptedTitle.hashCode^externalGroupProfile.hashCode;
-        
+class RequiredDebugCapabilities {
+  final List<String> extensionTypes;
+  final List<String> proposalTypes;
+  final List<String> credentialTypes;
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is GroupDataDebugInfo &&
-                runtimeType == other.runtimeType
-                && encryptedTitle == other.encryptedTitle&& externalGroupProfile == other.externalGroupProfile;
-        
-            }
+  const RequiredDebugCapabilities({
+    required this.extensionTypes,
+    required this.proposalTypes,
+    required this.credentialTypes,
+  });
 
-class GroupDebugInfo  {
-                final String groupId;
-final BigInt epoch;
-final String ciphersuite;
-final List<String> versions;
-final int ownLeafIndex;
-final String? selfUpdatedAt;
-final BigInt pendingProposals;
-final bool hasPendingCommit;
-final RequiredDebugCapabilities? requiredCapabilities;
-final Map<int, DebugCapabilities> members;
-final GroupDataDebugInfo? groupData;
+  @override
+  int get hashCode =>
+      extensionTypes.hashCode ^
+      proposalTypes.hashCode ^
+      credentialTypes.hashCode;
 
-                const GroupDebugInfo({required this.groupId ,required this.epoch ,required this.ciphersuite ,required this.versions ,required this.ownLeafIndex ,this.selfUpdatedAt ,required this.pendingProposals ,required this.hasPendingCommit ,this.requiredCapabilities ,required this.members ,this.groupData ,});
-
-                
-                
-
-                
-        @override
-        int get hashCode => groupId.hashCode^epoch.hashCode^ciphersuite.hashCode^versions.hashCode^ownLeafIndex.hashCode^selfUpdatedAt.hashCode^pendingProposals.hashCode^hasPendingCommit.hashCode^requiredCapabilities.hashCode^members.hashCode^groupData.hashCode;
-        
-
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is GroupDebugInfo &&
-                runtimeType == other.runtimeType
-                && groupId == other.groupId&& epoch == other.epoch&& ciphersuite == other.ciphersuite&& versions == other.versions&& ownLeafIndex == other.ownLeafIndex&& selfUpdatedAt == other.selfUpdatedAt&& pendingProposals == other.pendingProposals&& hasPendingCommit == other.hasPendingCommit&& requiredCapabilities == other.requiredCapabilities&& members == other.members&& groupData == other.groupData;
-        
-            }
-
-class RequiredDebugCapabilities  {
-                final List<String> extensionTypes;
-final List<String> proposalTypes;
-final List<String> credentialTypes;
-
-                const RequiredDebugCapabilities({required this.extensionTypes ,required this.proposalTypes ,required this.credentialTypes ,});
-
-                
-                
-
-                
-        @override
-        int get hashCode => extensionTypes.hashCode^proposalTypes.hashCode^credentialTypes.hashCode;
-        
-
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is RequiredDebugCapabilities &&
-                runtimeType == other.runtimeType
-                && extensionTypes == other.extensionTypes&& proposalTypes == other.proposalTypes&& credentialTypes == other.credentialTypes;
-        
-            }
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is RequiredDebugCapabilities &&
+          runtimeType == other.runtimeType &&
+          extensionTypes == other.extensionTypes &&
+          proposalTypes == other.proposalTypes &&
+          credentialTypes == other.credentialTypes;
+}
 
 @freezed
-                sealed class UploadAttachmentError with _$UploadAttachmentError  {
-                    const UploadAttachmentError._();
+sealed class UploadAttachmentError with _$UploadAttachmentError {
+  const UploadAttachmentError._();
 
-                     const factory UploadAttachmentError.tooLarge({   required BigInt maxSizeBytes ,  required BigInt actualSizeBytes , }) = UploadAttachmentError_TooLarge;
-
-                    
-
-                    
-                }
-            
+  const factory UploadAttachmentError.tooLarge({
+    required BigInt maxSizeBytes,
+    required BigInt actualSizeBytes,
+  }) = UploadAttachmentError_TooLarge;
+}

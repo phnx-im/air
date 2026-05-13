@@ -4,7 +4,6 @@
 // ignore_for_file: unreachable_switch_default, prefer_const_constructors, camel_case_types
 import 'package:convert/convert.dart';
 
-
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
@@ -17,46 +16,34 @@ import 'types.dart';
 import 'user_cubit.dart';
 part 'message_cubit.freezed.dart';
 
-            // These functions are ignored because they are not marked as `pub`: `calculate_flight_position`, `load_and_emit_state`, `new`, `process_store_notification`, `spawn`, `store_notifications_loop`
+// These functions are ignored because they are not marked as `pub`: `calculate_flight_position`, `load_and_emit_state`, `new`, `process_store_notification`, `spawn`, `store_notifications_loop`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `MessageContext`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `eq`, `fmt`, `hash`
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MessageCubitBase>>
+abstract class MessageCubitBase implements RustOpaqueInterface {
+  Future<void> close();
 
-            
+  bool get isClosed;
 
-            
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MessageCubitBase>>
-                abstract class MessageCubitBase implements RustOpaqueInterface {
-                     Future<void>  close();
+  /// Creates a new message cubit.
+  ///
+  /// Note that the loaded message is immediately provided via `initial_state`.
+  factory MessageCubitBase({
+    required UserCubitBase userCubit,
+    required MessageState initialState,
+  }) => RustLib.instance.api.crateApiMessageCubitMessageCubitBaseNew(
+    userCubit: userCubit,
+    initialState: initialState,
+  );
 
+  MessageState get state;
 
- bool get isClosed;
-
-
-/// Creates a new message cubit.
-///
-/// Note that the loaded message is immediately provided via `initial_state`.
-factory MessageCubitBase({required UserCubitBase userCubit , required MessageState initialState })=>RustLib.instance.api.crateApiMessageCubitMessageCubitBaseNew(userCubit: userCubit, initialState: initialState);
-
-
- MessageState get state;
-
-
- Stream<MessageState>  stream();
-
-
-
-                    
-                }
-                
+  Stream<MessageState> stream();
+}
 
 /// State of a single message in a chat
 @freezed
-sealed class MessageState with _$MessageState  {
-                
-                const factory MessageState({ required  UiChatMessage message,}) = _MessageState;
-                
-                
-                
-            }
-            
+sealed class MessageState with _$MessageState {
+  const factory MessageState({required UiChatMessage message}) = _MessageState;
+}

@@ -4,7 +4,6 @@
 // ignore_for_file: unreachable_switch_default, prefer_const_constructors, camel_case_types
 import 'package:convert/convert.dart';
 
-
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
@@ -14,127 +13,126 @@ import 'package:uuid/uuid.dart';
 import 'types.dart';
 part 'user.freezed.dart';
 
-            // These functions are ignored because they are not marked as `pub`: `from_core_user`, `load_ui_record`
+// These functions are ignored because they are not marked as `pub`: `from_core_user`, `load_ui_record`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<User>>
+abstract class User implements RustOpaqueInterface {
+  /// Total number of unread messages across all chats
+  Future<int> get globalUnreadMessagesCount;
 
-            
+  static Future<User> load({
+    required String dbPath,
+    required UiUserId userId,
+  }) =>
+      RustLib.instance.api.crateApiUserUserLoad(dbPath: dbPath, userId: userId);
 
-            
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<User>>
-                abstract class User implements RustOpaqueInterface {
-                    /// Total number of unread messages across all chats
- Future<int> get globalUnreadMessagesCount;
+  /// Loads all client records from the air database
+  ///
+  /// Also tries to load user profile from the client database. In case the client database
+  /// cannot be opened, the client record is skipped.
+  static Future<List<UiClientRecord>> loadClientRecords({
+    required String dbPath,
+  }) => RustLib.instance.api.crateApiUserUserLoadClientRecords(dbPath: dbPath);
 
-
-static Future<User>  load({required String dbPath , required UiUserId userId })=>RustLib.instance.api.crateApiUserUserLoad(dbPath: dbPath, userId: userId);
-
-
-/// Loads all client records from the air database
-///
-/// Also tries to load user profile from the client database. In case the client database
-/// cannot be opened, the client record is skipped.
-static Future<List<UiClientRecord>>  loadClientRecords({required String dbPath })=>RustLib.instance.api.crateApiUserUserLoadClientRecords(dbPath: dbPath);
-
-
-/// Loads the default user from the given database path
-///
-/// Returns in this order:
-/// * the default most recent user with finished registration, or if none
-/// * the most recent user with finished registration, or if none
-/// * the most recent user, if any.
-static Future<User?>  loadDefault({required String path })=>RustLib.instance.api.crateApiUserUserLoadDefault(path: path);
-
+  /// Loads the default user from the given database path
+  ///
+  /// Returns in this order:
+  /// * the default most recent user with finished registration, or if none
+  /// * the most recent user with finished registration, or if none
+  /// * the most recent user, if any.
+  static Future<User?> loadDefault({required String path}) =>
+      RustLib.instance.api.crateApiUserUserLoadDefault(path: path);
 
   // HINT: Make it `#[frb(sync)]` to let it become the default constructor of Dart class.
-/// Creates a new user with a generated `uuid` at the domain `domain`.
-static Future<User>  newInstance({required String domain , required String path , PlatformPushToken? pushToken , required String displayName , Uint8List? profilePicture , required String invitationCode })=>RustLib.instance.api.crateApiUserUserNew(domain: domain, path: path, pushToken: pushToken, displayName: displayName, profilePicture: profilePicture, invitationCode: invitationCode);
+  /// Creates a new user with a generated `uuid` at the domain `domain`.
+  static Future<User> newInstance({
+    required String domain,
+    required String path,
+    PlatformPushToken? pushToken,
+    required String displayName,
+    Uint8List? profilePicture,
+    required String invitationCode,
+  }) => RustLib.instance.api.crateApiUserUserNew(
+    domain: domain,
+    path: path,
+    pushToken: pushToken,
+    displayName: displayName,
+    profilePicture: profilePicture,
+    invitationCode: invitationCode,
+  );
 
+  /// Stop background work gracefully and wait for completion.
+  Future<void> prepareForBackground();
 
-/// Stop background work gracefully and wait for completion.
- Future<void>  prepareForBackground();
+  /// Signals the foreground drainer that background push handlers have
+  /// persisted new store notifications.
+  void signalPendingStoreNotifications();
 
+  /// Update the push token.
+  Future<void> updatePushToken(PlatformPushToken? pushToken);
 
-/// Signals the foreground drainer that background push handlers have
-/// persisted new store notifications.
- void  signalPendingStoreNotifications();
+  Future<UserDebugInfo> userDebugInfo();
 
-
-/// Update the push token.
- Future<void>  updatePushToken(PlatformPushToken? pushToken);
-
-
- Future<UserDebugInfo>  userDebugInfo();
-
-
-/// The unique identifier of the logged in user
- UiUserId get userId;
-
-
-
-                    
-                }
-                
+  /// The unique identifier of the logged in user
+  UiUserId get userId;
+}
 
 @freezed
-                sealed class PlatformPushToken with _$PlatformPushToken  {
-                    const PlatformPushToken._();
+sealed class PlatformPushToken with _$PlatformPushToken {
+  const PlatformPushToken._();
 
-                     const factory PlatformPushToken.apple(  String field0,) = PlatformPushToken_Apple;
- const factory PlatformPushToken.google(  String field0,) = PlatformPushToken_Google;
+  const factory PlatformPushToken.apple(String field0) =
+      PlatformPushToken_Apple;
+  const factory PlatformPushToken.google(String field0) =
+      PlatformPushToken_Google;
+}
 
-                    
+class TimedTaskDebugInfo {
+  final String name;
+  final DateTime scheduledAt;
 
-                    
-                }
+  const TimedTaskDebugInfo({required this.name, required this.scheduledAt});
 
-class TimedTaskDebugInfo  {
-                final String name;
-final DateTime scheduledAt;
+  @override
+  int get hashCode => name.hashCode ^ scheduledAt.hashCode;
 
-                const TimedTaskDebugInfo({required this.name ,required this.scheduledAt ,});
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is TimedTaskDebugInfo &&
+          runtimeType == other.runtimeType &&
+          name == other.name &&
+          scheduledAt == other.scheduledAt;
+}
 
-                
-                
+class UserDebugInfo {
+  final String userId;
+  final List<TimedTaskDebugInfo> timedTasks;
+  final int addUsernameTokenCount;
+  final int invitationCodeTokenCount;
 
-                
-        @override
-        int get hashCode => name.hashCode^scheduledAt.hashCode;
-        
+  const UserDebugInfo({
+    required this.userId,
+    required this.timedTasks,
+    required this.addUsernameTokenCount,
+    required this.invitationCodeTokenCount,
+  });
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is TimedTaskDebugInfo &&
-                runtimeType == other.runtimeType
-                && name == other.name&& scheduledAt == other.scheduledAt;
-        
-            }
+  @override
+  int get hashCode =>
+      userId.hashCode ^
+      timedTasks.hashCode ^
+      addUsernameTokenCount.hashCode ^
+      invitationCodeTokenCount.hashCode;
 
-class UserDebugInfo  {
-                final String userId;
-final List<TimedTaskDebugInfo> timedTasks;
-final int addUsernameTokenCount;
-final int invitationCodeTokenCount;
-
-                const UserDebugInfo({required this.userId ,required this.timedTasks ,required this.addUsernameTokenCount ,required this.invitationCodeTokenCount ,});
-
-                
-                
-
-                
-        @override
-        int get hashCode => userId.hashCode^timedTasks.hashCode^addUsernameTokenCount.hashCode^invitationCodeTokenCount.hashCode;
-        
-
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is UserDebugInfo &&
-                runtimeType == other.runtimeType
-                && userId == other.userId&& timedTasks == other.timedTasks&& addUsernameTokenCount == other.addUsernameTokenCount&& invitationCodeTokenCount == other.invitationCodeTokenCount;
-        
-            }
-            
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is UserDebugInfo &&
+          runtimeType == other.runtimeType &&
+          userId == other.userId &&
+          timedTasks == other.timedTasks &&
+          addUsernameTokenCount == other.addUsernameTokenCount &&
+          invitationCodeTokenCount == other.invitationCodeTokenCount;
+}

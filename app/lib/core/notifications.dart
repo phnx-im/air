@@ -4,7 +4,6 @@
 // ignore_for_file: unreachable_switch_default, prefer_const_constructors, camel_case_types
 import 'package:convert/convert.dart';
 
-
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import 'api/types.dart';
@@ -12,81 +11,64 @@ import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:uuid/uuid.dart';
 
+class NotificationContent {
+  final NotificationId identifier;
+  final String title;
+  final String body;
+  final ChatId chatId;
 
-            
+  const NotificationContent({
+    required this.identifier,
+    required this.title,
+    required this.body,
+    required this.chatId,
+  });
 
-            
+  @override
+  int get hashCode =>
+      identifier.hashCode ^ title.hashCode ^ body.hashCode ^ chatId.hashCode;
 
-            class NotificationContent  {
-                final NotificationId identifier;
-final String title;
-final String body;
-final ChatId chatId;
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NotificationContent &&
+          runtimeType == other.runtimeType &&
+          identifier == other.identifier &&
+          title == other.title &&
+          body == other.body &&
+          chatId == other.chatId;
+}
 
-                const NotificationContent({required this.identifier ,required this.title ,required this.body ,required this.chatId ,});
+class NotificationHandle {
+  final NotificationId identifier;
+  final ChatId? chatId;
 
-                
-                
+  const NotificationHandle({required this.identifier, this.chatId});
 
-                
-        @override
-        int get hashCode => identifier.hashCode^title.hashCode^body.hashCode^chatId.hashCode;
-        
+  @override
+  int get hashCode => identifier.hashCode ^ chatId.hashCode;
 
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is NotificationContent &&
-                runtimeType == other.runtimeType
-                && identifier == other.identifier&& title == other.title&& body == other.body&& chatId == other.chatId;
-        
-            }
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NotificationHandle &&
+          runtimeType == other.runtimeType &&
+          identifier == other.identifier &&
+          chatId == other.chatId;
+}
 
-class NotificationHandle  {
-                final NotificationId identifier;
-final ChatId? chatId;
+class NotificationId {
+  final UuidValue field0;
 
-                const NotificationHandle({required this.identifier ,this.chatId ,});
+  const NotificationId({required this.field0});
 
-                
-                
+  @override
+  int get hashCode => field0.hashCode;
 
-                
-        @override
-        int get hashCode => identifier.hashCode^chatId.hashCode;
-        
-
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is NotificationHandle &&
-                runtimeType == other.runtimeType
-                && identifier == other.identifier&& chatId == other.chatId;
-        
-            }
-
-class NotificationId  {
-                final UuidValue field0;
-
-                const NotificationId({required this.field0 ,});
-
-                
-                
-
-                
-        @override
-        int get hashCode => field0.hashCode;
-        
-
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is NotificationId &&
-                runtimeType == other.runtimeType
-                && field0 == other.field0;
-        
-            }
-            
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is NotificationId &&
+          runtimeType == other.runtimeType &&
+          field0 == other.field0;
+}

@@ -4,44 +4,47 @@
 // ignore_for_file: unreachable_switch_default, prefer_const_constructors, camel_case_types
 import 'package:convert/convert.dart';
 
-
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-
-            // These functions are ignored because they are not marked as `pub`: `open_background_logs_file`, `read_logs_from_buffer`, `tar_logs_impl`
+// These functions are ignored because they are not marked as `pub`: `open_background_logs_file`, `read_logs_from_buffer`, `tar_logs_impl`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `from`
 
-
-            /// Initializes the Rust logging system
+/// Initializes the Rust logging system
 ///
 /// The logs are sent to Flutter on Android and iOS, and are written to standard error output on
 /// Linux/macOS/Windows. The logs are also written to a file specified by the provided `file_path`.
 /// The file has a fixed size and is used as a ring buffer.
 ///
 /// The returned [`LogWriter`] can be used to write logs to the file from the Flutter side.
-LogWriter  initRustLogging({required String logFile }) => RustLib.instance.api.crateApiLoggingInitRustLogging(logFile: logFile);
+LogWriter initRustLogging({required String logFile}) =>
+    RustLib.instance.api.crateApiLoggingInitRustLogging(logFile: logFile);
 
 /// Reads the application logs from the file currently used for writing logs (if any).
-Future<String>  readAppLogs() => RustLib.instance.api.crateApiLoggingReadAppLogs();
+Future<String> readAppLogs() =>
+    RustLib.instance.api.crateApiLoggingReadAppLogs();
 
 /// Clears all application logs.
 ///
 /// The file is truncated to zero length, but is is kept open.
-Future<void>  clearAppLogs() => RustLib.instance.api.crateApiLoggingClearAppLogs();
+Future<void> clearAppLogs() =>
+    RustLib.instance.api.crateApiLoggingClearAppLogs();
 
 /// Reads the background logs from the file: `<cache_dir>/background.log`.
-Future<String>  readBackgroundLogs({required String cacheDir }) => RustLib.instance.api.crateApiLoggingReadBackgroundLogs(cacheDir: cacheDir);
+Future<String> readBackgroundLogs({required String cacheDir}) =>
+    RustLib.instance.api.crateApiLoggingReadBackgroundLogs(cacheDir: cacheDir);
 
 /// Clears the background logs at `<cache_dir>/background.log`.
 ///
 /// The file is truncated to zero length, but is not deleted.
-Future<void>  clearBackgroundLogs({required String cacheDir }) => RustLib.instance.api.crateApiLoggingClearBackgroundLogs(cacheDir: cacheDir);
+Future<void> clearBackgroundLogs({required String cacheDir}) =>
+    RustLib.instance.api.crateApiLoggingClearBackgroundLogs(cacheDir: cacheDir);
 
 /// Creates a Zlib compressed tar archive of the logs
-Future<Uint8List>  tarLogs({required String cacheDir }) => RustLib.instance.api.crateApiLoggingTarLogs(cacheDir: cacheDir);
+Future<Uint8List> tarLogs({required String cacheDir}) =>
+    RustLib.instance.api.crateApiLoggingTarLogs(cacheDir: cacheDir);
 
 /// Assigns the given sink as the log sink on the Rust side.
 ///
@@ -51,61 +54,52 @@ Future<Uint8List>  tarLogs({required String cacheDir }) => RustLib.instance.api.
 /// logs in the Flutter logging output.
 ///
 /// Only done on Android and iOS. On other platforms, logs are printed to standard error output.
-Stream<LogEntry>  createLogStream() => RustLib.instance.api.crateApiLoggingCreateLogStream();
+Stream<LogEntry> createLogStream() =>
+    RustLib.instance.api.crateApiLoggingCreateLogStream();
 
-            
-                // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<LogWriter>>
-                abstract class LogWriter implements RustOpaqueInterface {
-                    /// Writes the given log entry with a newline.
- Future<void>  writeLine({required String message });
-
-
-
-                    
-                }
-                
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<LogWriter>>
+abstract class LogWriter implements RustOpaqueInterface {
+  /// Writes the given log entry with a newline.
+  Future<void> writeLine({required String message});
+}
 
 /// A log entry sent to the Dart side
-class LogEntry  {
-                /// The timestamp of the log entry
-final DateTime time;
+class LogEntry {
+  /// The timestamp of the log entry
+  final DateTime time;
+
+  /// The log level
+  final LogEntryLevel level;
+
+  /// The target of the log entry (module path)
+  final String target;
+
+  /// The log message
+  ///
+  /// Structured data is attached to the end of the message as formatted key-value pairs.
+  final String msg;
+
+  const LogEntry({
+    required this.time,
+    required this.level,
+    required this.target,
+    required this.msg,
+  });
+
+  @override
+  int get hashCode =>
+      time.hashCode ^ level.hashCode ^ target.hashCode ^ msg.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is LogEntry &&
+          runtimeType == other.runtimeType &&
+          time == other.time &&
+          level == other.level &&
+          target == other.target &&
+          msg == other.msg;
+}
+
 /// The log level
-final LogEntryLevel level;
-/// The target of the log entry (module path)
-final String target;
-/// The log message
-///
-/// Structured data is attached to the end of the message as formatted key-value pairs.
-final String msg;
-
-                const LogEntry({required this.time ,required this.level ,required this.target ,required this.msg ,});
-
-                
-                
-
-                
-        @override
-        int get hashCode => time.hashCode^level.hashCode^target.hashCode^msg.hashCode;
-        
-
-                
-        @override
-        bool operator ==(Object other) =>
-            identical(this, other) ||
-            other is LogEntry &&
-                runtimeType == other.runtimeType
-                && time == other.time&& level == other.level&& target == other.target&& msg == other.msg;
-        
-            }
-
-/// The log level
-enum LogEntryLevel {
-                    trace,
-debug,
-info,
-warn,
-error,
-                    ;
-                    
-                }
-            
+enum LogEntryLevel { trace, debug, info, warn, error }

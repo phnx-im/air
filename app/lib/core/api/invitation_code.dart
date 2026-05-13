@@ -4,16 +4,15 @@
 // ignore_for_file: unreachable_switch_default, prefer_const_constructors, camel_case_types
 import 'package:convert/convert.dart';
 
-
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 
-
-            
-
-            Future<bool>  checkInvitationCode({required String domain , required String invitationCode }) => RustLib.instance.api.crateApiInvitationCodeCheckInvitationCode(domain: domain, invitationCode: invitationCode);
-
-            
-            
+Future<bool> checkInvitationCode({
+  required String domain,
+  required String invitationCode,
+}) => RustLib.instance.api.crateApiInvitationCodeCheckInvitationCode(
+  domain: domain,
+  invitationCode: invitationCode,
+);

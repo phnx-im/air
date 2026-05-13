@@ -4,7 +4,6 @@
 // ignore_for_file: unreachable_switch_default, prefer_const_constructors, camel_case_types
 import 'package:convert/convert.dart';
 
-
 // ignore_for_file: invalid_use_of_internal_member, unused_import, unnecessary_import
 
 import '../frb_generated.dart';
@@ -12,30 +11,34 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:uuid/uuid.dart';
 import 'types.dart';
 
+Future<void> deleteDatabases({required String dbPath}) =>
+    RustLib.instance.api.crateApiUtilsDeleteDatabases(dbPath: dbPath);
 
-            
-
-            Future<void>  deleteDatabases({required String dbPath }) => RustLib.instance.api.crateApiUtilsDeleteDatabases(dbPath: dbPath);
-
-Future<void>  deleteClientDatabase({required String dbPath , required UiUserId userId }) => RustLib.instance.api.crateApiUtilsDeleteClientDatabase(dbPath: dbPath, userId: userId);
+Future<void> deleteClientDatabase({
+  required String dbPath,
+  required UiUserId userId,
+}) => RustLib.instance.api.crateApiUtilsDeleteClientDatabase(
+  dbPath: dbPath,
+  userId: userId,
+);
 
 /// Returns whether the file at the given path is a recognized image format.
 /// Uses the same detection as `load_attachment_image()`.
-Future<bool>  isImageFile({required String path }) => RustLib.instance.api.crateApiUtilsIsImageFile(path: path);
+Future<bool> isImageFile({required String path}) =>
+    RustLib.instance.api.crateApiUtilsIsImageFile(path: path);
 
 /// Reads file paths from the system clipboard. Only supported on desktop
 /// platforms (Linux, Windows, macOS).
 ///
 /// Returns `None` if the clipboard does not contain file paths, or when called
 /// on unsupported platforms.
-Future<List<String>?>  readClipboardFilePaths() => RustLib.instance.api.crateApiUtilsReadClipboardFilePaths();
+Future<List<String>?> readClipboardFilePaths() =>
+    RustLib.instance.api.crateApiUtilsReadClipboardFilePaths();
 
 /// Reads an image from the system clipboard and returns it as JPEG bytes. Only
 /// supported on desktop platforms (Linux, Windows, macOS).
 ///
 /// Returns `None` if the clipboard does not contain image data, or when called
 /// on unsupported platforms.
-Future<Uint8List?>  readClipboardImage() => RustLib.instance.api.crateApiUtilsReadClipboardImage();
-
-            
-            
+Future<Uint8List?> readClipboardImage() =>
+    RustLib.instance.api.crateApiUtilsReadClipboardImage();
