@@ -1,0 +1,41 @@
+---
+source: common/src/mls_group_config.rs
+expression: diag
+---
+a5                             # map(5)
+   68                          #   text(8)
+      76657273696f6e73         #     "versions"
+   81                          #   array(1)
+      65                       #     text(5)
+         4d6c733130            #       "Mls10"
+   6c                          #   text(12)
+      636970686572737569746573 #     "ciphersuites"
+   81                          #   array(1)
+      01                       #     unsigned(1)
+   6a                          #   text(10)
+      657874656e73696f6e73     #     "extensions"
+   83                          #   array(3)
+      a1                       #     map(1)
+         67                    #       text(7)
+            556e6b6e6f776e     #         "Unknown"
+         19 ff00               #       unsigned(65,280)
+      a1                       #     map(1)
+         67                    #       text(7)
+            556e6b6e6f776e     #         "Unknown"
+         19 ff01               #       unsigned(65,281)
+      6a                       #     text(10)
+         4c6173745265736f7274  #       "LastResort"
+   69                          #   text(9)
+      70726f706f73616c73       #     "proposals"
+   82                          #   array(2)
+      a1                       #     map(1)
+         66                    #       text(6)
+            437573746f6d       #         "Custom"
+         19 ff00               #       unsigned(65,280)
+      6a                       #     text(10)
+         53656c6652656d6f7665  #       "SelfRemove"
+   6b                          #   text(11)
+      63726564656e7469616c73   #     "credentials"
+   81                          #   array(1)
+      65                       #     text(5)
+         4261736963            #       "Basic"
