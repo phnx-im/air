@@ -26,6 +26,10 @@ impl AttachmentProgress {
         (AttachmentProgressSender { tx: Some(tx) }, Self { rx })
     }
 
+    pub fn is_failed(&self) -> bool {
+        matches!(*self.rx.borrow(), AttachmentProgressEvent::Failed)
+    }
+
     pub fn stream(&self) -> impl Stream<Item = AttachmentProgressEvent> + Send + use<> {
         WatchStream::new(self.rx.clone())
     }

@@ -9,12 +9,10 @@ import 'dart:ui' as ui;
 import 'package:air/attachments/attachment_image_provider.dart';
 import 'package:air/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
-import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/foundations/themes.dart';
 import 'package:air/ds/foundations/material.dart';
 import 'package:air/ds/foundations/icons/app_icons.dart';
-import 'package:air/ds/foundations/font_size.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
@@ -98,7 +96,7 @@ class _AttachmentImageState extends State<AttachmentImage> {
   }
 
   /// Loads the encoded bytes and (if not already memoized) classifies them.
-  Future<void> _load({bool tryDownloadOnError = false}) async {
+  Future<void> _load({bool retryDownloadIfFailed = false}) async {
     final id = widget.attachment.attachmentId;
     try {
       if (!mounted) return;
@@ -106,7 +104,7 @@ class _AttachmentImageState extends State<AttachmentImage> {
           .read<AttachmentsRepository>()
           .loadImageAttachment(
             attachmentId: id,
-            tryDownloadOnError: tryDownloadOnError,
+            retryDownloadIfFailed: retryDownloadIfFailed,
             chunkEventCallback: (_) {},
           );
       if (!mounted) return;
@@ -282,7 +280,7 @@ class _AttachmentImageState extends State<AttachmentImage> {
             size: widget.attachment.size,
             isSender: widget.isSender,
             isAnimationPaused: isAnimationPaused,
-            onTapDownload: () => _load(),
+            onTapDownload: () => _load(retryDownloadIfFailed: true),
           ),
         ],
       ),

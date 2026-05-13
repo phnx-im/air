@@ -145,7 +145,9 @@ impl AttachmentsRepository {
                 debug!(?attachment_id, "Attachment is pending; spawn download task");
                 spawn_download(chunk_event_callback).await?
             }
-            AttachmentContent::DownloadFailed if retry_download_if_failed => {
+            AttachmentContent::DownloadFailed | AttachmentContent::Downloading
+                if retry_download_if_failed =>
+            {
                 debug!(
                     ?attachment_id,
                     "Attachment failed to download but a retry was requested; spawn download task"
@@ -294,7 +296,7 @@ fn spawn_download_task(
     attachment_id: AttachmentId,
 ) -> AttachmentTaskHandle {
     let (task, cancel, handle) = match in_progress.entry(attachment_id) {
-        Entry::Occupied(mut entry) if entry.get().is_cancelled() => {
+        Entry::Occupied(mut entry) if entry.get().is_cancelled() || entry.get().is_failed() => {
             let (progress, task) = store.download_attachment(attachment_id);
             let cancel = cancel.child_token();
             let handle = AttachmentTaskHandle::with_cancellation(progress, cancel.clone());
@@ -350,6 +352,10 @@ impl AttachmentTaskHandle {
 
     pub(crate) fn cancellation_token(&self) -> &CancellationToken {
         &self.cancel
+    }
+
+    fn is_failed(&self) -> bool {
+        self.progress.is_failed()
     }
 
     fn is_cancelled(&self) -> bool {
