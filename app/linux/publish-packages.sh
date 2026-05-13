@@ -300,21 +300,16 @@ publish_deb() {
   aws_cmd s3 sync "${s3_deb}/dists/${TRACK}" "${deb_root}/dists/${TRACK}"
 
   # Prune old packages from the local pool before staging the new one
-  #prune_deb_pool "$pool_dir"
+  prune_deb_pool "$pool_dir"
 
   # Copy package into pool
   info "Staging package into pool..."
   cp "$PKG_FILE" "${pool_dir}/"
 
-  # Sign the .deb with dpkg-sig
+  # Export public key for clients (Release file signature below provides
+  # repo-level integrity; per-package signatures are intentionally omitted).
   require gpg
-  info "Signing .deb with GPG key: $GPG_KEY"
   run_gpg --export --armor "$GPG_KEY" > "${key_dir}/gpg-key.asc"
-  if command -v dpkg-sig &>/dev/null; then
-    dpkg-sig --sign builder -k "$GPG_KEY" "${pool_dir}/$(basename "$PKG_FILE")"
-  else
-    warn "dpkg-sig not found — skipping per-package signature (Release will still be signed)."
-  fi
 
   # Generate Packages index
   # cd into deb_root so apt-ftparchive embeds "pool/${COMPONENT}/..." (relative

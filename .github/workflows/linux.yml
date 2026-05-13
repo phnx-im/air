@@ -77,7 +77,7 @@ jobs:
       - name: Install dependencies
         run: |
           echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
-          sudo apt-get update && sudo apt-get install -y apt-utils createrepo-c dpkg-sig gpg nfpm rpm
+          sudo apt-get update && sudo apt-get install -y apt-utils createrepo-c gpg nfpm rpm
 
       - name: Build packages
         run: RELEASE=${{ needs.linux-build.outputs.build-number }} just build-deb build-rpm
