@@ -198,6 +198,32 @@ impl CoreUser {
         group: &Group,
         progress_tx: &AttachmentProgressSender,
     ) -> Result<AttachmentBytes, AttachmentDownloadError> {
+        // Check encryption parameters
+        debug!(?attachment_id, "Checking encryption parameters");
+        if enc_alg != AIR_ATTACHMENT_ENCRYPTION_ALG
+            // Older clients (<= v0.9.0) specified Aes256Gcm12 as encryption algorithm, however
+            // they were actually using Aes256Gcm. To be forward compatible, we also accept the the
+            // correctly specified algorithm.
+            && enc_alg != EncryptionAlgorithm::Aes256Gcm
+        {
+            return Err(AttachmentDownloadError::UnsupportedEncryptionAlgorithm(
+                enc_alg,
+            ));
+        }
+
+        let nonce: [u8; 12] = nonce
+            .try_into()
+            .map_err(|_| AttachmentDownloadError::InvalidNonceLength)?;
+
+        let key = AttachmentEarKey::from_bytes(
+            enc_key
+                .try_into()
+                .map_err(|_| AttachmentDownloadError::InvalidKeyLength)?,
+        );
+        if hash_alg != AIR_ATTACHMENT_HASH_ALG {
+            return Err(AttachmentDownloadError::UnsupportedHashAlgorithm(hash_alg));
+        }
+
         // Get the download URL from DS
         let api_client = self.api_clients().default_client()?;
         let download_url = api_client
@@ -236,32 +262,6 @@ impl CoreUser {
         while let Some(chunk) = bytes_stream.next().await.transpose()? {
             bytes.extend_from_slice(&chunk);
             progress_tx.report(bytes.len());
-        }
-
-        // Check encryption parameters
-        debug!(?attachment_id, "Checking encryption parameters");
-        if enc_alg != AIR_ATTACHMENT_ENCRYPTION_ALG
-            // Older clients (<= v0.9.0) specified Aes256Gcm12 as encryption algorithm, however
-            // they were actually using Aes256Gcm. To be forward compatible, we also accept the the
-            // correctly specified algorithm.
-            && enc_alg != EncryptionAlgorithm::Aes256Gcm
-        {
-            return Err(AttachmentDownloadError::UnsupportedEncryptionAlgorithm(
-                enc_alg,
-            ));
-        }
-
-        let nonce: [u8; 12] = nonce
-            .try_into()
-            .map_err(|_| AttachmentDownloadError::InvalidNonceLength)?;
-
-        let key = AttachmentEarKey::from_bytes(
-            enc_key
-                .try_into()
-                .map_err(|_| AttachmentDownloadError::InvalidKeyLength)?,
-        );
-        if hash_alg != AIR_ATTACHMENT_HASH_ALG {
-            return Err(AttachmentDownloadError::UnsupportedHashAlgorithm(hash_alg));
         }
 
         // Decrypt the attachment
