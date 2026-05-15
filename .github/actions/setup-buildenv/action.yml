@@ -79,7 +79,7 @@ runs:
       run: mkdir -p "${{ inputs.sccache-dir }}"
 
     - name: Setup Rust GitHub Actions cache
-      if: github.ref == 'refs/heads/main'
+      if: github.ref == 'refs/heads/main' && !contains(runner.labels, 'self-hosted')
       uses: actions/cache@v5
       with:
         path: |
@@ -91,7 +91,7 @@ runs:
           sccache-${{ runner.os }}-${{ runner.arch }}
 
     - name: Download Rust GitHub Actions cache
-      if: github.ref != 'refs/heads/main'
+      if: github.ref != 'refs/heads/main' && !contains(runner.labels, 'self-hosted')
       uses: actions/cache/restore@v5
       with:
         path: |
@@ -137,14 +137,14 @@ runs:
     ## rustup
 
     - name: Configure Rust toolchain cache
-      if: github.ref == 'refs/heads/main'
+      if: github.ref == 'refs/heads/main' && !contains(runner.labels, 'self-hosted')
       uses: actions/cache@v5
       with:
         path: ~/.rustup
         key: rust-toolchain-${{ hashFiles('rust-toolchain.toml' ) }}
 
     - name: Download Rust toolchain cache
-      if: github.ref != 'refs/heads/main'
+      if: github.ref != 'refs/heads/main' && !contains(runner.labels, 'self-hosted')
       uses: actions/cache/restore@v5
       with:
         path: ~/.rustup
@@ -190,10 +190,10 @@ runs:
       with:
         channel: stable
         version: 3.41.4
-        cache: true
-        cache-sdk: true
+        cache: "${{ !contains(runner.labels, 'self-hosted') }}"
+        cache-sdk: "${{ !contains(runner.labels, 'self-hosted') }}"
 
-    - if: inputs.flutter == 'true' && runner.os == 'Linux'
+    - if: inputs.flutter == 'true' && runner.os == 'Linux' && !contains(runner.labels, 'self-hosted')
       name: Install Linux Flutter build dependencies
       shell: bash
       run: |
