@@ -18,6 +18,7 @@ pub enum AttachmentProgressEvent {
     Progress { bytes_loaded: usize },
     Completed,
     Failed,
+    NotFound,
 }
 
 impl AttachmentProgress {
@@ -46,7 +47,13 @@ impl AttachmentProgressSender {
         }
     }
 
-    pub(super) fn finish(&mut self) {
+    pub(super) fn not_found(&mut self) {
+        if let Some(tx) = self.tx.take() {
+            let _ignore_closed = tx.send(AttachmentProgressEvent::NotFound);
+        }
+    }
+
+    pub(super) fn completed(&mut self) {
         if let Some(tx) = self.tx.take() {
             let _ignore_closed = tx.send(AttachmentProgressEvent::Completed);
         }

@@ -92,6 +92,10 @@ impl AttachmentsRepository {
                         sink.add(UiAttachmentStatus::Failed).ok();
                         break;
                     }
+                    AttachmentProgressEvent::NotFound => {
+                        sink.add(UiAttachmentStatus::NotFound).ok();
+                        break;
+                    }
                 }
             }
         } else if let Ok(Some(AttachmentStatus::Ready)) =
@@ -168,7 +172,7 @@ impl AttachmentsRepository {
             }
             AttachmentContent::None => bail!("Attachment not found"),
             AttachmentContent::DownloadFailed
-            | AttachmentContent::Expired
+            | AttachmentContent::NotFound
             | AttachmentContent::Unknown => {
                 bail!("Attachment download failed")
             }
@@ -224,6 +228,7 @@ impl AttachmentsRepository {
                         .context("Attachment download failed");
                 }
                 AttachmentProgressEvent::Failed => bail!("Attachment download failed"),
+                AttachmentProgressEvent::NotFound => todo!(),
             }
         }
         bail!("Attachment download aborted")
@@ -374,6 +379,8 @@ pub enum UiAttachmentStatus {
     Completed,
     /// Failed to upload or download
     Failed,
+    /// Not found on the server
+    NotFound,
 }
 
 /// Bytes of an image attachment and an animation classification.

@@ -9622,6 +9622,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return UiAttachmentStatus_Completed();
       case 3:
         return UiAttachmentStatus_Failed();
+      case 4:
+        return UiAttachmentStatus_NotFound();
       default:
         throw Exception("unreachable");
     }
@@ -12929,6 +12931,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return UiAttachmentStatus_Completed();
       case 3:
         return UiAttachmentStatus_Failed();
+      case 4:
+        return UiAttachmentStatus_NotFound();
       default:
         throw UnimplementedError('');
     }
@@ -16407,6 +16411,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_32(2, serializer);
       case UiAttachmentStatus_Failed():
         sse_encode_i_32(3, serializer);
+      case UiAttachmentStatus_NotFound():
+        sse_encode_i_32(4, serializer);
     }
   }
 

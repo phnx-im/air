@@ -33,14 +33,12 @@ class AttachmentFile extends HookWidget {
       mainAxisSize: MainAxisSize.min,
       spacing: Spacing.px16,
       children: [
-        isSender
-            ? _UploadStatus(
-                attachmentId: attachment.attachmentId,
-                size: attachment.size,
-                isSender: isSender,
-                color: color,
-              )
-            : AppIcon.paperclip(size: 32, color: color),
+        _AttachmentFileStatus(
+          attachmentId: attachment.attachmentId,
+          size: attachment.size,
+          isSender: isSender,
+          color: color,
+        ),
         // Flexible is needed to make the text wrap if the filename is too long
         Flexible(
           fit: FlexFit.loose,
@@ -69,8 +67,8 @@ class AttachmentFile extends HookWidget {
   }
 }
 
-class _UploadStatus extends HookWidget {
-  const _UploadStatus({
+class _AttachmentFileStatus extends HookWidget {
+  const _AttachmentFileStatus({
     required this.attachmentId,
     required this.size,
     required this.isSender,
@@ -86,17 +84,21 @@ class _UploadStatus extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final retries = useState(0);
-    final uploadStatusStream = useMemoized(
+    final statusStream = useMemoized(
       () => context.read<AttachmentsRepository>().statusStream(
         attachmentId: attachmentId,
       ),
       [attachmentId, retries.value],
     );
-    final status = useStream<UiAttachmentStatus>(uploadStatusStream);
+    final status = useStream<UiAttachmentStatus>(statusStream);
 
     return Center(
       child: switch (status.data) {
         null || UiAttachmentStatus_Completed() => AppIcon.paperclip(
+          size: 32,
+          color: color,
+        ),
+        UiAttachmentStatus_NotFound() => AppIcon.circleAlert(
           size: 32,
           color: color,
         ),

@@ -18,7 +18,7 @@ import 'package:mocktail/mocktail.dart';
 import '../helpers.dart';
 import '../mocks.dart';
 
-const physicalSize = Size(1000, 2400);
+const physicalSize = Size(1000, 2800);
 
 final file = UiAttachment(
   attachmentId: 42.attachmentId(),
@@ -36,7 +36,8 @@ Map<AttachmentId, UiAttachmentStatus> testStatuses = {
   1.attachmentId(): const UiAttachmentStatus.pending(),
   2.attachmentId(): UiAttachmentStatus.progress(BigInt.from(7 * 1024 * 1024)),
   3.attachmentId(): const UiAttachmentStatus.failed(),
-  4.attachmentId(): const UiAttachmentStatus.completed(),
+  4.attachmentId(): const UiAttachmentStatus.notFound(),
+  5.attachmentId(): const UiAttachmentStatus.completed(),
 };
 
 class _ImageTestBubble extends StatelessWidget {
@@ -108,6 +109,7 @@ void main() {
                         UiAttachmentStatus_Progress() => "Progress",
                         UiAttachmentStatus_Completed() => "Completed",
                         UiAttachmentStatus_Failed() => "Failed",
+                        UiAttachmentStatus_NotFound() => "Not Found",
                       }),
                       _ImageTestBubble(
                         attachmentId: testStatus.key,

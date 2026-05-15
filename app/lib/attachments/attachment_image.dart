@@ -379,6 +379,10 @@ class AttachmentImageOverlay extends HookWidget {
             child: AppIcon.rotateCw(size: 24, color: colors.text.primary),
           ),
         ),
+        UiAttachmentStatus_NotFound() => AppIcon.circleAlert(
+          size: 32,
+          color: colors.text.primary,
+        ),
         null || UiAttachmentStatus_Completed() => const SizedBox.shrink(),
       },
     );

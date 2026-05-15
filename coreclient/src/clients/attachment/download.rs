@@ -129,11 +129,13 @@ impl CoreUser {
                 AttachmentRecord::update_status(
                     self.db().write().await?,
                     attachment_id,
-                    AttachmentStatus::Expired,
+                    AttachmentStatus::NotFound,
                 )
                 .await
                 .inspect_err(|e| error!(?attachment_id, %e, "failed to mark download as failed"))
                 .ok();
+
+                progress_tx.not_found();
 
                 return Err(error.into());
             }
@@ -169,7 +171,7 @@ impl CoreUser {
             })
             .await?;
 
-        progress_tx.finish();
+        progress_tx.completed();
 
         Ok(())
     }

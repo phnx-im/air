@@ -47,8 +47,8 @@ pub enum AttachmentStatus {
     DownloadFailed = 4,
     /// The upload has failed.
     UploadFailed = 6,
-    /// The attachment has expired (not found on the server).
-    Expired = 7,
+    /// The attachment doesn't exist on the server (expired?).
+    NotFound = 7,
 }
 
 impl AttachmentStatus {
@@ -60,7 +60,7 @@ impl AttachmentStatus {
             4 => Self::DownloadFailed,
             5 => Self::Uploading,
             6 => Self::UploadFailed,
-            7 => Self::Expired,
+            7 => Self::NotFound,
             _ => Self::Unknown,
         }
     }
@@ -84,7 +84,7 @@ pub enum AttachmentContent {
     /// Upload failed
     UploadFailed(Vec<u8>),
     /// Attachment expired
-    Expired,
+    NotFound,
     /// Unknown status
     Unknown,
 }
@@ -110,7 +110,7 @@ impl AttachmentContent {
             }
             (None, AttachmentStatus::UploadFailed) => AttachmentContent::Unknown,
             (_, AttachmentStatus::DownloadFailed) => AttachmentContent::DownloadFailed,
-            (_, AttachmentStatus::Expired) => AttachmentContent::Expired,
+            (_, AttachmentStatus::NotFound) => AttachmentContent::NotFound,
             (_, AttachmentStatus::Unknown) => AttachmentContent::Unknown,
         }
     }

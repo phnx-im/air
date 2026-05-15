@@ -10936,6 +10936,9 @@ impl SseDecode for crate::api::attachments_repository::UiAttachmentStatus {
             3 => {
                 return crate::api::attachments_repository::UiAttachmentStatus::Failed;
             }
+            4 => {
+                return crate::api::attachments_repository::UiAttachmentStatus::NotFound;
+            }
             _ => {
                 unimplemented!("");
             }
@@ -13416,6 +13419,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::attachments_repository::UiAtt
             }
             crate::api::attachments_repository::UiAttachmentStatus::Failed => {
                 [3.into_dart()].into_dart()
+            }
+            crate::api::attachments_repository::UiAttachmentStatus::NotFound => {
+                [4.into_dart()].into_dart()
             }
             _ => {
                 unimplemented!("");
@@ -16201,6 +16207,9 @@ impl SseEncode for crate::api::attachments_repository::UiAttachmentStatus {
             }
             crate::api::attachments_repository::UiAttachmentStatus::Failed => {
                 <i32>::sse_encode(3, serializer);
+            }
+            crate::api::attachments_repository::UiAttachmentStatus::NotFound => {
+                <i32>::sse_encode(4, serializer);
             }
             _ => {
                 unimplemented!("");
