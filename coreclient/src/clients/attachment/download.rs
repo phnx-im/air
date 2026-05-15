@@ -2,13 +2,19 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::num::TryFromIntError;
+
+use airapiclient::{ApiClientInitError, ds_api::DsRequestError};
 use aircommon::{
-    crypto::aead::{AeadCiphertext, AeadDecryptable, keys::AttachmentEarKey},
+    crypto::{
+        aead::{AeadCiphertext, AeadDecryptable, keys::AttachmentEarKey},
+        errors::DecryptionError,
+    },
     identifiers::AttachmentId,
 };
 use airprotos::delivery_service::v1::StorageObjectType;
-use anyhow::{Context, anyhow, ensure};
-use mimi_content::content_container::EncryptionAlgorithm;
+use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
+use reqwest::StatusCode;
 use sha2::{Digest, Sha256};
 use tokio_stream::StreamExt;
 use tracing::{debug, error, info};
@@ -26,6 +32,32 @@ use crate::{
     },
     groups::Group,
 };
+
+#[derive(Debug, thiserror::Error)]
+enum AttachmentDownloadError {
+    #[error("failed to initialize API client: {0}")]
+    ApiClientInit(#[from] ApiClientInitError),
+    #[error("failed to get attachment download URL: {0}")]
+    DsRequest(#[from] DsRequestError),
+    #[error("failed to download attachment: {0}")]
+    Http(#[from] reqwest::Error),
+    #[error("attachment size overflow: {0}")]
+    SizeOverflow(#[from] TryFromIntError),
+    #[error("unsupported encryption algorithm: {0:?}")]
+    UnsupportedEncryptionAlgorithm(EncryptionAlgorithm),
+    #[error("invalid nonce length")]
+    InvalidNonceLength,
+    #[error("invalid key length")]
+    InvalidKeyLength,
+    #[error("unsupported hash algorithm: {0:?}")]
+    UnsupportedHashAlgorithm(HashAlgorithm),
+    #[error("failed to decrypt attachment: {0}")]
+    Decryption(#[from] DecryptionError),
+    #[error("hash mismatch")]
+    HashMismatch,
+    #[error("attachment not found")]
+    NotFound,
+}
 
 impl CoreUser {
     pub(crate) fn download_attachment(
@@ -83,82 +115,28 @@ impl CoreUser {
             return Ok(());
         };
 
-        // Check encryption parameters
-        debug!(?attachment_id, "Checking encryption parameters");
-        ensure!(
-            pending_record.enc_alg == AIR_ATTACHMENT_ENCRYPTION_ALG
-            // Older clients (<= v0.9.0) specified Aes256Gcm12 as encryption algorithm, however
-            // they were actually using Aes256Gcm. To be forward compatible, we also accept the the
-            // correctly specified algorithm.
-                || pending_record.enc_alg == EncryptionAlgorithm::Aes256Gcm,
-            "unsupported encryption algorithm: {:?}",
-            pending_record.enc_alg
-        );
-        let nonce: [u8; 12] = pending_record
-            .nonce
-            .try_into()
-            .map_err(|_| anyhow!("invalid nonce length"))?;
-        let key = AttachmentEarKey::from_bytes(
-            pending_record
-                .enc_key
-                .try_into()
-                .map_err(|_| anyhow!("invalid key length"))?,
-        );
-        ensure!(
-            pending_record.hash_alg == AIR_ATTACHMENT_HASH_ALG,
-            "unsupported hash algorithm: {:?}",
-            pending_record.hash_alg
-        );
-
-        let download_attachment_task = async || -> anyhow::Result<AttachmentBytes> {
-            // Get the download URL from DS
-            let api_client = self.api_client()?;
-            let download_url = api_client
-                .ds_get_attachment_url(
-                    self.signing_key(),
-                    group.group_state_ear_key(),
-                    group.group_id(),
-                    group.own_index(),
-                    attachment_id,
-                    StorageObjectType::Attachment,
-                )
-                .await?;
-            debug!(?attachment_id, %download_url, "Got download URL from DS");
-
-            // Download the attachment
-            debug!(?attachment_id, "Downloading attachment");
-            let response = self
-                .http_client()
-                .get(download_url)
-                .send()
-                .await?
-                .error_for_status()?;
-            let total_len = pending_record
-                .size
-                .try_into()
-                .context("Attachment size overflow")?;
-            let mut bytes = Vec::with_capacity(total_len);
-            let mut bytes_stream = response.bytes_stream();
-            while let Some(chunk) = bytes_stream.next().await.transpose()? {
-                bytes.extend_from_slice(&chunk);
-                progress_tx.report(bytes.len());
-            }
-
-            // Decrypt the attachment
-            debug!(?attachment_id, "Decrypting attachment");
-            let ciphertext = EncryptedAttachment::from(AeadCiphertext::new(bytes, nonce));
-            let content: AttachmentBytes = AttachmentBytes::decrypt(&key, &ciphertext)?;
-
-            // Verify hash
-            debug!(?attachment_id, "Verifying hash");
-            let hash = Sha256::digest(&content.bytes);
-            ensure!(hash.as_slice() == pending_record.hash, "hash mismatch");
-
-            Ok(content)
-        };
-
-        let content = match download_attachment_task().await {
+        let content = match self
+            .download_and_decrypt_attachment(pending_record, &group, &progress_tx)
+            .await
+        {
             Ok(content) => content,
+            Err(error @ AttachmentDownloadError::NotFound) => {
+                error!(
+                    ?attachment_id,
+                    "attachment not found (expired?), marking as expired"
+                );
+
+                AttachmentRecord::update_status(
+                    self.db().write().await?,
+                    attachment_id,
+                    AttachmentStatus::Expired,
+                )
+                .await
+                .inspect_err(|e| error!(?attachment_id, %e, "failed to mark download as failed"))
+                .ok();
+
+                return Err(error.into());
+            }
             Err(error) => {
                 error!(
                     ?attachment_id,
@@ -177,7 +155,7 @@ impl CoreUser {
                 .inspect_err(|e| error!(?attachment_id, %e, "failed to mark download as failed"))
                 .ok();
 
-                return Err(error);
+                return Err(error.into());
             }
         };
 
@@ -194,5 +172,102 @@ impl CoreUser {
         progress_tx.finish();
 
         Ok(())
+    }
+
+    async fn download_and_decrypt_attachment(
+        &self,
+        PendingAttachmentRecord {
+            aad: _,
+            attachment_id,
+            enc_alg,
+            enc_key,
+            hash,
+            hash_alg,
+            nonce,
+            size,
+        }: PendingAttachmentRecord,
+        group: &Group,
+        progress_tx: &AttachmentProgressSender,
+    ) -> Result<AttachmentBytes, AttachmentDownloadError> {
+        // Get the download URL from DS
+        let api_client = self.api_clients().default_client()?;
+        let download_url = api_client
+            .ds_get_attachment_url(
+                self.signing_key(),
+                group.group_state_ear_key(),
+                group.group_id(),
+                group.own_index(),
+                attachment_id,
+                StorageObjectType::Attachment,
+            )
+            .await?;
+        debug!(?attachment_id, %download_url, "Got download URL from DS");
+
+        // Download the attachment
+        debug!(?attachment_id, "Downloading attachment");
+        let http_response = self
+            .http_client()
+            .get(download_url)
+            .send()
+            .await?
+            .error_for_status();
+
+        let mut bytes_stream = match http_response {
+            Ok(response) => response.bytes_stream(),
+            Err(error) => match error.status() {
+                Some(status) if status == StatusCode::NOT_FOUND => {
+                    return Err(AttachmentDownloadError::NotFound);
+                }
+                _ => return Err(AttachmentDownloadError::Http(error)),
+            },
+        };
+
+        let total_len = size.try_into()?;
+        let mut bytes = Vec::with_capacity(total_len);
+        while let Some(chunk) = bytes_stream.next().await.transpose()? {
+            bytes.extend_from_slice(&chunk);
+            progress_tx.report(bytes.len());
+        }
+
+        // Check encryption parameters
+        debug!(?attachment_id, "Checking encryption parameters");
+        if enc_alg != AIR_ATTACHMENT_ENCRYPTION_ALG
+            // Older clients (<= v0.9.0) specified Aes256Gcm12 as encryption algorithm, however
+            // they were actually using Aes256Gcm. To be forward compatible, we also accept the the
+            // correctly specified algorithm.
+            && enc_alg != EncryptionAlgorithm::Aes256Gcm
+        {
+            return Err(AttachmentDownloadError::UnsupportedEncryptionAlgorithm(
+                enc_alg,
+            ));
+        }
+
+        let nonce: [u8; 12] = nonce
+            .try_into()
+            .map_err(|_| AttachmentDownloadError::InvalidNonceLength)?;
+
+        let key = AttachmentEarKey::from_bytes(
+            enc_key
+                .try_into()
+                .map_err(|_| AttachmentDownloadError::InvalidKeyLength)?,
+        );
+        if hash_alg != AIR_ATTACHMENT_HASH_ALG {
+            return Err(AttachmentDownloadError::UnsupportedHashAlgorithm(hash_alg));
+        }
+
+        // Decrypt the attachment
+        debug!(?attachment_id, "Decrypting attachment");
+
+        let ciphertext = EncryptedAttachment::from(AeadCiphertext::new(bytes, nonce));
+        let content: AttachmentBytes = AttachmentBytes::decrypt(&key, &ciphertext)?;
+
+        // Verify hash
+        debug!(?attachment_id, "Verifying hash");
+        let recalculated_content_hash = Sha256::digest(&content.bytes);
+        if recalculated_content_hash.as_slice() != hash {
+            return Err(AttachmentDownloadError::HashMismatch);
+        }
+
+        Ok(content)
     }
 }

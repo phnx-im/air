@@ -167,7 +167,9 @@ impl AttachmentsRepository {
                 }
             }
             AttachmentContent::None => bail!("Attachment not found"),
-            AttachmentContent::DownloadFailed | AttachmentContent::Unknown => {
+            AttachmentContent::DownloadFailed
+            | AttachmentContent::Expired
+            | AttachmentContent::Unknown => {
                 bail!("Attachment download failed")
             }
         };
