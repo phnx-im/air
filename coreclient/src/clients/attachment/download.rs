@@ -165,14 +165,18 @@ impl CoreUser {
                     %error,
                     "attachment download error, marking as failed"
                 );
+
+                // if this fails, the AttachmentRecord status stays in Downloading
+                // and we still have the PendingAttachmentRecord, so we can retry
                 AttachmentRecord::update_status(
                     self.db().write().await?,
                     attachment_id,
                     AttachmentStatus::DownloadFailed,
                 )
-                .await?;
-                // by failing here, we make sure both the PendingAttachmentRecord and the AttachmentRecord are *NOT* deleted
-                // we also mark the attachment as DownloadFailed for the UI to show
+                .await
+                .inspect_err(|e| error!(?attachment_id, %e, "failed to mark download as failed"))
+                .ok();
+
                 return Err(error);
             }
         };

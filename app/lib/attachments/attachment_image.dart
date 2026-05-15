@@ -314,13 +314,13 @@ class AttachmentImageOverlay extends HookWidget {
       ),
       [attachmentId, retries.value],
     );
-    final uploadStatus = useStream<UiAttachmentStatus>(statusStream);
+    final status = useStream<UiAttachmentStatus>(statusStream);
 
     final colors = CustomColorScheme.of(context);
 
     return Align(
       alignment: Alignment.center,
-      child: switch (uploadStatus.data) {
+      child: switch (status.data) {
         UiAttachmentStatus_Pending() ||
         UiAttachmentStatus_Failed() when isSender => _BlurredPill(
           child: Stack(
@@ -339,7 +339,7 @@ class AttachmentImageOverlay extends HookWidget {
           ),
         ),
         UiAttachmentStatus_Pending() ||
-        UiAttachmentStatus_Failed() when !isSender => _BlurredPill(
+        UiAttachmentStatus_Failed() => _BlurredPill(
           child: Stack(
             alignment: Alignment.center,
             children: [
@@ -379,7 +379,7 @@ class AttachmentImageOverlay extends HookWidget {
             child: AppIcon.rotateCw(size: 24, color: colors.text.primary),
           ),
         ),
-        _ => const SizedBox.shrink(),
+        null || UiAttachmentStatus_Completed() => const SizedBox.shrink(),
       },
     );
   }

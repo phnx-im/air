@@ -419,7 +419,8 @@ impl PendingAttachmentRecord {
             hash: Vec<u8>,
         }
 
-        // we make sure the related attachment is either Pending (= 1) or DownloadFailed (= 4)
+        // we make sure the related attachment is either
+        // Pending (= 1), Downloading (= 2) or DownloadFailed (= 4)
         let record = query_as!(
             SqlPendingAttachmentRecord,
             r#"
@@ -433,7 +434,7 @@ impl PendingAttachmentRecord {
                     pa.hash AS "hash: _"
                 FROM pending_attachment pa
                 INNER JOIN attachment a ON a.attachment_id = pa.attachment_id
-                WHERE pa.attachment_id = ? AND a.status IN (1, 4)
+                WHERE pa.attachment_id = ? AND a.status IN (1, 2, 4)
             "#,
             attachment_id
         )

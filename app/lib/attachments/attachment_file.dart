@@ -37,6 +37,7 @@ class AttachmentFile extends HookWidget {
             ? _UploadStatus(
                 attachmentId: attachment.attachmentId,
                 size: attachment.size,
+                isSender: isSender,
                 color: color,
               )
             : AppIcon.paperclip(size: 32, color: color),
@@ -72,34 +73,37 @@ class _UploadStatus extends HookWidget {
   const _UploadStatus({
     required this.attachmentId,
     required this.size,
+    required this.isSender,
     required this.color,
   });
 
   final AttachmentId attachmentId;
   final int size;
+  final bool isSender;
+
   final Color color;
 
   @override
   Widget build(BuildContext context) {
-    final retryGen = useState(0);
-    final uploadStatusSteam = useMemoized(
+    final retries = useState(0);
+    final uploadStatusStream = useMemoized(
       () => context.read<AttachmentsRepository>().statusStream(
         attachmentId: attachmentId,
       ),
-      [attachmentId, retryGen.value],
+      [attachmentId, retries.value],
     );
-    final uploadStatus = useStream<UiAttachmentStatus>(uploadStatusSteam);
+    final status = useStream<UiAttachmentStatus>(uploadStatusStream);
 
     return Center(
-      child: switch (uploadStatus.data) {
+      child: switch (status.data) {
         null || UiAttachmentStatus_Completed() => AppIcon.paperclip(
           size: 32,
           color: color,
         ),
         UiAttachmentStatus_Pending() ||
-        UiAttachmentStatus_Failed() => IconButton(
+        UiAttachmentStatus_Failed() when isSender => IconButton(
           onPressed: () {
-            retryGen.value++;
+            retries.value++;
             context.read<ChatDetailsCubit>().retryUploadAttachment(
               attachmentId,
             );
@@ -110,6 +114,24 @@ class _UploadStatus extends HookWidget {
             ).backgroundBase.tertiary,
           ),
           icon: AppIcon.upload(
+            size: 32,
+            color: CustomColorScheme.of(context).text.secondary,
+          ),
+        ),
+        UiAttachmentStatus_Pending() ||
+        UiAttachmentStatus_Failed() => IconButton(
+          onPressed: () {
+            retries.value++;
+            context.read<AttachmentsRepository>().loadAttachment(
+              attachmentId: attachmentId,
+            );
+          },
+          style: IconButton.styleFrom(
+            backgroundColor: CustomColorScheme.of(
+              context,
+            ).backgroundBase.tertiary,
+          ),
+          icon: AppIcon.download(
             size: 32,
             color: CustomColorScheme.of(context).text.secondary,
           ),
