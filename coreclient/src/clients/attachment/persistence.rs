@@ -32,8 +32,6 @@ pub(crate) struct AttachmentRecord {
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[repr(u8)]
-// Don't change the value assigned to the variants
-// (used in the database and for queries).
 pub enum AttachmentStatus {
     /// Unknown status
     Unknown = 0,
@@ -442,9 +440,13 @@ impl PendingAttachmentRecord {
                     pa.hash AS "hash: _"
                 FROM pending_attachment pa
                 INNER JOIN attachment a ON a.attachment_id = pa.attachment_id
-                WHERE pa.attachment_id = ? AND a.status IN (1, 2, 4)
+                WHERE pa.attachment_id = ?
+                    AND (a.status = ? OR a.status = ? OR a.status = ?)
             "#,
-            attachment_id
+            attachment_id,
+            AttachmentStatus::Pending,
+            AttachmentStatus::Downloading,
+            AttachmentStatus::DownloadFailed,
         )
         .fetch_optional(connection.as_mut())
         .await?;
