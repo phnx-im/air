@@ -228,7 +228,7 @@ impl AttachmentsRepository {
                         .context("Attachment download failed");
                 }
                 AttachmentProgressEvent::Failed => bail!("Attachment download failed"),
-                AttachmentProgressEvent::NotFound => todo!(),
+                AttachmentProgressEvent::NotFound => bail!("Attachment not found"),
             }
         }
         bail!("Attachment download aborted")

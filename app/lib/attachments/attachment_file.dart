@@ -84,7 +84,7 @@ class _AttachmentFileStatus extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final retries = useState(0);
+    final retries = useState(0); // bump to force stream re-subscription
     final statusStream = useMemoized(
       () => context.read<AttachmentsRepository>().statusStream(
         attachmentId: attachmentId,

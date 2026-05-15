@@ -308,7 +308,7 @@ class AttachmentImageOverlay extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final retries = useState(0);
+    final retries = useState(0); // bump to force stream re-subscription
     final statusStream = useMemoized(
       () => context.read<AttachmentsRepository>().statusStream(
         attachmentId: attachmentId,
@@ -375,11 +375,6 @@ class AttachmentImageOverlay extends HookWidget {
             ],
           ),
         ),
-        _ when isAnimationPaused => IgnorePointer(
-          child: _BlurredPill(
-            child: AppIcon.rotateCw(size: 24, color: colors.text.primary),
-          ),
-        ),
         UiAttachmentStatus_NotFound() => IconButton(
           onPressed: () {
             showSnackBarStandalone(
@@ -387,6 +382,11 @@ class AttachmentImageOverlay extends HookWidget {
             );
           },
           icon: AppIcon.circleAlert(size: 32, color: colors.text.primary),
+        ),
+        UiAttachmentStatus_Completed() when isAnimationPaused => IgnorePointer(
+          child: _BlurredPill(
+            child: AppIcon.rotateCw(size: 24, color: colors.text.primary),
+          ),
         ),
         null || UiAttachmentStatus_Completed() => const SizedBox.shrink(),
       },

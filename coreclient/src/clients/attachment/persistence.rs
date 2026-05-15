@@ -32,6 +32,8 @@ pub(crate) struct AttachmentRecord {
 #[derive(Debug, Clone, Copy)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 #[repr(u8)]
+// Don't change the value assigned to the variants
+// (used in the database and for queries).
 pub enum AttachmentStatus {
     /// Unknown status
     Unknown = 0,
@@ -685,9 +687,7 @@ pub(crate) mod test {
     }
 
     #[sqlx::test]
-    async fn load_pending_for_non_pending_attachment_fails(
-        pool: Pool<Sqlite>,
-    ) -> anyhow::Result<()> {
+    async fn load_pending_for_not_found_attachment_fails(pool: Pool<Sqlite>) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
         let chat = test_chat();
         chat.store(pool.write().await?).await?;
@@ -714,7 +714,7 @@ pub(crate) mod test {
         AttachmentRecord::update_status(
             pool.write().await?,
             attachment_record.attachment_id,
-            AttachmentStatus::Downloading,
+            AttachmentStatus::NotFound,
         )
         .await?;
 
