@@ -700,7 +700,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get attachment_file => 'File';
 
   @override
-  String get attachment_notFound => 'Attachment not found (i.e. expired)';
+  String get attachment_notFound => 'Attachment is no longer available.';
 
   @override
   String get textMessage_edited => 'edited';
