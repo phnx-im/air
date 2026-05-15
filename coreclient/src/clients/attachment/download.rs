@@ -115,29 +115,50 @@ impl CoreUser {
             return Ok(());
         };
 
-        let content = match self
+        match self
             .download_and_decrypt_attachment(pending_record, &group, &progress_tx)
             .await
         {
-            Ok(content) => content,
-            Err(error @ AttachmentDownloadError::NotFound) => {
-                error!(
-                    ?attachment_id,
-                    "attachment not found (expired?), marking as expired"
-                );
+            Ok(content) => {
+                // Store the attachment and mark it as downloaded
+                let bytes = content.bytes.as_slice();
+                self.db()
+                    .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                        AttachmentRecord::set_content(&mut *txn, attachment_id, bytes).await?;
+                        PendingAttachmentRecord::delete(txn, attachment_id).await?;
+                        Ok(())
+                    })
+                    .await?;
 
-                AttachmentRecord::update_status(
-                    self.db().write().await?,
-                    attachment_id,
-                    AttachmentStatus::NotFound,
-                )
-                .await
-                .inspect_err(|e| error!(?attachment_id, %e, "failed to mark download as failed"))
-                .ok();
+                progress_tx.completed();
+
+                Ok(())
+            }
+            Err(error @ AttachmentDownloadError::NotFound) => {
+                error!(?attachment_id, "attachment not found (expired?)");
+
+                // if the attachment wasn't found, we mark it as NotFound but also destroy
+                // the pending attachment, which cannot be recovered from anyways.
+                self.db()
+                    .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                        AttachmentRecord::update_status(
+                            &mut *txn,
+                            attachment_id,
+                            AttachmentStatus::NotFound,
+                        )
+                        .await?;
+                        PendingAttachmentRecord::delete(txn, attachment_id).await?;
+                        Ok(())
+                    })
+                    .await
+                    .inspect_err(
+                        |e| error!(?attachment_id, %e, "failed to mark download as failed"),
+                    )
+                    .ok();
 
                 progress_tx.not_found();
 
-                return Err(error.into());
+                Err(error.into())
             }
             Err(error) => {
                 error!(
@@ -157,23 +178,9 @@ impl CoreUser {
                 .inspect_err(|e| error!(?attachment_id, %e, "failed to mark download as failed"))
                 .ok();
 
-                return Err(error.into());
+                Err(error.into())
             }
-        };
-
-        // Store the attachment and mark it as downloaded
-        let bytes = content.bytes.as_slice();
-        self.db()
-            .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                AttachmentRecord::set_content(&mut *txn, attachment_id, bytes).await?;
-                PendingAttachmentRecord::delete(txn, attachment_id).await?;
-                Ok(())
-            })
-            .await?;
-
-        progress_tx.completed();
-
-        Ok(())
+        }
     }
 
     async fn download_and_decrypt_attachment(
