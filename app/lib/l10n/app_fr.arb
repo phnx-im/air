@@ -201,6 +201,7 @@
   "attachment_gallery": "Galerie",
   "attachment_camera": "Appareil photo",
   "attachment_file": "Fichier",
+  "attachment_notFound": "La pièce jointe n'est plus disponible.",
   "textMessage_edited": "modifié",
   "textMessage_hiddenPlaceholder": "Utilisateur bloqué, appuyez pour afficher le message",
   "textMessage_deleted": "Message supprimé",

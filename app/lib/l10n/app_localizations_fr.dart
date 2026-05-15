@@ -717,6 +717,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get attachment_file => 'Fichier';
 
   @override
+  String get attachment_notFound => 'Attachment not found (i.e. expired)';
+
+  @override
   String get textMessage_edited => 'modifié';
 
   @override

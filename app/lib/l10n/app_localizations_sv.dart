@@ -707,6 +707,9 @@ class AppLocalizationsSv extends AppLocalizations {
   String get attachment_file => 'Fil';
 
   @override
+  String get attachment_notFound => 'Attachment not found (i.e. expired)';
+
+  @override
   String get textMessage_edited => 'redigerad';
 
   @override

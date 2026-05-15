@@ -1221,6 +1221,12 @@ abstract class AppLocalizations {
   /// **'File'**
   String get attachment_file;
 
+  /// No description provided for @attachment_notFound.
+  ///
+  /// In en, this message translates to:
+  /// **'Attachment not found (i.e. expired)'**
+  String get attachment_notFound;
+
   /// No description provided for @textMessage_edited.
   ///
   /// In en, this message translates to:

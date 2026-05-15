@@ -9,6 +9,7 @@ import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/foundations/themes.dart';
 import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/ds/foundations/icons/app_icons.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
@@ -98,9 +99,13 @@ class _AttachmentFileStatus extends HookWidget {
           size: 32,
           color: color,
         ),
-        UiAttachmentStatus_NotFound() => AppIcon.circleAlert(
-          size: 32,
-          color: color,
+        UiAttachmentStatus_NotFound() => IconButton(
+          onPressed: () {
+            showSnackBarStandalone(
+              (loc) => SnackBar(content: Text(loc.attachment_notFound)),
+            );
+          },
+          icon: AppIcon.circleAlert(size: 32, color: color),
         ),
         UiAttachmentStatus_Pending() ||
         UiAttachmentStatus_Failed() when isSender => IconButton(

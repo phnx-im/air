@@ -13,6 +13,7 @@ import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/foundations/themes.dart';
 import 'package:air/ds/foundations/material.dart';
 import 'package:air/ds/foundations/icons/app_icons.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
@@ -379,9 +380,13 @@ class AttachmentImageOverlay extends HookWidget {
             child: AppIcon.rotateCw(size: 24, color: colors.text.primary),
           ),
         ),
-        UiAttachmentStatus_NotFound() => AppIcon.circleAlert(
-          size: 32,
-          color: colors.text.primary,
+        UiAttachmentStatus_NotFound() => IconButton(
+          onPressed: () {
+            showSnackBarStandalone(
+              (loc) => SnackBar(content: Text(loc.attachment_notFound)),
+            );
+          },
+          icon: AppIcon.circleAlert(size: 32, color: colors.text.primary),
         ),
         null || UiAttachmentStatus_Completed() => const SizedBox.shrink(),
       },
