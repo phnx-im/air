@@ -117,6 +117,7 @@ abstract class RustLibApi extends BaseApi {
   crateApiAttachmentsRepositoryAttachmentsRepositoryLoadImageAttachment({
     required AttachmentsRepository that,
     required AttachmentId attachmentId,
+    required bool retryDownloadIfFailed,
     required FutureOr<void> Function(BigInt) chunkEventCallback,
   });
 
@@ -1064,6 +1065,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   crateApiAttachmentsRepositoryAttachmentsRepositoryLoadImageAttachment({
     required AttachmentsRepository that,
     required AttachmentId attachmentId,
+    required bool retryDownloadIfFailed,
     required FutureOr<void> Function(BigInt) chunkEventCallback,
   }) {
     return handler.executeNormal(
@@ -1075,6 +1077,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             serializer,
           );
           sse_encode_box_autoadd_attachment_id(attachmentId, serializer);
+          sse_encode_bool(retryDownloadIfFailed, serializer);
           sse_encode_DartFn_Inputs_u_64_Output_unit_AnyhowException(
             chunkEventCallback,
             serializer,
@@ -1092,7 +1095,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ),
         constMeta:
             kCrateApiAttachmentsRepositoryAttachmentsRepositoryLoadImageAttachmentConstMeta,
-        argValues: [that, attachmentId, chunkEventCallback],
+        argValues: [
+          that,
+          attachmentId,
+          retryDownloadIfFailed,
+          chunkEventCallback,
+        ],
         apiImpl: this,
       ),
     );
@@ -1102,7 +1110,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiAttachmentsRepositoryAttachmentsRepositoryLoadImageAttachmentConstMeta =>
       const TaskConstMeta(
         debugName: "AttachmentsRepository_load_image_attachment",
-        argNames: ["that", "attachmentId", "chunkEventCallback"],
+        argNames: [
+          "that",
+          "attachmentId",
+          "retryDownloadIfFailed",
+          "chunkEventCallback",
+        ],
       );
 
   @override
@@ -9609,6 +9622,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return UiAttachmentStatus_Completed();
       case 3:
         return UiAttachmentStatus_Failed();
+      case 4:
+        return UiAttachmentStatus_NotFound();
       default:
         throw Exception("unreachable");
     }
@@ -12916,6 +12931,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return UiAttachmentStatus_Completed();
       case 3:
         return UiAttachmentStatus_Failed();
+      case 4:
+        return UiAttachmentStatus_NotFound();
       default:
         throw UnimplementedError('');
     }
@@ -16394,6 +16411,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_32(2, serializer);
       case UiAttachmentStatus_Failed():
         sse_encode_i_32(3, serializer);
+      case UiAttachmentStatus_NotFound():
+        sse_encode_i_32(4, serializer);
     }
   }
 
@@ -16855,11 +16874,13 @@ class AttachmentsRepositoryImpl extends RustOpaque
 
   Future<LoadedImageAttachment> loadImageAttachment({
     required AttachmentId attachmentId,
+    required bool retryDownloadIfFailed,
     required FutureOr<void> Function(BigInt) chunkEventCallback,
   }) => RustLib.instance.api
       .crateApiAttachmentsRepositoryAttachmentsRepositoryLoadImageAttachment(
         that: this,
         attachmentId: attachmentId,
+        retryDownloadIfFailed: retryDownloadIfFailed,
         chunkEventCallback: chunkEventCallback,
       );
 
