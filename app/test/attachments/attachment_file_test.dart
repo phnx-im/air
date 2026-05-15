@@ -15,7 +15,7 @@ import 'package:mocktail/mocktail.dart';
 import '../helpers.dart';
 import '../mocks.dart';
 
-const physicalSize = Size(800, 2200);
+const physicalSize = Size(800, 2150);
 
 final file = UiAttachment(
   attachmentId: 42.attachmentId(),
@@ -167,7 +167,7 @@ void main() {
     });
 
     testWidgets('renders correctly overflow', (tester) async {
-      tester.platformDispatcher.views.first.physicalSize = physicalSize;
+      tester.platformDispatcher.views.first.physicalSize = const Size(800, 600);
       addTearDown(() {
         tester.platformDispatcher.views.first.resetPhysicalSize();
       });
