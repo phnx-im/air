@@ -360,8 +360,8 @@ publish_deb() {
   echo
   echo "Client setup:"
   echo "  curl -fsSL ${REPO_URL}/gpg-key.asc \\"
-  echo "    | sudo gpg --dearmor -o /usr/share/keyrings/${BUCKET}-keyring.gpg"
-  echo "  echo \"deb [signed-by=/usr/share/keyrings/${BUCKET}-keyring.gpg] \\"
+  echo "    | sudo gpg --dearmor -o /usr/share/keyrings/air-keyring.gpg"
+  echo "  echo \"deb [signed-by=/usr/share/keyrings/air-keyring.gpg] \\"
   echo "    ${REPO_URL} ${TRACK} ${COMPONENT}\" \\"
   echo "    | sudo tee /etc/apt/sources.list.d/air.list"
   echo "  sudo apt update"
