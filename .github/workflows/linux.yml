@@ -122,5 +122,5 @@ jobs:
           S3_BUCKET: ${{ vars.S3_BUCKET }}
           S3_ENDPOINT: ${{ vars.S3_ENDPOINT }}
         run: |
-          ./publish-packages.sh air-*.rpm
-          ./publish-packages.sh air_*.deb
+          cargo xtask publish-packages -- air-*.rpm
+          cargo xtask publish-packages -- air_*.deb
