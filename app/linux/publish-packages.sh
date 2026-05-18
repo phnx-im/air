@@ -363,7 +363,7 @@ publish_deb() {
   echo "    | sudo gpg --dearmor -o /usr/share/keyrings/${BUCKET}-keyring.gpg"
   echo "  echo \"deb [signed-by=/usr/share/keyrings/${BUCKET}-keyring.gpg] \\"
   echo "    ${REPO_URL} ${TRACK} ${COMPONENT}\" \\"
-  echo "    | sudo tee /etc/apt/sources.list.d/${BUCKET}.list"
+  echo "    | sudo tee /etc/apt/sources.list.d/air.list"
   echo "  sudo apt update"
 }
 
@@ -454,7 +454,7 @@ EOF
 
   # Generate a .repo file so clients can install with a single
   # `dnf config-manager --add-repo <url>` command.
-  local repo_file="${key_dir}/${BUCKET}.repo"
+  local repo_file="${key_dir}/air.repo"
   {
     echo "[air]"
     echo "name=Air Messenger builds"
@@ -487,7 +487,7 @@ EOF
   ok "RPM repository published to ${s3_rpm}"
   echo
   echo "Client setup:"
-  echo "  sudo dnf config-manager --add-repo ${REPO_URL}/${BUCKET}.repo"
+  echo "  sudo dnf config-manager addrepo --from-repofile ${REPO_URL}/${BUCKET}.repo"
 }
 
 # Entry point
