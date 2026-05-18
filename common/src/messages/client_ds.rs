@@ -433,38 +433,6 @@ impl From<HpkeCiphertext> for EncryptedDsJoinerInformation {
 impl HpkeEncryptable<JoinerInfoKeyType, EncryptedDsJoinerInformation> for DsJoinerInformation {}
 impl HpkeDecryptable<JoinerInfoKeyType, EncryptedDsJoinerInformation> for DsJoinerInformation {}
 
-#[derive(TlsSerialize, TlsSize, Clone, TlsDeserializeBytes)]
-pub struct DsApqJoinerInformation {
-    pub t_group_state_ear_key: GroupStateEarKey,
-    pub pq_group_state_ear_key: GroupStateEarKey,
-}
-
-#[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize, Clone)]
-pub struct EncryptedDsApqJoinerInformation {
-    pub ciphertext: HpkeCiphertext,
-}
-
-impl AsRef<HpkeCiphertext> for EncryptedDsApqJoinerInformation {
-    fn as_ref(&self) -> &HpkeCiphertext {
-        &self.ciphertext
-    }
-}
-
-impl From<HpkeCiphertext> for EncryptedDsApqJoinerInformation {
-    fn from(ciphertext: HpkeCiphertext) -> Self {
-        Self { ciphertext }
-    }
-}
-
-impl HpkeEncryptable<JoinerInfoKeyType, EncryptedDsApqJoinerInformation>
-    for DsApqJoinerInformation
-{
-}
-impl HpkeDecryptable<JoinerInfoKeyType, EncryptedDsApqJoinerInformation>
-    for DsApqJoinerInformation
-{
-}
-
 #[derive(Debug, TlsSerialize, TlsDeserializeBytes, TlsSize, Clone)]
 pub struct WelcomeBundle {
     pub welcome: AssistedWelcome,
@@ -480,5 +448,5 @@ pub struct ApqWelcomeBundle {
     // This is the part the DS shouldn't see.
     pub encrypted_attribution_info: EncryptedWelcomeAttributionInfo,
     // This part is added by the DS later.
-    pub encrypted_joiner_info: EncryptedDsApqJoinerInformation,
+    pub encrypted_joiner_info: EncryptedDsJoinerInformation,
 }

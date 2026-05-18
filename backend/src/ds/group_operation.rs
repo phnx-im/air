@@ -29,9 +29,8 @@ use aircommon::{
     identifiers::QsReference,
     messages::{
         client_ds::{
-            AadMessage, AadPayload, AddUsersInfo, ApqWelcomeBundle, DsApqJoinerInformation,
-            DsJoinerInformation, GroupOperationParams, GroupOperationParamsAad,
-            QsQueueMessagePayload, WelcomeBundle,
+            AadMessage, AadPayload, AddUsersInfo, ApqWelcomeBundle, DsJoinerInformation,
+            GroupOperationParams, GroupOperationParamsAad, QsQueueMessagePayload, WelcomeBundle,
         },
         welcome_attribution_info::EncryptedWelcomeAttributionInfo,
     },
@@ -661,8 +660,7 @@ impl DsGroupState {
         added_users: Vec<(AddedUserInfo, EncryptedWelcomeAttributionInfo)>,
         t_welcome: &AssistedWelcome,
         pq_welcome: &AssistedWelcome,
-        t_ear_key: &GroupStateEarKey,
-        pq_ear_key: &GroupStateEarKey,
+        ear_key: &GroupStateEarKey,
     ) -> Result<Vec<DsFanOutMessage>, GroupOperationError> {
         let mut fan_out_messages = vec![];
         for ((t_key_package, _), attribution_info) in added_users.into_iter() {
@@ -685,9 +683,8 @@ impl DsGroupState {
             let aad = &[];
             let encryption_key: JoinerInfoEncryptionKey =
                 t_key_package.hpke_init_key().clone().into();
-            let encrypted_joiner_info = DsApqJoinerInformation {
-                t_group_state_ear_key: t_ear_key.clone(),
-                pq_group_state_ear_key: pq_ear_key.clone(),
+            let encrypted_joiner_info = DsJoinerInformation {
+                group_state_ear_key: ear_key.clone(),
             }
             .encrypt(&encryption_key, info, aad);
             let welcome = ApqWelcome::new(t_welcome.welcome.clone(), pq_welcome.welcome.clone());

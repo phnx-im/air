@@ -367,10 +367,9 @@ message ApqGroupOperationRequest {
 
 message ApqGroupOperationPayload {
   common.v1.ClientMetadata client_metadata = 1;
-  GroupStateEarKey t_group_state_ear_key = 2;
-  GroupStateEarKey pq_group_state_ear_key = 3;
-  ApqAssistedMlsMessage commit = 4;
-  optional ApqAddUsersInfo add_users_info = 5;
+  GroupStateEarKey group_state_ear_key = 2;
+  ApqAssistedMlsMessage commit = 3;
+  optional ApqAddUsersInfo add_users_info = 4;
 }
 
 message ApqGroupOperationResponse {

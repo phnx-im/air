@@ -506,12 +506,7 @@ impl LocalUsernameContact<UsernamePayload> {
 
         info!("Creating connection group on DS");
         client
-            .ds_create_group(
-                params,
-                signer,
-                group.group_state_ear_key(),
-                group.pq_group().map(|pq| &pq.group_state_ear_key),
-            )
+            .ds_create_group(params, signer, group.group_state_ear_key())
             .await?;
 
         // Send off the connection offer.
@@ -542,12 +537,7 @@ impl LocalUsernameContact<TargetedMessagePayload> {
 
         info!("Creating connection group on DS");
         client
-            .ds_create_group(
-                params,
-                signer,
-                group.group_state_ear_key(),
-                group.pq_group().map(|pq| &pq.group_state_ear_key),
-            )
+            .ds_create_group(params, signer, group.group_state_ear_key())
             .await?;
 
         // Send off the targeted message.

@@ -12,7 +12,6 @@ CREATE INDEX idx_apq_key_package_ref_is_live ON apq_key_package_refs (is_live);
 CREATE TABLE pq_group (
     group_id BLOB PRIMARY KEY NOT NULL,
     t_group_id BLOB NOT NULL,
-    group_state_ear_key BLOB NOT NULL,
     self_updated_at INTEGER NOT NULL,
     FOREIGN KEY (t_group_id) REFERENCES "group" (group_id) ON DELETE CASCADE
 );

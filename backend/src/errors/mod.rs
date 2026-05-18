@@ -160,9 +160,9 @@ impl From<ProcessApqAssistedMessageError> for GroupOperationError {
                     PublicProcessMessageError::ValidationError(ValidationError::WrongEpoch) => {
                         Self::WrongEpoch
                     }
-                    PublicProcessMessageError::ValidationError(
-                        ValidationError::LibraryError(_),
-                    ) => Self::ProcessingError,
+                    PublicProcessMessageError::ValidationError(ValidationError::LibraryError(
+                        _,
+                    )) => Self::ProcessingError,
                     _ => Self::InvalidMessage,
                 },
             },

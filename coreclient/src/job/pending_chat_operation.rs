@@ -275,14 +275,7 @@ impl PendingChatOperation {
             } => {
                 new_chat_picture = chat_picture;
                 api_client
-                    .ds_apq_group_operation(
-                        *params,
-                        signer,
-                        self.group.group_state_ear_key(),
-                        self.group
-                            .group_state_pq_ear_key()
-                            .context("No PQ ear key in APQ operation")?,
-                    )
+                    .ds_apq_group_operation(*params, signer, self.group.group_state_ear_key())
                     .await
             }
         };

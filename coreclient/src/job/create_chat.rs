@@ -171,12 +171,7 @@ impl CreateChat {
 
         let params = partial_params.into_params(client_reference, encrypted_user_profile_key);
         if let Err(e) = api_client
-            .ds_create_group(
-                params,
-                &key_store.signing_key,
-                group.group_state_ear_key(),
-                group.pq_group().map(|pq| &pq.group_state_ear_key),
-            )
+            .ds_create_group(params, &key_store.signing_key, group.group_state_ear_key())
             .await
         {
             db.write()

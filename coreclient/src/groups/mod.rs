@@ -37,8 +37,8 @@ use aircommon::{
     messages::{
         client_as::ConnectionOfferHash,
         client_ds::{
-            AadMessage, AadPayload, ApqWelcomeBundle, DsApqJoinerInformation, DsJoinerInformation,
-            GroupOperationParamsAad, WelcomeBundle,
+            AadMessage, AadPayload, ApqWelcomeBundle, DsJoinerInformation, GroupOperationParamsAad,
+            WelcomeBundle,
         },
         client_ds_out::{
             AddUsersInfoOut, ApqGroupOperationParamsOut, CreateGroupParamsOut,
@@ -208,10 +208,6 @@ impl Group {
 
     pub(crate) fn mls_group(&self) -> &MlsGroup {
         &self.mls_group
-    }
-
-    pub(crate) fn pq_group(&self) -> Option<&PqGroup> {
-        self.pq.as_ref()
     }
 
     /// Returns the [`AirComponent`] from the leaf node of the given member, or `None` if the member
@@ -511,7 +507,7 @@ impl Group {
             private_key.clone(),
             t_kpb.key_package().hpke_init_key().clone(),
         ));
-        let joiner_info = DsApqJoinerInformation::decrypt(
+        let joiner_info = DsJoinerInformation::decrypt(
             welcome_bundle.encrypted_joiner_info,
             &decryption_key,
             info,
@@ -532,7 +528,7 @@ impl Group {
             .ds_welcome_info(
                 pq_group_id.clone(),
                 processed_pq_welcome.unverified_group_info().epoch(),
-                &joiner_info.pq_group_state_ear_key,
+                &joiner_info.group_state_ear_key,
                 signer,
             )
             .await?;
@@ -584,7 +580,7 @@ impl Group {
             .ds_welcome_info(
                 t_group_id.clone(),
                 processed_t_welcome.unverified_group_info().epoch(),
-                &joiner_info.t_group_state_ear_key,
+                &joiner_info.group_state_ear_key,
                 signer,
             )
             .await?;
@@ -619,14 +615,13 @@ impl Group {
         let self_updated_at = TimeStamp::now();
         let group = Self {
             identity_link_wrapper_key: welcome_attribution_info.identity_link_wrapper_key().clone(),
-            group_state_ear_key: joiner_info.t_group_state_ear_key,
+            group_state_ear_key: joiner_info.group_state_ear_key,
             mls_group: t_mls_group,
             room_state,
             pending_diff: None,
             self_updated_at: Some(self_updated_at),
             pq: Some(PqGroup {
                 mls_group: pq_mls_group,
-                group_state_ear_key: joiner_info.pq_group_state_ear_key,
                 self_updated_at: Some(self_updated_at),
             }),
         };
@@ -1337,10 +1332,6 @@ impl Group {
 
     pub(crate) fn group_state_ear_key(&self) -> &GroupStateEarKey {
         &self.group_state_ear_key
-    }
-
-    pub(crate) fn group_state_pq_ear_key(&self) -> Option<&GroupStateEarKey> {
-        self.pq.as_ref().map(|pq| &pq.group_state_ear_key)
     }
 
     pub(crate) fn identity_link_wrapper_key(&self) -> &IdentityLinkWrapperKey {

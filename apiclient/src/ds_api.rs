@@ -123,7 +123,6 @@ impl ApiClient {
         params: CreateGroupParamsOut,
         signing_key: &ClientSigningKey,
         group_state_ear_key: &GroupStateEarKey,
-        pq_group_state_ear_key: Option<&GroupStateEarKey>,
     ) -> Result<(), DsRequestError> {
         let CreateGroupParamsOut {
             group_id,
@@ -137,9 +136,7 @@ impl ApiClient {
 
         let qgid: QualifiedGroupId = group_id.try_into()?;
 
-        if let Some(pq) = pq
-            && let Some(pq_group_state_ear_key) = pq_group_state_ear_key
-        {
+        if let Some(pq) = pq {
             let pq_qgid: QualifiedGroupId = pq.group_id.try_into()?;
 
             let t_group_data = GroupSessionData {
@@ -150,7 +147,7 @@ impl ApiClient {
             };
             let pq_group_data = GroupSessionData {
                 qgid: Some(pq_qgid.ref_into()),
-                group_state_ear_key: Some(pq_group_state_ear_key.ref_into()),
+                group_state_ear_key: Some(group_state_ear_key.ref_into()),
                 ratchet_tree: Some(pq.ratchet_tree.try_ref_into()?),
                 group_info: Some(pq.group_info.try_ref_into()?),
             };
@@ -225,8 +222,7 @@ impl ApiClient {
         &self,
         params: ApqGroupOperationParamsOut,
         signing_key: &ClientSigningKey,
-        t_group_state_ear_key: &GroupStateEarKey,
-        pq_group_state_ear_key: &GroupStateEarKey,
+        group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
         let ApqGroupOperationParamsOut {
             bundle:
@@ -260,8 +256,7 @@ impl ApiClient {
         };
         let payload = ApqGroupOperationPayload {
             client_metadata: Some(self.metadata().clone()),
-            t_group_state_ear_key: Some(t_group_state_ear_key.ref_into()),
-            pq_group_state_ear_key: Some(pq_group_state_ear_key.ref_into()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
             commit: Some(commit),
             add_users_info,
         };

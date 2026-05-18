@@ -37,7 +37,6 @@ use super::Group;
 #[derive(Debug)]
 pub(crate) struct PqGroup {
     pub(crate) mls_group: MlsGroup,
-    pub(crate) group_state_ear_key: GroupStateEarKey,
     pub(crate) self_updated_at: Option<TimeStamp>,
 }
 
@@ -58,8 +57,7 @@ impl Group {
     ) -> anyhow::Result<(Self, PartialCreateGroupParams)> {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
 
-        let t_group_state_ear_key = GroupStateEarKey::random()?;
-        let pq_group_state_ear_key = GroupStateEarKey::random()?;
+        let group_state_ear_key = GroupStateEarKey::random()?;
 
         let required_capabilities =
             Extension::RequiredCapabilities(default_group_required_extensions());
@@ -119,12 +117,11 @@ impl Group {
             identity_link_wrapper_key,
             mls_group: t_group,
             room_state,
-            group_state_ear_key: t_group_state_ear_key,
+            group_state_ear_key: group_state_ear_key,
             pending_diff: None,
             self_updated_at: Some(now),
             pq: Some(PqGroup {
                 mls_group: pq_group,
-                group_state_ear_key: pq_group_state_ear_key,
                 self_updated_at: Some(now),
             }),
         };

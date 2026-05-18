@@ -39,7 +39,6 @@ struct SqlGroup {
     room_state: Vec<u8>,
     self_updated_at: Option<TimeStamp>,
     pq_self_updated_at: Option<TimeStamp>,
-    pq_group_state_ear_key: Option<GroupStateEarKey>,
 }
 
 impl SqlGroup {
@@ -77,7 +76,6 @@ impl SqlGroup {
             room_state,
             self_updated_at,
             pq_self_updated_at,
-            pq_group_state_ear_key,
         } = self;
 
         let room_state = if let Some(state) = PersistenceCodec::from_slice::<RoomState>(&room_state)
@@ -105,17 +103,10 @@ impl SqlGroup {
             VerifiedRoomState::fallback_room(members)
         };
 
-        let pq = if let Some(pq_group) = pq_mls_group
-            && let Some(pq_group_state_ear_key) = pq_group_state_ear_key
-        {
-            Some(PqGroup {
-                mls_group: pq_group,
-                group_state_ear_key: pq_group_state_ear_key,
-                self_updated_at: pq_self_updated_at,
-            })
-        } else {
-            None
-        };
+        let pq = pq_mls_group.map(|mls_group| PqGroup {
+            mls_group,
+            self_updated_at: pq_self_updated_at,
+        });
 
         Group {
             identity_link_wrapper_key,
@@ -228,13 +219,11 @@ impl Group {
                 r#"INSERT INTO pq_group (
                     group_id,
                     t_group_id,
-                    group_state_ear_key,
                     self_updated_at
                 )
-                VALUES (?, ?, ?,?)"#,
+                VALUES (?, ?, ?)"#,
                 pq_group_id,
                 group_id,
-                pq.group_state_ear_key,
                 pq.self_updated_at,
             )
             .execute(connection.as_mut())
@@ -332,7 +321,6 @@ impl Group {
                 pending_diff AS "pending_diff: _",
                 room_state AS "room_state: _",
                 g.self_updated_at AS "self_updated_at: _",
-                pq.group_state_ear_key AS "pq_group_state_ear_key: _",
                 pq.self_updated_at AS "pq_self_updated_at: _"
             FROM "group" g
             LEFT JOIN pq_group pq ON pq.t_group_id = g.group_id
@@ -363,7 +351,6 @@ impl Group {
                 pending_diff AS "pending_diff: _",
                 room_state AS "room_state: _",
                 g.self_updated_at AS "self_updated_at: _",
-                pq.group_state_ear_key AS "pq_group_state_ear_key: _",
                 pq.self_updated_at AS "pq_self_updated_at: _"
             FROM "group" g
             INNER JOIN chat c ON c.group_id = g.group_id
@@ -397,7 +384,6 @@ impl Group {
                 g.pending_diff AS "pending_diff: _",
                 g.room_state AS "room_state: _",
                 g.self_updated_at AS "self_updated_at: _",
-                pq.group_state_ear_key AS "pq_group_state_ear_key: _",
                 pq.self_updated_at AS "pq_self_updated_at: _"
             FROM "group" g
             INNER JOIN chat c ON c.group_id = g.group_id
@@ -452,11 +438,9 @@ impl Group {
             let pq_group_id = GroupIdRefWrapper::from(pq.group_id());
             query!(
                 r#"UPDATE pq_group SET
-                    group_state_ear_key = ?,
                     self_updated_at = COALESCE(?, self_updated_at)
                 WHERE
                     group_id = ?"#,
-                pq.group_state_ear_key,
                 pq_self_updated_at,
                 pq_group_id,
             )

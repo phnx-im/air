@@ -569,7 +569,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         })?;
 
         // Create t group state
-        let (t_qgid, t_group_state, t_ear_key) = self.extract_group_state(
+        let (t_qgid, t_group_state, ear_key) = self.extract_group_state(
             payload
                 .clone()
                 .t_group_data
@@ -606,8 +606,8 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .verify(t_client_credential.verifying_key())
             .map_err(InvalidSignature)?;
 
-        // Extract pq group state
-        let (pq_qgid, pq_group_state, pq_ear_key) = Self::extract_group_state(
+        // Extract pq group state (PQ group uses the same ear_key as the T group)
+        let (pq_qgid, pq_group_state, _) = Self::extract_group_state(
             &self,
             payload.pq_group_data.ok_or_missing_field("pq_group_data")?,
             &encrypted_user_profile_key,
@@ -629,8 +629,8 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             .claim_reserved_group_id(pq_qgid.group_uuid())
             .await
             .ok_or_else(|| Status::invalid_argument("unreserved group id"))?;
-        let encrypted_t_group_state = t_group_state.encrypt(&t_ear_key)?;
-        let encrypted_pq_group_state = pq_group_state.encrypt(&pq_ear_key)?;
+        let encrypted_t_group_state = t_group_state.encrypt(&ear_key)?;
+        let encrypted_pq_group_state = pq_group_state.encrypt(&ear_key)?;
 
         let mut txn = self.ds.db_pool.begin().await.map_err(|error| {
             error!(%error, "failed to start transaction");
@@ -1131,15 +1131,10 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         // Extract the t and pq group state EAR keys
-        let t_ear_key: GroupStateEarKey = payload
-            .t_group_state_ear_key
+        let ear_key: GroupStateEarKey = payload
+            .group_state_ear_key
             .as_ref()
-            .ok_or_missing_field("t_group_state_ear_key")?
-            .try_ref_into()?;
-        let pq_ear_key: GroupStateEarKey = payload
-            .pq_group_state_ear_key
-            .as_ref()
-            .ok_or_missing_field("pq_group_state_ear_key")?
+            .ok_or_missing_field("group_state_ear_key")?
             .try_ref_into()?;
 
         // Deserialize the t and pq messages
@@ -1167,7 +1162,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             Status::internal("Failed to start transaction")
         })?;
         let (mut t_group_state, t_group_data) = match self
-            .load_group_state_for_update(&mut txn, &t_qgid, &t_ear_key)
+            .load_group_state_for_update(&mut txn, &t_qgid, &ear_key)
             .await
         {
             Ok((group_data, group_state)) => (group_state, group_data),
@@ -1202,7 +1197,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
         // Load the pq-group state
         let (mut pq_group_state, pq_group_data) = match self
-            .load_group_state_for_update(&mut txn, &pq_qgid, &pq_ear_key)
+            .load_group_state_for_update(&mut txn, &pq_qgid, &ear_key)
             .await
         {
             Ok((group_data, group_state)) => (group_state, group_data),
@@ -1287,8 +1282,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
                 added_users,
                 &t_welcome,
                 &pq_welcome,
-                &t_ear_key,
-                &pq_ear_key,
+                &ear_key,
             )?,
             (None, None) => vec![],
             _ => {
@@ -1314,9 +1308,9 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             }
         }
 
-        self.encrypt_and_persist(&mut txn, t_group_data, t_group_state, &t_ear_key)
+        self.encrypt_and_persist(&mut txn, t_group_data, t_group_state, &ear_key)
             .await?;
-        self.encrypt_and_persist(&mut txn, pq_group_data, pq_group_state, &pq_ear_key)
+        self.encrypt_and_persist(&mut txn, pq_group_data, pq_group_state, &ear_key)
             .await?;
 
         txn.commit().await.map_err(|error| {
