@@ -37,6 +37,7 @@ jobs:
         with:
           git-lfs: false
           cargo-binstall-tools: cargo-expand flutter_rust_bridge_codegen@2.12.0
+          sccache-dir: /home/github-actions/.cache/sccache
 
       - name: Check generated Flutter Rust Bridge (FRB) files
         run: just check-frb
@@ -52,6 +53,8 @@ jobs:
 
       - name: Setup build environment
         uses: ./.github/actions/setup-buildenv
+        with:
+          sccache-dir: /home/github-actions/.cache/sccache
 
       - name: Flutter checks
         run: just check-flutter
@@ -82,6 +85,7 @@ jobs:
           cargo-binstall-tools: cargo-deny@0.19.0 sqlx-cli@0.8.6 cargo-machete@0.9.1
           pypi-packages: reuse~=6.2 podman-compose~=1.5
           flutter: false
+          sccache-dir: /home/github-actions/.cache/sccache
 
       - name: Rust checks
         run: just check-rust
