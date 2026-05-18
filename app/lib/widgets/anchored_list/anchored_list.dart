@@ -4,6 +4,7 @@
 
 import 'dart:math' as math;
 
+import 'package:air/ds/foundations/motion.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
@@ -133,8 +134,8 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
   bool _pendingJumpExecutionFrameCallbackScheduled = false;
   bool _pendingViewportStateFrameCallbackScheduled = false;
 
-  static const _animateDuration = Duration(milliseconds: 300);
-  static const _animateCurve = Curves.easeOut;
+  static const _animateDuration = motionRegular;
+  static const _animateCurve = motionEasing;
 
   /// Sub-pixel threshold: differences smaller than this are treated as
   /// equal to avoid infinite correction loops from floating-point drift.
@@ -144,6 +145,9 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
   /// Each attempt refines the estimate as newly-laid-out items update the
   /// height cache. 8 is generous — most jumps converge in 2–3 iterations.
   static const _maxOffscreenJumpAttempts = 8;
+
+  /// Maximum re-alignment attempts after the target is on screen.
+  static const _maxAlignmentAttempts = 4;
 
   @override
   void initState() {
@@ -492,6 +496,19 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
     return top;
   }
 
+  /// True when [id]'s rendered box sits entirely within the unobscured region
+  /// of the viewport between [topPadding] and the bottom inset.
+  bool _isFullyVisibleInUnobscuredArea(Object id) {
+    final itemBox = _renderBoxForId(id);
+    final viewportBox = itemBox != null ? _viewportForItemBox(itemBox) : null;
+    if (viewportBox == null || itemBox == null) return false;
+    final top = _itemTopInViewportBox(itemBox, id);
+    if (top == null) return false;
+    final bottom = top + _estimatedHeight(id);
+    final usableBottom = viewportBox.size.height - widget.bottomPadding;
+    return top >= widget.topPadding && bottom <= usableBottom;
+  }
+
   /// Computes an item's top-edge position in viewport coordinates by
   /// combining the sliver's paint offset with the child's main-axis
   /// position within the sliver.
@@ -771,11 +788,12 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
     if (cmd == null) return;
 
     switch (cmd) {
-      case GoToIdCommand(:final id):
+      case GoToIdCommand(:final id, :final intent):
         _jumpState.requestJump(
           id,
           isIdLoaded: (id) => _idToIndex.containsKey(id),
           onLoadAround: (id) => widget.onLoadAround?.call(id),
+          intent: intent,
         );
         if (_jumpState.phase == AnchoredListJumpPhase.scrolling) {
           _executeJumpScroll();
@@ -795,9 +813,10 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
     }
   }
 
-  /// Estimates the scroll offset that would place item at [index] at the
-  /// top of the viewport. Because the list is reversed (offset 0 = bottom),
-  /// we need: item's cumulative offset − viewport height + item height.
+  /// Estimates the scroll offset that would place item at [index] just
+  /// below the top inset ([widget.topPadding]). Because the list is
+  /// reversed (offset 0 = bottom), we need: item's cumulative offset −
+  /// viewport height + item height + top inset.
   double _topAlignedOffset(int index) {
     final offset = _estimateOffsetAtIndex(index);
     final targetId = widget.idExtractor(widget.data[index]);
@@ -805,7 +824,7 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
     final viewportBox = _viewportBox;
     if (viewportBox == null) return offset;
     final viewportHeight = viewportBox.size.height;
-    return offset - viewportHeight + itemHeight;
+    return offset - viewportHeight + itemHeight + widget.topPadding;
   }
 
   void _executeJumpScroll() {
@@ -817,27 +836,90 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
 
     final currentTop = _itemTopInViewport(targetId);
     if (currentTop != null) {
-      _alignVisibleTarget(targetId);
+      if (_isFullyVisibleInUnobscuredArea(targetId)) {
+        _completeJump(reachedTarget: true);
+        return;
+      }
+      _animateAlignVisibleTarget(targetId);
       return;
     }
 
     _jumpToOffscreenTarget(targetId, index, attempt: 0);
   }
 
-  /// Scrolls so that [targetId] sits at the top of the viewport.
-  /// Used when the item is already laid out and visible — the offset
-  /// needed is simply current pixels minus the item's current top.
-  void _alignVisibleTarget(Object targetId) {
+  /// Scroll the list so that [targetId] is just below the top inset ([widget.topPadding]).
+  void _animateAlignVisibleTarget(Object targetId) {
+    // A second goToId can replace [targetId] mid-flight; bail so we
+    // don't animate against a stale target.
+    if (!_scrollController.hasClients || _jumpState.targetId != targetId) {
+      return;
+    }
+
+    // The item is off screen
+    final currentTop = _itemTopInViewport(targetId);
+    if (currentTop == null) {
+      _completeJump(reachedTarget: false);
+      return;
+    }
+
+    // We are already there
+    final delta = currentTop - widget.topPadding;
+    if (delta.abs() < _jumpAlignmentTolerance) {
+      _completeJump(reachedTarget: true);
+      return;
+    }
+
+    // Stay within the scroll extents
+    final desiredOffset = _scrollController.position.pixels - delta;
+    final clampedOffset = desiredOffset
+        .clamp(
+          _scrollController.position.minScrollExtent,
+          _scrollController.position.maxScrollExtent,
+        )
+        .toDouble();
+
+    // No animation is needed in that case
+    if ((clampedOffset - _scrollController.position.pixels).abs() <
+        _jumpAlignmentTolerance) {
+      _completeJump(reachedTarget: true);
+      return;
+    }
+
+    // Actual scroll with animation
+    _scrollController
+        .animateTo(
+          clampedOffset,
+          duration: _animateDuration,
+          curve: _animateCurve,
+        )
+        .then((_) {
+          if (!mounted || _jumpState.targetId != targetId) return;
+          _completeJump(reachedTarget: true);
+        });
+  }
+
+  /// Scrolls so that [targetId] sits just below the top inset
+  /// ([widget.topPadding]). Used when the item is already laid out and
+  /// visible — the offset needed is the current pixels minus the item's
+  /// distance from the inset.
+  void _alignVisibleTarget(Object targetId, {int attempt = 0}) {
     if (!_scrollController.hasClients || _jumpState.targetId != targetId) {
       return;
     }
 
     final currentTop = _itemTopInViewport(targetId);
-    if (currentTop == null) return;
+    if (currentTop == null) {
+      _completeJump(reachedTarget: false);
+      return;
+    }
 
-    // Shift the scroll position by exactly how far the item is from
-    // the viewport's top edge.
-    final desiredOffset = _scrollController.position.pixels - currentTop;
+    final delta = currentTop - widget.topPadding;
+    if (delta.abs() < _jumpAlignmentTolerance) {
+      _completeJump(reachedTarget: true);
+      return;
+    }
+
+    final desiredOffset = _scrollController.position.pixels - delta;
     final clampedOffset = desiredOffset
         .clamp(
           _scrollController.position.minScrollExtent,
@@ -847,12 +929,34 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
 
     if ((clampedOffset - _scrollController.position.pixels).abs() <
         _jumpAlignmentTolerance) {
-      _jumpState.onScrollComplete();
+      _completeJump(reachedTarget: true);
       return;
     }
 
     _scrollController.jumpTo(clampedOffset);
+
+    if (attempt >= _maxAlignmentAttempts) {
+      _completeJump(reachedTarget: true);
+      return;
+    }
+
+    SchedulerBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _alignVisibleTarget(targetId, attempt: attempt + 1);
+    });
+  }
+
+  /// Resets jump state and, if [reachedTarget], notifies the controller
+  /// with the jump's [JumpIntent] so listeners can react per situation.
+  /// Aborted jumps (target disappeared, exhausted retries off-screen)
+  /// don't notify.
+  void _completeJump({required bool reachedTarget}) {
+    final targetId = _jumpState.targetId;
+    final intent = _jumpState.intent;
     _jumpState.onScrollComplete();
+    if (reachedTarget && targetId != null) {
+      _controller.notifyJumpedToId(targetId, intent: intent);
+    }
   }
 
   /// Iteratively jumps toward an off-screen item.
@@ -887,7 +991,7 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
     }
 
     if (attempt >= _maxOffscreenJumpAttempts) {
-      _jumpState.onScrollComplete();
+      _completeJump(reachedTarget: false);
       return;
     }
 
@@ -915,7 +1019,7 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
               _jumpAlignmentTolerance &&
           (nextOffset - clampedOffset).abs() < _jumpAlignmentTolerance;
       if (isStuck) {
-        _jumpState.onScrollComplete();
+        _completeJump(reachedTarget: false);
         return;
       }
 

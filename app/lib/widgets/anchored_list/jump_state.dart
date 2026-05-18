@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'controller.dart';
+
 /// Phases of the jump-to-message lifecycle.
 ///
 /// - [idle]: no jump in progress.
@@ -23,6 +25,7 @@ enum AnchoredListJumpPhase { idle, loading, scrolling }
 class AnchoredListJumpState {
   AnchoredListJumpPhase phase = AnchoredListJumpPhase.idle;
   Object? targetId;
+  JumpIntent intent = JumpIntent.quotedMessage;
 
   /// Request a jump to [id].
   ///
@@ -33,8 +36,10 @@ class AnchoredListJumpState {
     Object id, {
     required bool Function(Object id) isIdLoaded,
     required void Function(Object id) onLoadAround,
+    required JumpIntent intent,
   }) {
     targetId = id;
+    this.intent = intent;
 
     if (isIdLoaded(id)) {
       phase = AnchoredListJumpPhase.scrolling;
@@ -67,5 +72,6 @@ class AnchoredListJumpState {
   void _reset() {
     phase = AnchoredListJumpPhase.idle;
     targetId = null;
+    intent = JumpIntent.quotedMessage;
   }
 }

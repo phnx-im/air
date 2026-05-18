@@ -153,6 +153,7 @@ fn wire__crate__api__attachments_repository__AttachmentsRepository_load_image_at
             let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentsRepository>>>::sse_decode(&mut deserializer);
 let api_attachment_id = <crate::api::message_content::AttachmentId>::sse_decode(&mut deserializer);
+let api_retry_download_if_failed = <bool>::sse_decode(&mut deserializer);
 let api_chunk_event_callback = decode_DartFn_Inputs_u_64_Output_unit_AnyhowException(<flutter_rust_bridge::DartOpaque>::sse_decode(&mut deserializer));deserializer.end(); move |context| async move {
                     transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
                         let mut api_that_guard = None;
@@ -164,7 +165,7 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
             }
         }
         let api_that_guard = api_that_guard.unwrap();
- let output_ok = crate::api::attachments_repository::AttachmentsRepository::load_image_attachment(&*api_that_guard, api_attachment_id, api_chunk_event_callback).await?;   Ok(output_ok)
+ let output_ok = crate::api::attachments_repository::AttachmentsRepository::load_image_attachment(&*api_that_guard, api_attachment_id, api_retry_download_if_failed, api_chunk_event_callback).await?;   Ok(output_ok)
                     })().await)
                 } })
 }
@@ -10935,6 +10936,9 @@ impl SseDecode for crate::api::attachments_repository::UiAttachmentStatus {
             3 => {
                 return crate::api::attachments_repository::UiAttachmentStatus::Failed;
             }
+            4 => {
+                return crate::api::attachments_repository::UiAttachmentStatus::NotFound;
+            }
             _ => {
                 unimplemented!("");
             }
@@ -13415,6 +13419,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::attachments_repository::UiAtt
             }
             crate::api::attachments_repository::UiAttachmentStatus::Failed => {
                 [3.into_dart()].into_dart()
+            }
+            crate::api::attachments_repository::UiAttachmentStatus::NotFound => {
+                [4.into_dart()].into_dart()
             }
             _ => {
                 unimplemented!("");
@@ -16200,6 +16207,9 @@ impl SseEncode for crate::api::attachments_repository::UiAttachmentStatus {
             }
             crate::api::attachments_repository::UiAttachmentStatus::Failed => {
                 <i32>::sse_encode(3, serializer);
+            }
+            crate::api::attachments_repository::UiAttachmentStatus::NotFound => {
+                <i32>::sse_encode(4, serializer);
             }
             _ => {
                 unimplemented!("");

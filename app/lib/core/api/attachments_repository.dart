@@ -14,7 +14,7 @@ import 'package:uuid/uuid.dart';
 import 'user_cubit.dart';
 part 'attachments_repository.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `attachment_downloads_loop`, `cancellation_token`, `in_progress`, `is_cancelled`, `new`, `spawn_attachment_downloads`, `spawn_download_task`, `track_attachment_download`, `with_cancellation`
+// These functions are ignored because they are not marked as `pub`: `attachment_downloads_loop`, `cancellation_token`, `in_progress`, `is_cancelled`, `is_failed`, `new`, `spawn_attachment_downloads`, `spawn_download_task`, `track_attachment_download`, `with_cancellation`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `AttachmentTaskHandle`
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `fmt`
 
@@ -27,6 +27,7 @@ abstract class AttachmentsRepository implements RustOpaqueInterface {
 
   Future<LoadedImageAttachment> loadImageAttachment({
     required AttachmentId attachmentId,
+    required bool retryDownloadIfFailed,
     required FutureOr<void> Function(BigInt) chunkEventCallback,
   });
 
@@ -80,4 +81,7 @@ sealed class UiAttachmentStatus with _$UiAttachmentStatus {
 
   /// Failed to upload or download
   const factory UiAttachmentStatus.failed() = UiAttachmentStatus_Failed;
+
+  /// Not found on the server
+  const factory UiAttachmentStatus.notFound() = UiAttachmentStatus_NotFound;
 }
