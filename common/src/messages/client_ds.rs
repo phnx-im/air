@@ -67,6 +67,7 @@ pub enum QsQueueMessageType {
     DsResponse = 4,
 }
 
+// TODO: Check if TLS serialization is actually used
 #[derive(
     Debug, PartialEq, TlsSerialize, TlsDeserializeBytes, TlsSize, Clone, Serialize, Deserialize,
 )]

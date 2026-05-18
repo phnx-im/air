@@ -358,6 +358,13 @@ message GroupOperationResponse {
   common.v1.Timestamp fanout_timestamp = 1;
 }
 
+// apq group operation
+
+message ApqGroupOperationRequest {
+  ApqGroupOperationPayload payload = 1;
+  common.v1.Signature signature = 2;
+}
+
 message ApqGroupOperationPayload {
   common.v1.ClientMetadata client_metadata = 1;
   GroupStateEarKey t_group_state_ear_key = 2;
@@ -368,13 +375,6 @@ message ApqGroupOperationPayload {
 
 message ApqGroupOperationResponse {
   common.v1.Timestamp fanout_timestamp = 1;
-}
-
-// apq group operation
-
-message ApqGroupOperationRequest {
-  ApqGroupOperationPayload payload = 1;
-  common.v1.Signature signature = 2;
 }
 
 // targeted messages

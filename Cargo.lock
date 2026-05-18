@@ -540,7 +540,7 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 [[package]]
 name = "apqmls"
 version = "0.1.0"
-source = "git+https://github.com/phnx-im/apqmls?rev=b1049815788061f89cc040487e1552520a0c54d1#b1049815788061f89cc040487e1552520a0c54d1"
+source = "git+https://github.com/phnx-im/apqmls?rev=021ba62bbe2d319f614c5be2888993fb1055d0a0#021ba62bbe2d319f614c5be2888993fb1055d0a0"
 dependencies = [
  "openmls",
  "openmls_basic_credential",
@@ -4634,6 +4634,7 @@ dependencies = [
 name = "mls-assist"
 version = "0.16.0"
 dependencies = [
+ "apqmls",
  "chrono",
  "openmls",
  "openmls_memory_storage",

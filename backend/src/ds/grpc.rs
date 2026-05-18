@@ -28,7 +28,6 @@ use airprotos::{
     },
     validation::{InvalidTlsExt, MissingFieldExt},
 };
-use apqmls::messages::ApqMlsMessageIn;
 use chrono::TimeDelta;
 use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
@@ -1221,7 +1220,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             }
         };
 
-        // Check that the t and pq indices and credentials match
+        // Check that the T/PQ indices and signature keys match
         let Sender::Member(pq_sender_index) = *pq_message.sender().ok_or_missing_field("sender")?
         else {
             return Err(Status::invalid_argument(
@@ -1243,47 +1242,34 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             ));
         }
 
-        // Process both group operations
+        // Process group operation
         let add_users_info: Option<client_ds::ApqAddUsersInfo> = payload
             .add_users_info
             .map(|info| info.try_into())
             .transpose()?;
         let (t_add_users_info, pq_add_users_info) = add_users_info.map(|info| info.split()).unzip();
+
+        // Collect destination clients before processing the commit so that new invitees (added by
+        // this commit) don't receive the commit message before their welcome bundle.
         let destination_clients: Vec<_> = t_group_state
             .other_destination_clients(t_sender_index)
             .collect();
-        let pq_params = GroupOperationParams {
-            commit: pq_message,
-            add_users_info_option: pq_add_users_info,
-        };
-        let (pq_group_message, pq_welcome) = pq_group_state.pq_group_operation(pq_params)?;
 
-        let t_params = GroupOperationParams {
-            commit: t_message,
-            add_users_info_option: t_add_users_info,
-        };
-        let (t_group_message, t_add_users_state) =
-            t_group_state.process_group_operation(t_params).await?;
+        let (serialized_apq_message, t_add_users_state, pq_welcome) =
+            DsGroupState::process_apq_group_operation(
+                &mut t_group_state,
+                &mut pq_group_state,
+                t_message,
+                pq_message,
+                t_add_users_info,
+                pq_add_users_info,
+            )?;
 
-        let apq_message_payload =
-            [t_group_message.0.as_slice(), pq_group_message.0.as_slice()].concat();
-
-        // Verify that the concat bytes is the same as TLS serialized ApqMlsMessageIn
-        #[cfg(debug_assertions)]
-        {
-            use tls_codec::Size as _;
-            let parsed = ApqMlsMessageIn::tls_deserialize_exact_bytes(&apq_message_payload)
-                .expect("concat bytes must be valid ApqMlsMessageIn");
-            let t_len = parsed.t_message().tls_serialized_len();
-            debug_assert_eq!(&apq_message_payload[..t_len], t_group_message.0.as_slice());
-            debug_assert_eq!(&apq_message_payload[t_len..], pq_group_message.0.as_slice());
-        }
-
-        // Bundle T+PQ serialized messages - produces valid TLS encoding of ApqMlsMessageIn
+        // Fan out the commit message to the destination clients
         let apq_payload = QsQueueMessagePayload {
             timestamp: TimeStamp::now(),
             message_type: QsQueueMessageType::ApqMlsMessage,
-            payload: apq_message_payload,
+            payload: serialized_apq_message.0,
         };
         let timestamp = self
             .fan_out_message_without_notifications(apq_payload, destination_clients)

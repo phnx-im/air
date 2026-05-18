@@ -5,9 +5,13 @@
 use airprotos::common::v1::{
     StatusDetails, StatusDetailsCode, WrongEpochDetail, status_details::Detail,
 };
+use apqmls::processing::ApqProcessPublicMessageError;
 use displaydoc::Display;
 use mls_assist::{
-    group::{self, errors::ProcessAssistedMessageError},
+    group::{
+        self,
+        errors::{ProcessApqAssistedMessageError, ProcessAssistedMessageError},
+    },
     memory_provider::MlsAssistMemoryStorage,
     openmls::group::{MergeCommitError, PublicProcessMessageError, ValidationError},
 };
@@ -130,10 +134,7 @@ impl From<ProcessAssistedMessageError> for GroupOperationError {
     fn from(error: ProcessAssistedMessageError) -> Self {
         match error {
             ProcessAssistedMessageError::InvalidAssistedMessage
-            | ProcessAssistedMessageError::InvalidGroupInfoSignature
-            | ProcessAssistedMessageError::InvalidGroupInfoMessage
-            | ProcessAssistedMessageError::UnknownSender
-            | ProcessAssistedMessageError::InconsistentGroupContext => Self::InvalidMessage,
+            | ProcessAssistedMessageError::GroupInfoValidation(_) => Self::InvalidMessage,
             ProcessAssistedMessageError::LibraryError(_) => Self::ProcessingError,
             ProcessAssistedMessageError::ProcessMessageError(error) => match error {
                 PublicProcessMessageError::ValidationError(error) => match error {
@@ -142,6 +143,28 @@ impl From<ProcessAssistedMessageError> for GroupOperationError {
                     _ => Self::InvalidMessage,
                 },
                 _ => Self::ProcessingError,
+            },
+        }
+    }
+}
+
+impl From<ProcessApqAssistedMessageError> for GroupOperationError {
+    fn from(error: ProcessApqAssistedMessageError) -> Self {
+        match error {
+            ProcessApqAssistedMessageError::InvalidAssistedMessage
+            | ProcessApqAssistedMessageError::GroupInfoValidation(_) => Self::InvalidMessage,
+            ProcessApqAssistedMessageError::LibraryError(_) => Self::ProcessingError,
+            ProcessApqAssistedMessageError::ProcessMessageError(error) => match error {
+                ApqProcessPublicMessageError::Validation(_) => Self::InvalidMessage,
+                ApqProcessPublicMessageError::Processing(error) => match error {
+                    PublicProcessMessageError::ValidationError(ValidationError::WrongEpoch) => {
+                        Self::WrongEpoch
+                    }
+                    PublicProcessMessageError::ValidationError(
+                        ValidationError::LibraryError(_),
+                    ) => Self::ProcessingError,
+                    _ => Self::InvalidMessage,
+                },
             },
         }
     }
@@ -243,10 +266,7 @@ impl From<ProcessAssistedMessageError> for ClientSelfRemovalError {
     fn from(error: ProcessAssistedMessageError) -> Self {
         match error {
             ProcessAssistedMessageError::InvalidAssistedMessage
-            | ProcessAssistedMessageError::InvalidGroupInfoSignature
-            | ProcessAssistedMessageError::InvalidGroupInfoMessage
-            | ProcessAssistedMessageError::UnknownSender
-            | ProcessAssistedMessageError::InconsistentGroupContext => Self::InvalidMessage,
+            | ProcessAssistedMessageError::GroupInfoValidation(_) => Self::InvalidMessage,
             ProcessAssistedMessageError::LibraryError(_) => Self::ProcessingError,
             ProcessAssistedMessageError::ProcessMessageError(error) => match error {
                 PublicProcessMessageError::ValidationError(error) => match error {
