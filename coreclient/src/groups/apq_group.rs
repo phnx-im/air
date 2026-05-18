@@ -117,7 +117,7 @@ impl Group {
             identity_link_wrapper_key,
             mls_group: t_group,
             room_state,
-            group_state_ear_key: group_state_ear_key,
+            group_state_ear_key,
             pending_diff: None,
             self_updated_at: Some(now),
             pq: Some(PqGroup {

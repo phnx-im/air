@@ -30,6 +30,7 @@ use aircommon::{
             StageUserProfileParamsTbs,
         },
     },
+    utils::CancellableStream,
 };
 use privacypass::{
     amortized_tokens::{AmortizedBatchTokenRequest, AmortizedToken},
@@ -685,14 +686,17 @@ impl auth_service_server::AuthService for GrpcAs {
         let (requests_responses_tx, requests_responses_rx) =
             mpsc::channel::<Status>(REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE);
 
-        tokio::spawn(Self::process_listen_username_requests_task(
-            self.inner.username_queues.clone(),
-            requests,
-            requests_responses_tx,
+        tokio::spawn(self.inner.stop.clone().run_until_cancelled_owned(
+            Self::process_listen_username_requests_task(
+                self.inner.username_queues.clone(),
+                requests,
+                requests_responses_tx,
+            ),
         ));
 
         let responses = select_until_first_ends(
-            messages.map(|message| Ok(ListenUsernameResponse { message })),
+            CancellableStream::new(messages, self.inner.stop.clone())
+                .map(|message| Ok(ListenUsernameResponse { message })),
             ReceiverStream::new(requests_responses_rx).map(Err),
         );
 

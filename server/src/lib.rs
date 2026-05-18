@@ -31,6 +31,7 @@ use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpListener,
 };
+use tokio_util::sync::CancellationToken;
 #[cfg(any(feature = "test_utils", test))]
 use tonic::{Request, Status};
 use tonic::{service::InterceptorLayer, transport::server::Connected};
@@ -62,6 +63,7 @@ pub struct ServerRunParams<Qc, Listener> {
     pub qs: Qs,
     pub qs_connector: Qc,
     pub rate_limits: RateLimitsSettings,
+    pub shutdown: CancellationToken,
 }
 
 pub trait Addressed {
@@ -106,6 +108,7 @@ pub async fn run<
         qs,
         qs_connector,
         rate_limits,
+        shutdown,
     }: ServerRunParams<Qc, L>,
     #[cfg(any(feature = "test_utils", test))] interceptor: impl Fn(
         Request<()>,
@@ -125,7 +128,7 @@ pub async fn run<
     // Waits a cooldown period after startup, then checks daily with random
     // jitter to stagger rotation across server instances.
     let rotation_pool = auth_service.db_pool().clone();
-    tokio::spawn(async move {
+    tokio::spawn(shutdown.clone().run_until_cancelled_owned(async move {
         use airbackend::auth_service::privacy_pass::rotate_keys_if_needed;
         use rand::Rng;
 
@@ -138,9 +141,10 @@ pub async fn run<
             }
             let jitter = rand::thread_rng().gen_range(0..3600);
             let interval = Duration::from_secs(24 * 60 * 60 + jitter);
+
             tokio::time::sleep(interval).await;
         }
-    });
+    }));
 
     // GRPC server
     let grpc_as = GrpcAs::new(auth_service);
@@ -159,12 +163,12 @@ pub async fn run<
 
     // task cleaning up limiter tokens
     let governor_limiter = governor_config.limiter().clone();
-    tokio::spawn(async move {
+    tokio::spawn(shutdown.clone().run_until_cancelled_owned(async move {
         loop {
             tokio::time::sleep(Duration::from_secs(60)).await;
             governor_limiter.retain_recent();
         }
-    });
+    }));
 
     let health_service = configure_health_service::<Qc, Np>().await;
 
@@ -196,7 +200,7 @@ pub async fn run<
         .add_service(AuthServiceServer::new(grpc_as))
         .add_service(dss)
         .add_service(QueueServiceServer::new(grpc_qs))
-        .serve_with_incoming(listener.into_stream())
+        .serve_with_incoming_shutdown(listener.into_stream(), shutdown.cancelled_owned())
 }
 
 fn serve_metrics(metrics_listener: Option<TcpListener>) {

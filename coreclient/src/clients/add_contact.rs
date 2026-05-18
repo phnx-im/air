@@ -19,13 +19,13 @@ use aircommon::{
     },
     time::TimeStamp,
 };
-use airprotos::client::group::{EncryptedGroupTitle, GroupData};
+use airprotos::client::group::GroupData;
 use anyhow::{Context, bail};
 use openmls::group::GroupId;
 use tracing::info;
 
 use crate::{
-    Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage, UserProfile,
+    Chat, ChatId, ChatMessage, SystemMessage,
     chats::GroupDataExt,
     clients::{
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
@@ -36,7 +36,6 @@ use crate::{
     groups::{Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider},
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
     store::Store,
-    user_profiles::IndexedUserProfile,
 };
 
 use super::{CoreUser, connection_offer::payload::ConnectionOfferPayload};
@@ -216,16 +215,12 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
         &self,
         txn: &mut WriteDbTransaction<'_>,
         signing_key: &ClientSigningKey,
-        title: String,
     ) -> anyhow::Result<(Group, PartialCreateGroupParams)> {
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
-        let encrypted_title = EncryptedGroupTitle::encrypt(&title, &identity_link_wrapper_key)?;
         let group_data_bytes = GroupData {
-            encrypted_title: Some(encrypted_title),
-            // No group profile is uploaded, because there is no additational data except for the
-            // title.
+            encrypted_title: None,
             external_group_profile: None,
-            legacy_title: Some(title),
+            legacy_title: Some(String::new()), // Old clients still expect a title
             legacy_picture: None,
         }
         .encode()?;
@@ -252,11 +247,9 @@ impl VerifiedConnectionPackagesWithGroupId<ConnectionPackage> {
         username: Username,
     ) -> anyhow::Result<LocalGroup<ConnectionPackage>> {
         info!("Creating local connection group");
-        let title = format!("Connection group: {}", username.plaintext());
-        let attributes = ChatAttributes::new(title, None);
 
         let (group, partial_params) = self
-            .create_connection_group_internal(&mut *txn, signing_key, attributes.title.clone())
+            .create_connection_group_internal(&mut *txn, signing_key)
             .await?;
 
         let Self {
@@ -265,7 +258,7 @@ impl VerifiedConnectionPackagesWithGroupId<ConnectionPackage> {
         } = self;
 
         // Create the connection chat
-        let chat = Chat::new_handle_chat(group_id.clone(), attributes, username.clone());
+        let chat = Chat::new_handle_chat(group_id.clone(), username.clone());
         chat.store(&mut *txn).await?;
 
         // Create the initial system message for the chat
@@ -290,15 +283,8 @@ impl VerifiedConnectionPackagesWithGroupId<UserId> {
         signing_key: &ClientSigningKey,
     ) -> anyhow::Result<LocalGroup<UserId>> {
         info!("Creating local connection group");
-        let user_profile: UserProfile = IndexedUserProfile::load(&mut *txn, &self.payload)
-            .await?
-            .context("Can't find user profile for target user")?
-            .into();
-        let title = format!("Connection group: {}", user_profile.display_name);
-        let attributes = ChatAttributes::new(title, None);
-
         let (group, partial_params) = self
-            .create_connection_group_internal(&mut *txn, signing_key, attributes.title.clone())
+            .create_connection_group_internal(&mut *txn, signing_key)
             .await?;
 
         let Self {
@@ -307,7 +293,7 @@ impl VerifiedConnectionPackagesWithGroupId<UserId> {
         } = self;
 
         // Create the connection chat
-        let chat = Chat::new_targeted_message_chat(group_id.clone(), attributes, user_id.clone());
+        let chat = Chat::new_targeted_message_chat(group_id.clone(), user_id.clone());
         chat.store(&mut *txn).await?;
 
         // Create the initial system message for the chat

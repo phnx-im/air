@@ -18,6 +18,7 @@ use aircommon::{
         UpdateClientRecordParams, UpdateUserRecordParams,
     },
     time::TimeStamp,
+    utils::CancellableStream,
 };
 use displaydoc::Display;
 use semver::Version;
@@ -507,15 +508,17 @@ impl QueueService for GrpcQs {
         let (requests_responses_tx, requests_responses_rx) =
             mpsc::channel::<Status>(REQUESTS_RESPONSE_CHANNEL_BUFFER_SIZE);
 
-        tokio::spawn(Self::process_listen_queue_requests_task(
-            self.qs.queues.clone(),
-            client_id,
-            requests,
-            requests_responses_tx,
+        tokio::spawn(self.qs.stop.clone().run_until_cancelled_owned(
+            Self::process_listen_queue_requests_task(
+                self.qs.queues.clone(),
+                client_id,
+                requests,
+                requests_responses_tx,
+            ),
         ));
 
         let responses = select_until_first_ends(
-            events.map(Ok),
+            CancellableStream::new(events, self.qs.stop.clone()).map(Ok),
             ReceiverStream::new(requests_responses_rx).map(Err),
         );
 

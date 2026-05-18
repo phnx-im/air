@@ -4,7 +4,7 @@
 
 [package]
 name = "airapiclient"
-version = "0.16.0"
+version = "0.16.1"
 edition = "2024"
 publish = false
 description = "HTTP and GRPC client for the server API"
@@ -17,7 +17,6 @@ apqmls.workspace = true
 futures-util.workspace = true
 mimi-room-policy.workspace = true
 mls-assist.workspace = true
-pin-project.workspace = true
 semver.workspace = true
 shadow-rs.workspace = true
 thiserror.workspace = true

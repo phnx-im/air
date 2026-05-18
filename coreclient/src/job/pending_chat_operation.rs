@@ -1015,6 +1015,8 @@ mod persistence {
 #[cfg(any(test, feature = "test_utils"))]
 pub mod test_utils {
 
+    use aircommon::component::AirComponent;
+
     use crate::db_access::ReadConnection;
 
     use super::*;
@@ -1039,6 +1041,37 @@ pub mod test_utils {
                 });
 
             Ok(pco)
+        }
+    }
+
+    impl PendingChatOperation {
+        /// Creates a self-update commit that forces the given [`AirComponent`] into the own leaf
+        /// node.
+        ///
+        /// Use this in tests to simulate an old client that advertises a different set of feature
+        /// flags.
+        pub(crate) async fn create_update_with_air_component(
+            txn: &mut WriteDbTransaction<'_>,
+            signer: &ClientSigningKey,
+            chat_id: ChatId,
+            air_component: AirComponent,
+        ) -> anyhow::Result<Self> {
+            let chat = Chat::load(&mut *txn, &chat_id)
+                .await?
+                .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+            let group_id = chat.group_id();
+            let mut group = Group::load_clean_verified(&mut *txn, group_id)
+                .await?
+                .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+
+            let params = group
+                .group_mut()
+                .update_with_air_component(&mut *txn, signer, air_component)
+                .await?;
+
+            let job = Self::new(group, OperationType::other(params));
+            job.store(txn).await?;
+            Ok(job)
         }
     }
 }

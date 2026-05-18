@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 use openmls::group::Member;
 
-use aircommon::{codec::PersistenceCodec, identifiers::QualifiedGroupId};
+use aircommon::{codec::PersistenceCodec, component::AirComponent, identifiers::QualifiedGroupId};
 use openmls::prelude::GroupId;
 use uuid::Uuid;
 
@@ -162,5 +162,31 @@ impl CoreUser {
             return Ok(None);
         };
         Ok(Some(GroupData::decode(&bytes)?))
+    }
+
+    /// Sends a self-update commit that forces the given [`AirComponent`] into the own leaf node.
+    ///
+    /// Use this in tests to simulate an old client that advertises a different set of feature
+    /// flags.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub async fn set_group_air_component(
+        &self,
+        chat_id: ChatId,
+        air_component: AirComponent,
+    ) -> anyhow::Result<()> {
+        let op = self
+            .db()
+            .with_write_transaction(async |txn| {
+                PendingChatOperation::create_update_with_air_component(
+                    txn,
+                    self.signing_key(),
+                    chat_id,
+                    air_component,
+                )
+                .await
+            })
+            .await?;
+        self.execute_job(op).await?;
+        Ok(())
     }
 }

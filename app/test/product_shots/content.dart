@@ -121,7 +121,6 @@ final chats = [
     chatType: UiChatType_Connection(fredProfile),
     unreadMessages: 1,
     messagesCount: 1,
-    attributes: const UiChatAttributes(title: 'Frederic', picture: null),
     lastUsed: now,
     lastMessage: _lastChatMessage(
       fredChatId,
@@ -136,7 +135,6 @@ final chats = [
     chatType: UiChatType_Connection(jessicaProfile),
     unreadMessages: 0,
     messagesCount: 1,
-    attributes: const UiChatAttributes(title: 'Jessica', picture: null),
     lastUsed: now.subtract(const Duration(minutes: 1)),
     lastMessage: _lastChatMessage(
       jessicaChatId,
@@ -148,13 +146,14 @@ final chats = [
   UiChatDetails(
     id: scienceClubId,
     status: const UiChatStatus.active(),
-    chatType: const UiChatType_Group(),
+    chatType: UiChatType_Group(
+      UiChatAttributes(
+        title: 'Science club',
+        picture: scienceClubProfilePicture,
+      ),
+    ),
     unreadMessages: 0,
     messagesCount: 0,
-    attributes: UiChatAttributes(
-      title: 'Science club',
-      picture: scienceClubProfilePicture,
-    ),
     lastUsed: now.subtract(const Duration(minutes: 10)),
     lastMessage: _lastChatMessage(
       scienceClubId,
@@ -169,7 +168,6 @@ final chats = [
     chatType: UiChatType_Connection(daveProfile),
     unreadMessages: 0,
     messagesCount: 1,
-    attributes: const UiChatAttributes(title: 'Dave', picture: null),
     lastUsed: now.subtract(const Duration(minutes: 15)),
     lastMessage: _lastChatMessage(
       daveChatId,
@@ -181,13 +179,14 @@ final chats = [
   UiChatDetails(
     id: gardeningPartyId,
     status: const UiChatStatus.active(),
-    chatType: const UiChatType_Group(),
+    chatType: UiChatType_Group(
+      UiChatAttributes(
+        title: 'Gardening club',
+        picture: gardeningPartyProfilePicture,
+      ),
+    ),
     unreadMessages: 0,
     messagesCount: 1,
-    attributes: UiChatAttributes(
-      title: 'Gardening club',
-      picture: gardeningPartyProfilePicture,
-    ),
     lastUsed: now.subtract(const Duration(minutes: 20)),
     lastMessage: _lastChatMessage(
       gardeningPartyId,
@@ -202,7 +201,6 @@ final chats = [
     chatType: UiChatType_Connection(frankProfile),
     unreadMessages: 0,
     messagesCount: 1,
-    attributes: const UiChatAttributes(title: 'Frank', picture: null),
     lastUsed: now.subtract(const Duration(minutes: 30)),
     lastMessage: _lastChatMessage(
       frankChatId,
@@ -217,7 +215,6 @@ final chats = [
     chatType: UiChatType_Connection(alexProfile),
     unreadMessages: 0,
     messagesCount: 1,
-    attributes: const UiChatAttributes(title: 'Alex', picture: null),
     lastUsed: now.subtract(const Duration(days: 1)),
     lastMessage: _lastChatMessage(alexChatId, alexId, "See you there."),
   ),
@@ -228,7 +225,6 @@ final chats = [
     chatType: UiChatType_Connection(ireneProfile),
     unreadMessages: 0,
     messagesCount: 1,
-    attributes: const UiChatAttributes(title: 'Irene', picture: null),
     lastUsed: now.subtract(const Duration(days: 1)),
     lastMessage: _lastChatMessage(
       ireneChatId,
@@ -240,13 +236,14 @@ final chats = [
   UiChatDetails(
     id: dinnerPartyId,
     status: const UiChatStatus.active(),
-    chatType: const UiChatType_Group(),
+    chatType: UiChatType_Group(
+      UiChatAttributes(
+        title: 'Dinner party',
+        picture: dinnerPartyProfilePicture,
+      ),
+    ),
     unreadMessages: 0,
     messagesCount: 1,
-    attributes: UiChatAttributes(
-      title: 'Dinner party',
-      picture: dinnerPartyProfilePicture,
-    ),
     lastUsed: now.subtract(const Duration(days: 1)),
     lastMessage: _lastChatMessage(
       dinnerPartyId,
@@ -261,7 +258,6 @@ final chats = [
     chatType: UiChatType_Connection(kamalProfile),
     unreadMessages: 0,
     messagesCount: 1,
-    attributes: const UiChatAttributes(title: 'Kamal', picture: null),
     lastUsed: now.subtract(const Duration(days: 1)),
     lastMessage: _lastChatMessage(
       kamalChatId,
