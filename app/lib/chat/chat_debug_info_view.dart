@@ -305,6 +305,16 @@ class _GroupDataInfoCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return _InfoCard(
       children: [
+        _InfoRow(label: 'Legacy Title', value: data.legacyTitle ?? '—'),
+
+        _InfoRow(
+          label: 'Legacy Picture',
+          value: data.legacyPicture ? 'yes' : 'no',
+        ),
+
+        if (data.encryptedTitle == null)
+          const _InfoRow(label: 'Encrypted Title', value: '—'),
+
         if (data.encryptedTitle != null) ...[
           const _CardSectionHeader('Encrypted Title'),
           _InfoRow(
@@ -323,6 +333,10 @@ class _GroupDataInfoCard extends StatelessWidget {
             monospace: true,
           ),
         ],
+
+        if (data.externalGroupProfile == null)
+          const _InfoRow(label: 'External Group Profile', value: '—'),
+
         if (data.externalGroupProfile != null) ...[
           const _CardSectionHeader('External Group Profile'),
           _InfoRow(
@@ -500,6 +514,13 @@ class _MemberCard extends StatelessWidget {
               if (caps.appData?.airComponent?.features.encryptedGroupProfiles ==
                   true)
                 'encrypted_group_profiles',
+              if (caps
+                      .appData
+                      ?.airComponent
+                      ?.features
+                      .emptyConnectionGroupAttributes ==
+                  true)
+                'empty_connection_group_attributes',
             ],
           ),
         ],

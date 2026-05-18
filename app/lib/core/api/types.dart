@@ -16,8 +16,7 @@ import 'package:uuid/uuid.dart';
 part 'types.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `calculate`, `connection_user_id`, `empty`, `flight_break_condition`, `from_asset`, `from_bytes`, `from_profile`, `from_user_id`, `load_from_chat_type`, `timestamp`, `to_draft_without_content`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `UiChat`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `partial_cmp`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `partial_cmp`
 
 /// Mirror of the [`AddUsernameContactError`] type
 enum AddUsernameContactError { usernameNotFound, duplicateRequest, ownUsername }
@@ -29,8 +28,10 @@ sealed class AirComponent with _$AirComponent {
 
 @freezed
 sealed class AirFeatures with _$AirFeatures {
-  const factory AirFeatures({required bool encryptedGroupProfiles}) =
-      _AirFeatures;
+  const factory AirFeatures({
+    required bool encryptedGroupProfiles,
+    required bool emptyConnectionGroupAttributes,
+  }) = _AirFeatures;
 }
 
 /// Mirror of the [`ChatId`] type
@@ -110,7 +111,7 @@ class MessageId {
           uuid == other.uuid;
 }
 
-/// Attributes of a chat
+/// Attributes of a group chat
 class UiChatAttributes {
   /// Title of the chat
   final String title;
@@ -138,7 +139,6 @@ class UiChatDetails {
   final UiChatStatus status;
   final UiChatType chatType;
   final DateTime lastUsed;
-  final UiChatAttributes attributes;
   final int messagesCount;
   final int unreadMessages;
   final UiChatMessage? lastMessage;
@@ -149,7 +149,6 @@ class UiChatDetails {
     required this.status,
     required this.chatType,
     required this.lastUsed,
-    required this.attributes,
     required this.messagesCount,
     required this.unreadMessages,
     this.lastMessage,
@@ -162,7 +161,6 @@ class UiChatDetails {
       status.hashCode ^
       chatType.hashCode ^
       lastUsed.hashCode ^
-      attributes.hashCode ^
       messagesCount.hashCode ^
       unreadMessages.hashCode ^
       lastMessage.hashCode ^
@@ -177,7 +175,6 @@ class UiChatDetails {
           status == other.status &&
           chatType == other.chatType &&
           lastUsed == other.lastUsed &&
-          attributes == other.attributes &&
           messagesCount == other.messagesCount &&
           unreadMessages == other.unreadMessages &&
           lastMessage == other.lastMessage &&
@@ -228,7 +225,7 @@ sealed class UiChatType with _$UiChatType {
       UiChatType_TargetedMessageConnection;
 
   /// A group chat, that is, it can contains multiple participants.
-  const factory UiChatType.group() = UiChatType_Group;
+  const factory UiChatType.group(UiChatAttributes field0) = UiChatType_Group;
 
   /// Incoming connection chat request that is not yet confirmed by us.
   const factory UiChatType.pendingConnection(UiUserProfile field0) =

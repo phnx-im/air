@@ -247,6 +247,7 @@
   "attachment_gallery": "Gallery",
   "attachment_camera": "Camera",
   "attachment_file": "File",
+  "attachment_notFound": "Attachment is no longer available.",
 
   "textMessage_edited": "edited",
   "textMessage_hiddenPlaceholder": "Blocked user, tap to reveal message",

@@ -26,6 +26,13 @@ pub struct AirFeatures {
     /// Whether the client supports encrypted group profiles.
     #[tag(1)]
     pub encrypted_group_profiles: bool,
+    /// Whether the client supports connection groups without attributes, in particular without a
+    /// title.
+    ///
+    /// When changing the connection group's title to an empty string, the client will not display
+    /// any system message about this.
+    #[tag(2)]
+    pub empty_connection_group_attributes: bool,
 }
 
 impl AirComponent {
@@ -38,6 +45,7 @@ impl AirComponent {
         Self {
             features: AirFeatures {
                 encrypted_group_profiles: true,
+                empty_connection_group_attributes: true,
             },
         }
     }

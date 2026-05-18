@@ -7,6 +7,7 @@ use std::fmt;
 use airbackend::{air_service::BackendService, auth_service::AuthService, settings::Settings};
 use aircommon::identifiers::Fqdn;
 use anyhow::Context;
+use tokio_util::sync::CancellationToken;
 
 use crate::args::{UsernameArgs, UsernameCommand};
 
@@ -19,6 +20,7 @@ pub async fn run_username_command(
         &configuration.database,
         domain,
         configuration.application.versionreq,
+        CancellationToken::new(),
     )
     .await
     .context("Failed to connect to database")?;

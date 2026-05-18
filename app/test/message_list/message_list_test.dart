@@ -830,6 +830,7 @@ void main() {
       when(
         () => attachmentsRepository.loadImageAttachment(
           attachmentId: any(named: 'attachmentId'),
+          retryDownloadIfFailed: false,
           chunkEventCallback: any(named: "chunkEventCallback"),
         ),
       ).thenAnswer((_) async => Future.any([]));

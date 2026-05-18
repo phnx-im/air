@@ -730,7 +730,6 @@ pub(super) async fn load_chat_details(store: &impl Store, chat: Chat) -> UiChatD
         status: chat.status.into(),
         chat_type,
         last_used,
-        attributes: chat.attributes.into(),
         messages_count,
         unread_messages,
         last_message: last_message.map(From::from),
@@ -791,6 +790,8 @@ pub struct _GroupDebugInfo {
 
 #[frb(mirror(GroupDataDebugInfo))]
 pub struct _GroupDataDebugInfo {
+    pub legacy_title: Option<String>,
+    pub legacy_picture: bool,
     pub encrypted_title: Option<EncryptedGroupTitleDebugInfo>,
     pub external_group_profile: Option<ExternalGroupProfileDebugInfo>,
 }

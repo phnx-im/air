@@ -21,6 +21,7 @@ import 'package:air/widgets/widgets.dart';
 import 'chat_tile.dart';
 import 'date_divider.dart';
 import 'floating_date_header.dart';
+import 'jump_highlight.dart';
 import 'message_cubit.dart';
 import 'message_list_cubit.dart';
 import 'scroll_to_bottom_controller.dart';
@@ -232,7 +233,7 @@ class _MessageListViewState extends State<MessageListView>
       case MessageListCommand_ScrollToBottom():
         _listController.scrollToBottom(duration: Duration.zero);
       case MessageListCommand_ScrollToId(:final messageId):
-        _listController.goToId(messageId);
+        _listController.goToId(messageId, intent: JumpIntent.quotedMessage);
     }
   }
 
@@ -246,7 +247,7 @@ class _MessageListViewState extends State<MessageListView>
     _initialUnreadScrollHandled = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
-        _listController.goToId(message.id);
+        _listController.goToId(message.id, intent: JumpIntent.firstUnread);
       }
     });
   }
@@ -265,7 +266,10 @@ class _MessageListViewState extends State<MessageListView>
     final composerHeightListenable =
         widget.scrollToBottomController?.composerHeight;
 
-    return _buildList(composerHeightListenable, state);
+    return JumpHighlightScope(
+      jumpedToId: _listController.jumpedToId,
+      child: _buildList(composerHeightListenable, state),
+    );
   }
 
   /// Builds the [AnchoredList], wiring pagination and jump-to-message
@@ -281,8 +285,14 @@ class _MessageListViewState extends State<MessageListView>
     final mediaPadding = MediaQuery.paddingOf(context);
     // Height of the tail of the fade beyon the toolbar
     const fadeBleeding = Spacing.px48;
-    // How much the list should be inset
-    final topInset = mediaPadding.top + fadeBleeding;
+    // Height of the safe area above the toolbar
+    final statusBarHeight = max(mediaPadding.top - kToolbarHeight, 0.0);
+    // Total height of the fade
+    const fadeHeight = kToolbarHeight + fadeBleeding;
+    // Y-coordinate where the fade is fully transparent — content above this
+    // is obstructed by the status bar cover or the fade gradient. Used as
+    // the list's top inset so jumps and the unread divider land below it.
+    final topInset = statusBarHeight + fadeHeight;
     // Y-coordinate of the floating date pill's top edge. Sits just below
     // the safe area, in the toolbar zone — the inline divider is hidden
     // when its pill reaches this slot, making the swap visually in-place.
@@ -293,10 +303,6 @@ class _MessageListViewState extends State<MessageListView>
     // [pillTop]. Both the inline-pill hide and the floating-pill show gate on
     // this threshold so they stay in sync.
     final swapTopThreshold = pillTop - Spacing.px32;
-    // Height of the safe area above the toolbar
-    final statusBarHeight = max(mediaPadding.top - kToolbarHeight, 0.0);
-    // Total height of the fade
-    const fadeHeight = kToolbarHeight + fadeBleeding;
     // Solid color for the safe area
     final bgColor = CustomColorScheme.of(context).backgroundBase.primary;
 

@@ -28,7 +28,7 @@ extension UiChatDetailsExtension on UiChatDetails {
     UiChatType_Connection(field0: final profile) => profile.displayName,
     UiChatType_TargetedMessageConnection(field0: final profile) =>
       "⏳${profile.displayName}",
-    UiChatType_Group() => attributes.title,
+    UiChatType_Group(field0: final attributes) => attributes.title,
     UiChatType_PendingConnection(field0: final profile) =>
       "⏳${profile.displayName}",
   };
@@ -51,7 +51,7 @@ extension UiChatDetailsExtension on UiChatDetails {
       field0: final profile,
     ) => profile.profilePicture,
     UiChatType_HandleConnection() => null,
-    UiChatType_Group() => attributes.picture,
+    UiChatType_Group(field0: final attributes) => attributes.picture,
     UiChatType_PendingConnection(field0: final profile) =>
       profile.profilePicture,
   };

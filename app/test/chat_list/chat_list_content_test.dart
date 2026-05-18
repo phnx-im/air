@@ -35,7 +35,6 @@ final chats = [
     chatType: UiChatType_Connection(userProfiles[1]),
     unreadMessages: 10,
     messagesCount: 10,
-    attributes: const UiChatAttributes(title: 'Bob', picture: null),
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 1.messageId(),
@@ -67,7 +66,6 @@ final chats = [
     ),
     unreadMessages: 0,
     messagesCount: 10,
-    attributes: const UiChatAttributes(title: 'Eve', picture: null),
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 2.messageId(),
@@ -97,10 +95,11 @@ final chats = [
   UiChatDetails(
     id: 3.chatId(),
     status: const UiChatStatus.active(),
-    chatType: const UiChatType_Group(),
+    chatType: const UiChatType_Group(
+      UiChatAttributes(title: 'Group', picture: null),
+    ),
     unreadMessages: 0,
     messagesCount: 10,
-    attributes: const UiChatAttributes(title: 'Group', picture: null),
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 3.messageId(),
@@ -127,10 +126,11 @@ final chats = [
   UiChatDetails(
     id: 4.chatId(),
     status: const UiChatStatus.active(),
-    chatType: const UiChatType_Group(),
+    chatType: const UiChatType_Group(
+      UiChatAttributes(title: 'Group', picture: null),
+    ),
     unreadMessages: 0,
     messagesCount: 10,
-    attributes: const UiChatAttributes(title: 'Group', picture: null),
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: UiChatMessage(
       id: 3.messageId(),
@@ -166,7 +166,6 @@ final chats = [
     chatType: UiChatType_Connection(userProfiles[3]),
     unreadMessages: 0,
     messagesCount: 10,
-    attributes: const UiChatAttributes(title: 'Charlie', picture: null),
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: null,
   ),

@@ -263,7 +263,12 @@ impl ChatOperation {
             ..
         } = context;
 
-        let (group_data, new_chat_picture) = if let Some(attributes) = chat_attributes {
+        let (group_data, new_chat_picture) = if let Some(attributes) = chat_attributes.as_ref()
+            && attributes.is_empty()
+        {
+            // Empty chat attributes => erase group data
+            (Some(GroupData::empty()), None)
+        } else if let Some(attributes) = chat_attributes {
             let chat_id = self.chat_id;
             let group = Group::load_with_chat_id_clean(db.read().await?, chat_id)
                 .await?
@@ -320,6 +325,7 @@ impl ChatOperation {
                 encrypted_title: Some(encrypted_title),
                 external_group_profile: Some(external),
                 legacy_title: Some(group_profile.title),
+                legacy_picture: None,
             };
             (Some(group_data), attributes.picture)
         } else {

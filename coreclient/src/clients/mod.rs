@@ -67,7 +67,7 @@ use crate::{ChatId, key_stores::as_credentials::AsCredentials};
 use crate::{
     MessageId,
     chats::{
-        Chat, ChatAttributes,
+        Chat,
         messages::{ChatMessage, TimestampedMessage},
     },
     clients::connection_offer::FriendshipPackage,

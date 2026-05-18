@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::USERNAME_REFRESH_THRESHOLD;
-use airprotos::auth_service::v1::OperationType;
+use airprotos::{auth_service::v1::OperationType, client::group::GroupData};
 use chrono::{DateTime, Duration, Utc};
 use openmls::prelude::OpenMlsProvider;
 use openmls_rust_crypto::OpenMlsRustCrypto;
@@ -13,7 +13,8 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::{
-    Chat, ChatId,
+    Chat, ChatAttributes, ChatId,
+    chats::{GroupDataExt, GroupDataProfilePart},
     groups::Group,
     job::{
         JobError,
@@ -506,42 +507,73 @@ impl OutboundServiceContext {
     async fn self_update_in_chat(&self, chat_id: ChatId) -> anyhow::Result<bool> {
         debug!(?chat_id, "Self-update in chat");
 
-        let Some(group) = Group::load_with_chat_id(self.db.read().await?, chat_id).await? else {
-            debug!(
-                ?chat_id,
-                "Skipping self-update in chat because group is not found"
-            );
-            return Ok(false);
+        let (group, is_connection, erase_attributes) = {
+            let mut read = self.db.read().await?;
+            let mut read_txn = read.begin().await?;
+
+            let Some(group) = Group::load_with_chat_id(&mut read_txn, chat_id).await? else {
+                debug!(
+                    ?chat_id,
+                    "Skipping self-update in chat because group is not found"
+                );
+                return Ok(false);
+            };
+            if group.mls_group().pending_commit().is_some() {
+                debug!(
+                    ?chat_id,
+                    "Skipping self-update in chat because there is a pending commit"
+                );
+                return Ok(false);
+            }
+
+            if group.mls_group().pending_proposals().next().is_some() {
+                debug!(
+                    ?chat_id,
+                    "Skipping self-update in chat because there are pending proposals"
+                );
+                return Ok(false);
+            }
+
+            let self_update_at: DateTime<Utc> =
+                group.self_updated_at.map(From::from).unwrap_or_default();
+            if Utc::now() <= self_update_at + SELF_UPDATE_INTERVAL {
+                return Ok(false);
+            }
+
+            // If a chat operation is pending, we skip updating this chat
+            if PendingChatOperation::is_pending_for_chat(&mut read_txn, chat_id).await? {
+                return Ok(false);
+            }
+
+            let Some(chat) = Chat::load(&mut read_txn, &chat_id).await? else {
+                debug!(
+                    ?chat_id,
+                    "Skipping self-update in chat because chat is not found"
+                );
+                return Ok(false);
+            };
+
+            // For connection chats, that support empty connection group titles, we can erase the data.
+            let is_connection = chat.is_connection();
+            let erase_attributes = if is_connection {
+                group.members_air_component().all(|component| {
+                    component
+                        .map(|component| component.features.empty_connection_group_attributes)
+                        .unwrap_or(false)
+                })
+            } else {
+                false
+            };
+
+            (group, is_connection, erase_attributes)
         };
 
-        if group.mls_group().pending_commit().is_some() {
-            debug!(
-                ?chat_id,
-                "Skipping self-update in chat because there is a pending commit"
-            );
-            return Ok(false);
+        let migration_attrs = legacy_group_data_migration(&group, is_connection, erase_attributes);
+        if migration_attrs.is_some() {
+            info!(%chat_id, "Migrating legacy group data");
         }
 
-        if group.mls_group().pending_proposals().next().is_some() {
-            debug!(
-                ?chat_id,
-                "Skipping self-update in chat because there are pending proposals"
-            );
-            return Ok(false);
-        }
-
-        let self_update_at: DateTime<Utc> =
-            group.self_updated_at.map(From::from).unwrap_or_default();
-        if Utc::now() <= self_update_at + SELF_UPDATE_INTERVAL {
-            return Ok(false);
-        }
-
-        // If a chat operation is pending, we skip updating this chat
-        if PendingChatOperation::is_pending_for_chat(self.db.read().await?, chat_id).await? {
-            return Ok(false);
-        }
-
-        let job = ChatOperation::update(chat_id, None);
+        let job = ChatOperation::update(chat_id, migration_attrs);
         let res = self.execute_job(job).await;
 
         match res {
@@ -555,6 +587,44 @@ impl OutboundServiceContext {
             }
         }
     }
+}
+
+/// Migrates the group data from the legacy format to the new format.
+///
+/// The legacy format is the format where title and picture were stored in the group data verbatim.
+///
+/// If this is a connection chat and it supports empty connection group titles, the data is erased.
+fn legacy_group_data_migration(
+    group: &Group,
+    is_connection: bool,
+    erase_attributes: bool,
+) -> Option<ChatAttributes> {
+    if is_connection && !erase_attributes {
+        // No migration is done for connection chats that don't need to erase data.
+        return None;
+    }
+
+    let group_data_bytes = group.group_data()?;
+    let group_data = GroupData::decode(&group_data_bytes).ok()?;
+
+    if erase_attributes {
+        // Erase the group data if it is not empty
+        return (!group_data.is_empty()).then(ChatAttributes::empty);
+    }
+
+    let has_encrypted_title = group_data.encrypted_title.is_some();
+    let (title, profile) = group_data.into_parts(group.identity_link_wrapper_key());
+
+    let Some(title) = title else {
+        return None; // Ignore groups without title
+    };
+
+    let legacy_picture = match profile {
+        Some(GroupDataProfilePart::LegacyPicture(picture)) => Some(picture),
+        _ if has_encrypted_title => return None, // Already migrated
+        _ => None,
+    };
+    Some(ChatAttributes::new(title, legacy_picture))
 }
 
 mod persistence {
