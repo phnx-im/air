@@ -208,11 +208,7 @@ fn update_flutter_version(
     Ok(())
 }
 
-fn update_nfpm_version(
-    repo_root: &Utf8Path,
-    new_version: &Version,
-    dry_run: bool,
-) -> Result<()> {
+fn update_nfpm_version(repo_root: &Utf8Path, new_version: &Version, dry_run: bool) -> Result<()> {
     let nfpm_config_path = repo_root.join("app/linux/nfpm.yaml");
     ensure!(
         nfpm_config_path.exists(),
