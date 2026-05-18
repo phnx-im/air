@@ -267,30 +267,7 @@ fn prune_deb_pool(shell: &Shell, pool: &Utf8Path, keep: usize) -> Result<()> {
 fn prune_rpm_packages(shell: &Shell, repo_dir: &Utf8Path, keep: usize) -> Result<()> {
     let keep_arg = format!("--keep={keep}");
     let repo_dir_str = repo_dir.as_str();
-    let output = cmd!(shell, "repomanage --old {keep_arg} {repo_dir_str}")
-        .quiet()
-        .ignore_stderr()
-        .ignore_status()
-        .read()
-        .unwrap_or_default();
-
-    let mut removed = 0usize;
-    for line in output.lines() {
-        let line = line.trim();
-        if line.is_empty() {
-            continue;
-        }
-        let name = Utf8Path::new(line).file_name().unwrap_or(line);
-        println!("Pruning old package: {name}");
-        if let Err(e) = fs::remove_file(line) {
-            eprintln!("Failed to remove {line}: {e}");
-        } else {
-            removed += 1;
-        }
-    }
-    if removed > 0 {
-        println!("Pruned {removed} old .rpm(s); keeping last {keep} per package.");
-    }
+    cmd!(shell, "repomanage --old {keep_arg} {repo_dir_str}").read()?;
     Ok(())
 }
 
