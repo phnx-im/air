@@ -103,14 +103,18 @@ runs:
           sccache-${{ runner.os }}-${{ runner.arch }}
 
     - name: Start sccache daemon
-      shell: bash
-      run: |
-          if [[ "$GITHUB_REF_NAME" == "main" ]]; then export SCCACHE_RECACHE=y; fi
-          sccache --start-server
-          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+      uses: gacts/run-and-post-run@v1
       env:
         SCCACHE_CACHE_SIZE: ${{ inputs.sccache-size }}
         SCCACHE_DIR: "${{ inputs.sccache-dir }}"
+      with:
+        run: |
+          if [[ "$GITHUB_REF_NAME" == "main" ]]; then export SCCACHE_RECACHE=y; fi
+          sccache --start-server
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+        post: |
+          sccache --show-stats
+          sccache --stop-server
 
     - if: runner.os == 'Linux'
       name: Enable sccache wrapper for Unix
