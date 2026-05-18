@@ -86,7 +86,7 @@ runs:
           ${{ inputs.sccache-dir }}
           ~/.cargo
           ~/.rustup
-        key: "sccache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/actions/setup-buildenv/action.yml', 'Cargo.lock', '.config/cargo.toml', 'rust-toolchain.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
+        key: "sccache-${{ github.job }}-${{ hashFiles('.github/actions/setup-buildenv/action.yml', 'Cargo.lock', '.config/cargo.toml', 'rust-toolchain.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
         restore-keys: |
           sccache-${{ runner.os }}-${{ runner.arch }}
 
@@ -98,7 +98,7 @@ runs:
           ${{ inputs.sccache-dir }}
           ~/.cargo
           ~/.rustup
-        key: "sccache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/actions/setup-buildenv/action.yml', 'Cargo.lock', '.config/cargo.toml', 'rust-toolchain.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
+        key: "sccache-${{ github.job }}-${{ hashFiles('.github/actions/setup-buildenv/action.yml', 'Cargo.lock', '.config/cargo.toml', 'rust-toolchain.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
         restore-keys: |
           sccache-${{ runner.os }}-${{ runner.arch }}
 
