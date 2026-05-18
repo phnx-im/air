@@ -82,14 +82,32 @@ jobs:
       - name: Build packages
         run: RELEASE=${{ needs.linux-build.outputs.build-number }} just build-deb build-rpm
 
-      - name: Configure GPG agent for no TTY
+      - name: Import GPG key and unlock it in the agent
+        env:
+          GPG_KEY_ID: ${{ vars.GPG_KEY_ID }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
         run: |
           mkdir -p ~/.gnupg
           chmod 700 ~/.gnupg
-          echo "allow-loopback-pinentry" >> ~/.gnupg/gpg-agent.conf
+          cat >> ~/.gnupg/gpg-agent.conf <<'EOF'
+          allow-loopback-pinentry
+          allow-preset-passphrase
+          default-cache-ttl 7200
+          max-cache-ttl 7200
+          EOF
           echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
           gpg-connect-agent reloadagent /bye
-          echo "${{ secrets.GPG_SIGNING_KEY }}" | gpg --batch --import
+          echo "$GPG_SIGNING_KEY" | gpg --batch --import
+
+          # Preload the passphrase into gpg-agent so subsequent signing calls
+          # (including gpg invocations spawned by rpm --addsign) don't prompt.
+          preset_bin="$(gpgconf --list-dirs libexecdir)/gpg-preset-passphrase"
+          while IFS= read -r keygrip; do
+            [ -n "$keygrip" ] || continue
+            "$preset_bin" --preset --passphrase "$GPG_PASSPHRASE" "$keygrip"
+          done < <(gpg --batch --with-colons --with-keygrip --list-secret-keys "$GPG_KEY_ID" \
+            | awk -F: '/^grp:/ {print $10}')
 
       - name: Upload packages
         working-directory: app/linux
@@ -97,11 +115,9 @@ jobs:
           AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
           AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
           GPG_KEY_ID: ${{ vars.GPG_KEY_ID }}
-          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
           REPOSITORY_BASE_URL: ${{ vars.REPOSITORY_BASE_URL }}
           S3_BUCKET: ${{ vars.S3_BUCKET }}
           S3_ENDPOINT: ${{ vars.S3_ENDPOINT }}
         run: |
-          export GPG_TTY=$(tty)
           ./publish-packages.sh air-*.rpm
           ./publish-packages.sh air-*.deb

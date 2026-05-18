@@ -33,10 +33,13 @@
 #   RPM: createrepo_c (or createrepo), rpm, gpg, aws
 #
 # Environment variables (all overridable via flags):
-#   S3_BUCKET, S3_PREFIX, GPG_KEY_ID, GPG_PASSPHRASE, S3_ENDPOINT,
-#   REPOSITORY_BASE_URL, TRACK
+#   S3_BUCKET, S3_PREFIX, GPG_KEY_ID, S3_ENDPOINT, REPOSITORY_BASE_URL, TRACK
 #
 #   S3_ENDPOINT overrides the S3 endpoint URL (e.g. for MinIO, Cloudflare R2 etc.). When unset, the default AWS S3 endpoint is used.
+#
+#   The GPG signing key's passphrase is expected to already be cached in
+#   gpg-agent before this script is invoked (e.g. via gpg-preset-passphrase).
+#   This script never reads the passphrase directly.
 #
 # Examples:
 #   # Upload a .deb
@@ -155,22 +158,11 @@ aws_cmd() {
   fi
 }
 
-gpg_passphrase_args() {
-  # Pipe the passphrase via a file descriptor so it never appears in ps output.
-  if [[ -n "${GPG_PASSPHRASE:-}" ]]; then
-    echo "--batch --yes --passphrase-fd 3"
-  else
-    echo "--batch --yes"
-  fi
-}
-
 run_gpg() {
-  # Wrapper that injects the passphrase FD when available.
-  if [[ -n "${GPG_PASSPHRASE:-}" ]]; then
-    gpg $(gpg_passphrase_args) "$@" 3<<<"${GPG_PASSPHRASE}"
-  else
-    gpg --batch --yes "$@"
-  fi
+  # Passphrase handling is the caller's job: the signing key's passphrase must
+  # already be cached in gpg-agent (e.g. via gpg-preset-passphrase) before this
+  # script runs, otherwise non-interactive signing here will fail.
+  gpg --batch --yes "$@"
 }
 
 s3_path() {
@@ -437,13 +429,7 @@ publish_rpm() {
 %__gpg      $(command -v gpg)
 EOF
 
-  if [[ -n "${GPG_PASSPHRASE:-}" ]]; then
-    printenv GPG_PASSPHRASE | \
-      rpm --addsign "${repo_dir}/$(basename "$PKG_FILE")" \
-        --define "_gpg_sign_cmd_extra_args --passphrase-fd 0 --pinentry-mode loopback"
-  else
-    rpm --addsign "${repo_dir}/$(basename "$PKG_FILE")"
-  fi
+  rpm --addsign "${repo_dir}/$(basename "$PKG_FILE")"
 
   # Restore original .rpmmacros
   if [[ -n "$macros_bak" ]]; then
