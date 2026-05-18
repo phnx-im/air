@@ -1,8 +1,8 @@
+#!/usr/bin/env bash
 # SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 #
-#!/usr/bin/env bash
 # publish-pkg-repo.sh — Upload a .deb or .rpm to a signed S3 package repository.
 #
 # Usage:
@@ -80,8 +80,6 @@ GPG_KEY="${GPG_KEY_ID:-}"
 DRY_RUN=false
 S3_ENDPOINT="${S3_ENDPOINT:-}"
 REPOSITORY_BASE_URL="${REPOSITORY_BASE_URL:-}"
-# Persistent build directory under the invocation cwd. Kept on disk so repeat
-# publishes can reuse downloaded packages and repodata across runs.
 WORKDIR="$(pwd)/package-builds"
 
 # Argument parsing
@@ -325,6 +323,8 @@ publish_deb() {
     -o "APT::FTPArchive::Release::Codename=${TRACK}"  \
     -o "APT::FTPArchive::Release::Components=${COMPONENT}" \
     -o "APT::FTPArchive::Release::Architectures=${ARCH}" \
+    -o APT::FTPArchive::Release::MD5=false \
+    -o APT::FTPArchive::Release::SHA1=false \
     release "$release_dir" > "${release_dir}/Release"
 
   # Sign Release
@@ -347,7 +347,7 @@ publish_deb() {
     --acl public-read
 
   info "Uploading dists (index files, short TTL)..."
-  aws_cmd s3 sync --no-progress "${deb_root}/dists" "${s3_deb}/dists" \
+  aws_cmd s3 sync --delete --no-progress "${deb_root}/dists" "${s3_deb}/dists" \
     --cache-control "public, max-age=300" \
     --acl public-read
 
@@ -487,7 +487,7 @@ EOF
   ok "RPM repository published to ${s3_rpm}"
   echo
   echo "Client setup:"
-  echo "  sudo dnf config-manager addrepo --from-repofile ${REPO_URL}/${BUCKET}.repo"
+  echo "  sudo dnf config-manager addrepo --from-repofile ${REPO_URL}/air.repo"
 }
 
 # Entry point
