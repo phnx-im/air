@@ -62,7 +62,6 @@ const REQUIRED_EXTENSIONS: &[ExtensionType] = &[
     ExtensionType::Unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE),
     ExtensionType::Unknown(GROUP_DATA_EXTENSION_TYPE),
     ExtensionType::LastResort,
-    ExtensionType::AppDataDictionary,
 ];
 const REQUIRED_PROPOSALS: &[ProposalType] = &[
     ProposalType::Custom(FRIENDSHIP_PACKAGE_PROPOSAL_TYPE),
@@ -81,7 +80,12 @@ pub fn default_group_required_extensions() -> RequiredCapabilitiesExtension {
 // Supported capabilities (subset of required capabilities)
 pub const SUPPORTED_PROTOCOL_VERSIONS: &[ProtocolVersion] = &[DEFAULT_MLS_VERSION];
 pub const SUPPORTED_CIPHERSUITES: &[Ciphersuite] = &[DEFAULT_CIPHERSUITE];
-pub const SUPPORTED_EXTENSIONS: &[ExtensionType] = REQUIRED_EXTENSIONS;
+pub const SUPPORTED_EXTENSIONS: &[ExtensionType] = &[
+    ExtensionType::Unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE), // Also in REQUIRED_EXTENSIONS
+    ExtensionType::Unknown(GROUP_DATA_EXTENSION_TYPE),          // Also in REQUIRED_EXTENSIONS
+    ExtensionType::LastResort,                                  // Also in REQUIRED_EXTENSIONS
+    ExtensionType::AppDataDictionary,
+];
 pub const SUPPORTED_PROPOSALS: &[ProposalType] = &[
     ProposalType::Custom(FRIENDSHIP_PACKAGE_PROPOSAL_TYPE), // Also in REQUIRED_PROPOSALS
     ProposalType::SelfRemove,                               // Also in REQUIRED_PROPOSALS

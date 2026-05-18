@@ -47,6 +47,8 @@ pub enum AttachmentStatus {
     DownloadFailed = 4,
     /// The upload has failed.
     UploadFailed = 6,
+    /// The attachment doesn't exist on the server (expired?).
+    NotFound = 7,
 }
 
 impl AttachmentStatus {
@@ -58,6 +60,7 @@ impl AttachmentStatus {
             4 => Self::DownloadFailed,
             5 => Self::Uploading,
             6 => Self::UploadFailed,
+            7 => Self::NotFound,
             _ => Self::Unknown,
         }
     }
@@ -80,6 +83,8 @@ pub enum AttachmentContent {
     DownloadFailed,
     /// Upload failed
     UploadFailed(Vec<u8>),
+    /// Attachment expired
+    NotFound,
     /// Unknown status
     Unknown,
 }
@@ -105,6 +110,7 @@ impl AttachmentContent {
             }
             (None, AttachmentStatus::UploadFailed) => AttachmentContent::Unknown,
             (_, AttachmentStatus::DownloadFailed) => AttachmentContent::DownloadFailed,
+            (_, AttachmentStatus::NotFound) => AttachmentContent::NotFound,
             (_, AttachmentStatus::Unknown) => AttachmentContent::Unknown,
         }
     }
@@ -419,6 +425,8 @@ impl PendingAttachmentRecord {
             hash: Vec<u8>,
         }
 
+        // we make sure the related attachment is either
+        // Pending (= 1), Downloading (= 2) or DownloadFailed (= 4)
         let record = query_as!(
             SqlPendingAttachmentRecord,
             r#"
@@ -432,9 +440,13 @@ impl PendingAttachmentRecord {
                     pa.hash AS "hash: _"
                 FROM pending_attachment pa
                 INNER JOIN attachment a ON a.attachment_id = pa.attachment_id
-                WHERE pa.attachment_id = ? AND a.status = 1
+                WHERE pa.attachment_id = ?
+                    AND (a.status = ? OR a.status = ? OR a.status = ?)
             "#,
-            attachment_id
+            attachment_id,
+            AttachmentStatus::Pending,
+            AttachmentStatus::Downloading,
+            AttachmentStatus::DownloadFailed,
         )
         .fetch_optional(connection.as_mut())
         .await?;
@@ -677,9 +689,7 @@ pub(crate) mod test {
     }
 
     #[sqlx::test]
-    async fn load_pending_for_non_pending_attachment_fails(
-        pool: Pool<Sqlite>,
-    ) -> anyhow::Result<()> {
+    async fn load_pending_for_not_found_attachment_fails(pool: Pool<Sqlite>) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
         let chat = test_chat();
         chat.store(pool.write().await?).await?;
@@ -706,7 +716,7 @@ pub(crate) mod test {
         AttachmentRecord::update_status(
             pool.write().await?,
             attachment_record.attachment_id,
-            AttachmentStatus::Downloading,
+            AttachmentStatus::NotFound,
         )
         .await?;
 
