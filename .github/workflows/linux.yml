@@ -120,4 +120,4 @@ jobs:
           S3_ENDPOINT: ${{ vars.S3_ENDPOINT }}
         run: |
           ./publish-packages.sh air-*.rpm
-          ./publish-packages.sh air-*.deb
+          ./publish-packages.sh air_*.deb
