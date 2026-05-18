@@ -67,23 +67,6 @@ pub(crate) fn run(args: BumpArgs) -> Result<()> {
     Ok(())
 }
 
-fn open_bump_pr(shell: &Shell, next: &Version, dry_run: bool) -> Result<()> {
-    let branch_name = format!("bump-version/v{next}");
-    let commit_message = format!("chore: v{next}");
-    println!("Opening pull request {branch_name}");
-    run_or_print(cmd!(shell, "git checkout -b {branch_name}"), dry_run)?;
-    run_or_print(cmd!(shell, "git commit -am {commit_message}"), dry_run)?;
-    run_or_print(cmd!(shell, "git push -u origin {branch_name}"), dry_run)?;
-    run_or_print(
-        cmd!(
-            shell,
-            "gh pr create --title {commit_message} --body {commit_message}"
-        ),
-        dry_run,
-    )?;
-    Ok(())
-}
-
 fn run_or_print(cmd: Cmd<'_>, dry_run: bool) -> Result<()> {
     if dry_run {
         println!("[dry-run] would run: {cmd}");
@@ -97,7 +80,7 @@ fn run_or_print(cmd: Cmd<'_>, dry_run: bool) -> Result<()> {
 fn ensure_fresh_main(shell: &Shell, dry_run: bool, force: bool) -> Result<()> {
     let status = cmd!(shell, "git status --porcelain").read()?;
     ensure!(
-        status.is_empty(),
+        force || status.is_empty(),
         "Working tree is not clean, commit or stash changes first"
     );
 
@@ -113,23 +96,6 @@ fn ensure_fresh_main(shell: &Shell, dry_run: bool, force: bool) -> Result<()> {
 
     run_or_print(cmd!(shell, "git pull --ff-only origin main"), dry_run)?;
 
-    Ok(())
-}
-
-/// Cuts a release branch from HEAD without switching to it, then opens a PR into main.
-fn cut_release_branch(shell: &Shell, current: &Version, dry_run: bool) -> Result<()> {
-    let release_branch = format!("release/{current}");
-    let title = format!("chore: release v{current}");
-    println!("Creating release branch {release_branch}");
-    run_or_print(cmd!(shell, "git branch {release_branch} main"), dry_run)?;
-    run_or_print(cmd!(shell, "git push -u origin {release_branch}"), dry_run)?;
-    run_or_print(
-        cmd!(
-            shell,
-            "gh pr create --base main --head {release_branch} --title {title} --body {title}"
-        ),
-        dry_run,
-    )?;
     Ok(())
 }
 
@@ -170,6 +136,45 @@ fn increment_patch(current: &Version) -> Version {
         pre: current.pre.clone(),
         build: current.build.clone(),
     }
+}
+
+/// Cuts a release branch from HEAD without switching to it, then opens a PR into main.
+fn cut_release_branch(shell: &Shell, current: &Version, dry_run: bool) -> Result<()> {
+    let release_branch = format!("release/{current}");
+    let commit_msg = format!("chore: release v{current}");
+    println!("Creating release branch {release_branch}");
+    run_or_print(cmd!(shell, "git branch {release_branch} main"), dry_run)?;
+    run_or_print(
+        cmd!(shell, "git commit --allow-empty -m {commit_msg}"),
+        dry_run,
+    )?;
+    run_or_print(cmd!(shell, "git push -u origin {release_branch}"), dry_run)?;
+    run_or_print(
+        cmd!(
+            shell,
+            "gh pr create --base main --head {release_branch} --title {commit_msg}"
+        ),
+        dry_run,
+    )?;
+    Ok(())
+}
+
+/// Switch to a fresh branch and commit the bump, then open a PR into main.
+fn open_bump_pr(shell: &Shell, next: &Version, dry_run: bool) -> Result<()> {
+    let branch_name = format!("bump-version/v{next}");
+    let commit_message = format!("chore: v{next}");
+    println!("Opening pull request {branch_name}");
+    run_or_print(cmd!(shell, "git checkout -b {branch_name}"), dry_run)?;
+    run_or_print(cmd!(shell, "git commit -am {commit_message}"), dry_run)?;
+    run_or_print(cmd!(shell, "git push -u origin {branch_name}"), dry_run)?;
+    run_or_print(
+        cmd!(
+            shell,
+            "gh pr create --title {commit_message} --body {commit_message}"
+        ),
+        dry_run,
+    )?;
+    Ok(())
 }
 
 fn update_flutter_version(
