@@ -88,7 +88,7 @@ runs:
           ~/.rustup
         key: "sccache-${{ github.job }}-${{ hashFiles('.github/actions/setup-buildenv/action.yml', 'Cargo.lock', '.config/cargo.toml', 'rust-toolchain.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
         restore-keys: |
-          sccache-${{ runner.os }}-${{ runner.arch }}
+          sccache-${{ github.job }}
 
     - name: Download Rust GitHub Actions cache
       if: github.ref != 'refs/heads/main'
@@ -100,7 +100,7 @@ runs:
           ~/.rustup
         key: "sccache-${{ github.job }}-${{ hashFiles('.github/actions/setup-buildenv/action.yml', 'Cargo.lock', '.config/cargo.toml', 'rust-toolchain.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
         restore-keys: |
-          sccache-${{ runner.os }}-${{ runner.arch }}
+          sccache-${{ github.job }}
 
     - name: Start sccache daemon
       uses: gacts/run-and-post-run@v1
