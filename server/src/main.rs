@@ -19,6 +19,7 @@ use airserver::{
 use anyhow::{Context, bail};
 use clap::Parser;
 use tokio::net::TcpListener;
+use tokio_util::sync::CancellationToken;
 use tracing::info;
 
 #[tokio::main]
@@ -75,15 +76,17 @@ async fn main() -> anyhow::Result<()> {
         host = configuration.database.host,
         "Connecting to postgres server",
     );
-    let mut counter = 0;
+    let shutdown = CancellationToken::new();
     let mut ds_result = Ds::new(
         &configuration.database,
         domain.clone(),
         version_req.cloned(),
+        shutdown.clone(),
     )
     .await;
 
     // Try again for 10 times each second in case the postgres server is coming up.
+    let mut counter = 0;
     while let Err(e) = ds_result {
         info!("Failed to connect to postgres server: {}", e);
         tokio::time::sleep(std::time::Duration::from_secs(1)).await;
@@ -95,6 +98,7 @@ async fn main() -> anyhow::Result<()> {
             &configuration.database,
             domain.clone(),
             version_req.cloned(),
+            shutdown.clone(),
         )
         .await;
     }
@@ -111,6 +115,7 @@ async fn main() -> anyhow::Result<()> {
         &configuration.database,
         domain.clone(),
         version_req.cloned(),
+        shutdown.clone(),
     )
     .await
     .expect("Failed to connect to database.");
@@ -121,6 +126,7 @@ async fn main() -> anyhow::Result<()> {
         &configuration.database,
         domain.clone(),
         version_req.cloned(),
+        shutdown.clone(),
     )
     .await
     .expect("Failed to connect to database.");
@@ -136,6 +142,8 @@ async fn main() -> anyhow::Result<()> {
         network: network_provider.clone(),
     };
 
+    tokio::spawn(listen_to_sigterm(shutdown.clone()));
+
     // Start the server
     let server = run(
         ServerRunParams {
@@ -146,6 +154,7 @@ async fn main() -> anyhow::Result<()> {
             qs,
             qs_connector,
             rate_limits: configuration.ratelimits,
+            shutdown,
         },
         #[cfg(any(feature = "test_utils", test))]
         Ok,
@@ -155,3 +164,22 @@ async fn main() -> anyhow::Result<()> {
     server.await?;
     Ok(())
 }
+
+#[cfg(unix)]
+async fn listen_to_sigterm(shutdown: CancellationToken) {
+    use tokio::signal::unix::{SignalKind, signal};
+
+    let mut sigterm = match signal(SignalKind::terminate()) {
+        Ok(sigterm) => sigterm,
+        Err(error) => {
+            tracing::error!(%error, "Failed to register SIGTERM handler");
+            return;
+        }
+    };
+    sigterm.recv().await;
+    tracing::info!("SIGTERM received, shutting down");
+    shutdown.cancel();
+}
+
+#[cfg(not(unix))]
+async fn listen_to_sigterm(_shutdown: CancellationToken) {}

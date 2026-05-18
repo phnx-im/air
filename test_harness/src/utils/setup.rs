@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::{
+    any::Any,
     collections::{HashMap, HashSet},
     net::SocketAddr,
     path::Path,
@@ -158,6 +159,7 @@ pub struct TestBackend {
     // Present only if we spawned a local server.
     listener_control_handle: Option<ControlHandle>,
     _guard: Option<LocalEnterGuard>,
+    _cleanup: Option<Box<dyn Any>>,
 }
 
 enum ServerUrl {
@@ -219,23 +221,27 @@ impl TestBackend {
         let local = LocalSet::new();
         let _guard = local.enter();
 
-        let (server_url, domain, listener_control_handle, invitation_codes) =
+        let (server_url, domain, listener_control_handle, invitation_codes, _cleanup) =
             if let Ok(value) = std::env::var("TEST_SERVER_URL") {
                 let url: Url = value.parse().unwrap();
                 info!(%url, "using external test server");
                 let domain: Fqdn = url.host().unwrap().to_owned().into();
-                (ServerUrl::External(url), domain, None, Vec::new())
+                (ServerUrl::External(url), domain, None, Vec::new(), None)
             } else {
                 let network_provider = MockNetworkProvider::new();
                 let domain: Fqdn = "localhost".parse().unwrap();
-                let (listen_addr, control_handle, codes) =
-                    spawn_app(domain.clone(), network_provider, params).await;
+                let app = spawn_app(domain.clone(), network_provider, params).await;
+                let listen_addr = app.address;
+                let control_handle = app.control_handle.clone();
+                let codes = app.codes.clone();
                 info!(%listen_addr, "using spawned test server");
+                let cleanup: Box<dyn Any> = Box::new(app);
                 (
                     ServerUrl::Local(listen_addr),
                     domain,
                     Some(control_handle),
                     codes,
+                    Some(cleanup),
                 )
             };
         Self {
@@ -247,6 +253,7 @@ impl TestBackend {
             listener_control_handle,
             invitation_codes,
             _guard: Some(_guard),
+            _cleanup,
         }
     }
 

@@ -67,8 +67,8 @@ impl Drop for ListenerContext {
 }
 
 impl Queues {
-    pub(crate) async fn new(pool: PgPool) -> sqlx::Result<Self> {
-        let pg_listener_task_handle = spawn_pg_listener_task(pool.clone()).await?;
+    pub(crate) async fn new(pool: PgPool, stop: CancellationToken) -> sqlx::Result<Self> {
+        let pg_listener_task_handle = spawn_pg_listener_task(pool.clone(), stop).await?;
         Ok(Self {
             pool,
             listeners: Default::default(),

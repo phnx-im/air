@@ -271,6 +271,7 @@ mod tests {
         private_tokens::Ristretto255,
     };
     use sqlx::PgPool;
+    use tokio_util::sync::CancellationToken;
 
     use crate::{
         air_service::BackendService,
@@ -283,7 +284,13 @@ mod tests {
     use super::*;
 
     async fn setup(pool: &PgPool) -> anyhow::Result<AuthService> {
-        Ok(AuthService::initialize(pool.clone(), "example.com".parse()?, None).await?)
+        Ok(AuthService::initialize(
+            pool.clone(),
+            "example.com".parse()?,
+            None,
+            CancellationToken::new(),
+        )
+        .await?)
     }
 
     fn make_verifying_key() -> UsernameVerifyingKey {
