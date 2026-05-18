@@ -287,9 +287,9 @@ publish_deb() {
   # package. Without this, every publish would silently orphan old .debs by
   # producing an index that lists only the current upload.
   info "Syncing existing pool from ${s3_deb}/pool..."
-  aws_cmd s3 sync "${s3_deb}/pool" "${deb_root}/pool"
+  aws_cmd s3 sync --no-progress "${s3_deb}/pool" "${deb_root}/pool"
   info "Syncing existing dists from ${s3_deb}/dists/${TRACK}..."
-  aws_cmd s3 sync "${s3_deb}/dists/${TRACK}" "${deb_root}/dists/${TRACK}"
+  aws_cmd s3 sync --no-progress "${s3_deb}/dists/${TRACK}" "${deb_root}/dists/${TRACK}"
 
   # Prune old packages from the local pool before staging the new one
   prune_deb_pool "$pool_dir"
@@ -341,18 +341,18 @@ publish_deb() {
 
   # Upload to S3
   info "Uploading pool (immutable, long TTL)..."
-  aws_cmd s3 sync "${deb_root}/pool" "${s3_deb}/pool" \
+  aws_cmd s3 sync --no-progress "${deb_root}/pool" "${s3_deb}/pool" \
     --delete \
     --cache-control "public, max-age=31536000, immutable" \
     --acl public-read
 
   info "Uploading dists (index files, short TTL)..."
-  aws_cmd s3 sync "${deb_root}/dists" "${s3_deb}/dists" \
+  aws_cmd s3 sync --no-progress "${deb_root}/dists" "${s3_deb}/dists" \
     --cache-control "public, max-age=300" \
     --acl public-read
 
   info "Uploading public GPG key..."
-  aws_cmd s3 sync "${key_dir}" "${s3_deb}" \
+  aws_cmd s3 sync --no-progress "${key_dir}" "${s3_deb}" \
     --cache-control "public, max-age=86400" \
     --acl public-read
 
@@ -401,7 +401,7 @@ publish_rpm() {
   # createrepo_c --update can incrementally extend the previous metadata
   # instead of producing a repo that only references the new package.
   info "Syncing existing repo from ${s3_rpm}/${COMPONENT}/${ARCH}..."
-  aws_cmd s3 sync "${s3_rpm}/${COMPONENT}/${ARCH}" "${repo_dir}"
+  aws_cmd s3 sync --no-progress "${s3_rpm}/${COMPONENT}/${ARCH}" "${repo_dir}"
 
   # Prune old packages before staging the new one
   prune_rpm_packages "$repo_dir"
@@ -467,20 +467,20 @@ EOF
 
   # Upload to S3
   info "Uploading .rpm packages (immutable, long TTL)..."
-  aws_cmd s3 sync "${repo_dir}" "${s3_rpm}/${COMPONENT}/${ARCH}" \
+  aws_cmd s3 sync --no-progress "${repo_dir}" "${s3_rpm}/${COMPONENT}/${ARCH}" \
     --delete \
     --exclude "repodata/*" \
     --cache-control "public, max-age=31536000, immutable" \
     --acl public-read
 
   info "Uploading repodata (short TTL)..."
-  aws_cmd s3 sync "${repo_dir}/repodata" \
+  aws_cmd s3 sync --no-progress "${repo_dir}/repodata" \
     "${s3_rpm}/${COMPONENT}/${ARCH}/repodata" \
     --cache-control "public, max-age=300" \
     --acl public-read
 
   info "Uploading GPG key and .repo descriptor..."
-  aws_cmd s3 sync "${key_dir}" "${s3_rpm}" \
+  aws_cmd s3 sync --no-progress "${key_dir}" "${s3_rpm}" \
     --cache-control "public, max-age=86400" \
     --acl public-read
 
