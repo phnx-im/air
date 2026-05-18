@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:io';
+import 'dart:math' show min;
 
 import 'package:flutter/widgets.dart';
 
@@ -19,10 +20,15 @@ enum ResponsiveScreenType {
 }
 
 /// Breakpoint between the mobile (tab bar) and non-mobile (sidebar) layouts.
+///
+/// Applied to the *shortest* side of the window so that orientation changes
+/// don't flip the layout (which means tearing down the declarative page stack
+/// in [AppRouterDelegate], which in turn means discarding any pageless routes
+/// pushed on top like the attachment upload preview!).
 const double kMobileBreakpoint = 576;
 
-ResponsiveScreenType _screenType(double width) {
-  if (width < kMobileBreakpoint) {
+ResponsiveScreenType _screenType(double shortestSide) {
+  if (shortestSide < kMobileBreakpoint) {
     return ResponsiveScreenType.mobile;
   } else if (ResponsiveScreen.isTouch) {
     return ResponsiveScreenType.tablet;
@@ -33,11 +39,11 @@ ResponsiveScreenType _screenType(double width) {
 
 extension BuildContextScreenTypeExtension on BuildContext {
   ResponsiveScreenType get responsiveScreenType =>
-      _screenType(MediaQuery.of(this).size.width);
+      _screenType(MediaQuery.of(this).size.shortestSide);
 }
 
 extension BoxConstraintsScreenTypeExtension on BoxConstraints {
-  ResponsiveScreenType get screenType => _screenType(maxWidth);
+  ResponsiveScreenType get screenType => _screenType(min(maxWidth, maxHeight));
 }
 
 class ResponsiveScreen extends StatefulWidget {
