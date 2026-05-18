@@ -38,7 +38,7 @@ overrides:
         dst: /usr/share/icons/hicolor/scalable/apps/ms.air.svg
       - src: ./ms.air.png
         dst: /usr/share/icons/hicolor/256x256/apps/ms.air.png
-    depends: 
+    depends:
       - gtk3 >= 3.24.51
   deb:
     contents:
