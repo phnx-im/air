@@ -39,6 +39,9 @@ platform :ios do
     app_identifier = @app_store_params[:app_identifier]
     app_identifier_nse = @app_store_params[:app_identifier_nse]
 
+    # For now, we assign all builds to "Internal testing"
+    groups = ["Internal testing"]
+
     UI.user_error!("TEAM_ID must be provided for the beta_ios lane") if team_id.to_s.empty?
 
     # Load the app store connect API key
@@ -70,6 +73,7 @@ platform :ios do
         app_platform: "ios",
         skip_waiting_for_build_processing: true,
         distribute_external: false,
+        groups: groups,
       )
 
       # Find the app in ASC

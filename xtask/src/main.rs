@@ -23,7 +23,7 @@ struct Cli {
 enum Commands {
     /// Bump the workspace crate versions, update Flutter metadata, add a changelog entry, and tag the commit.
     #[command(name = "bump-version")]
-    BumpVersion,
+    BumpVersion(bump_version::BumpArgs),
     /// Scan Flutter / mobile sources for unused localization keys and prune them from ARB files.
     #[command(name = "prune-unused-l10n")]
     PruneUnusedL10n(prune_unused_l10n::PruneArgs),
@@ -32,7 +32,7 @@ enum Commands {
 fn main() -> anyhow::Result<()> {
     let cli = Cli::parse();
     match cli.command {
-        Commands::BumpVersion => bump_version::run(),
+        Commands::BumpVersion(args) => bump_version::run(args),
         Commands::PruneUnusedL10n(args) => prune_unused_l10n::run(args),
     }
 }

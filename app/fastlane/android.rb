@@ -3,7 +3,10 @@ platform :android do
     lane :beta_android do |options|
       # Package name
       package_name = "ms.air"
-      track = "internal"
+
+      # Use the "alpha" track for PRs against a release branch, "internal" otherwise
+      is_release_pr = ENV["GITHUB_EVENT_NAME"] == "pull_request" && ENV["GITHUB_BASE_REF"].to_s.start_with?("release/")
+      track = is_release_pr ? "alpha" : "internal"
 
       # Determine if we should deploy to the Play Store
       upload_to_play_store = options[:upload_to_play_store]
@@ -69,10 +72,10 @@ platform :android do
         raise
       ensure
         # Clean up the temporary files
-         if upload_to_play_store
-           File.delete(keystore_path)
-           File.delete(playstore_key_path)
-         end
+        if upload_to_play_store
+          File.delete(keystore_path)
+          File.delete(playstore_key_path)
+        end
       end
     end
   end
