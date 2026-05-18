@@ -2,18 +2,22 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::time::Duration;
+use std::num::TryFromIntError;
 
+use airapiclient::{ApiClientInitError, ds_api::DsRequestError};
 use aircommon::{
-    crypto::aead::{AeadCiphertext, AeadDecryptable, keys::AttachmentEarKey},
+    crypto::{
+        aead::{AeadCiphertext, AeadDecryptable, keys::AttachmentEarKey},
+        errors::DecryptionError,
+    },
     identifiers::AttachmentId,
 };
 use airprotos::delivery_service::v1::StorageObjectType;
-use anyhow::{Context, anyhow, ensure};
-use mimi_content::content_container::EncryptionAlgorithm;
+use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
+use reqwest::StatusCode;
 use sha2::{Digest, Sha256};
 use tokio_stream::StreamExt;
-use tracing::{debug, error, info, warn};
+use tracing::{debug, error, info};
 
 use crate::{
     AttachmentProgress,
@@ -28,6 +32,32 @@ use crate::{
     },
     groups::Group,
 };
+
+#[derive(Debug, thiserror::Error)]
+enum AttachmentDownloadError {
+    #[error("failed to initialize API client: {0}")]
+    ApiClientInit(#[from] ApiClientInitError),
+    #[error("failed to get attachment download URL: {0}")]
+    DsRequest(#[from] DsRequestError),
+    #[error("failed to download attachment: {0}")]
+    Http(#[from] reqwest::Error),
+    #[error("attachment size overflow: {0}")]
+    SizeOverflow(#[from] TryFromIntError),
+    #[error("unsupported encryption algorithm: {0:?}")]
+    UnsupportedEncryptionAlgorithm(EncryptionAlgorithm),
+    #[error("invalid nonce length")]
+    InvalidNonceLength,
+    #[error("invalid key length")]
+    InvalidKeyLength,
+    #[error("unsupported hash algorithm: {0:?}")]
+    UnsupportedHashAlgorithm(HashAlgorithm),
+    #[error("failed to decrypt attachment: {0}")]
+    Decryption(#[from] DecryptionError),
+    #[error("hash mismatch")]
+    HashMismatch,
+    #[error("attachment not found")]
+    NotFound,
+}
 
 impl CoreUser {
     pub(crate) fn download_attachment(
@@ -85,37 +115,117 @@ impl CoreUser {
             return Ok(());
         };
 
+        match self
+            .download_and_decrypt_attachment(pending_record, &group, &progress_tx)
+            .await
+        {
+            Ok(content) => {
+                // Store the attachment and mark it as downloaded
+                let bytes = content.bytes.as_slice();
+                self.db()
+                    .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                        AttachmentRecord::set_content(&mut *txn, attachment_id, bytes).await?;
+                        PendingAttachmentRecord::delete(txn, attachment_id).await?;
+                        Ok(())
+                    })
+                    .await?;
+
+                progress_tx.completed();
+
+                Ok(())
+            }
+            Err(error @ AttachmentDownloadError::NotFound) => {
+                error!(?attachment_id, "attachment not found (expired?)");
+
+                // if the attachment wasn't found, we mark it as NotFound but also destroy
+                // the pending attachment, which cannot be recovered from anyways.
+                self.db()
+                    .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                        AttachmentRecord::update_status(
+                            &mut *txn,
+                            attachment_id,
+                            AttachmentStatus::NotFound,
+                        )
+                        .await?;
+                        PendingAttachmentRecord::delete(txn, attachment_id).await?;
+                        Ok(())
+                    })
+                    .await
+                    .inspect_err(
+                        |e| error!(?attachment_id, %e, "failed to mark download as failed"),
+                    )
+                    .ok();
+
+                progress_tx.not_found();
+
+                Err(error.into())
+            }
+            Err(error) => {
+                error!(
+                    ?attachment_id,
+                    %error,
+                    "attachment download error, marking as failed"
+                );
+
+                // if this fails, the AttachmentRecord status stays in Downloading
+                // and we still have the PendingAttachmentRecord, so we can retry
+                AttachmentRecord::update_status(
+                    self.db().write().await?,
+                    attachment_id,
+                    AttachmentStatus::DownloadFailed,
+                )
+                .await
+                .inspect_err(|e| error!(?attachment_id, %e, "failed to mark download as failed"))
+                .ok();
+
+                Err(error.into())
+            }
+        }
+    }
+
+    async fn download_and_decrypt_attachment(
+        &self,
+        PendingAttachmentRecord {
+            aad: _,
+            attachment_id,
+            enc_alg,
+            enc_key,
+            hash,
+            hash_alg,
+            nonce,
+            size,
+        }: PendingAttachmentRecord,
+        group: &Group,
+        progress_tx: &AttachmentProgressSender,
+    ) -> Result<AttachmentBytes, AttachmentDownloadError> {
         // Check encryption parameters
         debug!(?attachment_id, "Checking encryption parameters");
-        ensure!(
-            pending_record.enc_alg == AIR_ATTACHMENT_ENCRYPTION_ALG
+        if enc_alg != AIR_ATTACHMENT_ENCRYPTION_ALG
             // Older clients (<= v0.9.0) specified Aes256Gcm12 as encryption algorithm, however
             // they were actually using Aes256Gcm. To be forward compatible, we also accept the the
             // correctly specified algorithm.
-                || pending_record.enc_alg == EncryptionAlgorithm::Aes256Gcm,
-            "unsupported encryption algorithm: {:?}",
-            pending_record.enc_alg
-        );
-        let nonce: [u8; 12] = pending_record
-            .nonce
-            .try_into()
-            .map_err(|_| anyhow!("invalid nonce length"))?;
-        let key = AttachmentEarKey::from_bytes(
-            pending_record
-                .enc_key
-                .try_into()
-                .map_err(|_| anyhow!("invalid key length"))?,
-        );
-        ensure!(
-            pending_record.hash_alg == AIR_ATTACHMENT_HASH_ALG,
-            "unsupported hash algorithm: {:?}",
-            pending_record.hash_alg
-        );
+            && enc_alg != EncryptionAlgorithm::Aes256Gcm
+        {
+            return Err(AttachmentDownloadError::UnsupportedEncryptionAlgorithm(
+                enc_alg,
+            ));
+        }
 
-        // TODO: Retries and marking as failed
+        let nonce: [u8; 12] = nonce
+            .try_into()
+            .map_err(|_| AttachmentDownloadError::InvalidNonceLength)?;
+
+        let key = AttachmentEarKey::from_bytes(
+            enc_key
+                .try_into()
+                .map_err(|_| AttachmentDownloadError::InvalidKeyLength)?,
+        );
+        if hash_alg != AIR_ATTACHMENT_HASH_ALG {
+            return Err(AttachmentDownloadError::UnsupportedHashAlgorithm(hash_alg));
+        }
 
         // Get the download URL from DS
-        let api_client = self.api_client()?;
+        let api_client = self.api_clients().default_client()?;
         let download_url = api_client
             .ds_get_attachment_url(
                 self.signing_key(),
@@ -130,18 +240,25 @@ impl CoreUser {
 
         // Download the attachment
         debug!(?attachment_id, "Downloading attachment");
-        let response = self
+        let http_response = self
             .http_client()
             .get(download_url)
             .send()
             .await?
-            .error_for_status()?;
-        let total_len = pending_record
-            .size
-            .try_into()
-            .context("Attachment size overflow")?;
+            .error_for_status();
+
+        let mut bytes_stream = match http_response {
+            Ok(response) => response.bytes_stream(),
+            Err(error) => match error.status() {
+                Some(status) if status == StatusCode::NOT_FOUND => {
+                    return Err(AttachmentDownloadError::NotFound);
+                }
+                _ => return Err(AttachmentDownloadError::Http(error)),
+            },
+        };
+
+        let total_len = size.try_into()?;
         let mut bytes = Vec::with_capacity(total_len);
-        let mut bytes_stream = response.bytes_stream();
         while let Some(chunk) = bytes_stream.next().await.transpose()? {
             bytes.extend_from_slice(&chunk);
             progress_tx.report(bytes.len());
@@ -149,67 +266,17 @@ impl CoreUser {
 
         // Decrypt the attachment
         debug!(?attachment_id, "Decrypting attachment");
+
         let ciphertext = EncryptedAttachment::from(AeadCiphertext::new(bytes, nonce));
         let content: AttachmentBytes = AttachmentBytes::decrypt(&key, &ciphertext)?;
 
         // Verify hash
         debug!(?attachment_id, "Verifying hash");
-        let hash = Sha256::digest(&content.bytes);
-        ensure!(hash.as_slice() == pending_record.hash, "hash mismatch");
-
-        // Store the attachment and mark it as downloaded
-        //
-        // When catching up with many messages, it might happen that the database is locked for a
-        // longer time. In this case, we retry the commit every second until it succeeds. Since this
-        // operation is in memory, we can retry many times. It will be cleaned up in case the app
-        // closed. We just need to make sure that we don't run too many downloads at the same time,
-        // otherwise we might run out of memory.
-        //
-        // TODO: Refactor and use a crate or an abstraction for this.
-        const ATTACHMENT_COMMIT_RETRY_DELAY: Duration = Duration::from_secs(1);
-        const ATTACHMENT_COMMIT_MAX_RETRIES: u32 = 30;
-        let bytes = content.bytes.as_slice();
-        let mut retries = 0u32;
-        loop {
-            let res = self
-                .db()
-                .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                    AttachmentRecord::set_content(&mut *txn, attachment_id, bytes).await?;
-                    PendingAttachmentRecord::delete(txn, attachment_id).await?;
-                    Ok(())
-                })
-                .await;
-
-            match res {
-                Ok(()) => {
-                    progress_tx.finish();
-                    break;
-                }
-                Err(error) => {
-                    const DB_LOCKED_CODE: &str = "5"; // SQLITE_BUSY
-                    let is_db_locked = error
-                        .downcast_ref::<sqlx::Error>()
-                        .and_then(|e| e.as_database_error())
-                        .is_some_and(|e| e.code().as_deref() == Some(DB_LOCKED_CODE));
-                    if is_db_locked {
-                        retries += 1;
-                        if retries >= ATTACHMENT_COMMIT_MAX_RETRIES {
-                            return Err(error);
-                        }
-                        warn!(
-                            ?attachment_id,
-                            retries,
-                            "Database is locked; retrying in {ATTACHMENT_COMMIT_RETRY_DELAY:?}"
-                        );
-                    } else {
-                        return Err(error);
-                    }
-                }
-            }
-
-            tokio::time::sleep(ATTACHMENT_COMMIT_RETRY_DELAY).await;
+        let recalculated_content_hash = Sha256::digest(&content.bytes);
+        if recalculated_content_hash.as_slice() != hash {
+            return Err(AttachmentDownloadError::HashMismatch);
         }
 
-        Ok(())
+        Ok(content)
     }
 }
