@@ -96,6 +96,15 @@ impl Config {
         }
     }
 
+    fn aws_args(&self) -> Vec<&str> {
+        let mut args = Vec::new();
+        if let Some(endpoint) = self.s3_endpoint.as_deref() {
+            args.push("--endpoint-url");
+            args.push(endpoint);
+        }
+        args
+    }
+
     fn workdir(&self, path: impl AsRef<Utf8Path>) -> Utf8PathBuf {
         self.workdir.join(path)
     }
@@ -177,23 +186,6 @@ fn build_config(args: PublishArgs) -> Result<Config> {
         dry_run: args.dry_run,
         workdir,
     })
-}
-
-fn aws_cmd(shell: &Shell, cfg: &Config, args: &[&str]) -> Result<()> {
-    let mut extra_args = Vec::new();
-    if let Some(endpoint) = cfg.s3_endpoint.as_deref() {
-        extra_args.push("--endpoint-url");
-        extra_args.push(endpoint);
-    }
-    if cfg.dry_run {
-        extra_args.push("--dryrun");
-    }
-    cmd!(shell, "aws {extra_args...} {args...}").run()?;
-    Ok(())
-}
-
-fn run_gpg_read(shell: &Shell, args: &[&str]) -> Result<String> {
-    Ok(cmd!(shell, "gpg --batch --yes {args...}").read()?)
 }
 
 fn write_text(path: &Utf8Path, mut content: String) -> Result<()> {
@@ -329,25 +321,21 @@ fn publish_deb(shell: &Shell, cfg: &Config) -> Result<()> {
     // new package.
     let pool_remote = format!("{s3_deb}/pool");
     println!("Syncing existing pool from {pool_remote}...");
-    aws_cmd(
+    let aws_args = cfg.aws_args();
+    cmd!(
         shell,
-        cfg,
-        &["s3", "sync", "--quiet", &pool_remote, pool_local.as_str()],
-    )?;
+        "aws {aws_args...} s3 sync --quiet {pool_remote} {pool_local}"
+    )
+    .run()?;
 
     let dists_remote_track = format!("{s3_deb}/dists/{}", cfg.track);
     println!("Syncing existing dists from {dists_remote_track}...");
-    aws_cmd(
+    let aws_args = cfg.aws_args();
+    cmd!(
         shell,
-        cfg,
-        &[
-            "s3",
-            "sync",
-            "--quiet",
-            &dists_remote_track,
-            dists_track_local.as_str(),
-        ],
-    )?;
+        "aws {aws_args...} s3 sync --quiet {dists_remote_track} {dists_track_local}"
+    )
+    .run()?;
 
     prune_deb_pool(shell, &pool_dir, KEEP_VERSIONS)?;
 
@@ -362,7 +350,8 @@ fn publish_deb(shell: &Shell, cfg: &Config) -> Result<()> {
 
     // Release file signature provides repo-level integrity; per-package
     // signatures are intentionally omitted for DEB.
-    let armored = run_gpg_read(shell, &["--export", "--armor", &cfg.gpg_key_id])?;
+    let gpg_key_id = &cfg.gpg_key_id;
+    let armored = cmd!(shell, "gpg --batch --yes --export --armor {gpg_key_id}").read()?;
     write_text(&key_dir.join("gpg-key.asc"), armored)?;
 
     println!("Running apt-ftparchive packages...");
@@ -416,58 +405,26 @@ fn publish_deb(shell: &Shell, cfg: &Config) -> Result<()> {
     ).run()?;
 
     println!("Uploading pool (immutable, long TTL)...");
-    aws_cmd(
+    let aws_args = cfg.aws_args();
+    cmd!(
         shell,
-        cfg,
-        &[
-            "s3",
-            "sync",
-            "--quiet",
-            pool_local.as_str(),
-            &pool_remote,
-            "--delete",
-            "--cache-control",
-            "public, max-age=31536000, immutable",
-            "--acl",
-            "public-read",
-        ],
-    )?;
+        "aws {aws_args...} s3 sync --quiet {pool_local} {pool_remote} --delete --cache-control 'public, max-age=31536000' --acl public-read"
+    ).run()?;
 
     println!("Uploading dists (index files, short TTL)...");
     let dists_remote = format!("{s3_deb}/dists");
-    aws_cmd(
+    let aws_args = cfg.aws_args();
+    cmd!(
         shell,
-        cfg,
-        &[
-            "s3",
-            "sync",
-            "--delete",
-            "--quiet",
-            dists_local.as_str(),
-            &dists_remote,
-            "--cache-control",
-            "public, max-age=300",
-            "--acl",
-            "public-read",
-        ],
-    )?;
+        "aws {aws_args...} s3 sync --delete --quiet {dists_local} {dists_remote} --cache-control 'public, max-age=300' --acl public-read"
+    ).run()?;
 
     println!("Uploading public GPG key...");
-    aws_cmd(
+    let aws_args = cfg.aws_args();
+    cmd!(
         shell,
-        cfg,
-        &[
-            "s3",
-            "sync",
-            "--quiet",
-            key_dir.as_str(),
-            s3_deb.as_str(),
-            "--cache-control",
-            "public, max-age=86400",
-            "--acl",
-            "public-read",
-        ],
-    )?;
+        "aws {aws_args...} s3 sync --quiet {key_dir} {s3_deb} --cache-control 'public, max-age=86400' --acl public-read"
+    ).run()?;
 
     let repo_url = &cfg.repo_url;
     let track = &cfg.track;
@@ -550,11 +507,12 @@ fn publish_rpm(shell: &Shell, cfg: &Config) -> Result<()> {
     // Hydrate the component/arch dir (existing .rpms + repodata/) so
     // createrepo_c --update can incrementally extend the previous metadata.
     println!("Syncing existing repo from {s3_arch}...");
-    aws_cmd(
+    let aws_args = cfg.aws_args();
+    cmd!(
         shell,
-        cfg,
-        &["s3", "sync", "--quiet", &s3_arch, repo_dir.as_str()],
-    )?;
+        "aws {aws_args...} s3 sync --quiet {s3_arch} {repo_dir}"
+    )
+    .run()?;
 
     prune_rpm_packages(shell, &repo_dir, KEEP_VERSIONS)?;
 
@@ -579,7 +537,8 @@ fn publish_rpm(shell: &Shell, cfg: &Config) -> Result<()> {
         cmd!(shell, "rpm --addsign {staged_str}").run()?;
     }
 
-    let armored = run_gpg_read(shell, &["--export", "--armor", &cfg.gpg_key_id])?;
+    let gpg_key_id = &cfg.gpg_key_id;
+    let armored = cmd!(shell, "gpg --batch --yes --export --armor {gpg_key_id}").read()?;
     write_text(&key_dir.join("gpg-key.asc"), armored)?;
 
     println!("Running createrepo_c...");
@@ -612,60 +571,27 @@ gpgkey={url}/gpg-key.asc
     fs::write(&repo_file, repo_contents).with_context(|| format!("Failed to write {repo_file}"))?;
 
     println!("Uploading .rpm packages (immutable, long TTL)...");
-    aws_cmd(
+    let aws_args = cfg.aws_args();
+    cmd!(
         shell,
-        cfg,
-        &[
-            "s3",
-            "sync",
-            "--quiet",
-            repo_dir.as_str(),
-            &s3_arch,
-            "--delete",
-            "--exclude",
-            "repodata/*",
-            "--cache-control",
-            "public, max-age=31536000, immutable",
-            "--acl",
-            "public-read",
-        ],
-    )?;
+        "aws {aws_args...} s3 sync --quiet {repo_dir} {s3_arch} --delete --exclude repodata/* --cache-control 'public, max-age=31536000, immutable' --acl public-read"
+    ).run()?;
 
     println!("Uploading repodata (short TTL)...");
     let local_repodata = repo_dir.join("repodata");
     let s3_repodata = format!("{s3_arch}/repodata");
-    aws_cmd(
+    let aws_args = cfg.aws_args();
+    cmd!(
         shell,
-        cfg,
-        &[
-            "s3",
-            "sync",
-            "--quiet",
-            local_repodata.as_str(),
-            &s3_repodata,
-            "--cache-control",
-            "public, max-age=300",
-            "--acl",
-            "public-read",
-        ],
-    )?;
+        "aws {aws_args...} s3 sync --quiet {local_repodata} {s3_repodata} --cache-control 'public, max-age=300' --acl public-read"
+    ).run()?;
 
     println!("Uploading GPG key and .repo descriptor...");
-    aws_cmd(
+    let aws_args = cfg.aws_args();
+    cmd!(
         shell,
-        cfg,
-        &[
-            "s3",
-            "sync",
-            "--quiet",
-            key_dir.as_str(),
-            s3_rpm.as_str(),
-            "--cache-control",
-            "public, max-age=86400",
-            "--acl",
-            "public-read",
-        ],
-    )?;
+        "aws {aws_args...} s3 sync --quiet {key_dir} {s3_rpm} --cache-control 'public, max-age=86400' --acl public-read"
+    ).run()?;
 
     println!("RPM repository published to {s3_rpm}");
 
