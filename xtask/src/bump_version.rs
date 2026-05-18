@@ -22,6 +22,9 @@ pub(crate) struct BumpArgs {
     /// Print actions without executing them.
     #[arg(long)]
     dry_run: bool,
+    /// Switch to main automatically instead of erroring when on another branch.
+    #[arg(long)]
+    force: bool,
 }
 
 #[derive(ValueEnum, Clone, Copy)]
@@ -39,15 +42,13 @@ pub(crate) fn run(args: BumpArgs) -> Result<()> {
         println!("[dry-run] no commands or file writes will be executed");
     }
 
-    ensure_fresh_main(&shell, args.dry_run)?;
+    ensure_fresh_main(&shell, args.dry_run, args.force)?;
 
     let current = determine_current_version(repo_root.as_ref())?;
     let next = match args.kind {
         BumpKind::Minor => increment_minor(&current),
         BumpKind::Patch => increment_patch(&current),
     };
-
-    cut_release_branch(&shell, &current, args.dry_run)?;
 
     println!("Bumping version {} -> {}", current, next);
     let next_string = next.to_string();
@@ -59,6 +60,27 @@ pub(crate) fn run(args: BumpArgs) -> Result<()> {
     update_nfpm_version(repo_root.as_ref(), &next, args.dry_run)?;
     println!("Updated nFPM version to {}", next);
 
+    open_bump_pr(&shell, &next, args.dry_run)?;
+
+    cut_release_branch(&shell, &current, &next, args.dry_run)?;
+
+    Ok(())
+}
+
+fn open_bump_pr(shell: &Shell, next: &Version, dry_run: bool) -> Result<()> {
+    let branch_name = format!("bump-version/v{next}");
+    let commit_message = format!("chore: v{next}");
+    println!("Opening pull request {branch_name}");
+    run_or_print(cmd!(shell, "git checkout -b {branch_name}"), dry_run)?;
+    run_or_print(cmd!(shell, "git commit -am {commit_message}"), dry_run)?;
+    run_or_print(cmd!(shell, "git push -u origin {branch_name}"), dry_run)?;
+    run_or_print(
+        cmd!(
+            shell,
+            "gh pr create --title {commit_message} --body {commit_message}"
+        ),
+        dry_run,
+    )?;
     Ok(())
 }
 
@@ -72,7 +94,7 @@ fn run_or_print(cmd: Cmd<'_>, dry_run: bool) -> Result<()> {
     }
 }
 
-fn ensure_fresh_main(shell: &Shell, dry_run: bool) -> Result<()> {
+fn ensure_fresh_main(shell: &Shell, dry_run: bool, force: bool) -> Result<()> {
     let status = cmd!(shell, "git status --porcelain").read()?;
     ensure!(
         status.is_empty(),
@@ -80,22 +102,39 @@ fn ensure_fresh_main(shell: &Shell, dry_run: bool) -> Result<()> {
     );
 
     let current_branch = cmd!(shell, "git rev-parse --abbrev-ref HEAD").read()?;
-    ensure!(
-        current_branch == "main",
-        "Must be on the main branch, currently on {current_branch}"
-    );
+    if current_branch != "main" {
+        ensure!(
+            force,
+            "Must be on the main branch, currently on {current_branch} (pass --force to switch automatically)"
+        );
+        println!("Currently on {current_branch}, switching to main");
+        run_or_print(cmd!(shell, "git checkout main"), dry_run)?;
+    }
 
     run_or_print(cmd!(shell, "git pull --ff-only origin main"), dry_run)?;
 
     Ok(())
 }
 
-fn cut_release_branch(shell: &Shell, current: &Version, dry_run: bool) -> Result<()> {
-    let branch_name = format!("release/{current}");
-    println!("Creating release branch {branch_name}");
-    run_or_print(cmd!(shell, "git checkout -b {branch_name}"), dry_run)?;
-    run_or_print(cmd!(shell, "git push -u origin {branch_name}"), dry_run)?;
-    run_or_print(cmd!(shell, "git checkout main"), dry_run)?;
+fn cut_release_branch(
+    shell: &Shell,
+    current: &Version,
+    next: &Version,
+    dry_run: bool,
+) -> Result<()> {
+    let release_branch = format!("release/{current}");
+    let bump_branch = format!("bump-version/v{next}");
+    let title = format!("chore: cut release v{current}");
+    println!("Creating release branch {release_branch}");
+    run_or_print(cmd!(shell, "git branch {release_branch} main"), dry_run)?;
+    run_or_print(cmd!(shell, "git push -u origin {release_branch}"), dry_run)?;
+    run_or_print(
+        cmd!(
+            shell,
+            "gh pr create --base {release_branch} --head {bump_branch} --title {title} --body {title}"
+        ),
+        dry_run,
+    )?;
     Ok(())
 }
 
