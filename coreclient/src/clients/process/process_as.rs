@@ -267,8 +267,7 @@ impl CoreUser {
             &connection_info.connection_group_id,
             sender_user_id.clone(),
             username_connection_info.as_ref(),
-        )
-        .await?;
+        )?;
 
         // Create pending connection info
         let (username, connection_offer_hash, connection_package_hash) =
@@ -381,7 +380,7 @@ impl CoreUser {
         Ok((payload, hash))
     }
 
-    async fn create_pending_connection_chat(
+    fn create_pending_connection_chat(
         group_id: &GroupId,
         sender_user_id: UserId,
         username_connection_info: Option<&UsernameConnectionInfo>,

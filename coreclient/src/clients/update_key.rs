@@ -63,13 +63,21 @@ pub(crate) async fn update_chat_attributes(
         | ChatType::Connection(_)
         | ChatType::TargetedMessageConnection(_)
         | ChatType::PendingConnection(_) => {
-            // Only allow to remove the picture of a connection chat from the local db
-            if new_chat_attributes.picture.is_none() {
-                Chat::update_picture(txn, chat.id, None).await?;
-            }
+            erase_connection_chat_picture(&mut *txn, chat.id, new_chat_attributes.picture).await?;
         }
     }
 
+    Ok(())
+}
+
+async fn erase_connection_chat_picture(
+    connection: impl WriteConnection,
+    chat_id: ChatId,
+    new_picture: Option<Vec<u8>>,
+) -> anyhow::Result<()> {
+    if new_picture.is_none() {
+        Chat::update_picture(connection, chat_id, None).await?;
+    }
     Ok(())
 }
 
@@ -97,11 +105,19 @@ pub(crate) async fn update_chat_title(
         | ChatType::Connection(_)
         | ChatType::TargetedMessageConnection(_)
         | ChatType::PendingConnection(_) => {
-            // Only allow to remove the title of a connection chat from the local db
-            if new_title.is_empty() {
-                Chat::update_title(connection, chat.id, "").await?;
-            }
+            erase_connection_chat_title(connection, chat.id, &new_title).await?;
         }
+    }
+    Ok(())
+}
+
+async fn erase_connection_chat_title(
+    connection: impl WriteConnection,
+    chat_id: ChatId,
+    new_title: &str,
+) -> anyhow::Result<()> {
+    if new_title.is_empty() {
+        Chat::update_title(connection, chat_id, "").await?;
     }
     Ok(())
 }
