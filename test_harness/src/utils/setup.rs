@@ -420,7 +420,6 @@ impl TestBackend {
 
         let test_user1 = self.users.get_mut(user1_id).unwrap();
         let user1 = &mut test_user1.user;
-        let user1_profile = user1.own_user_profile().await.unwrap();
         let user1_username_contacts_before = user1.username_contacts().await.unwrap();
         let user1_chats_before = user1.chats().await;
         let username_hash = spawn_blocking({
@@ -429,7 +428,7 @@ impl TestBackend {
         })
         .await
         .unwrap();
-        user1
+        let chat_id = user1
             .add_contact(user2_username.clone(), username_hash)
             .await
             .expect("fatal error")
@@ -451,10 +450,9 @@ impl TestBackend {
                 assert_eq!(before.username, after.username);
             });
         let mut user1_chats_after = user1.chats().await;
-        let test_title = format!("Connection group: {}", user2_username.plaintext());
         let new_chat_position = user1_chats_after
             .iter()
-            .position(|c| c.attributes().title() == test_title)
+            .position(|c| c.id() == chat_id)
             .expect("User 1 should have created a new chat");
         let chat = user1_chats_after.remove(new_chat_position);
         assert!(chat.status() == &ChatStatus::Active);
@@ -524,9 +522,7 @@ impl TestBackend {
         info!("User 2 chats after: {:?}", user2_chats_after);
         let new_chat_position = user2_chats_after
             .iter()
-            .position(|c| {
-                c.attributes().title() == user1_profile.display_name.clone().into_string()
-            })
+            .position(|c| c.id() == chat.id())
             .expect("User 2 should have created a new chat");
         let chat = user2_chats_after.remove(new_chat_position);
         assert!(chat.status() == &ChatStatus::Active);
@@ -596,7 +592,7 @@ impl TestBackend {
         let mut user1_chats_after = user1.chats().await;
         let new_chat_position = user1_chats_after
             .iter()
-            .position(|c| c.attributes().title() == test_title)
+            .position(|c| c.id() == chat_id)
             .expect("User 1 should have created a new chat");
         let chat = user1_chats_after.remove(new_chat_position);
         assert!(chat.status() == &ChatStatus::Active);
@@ -1064,13 +1060,13 @@ impl TestBackend {
         let mut user_chats_after = user.chats().await;
         let new_chat_position = user_chats_after
             .iter()
-            .position(|c| c.attributes().title() == group_name)
+            .position(|c| c.id() == chat_id)
             .expect("User 1 should have created a new chat");
         let chat = user_chats_after.remove(new_chat_position);
         assert!(chat.id() == chat_id);
         assert!(chat.status() == &ChatStatus::Active);
-        assert!(chat.chat_type() == &ChatType::Group);
-        assert_eq!(chat.attributes().title(), &group_name);
+        assert!(chat.chat_type().is_group());
+        assert_eq!(chat.attributes().unwrap().title(), &group_name);
         user_chats_before
             .into_iter()
             .zip(user_chats_after)
@@ -1175,11 +1171,14 @@ impl TestBackend {
             let chat = invitee_chats_after.remove(new_chat_position);
             assert!(chat.id() == chat_id);
             assert!(chat.status() == &ChatStatus::Active);
-            assert!(chat.chat_type() == &ChatType::Group);
-            assert_eq!(chat.attributes().title(), inviter_chat.attributes().title());
+            assert!(chat.chat_type().is_group());
             assert_eq!(
-                chat.attributes().picture(),
-                inviter_chat.attributes().picture()
+                chat.attributes().unwrap().title(),
+                inviter_chat.attributes().unwrap().title()
+            );
+            assert_eq!(
+                chat.attributes().unwrap().picture(),
+                inviter_chat.attributes().unwrap().picture()
             );
             // In case it was a re-join, we remove it from the chat list before as well.
             if let Some(inactive_chat_position) =
@@ -1339,7 +1338,7 @@ impl TestBackend {
             } else {
                 panic!("chat should be inactive.")
             }
-            assert!(chat.chat_type() == &ChatType::Group);
+            assert!(chat.chat_type().is_group());
             for chat in removed_chats_after {
                 assert!(removed_chats_before.iter().any(|c| c.id() == chat.id()))
             }
@@ -1572,7 +1571,7 @@ impl TestBackend {
                     .await
                     .into_iter()
                     .filter(|chat| {
-                        chat.chat_type() == &ChatType::Group && chat.status() == &ChatStatus::Active
+                        chat.chat_type().is_group() && chat.status() == &ChatStatus::Active
                     })
                     .choose(rng)
                 {
@@ -1621,7 +1620,7 @@ impl TestBackend {
                     .await
                     .into_iter()
                     .filter(|chat| {
-                        chat.chat_type() == &ChatType::Group && chat.status() == &ChatStatus::Active
+                        chat.chat_type().is_group() && chat.status() == &ChatStatus::Active
                     })
                     .choose(rng)
                 {
@@ -1660,7 +1659,7 @@ impl TestBackend {
                     .await
                     .into_iter()
                     .filter(|chat| {
-                        chat.chat_type() == &ChatType::Group && chat.status() == &ChatStatus::Active
+                        chat.chat_type().is_group() && chat.status() == &ChatStatus::Active
                     })
                     .choose(rng)
                 {

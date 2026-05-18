@@ -334,7 +334,7 @@ impl Message {
                     }
                 };
                 let repr = match chat_type {
-                    ChatType::TargetedMessageConnection(_) | ChatType::Group => {
+                    ChatType::TargetedMessageConnection(_) | ChatType::Group(_) => {
                         let display_name = store
                             .user_profile(&content_message.sender)
                             .await
