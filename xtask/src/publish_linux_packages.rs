@@ -68,7 +68,7 @@ pub(crate) struct PublishArgs {
     #[arg(long = "repository-base-url", env = "REPOSITORY_BASE_URL")]
     repository_base_url: String,
 
-    /// Print aws commands without executing them.
+    /// Pass --dryrun to aws commands.
     #[arg(long, action = clap::ArgAction::SetTrue)]
     dry_run: bool,
 }
@@ -180,16 +180,15 @@ fn build_config(args: PublishArgs) -> Result<Config> {
 }
 
 fn aws_cmd(shell: &Shell, cfg: &Config, args: &[&str]) -> Result<()> {
-    let endpoint: Vec<&str> = match cfg.s3_endpoint.as_deref() {
-        Some(ep) => vec!["--endpoint-url", ep],
-        None => Vec::new(),
-    };
-    if cfg.dry_run {
-        let joined: Vec<&str> = endpoint.iter().chain(args.iter()).copied().collect();
-        println!("[dry-run] aws {}", joined.join(" "));
-        return Ok(());
+    let mut extra_args = Vec::new();
+    if let Some(endpoint) = cfg.s3_endpoint.as_deref() {
+        extra_args.push("--endpoint-url");
+        extra_args.push(endpoint);
     }
-    cmd!(shell, "aws {endpoint...} {args...}").run()?;
+    if cfg.dry_run {
+        extra_args.push("--dryrun");
+    }
+    cmd!(shell, "aws {extra_args...} {args...}").run()?;
     Ok(())
 }
 
@@ -600,14 +599,13 @@ fn publish_rpm(shell: &Shell, cfg: &Config) -> Result<()> {
     // `dnf config-manager addrepo --from-repofile <url>`.
     let repo_file = key_dir.join("air.repo");
     let repo_contents = format!(
-        r#"
-        [air]
-        name=Air Messenger builds
-        baseurl={url}/{APT_COMPONENT}/{arch}
-        enabled=1
-        gpgcheck=1
-        repo_gpgcheck=1
-        gpgkey={url}/gpg-key.asc
+        r#"[air]
+name=Air Messenger builds
+baseurl={url}/{APT_COMPONENT}/{arch}
+enabled=1
+gpgcheck=1
+repo_gpgcheck=1
+gpgkey={url}/gpg-key.asc
         "#,
         url = cfg.repo_url
     );
