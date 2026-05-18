@@ -45,6 +45,8 @@ pub(crate) fn run(args: BumpArgs) -> Result<()> {
     ensure_fresh_main(&shell, args.dry_run, args.force)?;
 
     let current = determine_current_version(repo_root.as_ref())?;
+    cut_release_branch(&shell, &current, args.dry_run)?;
+
     let next = match args.kind {
         BumpKind::Minor => increment_minor(&current),
         BumpKind::Patch => increment_patch(&current),
@@ -61,8 +63,6 @@ pub(crate) fn run(args: BumpArgs) -> Result<()> {
     println!("Updated nFPM version to {}", next);
 
     open_bump_pr(&shell, &next, args.dry_run)?;
-
-    cut_release_branch(&shell, &current, &next, args.dry_run)?;
 
     Ok(())
 }
@@ -116,22 +116,17 @@ fn ensure_fresh_main(shell: &Shell, dry_run: bool, force: bool) -> Result<()> {
     Ok(())
 }
 
-fn cut_release_branch(
-    shell: &Shell,
-    current: &Version,
-    next: &Version,
-    dry_run: bool,
-) -> Result<()> {
+/// Cuts a release branch from HEAD without switching to it, then opens a PR into main.
+fn cut_release_branch(shell: &Shell, current: &Version, dry_run: bool) -> Result<()> {
     let release_branch = format!("release/{current}");
-    let bump_branch = format!("bump-version/v{next}");
-    let title = format!("chore: cut release v{current}");
+    let title = format!("chore: release v{current}");
     println!("Creating release branch {release_branch}");
     run_or_print(cmd!(shell, "git branch {release_branch} main"), dry_run)?;
     run_or_print(cmd!(shell, "git push -u origin {release_branch}"), dry_run)?;
     run_or_print(
         cmd!(
             shell,
-            "gh pr create --base {release_branch} --head {bump_branch} --title {title} --body {title}"
+            "gh pr create --base main --head {release_branch} --title {title} --body {title}"
         ),
         dry_run,
     )?;
