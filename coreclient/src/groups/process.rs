@@ -16,6 +16,7 @@ use aircommon::{
 };
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use apqmls::{
+    ApqMlsGroupMut,
     messages::ApqProtocolMessage,
     processing::{ApqProcessMessageError, ApqProcessedMessage},
 };
@@ -446,13 +447,12 @@ impl Group {
         let ApqProcessedMessage {
             t_message,
             pq_message,
-        } = match apqmls::processing::process_message(
-            &mut self.mls_group,
-            &mut pq.mls_group,
-            &AirOpenMlsProvider::new(txn.as_mut()),
-            message,
-            |_, _| true, // PQ-credential is always empty
-        ) {
+        } = match ApqMlsGroupMut::from_groups(&mut self.mls_group, &mut pq.mls_group)
+            .process_message(
+                &AirOpenMlsProvider::new(txn.as_mut()),
+                message,
+                |_, _| true, // PQ-credential is always empty
+            ) {
             Ok(pm) => pm,
             Err(ApqProcessMessageError::Processing(ProcessMessageError::ValidationError(
                 ValidationError::WrongEpoch,
