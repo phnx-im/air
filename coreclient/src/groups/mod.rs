@@ -503,14 +503,6 @@ impl Group {
                 provider.storage().key_package(&kp_hash).ok().flatten()
             })
             .ok_or(GroupOperationError::MissingKeyPackage)?;
-        let _pq_kpb: KeyPackageBundle = pq_welcome
-            .secrets()
-            .iter()
-            .find_map(|egs| {
-                let kp_hash = egs.new_member();
-                provider.storage().key_package(&kp_hash).ok().flatten()
-            })
-            .ok_or(GroupOperationError::MissingKeyPackage)?;
 
         // DS joiner info is encrypted with the T-key package private key
         let private_key = t_kpb.init_private_key();
