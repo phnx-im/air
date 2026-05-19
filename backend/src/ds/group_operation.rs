@@ -156,7 +156,7 @@ impl DsGroupState {
 
             let add_users_state = validate_added_users(staged_commit, aad_payload, add_users_info)?;
 
-            let mut pq_adds_sig_keys = pq_staged_commit.map(|commit| commit.add_proposals());
+            let mut pq_add_proposals = pq_staged_commit.map(|commit| commit.add_proposals());
 
             for ((added_key_package, _), _) in &add_users_state.added_users {
                 let added_credential = VerifiableClientCredential::from_basic_credential(
@@ -167,7 +167,7 @@ impl DsGroupState {
                     GroupOperationError::InvalidMessage
                 })?;
 
-                if let Some(pq_adds_sig_keys) = pq_adds_sig_keys.as_mut() {
+                if let Some(pq_adds_sig_keys) = pq_add_proposals.as_mut() {
                     let pq_add_proposal = pq_adds_sig_keys.next().ok_or_else(|| {
                         error!("PQ has fewer add proposals than T");
                         GroupOperationError::InvalidMessage
@@ -191,7 +191,7 @@ impl DsGroupState {
                 .ok_or(GroupOperationError::InvalidMessage)?;
             }
 
-            if let Some(pq_adds_sig_keys) = pq_adds_sig_keys.as_mut()
+            if let Some(pq_adds_sig_keys) = pq_add_proposals.as_mut()
                 && pq_adds_sig_keys.next().is_some()
             {
                 error!("PQ has more add proposals than T");
