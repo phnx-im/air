@@ -12,14 +12,9 @@ on:
   push:
     branches:
       - main
-    paths:
-      - "coreclient/**"
-      - "apiclient/**"
-      - "applogic/**"
-      - "common/**"
-      - "app/**"
-      - "Cargo.toml"
-  workflow_dispatch:
+  pull_request:
+    branches:
+      - release/*
 
 env:
   CARGO_TERM_COLOR: always
@@ -29,6 +24,7 @@ env:
 jobs:
   android-publish:
     runs-on: ubuntu-latest
+    environment: google-play-store
 
     steps:
       - name: Checkout code
