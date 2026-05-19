@@ -5,3 +5,4 @@
 flutter/ephemeral
 *.rpm
 *.deb
+package-builds/**

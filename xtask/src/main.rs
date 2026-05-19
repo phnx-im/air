@@ -4,6 +4,7 @@
 
 mod bump_version;
 mod prune_unused_l10n;
+mod publish_linux_packages;
 mod util;
 
 use clap::{Parser, Subcommand};
@@ -27,6 +28,9 @@ enum Commands {
     /// Scan Flutter / mobile sources for unused localization keys and prune them from ARB files.
     #[command(name = "prune-unused-l10n")]
     PruneUnusedL10n(prune_unused_l10n::PruneArgs),
+    /// Sign and publish a .deb or .rpm to an S3-hosted package repository.
+    #[command(name = "publish-packages")]
+    PublishLinuxPackages(publish_linux_packages::PublishArgs),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -34,5 +38,6 @@ fn main() -> anyhow::Result<()> {
     match cli.command {
         Commands::BumpVersion => bump_version::run(),
         Commands::PruneUnusedL10n(args) => prune_unused_l10n::run(args),
+        Commands::PublishLinuxPackages(args) => publish_linux_packages::run(args),
     }
 }
