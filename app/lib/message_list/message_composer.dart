@@ -241,6 +241,7 @@ class _MessageComposerState extends State<MessageComposer>
                 _submitMessage(context.read<ChatDetailsCubit>()),
             onImagePasted: _handleImagePaste,
             onFilePasted: _handleFilePaste,
+            onContentInserted: _handleContentInserted,
           ),
         ),
       ),
@@ -548,6 +549,28 @@ class _MessageComposerState extends State<MessageComposer>
     );
   }
 
+  void _handleContentInserted(KeyboardInsertedContent content) async {
+    final data = content.data;
+    if (data == null || data.isEmpty) return;
+
+    final chatTitle = _chatDetailsCubit.state.chat?.title;
+    if (chatTitle == null) return;
+
+    final ext = content.mimeType.split('/').last;
+    final tempDir = await getTemporaryDirectory();
+    final tempFile = File('${tempDir.path}/keyboard_insert.$ext');
+    await tempFile.writeAsBytes(data);
+    final file = XFile(tempFile.path, mimeType: content.mimeType);
+
+    if (!mounted) return;
+    await _navigateToUploadPreview(
+      context,
+      file,
+      chatTitle: chatTitle,
+      isTempFile: true,
+    );
+  }
+
   Future<void> _navigateToUploadPreview(
     BuildContext context,
     XFile file, {
@@ -634,6 +657,7 @@ class _MessageInput extends StatelessWidget {
     required this.onSubmitMessage,
     required this.onImagePasted,
     required this.onFilePasted,
+    required this.onContentInserted,
   }) : _focusNode = focusNode,
        _controller = controller;
 
@@ -647,6 +671,7 @@ class _MessageInput extends StatelessWidget {
   final VoidCallback onSubmitMessage;
   final ValueChanged<Uint8List> onImagePasted;
   final ValueChanged<String> onFilePasted;
+  final ValueChanged<KeyboardInsertedContent> onContentInserted;
 
   @override
   Widget build(BuildContext context) {
@@ -775,6 +800,15 @@ class _MessageInput extends StatelessWidget {
                 : () => _focusNode.requestFocus(),
             keyboardType: TextInputType.multiline,
             textCapitalization: TextCapitalization.sentences,
+            contentInsertionConfiguration: ContentInsertionConfiguration(
+              allowedMimeTypes: const [
+                'image/gif',
+                'image/webp',
+                'image/png',
+                'image/jpeg',
+              ],
+              onContentInserted: onContentInserted,
+            ),
           ),
         ),
       ],
