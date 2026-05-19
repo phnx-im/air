@@ -25,7 +25,7 @@ env:
 
 jobs:
   linux-build:
-    runs-on: ubuntu-latest
+    runs-on: [self-hosted, ubuntu]
     outputs:
       build-number: ${{ steps.setup-buildenv.outputs.build-number }}
 
@@ -41,6 +41,8 @@ jobs:
       - id: setup-buildenv
         name: Setup build environment
         uses: ./.github/actions/setup-buildenv
+        with:
+          sccache-dir: /home/github-actions/.cache/sccache
 
       - name: Build app
         working-directory: app

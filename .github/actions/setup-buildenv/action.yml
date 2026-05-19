@@ -79,7 +79,7 @@ runs:
       run: mkdir -p "${{ inputs.sccache-dir }}"
 
     - name: Setup Rust GitHub Actions cache
-      if: github.ref == 'refs/heads/main'
+      if: github.ref == 'refs/heads/main' && runner.environment == 'github-hosted'
       uses: actions/cache@v5
       with:
         path: |
@@ -91,7 +91,7 @@ runs:
           sccache-${{ github.job }}
 
     - name: Download Rust GitHub Actions cache
-      if: github.ref != 'refs/heads/main'
+      if: github.ref != 'refs/heads/main' && runner.environment == 'github-hosted'
       uses: actions/cache/restore@v5
       with:
         path: |
@@ -141,14 +141,14 @@ runs:
     ## rustup
 
     - name: Configure Rust toolchain cache
-      if: github.ref == 'refs/heads/main'
+      if: github.ref == 'refs/heads/main' && runner.environment == 'github-hosted'
       uses: actions/cache@v5
       with:
         path: ~/.rustup
         key: rust-toolchain-${{ hashFiles('rust-toolchain.toml' ) }}
 
     - name: Download Rust toolchain cache
-      if: github.ref != 'refs/heads/main'
+      if: github.ref != 'refs/heads/main' && runner.environment == 'github-hosted'
       uses: actions/cache/restore@v5
       with:
         path: ~/.rustup
@@ -171,7 +171,7 @@ runs:
       uses: ruby/setup-ruby@v1
       with:
         ruby-version: "3.3"
-        bundler-cache: true
+        bundler-cache: ${{ runner.environment == 'github-hosted' }}
         working-directory: app/fastlane
 
     - if: inputs.fastlane == 'true'
@@ -194,10 +194,10 @@ runs:
       with:
         channel: stable
         version: 3.41.4
-        cache: true
-        cache-sdk: true
+        cache: "${{ runner.environment == 'github-hosted' }}"
+        cache-sdk: "${{ runner.environment == 'github-hosted' }}"
 
-    - if: inputs.flutter == 'true' && runner.os == 'Linux'
+    - if: ${{ inputs.flutter == 'true' && runner.os == 'Linux' && runner.environment == 'github-hosted' }}
       name: Install Linux Flutter build dependencies
       shell: bash
       run: |
