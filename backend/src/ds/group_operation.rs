@@ -302,7 +302,7 @@ impl DsGroupState {
             .process_apq_assisted_message(crypto, t_message, pq_message, |_, _| true)?;
 
         // PQ-side validation: sender type, self-remove check, welcome
-        let pq_welcome = {
+        let (pq_staged_commit, pq_welcome) = {
             let ProcessedMessageContent::StagedCommitMessage(pq_staged_commit) =
                 processed_assisted_message
                     .processed_message
@@ -335,7 +335,7 @@ impl DsGroupState {
                     return Err(GroupOperationError::InvalidMessage);
                 }
             }
-            if pq_staged_commit.add_proposals().count() != 0 {
+            let pq_welcome = if pq_staged_commit.add_proposals().count() != 0 {
                 let Some(pq_add_users_info) = pq_add_users_info else {
                     warn!("PQ group operation adds users but no add users info is provided");
                     return Err(GroupOperationError::InvalidMessage);
@@ -344,7 +344,8 @@ impl DsGroupState {
                 Some(pq_add_users_info.welcome)
             } else {
                 None
-            }
+            };
+            (pq_staged_commit, pq_welcome)
         };
 
         // T-side Air-level validation: AAD, added users, room state, resync
@@ -415,6 +416,7 @@ impl DsGroupState {
                 };
                 let add_users_state =
                     validate_added_users(staged_commit, aad_payload, add_users_info)?;
+                let mut pq_adds = pq_staged_commit.add_proposals();
                 for ((added_key_package, _), _) in &add_users_state.added_users {
                     let added = VerifiableClientCredential::from_basic_credential(
                         added_key_package.leaf_node().credential(),
@@ -430,6 +432,23 @@ impl DsGroupState {
                             RoleIndex::Regular,
                         )
                         .ok_or(GroupOperationError::InvalidMessage)?;
+                    let pq_add_proposal = pq_adds.next().ok_or_else(|| {
+                        error!("PQ has fewer add proposals than T");
+                        GroupOperationError::InvalidMessage
+                    })?;
+                    let pq_sig_key = pq_add_proposal
+                        .add_proposal()
+                        .key_package()
+                        .leaf_node()
+                        .signature_key();
+                    if added_key_package.leaf_node().signature_key() != pq_sig_key {
+                        error!("T and PQ added user signature keys do not match");
+                        return Err(GroupOperationError::InvalidMessage);
+                    }
+                }
+                if pq_adds.next().is_some() {
+                    error!("PQ has more add proposals than T");
+                    return Err(GroupOperationError::InvalidMessage);
                 }
                 Some(add_users_state)
             };
@@ -473,20 +492,17 @@ impl DsGroupState {
                 if *removed == sender_index.leaf_index() {
                     return Err(GroupOperationError::InvalidMessage);
                 }
-                let removed_cred = VerifiableClientCredential::from_basic_credential(
-                    t_group_state
-                        .group
-                        .leaf(*removed)
-                        .ok_or_else(|| {
-                            error!("Leaf of removed user not found");
-                            GroupOperationError::InvalidMessage
-                        })?
-                        .credential(),
-                )
-                .map_err(|e| {
-                    error!(%e, "Credential of removed user is invalid");
+                let t_removed_leaf = t_group_state.group.leaf(*removed).ok_or_else(|| {
+                    error!("Leaf of removed user not found");
                     GroupOperationError::InvalidMessage
                 })?;
+                let removed_cred =
+                    VerifiableClientCredential::from_basic_credential(t_removed_leaf.credential())
+                        .map_err(|e| {
+                            error!(%e, "Credential of removed user is invalid");
+                            GroupOperationError::InvalidMessage
+                        })?;
+                let t_removed_sig_key = t_removed_leaf.signature_key().clone();
                 t_group_state
                     .room_state_change_role(
                         sender.user_id(),
@@ -494,6 +510,18 @@ impl DsGroupState {
                         RoleIndex::Outsider,
                     )
                     .ok_or(GroupOperationError::InvalidMessage)?;
+                let pq_removed_sig_key = pq_group_state
+                    .group
+                    .leaf(*removed)
+                    .ok_or_else(|| {
+                        error!("Leaf of removed user not found in PQ group");
+                        GroupOperationError::InvalidMessage
+                    })?
+                    .signature_key();
+                if t_removed_sig_key != *pq_removed_sig_key {
+                    warn!("T and PQ removed user signature keys do not match");
+                    return Err(GroupOperationError::InvalidMessage);
+                }
             }
 
             (
