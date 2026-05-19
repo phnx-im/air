@@ -3,5 +3,3 @@
 -- SPDX-License-Identifier: AGPL-3.0-or-later
 --
 DROP TABLE apq_key_package;
-
-DROP INDEX idx_apq_key_package_client_id;
