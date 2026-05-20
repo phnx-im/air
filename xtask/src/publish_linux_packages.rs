@@ -111,7 +111,9 @@ impl Config {
 }
 
 pub(crate) fn run(args: PublishArgs) -> Result<()> {
-    let cfg = build_config(args)?;
+    let shell = Shell::new()?;
+
+    let cfg = build_config(&shell, args)?;
 
     // Some S3-compatible providers (Upcloud, some MinIO versions, ...) reject
     // the newer flow checksums AWS CLI v2 sends by default. "when_required"
@@ -129,8 +131,6 @@ pub(crate) fn run(args: PublishArgs) -> Result<()> {
             }
         }
     }
-
-    let shell = Shell::new()?;
 
     let display_name = cfg
         .package_file
@@ -152,7 +152,7 @@ pub(crate) fn run(args: PublishArgs) -> Result<()> {
     }
 }
 
-fn build_config(args: PublishArgs) -> Result<Config> {
+fn build_config(shell: &Shell, args: PublishArgs) -> Result<Config> {
     ensure!(
         args.package_file.exists(),
         "File not found: {}",
@@ -169,9 +169,8 @@ fn build_config(args: PublishArgs) -> Result<Config> {
     // Trim trailing slash so client-setup snippets don't end up with "//".
     let repository_base_url = args.repository_base_url.trim_end_matches('/');
 
-    let cwd = env::current_dir().context("Failed to read current directory")?;
-    let workdir = Utf8PathBuf::try_from(cwd)
-        .context("Current directory is not valid UTF-8")?
+    let workdir = Utf8PathBuf::try_from(cmd!(shell, "git rev-parse --show-toplevel").read()?)
+        .context("git root directory is not valid UTF-8")?
         .join("app/linux/package-builds");
 
     Ok(Config {
