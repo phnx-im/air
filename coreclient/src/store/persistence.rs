@@ -17,7 +17,7 @@ use uuid::Uuid;
 
 use crate::{ChatId, MessageId, db_access::WriteConnection};
 
-use super::{StoreEntityId, StoreNotification, StoreOperation, notification::StoreEntityKind};
+use super::{StoreEntityId, StoreEntityKind, StoreNotification, StoreOperation};
 
 #[derive(Serialize, Deserialize)]
 struct StoredUserId<'a>(Cow<'a, UserId>);

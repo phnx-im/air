@@ -41,7 +41,7 @@ pub use crate::{
         invitation_code::{InvitationCode, RequestInvitationCodeError},
         invite_users::InviteUsersError,
         safety_code::SafetyCode,
-        user_settings::ReadReceiptsSetting,
+        user_settings::{ReadReceiptsSetting, UserSetting},
     },
     contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},
     groups::debug_info::{

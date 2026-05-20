@@ -2,389 +2,310 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::sync::Arc;
-use std::{collections::HashSet, path::Path};
+use std::{collections::BTreeMap, mem, sync::Arc};
 
-use aircommon::identifiers::{AttachmentId, MimiId, UserId, Username, UsernameHash};
-use aircommon::messages::client_as_out::UsernameDeleteResponse;
-use aircommon::time::TimeStamp;
-use mimi_content::MimiContent;
-use mimi_room_policy::VerifiedRoomState;
-use tokio_stream::Stream;
-use uuid::Uuid;
+use aircommon::identifiers::{AttachmentId, UserId};
+use enumset::{EnumSet, EnumSetType};
+use tokio::sync::broadcast;
+use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};
+use tokio_stream::{Stream, StreamExt};
+use tracing::{debug, error, warn};
 
-use crate::{
-    AcceptContactRequestError, AddUsernameContactError, AttachmentContent, AttachmentStatus, Chat,
-    ChatId, ChatMessage, Contact, InviteUsersError, MessageDraft, MessageId,
-    ProvisionAttachmentError, UploadTaskError,
-    clients::{attachment::progress::AttachmentProgress, safety_code::SafetyCode},
-    contacts::{ContactType, TargetedMessageContact, UsernameContact},
-    user_profiles::UserProfile,
-    usernames::UsernameRecord,
-};
-pub use notification::{StoreEntityId, StoreNotification, StoreOperation};
-pub(crate) use notification::{StoreNotificationsSender, StoreNotifier};
+use crate::{ChatId, MessageId};
 
-mod r#impl;
-mod notification;
 mod persistence;
 
-/// The result type of a failable [`Store`] method
-pub type StoreResult<T> = anyhow::Result<T>;
+// 1024 * size_of::<Arc<StoreNotification>>() = 1024 * 8 = 8 KiB
+const NOTIFICATION_CHANNEL_SIZE: usize = 1024;
 
-/// Unified access to the client data
+/// Bundles a notification sender and a notification.
 ///
-/// This trait is used to access the client data, e.g. the user profile, the chats or the messages.
-/// Additionally, it is used to listen to changes in the client data via the [`Self::subscribe`]
-/// method and the [`StoreNotification`] type.
-#[allow(async_fn_in_trait, reason = "trait is only used in the workspace")]
-#[trait_variant::make(Send)]
-pub trait Store {
-    // user
-
-    fn user_id(&self) -> &UserId;
-
-    async fn own_user_profile(&self) -> StoreResult<UserProfile>;
-
-    async fn set_own_user_profile(&self, user_profile: UserProfile) -> StoreResult<UserProfile>;
-
-    async fn report_spam(&self, spammer_id: UserId) -> anyhow::Result<()>;
-
-    /// Delete the account on the server and locally.
-    ///
-    /// If `db_path` is provided, the client database is also deleted.
-    async fn delete_account(&self, db_path: Option<&str>) -> anyhow::Result<()>;
-
-    /// Loads a user setting
-    ///
-    /// If the setting is not found, or loading or decoding failed, `None` is returned.
-    async fn user_setting<T: UserSetting>(&self) -> Option<T>;
-
-    async fn set_user_setting<T: UserSetting>(&self, value: &T) -> StoreResult<()>;
-
-    // usernames
-
-    /// Check whether a username exists on the AS. Relatively expensive operation, as it
-    /// requires computation of a username hash.
-    ///
-    /// Returns the computed hash of the username if it exists, otherwise `None`.
-    async fn check_username_exists(&self, username: Username) -> StoreResult<Option<UsernameHash>>;
-
-    async fn usernames(&self) -> StoreResult<Vec<Username>>;
-
-    async fn username_records(&self) -> StoreResult<Vec<UsernameRecord>>;
-
-    async fn add_username(&self, username: Username) -> StoreResult<Option<UsernameRecord>>;
-
-    async fn remove_username(&self, username: &Username) -> StoreResult<UsernameDeleteResponse>;
-
-    // chats
-
-    /// Create new chat
-    ///
-    /// Returns the id of the newly created chat.
-    async fn create_chat(
-        &self,
-        title: String,
-        picture: Option<Vec<u8>>,
-        is_apq: bool,
-    ) -> StoreResult<ChatId>;
-
-    async fn set_chat_picture(&self, chat_id: ChatId, picture: Option<Vec<u8>>) -> StoreResult<()>;
-
-    async fn set_chat_title(&self, chat_id: ChatId, title: String) -> StoreResult<()>;
-
-    /// Returns the list of all chat ids in the order they should be displayed:
-    ///
-    /// 1. First return all chats having a draft ordered by the timestamp of the draft, descending.
-    /// 2. Then return all chats ordered by the timestamp of the last message, descending.
-    async fn ordered_chat_ids(&self) -> StoreResult<Vec<ChatId>>;
-
-    async fn chat(&self, chat_id: ChatId) -> StoreResult<Option<Chat>>;
-
-    async fn chat_participants(&self, chat_id: ChatId) -> StoreResult<Option<HashSet<UserId>>>;
-
-    /// Mark the chat with the given [`ChatId`] as read until the given message id (including).
-    ///
-    /// Returns whether the chat was marked as read and the message ids of the messages that were
-    /// marked as read.
-    async fn mark_chat_as_read(
-        &self,
-        chat_id: ChatId,
-        until: MessageId,
-    ) -> StoreResult<(bool, Vec<(MessageId, MimiId)>)>;
-
-    /// Delete the chat with the given [`ChatId`].
-    ///
-    /// Since this function causes the creation of an MLS commit, it can cause more than one effect
-    /// on the group. As a result this function returns a vector of [`ChatMessage`]s that
-    /// represents the changes to the group. Note that these returned message have already been
-    /// persisted.
-    async fn delete_chat(&self, chat_id: ChatId) -> StoreResult<Vec<ChatMessage>>;
-
-    async fn leave_chat(&self, chat_id: ChatId) -> StoreResult<()>;
-
-    /// Erases the chat data with the given [`ChatId`].
-    ///
-    /// Must not be called before the chat is deleted.
-    async fn erase_chat(&self, chat_id: ChatId) -> StoreResult<()>;
-
-    // user management
-
-    /// Update the user's key material in the chat with the given [`ChatId`].
-    ///
-    /// Since this function causes the creation of an MLS commit, it can cause more than one effect
-    /// on the group. As a result this function returns a vector of [`ChatMessage`]s that
-    /// represents the changes to the group. Note that these returned message have already been
-    /// persisted.
-    async fn update_key(&self, chat_id: ChatId) -> StoreResult<Vec<ChatMessage>>;
-
-    /// Remove users from the chat with the given [`ChatId`].
-    ///
-    /// Since this function causes the creation of an MLS commit, it can cause more than one effect
-    /// on the group. As a result this function returns a vector of [`ChatMessage`]s that
-    /// represents the changes to the group. Note that these returned message have already been
-    /// persisted.
-    async fn remove_users(
-        &self,
-        chat_id: ChatId,
-        target_users: Vec<UserId>,
-    ) -> StoreResult<Vec<ChatMessage>>;
-
-    /// Invite users to an existing chat.
-    ///
-    /// Since this function causes the creation of an MLS commit, it can cause more than one effect
-    /// on the group. As a result this function returns a vector of [`ChatMessage`]s that
-    /// represents the changes to the group. Note that these group. Note that these returned
-    /// message have already been persisted.
-    async fn invite_users(
-        &self,
-        chat_id: ChatId,
-        invited_users: &[UserId],
-    ) -> StoreResult<Result<Vec<ChatMessage>, InviteUsersError>>;
-
-    async fn load_room_state(&self, chat_id: ChatId) -> StoreResult<(UserId, VerifiedRoomState)>;
-
-    // contacts
-
-    /// Create a connection with a new user via their username.
-    ///
-    /// Returns the [`ChatId`] of the newly created connection
-    /// chat, or `None` if the username does not exist.
-    ///
-    /// The hash must be pre-computed before calling this function.
-    async fn add_contact(
-        &self,
-        username: Username,
-        hash: UsernameHash,
-    ) -> StoreResult<Result<ChatId, AddUsernameContactError>>;
-
-    /// Create a connection with a new user via an existing group chat.
-    ///
-    /// The group chat must contain the user to connect to.
-    /// Returns the [`ChatId`] of the newly created connection
-    /// chat.
-    async fn add_contact_from_group(&self, chat_id: ChatId, user_id: UserId)
-    -> StoreResult<ChatId>;
-
-    async fn block_contact(&self, user_id: UserId) -> StoreResult<()>;
-
-    async fn unblock_contact(&self, user_id: UserId) -> StoreResult<()>;
-
-    async fn accept_contact_request(
-        &self,
-        chat_id: ChatId,
-    ) -> StoreResult<Result<(), AcceptContactRequestError>>;
-
-    async fn contacts(&self) -> StoreResult<Vec<Contact>>;
-
-    async fn contact(&self, user_id: &UserId) -> StoreResult<Option<ContactType>>;
-
-    async fn username_contacts(&self) -> StoreResult<Vec<UsernameContact>>;
-
-    async fn targeted_message_contacts(&self) -> StoreResult<Vec<TargetedMessageContact>>;
-
-    async fn user_profile(&self, user_id: &UserId) -> UserProfile;
-
-    // messages
-
-    async fn messages(&self, chat_id: ChatId, limit: usize) -> StoreResult<Vec<ChatMessage>>;
-
-    async fn messages_before(
-        &self,
-        chat_id: ChatId,
-        before: TimeStamp,
-        before_id: MessageId,
-        limit: usize,
-    ) -> StoreResult<(Vec<ChatMessage>, bool)>;
-
-    async fn messages_after(
-        &self,
-        chat_id: ChatId,
-        after: TimeStamp,
-        after_id: MessageId,
-        limit: usize,
-    ) -> StoreResult<(Vec<ChatMessage>, bool)>;
-
-    async fn messages_from(
-        &self,
-        chat_id: ChatId,
-        from: TimeStamp,
-        from_id: MessageId,
-        limit: usize,
-    ) -> StoreResult<(Vec<ChatMessage>, bool)>;
-
-    async fn messages_around(
-        &self,
-        chat_id: ChatId,
-        anchor: TimeStamp,
-        anchor_id: MessageId,
-        half_limit: usize,
-    ) -> StoreResult<(Vec<ChatMessage>, bool, bool)>;
-
-    async fn first_unread_message(&self, chat_id: ChatId) -> StoreResult<Option<ChatMessage>>;
-
-    async fn message(&self, message_id: MessageId) -> StoreResult<Option<ChatMessage>>;
-
-    async fn prev_message(
-        &self,
-        chat_id: ChatId,
-        message_id: MessageId,
-    ) -> StoreResult<Option<ChatMessage>>;
-
-    async fn next_message(
-        &self,
-        chat_id: ChatId,
-        message_id: MessageId,
-    ) -> StoreResult<Option<ChatMessage>>;
-
-    async fn last_message(&self, chat_id: ChatId) -> StoreResult<Option<ChatMessage>>;
-
-    async fn last_message_by_user(
-        &self,
-        chat_id: ChatId,
-        user_id: &UserId,
-    ) -> StoreResult<Option<ChatMessage>>;
-
-    async fn message_draft(&self, chat_id: ChatId) -> StoreResult<Option<MessageDraft>>;
-
-    async fn store_message_draft(
-        &self,
-        chat_id: ChatId,
-        message_draft: Option<&MessageDraft>,
-    ) -> StoreResult<()>;
-
-    async fn commit_all_message_drafts(&self) -> StoreResult<()>;
-
-    async fn messages_count(&self, chat_id: ChatId) -> StoreResult<usize>;
-
-    async fn unread_messages_count(&self, chat_id: ChatId) -> StoreResult<usize>;
-
-    async fn global_unread_messages_count(&self) -> StoreResult<usize>;
-
-    async fn send_message(
-        &self,
-        chat_id: ChatId,
-        content: MimiContent,
-        replaces_id: Option<ChatMessage>,
-    ) -> StoreResult<ChatMessage>;
-
-    async fn resend_message(&self, local_message_id: Uuid) -> StoreResult<()>;
-
-    /// Delete message content locally without sending a network message.
-    ///
-    /// This replaces the message content with NullPart and deletes the edit history.
-    /// The message remains visible as a "deleted" placeholder.
-    async fn delete_message_content_locally(&self, message_id: MessageId) -> StoreResult<()>;
-
-    /// Delete a message locally without sending a network message.
-    ///
-    /// This completely removes the message from the database, including edit history
-    /// and status records. The message will no longer appear in the chat.
-    async fn delete_message_locally(&self, message_id: MessageId) -> StoreResult<()>;
-
-    // attachments
-
-    /// Stores local attachment incl. the corresponding message, and returns a task for uploading
-    /// attachment and its uploading progress.
-    ///
-    /// The returned task uploads the attachment fully to the server and returns the message corresponding
-    /// to the attachment. The message is *not* enqueued to the outbound service. It is the caller's
-    /// responsibility to enqueue the message.
-    async fn upload_attachment(
-        &self,
-        chat_id: ChatId,
-        path: &Path,
-    ) -> StoreResult<
-        Result<
-            (
-                AttachmentId,
-                AttachmentProgress,
-                impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<Self>,
-            ),
-            ProvisionAttachmentError,
-        >,
-    >;
-
-    async fn retry_upload_attachment(
-        &self,
-        attachment_id: AttachmentId,
-    ) -> StoreResult<
-        Result<
-            (
-                AttachmentId,
-                AttachmentProgress,
-                impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<Self>,
-            ),
-            ProvisionAttachmentError,
-        >,
-    >;
-
-    fn download_attachment(
-        &self,
-        attachment_id: AttachmentId,
-    ) -> (
-        AttachmentProgress,
-        impl Future<Output = StoreResult<()>> + use<Self>,
-    );
-
-    async fn pending_attachments(&self) -> StoreResult<Vec<AttachmentId>>;
-
-    async fn load_attachment(&self, attachment_id: AttachmentId) -> StoreResult<AttachmentContent>;
-
-    async fn attachment_status(
-        &self,
-        attachment_id: AttachmentId,
-    ) -> StoreResult<Option<AttachmentStatus>>;
-
-    /// Load all attachment IDs for a given message.
-    ///
-    /// This is primarily used for test verification.
-    async fn attachment_ids_for_message(
-        &self,
-        message_id: MessageId,
-    ) -> StoreResult<Vec<AttachmentId>>;
-
-    // observability
-
-    fn notify(&self, notification: StoreNotification);
-
-    fn subscribe(&self) -> impl Stream<Item = Arc<StoreNotification>> + Send + Unpin + 'static;
-
-    fn subscribe_iter(&self) -> impl Iterator<Item = Arc<StoreNotification>> + Send + 'static;
-
-    async fn enqueue_notification(&self, notification: &StoreNotification) -> StoreResult<()>;
-
-    async fn dequeue_notification(&self) -> StoreResult<StoreNotification>;
-
-    async fn safety_code(&self, user_id: &UserId) -> anyhow::Result<SafetyCode>;
+/// Used to collect all notifications and eventually send them all at once.
+#[derive(Debug)]
+pub(crate) struct StoreNotifier {
+    tx: StoreNotificationsSender,
+    notification: StoreNotification,
 }
 
-pub trait UserSetting: Send + Sync {
-    const KEY: &'static str;
+impl StoreNotifier {
+    /// Creates a new notifier which will send all notifications with the given sender.
+    pub(crate) fn new(tx: StoreNotificationsSender) -> Self {
+        Self {
+            tx,
+            notification: StoreNotification::empty(),
+        }
+    }
 
-    fn encode(&self) -> StoreResult<Vec<u8>>;
-    fn decode(bytes: Vec<u8>) -> StoreResult<Self>
-    where
-        Self: Sized;
+    /// Add a new entity to the notification.
+    ///
+    /// Notification will be sent when the `notify` function is called.
+    pub(crate) fn add(&mut self, id: impl Into<StoreEntityId>) -> &mut Self {
+        self.notification
+            .ops
+            .entry(id.into())
+            .or_default()
+            .insert(StoreOperation::Add);
+        self
+    }
+
+    /// Update an existing entity in the notification.
+    ///
+    /// Notification will be sent when the `notify` function is called.
+    pub(crate) fn update(&mut self, id: impl Into<StoreEntityId>) -> &mut Self {
+        self.notification
+            .ops
+            .entry(id.into())
+            .or_default()
+            .insert(StoreOperation::Update);
+        self
+    }
+
+    /// Remove an existing entity from the notification.
+    ///
+    /// Notification will be sent when the `notify` function is called.
+    pub(crate) fn remove(&mut self, id: impl Into<StoreEntityId>) -> &mut Self {
+        self.notification
+            .ops
+            .entry(id.into())
+            .or_default()
+            .insert(StoreOperation::Remove);
+        self
+    }
+
+    /// Send collected notifications to the subscribers, if there are any.
+    pub(crate) fn notify(mut self) {
+        if !self.notification.ops.is_empty() {
+            let notification = mem::take(&mut self.notification);
+            self.tx.notify(Arc::new(notification));
+        }
+    }
+
+    /// Clears accumulated notifications
+    pub(crate) fn clear(&mut self) {
+        self.notification.clear();
+    }
+}
+
+impl Drop for StoreNotifier {
+    fn drop(&mut self) {
+        if !self.notification.ops.is_empty() {
+            // Note: This might be ok. E.g. an error might happen after some notifications were
+            // added to the notifier.
+            warn!(
+                "StoreNotifier dropped with notifications; \
+                    did you forget to call notify()? notifications = {:?}",
+                self.notification
+            );
+        }
+    }
+}
+
+/// A channel for sending or subscribing to notifications
+#[derive(Debug, Clone)]
+pub(crate) struct StoreNotificationsSender {
+    tx: broadcast::Sender<Arc<StoreNotification>>,
+}
+
+impl StoreNotificationsSender {
+    /// Create a new notification sender without any subscribers.
+    pub(crate) fn new() -> Self {
+        let (tx, _) = broadcast::channel(NOTIFICATION_CHANNEL_SIZE);
+        Self { tx }
+    }
+
+    /// Sends a notification to all current subscribers.
+    pub(crate) fn notify(&self, notification: impl Into<Arc<StoreNotification>>) {
+        let notification = notification.into();
+        debug!(
+            num_receivers = self.tx.receiver_count(),
+            ?notification,
+            "StoreNotificationsSender::notify"
+        );
+        let _no_receivers = self.tx.send(notification);
+    }
+
+    /// Creates a new subscription to the notifications.
+    ///
+    /// The stream will contain all notifications from the moment this function is called.
+    pub(crate) fn subscribe(&self) -> impl Stream<Item = Arc<StoreNotification>> + 'static {
+        BroadcastStream::new(self.tx.subscribe()).filter_map(|res| match res {
+            Ok(notification) => Some(notification),
+            Err(BroadcastStreamRecvError::Lagged(n)) => {
+                error!(n, "store notifications lagged");
+                None
+            }
+        })
+    }
+
+    /// Returns all pending notifications.
+    ///
+    /// The pending notifications are the notifications captured starting at the call to this function.
+    /// Getting the next item from the iterator gets the next pending notification is there is any,
+    /// otherwise it returns `None`. Therefore, the iterator is not fused.
+    ///
+    /// This is useful for capturing all pending notifications synchronously.
+    pub(crate) fn subscribe_iter(
+        &self,
+    ) -> impl Iterator<Item = Arc<StoreNotification>> + Send + 'static {
+        let mut rx = self.tx.subscribe();
+        std::iter::from_fn(move || {
+            loop {
+                match rx.try_recv() {
+                    Ok(notification) => return Some(notification),
+                    Err(broadcast::error::TryRecvError::Lagged(n)) => {
+                        error!(n, "store notifications lagged");
+                        continue;
+                    }
+                    Err(
+                        broadcast::error::TryRecvError::Closed
+                        | broadcast::error::TryRecvError::Empty,
+                    ) => return None,
+                }
+            }
+        })
+    }
+}
+
+impl Default for StoreNotificationsSender {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// A store notification bundle
+///
+/// Bundles all changes to the store, that is, all entities that have been added, updated or
+/// removed.
+#[derive(Debug, Default)]
+#[cfg_attr(test, derive(PartialEq, Eq))]
+pub struct StoreNotification {
+    pub ops: BTreeMap<StoreEntityId, EnumSet<StoreOperation>>,
+}
+
+impl StoreNotification {
+    fn empty() -> Self {
+        Self::default()
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.ops.is_empty()
+    }
+
+    fn clear(&mut self) {
+        self.ops.clear();
+    }
+}
+
+/// Operation which was performed in a [`super::Store`]
+#[derive(Debug, PartialOrd, Ord, Hash, EnumSetType)]
+pub enum StoreOperation {
+    Add,
+    Update,
+    Remove,
+}
+
+/// Identifier of an entity of a [`super::Store`].
+///
+/// Used to identify added, updated or removed entities in a [`StoreNotification`].
+// Note(perf): I would prefer this type to be copy and smaller in memory (currently 40 bytes), but
+// `UserId` is not copy and quite large.
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash, derive_more::From)]
+pub enum StoreEntityId {
+    User(UserId),
+    Chat(ChatId),
+    Message(MessageId),
+    Attachment(AttachmentId),
+}
+
+impl StoreEntityId {
+    pub(crate) fn kind(&self) -> StoreEntityKind {
+        match self {
+            StoreEntityId::User(_) => StoreEntityKind::User,
+            StoreEntityId::Chat(_) => StoreEntityKind::Chat,
+            StoreEntityId::Message(_) => StoreEntityKind::Message,
+            StoreEntityId::Attachment(_) => StoreEntityKind::Attachment,
+        }
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub(crate) enum StoreEntityKind {
+    User = 0,
+    Chat = 1,
+    Message = 2,
+    Attachment = 3,
+}
+
+#[derive(Debug, thiserror::Error)]
+#[error("Invalid store entity kind: {0}")]
+pub(crate) struct InvalidStoreEntityKind(i64);
+
+impl TryFrom<i64> for StoreEntityKind {
+    type Error = InvalidStoreEntityKind;
+
+    fn try_from(value: i64) -> Result<Self, Self::Error> {
+        match value {
+            0 => Ok(StoreEntityKind::User),
+            1 => Ok(StoreEntityKind::Chat),
+            2 => Ok(StoreEntityKind::Message),
+            3 => Ok(StoreEntityKind::Attachment),
+            _ => Err(InvalidStoreEntityKind(value)),
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn subscribe_iter() {
+        let tx = StoreNotificationsSender::new();
+
+        let ops_1: BTreeMap<StoreEntityId, EnumSet<StoreOperation>> = [(
+            StoreEntityId::User(UserId::random("localhost".parse().unwrap())),
+            StoreOperation::Add.into(),
+        )]
+        .into_iter()
+        .collect();
+
+        let ops_2: BTreeMap<StoreEntityId, EnumSet<StoreOperation>> = [(
+            StoreEntityId::User(UserId::random("localhost".parse().unwrap())),
+            StoreOperation::Update.into(),
+        )]
+        .into_iter()
+        .collect();
+
+        let ops_3: BTreeMap<StoreEntityId, EnumSet<StoreOperation>> = [(
+            StoreEntityId::User(UserId::random("localhost".parse().unwrap())),
+            StoreOperation::Remove.into(),
+        )]
+        .into_iter()
+        .collect();
+
+        let ops_4: BTreeMap<StoreEntityId, EnumSet<StoreOperation>> = [(
+            StoreEntityId::User(UserId::random("localhost".parse().unwrap())),
+            StoreOperation::Add.into(),
+        )]
+        .into_iter()
+        .collect();
+
+        tx.notify(StoreNotification {
+            ops: ops_1.into_iter().collect(),
+        });
+
+        let mut iter = tx.subscribe_iter();
+
+        tx.notify(StoreNotification { ops: ops_2.clone() });
+
+        // first notification is not observed, because it was sent before the subscription
+        assert_eq!(iter.next().unwrap().ops, ops_2);
+        assert_eq!(iter.next(), None);
+
+        tx.notify(StoreNotification { ops: ops_3.clone() });
+        assert_eq!(iter.next().unwrap().ops, ops_3);
+        tx.notify(StoreNotification { ops: ops_4.clone() });
+        assert_eq!(iter.next().unwrap().ops, ops_4);
+        assert_eq!(iter.next(), None);
+    }
 }

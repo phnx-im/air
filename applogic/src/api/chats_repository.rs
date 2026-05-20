@@ -4,7 +4,7 @@
 
 use std::{num::NonZeroUsize, sync::Arc};
 
-use aircoreclient::{ChatId, clients::CoreUser, store::Store};
+use aircoreclient::{ChatId, clients::CoreUser};
 use flutter_rust_bridge::frb;
 use lru::LruCache;
 use parking_lot::Mutex;

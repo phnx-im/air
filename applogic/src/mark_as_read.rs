@@ -6,7 +6,7 @@ use std::{cmp::Ordering, time::Duration};
 
 use aircommon::identifiers::MimiId;
 use aircoreclient::ChatId;
-use aircoreclient::{MessageId, clients::CoreUser, store::Store};
+use aircoreclient::{MessageId, clients::CoreUser};
 use anyhow::Context;
 use chrono::{DateTime, Utc};
 use mimi_content::MessageStatus;

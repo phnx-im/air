@@ -267,7 +267,7 @@ fn prune_deb_pool(shell: &Shell, pool: &Utf8Path, keep: usize) -> Result<()> {
 fn prune_rpm_packages(shell: &Shell, repo_dir: &Utf8Path, keep: usize) -> Result<()> {
     let keep_arg = format!("--keep={keep}");
     let repo_dir_str = repo_dir.as_str();
-    cmd!(shell, "repomanage --old {keep_arg} {repo_dir_str}").read()?;
+    cmd!(shell, "dnf repomanage --old {keep_arg} {repo_dir_str}").read()?;
     Ok(())
 }
 

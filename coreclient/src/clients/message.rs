@@ -71,7 +71,7 @@ impl CoreUser {
     ///
     /// This completely removes the message from the database, including edit history
     /// and status records. The message will no longer appear in the chat.
-    pub(crate) async fn delete_message_locally(&self, message_id: MessageId) -> anyhow::Result<()> {
+    pub async fn delete_message_locally(&self, message_id: MessageId) -> anyhow::Result<()> {
         self.db()
             .with_write_transaction(async |txn| {
                 let message = ChatMessage::load(&mut *txn, message_id)
@@ -100,63 +100,11 @@ impl CoreUser {
             .await
     }
 
-    /// Delete message content locally without sending a network message.
-    ///
-    /// This replaces the message content with NullPart and deletes the edit history.
-    /// The message remains visible as a "deleted" placeholder.
-    pub(crate) async fn delete_message_content_locally(
-        &self,
-        message_id: MessageId,
-    ) -> anyhow::Result<()> {
-        self.db()
-            .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                let mut message = ChatMessage::load(&mut *txn, message_id)
-                    .await?
-                    .with_context(|| format!("Can't find message with id {message_id:?}"))?;
-
-                let chat = Chat::load(&mut *txn, &message.chat_id())
-                    .await?
-                    .with_context(|| format!("Can't find chat with id {:?}", message.chat_id()))?;
-
-                let original_sender = message
-                    .message()
-                    .sender()
-                    .context("Message does not have sender")?
-                    .clone();
-
-                // Delete edit history
-                MessageEdit::delete_by_message_id(&mut *txn, message_id).await?;
-
-                // Create NullPart content for deletion
-                let null_content = message.null_part_content()?;
-
-                // Update the message with NullPart content
-                message.set_content_message(ContentMessage::new(
-                    original_sender,
-                    true, // is_sent
-                    null_content,
-                    chat.group_id(),
-                ));
-                message.set_status(MessageStatus::Deleted);
-                message.set_edited_at(TimeStamp::now());
-                message.update(&mut *txn).await?;
-
-                // Clear the status records
-                StatusRecord::clear(&mut *txn, message_id).await?;
-
-                // Delete attachments
-                AttachmentRecord::delete_by_message_id(&mut *txn, message_id).await?;
-
-                Ok(())
-            })
-            .await
-    }
-
     /// Send a message and return it.
     ///
     /// The message is stored, then sent to the DS and finally returned. The
     /// chat is marked as read until this message.
-    pub(crate) async fn send_message(
+    pub async fn send_message(
         &self,
         chat_id: ChatId,
         content: MimiContent,
@@ -175,7 +123,7 @@ impl CoreUser {
 
         if needs_update {
             // TODO race condition: Before or after this update, new proposals could arrive
-            self.update_key(chat_id, None).await?;
+            self.update_key(chat_id).await?;
         }
 
         let unsent_group_message = Box::pin(self.db().with_write_transaction(
@@ -363,61 +311,5 @@ impl UnsentMessage<GroupUpdateNeeded> {
             message,
             group_update: GroupUpdated,
         })
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use aircommon::identifiers::UserId;
-    use airserver_test_harness::utils::setup::TestBackend;
-    use mimi_content::MessageStatus;
-
-    use crate::{
-        ChatMessage,
-        chats::{messages::persistence::tests::test_chat_message, persistence::tests::test_chat},
-        clients::{
-            CoreUser,
-            attachment::{AttachmentRecord, persistence::test::test_attachment_record},
-        },
-    };
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn delete_message_content_locally_cleans_up_attachments() -> anyhow::Result<()> {
-        let backend = TestBackend::single().await;
-        let user_id = UserId::random(backend.domain().clone());
-        let user =
-            CoreUser::new_ephemeral(user_id, backend.server_url(), None, "DUMMY007".to_owned())
-                .await?;
-
-        let db = user.db();
-
-        // Set up test data: chat -> message -> attachment
-        let chat = test_chat();
-        chat.store(db.write().await?).await?;
-
-        let message = test_chat_message(chat.id());
-        message.store(db.write().await?).await?;
-
-        let attachment = test_attachment_record(chat.id(), message.id());
-        attachment.store(db.write().await?, None).await?;
-
-        // Verify attachment exists before deletion
-        let ids = AttachmentRecord::load_ids_by_message_id(db.read().await?, message.id()).await?;
-        assert_eq!(ids.len(), 1);
-
-        // Call the actual function
-        user.delete_message_content_locally(message.id()).await?;
-
-        // Verify attachment is gone
-        let ids = AttachmentRecord::load_ids_by_message_id(db.read().await?, message.id()).await?;
-        assert!(ids.is_empty());
-
-        // Verify message still exists with Deleted status
-        let loaded = ChatMessage::load(db.read().await?, message.id())
-            .await?
-            .unwrap();
-        assert_eq!(loaded.status(), MessageStatus::Deleted);
-
-        Ok(())
     }
 }

@@ -10,7 +10,7 @@ use aircommon::identifiers::{Username, UsernameHash};
 use aircoreclient::{
     AddUsernameContactError, ChatId,
     clients::CoreUser,
-    store::{Store, StoreEntityId, StoreNotification},
+    store::{StoreEntityId, StoreNotification},
 };
 use flutter_rust_bridge::frb;
 use tokio::sync::watch;
@@ -36,7 +36,7 @@ pub struct ChatListState {
 #[frb(opaque)]
 pub struct ChatListCubitBase {
     core: CubitCore<ChatListState>,
-    context: ChatListContext<CoreUser>,
+    context: ChatListContext,
 }
 
 impl ChatListCubitBase {
@@ -47,7 +47,7 @@ impl ChatListCubitBase {
     #[frb(sync)]
     pub fn new(user_cubit: &UserCubitBase) -> Self {
         let store = user_cubit.core_user().clone();
-        let store_notifications = store.subscribe();
+        let store_notifications = store.store_notifications();
 
         let core = CubitCore::new();
 
@@ -91,7 +91,7 @@ impl ChatListCubitBase {
     ) -> anyhow::Result<Option<AddUsernameContactError>> {
         let username = Username::new(username.plaintext)?;
         self.context
-            .store
+            .core_user
             .add_contact(username, hash)
             .await
             .map(Result::err)
@@ -108,7 +108,7 @@ impl ChatListCubitBase {
         let is_apq = false;
         let id = self
             .context
-            .store
+            .core_user
             .create_chat(group_name, picture, is_apq)
             .await?;
         self.context.load_and_emit_state().await;
@@ -119,17 +119,17 @@ impl ChatListCubitBase {
 /// Loads the initial state and listen to the changes
 #[frb(ignore)]
 #[derive(Clone)]
-struct ChatListContext<S> {
-    store: S,
+struct ChatListContext {
+    core_user: CoreUser,
     state_tx: watch::Sender<ChatListState>,
 }
 
-impl<S> ChatListContext<S>
-where
-    S: Store + Send + Sync + 'static,
-{
-    fn new(store: S, state_tx: watch::Sender<ChatListState>) -> Self {
-        Self { store, state_tx }
+impl ChatListContext {
+    fn new(core_user: CoreUser, state_tx: watch::Sender<ChatListState>) -> Self {
+        Self {
+            core_user,
+            state_tx,
+        }
     }
 
     fn spawn(
@@ -145,9 +145,14 @@ where
     }
 
     async fn load_and_emit_state(&self) {
-        let Ok(chat_ids) = self.store.ordered_chat_ids().await.inspect_err(|error| {
-            error!(%error, "Failed to load chats");
-        }) else {
+        let Ok(chat_ids) = self
+            .core_user
+            .ordered_chat_ids()
+            .await
+            .inspect_err(|error| {
+                error!(%error, "Failed to load chats");
+            })
+        else {
             return;
         };
         self.state_tx.send_modify(|state| state.chat_ids = chat_ids);

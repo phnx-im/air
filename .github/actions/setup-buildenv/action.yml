@@ -112,6 +112,7 @@ runs:
           if [[ "$GITHUB_REF_NAME" == "main" ]]; then export SCCACHE_RECACHE=y; fi
           sccache --start-server
           echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+          echo "SCCACHE_DIR=${{ inputs.sccache-dir }}" >> $GITHUB_ENV
         post: |
           sccache --show-stats
 

@@ -48,7 +48,7 @@
 use std::time::Duration;
 
 use aircommon::identifiers::UserId;
-use aircoreclient::{ChatId, ChatStatus, store::Store};
+use aircoreclient::{ChatId, ChatStatus};
 use airserver_test_harness::utils::setup::TestBackend;
 use tokio::time::sleep;
 

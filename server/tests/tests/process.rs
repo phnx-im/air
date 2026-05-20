@@ -4,7 +4,6 @@
 
 use std::time::Duration;
 
-use aircoreclient::store::Store;
 use airserver_test_harness::utils::setup::TestBackend;
 use mimi_content::MimiContent;
 use rand::{Rng, thread_rng};
