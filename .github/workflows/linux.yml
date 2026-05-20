@@ -58,8 +58,17 @@ jobs:
     needs: linux-build
     runs-on: ubuntu-latest
 
+    strategy:
+      matrix:
+        include:
+          - format: rpm
+            extra_apt_dependencies: createrepo-c dnf dnf-plugins-core rpm
+          - format: deb
+            extra_apt_dependencies: apt-utils
+
     # only run this job on the main branch
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' 
+    #&& github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout repository
@@ -80,10 +89,10 @@ jobs:
       - name: Install dependencies
         run: |
           echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
-          sudo apt-get update && sudo apt-get install -y apt-utils createrepo-c dnf dnf-plugins-core gpg nfpm rpm
+          sudo apt-get update && sudo apt-get install -y gpg nfpm ${{ matrix.extra_apt_dependencies }}
 
       - name: Build packages
-        run: RELEASE=${{ needs.linux-build.outputs.build-number }} just build-deb build-rpm
+        run: RELEASE=${{ needs.linux-build.outputs.build-number }} just build-${{ matrix.format }}
 
       - name: Import GPG key and unlock it in the agent
         env:
@@ -121,5 +130,4 @@ jobs:
           S3_BUCKET: ${{ vars.S3_BUCKET }}
           S3_ENDPOINT: ${{ vars.S3_ENDPOINT }}
         run: |
-          cargo xtask publish-packages -- air-*.rpm
-          cargo xtask publish-packages -- air_*.deb
+          cargo xtask publish-packages -- app/linux/air-*.${{ matrix.format }}
