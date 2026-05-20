@@ -123,11 +123,8 @@ pub(crate) fn run(args: PublishArgs) -> Result<()> {
             "AWS_REQUEST_CHECKSUM_CALCULATION",
             "AWS_RESPONSE_CHECKSUM_VALIDATION",
         ] {
-            if env::var_os(key).is_none() {
-                // SAFETY: no other threads have been spawned at this point.
-                unsafe {
-                    env::set_var(key, "when_required");
-                }
+            if shell.var(key).is_err() {
+                shell.set_var(key, "when_required");
             }
         }
     }
@@ -166,7 +163,7 @@ fn build_config(shell: &Shell, args: PublishArgs) -> Result<Config> {
         _ => bail!("Cannot detect package type from filename."),
     };
 
-    // Trim trailing slash so client-setup snippets don't end up with "//".
+    // Trim trailing slash so client-setup snippets don't giend up with "//".
     let repository_base_url = args.repository_base_url.trim_end_matches('/');
 
     let workdir = Utf8PathBuf::try_from(cmd!(shell, "git rev-parse --show-toplevel").read()?)
