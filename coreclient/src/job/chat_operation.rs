@@ -4,6 +4,7 @@
 
 use std::{borrow::Cow, collections::HashSet};
 
+use airapiclient::ds_api::DsProvisionAttachmentTarget;
 use aircommon::identifiers::UserId;
 use airprotos::{
     client::group::{EncryptedGroupTitle, GroupData, GroupProfile},
@@ -285,11 +286,13 @@ impl ChatOperation {
             let api_client = api_clients.default_client()?;
             let content_length = ciphertext.len().try_into().context("usize overflow")?;
             let provision_response = api_client
-                .ds_provision_group_attachment(
+                .ds_provision_attachment(
                     &key_store.signing_key,
-                    group.group_state_ear_key(),
-                    group.group_id(),
-                    group.own_index(),
+                    DsProvisionAttachmentTarget::Group {
+                        group_state_ear_key: group.group_state_ear_key(),
+                        group_id: group.group_id(),
+                        sender_index: group.own_index(),
+                    },
                     content_length,
                     StorageObjectType::GroupProfile,
                 )

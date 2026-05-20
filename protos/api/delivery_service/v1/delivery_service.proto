@@ -40,7 +40,7 @@ service DeliveryService {
   // Generates an attachment ID and returns a pre-signed URL for uploading an attachment.
   //
   // The actual upload is done by the client.
-  rpc ProvisionGroupAttachment(ProvisionAttachmentRequest) returns (ProvisionAttachmentResponse);
+  rpc ProvisionAttachment(ProvisionAttachmentRequest) returns (ProvisionAttachmentResponse);
 
   // Returns a URL for downloading attachment.
   //
@@ -353,9 +353,15 @@ message ProvisionAttachmentRequest {
 
 message ProvisionAttachmentPayload {
   common.v1.ClientMetadata client_metadata = 6;
+
+  // either we provision an attachment for a group
   GroupStateEarKey group_state_ear_key = 1;
   common.v1.QualifiedGroupId group_id = 2;
   LeafNodeIndex sender = 3;
+
+  // or for a user
+  common.v1.UserId user_id = 8;
+  
   bool use_post_policy = 4;
   int64 content_length = 5;
   StorageObjectType object_type = 7;

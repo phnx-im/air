@@ -9,7 +9,10 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use airapiclient::{ApiClient, ds_api::ProvisionAttachmentResponse};
+use airapiclient::{
+    ApiClient,
+    ds_api::{DsProvisionAttachmentTarget, ProvisionAttachmentResponse},
+};
 use aircommon::{
     credentials::keys::ClientSigningKey,
     crypto::aead::{AeadCiphertext, AeadEncryptable, keys::AttachmentEarKey},
@@ -450,11 +453,13 @@ async fn encrypt_and_provision(
     // provision attachment
     let content_length = ciphertext.len().try_into().context("usize overflow")?;
     let response = match api_client
-        .ds_provision_group_attachment(
+        .ds_provision_attachment(
             signing_key,
-            group.group_state_ear_key(),
-            group.group_id(),
-            group.own_index(),
+            DsProvisionAttachmentTarget::Group {
+                group_state_ear_key: group.group_state_ear_key(),
+                group_id: group.group_id(),
+                sender_index: group.own_index(),
+            },
             content_length,
             StorageObjectType::Attachment,
         )
