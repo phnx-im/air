@@ -167,7 +167,6 @@ fn build_config(shell: &Shell, args: PublishArgs) -> Result<Config> {
     let repository_base_url = args.repository_base_url.trim_end_matches('/');
 
     let workdir = Utf8PathBuf::from(cmd!(shell, "git rev-parse --show-toplevel").read()?)
-        .context("git root directory is not valid UTF-8")?
         .join("app/linux/package-builds");
 
     Ok(Config {
