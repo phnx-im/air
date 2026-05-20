@@ -49,7 +49,8 @@ const TEST_RATE_LIMITS: RateLimitsSettings = RateLimitsSettings {
 };
 
 pub struct SpawnedApp {
-    pub address: SocketAddr,
+    runtime: tokio::runtime::Runtime,
+    pub listen_addr: SocketAddr,
     pub control_handle: ControlHandle,
     pub codes: Vec<String>,
     db_settings: DatabaseSettings,
@@ -77,39 +78,42 @@ impl DbNames {
 impl SpawnedApp {
     async fn cleanup(&mut self) {
         // Drop test databases
-        for db_name in [self.db_names.as_, self.db_names.ds, self.db_names.qs] {
-            let mut db_settings = self.db_settings.clone();
-            db_settings.name = db_name.to_string();
-            let mut connection =
-                PgConnection::connect(&db_settings.connection_string_without_database())
-                    .await
-                    .unwrap();
+        // for db_name in [self.db_names.as_, self.db_names.ds, self.db_names.qs] {
+        //     let mut db_settings = self.db_settings.clone();
+        //     db_settings.name = db_name.to_string();
+        //     let mut connection =
+        //         PgConnection::connect(&db_settings.connection_string_without_database())
+        //             .await
+        //             .unwrap();
 
-            let db_size: String = sqlx::query(&format!(
-                r#"SELECT pg_size_pretty( pg_database_size('{db_name}'))"#
-            ))
-            .fetch_one(&mut connection)
-            .await
-            .unwrap()
-            .try_get(0)
-            .unwrap();
+        //     let db_size: String = sqlx::query(&format!(
+        //         r#"SELECT pg_size_pretty( pg_database_size('{db_name}'))"#
+        //     ))
+        //     .fetch_one(&mut connection)
+        //     .await
+        //     .unwrap()
+        //     .try_get(0)
+        //     .unwrap();
 
-            sqlx::query(&format!(r#"DROP DATABASE "{db_name}""#))
-                .execute(&mut connection)
-                .await
-                .unwrap();
-            info!(%db_name, db_size, "Dropped test database");
-        }
+        //     sqlx::query(&format!(r#"DROP DATABASE "{db_name}""#))
+        //         .execute(&mut connection)
+        //         .await
+        //         .unwrap();
+        //     info!(%db_name, db_size, "Dropped test database");
+        // }
     }
 }
 
 impl Drop for SpawnedApp {
     fn drop(&mut self) {
+        let listen_addr = self.listen_addr;
+        info!(%listen_addr, "stopping spawned test server");
         self.stop.cancel();
-        if let Some(handle) = self.server_handle.take() {
+        if let Some(task_handle) = self.server_handle.take() {
+            let runtime_handle = self.runtime.handle().clone();
             block_in_place(|| {
-                Handle::current().block_on(async move {
-                    handle.await.expect("Server stopped with an error");
+                runtime_handle.block_on(async move {
+                    task_handle.await.expect("Server stopped with an error");
                     self.cleanup().await;
                 });
             });
@@ -249,14 +253,22 @@ pub(crate) async fn spawn_app(
     )
     .await;
 
+    // We start our own tokio::Runtime because we don't want to be tied to the caller's runtime.
+    let runtime = tokio::runtime::Builder::new_multi_thread()
+        .enable_all()
+        .worker_threads(8)
+        .build()
+        .expect("failed to build tokio runtime");
+
     // Execute the server in the background
-    let server_handle = tokio::spawn(async move {
+    let server_handle = runtime.spawn(async move {
         server.await.expect("Server stopped with an error");
     });
 
     // Return the address
     SpawnedApp {
-        address,
+        runtime,
+        listen_addr: address,
         control_handle,
         codes,
         db_settings: configuration.database,

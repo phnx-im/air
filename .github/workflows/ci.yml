@@ -66,7 +66,26 @@ jobs:
           name: golden-failures
           path: app/test/**/failures/*
 
-  rust:
+  rust-lints:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          filter: blob:none
+
+      - name: Setup build environment
+        uses: ./.github/actions/setup-buildenv
+        with:
+          pypi-packages: podman-compose~=1.5
+          flutter: false
+
+      - name: Rust checks
+        run: just check-rust
+
+  rust-tests:
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -82,9 +101,6 @@ jobs:
           cargo-binstall-tools: cargo-deny@0.19.0 sqlx-cli@0.8.6 cargo-machete@0.9.1
           pypi-packages: reuse~=6.2 podman-compose~=1.5
           flutter: false
-
-      - name: Rust checks
-        run: just check-rust
 
       - name: Rust tests
         run: just test-rust

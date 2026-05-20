@@ -4,9 +4,13 @@
 
 use std::{
     any::Any,
-    collections::{HashMap, HashSet},
+    collections::{
+        HashMap, HashSet,
+        hash_map::Entry::{self, Occupied},
+    },
     net::SocketAddr,
     path::Path,
+    sync::{Mutex, OnceLock},
     time::Duration,
 };
 
@@ -31,11 +35,12 @@ use tokio::{
     time::timeout,
 };
 use tokio_stream::StreamExt;
+use tonic::server;
 use tracing::info;
 use url::Url;
 use uuid::Uuid;
 
-use crate::utils::{controlled_listener::ControlHandle, spawn_app};
+use crate::utils::{SpawnedApp, controlled_listener::ControlHandle, spawn_app};
 
 #[derive(Debug)]
 pub struct TestUser {
@@ -167,7 +172,7 @@ enum ServerUrl {
     Local(SocketAddr),
 }
 
-#[derive(Debug)]
+#[derive(Debug, Hash, PartialEq, Eq, Clone)]
 pub struct TestBackendParams {
     pub rate_limits: Option<RateLimitsSettings>,
     pub client_version_req: Option<VersionReq>,
@@ -212,6 +217,8 @@ impl SentMessage<'_> {
     }
 }
 
+static SERVER_INSTANCES: OnceLock<Mutex<HashMap<TestBackendParams, SpawnedApp>>> = OnceLock::new();
+
 impl TestBackend {
     pub async fn single() -> Self {
         Self::single_with_params(Default::default()).await
@@ -228,22 +235,41 @@ impl TestBackend {
                 let domain: Fqdn = url.host().unwrap().to_owned().into();
                 (ServerUrl::External(url), domain, None, Vec::new(), None)
             } else {
-                let network_provider = MockNetworkProvider::new();
-                let domain: Fqdn = "localhost".parse().unwrap();
-                let app = spawn_app(domain.clone(), network_provider, params).await;
-                let listen_addr = app.address;
-                let control_handle = app.control_handle.clone();
-                let codes = app.codes.clone();
-                info!(%listen_addr, "using spawned test server");
-                let cleanup: Box<dyn Any> = Box::new(app);
-                (
-                    ServerUrl::Local(listen_addr),
-                    domain,
-                    Some(control_handle),
-                    codes,
-                    Some(cleanup),
-                )
+                let mut server_instances = SERVER_INSTANCES
+                    .get_or_init(Default::default)
+                    .lock()
+                    .expect("poisoned mutex");
+
+                if let Some(server) = server_instances.get(&params) {
+                    let domain: Fqdn = "localhost".parse().unwrap();
+                    let listen_addr = server.listen_addr;
+                    info!(%listen_addr, "reusing existing test server");
+                    (
+                        ServerUrl::Local(listen_addr.clone()),
+                        domain,
+                        Some(server.control_handle.clone()),
+                        server.codes.clone(),
+                        None,
+                    )
+                } else {
+                    let network_provider = MockNetworkProvider::new();
+                    let domain: Fqdn = "localhost".parse().unwrap();
+                    let app = spawn_app(domain.clone(), network_provider, params.clone()).await;
+                    let listen_addr = app.listen_addr.clone();
+                    let control_handle = app.control_handle.clone();
+                    let codes = app.codes.clone();
+                    info!(%listen_addr, "using spawned test server");
+                    server_instances.insert(params, app);
+                    (
+                        ServerUrl::Local(listen_addr),
+                        domain,
+                        Some(control_handle),
+                        codes,
+                        None,
+                    )
+                }
             };
+
         Self {
             users: HashMap::new(),
             groups: HashMap::new(),
