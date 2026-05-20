@@ -46,9 +46,8 @@ use tokio_util::sync::DropGuard;
 use tracing::{error, info, warn};
 use url::Url;
 
-use crate::user_profiles::UserProfile;
 use crate::{
-    Asset, UsernameRecord,
+    Asset, PartialContact, UsernameRecord,
     clients::event_loop::{EventLoop, EventLoopSender},
     contacts::{TargetedMessageContact, UsernameContact},
     db_access::{DbAccess, ReadConnection, WriteDbTransaction},
@@ -56,7 +55,6 @@ use crate::{
     job::{Job, JobContext, JobContextDb, JobError},
     key_stores::queue_ratchets::StorableQsQueueRatchet,
     outbound_service::OutboundService,
-    store::Store,
     utils::{
         global_lock::GlobalLock,
         image::resize_profile_image,
@@ -64,6 +62,7 @@ use crate::{
     },
 };
 use crate::{ChatId, key_stores::as_credentials::AsCredentials};
+use crate::{ContactType, user_profiles::UserProfile};
 use crate::{
     MessageId,
     chats::{
@@ -321,7 +320,7 @@ impl CoreUser {
         &self.inner.key_store
     }
 
-    pub(crate) fn send_store_notification(&self, notification: StoreNotification) {
+    pub fn send_store_notification(&self, notification: StoreNotification) {
         if !notification.is_empty() {
             self.inner.db.notifier_tx.notify(notification);
         }
@@ -331,7 +330,7 @@ impl CoreUser {
     ///
     /// All notifications sent after this function was called are observed as items of the returned
     /// stream.
-    pub(crate) fn subscribe_to_store_notifications(
+    pub fn store_notifications(
         &self,
     ) -> impl Stream<Item = Arc<StoreNotification>> + Send + 'static {
         self.inner.db.notifier_tx.subscribe()
@@ -341,21 +340,18 @@ impl CoreUser {
     ///
     /// Unlike `subscribe_to_store_notifications`, this function does not remove stored
     /// notifications from the persisted queue.
-    pub(crate) fn subscribe_iter_to_store_notifications(
+    pub fn pending_store_notifications(
         &self,
     ) -> impl Iterator<Item = Arc<StoreNotification>> + Send + 'static {
         self.inner.db.notifier_tx.subscribe_iter()
     }
 
-    pub(crate) async fn enqueue_store_notification(
-        &self,
-        notification: &StoreNotification,
-    ) -> Result<()> {
+    pub async fn enqueue_store_notification(&self, notification: &StoreNotification) -> Result<()> {
         notification.enqueue(self.db().write().await?).await?;
         Ok(())
     }
 
-    pub(crate) async fn dequeue_store_notification(&self) -> Result<StoreNotification> {
+    pub async fn dequeue_store_notification(&self) -> Result<StoreNotification> {
         Ok(StoreNotification::dequeue(self.db().write().await?).await?)
     }
 
@@ -515,6 +511,20 @@ impl CoreUser {
             contact.augment_supported_features(&mut connection).await?;
         }
         Ok(contacts)
+    }
+
+    pub async fn contact_type(&self, user_id: &UserId) -> anyhow::Result<Option<ContactType>> {
+        if let Some(contact) = self.try_contact(user_id).await? {
+            Ok(Some(ContactType::Full(contact)))
+        } else if let Some(targeted_message_contact) =
+            self.try_targeted_message_contact(user_id).await?
+        {
+            Ok(Some(ContactType::Partial(PartialContact::TargetedMessage(
+                targeted_message_contact,
+            ))))
+        } else {
+            Ok(None)
+        }
     }
 
     pub async fn contact(&self, user_id: &UserId) -> Option<Contact> {
@@ -695,10 +705,6 @@ impl CoreUser {
 
     pub(crate) async fn try_messages_count(&self, chat_id: ChatId) -> sqlx::Result<usize> {
         Chat::messages_count(self.db().read().await?, chat_id).await
-    }
-
-    pub(crate) async fn try_unread_messages_count(&self, chat_id: ChatId) -> sqlx::Result<usize> {
-        Chat::unread_messages_count(self.db().read().await?, chat_id).await
     }
 
     /// Schedules the client's push token update on the QS.

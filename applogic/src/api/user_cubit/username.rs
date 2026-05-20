@@ -8,7 +8,6 @@ use aircommon::identifiers::Username;
 use aircoreclient::{
     UsernameRecord,
     clients::{AsListenUsernameResponder, UsernameQueueMessage},
-    store::Store,
 };
 use anyhow::{Context, bail};
 use flutter_rust_bridge::frb;

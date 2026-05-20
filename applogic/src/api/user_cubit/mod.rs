@@ -9,7 +9,7 @@ use std::sync::Arc;
 pub(crate) use aircommon::identifiers::UsernameHash;
 use aircommon::identifiers::{UserId, Username};
 pub(crate) use aircoreclient::InviteUsersError;
-use aircoreclient::{Asset, ChatId, ContactType, PartialContact, clients::CoreUser, store::Store};
+use aircoreclient::{Asset, ChatId, ContactType, PartialContact, clients::CoreUser};
 use anyhow::ensure;
 use flutter_rust_bridge::frb;
 use qs::QueueContext;
@@ -310,7 +310,7 @@ impl UserCubitBase {
     }
 
     pub async fn contact(&self, user_id: UiUserId) -> anyhow::Result<Option<UiContact>> {
-        let Some(contact) = Store::contact(&self.context.core_user, &user_id.into()).await? else {
+        let Some(contact) = self.context.core_user.contact_type(&user_id.into()).await? else {
             return Ok(None);
         };
         match contact {
@@ -518,9 +518,9 @@ impl CubitContext {
                 continue;
             }
             // Finally eat these yummy notifications! Nom nom nom
-            match core_user.dequeue_notification().await {
+            match core_user.dequeue_store_notification().await {
                 Ok(store_notification) if !store_notification.is_empty() => {
-                    core_user.notify(store_notification);
+                    core_user.send_store_notification(store_notification);
                 }
                 Ok(_) => {}
                 Err(error) => {

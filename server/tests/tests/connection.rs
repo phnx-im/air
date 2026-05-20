@@ -6,9 +6,7 @@ use std::time::Duration;
 
 use aircommon::component::{AirComponent, AirFeatures};
 use aircommon::time::TimeStamp;
-use aircoreclient::{
-    ChatId, EventMessage, Message, SystemMessage, clients::CoreUser, store::Store,
-};
+use aircoreclient::{ChatId, EventMessage, Message, SystemMessage, clients::CoreUser};
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::{DateTime, TimeZone};
 use tokio::task::spawn_blocking;

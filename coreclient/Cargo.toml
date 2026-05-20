@@ -50,7 +50,6 @@ tokio = { workspace = true, features = ["rt-multi-thread"] }
 tokio-stream = { workspace = true, features = ["sync"] }
 tokio-util.workspace = true
 tracing.workspace = true
-trait-variant.workspace = true
 url.workspace = true
 uuid = { workspace = true, features = ["v4", "serde"] }
 webpx.workspace = true

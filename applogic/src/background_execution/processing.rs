@@ -16,7 +16,7 @@ use crate::{
     notifications::{NotificationContent, NotificationId},
 };
 
-use aircoreclient::{ChatId, store::Store};
+use aircoreclient::ChatId;
 
 use super::NotificationBatch;
 
@@ -127,7 +127,7 @@ pub(crate) async fn retrieve_messages(path: String) -> anyhow::Result<Notificati
         .context("User not found: the database contained no user data")?;
 
     // capture store notification in below store calls
-    let pending_store_notifications = user.user.subscribe_iter();
+    let pending_store_notifications = user.user.pending_store_notifications();
 
     let notifications = match Box::pin(user.fetch_and_process_all_messages_in_background()).await {
         Ok(processed_messages) => {
@@ -153,7 +153,11 @@ pub(crate) async fn retrieve_messages(path: String) -> anyhow::Result<Notificati
     let badge_count = user.global_unread_messages_count().await;
 
     for store_notification in pending_store_notifications {
-        if let Err(error) = Store::enqueue_notification(&user.user, &store_notification).await {
+        if let Err(error) = user
+            .user
+            .enqueue_store_notification(&store_notification)
+            .await
+        {
             error!(%error, "Failed to enqueue store notification");
         }
     }

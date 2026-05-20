@@ -45,13 +45,12 @@ use crate::{
         },
     },
     groups::Group,
-    store::Store,
     utils::image::{ReencodedAttachmentImage, load_attachment_image},
 };
 
 impl CoreUser {
     /// Uploads an attachment and sends a message containing it.
-    pub(crate) async fn upload_attachment(
+    pub async fn upload_attachment(
         &self,
         chat_id: ChatId,
         path: &Path,

@@ -43,7 +43,7 @@ pub(crate) struct PendingConnectionInfo {
 
 impl CoreUser {
     #[instrument(skip(self), err)]
-    pub(crate) async fn accept_contact_request(
+    pub async fn accept_contact_request(
         &self,
         chat_id: ChatId,
     ) -> anyhow::Result<Result<(), AcceptContactRequestError>> {

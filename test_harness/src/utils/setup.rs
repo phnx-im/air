@@ -15,7 +15,7 @@ use aircommon::{
     OpenMlsRand, RustCrypto,
     identifiers::{Fqdn, MimiId, UserId, Username},
 };
-use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, store::Store, *};
+use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, *};
 use airserver::network_provider::MockNetworkProvider;
 use anyhow::Context;
 use mimi_content::{
@@ -1683,19 +1683,21 @@ impl TestBackend {
     }
 }
 
-trait StoreExt: Store {
+trait CoreUSerExt {
     // Note: It's inefficient to load all chats, but it is ok to do it in tests.
+    async fn chats(&self) -> Vec<Chat>;
+}
+
+impl CoreUSerExt for CoreUser {
     async fn chats(&self) -> Vec<Chat> {
         let chat_ids = self.ordered_chat_ids().await.unwrap();
-        let mut chats = Vec::new();
+        let mut chats = Vec::with_capacity(chat_ids.len());
         for chat_id in chat_ids {
-            chats.push(self.chat(chat_id).await.unwrap().unwrap());
+            chats.push(self.chat(&chat_id).await.unwrap());
         }
         chats
     }
 }
-
-impl<T: Store> StoreExt for T {}
 
 fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet<String> {
     display_messages

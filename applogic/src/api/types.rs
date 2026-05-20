@@ -20,7 +20,7 @@ use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, ChatAttributes, ChatMessage, ChatStatus, ChatType, Contact, ContentMessage, DisplayName,
     ErrorMessage, EventMessage, InactiveChat, Message, MessageDraft, SystemMessage,
-    TargetedMessageContact, UserProfile, store::Store,
+    TargetedMessageContact, UserProfile, clients::CoreUser,
 };
 use chrono::{DateTime, Duration, Local, Utc};
 use flutter_rust_bridge::frb;
@@ -267,22 +267,22 @@ impl UiChatType {
     /// If the user profile cannot be loaded, or is not set, a minimal user profile is returned
     /// with the display name derived from the client id.
     #[frb(ignore)]
-    pub(crate) async fn load_from_chat_type(store: &impl Store, chat_type: ChatType) -> Self {
+    pub(crate) async fn load_from_chat_type(core_user: &CoreUser, chat_type: ChatType) -> Self {
         match chat_type {
             ChatType::HandleConnection(handle) => Self::HandleConnection(UiUsername::from(handle)),
             ChatType::Connection(user_id) => {
-                let user_profile = store.user_profile(&user_id).await;
+                let user_profile = core_user.user_profile(&user_id).await;
                 let profile = UiUserProfile::from_profile(user_profile);
                 Self::Connection(profile)
             }
             ChatType::TargetedMessageConnection(user_id) => {
-                let user_profile = store.user_profile(&user_id).await;
+                let user_profile = core_user.user_profile(&user_id).await;
                 let profile = UiUserProfile::from_profile(user_profile);
                 Self::TargetedMessageConnection(profile)
             }
             ChatType::Group(attributes) => Self::Group(attributes.into()),
             ChatType::PendingConnection(user_id) => {
-                let user_profile = store.user_profile(&user_id).await;
+                let user_profile = core_user.user_profile(&user_id).await;
                 let profile = UiUserProfile::from_profile(user_profile);
                 Self::PendingConnection(profile)
             }
