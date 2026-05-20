@@ -450,7 +450,7 @@ async fn encrypt_and_provision(
     // provision attachment
     let content_length = ciphertext.len().try_into().context("usize overflow")?;
     let response = match api_client
-        .ds_provision_attachment(
+        .ds_provision_group_attachment(
             signing_key,
             group.group_state_ear_key(),
             group.group_id(),

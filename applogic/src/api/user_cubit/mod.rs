@@ -285,6 +285,15 @@ impl UserCubitBase {
         Ok(())
     }
 
+    /// Only delete the local chat data, do not delete the chat on the server or try to leave it.
+    ///
+    /// Used for development purposes.
+    #[frb(positional)]
+    pub async fn dev_erase_chat(&self, chat_id: ChatId) -> anyhow::Result<()> {
+        self.context.core_user.erase_chat(chat_id).await?;
+        Ok(())
+    }
+
     #[frb(positional)]
     pub async fn leave_chat(&self, chat_id: ChatId) -> anyhow::Result<()> {
         self.context.core_user.leave_chat(chat_id).await
@@ -448,6 +457,13 @@ impl UserCubitBase {
         prefix.copy_from_slice(&first.to_chunks());
         suffix.copy_from_slice(&second.to_chunks());
         Ok(code)
+    }
+
+    pub async fn encrypt_and_upload_blob(
+        &self,
+        blob: Vec<u8>,
+    ) -> anyhow::Result<(String, Vec<u8>)> {
+        todo!();
     }
 }
 

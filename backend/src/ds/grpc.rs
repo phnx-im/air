@@ -44,6 +44,7 @@ use tonic::{Request, Response, Status, async_trait};
 use tracing::{error, warn};
 
 use crate::{
+    auth_service::AsConnector,
     ds::{attachments::ProvisionObjectError, process::Provider},
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload},
     qs::QsConnector,
@@ -55,9 +56,10 @@ use super::{
     group_state::{DsGroupState, StorableDsGroupData},
 };
 
-pub struct GrpcDs<Qep: QsConnector> {
+pub struct GrpcDs<Qep: QsConnector, As: AsConnector> {
     ds: Ds,
     qs_connector: Qep,
+    as_connector: As,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -84,9 +86,13 @@ fn to_status(e: LoadGroupStateError) -> Status {
 
 const MAX_CONCURRENT_FANOUTS: usize = 128;
 
-impl<Qep: QsConnector> GrpcDs<Qep> {
-    pub fn new(ds: Ds, qs_connector: Qep) -> Self {
-        Self { ds, qs_connector }
+impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
+    pub fn new(ds: Ds, qs_connector: Qep, as_connector: As) -> Self {
+        Self {
+            ds,
+            qs_connector,
+            as_connector,
+        }
     }
 
     /// Loads encrypted group state from the database and decrypts it.
@@ -371,7 +377,7 @@ struct LeafVerificationData<'a, P, const LOADED_FOR_UPDATE: bool> {
 }
 
 #[async_trait]
-impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
+impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
     async fn request_group_id(
         &self,
         request: Request<RequestGroupIdRequest>,
@@ -1043,7 +1049,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         Ok(Response::new(UpdateProfileKeyResponse {}))
     }
 
-    async fn provision_attachment(
+    async fn provision_group_attachment(
         &self,
         request: Request<ProvisionAttachmentRequest>,
     ) -> Result<Response<ProvisionAttachmentResponse>, Status> {

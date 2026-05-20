@@ -824,6 +824,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get contactUsScreen_body => 'Body';
 
   @override
+  String get contactUsScreen_includeLogs => 'Share your logs';
+
+  @override
   String get contactUsScreen_composeEmail => 'Compose email';
 
   @override

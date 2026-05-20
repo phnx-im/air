@@ -285,7 +285,7 @@ impl ChatOperation {
             let api_client = api_clients.default_client()?;
             let content_length = ciphertext.len().try_into().context("usize overflow")?;
             let provision_response = api_client
-                .ds_provision_attachment(
+                .ds_provision_group_attachment(
                     &key_store.signing_key,
                     group.group_state_ear_key(),
                     group.group_id(),

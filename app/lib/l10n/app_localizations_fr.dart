@@ -843,6 +843,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get contactUsScreen_body => 'Corps du message';
 
   @override
+  String get contactUsScreen_includeLogs => 'Partager vos journaux';
+
+  @override
   String get contactUsScreen_composeEmail => 'Composer un e-mail';
 
   @override

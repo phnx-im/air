@@ -838,6 +838,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get contactUsScreen_body => 'Inhalt';
 
   @override
+  String get contactUsScreen_includeLogs => 'Protokolle teilen';
+
+  @override
   String get contactUsScreen_composeEmail => 'E-Mail verfassen';
 
   @override

@@ -515,7 +515,7 @@ impl ApiClient {
     /// Provision an attachment for a group.
     ///
     /// The result is used to upload the attachment to the server.
-    pub async fn ds_provision_attachment(
+    pub async fn ds_provision_group_attachment(
         &self,
         signing_key: &ClientSigningKey,
         group_state_ear_key: &GroupStateEarKey,
@@ -537,7 +537,7 @@ impl ApiClient {
         let request = payload.sign(signing_key)?;
         let response = self
             .ds_grpc_client()
-            .provision_attachment(request)
+            .provision_group_attachment(request)
             .await?
             .into_inner();
         Ok(response)

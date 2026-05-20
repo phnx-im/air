@@ -22,12 +22,14 @@ class ChatDebugInfoView extends HookWidget {
     required this.title,
     required this.debugInfo,
     required this.onRequestResync,
+    required this.onEraseLocalChat,
     super.key,
   });
 
   final String title;
   final Future<GroupDebugInfo> debugInfo;
   final VoidCallback onRequestResync;
+  final VoidCallback onEraseLocalChat;
 
   @override
   Widget build(BuildContext context) {
@@ -40,6 +42,7 @@ class ChatDebugInfoView extends HookWidget {
         AsyncSnapshot(hasData: true, :final data) => _GroupDebugInfoBody(
           info: data!,
           onRequestResync: onRequestResync,
+          onEraseLocalChat: onEraseLocalChat,
         ),
         AsyncSnapshot(hasError: true, :final error) => Center(
           child: Padding(
@@ -72,10 +75,12 @@ class _GroupDebugInfoBody extends StatelessWidget {
   const _GroupDebugInfoBody({
     required this.info,
     required this.onRequestResync,
+    required this.onEraseLocalChat,
   });
 
   final GroupDebugInfo info;
   final VoidCallback onRequestResync;
+  final VoidCallback onEraseLocalChat;
 
   @override
   Widget build(BuildContext context) {
@@ -132,6 +137,8 @@ class _GroupDebugInfoBody extends StatelessWidget {
         ],
         const SizedBox(height: Spacing.px32),
         _RequestResyncButton(onTapped: onRequestResync),
+        const SizedBox(height: Spacing.px16),
+        _DeleteLocalChatButton(onTapped: onEraseLocalChat),
       ],
     );
   }
@@ -153,6 +160,26 @@ class _RequestResyncButton extends HookWidget {
       tone: AppButtonTone.danger,
       state: isTapped.value ? AppButtonState.inactive : AppButtonState.active,
       label: "DANGER: Request resync",
+    );
+  }
+}
+
+class _DeleteLocalChatButton extends HookWidget {
+  const _DeleteLocalChatButton({required this.onTapped});
+
+  final VoidCallback onTapped;
+
+  @override
+  Widget build(BuildContext context) {
+    final isTapped = useState(false);
+    return AppButton(
+      onPressed: () {
+        isTapped.value = true;
+        onTapped();
+      },
+      tone: AppButtonTone.danger,
+      state: isTapped.value ? AppButtonState.inactive : AppButtonState.active,
+      label: "DANGER: Delete local chat",
     );
   }
 }

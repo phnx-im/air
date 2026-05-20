@@ -40,9 +40,7 @@ service DeliveryService {
   // Generates an attachment ID and returns a pre-signed URL for uploading an attachment.
   //
   // The actual upload is done by the client.
-  //
-  // Note: An attachment is always provisioned relative to a specific group.
-  rpc ProvisionAttachment(ProvisionAttachmentRequest) returns (ProvisionAttachmentResponse);
+  rpc ProvisionGroupAttachment(ProvisionAttachmentRequest) returns (ProvisionAttachmentResponse);
 
   // Returns a URL for downloading attachment.
   //
@@ -372,6 +370,8 @@ enum StorageObjectType {
   STORAGE_OBJECT_TYPE_GROUP_PROFILE = 2;
   // A user profile
   STORAGE_OBJECT_TYPE_USER_PROFILE = 3;
+  // An archive of logs used to help debug issues
+  STORAGE_OBJECT_TYPE_DEBUG_LOGS = 4;
 }
 
 message ProvisionAttachmentResponse {

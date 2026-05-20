@@ -251,6 +251,7 @@
   "contactUsScreen_title": "Kontakt",
   "contactUsScreen_subject": "Ämne",
   "contactUsScreen_body": "Meddelande",
+  "contactUsScreen_includeLogs": "Dela dina loggar",
   "contactUsScreen_composeEmail": "Skriv e-post",
   "contactUsScreen_subject_somethingNotWorking": "Något fungerar inte",
   "contactUsScreen_subject_iHaveAQuestion": "Jag har en fråga",

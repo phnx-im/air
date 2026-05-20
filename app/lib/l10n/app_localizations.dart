@@ -1455,6 +1455,12 @@ abstract class AppLocalizations {
   /// **'Body'**
   String get contactUsScreen_body;
 
+  /// No description provided for @contactUsScreen_includeLogs.
+  ///
+  /// In en, this message translates to:
+  /// **'Share your logs'**
+  String get contactUsScreen_includeLogs;
+
   /// No description provided for @contactUsScreen_composeEmail.
   ///
   /// In en, this message translates to:

@@ -252,6 +252,7 @@ fn storage_key(paths: &StoragePaths, object_id: Uuid, object_type: StorageObject
             let path = paths.user_profiles_path.trim_end_matches('/');
             format!("{path}/{key}")
         }
+        StorageObjectType::DebugLogs => todo!(),
     }
 }
 
