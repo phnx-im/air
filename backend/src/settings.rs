@@ -193,7 +193,7 @@ impl DatabaseSettings {
 
 /// Every `period`, allow bursts of up to `burst`-many requests, and replenish one element after
 /// the `period`.
-#[derive(Debug, Deserialize, Clone)]
+#[derive(Debug, Deserialize, Hash, PartialEq, Eq, Clone)]
 pub struct RateLimitsSettings {
     #[serde(with = "duration_millis", default = "default_500ms")]
     pub period: std::time::Duration,
