@@ -163,7 +163,7 @@ fn build_config(shell: &Shell, args: PublishArgs) -> Result<Config> {
         _ => bail!("Cannot detect package type from filename."),
     };
 
-    // Trim trailing slash so client-setup snippets don't giend up with "//".
+    // Trim trailing slash so client-setup snippets don't end up with "//".
     let repository_base_url = args.repository_base_url.trim_end_matches('/');
 
     let workdir = Utf8PathBuf::from(cmd!(shell, "git rev-parse --show-toplevel").read()?)
