@@ -147,6 +147,27 @@ impl Job for PendingChatOperation {
                     .await?;
                 Err(JobError::NotFound)
             }
+            fatal_error @ Err(JobError::Fatal(_)) => {
+                // Clean up job after fatal error
+                context
+                    .db
+                    .write()
+                    .await?
+                    .with_transaction(async |txn| -> anyhow::Result<()> {
+                        self.group
+                            .group_mut()
+                            .discard_pending_commit(&mut *txn)
+                            .await?;
+                        Self::delete(txn, self.group.group_id()).await?;
+                        Ok(())
+                    })
+                    .await
+                    .inspect_err(|error| {
+                        error!(%error, "Failed to delete pending chat operation");
+                    })
+                    .ok();
+                fatal_error
+            }
             res => res,
         }
     }
@@ -377,7 +398,7 @@ impl PendingChatOperation {
 
     async fn handle_error(
         &mut self,
-        mut connection: impl WriteConnection,
+        connection: impl WriteConnection,
         error: DsRequestError,
     ) -> Result<JobError<ChatOperationError>, JobError<ChatOperationError>> {
         debug!(?error, "DS request failed");
@@ -389,30 +410,12 @@ impl PendingChatOperation {
             self.mark_as_waiting_for_queue_response(connection).await?;
 
             Err(JobError::Blocked)
-        } else if error.is_not_found() {
-            Err(JobError::NotFound)
-        } else if (error.is_network_error() || self.number_of_attempts > 0)
-            && self.number_of_attempts < MAX_RETRIES
-        {
-            // If we either get a network error (which means we don't know
-            // whether the request has been processed by the DS), or if we've
-            // gotten a network error in the past, we want to try again until
-            // we've either succeeded or reached a max number of retries.
+        } else if error.is_network_error() && self.number_of_attempts < MAX_RETRIES {
+            // If we get a network error (which means we don't know whether the request has been
+            // processed by the DS), we want to try again until we've either succeeded or reached a
+            // max number of retries.
             Ok(JobError::NetworkError)
         } else {
-            // For other errors or if the max number of retries has been
-            // reached, we consider the operation failed and delete the job.
-            connection
-                .with_transaction(async |txn| -> anyhow::Result<_> {
-                    self.group
-                        .group_mut()
-                        .discard_pending_commit(&mut *txn)
-                        .await?;
-                    Self::delete(txn, self.group.group_id()).await?;
-                    Ok(())
-                })
-                .await?;
-
             let error = if self.number_of_attempts >= MAX_RETRIES {
                 anyhow!(
                     "Job failed after {} attempts due to DS errors: {:?}",
