@@ -79,6 +79,11 @@ abstract class UserCubitBase implements RustOpaqueInterface {
 
   Future<void> deleteChat(ChatId chatId);
 
+  /// Only delete the local chat data, do not delete the chat on the server or try to leave it.
+  ///
+  /// Used for development purposes.
+  Future<void> devEraseChat(ChatId chatId);
+
   bool get isClosed;
 
   Future<void> leaveChat(ChatId chatId);

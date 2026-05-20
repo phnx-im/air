@@ -70,13 +70,15 @@ class ChatDetailsScreenView extends StatelessWidget {
             title: chat.title,
             onTitleLongPress: () {
               final chatDetailsCubit = context.read<ChatDetailsCubit>();
+              final userCubit = context.read<UserCubit>();
               final debugInfoFut = chatDetailsCubit.chatDebugInfo();
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) => ChatDebugInfoView(
                     title: chat.title,
                     debugInfo: debugInfoFut,
-                    onRequestResync: () => {chatDetailsCubit.requestResync()},
+                    onRequestResync: () => chatDetailsCubit.requestResync(),
+                    onEraseLocalChat: () => userCubit.devEraseChat(chat.id),
                   ),
                 ),
               );
