@@ -48,7 +48,8 @@ class GroupDetailsScreen extends StatelessWidget {
     return AppScaffold(
       title: chat.title,
       onTitleLongPress: () {
-        var chatDetailsCubit = context.read<ChatDetailsCubit>();
+        final chatDetailsCubit = context.read<ChatDetailsCubit>();
+        final userCubit = context.read<UserCubit>();
         final debugInfoFut = chatDetailsCubit.chatDebugInfo();
         Navigator.of(context).push(
           MaterialPageRoute(
@@ -56,6 +57,7 @@ class GroupDetailsScreen extends StatelessWidget {
               title: chat.title,
               debugInfo: debugInfoFut,
               onRequestResync: () => chatDetailsCubit.requestResync(),
+              onEraseLocalChat: () => userCubit.devEraseChat(chat.id),
             ),
           ),
         );

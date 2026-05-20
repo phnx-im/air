@@ -285,6 +285,15 @@ impl UserCubitBase {
         Ok(())
     }
 
+    /// Only delete the local chat data, do not delete the chat on the server or try to leave it.
+    ///
+    /// Used for development purposes.
+    #[frb(positional)]
+    pub async fn dev_erase_chat(&self, chat_id: ChatId) -> anyhow::Result<()> {
+        self.context.core_user.erase_chat(chat_id).await?;
+        Ok(())
+    }
+
     #[frb(positional)]
     pub async fn leave_chat(&self, chat_id: ChatId) -> anyhow::Result<()> {
         self.context.core_user.leave_chat(chat_id).await
