@@ -102,15 +102,19 @@ impl CoreUser {
                 let id = chat_id.uuid();
                 anyhow!("Can't find chat with id {id}")
             })?;
+        let ChatType::Group(attributes) = chat.chat_type else {
+            bail!("Cannot set picture for non-group chat");
+        };
+
         let resized_picture_option = tokio::task::spawn_blocking(|| {
             picture.and_then(|picture| resize_profile_image(&picture).ok())
         })
         .await?;
-        if resized_picture_option == chat.attributes().picture {
+        if resized_picture_option == attributes.picture {
             // No change
             return Ok(());
         }
-        let new_attributes = ChatAttributes::new(chat.attributes.title, resized_picture_option);
+        let new_attributes = ChatAttributes::new(attributes.title, resized_picture_option);
 
         // Update the group and send out the update
         self.update_key_with_attributes(chat_id, Some(new_attributes))
@@ -128,11 +132,14 @@ impl CoreUser {
                 let id = chat_id.uuid();
                 anyhow!("Can't find chat with id {id}")
             })?;
-        if title == chat.attributes().title {
+        let ChatType::Group(attributes) = chat.chat_type else {
+            bail!("Cannot set title for non-group chat");
+        };
+        if title == attributes.title {
             // No change
             return Ok(());
         }
-        let new_attributes = ChatAttributes::new(title, chat.attributes.picture);
+        let new_attributes = ChatAttributes::new(title, attributes.picture);
 
         // Update the group and send out the update
         self.update_key_with_attributes(chat_id, Some(new_attributes))

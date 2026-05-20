@@ -7,6 +7,7 @@ use std::{collections::HashSet, sync::Arc};
 use aircommon::{identifiers::Fqdn, time::Duration};
 use sqlx::PgPool;
 use tokio::sync::Mutex;
+use tokio_util::sync::CancellationToken;
 use uuid::Uuid;
 
 use crate::{
@@ -48,6 +49,7 @@ impl BackendService for Ds {
         db_pool: PgPool,
         domain: Fqdn,
         client_version_req: Option<semver::VersionReq>,
+        _stop: CancellationToken,
     ) -> Result<Self, ServiceCreationError> {
         let ds = Self {
             own_domain: domain,

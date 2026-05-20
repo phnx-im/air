@@ -3,12 +3,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 use openmls::group::Member;
 
-use aircommon::identifiers::QualifiedGroupId;
+use aircommon::{codec::PersistenceCodec, component::AirComponent, identifiers::QualifiedGroupId};
 use openmls::prelude::GroupId;
 use uuid::Uuid;
 
+use airprotos::client::group::GroupData;
+
 use crate::{
-    job::pending_chat_operation::test_utils::PendingChatOperationInfo,
+    chats::GroupDataExt,
+    groups::GroupDataBytes,
+    job::pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
     outbound_service::resync::Resync,
 };
 
@@ -108,5 +112,81 @@ impl CoreUser {
         self.db()
             .with_read_transaction(async |txn| PendingChatOperationInfo::load(txn, &chat_id).await)
             .await
+    }
+
+    /// Set the group title and picture of the given chat in the legacy format.
+    ///
+    /// Useful for testing migrations of the group data format.
+    pub async fn set_legacy_group_data(
+        &self,
+        chat_id: ChatId,
+        title: String,
+        picture: Option<Vec<u8>>,
+    ) -> anyhow::Result<()> {
+        #[derive(serde::Serialize)]
+        struct LegacyGroupData {
+            title: String,
+            picture: Option<Vec<u8>>,
+        }
+
+        let legacy_group_data: GroupDataBytes =
+            PersistenceCodec::to_vec(&LegacyGroupData { title, picture })?.into();
+
+        let op = self
+            .db()
+            .with_write_transaction(async |txn| {
+                PendingChatOperation::create_update_with_raw_group_data(
+                    txn,
+                    self.signing_key(),
+                    chat_id,
+                    Some(legacy_group_data),
+                    None,
+                )
+                .await
+            })
+            .await?;
+        self.execute_job(op).await?;
+
+        Ok(())
+    }
+
+    pub async fn group_data(&self, chat_id: ChatId) -> anyhow::Result<Option<GroupData>> {
+        let Some(group) = self
+            .db()
+            .with_read_transaction(async |txn| Group::load_with_chat_id(txn, chat_id).await)
+            .await?
+        else {
+            return Ok(None);
+        };
+        let Some(bytes) = group.group_data() else {
+            return Ok(None);
+        };
+        Ok(Some(GroupData::decode(&bytes)?))
+    }
+
+    /// Sends a self-update commit that forces the given [`AirComponent`] into the own leaf node.
+    ///
+    /// Use this in tests to simulate an old client that advertises a different set of feature
+    /// flags.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub async fn set_group_air_component(
+        &self,
+        chat_id: ChatId,
+        air_component: AirComponent,
+    ) -> anyhow::Result<()> {
+        let op = self
+            .db()
+            .with_write_transaction(async |txn| {
+                PendingChatOperation::create_update_with_air_component(
+                    txn,
+                    self.signing_key(),
+                    chat_id,
+                    air_component,
+                )
+                .await
+            })
+            .await?;
+        self.execute_job(op).await?;
+        Ok(())
     }
 }

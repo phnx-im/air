@@ -27,21 +27,48 @@ use uuid::Uuid;
 /// from `serde`.
 #[derive(Debug, Clone, Eq, PartialEq, Serialize, Deserialize)]
 pub struct GroupData {
-    /// Set for the clients with version <= 0.14.0
+    /// Set in the groups created by old clients.
     ///
-    /// Can be removed once all such clients have been updated.
+    /// *Must* be set for clients with version <= 0.14.0
+    ///
+    /// Used as fallback and for data migration.
     #[serde(rename = "title", skip_serializing_if = "Option::is_none")]
     pub legacy_title: Option<String>,
+    /// Set in the groups created by old clients.
+    ///
+    /// Used as fallback and for data migration.
+    #[serde(rename = "picture", skip_serializing_if = "Option::is_none")]
+    pub legacy_picture: Option<Vec<u8>>,
     /// Encrypted group title
     ///
     /// It is encrypted with the same key and algorithm as the external group profile. It is
     /// included in this data to be able to use the group title immediately without having to fetch
     /// the external group profile.
+    ///
+    /// Is `None` for connection groups.
     pub encrypted_title: Option<EncryptedGroupTitle>,
     /// A pointer to an external encrypted group profile
     ///
     /// Using this data, it is possible to retrieve the group profile from the object storage.
     pub external_group_profile: Option<ExternalGroupProfile>,
+}
+
+impl GroupData {
+    pub fn empty() -> Self {
+        Self {
+            encrypted_title: None,
+            external_group_profile: None,
+            legacy_title: None,
+            legacy_picture: None,
+        }
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.legacy_title.is_none()
+            && self.legacy_picture.is_none()
+            && self.encrypted_title.is_none()
+            && self.external_group_profile.is_none()
+    }
 }
 
 /// External encrypted group profile in the object storage.
@@ -360,6 +387,7 @@ mod test {
                 content_hash: [0xCC; 32].to_vec(),
             }),
             legacy_title: None,
+            legacy_picture: None,
         }
     }
 
@@ -434,6 +462,7 @@ mod test {
                 encrypted_title: None,
                 external_group_profile: None,
                 legacy_title: Some("My Chat".to_string()),
+                legacy_picture: None,
             }
         );
     }

@@ -90,15 +90,6 @@ impl From<UiUserId> for UserId {
     }
 }
 
-/// A chat which is a 1:1 connection or a group chat
-#[derive(Debug, Clone, Eq, PartialEq, Hash)]
-pub struct UiChat {
-    pub id: ChatId,
-    pub status: UiChatStatus,
-    pub chat_type: UiChatType,
-    pub attributes: UiChatAttributes,
-}
-
 /// Details of a chat
 #[derive(Debug, Clone, PartialEq)]
 #[frb(type_64bit_int)]
@@ -107,7 +98,6 @@ pub struct UiChatDetails {
     pub status: UiChatStatus,
     pub chat_type: UiChatType,
     pub last_used: DateTime<Local>,
-    pub attributes: UiChatAttributes,
     pub messages_count: usize,
     pub unread_messages: usize,
     pub last_message: Option<UiChatMessage>,
@@ -265,7 +255,7 @@ pub enum UiChatType {
     /// the other party.
     TargetedMessageConnection(UiUserProfile),
     /// A group chat, that is, it can contains multiple participants.
-    Group,
+    Group(UiChatAttributes),
     /// Incoming connection chat request that is not yet confirmed by us.
     PendingConnection(UiUserProfile),
 }
@@ -290,7 +280,7 @@ impl UiChatType {
                 let profile = UiUserProfile::from_profile(user_profile);
                 Self::TargetedMessageConnection(profile)
             }
-            ChatType::Group => Self::Group,
+            ChatType::Group(attributes) => Self::Group(attributes.into()),
             ChatType::PendingConnection(user_id) => {
                 let user_profile = core_user.user_profile(&user_id).await;
                 let profile = UiUserProfile::from_profile(user_profile);
@@ -300,7 +290,7 @@ impl UiChatType {
     }
 }
 
-/// Attributes of a chat
+/// Attributes of a group chat
 #[derive(Debug, Clone, Hash, Eq, PartialEq)]
 pub struct UiChatAttributes {
     /// Title of the chat
@@ -310,12 +300,10 @@ pub struct UiChatAttributes {
 }
 
 impl From<ChatAttributes> for UiChatAttributes {
-    fn from(attributes: ChatAttributes) -> Self {
+    fn from(ChatAttributes { title, picture }: ChatAttributes) -> Self {
         Self {
-            title: attributes.title().to_string(),
-            picture: attributes
-                .picture()
-                .map(|a| ImageData::from_bytes(a.to_vec())),
+            title,
+            picture: picture.map(ImageData::from_bytes),
         }
     }
 }
@@ -809,4 +797,5 @@ struct _AirComponent {
 #[frb(dart_metadata = ("freezed"))]
 struct _AirFeatures {
     pub encrypted_group_profiles: bool,
+    pub empty_connection_group_attributes: bool,
 }

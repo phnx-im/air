@@ -10,6 +10,7 @@ use aircommon::{
     identifiers::{Fqdn, QualifiedGroupId, UserId, Username},
 };
 use airprotos::client::group::{ExternalGroupProfile, GroupData};
+use anyhow::bail;
 use chrono::{DateTime, Utc};
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
@@ -91,15 +92,10 @@ pub struct Chat {
     pub last_message_at: Option<DateTime<Utc>>,
     pub status: ChatStatus,
     pub chat_type: ChatType,
-    pub attributes: ChatAttributes,
 }
 
 impl Chat {
-    pub(crate) fn new_handle_chat(
-        group_id: GroupId,
-        attributes: ChatAttributes,
-        username: Username,
-    ) -> Self {
+    pub(crate) fn new_handle_chat(group_id: GroupId, username: Username) -> Self {
         let id = ChatId::try_from(&group_id).unwrap();
         Self {
             id,
@@ -108,15 +104,10 @@ impl Chat {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::HandleConnection(username),
-            attributes,
         }
     }
 
-    pub(crate) fn new_targeted_message_chat(
-        group_id: GroupId,
-        attributes: ChatAttributes,
-        user_id: UserId,
-    ) -> Self {
+    pub(crate) fn new_targeted_message_chat(group_id: GroupId, user_id: UserId) -> Self {
         let id = ChatId::try_from(&group_id).unwrap();
         Self {
             id,
@@ -125,7 +116,6 @@ impl Chat {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::TargetedMessageConnection(user_id),
-            attributes,
         }
     }
 
@@ -137,16 +127,11 @@ impl Chat {
             last_read: Utc::now(),
             last_message_at: None,
             status: ChatStatus::Active,
-            chat_type: ChatType::Group,
-            attributes,
+            chat_type: ChatType::Group(attributes),
         }
     }
 
-    pub(crate) fn new_pending_connection_chat(
-        group_id: GroupId,
-        user_id: UserId,
-        attributes: ChatAttributes,
-    ) -> Self {
+    pub(crate) fn new_pending_connection_chat(group_id: GroupId, user_id: UserId) -> Self {
         Self {
             id: ChatId::try_from(&group_id).unwrap(),
             group_id,
@@ -154,7 +139,6 @@ impl Chat {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::PendingConnection(user_id),
-            attributes,
         }
     }
 
@@ -170,6 +154,10 @@ impl Chat {
         &self.chat_type
     }
 
+    pub fn is_connection(&self) -> bool {
+        self.chat_type.is_connection()
+    }
+
     pub fn is_unconfirmed(&self) -> bool {
         matches!(
             self.chat_type,
@@ -181,8 +169,11 @@ impl Chat {
         &self.status
     }
 
-    pub fn attributes(&self) -> &ChatAttributes {
-        &self.attributes
+    pub fn attributes(&self) -> Option<&ChatAttributes> {
+        match &self.chat_type {
+            ChatType::Group(attributes) => Some(attributes),
+            _ => None,
+        }
     }
 
     pub fn last_read(&self) -> DateTime<Utc> {
@@ -202,9 +193,12 @@ impl Chat {
         &mut self,
         connection: impl WriteConnection,
         picture: Option<Vec<u8>>,
-    ) -> sqlx::Result<()> {
+    ) -> anyhow::Result<()> {
         Self::update_picture(connection, self.id, picture.as_deref()).await?;
-        self.attributes.set_picture(picture);
+        let ChatType::Group(attributes) = &mut self.chat_type else {
+            bail!("Cannot set picture for non-group chat");
+        };
+        attributes.set_picture(picture);
         Ok(())
     }
 
@@ -212,9 +206,12 @@ impl Chat {
         &mut self,
         connection: impl WriteConnection,
         title: String,
-    ) -> sqlx::Result<()> {
+    ) -> anyhow::Result<()> {
+        let ChatType::Group(attributes) = &mut self.chat_type else {
+            bail!("Cannot set title for non-group chat");
+        };
         Self::update_title(connection, self.id, &title).await?;
-        self.attributes.set_title(title);
+        attributes.set_title(title);
         Ok(())
     }
 
@@ -278,7 +275,7 @@ pub enum ChatType {
     /// A connection chat that is confirmed by the other party and for which we have received the
     /// necessary secrets.
     Connection(UserId),
-    Group,
+    Group(ChatAttributes),
     /// A connection chat which was established via a targeted message and is not yet confirmed by the other
     /// party. (outgoing)
     TargetedMessageConnection(UserId),
@@ -299,9 +296,25 @@ impl ChatType {
             _ => None,
         }
     }
+
+    pub(crate) fn is_connection(&self) -> bool {
+        match self {
+            ChatType::Group(_) => false,
+            ChatType::HandleConnection(_)
+            | ChatType::Connection(_)
+            | ChatType::TargetedMessageConnection(_)
+            | ChatType::PendingConnection(_) => true,
+        }
+    }
+
+    pub fn is_group(&self) -> bool {
+        !self.is_connection()
+    }
 }
 
 /// Attributes of a chat.
+///
+/// Currently, only group chats have attributes.
 ///
 /// This type is only an in-memory representation of the chat attributes. It is not used to be
 /// communicated with other clients. For that, see its counterpart [`GroupData`].
@@ -314,6 +327,17 @@ pub struct ChatAttributes {
 impl ChatAttributes {
     pub fn new(title: String, picture: Option<Vec<u8>>) -> Self {
         Self { title, picture }
+    }
+
+    pub(crate) fn empty() -> Self {
+        Self {
+            title: String::new(),
+            picture: None,
+        }
+    }
+
+    pub(crate) fn is_empty(&self) -> bool {
+        self.title.is_empty() && self.picture.is_none()
     }
 
     pub fn title(&self) -> &str {
@@ -343,13 +367,23 @@ pub(crate) trait GroupDataExt {
     /// Encodes the group data as bytes to be stored in the group data extension.
     fn encode(&self) -> Result<GroupDataBytes, codec::Error>;
 
-    /// Returns the chat title and the external group profile.
+    /// Returns the chat title and the group data profile.
     ///
     /// The title is decrypted from the group context if it is present.
     fn into_parts(
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> (Option<String>, Option<ExternalGroupProfile>);
+    ) -> (Option<String>, Option<GroupDataProfilePart>);
+}
+
+/// Part of the group data that is stored in the group data extension.
+///
+/// It is either the external group profile or the legacy picture.
+pub(crate) enum GroupDataProfilePart {
+    /// External group profile stored in the object storage
+    ExternalProfile(ExternalGroupProfile),
+    /// Legacy picture stored as a blob
+    LegacyPicture(Vec<u8>),
 }
 
 impl GroupDataExt for GroupData {
@@ -364,9 +398,10 @@ impl GroupDataExt for GroupData {
     fn into_parts(
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
-    ) -> (Option<String>, Option<ExternalGroupProfile>) {
+    ) -> (Option<String>, Option<GroupDataProfilePart>) {
         let Self {
             legacy_title,
+            legacy_picture,
             encrypted_title,
             external_group_profile,
         } = self;
@@ -381,6 +416,11 @@ impl GroupDataExt for GroupData {
         } else {
             legacy_title
         };
-        (title, external_group_profile)
+
+        let profile = external_group_profile
+            .map(GroupDataProfilePart::ExternalProfile)
+            .or_else(|| legacy_picture.map(GroupDataProfilePart::LegacyPicture));
+
+        (title, profile)
     }
 }

@@ -23,6 +23,7 @@ use aircommon::{
         },
         push_token::EncryptedPushToken,
     },
+    utils::{CancellableStream, CancellingStream},
 };
 use airprotos::{
     common::v1::{StatusDetails, StatusDetailsCode},
@@ -45,10 +46,7 @@ use tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
 use tokio_util::sync::CancellationToken;
 use tracing::error;
 
-use crate::{
-    ApiClient,
-    util::{CancellableStream, CancellingStream},
-};
+use crate::ApiClient;
 
 #[derive(Error, Debug)]
 pub enum QsRequestError {

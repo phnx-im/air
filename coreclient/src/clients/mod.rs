@@ -66,7 +66,7 @@ use crate::{ContactType, user_profiles::UserProfile};
 use crate::{
     MessageId,
     chats::{
-        Chat, ChatAttributes,
+        Chat,
         messages::{ChatMessage, TimestampedMessage},
     },
     clients::connection_offer::FriendshipPackage,

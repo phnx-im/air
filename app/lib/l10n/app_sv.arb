@@ -201,6 +201,7 @@
   "attachment_gallery": "Galleri",
   "attachment_camera": "Kamera",
   "attachment_file": "Fil",
+  "attachment_notFound": "Bilagan är inte längre tillgänglig.",
   "textMessage_edited": "redigerad",
   "textMessage_hiddenPlaceholder": "Blockerad användare, tryck för att visa meddelandet",
   "textMessage_deleted": "Meddelande raderat",

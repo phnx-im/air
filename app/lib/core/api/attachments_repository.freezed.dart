@@ -204,4 +204,36 @@ String toString() {
 
 
 
+/// @nodoc
+
+
+class UiAttachmentStatus_NotFound extends UiAttachmentStatus {
+  const UiAttachmentStatus_NotFound(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAttachmentStatus_NotFound);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UiAttachmentStatus.notFound()';
+}
+
+
+}
+
+
+
+
 // dart format on

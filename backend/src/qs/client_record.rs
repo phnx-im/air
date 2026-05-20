@@ -600,6 +600,7 @@ mod tests {
     use aircommon::messages::client_ds::QsQueueMessageType;
     use anyhow::Context;
     use tokio::task::JoinSet;
+    use tokio_util::sync::CancellationToken;
 
     use crate::qs::{
         client_record::persistence::tests::store_random_client_record,
@@ -614,7 +615,7 @@ mod tests {
         let user_record = store_random_user_record(&pool).await?;
         let client_record = store_random_client_record(&pool, user_record.user_id).await?;
 
-        let queue_notifier = Queues::new(pool.clone()).await?;
+        let queue_notifier = Queues::new(pool.clone(), CancellationToken::new()).await?;
 
         let mut join_set = JoinSet::new();
 

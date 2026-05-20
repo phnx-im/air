@@ -117,6 +117,7 @@ abstract class RustLibApi extends BaseApi {
   crateApiAttachmentsRepositoryAttachmentsRepositoryLoadImageAttachment({
     required AttachmentsRepository that,
     required AttachmentId attachmentId,
+    required bool retryDownloadIfFailed,
     required FutureOr<void> Function(BigInt) chunkEventCallback,
   });
 
@@ -1064,6 +1065,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   crateApiAttachmentsRepositoryAttachmentsRepositoryLoadImageAttachment({
     required AttachmentsRepository that,
     required AttachmentId attachmentId,
+    required bool retryDownloadIfFailed,
     required FutureOr<void> Function(BigInt) chunkEventCallback,
   }) {
     return handler.executeNormal(
@@ -1075,6 +1077,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             serializer,
           );
           sse_encode_box_autoadd_attachment_id(attachmentId, serializer);
+          sse_encode_bool(retryDownloadIfFailed, serializer);
           sse_encode_DartFn_Inputs_u_64_Output_unit_AnyhowException(
             chunkEventCallback,
             serializer,
@@ -1092,7 +1095,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ),
         constMeta:
             kCrateApiAttachmentsRepositoryAttachmentsRepositoryLoadImageAttachmentConstMeta,
-        argValues: [that, attachmentId, chunkEventCallback],
+        argValues: [
+          that,
+          attachmentId,
+          retryDownloadIfFailed,
+          chunkEventCallback,
+        ],
         apiImpl: this,
       ),
     );
@@ -1102,7 +1110,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiAttachmentsRepositoryAttachmentsRepositoryLoadImageAttachmentConstMeta =>
       const TaskConstMeta(
         debugName: "AttachmentsRepository_load_image_attachment",
-        argNames: ["that", "attachmentId", "chunkEventCallback"],
+        argNames: [
+          "that",
+          "attachmentId",
+          "retryDownloadIfFailed",
+          "chunkEventCallback",
+        ],
       );
 
   @override
@@ -8094,9 +8107,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   AirFeatures dco_decode_air_features(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 1)
-      throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
-    return AirFeatures(encryptedGroupProfiles: dco_decode_bool(arr[0]));
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return AirFeatures(
+      encryptedGroupProfiles: dco_decode_bool(arr[0]),
+      emptyConnectionGroupAttributes: dco_decode_bool(arr[1]),
+    );
   }
 
   @protected
@@ -8382,6 +8398,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UiChatAttributes dco_decode_box_autoadd_ui_chat_attributes(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_ui_chat_attributes(raw);
+  }
+
+  @protected
   UiChatDetails dco_decode_box_autoadd_ui_chat_details(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_ui_chat_details(raw);
@@ -8594,13 +8616,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   GroupDataDebugInfo dco_decode_group_data_debug_info(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 2)
-      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    if (arr.length != 4)
+      throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return GroupDataDebugInfo(
+      legacyTitle: dco_decode_opt_String(arr[0]),
+      legacyPicture: dco_decode_bool(arr[1]),
       encryptedTitle:
-          dco_decode_opt_box_autoadd_encrypted_group_title_debug_info(arr[0]),
+          dco_decode_opt_box_autoadd_encrypted_group_title_debug_info(arr[2]),
       externalGroupProfile:
-          dco_decode_opt_box_autoadd_external_group_profile_debug_info(arr[1]),
+          dco_decode_opt_box_autoadd_external_group_profile_debug_info(arr[3]),
     );
   }
 
@@ -9609,6 +9633,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return UiAttachmentStatus_Completed();
       case 3:
         return UiAttachmentStatus_Failed();
+      case 4:
+        return UiAttachmentStatus_NotFound();
       default:
         throw Exception("unreachable");
     }
@@ -9630,18 +9656,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiChatDetails dco_decode_ui_chat_details(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 9)
-      throw Exception('unexpected arr length: expect 9 but see ${arr.length}');
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
     return UiChatDetails(
       id: dco_decode_chat_id(arr[0]),
       status: dco_decode_ui_chat_status(arr[1]),
       chatType: dco_decode_ui_chat_type(arr[2]),
       lastUsed: dco_decode_Chrono_Local(arr[3]),
-      attributes: dco_decode_ui_chat_attributes(arr[4]),
-      messagesCount: dco_decode_CastedPrimitive_usize(arr[5]),
-      unreadMessages: dco_decode_CastedPrimitive_usize(arr[6]),
-      lastMessage: dco_decode_opt_box_autoadd_ui_chat_message(arr[7]),
-      draft: dco_decode_opt_box_autoadd_ui_message_draft(arr[8]),
+      messagesCount: dco_decode_CastedPrimitive_usize(arr[4]),
+      unreadMessages: dco_decode_CastedPrimitive_usize(arr[5]),
+      lastMessage: dco_decode_opt_box_autoadd_ui_chat_message(arr[6]),
+      draft: dco_decode_opt_box_autoadd_ui_message_draft(arr[7]),
     );
   }
 
@@ -9698,7 +9723,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           dco_decode_box_autoadd_ui_user_profile(raw[1]),
         );
       case 3:
-        return UiChatType_Group();
+        return UiChatType_Group(
+          dco_decode_box_autoadd_ui_chat_attributes(raw[1]),
+        );
       case 4:
         return UiChatType_PendingConnection(
           dco_decode_box_autoadd_ui_user_profile(raw[1]),
@@ -10943,7 +10970,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   AirFeatures sse_decode_air_features(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_encryptedGroupProfiles = sse_decode_bool(deserializer);
-    return AirFeatures(encryptedGroupProfiles: var_encryptedGroupProfiles);
+    var var_emptyConnectionGroupAttributes = sse_decode_bool(deserializer);
+    return AirFeatures(
+      encryptedGroupProfiles: var_encryptedGroupProfiles,
+      emptyConnectionGroupAttributes: var_emptyConnectionGroupAttributes,
+    );
   }
 
   @protected
@@ -11269,6 +11300,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  UiChatAttributes sse_decode_box_autoadd_ui_chat_attributes(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_ui_chat_attributes(deserializer));
+  }
+
+  @protected
   UiChatDetails sse_decode_box_autoadd_ui_chat_details(
     SseDeserializer deserializer,
   ) {
@@ -11510,6 +11549,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_legacyTitle = sse_decode_opt_String(deserializer);
+    var var_legacyPicture = sse_decode_bool(deserializer);
     var var_encryptedTitle =
         sse_decode_opt_box_autoadd_encrypted_group_title_debug_info(
           deserializer,
@@ -11519,6 +11560,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           deserializer,
         );
     return GroupDataDebugInfo(
+      legacyTitle: var_legacyTitle,
+      legacyPicture: var_legacyPicture,
       encryptedTitle: var_encryptedTitle,
       externalGroupProfile: var_externalGroupProfile,
     );
@@ -12916,6 +12959,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return UiAttachmentStatus_Completed();
       case 3:
         return UiAttachmentStatus_Failed();
+      case 4:
+        return UiAttachmentStatus_NotFound();
       default:
         throw UnimplementedError('');
     }
@@ -12936,7 +12981,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_status = sse_decode_ui_chat_status(deserializer);
     var var_chatType = sse_decode_ui_chat_type(deserializer);
     var var_lastUsed = sse_decode_Chrono_Local(deserializer);
-    var var_attributes = sse_decode_ui_chat_attributes(deserializer);
     var var_messagesCount = sse_decode_CastedPrimitive_usize(deserializer);
     var var_unreadMessages = sse_decode_CastedPrimitive_usize(deserializer);
     var var_lastMessage = sse_decode_opt_box_autoadd_ui_chat_message(
@@ -12948,7 +12992,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       status: var_status,
       chatType: var_chatType,
       lastUsed: var_lastUsed,
-      attributes: var_attributes,
       messagesCount: var_messagesCount,
       unreadMessages: var_unreadMessages,
       lastMessage: var_lastMessage,
@@ -13012,7 +13055,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         var var_field0 = sse_decode_box_autoadd_ui_user_profile(deserializer);
         return UiChatType_TargetedMessageConnection(var_field0);
       case 3:
-        return UiChatType_Group();
+        var var_field0 = sse_decode_box_autoadd_ui_chat_attributes(
+          deserializer,
+        );
+        return UiChatType_Group(var_field0);
       case 4:
         var var_field0 = sse_decode_box_autoadd_ui_user_profile(deserializer);
         return UiChatType_PendingConnection(var_field0);
@@ -14525,6 +14571,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_air_features(AirFeatures self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_bool(self.encryptedGroupProfiles, serializer);
+    sse_encode_bool(self.emptyConnectionGroupAttributes, serializer);
   }
 
   @protected
@@ -14861,6 +14908,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_ui_chat_attributes(
+    UiChatAttributes self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_ui_chat_attributes(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_ui_chat_details(
     UiChatDetails self,
     SseSerializer serializer,
@@ -15106,6 +15162,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_String(self.legacyTitle, serializer);
+    sse_encode_bool(self.legacyPicture, serializer);
     sse_encode_opt_box_autoadd_encrypted_group_title_debug_info(
       self.encryptedTitle,
       serializer,
@@ -16394,6 +16452,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_32(2, serializer);
       case UiAttachmentStatus_Failed():
         sse_encode_i_32(3, serializer);
+      case UiAttachmentStatus_NotFound():
+        sse_encode_i_32(4, serializer);
     }
   }
 
@@ -16417,7 +16477,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_ui_chat_status(self.status, serializer);
     sse_encode_ui_chat_type(self.chatType, serializer);
     sse_encode_Chrono_Local(self.lastUsed, serializer);
-    sse_encode_ui_chat_attributes(self.attributes, serializer);
     sse_encode_CastedPrimitive_usize(self.messagesCount, serializer);
     sse_encode_CastedPrimitive_usize(self.unreadMessages, serializer);
     sse_encode_opt_box_autoadd_ui_chat_message(self.lastMessage, serializer);
@@ -16469,8 +16528,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case UiChatType_TargetedMessageConnection(field0: final field0):
         sse_encode_i_32(2, serializer);
         sse_encode_box_autoadd_ui_user_profile(field0, serializer);
-      case UiChatType_Group():
+      case UiChatType_Group(field0: final field0):
         sse_encode_i_32(3, serializer);
+        sse_encode_box_autoadd_ui_chat_attributes(field0, serializer);
       case UiChatType_PendingConnection(field0: final field0):
         sse_encode_i_32(4, serializer);
         sse_encode_box_autoadd_ui_user_profile(field0, serializer);
@@ -16855,11 +16915,13 @@ class AttachmentsRepositoryImpl extends RustOpaque
 
   Future<LoadedImageAttachment> loadImageAttachment({
     required AttachmentId attachmentId,
+    required bool retryDownloadIfFailed,
     required FutureOr<void> Function(BigInt) chunkEventCallback,
   }) => RustLib.instance.api
       .crateApiAttachmentsRepositoryAttachmentsRepositoryLoadImageAttachment(
         that: this,
         attachmentId: attachmentId,
+        retryDownloadIfFailed: retryDownloadIfFailed,
         chunkEventCallback: chunkEventCallback,
       );
 

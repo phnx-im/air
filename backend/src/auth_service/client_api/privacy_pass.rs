@@ -168,6 +168,7 @@ mod tests {
     };
     use sqlx::PgPool;
     use tls_codec::{Deserialize, Serialize};
+    use tokio_util::sync::CancellationToken;
 
     use crate::{
         auth_service::{
@@ -188,7 +189,13 @@ mod tests {
         pool: &PgPool,
     ) -> anyhow::Result<(AuthService, HashMap<OperationType, PublicKey<Ristretto255>>)> {
         // initialize() calls rotate_keys_if_needed() which creates the first key.
-        let service = AuthService::initialize(pool.clone(), "example.com".parse()?, None).await?;
+        let service = AuthService::initialize(
+            pool.clone(),
+            "example.com".parse()?,
+            None,
+            CancellationToken::new(),
+        )
+        .await?;
 
         let public_keys = crate::auth_service::privacy_pass::load_batched_token_keys(pool)
             .await?

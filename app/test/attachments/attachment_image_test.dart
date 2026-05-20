@@ -18,7 +18,7 @@ import 'package:mocktail/mocktail.dart';
 import '../helpers.dart';
 import '../mocks.dart';
 
-const physicalSize = Size(1000, 1800);
+const physicalSize = Size(1000, 2800);
 
 final file = UiAttachment(
   attachmentId: 42.attachmentId(),
@@ -36,13 +36,15 @@ Map<AttachmentId, UiAttachmentStatus> testStatuses = {
   1.attachmentId(): const UiAttachmentStatus.pending(),
   2.attachmentId(): UiAttachmentStatus.progress(BigInt.from(7 * 1024 * 1024)),
   3.attachmentId(): const UiAttachmentStatus.failed(),
-  4.attachmentId(): const UiAttachmentStatus.completed(),
+  4.attachmentId(): const UiAttachmentStatus.notFound(),
+  5.attachmentId(): const UiAttachmentStatus.completed(),
 };
 
 class _ImageTestBubble extends StatelessWidget {
-  const _ImageTestBubble({required this.attachmentId});
+  const _ImageTestBubble({required this.attachmentId, required this.isSender});
 
   final AttachmentId attachmentId;
+  final bool isSender;
 
   @override
   Widget build(BuildContext context) {
@@ -56,7 +58,7 @@ class _ImageTestBubble extends StatelessWidget {
         child: AttachmentImage(
           attachment: file.copyWith(attachmentId: attachmentId),
           imageMetadata: file.imageMetadata!,
-          isSender: true,
+          isSender: isSender,
           fit: BoxFit.cover,
         ),
       ),
@@ -84,49 +86,59 @@ void main() {
     );
   });
 
-  group('AttachmentImage', () {
-    Widget buildSubject() => Builder(
-      builder: (context) {
-        return RepositoryProvider<AttachmentsRepository>.value(
-          value: attachmentsRepository,
-          child: MaterialApp(
-            debugShowCheckedModeBanner: false,
-            theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            home: Scaffold(
-              body: Padding(
-                padding: const EdgeInsets.all(Spacing.px16),
-                child: SizedBox(
-                  width: double.infinity,
-                  child: Column(
-                    spacing: Spacing.px16,
-                    crossAxisAlignment: .center,
-                    children: [
-                      for (final attachmentId in testStatuses.keys) ...[
-                        _ImageTestBubble(attachmentId: attachmentId),
-                      ],
+  Widget buildSubject({required bool isSender}) => Builder(
+    builder: (context) {
+      return RepositoryProvider<AttachmentsRepository>.value(
+        value: attachmentsRepository,
+        child: MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: Scaffold(
+            body: Padding(
+              padding: const EdgeInsets.all(Spacing.px16),
+              child: SizedBox(
+                width: double.infinity,
+                child: Column(
+                  spacing: Spacing.px16,
+                  crossAxisAlignment: .center,
+                  children: [
+                    for (final testStatus in testStatuses.entries) ...[
+                      Text(switch (testStatus.value) {
+                        UiAttachmentStatus_Pending() => "Pending",
+                        UiAttachmentStatus_Progress() => "Progress",
+                        UiAttachmentStatus_Completed() => "Completed",
+                        UiAttachmentStatus_Failed() => "Failed",
+                        UiAttachmentStatus_NotFound() => "Not Found",
+                      }),
+                      _ImageTestBubble(
+                        attachmentId: testStatus.key,
+                        isSender: isSender,
+                      ),
                     ],
-                  ),
+                  ],
                 ),
               ),
             ),
           ),
-        );
-      },
-    );
+        ),
+      );
+    },
+  );
 
+  group('AttachmentImage Upload', () {
     testWidgets('renders correctly', (tester) async {
       tester.platformDispatcher.views.first.physicalSize = physicalSize;
       addTearDown(() {
         tester.platformDispatcher.views.first.resetPhysicalSize();
       });
 
-      await tester.pumpWidget(buildSubject());
+      await tester.pumpWidget(buildSubject(isSender: true));
       await tester.pumpAndSettle();
 
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/attachment_image.png'),
+        matchesGoldenFile('goldens/attachment_upload_image.png'),
       );
     });
 
@@ -138,12 +150,46 @@ void main() {
         tester.platformDispatcher.clearPlatformBrightnessTestValue();
       });
 
-      await tester.pumpWidget(buildSubject());
+      await tester.pumpWidget(buildSubject(isSender: true));
       await tester.pumpAndSettle();
 
       await expectLater(
         find.byType(MaterialApp),
-        matchesGoldenFile('goldens/attachment_image_dark_mode.png'),
+        matchesGoldenFile('goldens/attachment_image_upload_dark_mode.png'),
+      );
+    });
+  });
+
+  group('AttachmentImage Download', () {
+    testWidgets('renders correctly', (tester) async {
+      tester.platformDispatcher.views.first.physicalSize = physicalSize;
+      addTearDown(() {
+        tester.platformDispatcher.views.first.resetPhysicalSize();
+      });
+
+      await tester.pumpWidget(buildSubject(isSender: false));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/attachment_image_download.png'),
+      );
+    });
+
+    testWidgets('renders correctly (dark mode)', (tester) async {
+      tester.platformDispatcher.views.first.physicalSize = physicalSize;
+      tester.platformDispatcher.platformBrightnessTestValue = Brightness.dark;
+      addTearDown(() {
+        tester.platformDispatcher.views.first.resetPhysicalSize();
+        tester.platformDispatcher.clearPlatformBrightnessTestValue();
+      });
+
+      await tester.pumpWidget(buildSubject(isSender: false));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/attachment_image_download_dark_mode.png'),
       );
     });
   });

@@ -25,7 +25,7 @@ use crate::{
     contacts::ContactAddInfos,
     db_access::{WriteConnection, WriteDbTransaction},
     groups::{
-        Group, VerifiedGroup, client_auth_info::StorableClientCredential,
+        Group, GroupDataBytes, VerifiedGroup, client_auth_info::StorableClientCredential,
         handle_group_not_found_on_ds,
     },
     job::{Job, JobContext, JobError, chat_operation::ChatOperationError},
@@ -487,6 +487,24 @@ impl PendingChatOperation {
         new_group_data: Option<GroupData>,
         new_chat_picture: Option<Vec<u8>>,
     ) -> anyhow::Result<Self> {
+        let group_data_bytes = new_group_data.map(|data| data.encode()).transpose()?;
+        Self::create_update_with_raw_group_data(
+            txn,
+            signer,
+            chat_id,
+            group_data_bytes,
+            new_chat_picture,
+        )
+        .await
+    }
+
+    pub(crate) async fn create_update_with_raw_group_data(
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &ClientSigningKey,
+        chat_id: ChatId,
+        group_data_bytes: Option<GroupDataBytes>,
+        new_chat_picture: Option<Vec<u8>>,
+    ) -> anyhow::Result<Self> {
         let chat = Chat::load(&mut *txn, &chat_id)
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))?;
@@ -494,7 +512,6 @@ impl PendingChatOperation {
         let mut group = Group::load_clean_verified(&mut *txn, group_id)
             .await?
             .with_context(|| format!("Can't find group with id {group_id:?}"))?;
-        let group_data_bytes = new_group_data.map(|data| data.encode()).transpose()?;
 
         let params = group
             .group_mut()
@@ -941,6 +958,8 @@ mod persistence {
 #[cfg(any(test, feature = "test_utils"))]
 pub mod test_utils {
 
+    use aircommon::component::AirComponent;
+
     use crate::db_access::ReadConnection;
 
     use super::*;
@@ -965,6 +984,37 @@ pub mod test_utils {
                 });
 
             Ok(pco)
+        }
+    }
+
+    impl PendingChatOperation {
+        /// Creates a self-update commit that forces the given [`AirComponent`] into the own leaf
+        /// node.
+        ///
+        /// Use this in tests to simulate an old client that advertises a different set of feature
+        /// flags.
+        pub(crate) async fn create_update_with_air_component(
+            txn: &mut WriteDbTransaction<'_>,
+            signer: &ClientSigningKey,
+            chat_id: ChatId,
+            air_component: AirComponent,
+        ) -> anyhow::Result<Self> {
+            let chat = Chat::load(&mut *txn, &chat_id)
+                .await?
+                .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+            let group_id = chat.group_id();
+            let mut group = Group::load_clean_verified(&mut *txn, group_id)
+                .await?
+                .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+
+            let params = group
+                .group_mut()
+                .update_with_air_component(&mut *txn, signer, air_component)
+                .await?;
+
+            let job = Self::new(group, OperationType::other(params));
+            job.store(txn).await?;
+            Ok(job)
         }
     }
 }
