@@ -85,7 +85,6 @@ runs:
         path: |
           ${{ inputs.sccache-dir }}
           ~/.cargo
-          ~/.rustup
         key: "sccache-${{ github.job }}-${{ hashFiles('.github/actions/setup-buildenv/action.yml', 'Cargo.lock', '.config/cargo.toml', 'rust-toolchain.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
         restore-keys: |
           sccache-${{ github.job }}
@@ -97,7 +96,6 @@ runs:
         path: |
           ${{ inputs.sccache-dir }}
           ~/.cargo
-          ~/.rustup
         key: "sccache-${{ github.job }}-${{ hashFiles('.github/actions/setup-buildenv/action.yml', 'Cargo.lock', '.config/cargo.toml', 'rust-toolchain.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
         restore-keys: |
           sccache-${{ github.job }}
@@ -138,22 +136,6 @@ runs:
       uses: maxim-lobanov/setup-xcode@v1
       with:
         xcode-version: 26.1.1
-
-    ## rustup
-
-    - name: Configure Rust toolchain cache
-      if: github.ref == 'refs/heads/main'
-      uses: actions/cache@v5
-      with:
-        path: ~/.rustup
-        key: rust-toolchain-${{ hashFiles('rust-toolchain.toml' ) }}
-
-    - name: Download Rust toolchain cache
-      if: github.ref != 'refs/heads/main'
-      uses: actions/cache/restore@v5
-      with:
-        path: ~/.rustup
-        key: rust-toolchain-${{ hashFiles('rust-toolchain.toml' ) }}
 
     ## JDK
 
