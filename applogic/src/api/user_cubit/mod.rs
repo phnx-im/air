@@ -463,6 +463,9 @@ impl UserCubitBase {
         &self,
         blob: Vec<u8>,
     ) -> anyhow::Result<(String, Vec<u8>)> {
+        let api_clients = self.core_user().api_clients();
+        encrypt_and_provision(blob, ProvisionTarget::User(&user_id.into())).await?;
+
         todo!();
     }
 }

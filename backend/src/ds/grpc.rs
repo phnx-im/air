@@ -1102,6 +1102,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         Status::internal("failed to load client verifying key")
                     })?
                     .ok_or_else(|| Status::not_found("user not found"))?;
+
                 request
                     .verify(&client_verifying_key)
                     .map_err(InvalidSignature)?

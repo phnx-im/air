@@ -16,7 +16,7 @@ use airapiclient::{
 use aircommon::{
     credentials::keys::ClientSigningKey,
     crypto::aead::{AeadCiphertext, AeadEncryptable, keys::AttachmentEarKey},
-    identifiers::AttachmentId,
+    identifiers::{AttachmentId, UserId},
 };
 use airprotos::{
     common::v1::AttachmentTooLargeDetail,
@@ -79,7 +79,7 @@ impl CoreUser {
         let (attachment_metadata, ciphertext, provision_response) = match encrypt_and_provision(
             &self.api_client()?,
             self.signing_key(),
-            &group,
+            ProvisionTarget::Group(&group),
             &attachment.content,
         )
         .await?
@@ -185,13 +185,17 @@ impl CoreUser {
             .await?;
 
         // encrypt the content and provision the attachment, but don't upload it yet
-        let (attachment_metadata, ciphertext, provision_response) =
-            match encrypt_and_provision(&self.api_client()?, self.signing_key(), &group, &content)
-                .await?
-            {
-                Ok(result) => result,
-                Err(error) => return Ok(Err(error)),
-            };
+        let (attachment_metadata, ciphertext, provision_response) = match encrypt_and_provision(
+            &self.api_client()?,
+            self.signing_key(),
+            ProvisionTarget::Group(&group),
+            &content,
+        )
+        .await?
+        {
+            Ok(result) => result,
+            Err(error) => return Ok(Err(error)),
+        };
 
         // update local attachment message
 
@@ -437,10 +441,15 @@ pub enum ProvisionAttachmentError {
     TooLarge(AttachmentTooLargeDetail),
 }
 
-async fn encrypt_and_provision(
+pub(crate) enum ProvisionTarget<'a> {
+    Group(&'a Group),
+    User(&'a UserId),
+}
+
+pub(crate) async fn encrypt_and_provision(
     api_client: &ApiClient,
     signing_key: &ClientSigningKey,
-    group: &Group,
+    target: ProvisionTarget<'_>,
     content: &AttachmentBytes,
 ) -> anyhow::Result<
     Result<(AttachmentMetadata, Vec<u8>, ProvisionAttachmentResponse), ProvisionAttachmentError>,
@@ -452,14 +461,18 @@ async fn encrypt_and_provision(
 
     // provision attachment
     let content_length = ciphertext.len().try_into().context("usize overflow")?;
+    let target = match target {
+        ProvisionTarget::Group(group) => DsProvisionAttachmentTarget::Group {
+            group_state_ear_key: group.group_state_ear_key(),
+            group_id: group.group_id(),
+            sender_index: group.own_index(),
+        },
+        ProvisionTarget::User(user_id) => DsProvisionAttachmentTarget::User { user_id: user_id },
+    };
     let response = match api_client
         .ds_provision_attachment(
             signing_key,
-            DsProvisionAttachmentTarget::Group {
-                group_state_ear_key: group.group_state_ear_key(),
-                group_id: group.group_id(),
-                sender_index: group.own_index(),
-            },
+            target,
             content_length,
             StorageObjectType::Attachment,
         )

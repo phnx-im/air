@@ -19,7 +19,7 @@ mod download;
 pub(crate) mod persistence;
 mod process;
 pub(crate) mod progress;
-mod upload;
+pub(crate) mod upload;
 
 #[derive(TlsSize, TlsSerialize, TlsDeserializeBytes)]
 struct AttachmentBytes {
