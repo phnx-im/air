@@ -9,6 +9,7 @@ edition = "2024"
 license = "AGPL-3.0-or-later"
 
 [dependencies]
+apqmls.workspace = true
 chrono.workspace = true
 openmls.workspace = true
 openmls_memory_storage.workspace = true

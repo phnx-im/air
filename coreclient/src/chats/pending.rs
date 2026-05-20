@@ -181,9 +181,8 @@ impl CoreUser {
                     RoleIndex::Regular,
                 )?;
 
-                group
-                    .store_update(&mut *txn, Some(TimeStamp::now()))
-                    .await?;
+                let now = TimeStamp::now();
+                group.store_update(&mut *txn, Some(now), Some(now)).await?;
 
                 if let Some(hash) = connection_package_hash {
                     // Delete the connection package if it's not last resort

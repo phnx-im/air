@@ -798,4 +798,5 @@ struct _AirComponent {
 struct _AirFeatures {
     pub encrypted_group_profiles: bool,
     pub empty_connection_group_attributes: bool,
+    pub pq_groups: bool,
 }

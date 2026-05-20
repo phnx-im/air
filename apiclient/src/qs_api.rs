@@ -28,9 +28,10 @@ use aircommon::{
 use airprotos::{
     common::v1::{StatusDetails, StatusDetailsCode},
     queue_service::v1::{
-        AckListenRequest, CreateClientPayload, DeleteClientPayload, DeleteUserPayload,
-        FetchListenRequest, InitListenPayload, PublishKeyPackagesPayload, QueueEvent,
-        UpdateClientPayload, UpdateUserPayload, listen_request,
+        AckListenRequest, ApqKeyPackageRequest, CreateClientPayload, DeleteClientPayload,
+        DeleteUserPayload, FetchListenRequest, InitListenPayload, PublishApqKeyPackagesPayload,
+        PublishKeyPackagesPayload, QueueEvent, UpdateClientPayload, UpdateUserPayload,
+        listen_request,
     },
 };
 use airprotos::{
@@ -39,6 +40,7 @@ use airprotos::{
     },
     validation::{MissingFieldError, MissingFieldExt},
 };
+use apqmls::messages::{ApqKeyPackage, ApqKeyPackageIn};
 use mls_assist::openmls::prelude::KeyPackage;
 use thiserror::Error;
 use tokio::sync::mpsc;
@@ -244,6 +246,27 @@ impl ApiClient {
         Ok(())
     }
 
+    pub async fn qs_publish_apq_key_packages(
+        &self,
+        sender: QsClientId,
+        key_packages: Vec<ApqKeyPackage>,
+        signing_key: &QsClientSigningKey,
+    ) -> Result<(), QsRequestError> {
+        let payload = PublishApqKeyPackagesPayload {
+            client_metadata: Some(self.metadata().clone()),
+            client_id: Some(sender.into()),
+            apq_key_packages: key_packages
+                .into_iter()
+                .map(|key_package| key_package.try_into())
+                .collect::<Result<Vec<_>, _>>()?,
+        };
+        let request = payload.sign(signing_key)?;
+        self.qs_grpc_client()
+            .publish_apq_key_packages(request)
+            .await?;
+        Ok(())
+    }
+
     pub async fn qs_key_package(
         &self,
         sender: FriendshipToken,
@@ -266,6 +289,30 @@ impl ApiClient {
                 QsRequestError::UnexpectedResponse
             })?;
         Ok(KeyPackageResponseIn { key_package })
+    }
+
+    pub async fn qs_apq_key_package(
+        &self,
+        sender: FriendshipToken,
+    ) -> Result<ApqKeyPackageIn, QsRequestError> {
+        let request = ApqKeyPackageRequest {
+            client_metadata: Some(self.metadata().clone()),
+            sender: Some(sender.into()),
+        };
+        let response = self
+            .qs_grpc_client()
+            .apq_key_package(request)
+            .await?
+            .into_inner();
+        let key_package = response
+            .key_package
+            .ok_or_missing_field("key_package")?
+            .try_into()
+            .map_err(|error| {
+                error!(%error, "invalid key_package in response");
+                QsRequestError::UnexpectedResponse
+            })?;
+        Ok(key_package)
     }
 
     pub async fn qs_encryption_key(&self) -> Result<EncryptionKeyResponse, QsRequestError> {

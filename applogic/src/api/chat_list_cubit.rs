@@ -105,10 +105,11 @@ impl ChatListCubitBase {
         group_name: String,
         picture: Option<Vec<u8>>,
     ) -> anyhow::Result<ChatId> {
+        let is_apq = false;
         let id = self
             .context
             .core_user
-            .create_chat(group_name, picture)
+            .create_chat(group_name, picture, is_apq)
             .await?;
         self.context.load_and_emit_state().await;
         Ok(id)

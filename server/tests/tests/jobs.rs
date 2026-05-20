@@ -113,7 +113,7 @@ async fn chat_operation_fails_if_pending_operation_fails() {
         .await
         .unwrap()
         .expect("pending operation should exist");
-    assert_eq!(pending.operation_type, "other");
+    assert!(pending.operation_type == "other" || pending.operation_type == "apq_other");
     assert_eq!(pending.request_status, "ready_to_retry");
 
     setup.listener_control_handle().set_drop_next_response();
@@ -127,7 +127,7 @@ async fn chat_operation_fails_if_pending_operation_fails() {
         .await
         .unwrap()
         .expect("pending operation should still exist");
-    assert_eq!(pending_after.operation_type, "other");
+    assert!(pending_after.operation_type == "other" || pending_after.operation_type == "apq_other");
     assert_eq!(pending_after.request_status, "ready_to_retry");
     assert!(pending_after.number_of_attempts >= pending.number_of_attempts);
 

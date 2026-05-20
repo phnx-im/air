@@ -132,6 +132,8 @@ impl TryFrom<SignatureScheme> for openmls::prelude::SignatureScheme {
             SignatureScheme::EcdsaSecp521r1Sha512 => Ok(ECDSA_SECP521R1_SHA512),
             SignatureScheme::Ed25519 => Ok(ED25519),
             SignatureScheme::Ed448 => Ok(ED448),
+            SignatureScheme::Mldsa65 => Ok(MLDSA65),
+            SignatureScheme::Mldsa87 => Ok(MLDSA87),
         }
     }
 }
@@ -145,6 +147,8 @@ impl From<openmls::prelude::SignatureScheme> for SignatureScheme {
             ECDSA_SECP521R1_SHA512 => SignatureScheme::EcdsaSecp521r1Sha512,
             ED25519 => SignatureScheme::Ed25519,
             ED448 => SignatureScheme::Ed448,
+            MLDSA65 => SignatureScheme::Mldsa65,
+            MLDSA87 => SignatureScheme::Mldsa87,
         }
     }
 }

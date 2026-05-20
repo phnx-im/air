@@ -18,6 +18,7 @@ airapiclient.workspace = true
 aircommon.workspace = true
 airprotos.workspace = true
 anyhow.workspace = true
+apqmls.workspace = true
 base64.workspace = true
 blurhash.workspace = true
 chrono.workspace = true

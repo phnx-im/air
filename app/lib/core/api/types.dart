@@ -31,6 +31,7 @@ sealed class AirFeatures with _$AirFeatures {
   const factory AirFeatures({
     required bool encryptedGroupProfiles,
     required bool emptyConnectionGroupAttributes,
+    required bool pqGroups,
   }) = _AirFeatures;
 }
 

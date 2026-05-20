@@ -33,6 +33,11 @@ pub struct AirFeatures {
     /// any system message about this.
     #[tag(2)]
     pub empty_connection_group_attributes: bool,
+    /// Whether the client supports [APQMLS] (Amortized PQ MLS Combiner).
+    ///
+    /// [APQMLS]: https://datatracker.ietf.org/doc/html/draft-ietf-mls-combiner
+    #[tag(3)]
+    pub pq_groups: bool,
 }
 
 impl AirComponent {
@@ -46,6 +51,7 @@ impl AirComponent {
             features: AirFeatures {
                 encrypted_group_profiles: true,
                 empty_connection_group_attributes: true,
+                pq_groups: true,
             },
         }
     }

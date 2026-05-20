@@ -545,6 +545,7 @@ async fn erase_connection_group_data_mixed_feature_support() {
         features: AirFeatures {
             encrypted_group_profiles: true,
             empty_connection_group_attributes: false,
+            pq_groups: setup.apq_groups,
         },
     };
     bob_user
@@ -617,6 +618,7 @@ async fn erase_connection_group_data_mixed_feature_support() {
         features: AirFeatures {
             encrypted_group_profiles: true,
             empty_connection_group_attributes: true,
+            pq_groups: setup.apq_groups,
         },
     };
     bob_user

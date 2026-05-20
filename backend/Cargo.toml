@@ -15,6 +15,7 @@ license = "AGPL-3.0-or-later"
 [dependencies]
 aircommon.workspace = true
 airprotos.workspace = true
+apqmls.workspace = true
 async-trait.workspace = true
 aws-config.workspace = true
 aws-sdk-s3.workspace = true

@@ -50,7 +50,7 @@ impl Job for ChatOperation {
         self,
         context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<Self::DomainError>> {
-        self.execute_internal(context).await
+        Box::pin(self.execute_internal(context)).await
     }
 
     async fn execute_dependencies(
@@ -196,13 +196,13 @@ impl ChatOperation {
             key_store,
             ..
         } = context;
-        let job = PendingChatOperation::create_add(
+        let job = Box::pin(PendingChatOperation::create_add(
             db.write().await?,
             api_clients,
             &key_store.signing_key,
             self.chat_id,
             users,
-        )
+        ))
         .await?;
 
         job.execute(context).await

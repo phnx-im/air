@@ -6,6 +6,7 @@ use crate::{
     messages::{AssistedGroupInfoIn, AssistedMessageIn, SerializedMlsMessage},
     provider_traits::{MlsAssistProvider, MlsAssistStorageProvider},
 };
+use apqmls::{messages::ApqGroupInfo, processing::ApqProcessedMessage};
 use chrono::Duration;
 use errors::StorageError;
 use openmls::{
@@ -22,6 +23,7 @@ use openmls::{
 
 use self::{errors::ProcessAssistedMessageError, past_group_states::PastGroupStates};
 
+pub mod apq;
 pub mod errors;
 mod past_group_states;
 pub mod process;
@@ -213,4 +215,16 @@ impl ProcessedAssistedMessage {
             ProcessedAssistedMessage::PrivateMessage(_) => None,
         }
     }
+}
+
+pub struct ApqProcessedAssistedMessagePlus {
+    pub processed_assisted_message: ApqProcessedAssistedMessage,
+    /// Concat of t + pq serialized bytes
+    pub serialized_apq_message: SerializedMlsMessage,
+}
+
+/// APQ processed assisted messages are always commits.
+pub struct ApqProcessedAssistedMessage {
+    pub processed_message: ApqProcessedMessage,
+    pub group_info: ApqGroupInfo,
 }

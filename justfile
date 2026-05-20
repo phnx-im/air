@@ -143,7 +143,16 @@ regenerate-icons:
 @test-rust: start-docker-compose
     just _check-status "cargo clippy --locked --all-targets"
     just _check-status "cargo test --locked"
-    echo "{{BOLD}}test-rust done{{NORMAL}}"
+    just _check-status "just test-rust-apq-groups"
+
+# Run pre-compiled integration tests with APQ groups enabled
+@test-rust-apq-groups:
+    #!/usr/bin/env -S bash -eu
+    # Note: This such a complicated command to avoid recompilation of the
+    # integration tests, which burns quite some time in CI.
+    RUNNER=$(cargo test --no-run --message-format=json 2>/dev/null | jq -r 'select(.reason == "compiler-artifact" and .target.name == "integration") | .executable')
+    echo "Running integration tests with APQ groups enabled: $RUNNER"
+    env TEST_WITH_APQ_GROUPS=true $RUNNER
 
 # Run flutter test.
 test-flutter:

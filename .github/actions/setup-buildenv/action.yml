@@ -113,7 +113,6 @@ runs:
           echo "SCCACHE_DIR=${{ inputs.sccache-dir }}" >> $GITHUB_ENV
         post: |
           sccache --show-stats
-          sccache --stop-server
 
     - if: runner.os == 'Linux'
       name: Enable sccache wrapper for Unix
