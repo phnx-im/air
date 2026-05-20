@@ -458,6 +458,13 @@ impl UserCubitBase {
         suffix.copy_from_slice(&second.to_chunks());
         Ok(code)
     }
+
+    pub async fn encrypt_and_upload_blob(
+        &self,
+        blob: Vec<u8>,
+    ) -> anyhow::Result<(String, Vec<u8>)> {
+        todo!();
+    }
 }
 
 impl Drop for UserCubitBase {

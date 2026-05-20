@@ -19,7 +19,7 @@ use tonic::Status;
 use crate::{
     common::{
         convert::{ExpirationDataError, InvalidIndexedCiphertext},
-        v1::Signature,
+        v1::{Signature, UserId},
     },
     convert::TryRefInto,
     validation::{MissingFieldError, MissingFieldExt},
@@ -31,7 +31,7 @@ use super::v1::{
     AsIntermediateVerifyingKey, AsVerifyingKey, ClientCredential, ClientCredentialCsr,
     ClientCredentialPayload, ClientVerifyingKey, ConnectionEncryptionKey, ConnectionOfferMessage,
     ConnectionPackage, ConnectionPackagePayload, EncryptedUserProfile, Hash, SignatureScheme,
-    UserId, UsernameHash, UsernameSignature, UsernameVerifyingKey,
+    UsernameHash, UsernameSignature, UsernameVerifyingKey,
 };
 
 impl From<identifiers::UserId> for UserId {

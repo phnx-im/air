@@ -8,7 +8,7 @@ use aircommon::{
     LibraryError,
     credentials::keys::ClientSigningKey,
     crypto::{aead::keys::GroupStateEarKey, signatures::signable::Signable},
-    identifiers::{AttachmentId, QsReference, QualifiedGroupId},
+    identifiers::{AttachmentId, QsReference, QualifiedGroupId, UserId},
     messages::{
         client_ds::UserProfileKeyUpdateParams,
         client_ds_out::{
@@ -112,6 +112,17 @@ impl DsRequestError {
             false
         }
     }
+}
+
+pub enum DsProvisionAttachmentTarget<'a> {
+    Group {
+        group_state_ear_key: &'a GroupStateEarKey,
+        group_id: &'a GroupId,
+        sender_index: LeafNodeIndex,
+    },
+    User {
+        user_id: &'a UserId,
+    },
 }
 
 impl ApiClient {
@@ -518,22 +529,40 @@ impl ApiClient {
     pub async fn ds_provision_attachment(
         &self,
         signing_key: &ClientSigningKey,
-        group_state_ear_key: &GroupStateEarKey,
-        group_id: &GroupId,
-        sender_index: LeafNodeIndex,
+        target: DsProvisionAttachmentTarget<'_>,
         content_length: i64,
         object_type: StorageObjectType,
     ) -> Result<ProvisionAttachmentResponse, DsRequestError> {
-        let qgid: QualifiedGroupId = group_id.try_into()?;
-        let payload = ProvisionAttachmentPayload {
-            client_metadata: Some(self.metadata().clone()),
-            group_state_ear_key: Some(group_state_ear_key.ref_into()),
-            group_id: Some(qgid.ref_into()),
-            sender: Some(sender_index.into()),
-            use_post_policy: true,
-            content_length,
-            object_type: object_type.into(),
+        let payload = match target {
+            DsProvisionAttachmentTarget::Group {
+                group_state_ear_key,
+                group_id,
+                sender_index,
+            } => {
+                let qgid: QualifiedGroupId = group_id.try_into()?;
+                ProvisionAttachmentPayload {
+                    client_metadata: Some(self.metadata().clone()),
+                    group_state_ear_key: Some(group_state_ear_key.ref_into()),
+                    group_id: Some(qgid.ref_into()),
+                    sender: Some(sender_index.into()),
+                    user_id: None,
+                    use_post_policy: true,
+                    content_length,
+                    object_type: object_type.into(),
+                }
+            }
+            DsProvisionAttachmentTarget::User { user_id } => ProvisionAttachmentPayload {
+                client_metadata: Some(self.metadata().clone()),
+                group_state_ear_key: None,
+                group_id: None,
+                sender: None,
+                user_id: Some(user_id.clone().into()),
+                use_post_policy: true,
+                content_length,
+                object_type: object_type.into(),
+            },
         };
+
         let request = payload.sign(signing_key)?;
         let response = self
             .ds_grpc_client()

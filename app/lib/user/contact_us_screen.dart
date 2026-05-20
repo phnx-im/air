@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/core/api/blob_service.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/foundations/themes.dart';
@@ -105,6 +106,7 @@ class _EmailForm extends HookWidget {
   Widget build(BuildContext context) {
     final body = useState(initialBody ?? "");
     final selectedSubject = useState<String?>(initialSubject);
+    final includeLogs = useState(false);
 
     final loc = AppLocalizations.of(context);
 
@@ -153,7 +155,22 @@ class _EmailForm extends HookWidget {
               onSaved: (value) => body.value = value ?? "",
               validator: (value) => _validateBody(value, loc),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: Spacing.px8),
+
+            // Include logs checkbox
+            GestureDetector(
+              onTap: () => includeLogs.value = !includeLogs.value,
+              child: Row(
+                children: [
+                  Checkbox(
+                    value: includeLogs.value,
+                    onChanged: (value) => includeLogs.value = value ?? false,
+                  ),
+                  Text(loc.contactUsScreen_includeLogs),
+                ],
+              ),
+            ),
+            const SizedBox(height: Spacing.px8),
 
             // Submit Button
             OutlinedButton(

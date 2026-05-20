@@ -832,6 +832,9 @@ class AppLocalizationsSv extends AppLocalizations {
   String get contactUsScreen_body => 'Meddelande';
 
   @override
+  String get contactUsScreen_includeLogs => 'Dela dina loggar';
+
+  @override
   String get contactUsScreen_composeEmail => 'Skriv e-post';
 
   @override
