@@ -438,7 +438,7 @@ impl UserCubitBase {
 
     /// Returns the pair of safety codes of the logged-in user and the given user.
     ///
-    /// The order of the codes is stable anStorageObjectTyped is determined by their lexicographical order.
+    /// The order of the codes is stable and is determined by their lexicographical order.
     #[frb(type_64bit_int)]
     pub async fn safety_codes(&self, other_user_id: UiUserId) -> anyhow::Result<[u64; 12]> {
         let mut first = self

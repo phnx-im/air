@@ -104,7 +104,7 @@ abstract class UserCubitBase implements RustOpaqueInterface {
 
   /// Returns the pair of safety codes of the logged-in user and the given user.
   ///
-  /// The order of the codes is stable anStorageObjectTyped is determined by their lexicographical order.
+  /// The order of the codes is stable and is determined by their lexicographical order.
   Future<intArray12> safetyCodes({required UiUserId otherUserId});
 
   Future<void> setAppState({required AppState appState});

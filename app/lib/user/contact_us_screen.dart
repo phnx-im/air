@@ -182,7 +182,7 @@ class _EmailForm extends HookWidget {
                     )
                   else
                     Checkbox(
-                      value: includeLogs.value,
+                      value: uploadedLogs.value != null,
                       onChanged: (value) async {
                         if (value == true) {
                           isUploadingLogs.value = true;
@@ -197,11 +197,13 @@ class _EmailForm extends HookWidget {
                               (loc) => loc.contactUsScreen_errorUploadingLogs,
                             );
                             isUploadingLogs.value = false;
+                            uploadedLogs.value = null;
                             return;
                           }
                           isUploadingLogs.value = false;
+                        } else {
+                          uploadedLogs.value = null;
                         }
-                        includeLogs.value = value ?? false;
                       },
                     ),
                   Text(loc.contactUsScreen_includeLogs),
@@ -274,7 +276,6 @@ class _EmailForm extends HookWidget {
       'mailto:help@air.ms?subject=$subject&body=$body',
     );
     try {
-      debugPrint("${emailUri}");
       await launcher.launchUrl(emailUri);
     } catch (e) {
       _log.severe("Failed to launch email: $e", e);

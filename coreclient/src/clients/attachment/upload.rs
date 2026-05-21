@@ -495,15 +495,15 @@ enum AttachmentTarget<'a> {
     User(&'a UserId),
 }
 
-impl<'a> Into<DsAttachmentTarget<'a>> for AttachmentTarget<'a> {
-    fn into(self) -> DsAttachmentTarget<'a> {
-        match self {
+impl<'a> From<AttachmentTarget<'a>> for DsAttachmentTarget<'a> {
+    fn from(target: AttachmentTarget<'a>) -> Self {
+        match target {
             AttachmentTarget::Group(group) => DsAttachmentTarget::Group {
                 group_state_ear_key: group.group_state_ear_key(),
                 group_id: group.group_id(),
                 sender_index: group.own_index(),
             },
-            AttachmentTarget::User(user_id) => DsAttachmentTarget::User { user_id: user_id },
+            AttachmentTarget::User(user_id) => DsAttachmentTarget::User { user_id },
         }
     }
 }

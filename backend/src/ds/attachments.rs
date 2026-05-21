@@ -30,7 +30,7 @@ use tonic::{Code, Response, Status};
 use tracing::error;
 use uuid::Uuid;
 
-use crate::settings::StoragePaths;
+use crate::settings::{StoragePaths, StorageSettings};
 
 use super::{Ds, storage::Storage};
 
@@ -82,11 +82,7 @@ impl Ds {
         presigning_config.set_expires_in(Some(duration.to_std()?));
         let presigning_config = presigning_config.build()?;
 
-        let bucket = if let StorageObjectType::DebugLogs = object_type {
-            storage.settings().debug_logs_bucket.clone()
-        } else {
-            storage.settings().bucket.clone()
-        };
+        let bucket = select_bucket(storage.settings(), object_type);
         let key = storage_key(&storage.settings().storage_paths, object_id, object_type);
         let request = storage
             .client()
@@ -130,11 +126,7 @@ async fn create_signed_put(
     presigning_config.set_expires_in(Some(duration.to_std()?));
     let presigning_config = presigning_config.build()?;
 
-    let bucket = if let StorageObjectType::DebugLogs = object_type {
-        storage.settings().debug_logs_bucket.clone()
-    } else {
-        storage.settings().bucket.clone()
-    };
+    let bucket = select_bucket(storage.settings(), object_type);
     let key = storage_key(&storage.settings().storage_paths, object_id, object_type);
     let request = storage.client().put_object().bucket(bucket).key(key);
 
@@ -201,11 +193,7 @@ fn create_signed_post(
         region = settings.region,
     );
 
-    let bucket = if let StorageObjectType::DebugLogs = object_type {
-        settings.debug_logs_bucket.clone()
-    } else {
-        settings.bucket.clone()
-    };
+    let bucket = select_bucket(settings, object_type);
     let key = storage_key(&storage.settings().storage_paths, object_id, object_type);
     let policy = Policy {
         expiration: not_after,
@@ -248,6 +236,14 @@ fn create_signed_post(
         upload_url,
         post_policy: Some(post_policy),
         ..Default::default()
+    }
+}
+
+fn select_bucket(settings: &StorageSettings, object_type: StorageObjectType) -> String {
+    if let StorageObjectType::DebugLogs = object_type {
+        settings.debug_logs_bucket.clone()
+    } else {
+        settings.bucket.clone()
     }
 }
 
@@ -389,8 +385,6 @@ impl From<GetAttachmentUrlError> for Status {
 mod test {
     use chrono::Duration;
     use uuid::uuid;
-
-    use crate::settings::StorageSettings;
 
     use super::*;
 

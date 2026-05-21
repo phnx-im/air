@@ -15,13 +15,6 @@ services:
       -c max_connections=1000
       -c fsync=off
       -c full_page_writes=off
-      -c synchronous_commit=off
-      -c wal_level=minimal
-      -c max_wal_senders=0
-      -c archive_mode=off
-      -c checkpoint_completion_target=0.9
-      -c shared_buffers=256MB
-      -c work_mem=64MB
       -c ssl=on
       -c ssl_cert_file=/etc/postgresql/certs/server.crt
       -c ssl_key_file=/etc/postgresql/certs/server.key
@@ -63,15 +56,12 @@ services:
       minio:
         condition: service_healthy
     restart: "no"
-    entrypoint:
-      - sh
-      - -exc
-      - |
-        mc alias set local http://minio:9000 minioadmin minioadmin
-        mc admin user add local minioaccesskey miniosecretkey
-        mc admin policy attach local readwrite --user=minioaccesskey
-        mc mb -p local/data
-        mc mb -p local/debug-logs
+    entrypoint: >
+      sh -exc "
+      mc alias set local http://minio:9000 minioadmin minioadmin;
+      mc admin user add local minioaccesskey miniosecretkey;
+      mc admin policy attach local readwrite --user=minioaccesskey;
+      mc mb local/data"
 
 x-podman:
   in_pod: false
