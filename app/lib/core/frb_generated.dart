@@ -8417,6 +8417,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  PqDebugInfo dco_decode_box_autoadd_pq_debug_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_pq_debug_info(raw);
+  }
+
+  @protected
   (UiMimiId, UiInReplyToMessage)
   dco_decode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -8679,8 +8685,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   GroupDebugInfo dco_decode_group_debug_info(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 11)
-      throw Exception('unexpected arr length: expect 11 but see ${arr.length}');
+    if (arr.length != 13)
+      throw Exception('unexpected arr length: expect 13 but see ${arr.length}');
     return GroupDebugInfo(
       groupId: dco_decode_String(arr[0]),
       epoch: dco_decode_u_64(arr[1]),
@@ -8694,6 +8700,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           dco_decode_opt_box_autoadd_required_debug_capabilities(arr[8]),
       members: dco_decode_Map_u_32_debug_capabilities_None(arr[9]),
       groupData: dco_decode_opt_box_autoadd_group_data_debug_info(arr[10]),
+      sizeBytes: dco_decode_u_64(arr[11]),
+      pq: dco_decode_opt_box_autoadd_pq_debug_info(arr[12]),
     );
   }
 
@@ -9391,6 +9399,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  PqDebugInfo? dco_decode_opt_box_autoadd_pq_debug_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_pq_debug_info(raw);
+  }
+
+  @protected
   (UiMimiId, UiInReplyToMessage)?
   dco_decode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
     dynamic raw,
@@ -9514,6 +9528,23 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       default:
         throw Exception("unreachable");
     }
+  }
+
+  @protected
+  PqDebugInfo dco_decode_pq_debug_info(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    return PqDebugInfo(
+      groupId: dco_decode_String(arr[0]),
+      epoch: dco_decode_u_64(arr[1]),
+      ciphersuite: dco_decode_String(arr[2]),
+      selfUpdatedAt: dco_decode_opt_String(arr[3]),
+      pendingProposals: dco_decode_usize(arr[4]),
+      hasPendingCommit: dco_decode_bool(arr[5]),
+      sizeBytes: dco_decode_u_64(arr[6]),
+    );
   }
 
   @protected
@@ -11317,6 +11348,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  PqDebugInfo sse_decode_box_autoadd_pq_debug_info(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_pq_debug_info(deserializer));
+  }
+
+  @protected
   (UiMimiId, UiInReplyToMessage)
   sse_decode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
     SseDeserializer deserializer,
@@ -11633,6 +11672,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_groupData = sse_decode_opt_box_autoadd_group_data_debug_info(
       deserializer,
     );
+    var var_sizeBytes = sse_decode_u_64(deserializer);
+    var var_pq = sse_decode_opt_box_autoadd_pq_debug_info(deserializer);
     return GroupDebugInfo(
       groupId: var_groupId,
       epoch: var_epoch,
@@ -11645,6 +11686,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       requiredCapabilities: var_requiredCapabilities,
       members: var_members,
       groupData: var_groupData,
+      sizeBytes: var_sizeBytes,
+      pq: var_pq,
     );
   }
 
@@ -12627,6 +12670,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  PqDebugInfo? sse_decode_opt_box_autoadd_pq_debug_info(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_pq_debug_info(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   (UiMimiId, UiInReplyToMessage)?
   sse_decode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
     SseDeserializer deserializer,
@@ -12841,6 +12897,27 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       default:
         throw UnimplementedError('');
     }
+  }
+
+  @protected
+  PqDebugInfo sse_decode_pq_debug_info(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_groupId = sse_decode_String(deserializer);
+    var var_epoch = sse_decode_u_64(deserializer);
+    var var_ciphersuite = sse_decode_String(deserializer);
+    var var_selfUpdatedAt = sse_decode_opt_String(deserializer);
+    var var_pendingProposals = sse_decode_usize(deserializer);
+    var var_hasPendingCommit = sse_decode_bool(deserializer);
+    var var_sizeBytes = sse_decode_u_64(deserializer);
+    return PqDebugInfo(
+      groupId: var_groupId,
+      epoch: var_epoch,
+      ciphersuite: var_ciphersuite,
+      selfUpdatedAt: var_selfUpdatedAt,
+      pendingProposals: var_pendingProposals,
+      hasPendingCommit: var_hasPendingCommit,
+      sizeBytes: var_sizeBytes,
+    );
   }
 
   @protected
@@ -14925,6 +15002,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_pq_debug_info(
+    PqDebugInfo self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_pq_debug_info(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
     (UiMimiId, UiInReplyToMessage) self,
     SseSerializer serializer,
@@ -15247,6 +15333,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       self.groupData,
       serializer,
     );
+    sse_encode_u_64(self.sizeBytes, serializer);
+    sse_encode_opt_box_autoadd_pq_debug_info(self.pq, serializer);
   }
 
   @protected
@@ -16145,6 +16233,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_pq_debug_info(
+    PqDebugInfo? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_pq_debug_info(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
     (UiMimiId, UiInReplyToMessage)? self,
     SseSerializer serializer,
@@ -16356,6 +16457,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_32(1, serializer);
         sse_encode_String(field0, serializer);
     }
+  }
+
+  @protected
+  void sse_encode_pq_debug_info(PqDebugInfo self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.groupId, serializer);
+    sse_encode_u_64(self.epoch, serializer);
+    sse_encode_String(self.ciphersuite, serializer);
+    sse_encode_opt_String(self.selfUpdatedAt, serializer);
+    sse_encode_usize(self.pendingProposals, serializer);
+    sse_encode_bool(self.hasPendingCommit, serializer);
+    sse_encode_u_64(self.sizeBytes, serializer);
   }
 
   @protected

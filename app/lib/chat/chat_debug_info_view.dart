@@ -113,8 +113,41 @@ class _GroupDebugInfoBody extends StatelessWidget {
               label: 'Pending Commit',
               value: info.hasPendingCommit ? 'yes' : 'no',
             ),
+            _InfoRow(label: 'Size', value: _formatBytes(info.sizeBytes)),
           ],
         ),
+        const SizedBox(height: Spacing.px16),
+        const _SectionHeader('Post-Quantum'),
+        if (info.pq == null)
+          const _InfoCard(
+            children: [_InfoRow(label: 'Enabled', value: 'no')],
+          )
+        else
+          _InfoCard(
+            children: [
+              const _InfoRow(label: 'Enabled', value: 'yes'),
+              _InfoRow(
+                label: 'Group ID',
+                value: info.pq!.groupId,
+                monospace: true,
+              ),
+              _InfoRow(label: 'Epoch', value: info.pq!.epoch.toString()),
+              _InfoRow(label: 'Ciphersuite', value: info.pq!.ciphersuite),
+              _InfoRow(
+                label: 'Self Updated At',
+                value: info.pq!.selfUpdatedAt ?? '—',
+              ),
+              _InfoRow(
+                label: 'Pending Proposals',
+                value: info.pq!.pendingProposals.toString(),
+              ),
+              _InfoRow(
+                label: 'Pending Commit',
+                value: info.pq!.hasPendingCommit ? 'yes' : 'no',
+              ),
+              _InfoRow(label: 'Size', value: _formatBytes(info.pq!.sizeBytes)),
+            ],
+          ),
         if (info.groupData != null) ...[
           const SizedBox(height: Spacing.px16),
           const _SectionHeader('Group Data'),
@@ -182,6 +215,16 @@ class _DeleteLocalChatButton extends HookWidget {
       label: "DANGER: Delete local chat",
     );
   }
+}
+
+String _formatBytes(BigInt bytes) {
+  final n = bytes.toInt();
+  if (n < 1024) return '$n B';
+  if (n < 1024 * 1024) return '${(n / 1024).toStringAsFixed(1)} KiB';
+  if (n < 1024 * 1024 * 1024) {
+    return '${(n / (1024 * 1024)).toStringAsFixed(2)} MiB';
+  }
+  return '${(n / (1024 * 1024 * 1024)).toStringAsFixed(2)} GiB';
 }
 
 class _SectionHeader extends StatelessWidget {

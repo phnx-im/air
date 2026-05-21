@@ -8372,6 +8372,8 @@ const _: fn() = || {
             GroupDebugInfo.members;
         let _: Option<crate::api::chat_details_cubit::GroupDataDebugInfo> =
             GroupDebugInfo.group_data;
+        let _: u64 = GroupDebugInfo.size_bytes;
+        let _: Option<crate::api::chat_details_cubit::PqDebugInfo> = GroupDebugInfo.pq;
     }
     {
         let InvitationCode = None::<crate::api::invitation_codes_cubit::InvitationCode>.unwrap();
@@ -8387,6 +8389,16 @@ const _: fn() = || {
     {
         let MessageId = None::<crate::api::types::MessageId>.unwrap();
         let _: uuid::Uuid = MessageId.uuid;
+    }
+    {
+        let PqDebugInfo = None::<crate::api::chat_details_cubit::PqDebugInfo>.unwrap();
+        let _: String = PqDebugInfo.group_id;
+        let _: u64 = PqDebugInfo.epoch;
+        let _: String = PqDebugInfo.ciphersuite;
+        let _: Option<String> = PqDebugInfo.self_updated_at;
+        let _: usize = PqDebugInfo.pending_proposals;
+        let _: bool = PqDebugInfo.has_pending_commit;
+        let _: u64 = PqDebugInfo.size_bytes;
     }
     {
         let RequiredDebugCapabilities =
@@ -9559,6 +9571,9 @@ impl SseDecode for crate::api::chat_details_cubit::GroupDebugInfo {
         >>::sse_decode(deserializer);
         let mut var_groupData =
             <Option<crate::api::chat_details_cubit::GroupDataDebugInfo>>::sse_decode(deserializer);
+        let mut var_sizeBytes = <u64>::sse_decode(deserializer);
+        let mut var_pq =
+            <Option<crate::api::chat_details_cubit::PqDebugInfo>>::sse_decode(deserializer);
         return crate::api::chat_details_cubit::GroupDebugInfo {
             group_id: var_groupId,
             epoch: var_epoch,
@@ -9571,6 +9586,8 @@ impl SseDecode for crate::api::chat_details_cubit::GroupDebugInfo {
             required_capabilities: var_requiredCapabilities,
             members: var_members,
             group_data: var_groupData,
+            size_bytes: var_sizeBytes,
+            pq: var_pq,
         };
     }
 }
@@ -10611,6 +10628,19 @@ impl SseDecode for Option<crate::api::user::PlatformPushToken> {
     }
 }
 
+impl SseDecode for Option<crate::api::chat_details_cubit::PqDebugInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<crate::api::chat_details_cubit::PqDebugInfo>::sse_decode(
+                deserializer,
+            ));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode
     for Option<(
         crate::api::message_content::UiMimiId,
@@ -10819,6 +10849,28 @@ impl SseDecode for crate::api::user::PlatformPushToken {
                 unimplemented!("");
             }
         }
+    }
+}
+
+impl SseDecode for crate::api::chat_details_cubit::PqDebugInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_groupId = <String>::sse_decode(deserializer);
+        let mut var_epoch = <u64>::sse_decode(deserializer);
+        let mut var_ciphersuite = <String>::sse_decode(deserializer);
+        let mut var_selfUpdatedAt = <Option<String>>::sse_decode(deserializer);
+        let mut var_pendingProposals = <usize>::sse_decode(deserializer);
+        let mut var_hasPendingCommit = <bool>::sse_decode(deserializer);
+        let mut var_sizeBytes = <u64>::sse_decode(deserializer);
+        return crate::api::chat_details_cubit::PqDebugInfo {
+            group_id: var_groupId,
+            epoch: var_epoch,
+            ciphersuite: var_ciphersuite,
+            self_updated_at: var_selfUpdatedAt,
+            pending_proposals: var_pendingProposals,
+            has_pending_commit: var_hasPendingCommit,
+            size_bytes: var_sizeBytes,
+        };
     }
 }
 
@@ -12678,6 +12730,8 @@ impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::chat_details_cubit
             self.0.required_capabilities.into_into_dart().into_dart(),
             self.0.members.into_into_dart().into_dart(),
             self.0.group_data.into_into_dart().into_dart(),
+            self.0.size_bytes.into_into_dart().into_dart(),
+            self.0.pq.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -13298,6 +13352,32 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::user::PlatformPushToken>
 {
     fn into_into_dart(self) -> crate::api::user::PlatformPushToken {
         self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::chat_details_cubit::PqDebugInfo> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.0.group_id.into_into_dart().into_dart(),
+            self.0.epoch.into_into_dart().into_dart(),
+            self.0.ciphersuite.into_into_dart().into_dart(),
+            self.0.self_updated_at.into_into_dart().into_dart(),
+            self.0.pending_proposals.into_into_dart().into_dart(),
+            self.0.has_pending_commit.into_into_dart().into_dart(),
+            self.0.size_bytes.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::chat_details_cubit::PqDebugInfo>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::chat_details_cubit::PqDebugInfo>>
+    for crate::api::chat_details_cubit::PqDebugInfo
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::chat_details_cubit::PqDebugInfo> {
+        self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -15130,6 +15210,8 @@ impl SseEncode for crate::api::chat_details_cubit::GroupDebugInfo {
             self.group_data,
             serializer,
         );
+        <u64>::sse_encode(self.size_bytes, serializer);
+        <Option<crate::api::chat_details_cubit::PqDebugInfo>>::sse_encode(self.pq, serializer);
     }
 }
 
@@ -15970,6 +16052,16 @@ impl SseEncode for Option<crate::api::user::PlatformPushToken> {
     }
 }
 
+impl SseEncode for Option<crate::api::chat_details_cubit::PqDebugInfo> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::api::chat_details_cubit::PqDebugInfo>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode
     for Option<(
         crate::api::message_content::UiMimiId,
@@ -16148,6 +16240,19 @@ impl SseEncode for crate::api::user::PlatformPushToken {
                 unimplemented!("");
             }
         }
+    }
+}
+
+impl SseEncode for crate::api::chat_details_cubit::PqDebugInfo {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.group_id, serializer);
+        <u64>::sse_encode(self.epoch, serializer);
+        <String>::sse_encode(self.ciphersuite, serializer);
+        <Option<String>>::sse_encode(self.self_updated_at, serializer);
+        <usize>::sse_encode(self.pending_proposals, serializer);
+        <bool>::sse_encode(self.has_pending_commit, serializer);
+        <u64>::sse_encode(self.size_bytes, serializer);
     }
 }
 

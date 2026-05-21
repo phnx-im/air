@@ -304,6 +304,8 @@ class GroupDebugInfo {
   final RequiredDebugCapabilities? requiredCapabilities;
   final Map<int, DebugCapabilities> members;
   final GroupDataDebugInfo? groupData;
+  final BigInt sizeBytes;
+  final PqDebugInfo? pq;
 
   const GroupDebugInfo({
     required this.groupId,
@@ -317,6 +319,8 @@ class GroupDebugInfo {
     this.requiredCapabilities,
     required this.members,
     this.groupData,
+    required this.sizeBytes,
+    this.pq,
   });
 
   @override
@@ -331,7 +335,9 @@ class GroupDebugInfo {
       hasPendingCommit.hashCode ^
       requiredCapabilities.hashCode ^
       members.hashCode ^
-      groupData.hashCode;
+      groupData.hashCode ^
+      sizeBytes.hashCode ^
+      pq.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -348,7 +354,52 @@ class GroupDebugInfo {
           hasPendingCommit == other.hasPendingCommit &&
           requiredCapabilities == other.requiredCapabilities &&
           members == other.members &&
-          groupData == other.groupData;
+          groupData == other.groupData &&
+          sizeBytes == other.sizeBytes &&
+          pq == other.pq;
+}
+
+class PqDebugInfo {
+  final String groupId;
+  final BigInt epoch;
+  final String ciphersuite;
+  final String? selfUpdatedAt;
+  final BigInt pendingProposals;
+  final bool hasPendingCommit;
+  final BigInt sizeBytes;
+
+  const PqDebugInfo({
+    required this.groupId,
+    required this.epoch,
+    required this.ciphersuite,
+    this.selfUpdatedAt,
+    required this.pendingProposals,
+    required this.hasPendingCommit,
+    required this.sizeBytes,
+  });
+
+  @override
+  int get hashCode =>
+      groupId.hashCode ^
+      epoch.hashCode ^
+      ciphersuite.hashCode ^
+      selfUpdatedAt.hashCode ^
+      pendingProposals.hashCode ^
+      hasPendingCommit.hashCode ^
+      sizeBytes.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is PqDebugInfo &&
+          runtimeType == other.runtimeType &&
+          groupId == other.groupId &&
+          epoch == other.epoch &&
+          ciphersuite == other.ciphersuite &&
+          selfUpdatedAt == other.selfUpdatedAt &&
+          pendingProposals == other.pendingProposals &&
+          hasPendingCommit == other.hasPendingCommit &&
+          sizeBytes == other.sizeBytes;
 }
 
 class RequiredDebugCapabilities {

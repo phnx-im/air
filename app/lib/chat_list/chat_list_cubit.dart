@@ -37,10 +37,10 @@ class ChatListCubit implements StateStreamableSource<ChatListState> {
   Future<ChatId> createGroupChat({
     required String groupName,
     Uint8List? picture,
-    required bool isAPQ,
+    required bool isApq,
   }) => _impl.createGroupChat(
     groupName: groupName,
     picture: picture,
-    isAPQ: isAPQ,
+    isApq: isApq,
   );
 }

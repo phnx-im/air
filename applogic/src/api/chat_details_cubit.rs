@@ -13,7 +13,8 @@ use aircommon::{
 };
 pub use aircoreclient::{
     AcceptContactRequestError, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
-    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, RequiredDebugCapabilities,
+    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqDebugInfo,
+    RequiredDebugCapabilities,
 };
 use aircoreclient::{
     AttachmentProgress, Chat, ChatId, ChatMessage, MessageId, ProvisionAttachmentError,
@@ -795,6 +796,19 @@ pub struct _GroupDebugInfo {
     pub required_capabilities: Option<RequiredDebugCapabilities>,
     pub members: HashMap<u32, DebugCapabilities>,
     pub group_data: Option<GroupDataDebugInfo>,
+    pub size_bytes: u64,
+    pub pq: Option<PqDebugInfo>,
+}
+
+#[frb(mirror(PqDebugInfo))]
+pub struct _PqDebugInfo {
+    pub group_id: String,
+    pub epoch: u64,
+    pub ciphersuite: String,
+    pub self_updated_at: Option<String>,
+    pub pending_proposals: usize,
+    pub has_pending_commit: bool,
+    pub size_bytes: u64,
 }
 
 #[frb(mirror(GroupDataDebugInfo))]

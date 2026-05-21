@@ -394,7 +394,7 @@ impl CoreUser {
     /// fallback.
     pub async fn user_profile(&self, user_id: &UserId) -> UserProfile {
         match self.db().read().await {
-            Ok(connection) => Self::user_profile_internal(connection, user_id).await,
+            Ok(connection) => Self::load_user_profile(connection, user_id).await,
             Err(error) => {
                 error!(%error, "Error loading user profile; fallback to user_id");
                 UserProfile::from_user_id(user_id)
@@ -403,7 +403,7 @@ impl CoreUser {
     }
 
     // Helper to use when we already hold a connection
-    async fn user_profile_internal(
+    pub(crate) async fn load_user_profile(
         connection: impl ReadConnection,
         user_id: &UserId,
     ) -> UserProfile {

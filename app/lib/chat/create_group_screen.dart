@@ -176,7 +176,7 @@ class _CreateGroupDetailsStep extends HookWidget {
     final isCreating = useState(false);
     final nameFocusNode = useFocusNode();
     final showHiddenSettings = useState(false);
-    final isAPQ = useState(false);
+    final isApq = useState(false);
 
     final isGroupNameValid = groupName.value.trim().isNotEmpty;
     final showHelperText = nameFocusNode.hasFocus && !isGroupNameValid;
@@ -202,7 +202,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                     groupName.value.trim(),
                     isCreating,
                     picture.value,
-                    isAPQ.value,
+                    isApq.value,
                   )
                 : null,
             child: isCreating.value
@@ -287,9 +287,9 @@ class _CreateGroupDetailsStep extends HookWidget {
                       const SizedBox(height: Spacing.px32),
                       SwitchField(
                         onSubmit: (value) {
-                          isAPQ.value = value;
+                          isApq.value = value;
                         },
-                        value: isAPQ,
+                        value: isApq,
                         label: "Post-Quantum Encryption",
                       ),
                     ],
@@ -358,7 +358,7 @@ class _CreateGroupDetailsStep extends HookWidget {
     String groupName,
     ValueNotifier<bool> isCreating,
     Uint8List? picture,
-    bool isAPQ,
+    bool isApq,
   ) async {
     if (groupName.isEmpty) return;
     final navigationCubit = context.read<NavigationCubit>();
@@ -374,7 +374,7 @@ class _CreateGroupDetailsStep extends HookWidget {
       final chatId = await chatListCubit.createGroupChat(
         groupName: groupName,
         picture: picture,
-        isAPQ: isAPQ,
+        isApq: isApq,
       );
       final error = await userCubit.addUserToChat(
         chatId,
