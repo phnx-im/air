@@ -104,8 +104,8 @@ impl ChatListCubitBase {
         &self,
         group_name: String,
         picture: Option<Vec<u8>>,
+        is_apq: bool,
     ) -> anyhow::Result<ChatId> {
-        let is_apq = false;
         let id = self
             .context
             .core_user

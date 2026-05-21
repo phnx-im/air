@@ -22,6 +22,7 @@ use mls_assist::components::ComponentsList;
 use openmls::{
     component::ComponentType,
     extensions::AppDataDictionary,
+    group::GroupId,
     prelude::{Ciphersuite, ExtensionType, ProposalType, RequiredCapabilitiesExtension},
 };
 use tls_codec::DeserializeBytes as _;
@@ -30,17 +31,18 @@ use crate::{
     ChatId, UserProfile,
     chats::GroupDataExt,
     clients::CoreUser,
-    groups::{Group, GroupDataBytes},
+    db::access::ReadConnection,
+    groups::{Group, GroupDataBytes, openmls_provider::KeyRefWrapper},
 };
 
 impl CoreUser {
     /// Returns debug info for a group
     pub async fn chat_debug_info(&self, chat_id: ChatId) -> anyhow::Result<GroupDebugInfo> {
-        let connection = self.db().read().await?;
-        let group = Group::load_with_chat_id(connection, chat_id)
+        let mut connection = self.db().read().await?;
+        let group = Group::load_with_chat_id(&mut connection, chat_id)
             .await?
             .context("Group not found")?;
-        GroupDebugInfo::from_group(self, &group).await
+        GroupDebugInfo::from_group(connection, &group).await
     }
 }
 
@@ -57,6 +59,19 @@ pub struct GroupDebugInfo {
     pub required_capabilities: Option<RequiredDebugCapabilities>,
     pub members: HashMap<u32, DebugCapabilities>,
     pub group_data: Option<GroupDataDebugInfo>,
+    pub size_bytes: u64,
+    pub pq: Option<PqDebugInfo>,
+}
+
+#[derive(Debug, Clone)]
+pub struct PqDebugInfo {
+    pub group_id: String,
+    pub epoch: u64,
+    pub ciphersuite: String,
+    pub self_updated_at: Option<String>,
+    pub pending_proposals: usize,
+    pub has_pending_commit: bool,
+    pub size_bytes: u64,
 }
 
 #[derive(Debug, Clone)]
@@ -110,7 +125,10 @@ pub struct DebugCapabilities {
 }
 
 impl GroupDebugInfo {
-    async fn from_group(core_user: &CoreUser, group: &Group) -> anyhow::Result<Self> {
+    async fn from_group(
+        mut connection: impl ReadConnection,
+        group: &Group,
+    ) -> anyhow::Result<Self> {
         let group_id = QualifiedGroupId::try_from(group.group_id())?.to_string();
         let epoch = group.mls_group().epoch().as_u64();
         let ciphersuite = group.mls_group().ciphersuite().to_string();
@@ -150,12 +168,31 @@ impl GroupDebugInfo {
                 .leaf(member.index)
                 .context("No leaf node for member")?;
             let user_id = credential.user_id();
-            let user_profile = core_user.user_profile(user_id).await;
+            let user_profile = UserProfile::load(&mut connection, user_id).await;
             members.insert(
                 member.index.u32(),
                 DebugCapabilities::from_leaf_node(user_id, user_profile, leaf_node),
             );
         }
+
+        let size_bytes = group_data_size_bytes(&mut connection, group.group_id()).await?;
+
+        let pq = if let Some(pq) = group.pq.as_ref() {
+            let pq_group_id = QualifiedGroupId::try_from(pq.mls_group.group_id())?.to_string();
+            let pq_size_bytes =
+                group_data_size_bytes(&mut connection, pq.mls_group.group_id()).await?;
+            Some(PqDebugInfo {
+                group_id: pq_group_id,
+                epoch: pq.mls_group.epoch().as_u64(),
+                ciphersuite: pq.mls_group.ciphersuite().to_string(),
+                self_updated_at: pq.self_updated_at.map(|dt| dt.to_rfc3339()),
+                pending_proposals: pq.mls_group.pending_proposals().count(),
+                has_pending_commit: pq.mls_group.pending_commit().is_some(),
+                size_bytes: pq_size_bytes,
+            })
+        } else {
+            None
+        };
 
         Ok(Self {
             group_id,
@@ -169,8 +206,22 @@ impl GroupDebugInfo {
             required_capabilities,
             members,
             group_data,
+            size_bytes,
+            pq,
         })
     }
+}
+
+async fn group_data_size_bytes(
+    mut connection: impl ReadConnection,
+    group_id: &GroupId,
+) -> sqlx::Result<u64> {
+    let total: Option<i64> =
+        sqlx::query_scalar("SELECT SUM(LENGTH(group_data)) FROM group_data WHERE group_id = ?")
+            .bind(KeyRefWrapper(group_id))
+            .fetch_one(connection.as_mut())
+            .await?;
+    Ok(total.unwrap_or(0).max(0) as u64)
 }
 
 impl RequiredDebugCapabilities {

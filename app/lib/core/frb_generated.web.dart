@@ -696,6 +696,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformPushToken dco_decode_box_autoadd_platform_push_token(dynamic raw);
 
   @protected
+  PqDebugInfo dco_decode_box_autoadd_pq_debug_info(dynamic raw);
+
+  @protected
   (UiMimiId, UiInReplyToMessage)
   dco_decode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(dynamic raw);
 
@@ -1055,6 +1058,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  PqDebugInfo? dco_decode_opt_box_autoadd_pq_debug_info(dynamic raw);
+
+  @protected
   (UiMimiId, UiInReplyToMessage)?
   dco_decode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
     dynamic raw,
@@ -1112,6 +1118,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformPushToken dco_decode_platform_push_token(dynamic raw);
+
+  @protected
+  PqDebugInfo dco_decode_pq_debug_info(dynamic raw);
 
   @protected
   RangedBlockElement dco_decode_ranged_block_element(dynamic raw);
@@ -1846,6 +1855,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  PqDebugInfo sse_decode_box_autoadd_pq_debug_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   (UiMimiId, UiInReplyToMessage)
   sse_decode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
     SseDeserializer deserializer,
@@ -2303,6 +2317,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  PqDebugInfo? sse_decode_opt_box_autoadd_pq_debug_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   (UiMimiId, UiInReplyToMessage)?
   sse_decode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
     SseDeserializer deserializer,
@@ -2378,6 +2397,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformPushToken sse_decode_platform_push_token(
     SseDeserializer deserializer,
   );
+
+  @protected
+  PqDebugInfo sse_decode_pq_debug_info(SseDeserializer deserializer);
 
   @protected
   RangedBlockElement sse_decode_ranged_block_element(
@@ -3262,6 +3284,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_pq_debug_info(
+    PqDebugInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
     (UiMimiId, UiInReplyToMessage) self,
     SseSerializer serializer,
@@ -3838,6 +3866,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_pq_debug_info(
+    PqDebugInfo? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_box_autoadd_record_ui_mimi_id_ui_in_reply_to_message(
     (UiMimiId, UiInReplyToMessage)? self,
     SseSerializer serializer,
@@ -3929,6 +3963,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
     PlatformPushToken self,
     SseSerializer serializer,
   );
+
+  @protected
+  void sse_encode_pq_debug_info(PqDebugInfo self, SseSerializer serializer);
 
   @protected
   void sse_encode_ranged_block_element(
