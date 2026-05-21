@@ -285,6 +285,15 @@ impl UserCubitBase {
         Ok(())
     }
 
+    /// Only delete the local chat data, do not delete the chat on the server or try to leave it.
+    ///
+    /// Used for development purposes.
+    #[frb(positional)]
+    pub async fn dev_erase_chat(&self, chat_id: ChatId) -> anyhow::Result<()> {
+        self.context.core_user.erase_chat(chat_id).await?;
+        Ok(())
+    }
+
     #[frb(positional)]
     pub async fn leave_chat(&self, chat_id: ChatId) -> anyhow::Result<()> {
         self.context.core_user.leave_chat(chat_id).await
@@ -491,7 +500,7 @@ impl CubitContext {
         mut app_state: watch::Receiver<AppState>,
         cancel: CancellationToken,
     ) -> anyhow::Result<()> {
-        let pending = core_user.store_notifications_pending();
+        let pending = core_user.db_notifications_pending();
         loop {
             let should_drain = tokio::select! {
                 // We got cancelled, let's abort
@@ -509,9 +518,9 @@ impl CubitContext {
                 continue;
             }
             // Finally eat these yummy notifications! Nom nom nom
-            match core_user.dequeue_store_notification().await {
+            match core_user.dequeue_db_notification().await {
                 Ok(store_notification) if !store_notification.is_empty() => {
-                    core_user.send_store_notification(store_notification);
+                    core_user.send_db_notification(store_notification);
                 }
                 Ok(_) => {}
                 Err(error) => {

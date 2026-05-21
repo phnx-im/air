@@ -131,7 +131,7 @@ impl MemberDetailsContext {
     }
 
     async fn update_state_task(self) {
-        let mut notifications = self.store.store_notifications();
+        let mut notifications = self.store.db_notifications();
         while let Some(notification) = notifications.next().await {
             // If this chat has changed, or any user changed
             if notification.ops.contains_key(&self.chat_id.into())

@@ -6,10 +6,14 @@
 //! and lifetimes of the listener.
 
 use futures_util::Stream;
-use sqlx::postgres::{PgListener, PgNotification};
+use sqlx::{
+    PgPool,
+    postgres::{PgListener, PgNotification},
+};
 use thiserror::Error;
 use tokio::sync::{broadcast, mpsc};
 use tokio_stream::StreamExt;
+use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info};
 
 /// A handle to a running [`PgListener`] task.
@@ -55,7 +59,8 @@ impl<C: PgChannelName> PgListenerTaskHandle<C> {
 /// A connection is held open for the duration of the task. The task will stop when the last
 /// [`PgListenerTaskHandle`] is dropped.
 pub(crate) async fn spawn_pg_listener_task<C: PgChannelName>(
-    pool: sqlx::PgPool,
+    pool: PgPool,
+    stop: CancellationToken,
 ) -> sqlx::Result<PgListenerTaskHandle<C>> {
     let (broadcast, _) = broadcast::channel(1024);
     let mut listener = PgListener::connect_with(&pool).await?;
@@ -63,7 +68,7 @@ pub(crate) async fn spawn_pg_listener_task<C: PgChannelName>(
 
     // Cancelled when listener_tx is dropped
     let broadcast_inner = broadcast.clone();
-    tokio::spawn(async move {
+    tokio::spawn(stop.run_until_cancelled_owned(async move {
         info!("Starting pg listener task");
         loop {
             let event = tokio::select! {
@@ -79,7 +84,7 @@ pub(crate) async fn spawn_pg_listener_task<C: PgChannelName>(
                 error!(%error, "Error handling listener loop event");
             }
         }
-    });
+    }));
 
     Ok(PgListenerTaskHandle {
         broadcast,

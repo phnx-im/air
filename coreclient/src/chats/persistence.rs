@@ -41,8 +41,8 @@ impl SqlChat {
     fn convert(self, past_members: Vec<SqlPastMember>) -> Option<Chat> {
         let Self {
             chat_id,
-            chat_title,
-            chat_picture,
+            chat_title: title,
+            chat_picture: picture,
             group_id: GroupIdWrapper(group_id),
             last_read,
             last_message_at,
@@ -71,7 +71,7 @@ impl SqlChat {
                 }
             }
             (None, None, Some(username)) => ChatType::HandleConnection(username),
-            _ => ChatType::Group,
+            _ => ChatType::Group(ChatAttributes { title, picture }),
         };
 
         let status = match (is_active, is_blocked) {
@@ -89,10 +89,6 @@ impl SqlChat {
             last_message_at,
             status,
             chat_type,
-            attributes: ChatAttributes {
-                title: chat_title,
-                picture: chat_picture,
-            },
         })
     }
 
@@ -128,13 +124,13 @@ impl Chat {
     ///
     /// On conflict, the chat is **not** removed but updated.
     pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
-        info!(
-            id =% self.id,
-            title =% self.attributes().title(),
-            "Storing chat"
-        );
-        let title = self.attributes().title();
-        let picture = self.attributes().picture();
+        let title = self.attributes().map(|attrs| attrs.title());
+        info!(id =% self.id, ?title, "Storing chat");
+        let title = title.unwrap_or_default();
+        let picture = self
+            .attributes()
+            .map(|attrs| attrs.picture())
+            .unwrap_or_default();
         let group_id = self.group_id.as_slice();
         let (is_active, past_members) = match self.status() {
             ChatStatus::Inactive(inactive_chat) => (false, inactive_chat.past_members().to_vec()),
@@ -156,7 +152,7 @@ impl Chat {
                 Some(user_id.domain().clone()),
                 None,
             ),
-            ChatType::Group => (true, false, None, None, None),
+            ChatType::Group(_) => (true, false, None, None, None),
             ChatType::TargetedMessageConnection(user_id) => (
                 false,
                 false,
@@ -364,7 +360,7 @@ impl Chat {
         Ok(chat.convert(members))
     }
 
-    pub(super) async fn update_picture(
+    pub(crate) async fn update_picture(
         mut connection: impl WriteConnection,
         chat_id: ChatId,
         chat_picture: Option<&[u8]>,
@@ -380,7 +376,7 @@ impl Chat {
         Ok(())
     }
 
-    pub(super) async fn update_title(
+    pub(crate) async fn update_title(
         mut connection: impl WriteConnection,
         chat_id: ChatId,
         chat_title: &str,
@@ -697,7 +693,7 @@ impl Chat {
                 .execute(connection.as_mut())
                 .await?;
             }
-            ChatType::Group => {
+            ChatType::Group(_) => {
                 query!(
                     "UPDATE chat SET
                         connection_user_uuid = NULL,
@@ -863,11 +859,10 @@ pub mod tests {
             last_read: Utc::now(),
             last_message_at: None,
             status: ChatStatus::Active,
-            chat_type: ChatType::Group,
-            attributes: ChatAttributes {
+            chat_type: ChatType::Group(ChatAttributes {
                 title: "Test chat".to_string(),
                 picture: None,
-            },
+            }),
         }
     }
 
@@ -1025,7 +1020,10 @@ pub mod tests {
         let new_picture = [1, 2, 3];
         Chat::update_picture(&mut txn, chat.id, Some(&new_picture)).await?;
 
-        chat.attributes.picture = Some(new_picture.to_vec());
+        let ChatType::Group(attributes) = &mut chat.chat_type else {
+            panic!("expected group chat");
+        };
+        attributes.picture = Some(new_picture.to_vec());
 
         let loaded = Chat::load(txn, &chat.id).await?.unwrap();
         assert_eq!(loaded, chat);

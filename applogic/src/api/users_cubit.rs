@@ -261,7 +261,7 @@ impl ProfileLoadingTask {
     }
 
     async fn process(mut self) -> Option<()> {
-        let mut store_notifications = self.core_user.store_notifications();
+        let mut store_notifications = self.core_user.db_notifications();
         loop {
             // wait for the next store notification, explicit load profile request or cancellation
             let changed_profiles = tokio::select! {

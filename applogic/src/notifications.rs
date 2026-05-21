@@ -27,7 +27,7 @@ impl User {
                         .display_name
                         .to_string(),
                     ChatType::HandleConnection(handle) => handle.plaintext().to_owned(),
-                    ChatType::Group => chat.attributes().title().to_string(),
+                    ChatType::Group(attrs) => attrs.title().to_owned(),
                 };
                 let Some(body) = message
                     .message()
@@ -54,7 +54,10 @@ impl User {
     ) {
         for chat_id in chat_ids {
             if let Some(chat) = self.user.chat(chat_id).await {
-                let title = format!("You were added to {}", chat.attributes().title());
+                let title = format!(
+                    "You were added to {}",
+                    chat.attributes().map(|a| a.title()).unwrap_or("a group"),
+                );
                 let body = "Say hi to everyone".to_owned();
                 notifications.push(NotificationContent {
                     identifier: NotificationId::random(),

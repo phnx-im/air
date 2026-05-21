@@ -5,10 +5,11 @@
 import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/typography/font_size.dart';
-import 'package:air/ui/icons/app_icons.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/foundations/font_size.dart';
+import 'package:air/ds/foundations/icons/app_icons.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
@@ -31,15 +32,14 @@ class AttachmentFile extends HookWidget {
 
     return Row(
       mainAxisSize: MainAxisSize.min,
-      spacing: Spacings.s,
+      spacing: Spacing.px16,
       children: [
-        isSender
-            ? _UploadStatus(
-                attachmentId: attachment.attachmentId,
-                size: attachment.size,
-                color: color,
-              )
-            : AppIcon.paperclip(size: 32, color: color),
+        _AttachmentFileStatus(
+          attachmentId: attachment.attachmentId,
+          size: attachment.size,
+          isSender: isSender,
+          color: color,
+        ),
         // Flexible is needed to make the text wrap if the filename is too long
         Flexible(
           fit: FlexFit.loose,
@@ -68,36 +68,49 @@ class AttachmentFile extends HookWidget {
   }
 }
 
-class _UploadStatus extends HookWidget {
-  const _UploadStatus({
+class _AttachmentFileStatus extends HookWidget {
+  const _AttachmentFileStatus({
     required this.attachmentId,
     required this.size,
+    required this.isSender,
     required this.color,
   });
 
   final AttachmentId attachmentId;
   final int size;
+  final bool isSender;
+
   final Color color;
 
   @override
   Widget build(BuildContext context) {
-    final uploadStatusSteam = useMemoized(
+    final retries = useState(0); // bump to force stream re-subscription
+    final statusStream = useMemoized(
       () => context.read<AttachmentsRepository>().statusStream(
         attachmentId: attachmentId,
       ),
-      [attachmentId],
+      [attachmentId, retries.value],
     );
-    final uploadStatus = useStream<UiAttachmentStatus>(uploadStatusSteam);
+    final status = useStream<UiAttachmentStatus>(statusStream);
 
     return Center(
-      child: switch (uploadStatus.data) {
+      child: switch (status.data) {
         null || UiAttachmentStatus_Completed() => AppIcon.paperclip(
           size: 32,
           color: color,
         ),
-        UiAttachmentStatus_Pending() ||
-        UiAttachmentStatus_Failed() => IconButton(
+        UiAttachmentStatus_NotFound() => IconButton(
           onPressed: () {
+            showSnackBarStandalone(
+              (loc) => SnackBar(content: Text(loc.attachment_notFound)),
+            );
+          },
+          icon: AppIcon.circleAlert(size: 32, color: color),
+        ),
+        UiAttachmentStatus_Pending() ||
+        UiAttachmentStatus_Failed() when isSender => IconButton(
+          onPressed: () {
+            retries.value++;
             context.read<ChatDetailsCubit>().retryUploadAttachment(
               attachmentId,
             );
@@ -108,6 +121,24 @@ class _UploadStatus extends HookWidget {
             ).backgroundBase.tertiary,
           ),
           icon: AppIcon.upload(
+            size: 32,
+            color: CustomColorScheme.of(context).text.secondary,
+          ),
+        ),
+        UiAttachmentStatus_Pending() ||
+        UiAttachmentStatus_Failed() => IconButton(
+          onPressed: () {
+            retries.value++;
+            context.read<AttachmentsRepository>().loadAttachment(
+              attachmentId: attachmentId,
+            );
+          },
+          style: IconButton.styleFrom(
+            backgroundColor: CustomColorScheme.of(
+              context,
+            ).backgroundBase.tertiary,
+          ),
+          icon: AppIcon.download(
             size: 32,
             color: CustomColorScheme.of(context).text.secondary,
           ),

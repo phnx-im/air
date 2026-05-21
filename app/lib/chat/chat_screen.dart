@@ -6,8 +6,8 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/message_list.dart';
 import 'package:air/navigation/navigation.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/app_bar_back_button.dart';
 import 'package:air/widgets/avatar.dart';
@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'chat_debug_info_view.dart';
 import 'chat_details_cubit.dart';
 import 'delete_contact_button.dart';
 import 'report_spam_button.dart';
@@ -181,7 +182,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
             top: null,
             child: SafeArea(
               top: false,
-              minimum: const EdgeInsets.only(bottom: Spacings.xs),
+              minimum: const EdgeInsets.only(bottom: Spacing.px12),
               child: _MeasureHeight(
                 onChange: (height) {
                   _scrollToBottomController.composerHeight.value = height;
@@ -236,9 +237,26 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
                   context.read<NavigationCubit>().openChatDetails();
                 }
               : null,
+          onLongPress: () {
+            final chatDetailsCubit = context.read<ChatDetailsCubit>();
+            final userCubit = context.read<UserCubit>();
+            final debugInfoFut = chatDetailsCubit.chatDebugInfo();
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => ChatDebugInfoView(
+                  title: title ?? "",
+                  debugInfo: debugInfoFut,
+                  onRequestResync: () => chatDetailsCubit.requestResync(),
+                  onEraseLocalChat: () {
+                    if (chatId != null) userCubit.devEraseChat(chatId);
+                  },
+                ),
+              ),
+            );
+          },
           child: Row(
             mainAxisSize: MainAxisSize.min,
-            spacing: Spacings.xs,
+            spacing: Spacing.px12,
             children: [
               ChatAvatar(chatId: chatId, size: 40),
               Flexible(
@@ -279,13 +297,13 @@ class _BlockedChatFooter extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final buttonWidth = isSmallScreen(context) ? double.infinity : null;
     return Container(
-      padding: const EdgeInsets.all(Spacings.s),
+      padding: const EdgeInsets.all(Spacing.px16),
       child: Column(
         children: [
           Text(loc.blockedChatFooter_message(displayName)),
-          const SizedBox(height: Spacings.s),
+          const SizedBox(height: Spacing.px16),
           Wrap(
-            runSpacing: Spacings.xxs,
+            runSpacing: Spacing.px8,
             alignment: WrapAlignment.center,
             children: [
               SizedBox(
@@ -295,12 +313,12 @@ class _BlockedChatFooter extends StatelessWidget {
                   displayName: displayName,
                 ),
               ),
-              const SizedBox(width: Spacings.s),
+              const SizedBox(width: Spacing.px16),
               SizedBox(
                 width: buttonWidth,
                 child: ReportSpamButton(userId: userId),
               ),
-              const SizedBox(width: Spacings.s),
+              const SizedBox(width: Spacing.px16),
               SizedBox(
                 width: buttonWidth,
                 child: UnblockContactButton(
@@ -361,7 +379,7 @@ class _InactiveChatFooter extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(Spacings.s),
+      padding: const EdgeInsets.all(Spacing.px16),
       child: Text(
         loc.inactiveChatFooter_message,
         textAlign: TextAlign.center,

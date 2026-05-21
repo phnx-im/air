@@ -24,6 +24,7 @@ ignore = [
     { id = "RUSTSEC-2024-0436", reason = "no fix yet available" },
     { id = "RUSTSEC-2026-0002", reason = "no fix yet available" },
     { id = "RUSTSEC-2026-0097", reason = "rand 0.8.5 pinned by third-party deps; no 0.8.x patch available" },
+    { id = "RUSTSEC-2025-0144", reason = "we are not using ML-DSA for signatures" },
 ]
 
 [licenses]
@@ -55,6 +56,9 @@ exceptions = [
     { allow = [
         "AGPL-3.0-or-later",
     ], crate = "mimi-room-policy" },
+    { allow = [
+        "AGPL-3.0-or-later",
+    ], crate = "apqmls" },
 ]
 
 [licenses.private]
@@ -66,7 +70,8 @@ unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = [
     "https://github.com/raphaelrobert/privacypass",
-    "https://github.com/openmls/openmls",
+    "https://github.com/boxdot/openmls",
+    "https://github.com/cryspen/hpke-rs",
 ]
 
 [sources.allow-org]

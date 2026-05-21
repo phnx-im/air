@@ -18,12 +18,17 @@ pub enum AttachmentProgressEvent {
     Progress { bytes_loaded: usize },
     Completed,
     Failed,
+    NotFound,
 }
 
 impl AttachmentProgress {
     pub(super) fn new() -> (AttachmentProgressSender, Self) {
         let (tx, rx) = watch::channel(AttachmentProgressEvent::Init);
         (AttachmentProgressSender { tx: Some(tx) }, Self { rx })
+    }
+
+    pub fn is_failed(&self) -> bool {
+        matches!(*self.rx.borrow(), AttachmentProgressEvent::Failed)
     }
 
     pub fn stream(&self) -> impl Stream<Item = AttachmentProgressEvent> + Send + use<> {
@@ -42,7 +47,13 @@ impl AttachmentProgressSender {
         }
     }
 
-    pub(super) fn finish(&mut self) {
+    pub(super) fn not_found(&mut self) {
+        if let Some(tx) = self.tx.take() {
+            let _ignore_closed = tx.send(AttachmentProgressEvent::NotFound);
+        }
+    }
+
+    pub(super) fn completed(&mut self) {
         if let Some(tx) = self.tx.take() {
             let _ignore_closed = tx.send(AttachmentProgressEvent::Completed);
         }

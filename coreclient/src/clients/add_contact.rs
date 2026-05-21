@@ -19,13 +19,13 @@ use aircommon::{
     },
     time::TimeStamp,
 };
-use airprotos::client::group::{EncryptedGroupTitle, GroupData};
+use airprotos::client::group::GroupData;
 use anyhow::{Context, bail};
 use openmls::group::GroupId;
 use tracing::info;
 
 use crate::{
-    Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage, UserProfile,
+    Chat, ChatId, ChatMessage, SystemMessage,
     chats::GroupDataExt,
     clients::{
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
@@ -35,7 +35,6 @@ use crate::{
     db::access::WriteDbTransaction,
     groups::{Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider},
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
-    user_profiles::IndexedUserProfile,
 };
 
 use super::{CoreUser, connection_offer::payload::ConnectionOfferPayload};
@@ -98,7 +97,10 @@ impl CoreUser {
         // No need to provision a group profile here, because we only have the group title and no
         // any additional data to upload.
         let provision_group_profile = None;
-        let (group_id, _) = client.ds_request_group_id(provision_group_profile).await?;
+        let request_pq_group_id = false;
+        let (group_id, _, _) = client
+            .ds_request_group_id(provision_group_profile, request_pq_group_id)
+            .await?;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
             payload: verified_connection_package,
             group_id,
@@ -106,39 +108,38 @@ impl CoreUser {
 
         let client_reference = self.create_own_client_reference();
 
-        self.db()
-            .with_write_transaction(async |txn| {
-                // Phase 4: Create a connection group
-                let local_group = connection_package
-                    .create_local_connection_group(
-                        &mut *txn,
-                        &self.inner.key_store.signing_key,
-                        username.clone(),
-                    )
-                    .await?;
+        Box::pin(self.db().with_write_transaction(async |txn| {
+            // Phase 4: Create a connection group
+            let local_group = connection_package
+                .create_local_connection_group(
+                    &mut *txn,
+                    &self.inner.key_store.signing_key,
+                    username.clone(),
+                )
+                .await?;
 
-                let local_partial_contact = local_group
-                    .create_username_contact(
-                        txn,
-                        &self.inner.key_store,
-                        client_reference,
-                        self.user_id(),
-                        username,
-                    )
-                    .await?;
+            let local_partial_contact = local_group
+                .create_username_contact(
+                    txn,
+                    &self.inner.key_store,
+                    client_reference,
+                    self.user_id(),
+                    username,
+                )
+                .await?;
 
-                // Phase 5: Create the connection group on the DS and send off the connection offer
-                let chat_id = local_partial_contact
-                    .create_connection_group_via_username(
-                        &client,
-                        self.signing_key(),
-                        connection_offer_responder,
-                    )
-                    .await?;
+            // Phase 5: Create the connection group on the DS and send off the connection offer
+            let chat_id = local_partial_contact
+                .create_connection_group_via_username(
+                    &client,
+                    self.signing_key(),
+                    connection_offer_responder,
+                )
+                .await?;
 
-                Ok(Ok(chat_id))
-            })
-            .await
+            Ok(Ok(chat_id))
+        }))
+        .await
     }
 
     /// Create a connection with a new user via an existing group chat.
@@ -170,7 +171,10 @@ impl CoreUser {
         // No need to provision a group profile here, because we only have the group title and no
         // any additional data to upload.
         let provision_group_profile = None;
-        let (group_id, _) = client.ds_request_group_id(provision_group_profile).await?;
+        let request_pq_group_id = false;
+        let (group_id, _, _) = client
+            .ds_request_group_id(provision_group_profile, request_pq_group_id)
+            .await?;
         let connection_package = VerifiedConnectionPackagesWithGroupId {
             payload: user_id,
             group_id,
@@ -178,31 +182,30 @@ impl CoreUser {
 
         let client_reference = self.create_own_client_reference();
 
-        self.db()
-            .with_write_transaction(async |txn| {
-                // Phase 4: Create a connection group and prepare the targeted message
-                let local_group = connection_package
-                    .create_local_connection_group(&mut *txn, &self.inner.key_store.signing_key)
-                    .await?;
+        Box::pin(self.db().with_write_transaction(async |txn| {
+            // Phase 4: Create a connection group and prepare the targeted message
+            let local_group = connection_package
+                .create_local_connection_group(&mut *txn, &self.inner.key_store.signing_key)
+                .await?;
 
-                let local_partial_contact = local_group
-                    .create_targeted_message_contact(
-                        &mut *txn,
-                        &self.inner.key_store,
-                        client_reference,
-                        self.user_id(),
-                        chat_id,
-                    )
-                    .await?;
+            let local_partial_contact = local_group
+                .create_targeted_message_contact(
+                    &mut *txn,
+                    &self.inner.key_store,
+                    client_reference,
+                    self.user_id(),
+                    chat_id,
+                )
+                .await?;
 
-                // Phase 5: Create the connection group on the DS and send off the connection offer
-                let chat_id = local_partial_contact
-                    .create_connection_group_via_targeted_message(&client, self.signing_key())
-                    .await?;
+            // Phase 5: Create the connection group on the DS and send off the connection offer
+            let chat_id = local_partial_contact
+                .create_connection_group_via_targeted_message(&client, self.signing_key())
+                .await?;
 
-                Ok(chat_id)
-            })
-            .await
+            Ok(chat_id)
+        }))
+        .await
     }
 }
 
@@ -216,16 +219,13 @@ impl<Payload> VerifiedConnectionPackagesWithGroupId<Payload> {
         &self,
         txn: &mut WriteDbTransaction<'_>,
         signing_key: &ClientSigningKey,
-        title: String,
     ) -> anyhow::Result<(Group, PartialCreateGroupParams)> {
         let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
-        let encrypted_title = EncryptedGroupTitle::encrypt(&title, &identity_link_wrapper_key)?;
         let group_data_bytes = GroupData {
-            encrypted_title: Some(encrypted_title),
-            // No group profile is uploaded, because there is no additational data except for the
-            // title.
+            encrypted_title: None,
             external_group_profile: None,
-            legacy_title: Some(title),
+            legacy_title: Some(String::new()), // Old clients still expect a title
+            legacy_picture: None,
         }
         .encode()?;
 
@@ -251,11 +251,9 @@ impl VerifiedConnectionPackagesWithGroupId<ConnectionPackage> {
         username: Username,
     ) -> anyhow::Result<LocalGroup<ConnectionPackage>> {
         info!("Creating local connection group");
-        let title = format!("Connection group: {}", username.plaintext());
-        let attributes = ChatAttributes::new(title, None);
 
         let (group, partial_params) = self
-            .create_connection_group_internal(&mut *txn, signing_key, attributes.title.clone())
+            .create_connection_group_internal(&mut *txn, signing_key)
             .await?;
 
         let Self {
@@ -264,7 +262,7 @@ impl VerifiedConnectionPackagesWithGroupId<ConnectionPackage> {
         } = self;
 
         // Create the connection chat
-        let chat = Chat::new_handle_chat(group_id.clone(), attributes, username.clone());
+        let chat = Chat::new_handle_chat(group_id.clone(), username.clone());
         chat.store(&mut *txn).await?;
 
         // Create the initial system message for the chat
@@ -289,15 +287,8 @@ impl VerifiedConnectionPackagesWithGroupId<UserId> {
         signing_key: &ClientSigningKey,
     ) -> anyhow::Result<LocalGroup<UserId>> {
         info!("Creating local connection group");
-        let user_profile: UserProfile = IndexedUserProfile::load(&mut *txn, &self.payload)
-            .await?
-            .context("Can't find user profile for target user")?
-            .into();
-        let title = format!("Connection group: {}", user_profile.display_name);
-        let attributes = ChatAttributes::new(title, None);
-
         let (group, partial_params) = self
-            .create_connection_group_internal(&mut *txn, signing_key, attributes.title.clone())
+            .create_connection_group_internal(&mut *txn, signing_key)
             .await?;
 
         let Self {
@@ -306,7 +297,7 @@ impl VerifiedConnectionPackagesWithGroupId<UserId> {
         } = self;
 
         // Create the connection chat
-        let chat = Chat::new_targeted_message_chat(group_id.clone(), attributes, user_id.clone());
+        let chat = Chat::new_targeted_message_chat(group_id.clone(), user_id.clone());
         chat.store(&mut *txn).await?;
 
         // Create the initial system message for the chat

@@ -11,9 +11,9 @@ import 'package:air/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/navigation/navigation.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/icons/app_icons.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/avatar.dart';
@@ -223,8 +223,8 @@ class _CreateGroupDetailsStep extends HookWidget {
           behavior: HitTestBehavior.translucent,
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(
-              horizontal: Spacings.m,
-              vertical: Spacings.m,
+              horizontal: Spacing.px24,
+              vertical: Spacing.px24,
             ),
             child: Align(
               alignment: Alignment.topCenter,
@@ -241,7 +241,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                         onPick: () => _pickImage(picture),
                       ),
                     ),
-                    const SizedBox(height: Spacings.l),
+                    const SizedBox(height: Spacing.px32),
                     SizedBox(
                       width: double.infinity,
                       child: TextField(
@@ -267,7 +267,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                       ),
                     ),
                     if (showHelperText) ...[
-                      const SizedBox(height: Spacings.xxs),
+                      const SizedBox(height: Spacing.px8),
                       Center(
                         child: Text(
                           loc.groupCreationDetails_groupNameHelper,
@@ -277,12 +277,12 @@ class _CreateGroupDetailsStep extends HookWidget {
                         ),
                       ),
                     ],
-                    const SizedBox(height: Spacings.l),
+                    const SizedBox(height: Spacing.px32),
                     if (selectedIds.isNotEmpty)
                       Wrap(
                         alignment: WrapAlignment.start,
-                        spacing: Spacings.s,
-                        runSpacing: Spacings.s,
+                        spacing: Spacing.px16,
+                        runSpacing: Spacing.px16,
                         children: sortedSelectedIds.map((userId) {
                           final profile = selectedProfiles[userId];
                           if (profile == null) {
@@ -530,7 +530,7 @@ class _SelectedParticipant extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: Spacings.xxs),
+          const SizedBox(height: Spacing.px8),
           Text(
             profile.displayName,
             textAlign: TextAlign.center,
@@ -555,7 +555,7 @@ class _CircularBackButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(18),

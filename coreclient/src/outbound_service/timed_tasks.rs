@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::USERNAME_REFRESH_THRESHOLD;
-use airprotos::auth_service::v1::OperationType;
+use airprotos::{auth_service::v1::OperationType, client::group::GroupData};
 use chrono::{DateTime, Duration, Utc};
 use openmls::prelude::OpenMlsProvider;
 use openmls_rust_crypto::OpenMlsRustCrypto;
@@ -13,7 +13,8 @@ use tracing::{debug, error, info, warn};
 use uuid::Uuid;
 
 use crate::{
-    Chat, ChatId,
+    Chat, ChatAttributes, ChatId,
+    chats::{GroupDataExt, GroupDataProfilePart},
     groups::Group,
     job::{
         JobError,
@@ -27,7 +28,13 @@ use crate::{
 
 use super::OutboundServiceContext;
 
+/// Number of key packages to upload (excluding the last resort key package)
 pub const KEY_PACKAGES: usize = 100;
+
+/// Number of APQ key packages to upload (excluding the last resort key package)
+///
+/// Currently only a last resort key package is uploaded.
+pub const APQ_KEY_PACKAGES: usize = 0;
 
 /// Interval at which the self-update in a group is executed
 const SELF_UPDATE_INTERVAL: Duration = Duration::days(1);
@@ -54,6 +61,7 @@ impl OperationData for TimedTask {
         id.extend_from_slice(b"timed_task");
         match self.kind {
             TimedTaskKind::KeyPackageUpload => id.push(0),
+            TimedTaskKind::ApqKeyPackageUpload => id.push(4),
             TimedTaskKind::UsernameRefresh => id.push(1),
             TimedTaskKind::SelfUpdate => id.push(2),
             TimedTaskKind::TokenReplenishment { operation_type } => {
@@ -68,6 +76,7 @@ impl OperationData for TimedTask {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum TimedTaskKind {
     KeyPackageUpload,
+    ApqKeyPackageUpload,
     #[serde(alias = "HandleRefresh")]
     UsernameRefresh,
     SelfUpdate,
@@ -81,6 +90,7 @@ impl TimedTaskKind {
     pub(super) fn default_retry_interval(&self) -> Duration {
         match self {
             TimedTaskKind::KeyPackageUpload => Duration::minutes(5),
+            TimedTaskKind::ApqKeyPackageUpload => Duration::minutes(5),
             TimedTaskKind::UsernameRefresh => Duration::minutes(5),
             TimedTaskKind::SelfUpdate => Duration::minutes(5),
             TimedTaskKind::TokenReplenishment { operation_type } => match operation_type {
@@ -203,6 +213,10 @@ impl OutboundServiceContext {
             .into_operation()
             .enqueue_if_not_exists(self.db.write().await?)
             .await?;
+        TimedTask::new(TimedTaskKind::ApqKeyPackageUpload)
+            .into_operation()
+            .enqueue_if_not_exists(self.db.write().await?)
+            .await?;
         TimedTask::new(TimedTaskKind::UsernameRefresh)
             .into_operation()
             .enqueue_if_not_exists(self.db.write().await?)
@@ -231,6 +245,7 @@ impl OutboundServiceContext {
 
         match task_kind {
             TimedTaskKind::KeyPackageUpload => self.upload_key_packages().await,
+            TimedTaskKind::ApqKeyPackageUpload => self.upload_apq_key_packages().await,
             TimedTaskKind::UsernameRefresh => self.refresh_usernames().await,
             TimedTaskKind::SelfUpdate => self.self_update(run_token).await,
             TimedTaskKind::TokenReplenishment { operation_type } => {
@@ -405,7 +420,7 @@ impl OutboundServiceContext {
         let key_packages = self
             .db
             .with_write_transaction(async |txn| {
-                let mut key_packages = Vec::with_capacity(KEY_PACKAGES);
+                let mut key_packages = Vec::with_capacity(KEY_PACKAGES + 1);
                 for _ in 0..KEY_PACKAGES {
                     let kp = self.key_store.generate_key_package(
                         &mut *txn,
@@ -460,7 +475,74 @@ impl OutboundServiceContext {
         // mark the others as stale.
         self.db
             .with_write_transaction(async |txn| {
-                persistence::mark_key_packages_as_live(txn, &key_package_refs).await
+                let is_apq = false;
+                persistence::mark_key_packages_as_live(txn, &key_package_refs, is_apq).await
+            })
+            .await?;
+
+        Ok(Duration::weeks(1))
+    }
+
+    /// Same as [`Self::upload_key_packages`], but for APQ key packages.
+    ///
+    /// For now, we only upload one last resort APQ key package.
+    async fn upload_apq_key_packages(&self) -> anyhow::Result<Duration> {
+        let last_resort_key_package = self
+            .db
+            .with_write_transaction(async |txn| {
+                self.key_store
+                    .generate_apq_key_package(&mut *txn, &self.qs_client_id, true)
+            })
+            .await?;
+        let key_packages = vec![last_resort_key_package];
+
+        let crypto_provider = OpenMlsRustCrypto::default();
+        let key_package_refs = key_packages
+            .iter()
+            .map(|kp| {
+                let t_ref = kp.t_key_package().hash_ref(crypto_provider.crypto())?;
+                let pq_ref = kp.pq_key_package().hash_ref(crypto_provider.crypto())?;
+                Ok([t_ref, pq_ref])
+            })
+            .collect::<anyhow::Result<Vec<_>>>()?;
+
+        info!(n = key_packages.len(), "Uploading key packages");
+        if let Err(error) = self
+            .api_clients
+            .default_client()?
+            .qs_publish_apq_key_packages(
+                self.qs_client_id,
+                key_packages,
+                &self.key_store.qs_client_signing_key,
+            )
+            .await
+        {
+            error!(%error, "Failed to upload key packages");
+            // Clean up previously created key packages
+            for key_package_ref in key_package_refs.into_iter().flatten() {
+                if let Err(error) = self
+                    .key_store
+                    .delete_key_package(self.db.write().await?, key_package_ref)
+                {
+                    error!(%error, "Failed to delete key package after upload failure");
+                }
+            }
+
+            return Err(error.into());
+        }
+        info!("Uploaded key packages");
+
+        // If the upload was successful, we mark the uploaded ones as live and
+        // mark the others as stale.
+        self.db
+            .with_write_transaction(async |txn| {
+                let is_apq = true;
+                persistence::mark_key_packages_as_live(
+                    txn,
+                    key_package_refs.iter().flatten(),
+                    is_apq,
+                )
+                .await
             })
             .await?;
 
@@ -506,42 +588,73 @@ impl OutboundServiceContext {
     async fn self_update_in_chat(&self, chat_id: ChatId) -> anyhow::Result<bool> {
         debug!(?chat_id, "Self-update in chat");
 
-        let Some(group) = Group::load_with_chat_id(self.db.read().await?, chat_id).await? else {
-            debug!(
-                ?chat_id,
-                "Skipping self-update in chat because group is not found"
-            );
-            return Ok(false);
+        let (group, is_connection, erase_attributes) = {
+            let mut read = self.db.read().await?;
+            let mut read_txn = read.begin().await?;
+
+            let Some(group) = Group::load_with_chat_id(&mut read_txn, chat_id).await? else {
+                debug!(
+                    ?chat_id,
+                    "Skipping self-update in chat because group is not found"
+                );
+                return Ok(false);
+            };
+            if group.mls_group().pending_commit().is_some() {
+                debug!(
+                    ?chat_id,
+                    "Skipping self-update in chat because there is a pending commit"
+                );
+                return Ok(false);
+            }
+
+            if group.mls_group().pending_proposals().next().is_some() {
+                debug!(
+                    ?chat_id,
+                    "Skipping self-update in chat because there are pending proposals"
+                );
+                return Ok(false);
+            }
+
+            let self_update_at: DateTime<Utc> =
+                group.self_updated_at.map(From::from).unwrap_or_default();
+            if Utc::now() <= self_update_at + SELF_UPDATE_INTERVAL {
+                return Ok(false);
+            }
+
+            // If a chat operation is pending, we skip updating this chat
+            if PendingChatOperation::is_pending_for_chat(&mut read_txn, chat_id).await? {
+                return Ok(false);
+            }
+
+            let Some(chat) = Chat::load(&mut read_txn, &chat_id).await? else {
+                debug!(
+                    ?chat_id,
+                    "Skipping self-update in chat because chat is not found"
+                );
+                return Ok(false);
+            };
+
+            // For connection chats, that support empty connection group titles, we can erase the data.
+            let is_connection = chat.is_connection();
+            let erase_attributes = if is_connection {
+                group.members_air_component().all(|component| {
+                    component
+                        .map(|component| component.features.empty_connection_group_attributes)
+                        .unwrap_or(false)
+                })
+            } else {
+                false
+            };
+
+            (group, is_connection, erase_attributes)
         };
 
-        if group.mls_group().pending_commit().is_some() {
-            debug!(
-                ?chat_id,
-                "Skipping self-update in chat because there is a pending commit"
-            );
-            return Ok(false);
+        let migration_attrs = legacy_group_data_migration(&group, is_connection, erase_attributes);
+        if migration_attrs.is_some() {
+            info!(%chat_id, "Migrating legacy group data");
         }
 
-        if group.mls_group().pending_proposals().next().is_some() {
-            debug!(
-                ?chat_id,
-                "Skipping self-update in chat because there are pending proposals"
-            );
-            return Ok(false);
-        }
-
-        let self_update_at: DateTime<Utc> =
-            group.self_updated_at.map(From::from).unwrap_or_default();
-        if Utc::now() <= self_update_at + SELF_UPDATE_INTERVAL {
-            return Ok(false);
-        }
-
-        // If a chat operation is pending, we skip updating this chat
-        if PendingChatOperation::is_pending_for_chat(self.db.read().await?, chat_id).await? {
-            return Ok(false);
-        }
-
-        let job = ChatOperation::update(chat_id, None);
+        let job = ChatOperation::update(chat_id, migration_attrs);
         let res = self.execute_job(job).await;
 
         match res {
@@ -557,6 +670,44 @@ impl OutboundServiceContext {
     }
 }
 
+/// Migrates the group data from the legacy format to the new format.
+///
+/// The legacy format is the format where title and picture were stored in the group data verbatim.
+///
+/// If this is a connection chat and it supports empty connection group titles, the data is erased.
+fn legacy_group_data_migration(
+    group: &Group,
+    is_connection: bool,
+    erase_attributes: bool,
+) -> Option<ChatAttributes> {
+    if is_connection && !erase_attributes {
+        // No migration is done for connection chats that don't need to erase data.
+        return None;
+    }
+
+    let group_data_bytes = group.group_data()?;
+    let group_data = GroupData::decode(&group_data_bytes).ok()?;
+
+    if erase_attributes {
+        // Erase the group data if it is not empty
+        return (!group_data.is_empty()).then(ChatAttributes::empty);
+    }
+
+    let has_encrypted_title = group_data.encrypted_title.is_some();
+    let (title, profile) = group_data.into_parts(group.identity_link_wrapper_key());
+
+    let Some(title) = title else {
+        return None; // Ignore groups without title
+    };
+
+    let legacy_picture = match profile {
+        Some(GroupDataProfilePart::LegacyPicture(picture)) => Some(picture),
+        _ if has_encrypted_title => return None, // Already migrated
+        _ => None,
+    };
+    Some(ChatAttributes::new(title, legacy_picture))
+}
+
 mod persistence {
     use openmls::prelude::KeyPackageRef;
     use sqlx::QueryBuilder;
@@ -565,32 +716,47 @@ mod persistence {
 
     pub(super) async fn mark_key_packages_as_live(
         txn: &mut WriteDbTransaction<'_>,
-        key_package_refs: &[KeyPackageRef],
+        key_package_refs: impl IntoIterator<Item = &KeyPackageRef>,
+        is_apq: bool,
+    ) -> anyhow::Result<()> {
+        let refs_table = if is_apq {
+            "apq_key_package_refs"
+        } else {
+            "key_package_refs"
+        };
+        mark_key_packages_as_live_impl(txn, refs_table, key_package_refs).await
+    }
+
+    async fn mark_key_packages_as_live_impl(
+        txn: &mut WriteDbTransaction<'_>,
+        refs_table: &'static str,
+        key_package_refs: impl IntoIterator<Item = &KeyPackageRef>,
     ) -> anyhow::Result<()> {
         // Delete all key packages that are not marked as live
-        sqlx::query!(
+        sqlx::query(&format!(
             "DELETE FROM key_package
             WHERE key_package_ref IN (
               SELECT key_package_ref
-              FROM key_package_refs
+              FROM {refs_table}
               WHERE is_live = 0
             )"
-        )
+        ))
         .execute(txn.as_mut())
         .await?;
 
         // Mark all key packages as stale
-        sqlx::query!(
-            "UPDATE key_package_refs
+        sqlx::query(&format!(
+            "UPDATE {refs_table}
             SET is_live = 0
-            WHERE is_live = 1"
-        )
+            WHERE is_live = 1",
+        ))
         .execute(txn.as_mut())
         .await?;
 
         // Add the newly uploaded ones as 'live'.
-        let mut qb =
-            QueryBuilder::new("INSERT INTO key_package_refs (key_package_ref, is_live) VALUES ");
+        let mut qb = QueryBuilder::new(format!(
+            "INSERT INTO {refs_table} (key_package_ref, is_live) VALUES "
+        ));
         let mut vals = qb.separated(", ");
         for r in key_package_refs {
             let r = KeyRefWrapper(r);
@@ -600,12 +766,14 @@ mod persistence {
         }
         qb.build().execute(txn.as_mut()).await?;
 
-        // Delete orphaned key packages (usually this is a no-op)
-        sqlx::query!(
+        // Delete orphaned key packages (usually this is a no-op).
+        // Must check both tables so regular and APQ key packages don't clobber each other.
+        sqlx::query(
             "DELETE FROM key_package WHERE key_package_ref NOT IN (
-                SELECT key_package_ref
-                FROM key_package_refs
-            )"
+                SELECT key_package_ref FROM key_package_refs
+                UNION
+                SELECT key_package_ref FROM apq_key_package_refs
+            )",
         )
         .execute(txn.as_mut())
         .await?;
@@ -615,8 +783,6 @@ mod persistence {
 
     #[cfg(test)]
     mod test {
-        use std::slice;
-
         use aircommon::{
             codec::PersistenceCodec, credentials::test_utils::create_test_credentials,
             identifiers::UserId,
@@ -684,7 +850,8 @@ mod persistence {
                 .await?;
 
             pool.with_write_transaction(async |txn| {
-                mark_key_packages_as_live(txn, slice::from_ref(&new_key_package_ref)).await
+                let is_apq = false;
+                mark_key_packages_as_live(txn, [&new_key_package_ref], is_apq).await
             })
             .await?;
 

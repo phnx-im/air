@@ -8,10 +8,10 @@ import 'package:path/path.dart' as p;
 import 'package:vector_graphics_compiler/vector_graphics_compiler.dart' as vgc;
 
 /// Directory containing raw SVGs (relative to app/).
-const _svgDir = 'lib/ui/icons/svg';
+const _svgDir = 'lib/ds/foundations/icons/svg';
 
 /// Output generated Dart file (relative to app/).
-const _outputFile = 'lib/ui/icons/app_icons.dart';
+const _outputFile = 'lib/ds/foundations/icons/app_icons.dart';
 
 Future<void> main() async {
   final svgDirectory = Directory(_svgDir);
@@ -73,7 +73,7 @@ Future<void> main() async {
   buffer.writeln("// Generated via app/tool/compile_svg_icons.dart");
   buffer.writeln();
   buffer.writeln("import 'dart:convert';");
-  buffer.writeln("import 'package:air/ui/colors/themes.dart';");
+  buffer.writeln("import 'package:air/ds/foundations/themes.dart';");
   buffer.writeln("import 'package:flutter/foundation.dart';");
   buffer.writeln("import 'package:flutter/services.dart';");
   buffer.writeln("import 'package:flutter/widgets.dart';");

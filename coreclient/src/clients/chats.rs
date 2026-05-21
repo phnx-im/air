@@ -24,7 +24,12 @@ impl CoreUser {
     /// Create new chat.
     ///
     /// Returns the id of the newly created chat.
-    pub async fn create_chat(&self, title: String, picture: Option<Vec<u8>>) -> Result<ChatId> {
+    pub async fn create_chat(
+        &self,
+        title: String,
+        picture: Option<Vec<u8>>,
+        is_apq: bool,
+    ) -> Result<ChatId> {
         let resized_picture = match picture {
             Some(picture) => {
                 Some(tokio::task::spawn_blocking(move || resize_profile_image(&picture)).await??)
@@ -35,7 +40,7 @@ impl CoreUser {
         let chat_attributes = ChatAttributes::new(title, resized_picture);
         let client_reference = self.create_own_client_reference();
 
-        let job = CreateChat::new(chat_attributes, client_reference);
+        let job = CreateChat::new(chat_attributes, client_reference, is_apq);
         let chat_id = self.execute_job(job).await?;
 
         Ok(chat_id)
@@ -102,15 +107,19 @@ impl CoreUser {
                 let id = chat_id.uuid();
                 anyhow!("Can't find chat with id {id}")
             })?;
+        let ChatType::Group(attributes) = chat.chat_type else {
+            bail!("Cannot set picture for non-group chat");
+        };
+
         let resized_picture_option = tokio::task::spawn_blocking(|| {
             picture.and_then(|picture| resize_profile_image(&picture).ok())
         })
         .await?;
-        if resized_picture_option == chat.attributes().picture {
+        if resized_picture_option == attributes.picture {
             // No change
             return Ok(());
         }
-        let new_attributes = ChatAttributes::new(chat.attributes.title, resized_picture_option);
+        let new_attributes = ChatAttributes::new(attributes.title, resized_picture_option);
 
         // Update the group and send out the update
         self.update_key_with_attributes(chat_id, Some(new_attributes))
@@ -128,11 +137,14 @@ impl CoreUser {
                 let id = chat_id.uuid();
                 anyhow!("Can't find chat with id {id}")
             })?;
-        if title == chat.attributes().title {
+        let ChatType::Group(attributes) = chat.chat_type else {
+            bail!("Cannot set title for non-group chat");
+        };
+        if title == attributes.title {
             // No change
             return Ok(());
         }
-        let new_attributes = ChatAttributes::new(title, chat.attributes.picture);
+        let new_attributes = ChatAttributes::new(title, attributes.picture);
 
         // Update the group and send out the update
         self.update_key_with_attributes(chat_id, Some(new_attributes))

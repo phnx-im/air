@@ -13,7 +13,7 @@ impl OperationType {
         match self {
             OperationType::Unknown => 0,
             OperationType::AddUsername => 10,
-            OperationType::GetInviteCode => 5,
+            OperationType::GetInviteCode => 1,
         }
     }
 

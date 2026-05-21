@@ -50,7 +50,7 @@ impl MessageCubitBase {
         let message_id = initial_state.message.id.into();
 
         let store = user_cubit.core_user().clone();
-        let store_notifications = store.store_notifications();
+        let store_notifications = store.db_notifications();
 
         let core = CubitCore::with_initial_state(initial_state);
 

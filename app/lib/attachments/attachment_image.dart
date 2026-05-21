@@ -9,12 +9,11 @@ import 'dart:ui' as ui;
 import 'package:air/attachments/attachment_image_provider.dart';
 import 'package:air/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
-import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/effects/material.dart';
-import 'package:air/ui/icons/app_icons.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/foundations/material.dart';
+import 'package:air/ds/foundations/icons/app_icons.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_blurhash/flutter_blurhash.dart';
@@ -98,13 +97,17 @@ class _AttachmentImageState extends State<AttachmentImage> {
   }
 
   /// Loads the encoded bytes and (if not already memoized) classifies them.
-  Future<void> _load() async {
+  Future<void> _load({bool retryDownloadIfFailed = false}) async {
     final id = widget.attachment.attachmentId;
     try {
       if (!mounted) return;
       final loaded = await context
           .read<AttachmentsRepository>()
-          .loadImageAttachment(attachmentId: id, chunkEventCallback: (_) {});
+          .loadImageAttachment(
+            attachmentId: id,
+            retryDownloadIfFailed: retryDownloadIfFailed,
+            chunkEventCallback: (_) {},
+          );
       if (!mounted) return;
       _animationFlagCache[id] = loaded.isAnimated;
       if (!loaded.isAnimated) {
@@ -241,9 +244,7 @@ class _AttachmentImageState extends State<AttachmentImage> {
     final blurhash = BlurHash(hash: widget.imageMetadata.blurhash);
 
     final Widget? foreground;
-    if (_error != null) {
-      foreground = const Align(child: AppIcon.circleAlert(size: 32));
-    } else if (_isAnimated == false) {
+    if (_isAnimated == false) {
       foreground = Image(
         image: AttachmentImageProvider(
           attachment: widget.attachment,
@@ -280,6 +281,7 @@ class _AttachmentImageState extends State<AttachmentImage> {
             size: widget.attachment.size,
             isSender: widget.isSender,
             isAnimationPaused: isAnimationPaused,
+            onTapDownload: () => _load(retryDownloadIfFailed: true),
           ),
         ],
       ),
@@ -294,6 +296,7 @@ class AttachmentImageOverlay extends HookWidget {
     required this.size,
     required this.isSender,
     required this.isAnimationPaused,
+    required this.onTapDownload,
   });
 
   final AttachmentId attachmentId;
@@ -301,75 +304,91 @@ class AttachmentImageOverlay extends HookWidget {
   final bool isSender;
   final bool isAnimationPaused;
 
+  final VoidCallback onTapDownload;
+
   @override
   Widget build(BuildContext context) {
-    final uploadStatusSteam = useMemoized(
+    final retries = useState(0); // bump to force stream re-subscription
+    final statusStream = useMemoized(
       () => context.read<AttachmentsRepository>().statusStream(
         attachmentId: attachmentId,
       ),
-      [attachmentId],
+      [attachmentId, retries.value],
     );
-    final uploadStatus = useStream<UiAttachmentStatus>(uploadStatusSteam);
+    final status = useStream<UiAttachmentStatus>(statusStream);
 
-    final loc = AppLocalizations.of(context);
     final colors = CustomColorScheme.of(context);
 
     return Align(
       alignment: Alignment.center,
-      child: switch (uploadStatus.data) {
+      child: switch (status.data) {
         UiAttachmentStatus_Pending() ||
-        UiAttachmentStatus_Failed() when isSender => OutlinedButton(
-          onPressed: () {
-            context.read<ChatDetailsCubit>().retryUploadAttachment(
-              attachmentId,
-            );
-          },
-          child: Row(
-            mainAxisAlignment: .center,
-            mainAxisSize: MainAxisSize.min,
+        UiAttachmentStatus_Failed() when isSender => _BlurredPill(
+          child: Stack(
+            alignment: Alignment.center,
             children: [
-              const AppIcon.upload(size: 16),
-              const SizedBox(width: Spacings.xxxs),
-              Text(
-                loc.attachment_tryAgain,
-                style: TextStyle(
-                  color: colors.text.primary,
-                  fontSize: LabelFontSize.base.size,
-                ),
+              IconButton(
+                onPressed: () {
+                  retries.value++;
+                  context.read<ChatDetailsCubit>().retryUploadAttachment(
+                    attachmentId,
+                  );
+                },
+                icon: const AppIcon.upload(size: 24),
               ),
             ],
           ),
         ),
-        UiAttachmentStatus_Progress(field0: final loaded) when isSender =>
-          _BlurredPill(
-            child: Stack(
-              alignment: Alignment.center,
-              children: [
-                CircularProgressIndicator(
-                  strokeWidth: 2,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    colors.text.primary,
-                  ),
-                  backgroundColor: Colors.transparent,
-                  value: loaded / BigInt.from(size),
-                ),
-                IconButton(
-                  onPressed: () {
-                    context.read<AttachmentsRepository>().cancel(
-                      attachmentId: attachmentId,
-                    );
-                  },
-                  icon: const AppIcon.x(size: 24),
-                ),
-              ],
-            ),
+        UiAttachmentStatus_Pending() ||
+        UiAttachmentStatus_Failed() => _BlurredPill(
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              IconButton(
+                onPressed: () {
+                  retries.value++;
+                  onTapDownload();
+                },
+                icon: const AppIcon.download(size: 24),
+              ),
+            ],
           ),
-        _ when isAnimationPaused => IgnorePointer(
+        ),
+        UiAttachmentStatus_Progress(field0: final loaded) => _BlurredPill(
+          child: Stack(
+            alignment: Alignment.center,
+            children: [
+              CircularProgressIndicator(
+                strokeWidth: 2,
+                valueColor: AlwaysStoppedAnimation<Color>(colors.text.primary),
+                backgroundColor: Colors.transparent,
+                value: loaded / BigInt.from(size),
+              ),
+              IconButton(
+                onPressed: () {
+                  context.read<AttachmentsRepository>().cancel(
+                    attachmentId: attachmentId,
+                  );
+                },
+                icon: const AppIcon.x(size: 24),
+              ),
+            ],
+          ),
+        ),
+        UiAttachmentStatus_NotFound() => IconButton(
+          onPressed: () {
+            showSnackBarStandalone(
+              (loc) => SnackBar(content: Text(loc.attachment_notFound)),
+            );
+          },
+          icon: AppIcon.circleAlert(size: 32, color: colors.text.primary),
+        ),
+        UiAttachmentStatus_Completed() when isAnimationPaused => IgnorePointer(
           child: _BlurredPill(
             child: AppIcon.rotateCw(size: 24, color: colors.text.primary),
           ),
         ),
-        _ => const SizedBox.shrink(),
+        null || UiAttachmentStatus_Completed() => const SizedBox.shrink(),
       },
     );
   }
@@ -393,7 +412,7 @@ class _BlurredPill extends StatelessWidget {
         child: ColoredBox(
           color: CustomColorScheme.of(context).material.tertiary,
           child: Padding(
-            padding: const EdgeInsets.all(Spacings.s),
+            padding: const EdgeInsets.all(Spacing.px16),
             child: child,
           ),
         ),

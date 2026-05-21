@@ -11,7 +11,7 @@ use aircommon::{
     messages::{
         QueueMessage,
         client_ds::{
-            AadMessage, AadPayload, DsCommitResponse, ExtractedQsQueueMessage,
+            AadMessage, AadPayload, ApqWelcomeBundle, DsCommitResponse, ExtractedQsQueueMessage,
             ExtractedQsQueueMessagePayload, QsQueueTargetedMessage, UserProfileKeyUpdateParams,
             WelcomeBundle,
         },
@@ -24,6 +24,7 @@ use airprotos::{
     queue_service::v1::{QueueEvent, queue_event},
 };
 use anyhow::{Context, Result, bail, ensure};
+use apqmls::messages::ApqMlsMessageIn;
 use chrono::Utc;
 use mimi_content::{Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPart};
 use mimi_room_policy::RoleIndex;
@@ -40,20 +41,20 @@ use tracing::{debug, error, info, warn};
 use crate::{
     ChatAttributes, ChatMessage, ChatStatus, ContentMessage, Message, MimiContentExt,
     SystemMessage,
-    chats::{GroupDataExt, StatusRecord, messages::edit::MessageEdit},
+    chats::{GroupDataExt, GroupDataProfilePart, StatusRecord, messages::edit::MessageEdit},
     clients::{
         QsListenResponder,
         attachment::AttachmentRecord,
         block_contact::{BlockedContact, BlockedContactError},
         process::process_as::{ConnectionInfoSource, TargetedMessageSource},
         targeted_message::TargetedMessageContent,
-        update_key::update_chat_title,
+        update_key::{update_chat_attributes, update_chat_title},
         user_settings::ReadReceiptsSetting,
     },
     contacts::{PartialContact, PartialContactType},
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
-        Group, VerifiedGroup, client_auth_info::StorableClientCredential,
+        Group, ProfileInfo, VerifiedGroup, client_auth_info::StorableClientCredential,
         process::ProcessMessageResult,
     },
     job::{JobContext, JobContextDb, pending_chat_operation::PendingChatOperation},
@@ -133,9 +134,27 @@ impl CoreUser {
             ExtractedQsQueueMessagePayload::WelcomeBundle(welcome_bundle) => {
                 Box::pin(self.handle_welcome_bundle(txn, welcome_bundle, ds_timestamp)).await
             }
-            ExtractedQsQueueMessagePayload::MlsMessage(mls_message) => {
-                self.handle_mls_message(txn, *mls_message, ds_timestamp, read_receipts_enabled)
+            ExtractedQsQueueMessagePayload::ApqWelcomeBundle(welcome_bundle) => {
+                self.handle_apq_welcome_bundle(txn, welcome_bundle, ds_timestamp)
                     .await
+            }
+            ExtractedQsQueueMessagePayload::MlsMessage(mls_message) => {
+                Box::pin(self.handle_mls_message(
+                    txn,
+                    *mls_message,
+                    ds_timestamp,
+                    read_receipts_enabled,
+                ))
+                .await
+            }
+            ExtractedQsQueueMessagePayload::ApqMlsMessage(apq_mls_message) => {
+                Box::pin(self.handle_apq_mls_message(
+                    txn,
+                    *apq_mls_message,
+                    ds_timestamp,
+                    read_receipts_enabled,
+                ))
+                .await
             }
             ExtractedQsQueueMessagePayload::UserProfileKeyUpdate(
                 user_profile_key_update_params,
@@ -148,7 +167,7 @@ impl CoreUser {
             ) => {
                 let mls_message = MlsMessageIn::tls_deserialize_exact_bytes(&mls_message_bytes)
                     .context("Failed to deserialize targeted MLS message")?;
-                self.handle_targeted_application_message(txn, mls_message, ds_timestamp)
+                Box::pin(self.handle_targeted_application_message(txn, mls_message, ds_timestamp))
                     .await
             }
             ExtractedQsQueueMessagePayload::DsCommitResponse(ds_commit_response) => {
@@ -194,7 +213,7 @@ impl CoreUser {
             group.merge_pending_commit(txn, None, timestamp).await?;
         group
             .group_mut()
-            .store_update(&mut *txn, Some(timestamp))
+            .store_update(&mut *txn, Some(timestamp), None)
             .await?;
 
         let mut chat = Chat::load_by_group_id(&mut *txn, &group_id)
@@ -234,17 +253,60 @@ impl CoreUser {
         welcome_bundle: WelcomeBundle,
         ds_timestamp: TimeStamp,
     ) -> Result<ProcessQsMessageResult> {
-        // WelcomeBundle Phase 1: Join the group. This might involve
-        // loading AS credentials or fetching them from the AS.
-
-        let (group, sender_user_id, member_profile_info) = Group::join_group(
+        // WelcomeBundle Phase 1: Join the group. This might involve loading AS credentials or
+        // fetching them from the AS.
+        let (group, sender_user_id, member_profile_info) = Box::pin(Group::join_group(
             welcome_bundle,
             &self.inner.key_store.wai_ear_key,
             &mut *txn,
             &self.inner.api_clients,
             self.signing_key(),
-        )
+        ))
         .await?;
+        self.finalize_welcome(
+            txn,
+            ds_timestamp,
+            group,
+            sender_user_id,
+            member_profile_info,
+        )
+        .await
+    }
+
+    async fn handle_apq_welcome_bundle(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+        welcome_bundle: ApqWelcomeBundle,
+        ds_timestamp: TimeStamp,
+    ) -> anyhow::Result<ProcessQsMessageResult> {
+        // WelcomeBundle Phase 1: Join the group. This might involve loading AS credentials or
+        // fetching them from the AS.
+        let (group, sender_user_id, member_profile_info) = Box::pin(Group::join_apq_group(
+            welcome_bundle,
+            &self.inner.key_store.wai_ear_key,
+            txn,
+            &self.inner.api_clients,
+            self.signing_key(),
+        ))
+        .await?;
+        self.finalize_welcome(
+            txn,
+            ds_timestamp,
+            group,
+            sender_user_id,
+            member_profile_info,
+        )
+        .await
+    }
+
+    async fn finalize_welcome(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+        ds_timestamp: TimeStamp,
+        group: Group,
+        sender_user_id: UserId,
+        member_profile_info: Vec<ProfileInfo>,
+    ) -> anyhow::Result<ProcessQsMessageResult> {
         let group_id = group.group_id().clone();
 
         // WelcomeBundle Phase 2: Fetch the user profiles of the group members
@@ -275,23 +337,28 @@ impl CoreUser {
         // group data.
         let group_data_bytes = group.group_data().context("No group data")?;
         let group_data = GroupData::decode(&group_data_bytes)?;
-        let (title, external_group_profile) =
-            group_data.into_parts(group.identity_link_wrapper_key());
+        let (title, group_profile_part) = group_data.into_parts(group.identity_link_wrapper_key());
         let title = title.context("No group title")?;
-        let attributes = ChatAttributes {
+        let mut attributes = ChatAttributes {
             title,
             picture: None, // Group picture is not yet available
         };
-        if let Some(external_group_profile) = external_group_profile {
-            Self::schedule_fetch_group_profile(
-                &mut *txn,
-                group_id.clone(),
-                sender_user_id.clone(),
-                ds_timestamp,
-                external_group_profile,
-            )
-            .await?;
-        }
+        match group_profile_part {
+            Some(GroupDataProfilePart::ExternalProfile(external_group_profile)) => {
+                Self::schedule_fetch_group_profile(
+                    &mut *txn,
+                    group_id.clone(),
+                    sender_user_id.clone(),
+                    ds_timestamp,
+                    external_group_profile,
+                )
+                .await?;
+            }
+            Some(GroupDataProfilePart::LegacyPicture(picture)) => {
+                attributes.picture = Some(picture);
+            }
+            None => (),
+        };
 
         let chat = Chat::new_group_chat(group_id.clone(), attributes);
         let own_profile_key = UserProfileKey::load_own(&mut *txn).await?;
@@ -444,11 +511,7 @@ impl CoreUser {
 
         // MLSMessage Phase 2: Process the message
 
-        let Some(ProcessMessageResult {
-            processed_message,
-            we_were_removed,
-            profile_infos,
-        }) = group
+        let Some(process_message_result) = group
             .group_mut()
             .process_message(&mut *txn, &self.inner.api_clients, protocol_message)
             .await?
@@ -466,6 +529,85 @@ impl CoreUser {
             return Ok(ProcessQsMessageResult::None);
         };
 
+        self.finalize_handle_message(
+            txn,
+            ds_timestamp,
+            read_receipts_enabled,
+            chat,
+            group,
+            process_message_result,
+        )
+        .await
+    }
+
+    async fn handle_apq_mls_message(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+        apq_mls_message: ApqMlsMessageIn,
+        ds_timestamp: TimeStamp,
+        read_receipts_enabled: bool,
+    ) -> anyhow::Result<ProcessQsMessageResult> {
+        let protocol_message = apq_mls_message
+            .into_protocol_message()
+            .context("expected APQMLS protocol message")?;
+
+        // MLSMessage Phase 1: Load the chat and the group.
+        let apq_group_id = protocol_message.group_id();
+        let chat = Chat::load_by_group_id(&mut *txn, apq_group_id.t_group_id())
+            .await?
+            .with_context(|| format!("No chat found for APQ group ID: {apq_group_id:?}"))?;
+        let chat_id = chat.id();
+
+        // Load the group regardless of whether it has a pending commit or not.
+        let mut group = Group::load_verified(&mut *txn, apq_group_id.t_group_id())
+            .await?
+            .with_context(|| format!("No group found for APQ group ID: {apq_group_id:?}"))?;
+
+        // MLSMessage Phase 2: Process the message
+        let Some(process_message_result) = group
+            .group_mut()
+            .process_apq_message(txn, self.api_clients(), protocol_message)
+            .await?
+        else {
+            // TODO: Once we have a UX for resyncs, we should schedule one
+            // here and re-enable the resync test in integration.rs
+            let _resync = Resync {
+                chat_id,
+                group_id: group.group_id().clone(),
+                group_state_ear_key: group.group_state_ear_key().clone(),
+                identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
+                original_leaf_index: group.own_index(),
+            };
+
+            return Ok(ProcessQsMessageResult::None);
+        };
+
+        self.finalize_handle_message(
+            txn,
+            ds_timestamp,
+            read_receipts_enabled,
+            chat,
+            group,
+            process_message_result,
+        )
+        .await
+    }
+
+    async fn finalize_handle_message(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+        ds_timestamp: TimeStamp,
+        read_receipts_enabled: bool,
+        chat: Chat,
+        mut group: VerifiedGroup,
+        process_message_result: ProcessMessageResult,
+    ) -> anyhow::Result<ProcessQsMessageResult> {
+        let ProcessMessageResult {
+            processed_message,
+            we_were_removed,
+            profile_infos,
+        } = process_message_result;
+
         let sender = processed_message.sender().clone();
         let sender_user_id =
             VerifiableClientCredential::from_basic_credential(processed_message.credential())?
@@ -473,6 +615,8 @@ impl CoreUser {
                 .clone();
 
         let aad = processed_message.aad().to_vec();
+
+        let chat_id = chat.id();
 
         // `chat_changed` indicates whether the state of the chat was updated
         let (new_messages, updated_messages, chat_changed) = match processed_message.into_content()
@@ -503,7 +647,10 @@ impl CoreUser {
                 let (new_messages, updated) = self
                     .handle_proposal_message(&mut *txn, &mut group, *proposal, ds_timestamp)
                     .await?;
-                group.group_mut().store_update(&mut *txn, None).await?;
+                group
+                    .group_mut()
+                    .store_update(&mut *txn, None, None)
+                    .await?;
                 (new_messages, Vec::new(), updated)
             }
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
@@ -525,7 +672,10 @@ impl CoreUser {
                         we_were_removed,
                     )
                     .await?;
-                group.group_mut().store_update(&mut *txn, None).await?;
+                group
+                    .group_mut()
+                    .store_update(&mut *txn, None, None)
+                    .await?;
                 (new_messages, Vec::new(), updated)
             }
             ProcessedMessageContent::ExternalJoinProposalMessage(_) => {
@@ -762,29 +912,52 @@ impl CoreUser {
 
         if let Some(group_data_bytes) = group_data_bytes {
             let group_data = GroupData::decode(&group_data_bytes)?;
-            let (chat_title, external_group_profile) =
+            let (chat_title, group_profile_part) =
                 group_data.into_parts(group.identity_link_wrapper_key());
-            if let Some(external_group_profile) = external_group_profile {
-                Self::schedule_fetch_group_profile(
-                    &mut *txn,
-                    chat.group_id().clone(),
-                    sender_client_credential.user_id().clone(),
-                    ds_timestamp,
-                    external_group_profile,
-                )
-                .await?;
-            }
-            if let Some(title) = chat_title {
-                // Update chat title according to new group data
-                update_chat_title(
-                    txn,
-                    &mut chat,
-                    sender_client_credential.user_id(),
-                    title,
-                    ds_timestamp,
-                    &mut group_messages,
-                )
-                .await?;
+            let chat_picture = match group_profile_part {
+                Some(GroupDataProfilePart::ExternalProfile(external_group_profile)) => {
+                    Self::schedule_fetch_group_profile(
+                        &mut *txn,
+                        chat.group_id().clone(),
+                        sender_client_credential.user_id().clone(),
+                        ds_timestamp,
+                        external_group_profile,
+                    )
+                    .await?;
+                    None
+                }
+                Some(GroupDataProfilePart::LegacyPicture(picture)) => Some(picture),
+                None => None,
+            };
+            // Update chat title according to new group data
+            match (chat_title, chat_picture) {
+                (Some(title), Some(picture)) => {
+                    update_chat_attributes(
+                        txn,
+                        &mut chat,
+                        sender_client_credential.user_id(),
+                        ChatAttributes {
+                            title,
+                            picture: Some(picture),
+                        },
+                        ds_timestamp,
+                        &mut group_messages,
+                    )
+                    .await?;
+                }
+                (Some(title), None) => {
+                    update_chat_title(
+                        txn,
+                        &mut chat,
+                        sender_client_credential.user_id(),
+                        title,
+                        ds_timestamp,
+                        &mut group_messages,
+                    )
+                    .await?;
+                }
+                (None, Some(_)) => error!("Received group data with legacy picture and no title"),
+                (None, None) => (),
             }
         }
 

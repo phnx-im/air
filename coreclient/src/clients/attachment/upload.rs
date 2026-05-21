@@ -499,7 +499,7 @@ async fn upload_encrypted_attachment(
         .await?;
         // Note: multipart does not support reporting progress for now
         progress_tx.report(total_len);
-        progress_tx.finish();
+        progress_tx.completed();
     } else {
         // upload encrypted content via signed PUT url
         let mut request = http_client.put(provision_response.upload_url);
@@ -527,7 +527,7 @@ async fn upload_encrypted_attachment(
             .await?
             .error_for_status()?;
 
-        progress_tx.finish();
+        progress_tx.completed();
     }
     Ok(())
 }

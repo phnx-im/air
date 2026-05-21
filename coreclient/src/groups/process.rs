@@ -15,6 +15,11 @@ use aircommon::{
     utils::removed_client,
 };
 use anyhow::{Context, Result, anyhow, bail, ensure};
+use apqmls::{
+    ApqMlsGroupMut,
+    messages::ApqProtocolMessage,
+    processing::{ApqProcessMessageError, ApqProcessedMessage},
+};
 use mimi_room_policy::RoleIndex;
 use openmls::{
     group::{ProcessMessageError, ValidationError},
@@ -78,24 +83,36 @@ impl Group {
             }
         };
 
+        self.post_process_message(txn, api_clients, processed_message, None)
+            .await
+            .map(Some)
+    }
+
+    async fn post_process_message(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        api_clients: &ApiClients,
+        processed_message: ProcessedMessage,
+        pq_processed_message: Option<&ProcessedMessage>,
+    ) -> Result<ProcessMessageResult> {
         let group_id = self.group_id().clone();
 
         // Will be set to true if we were removed (or the group was deleted).
         let mut we_were_removed = false;
         let mut encrypted_profile_infos: Vec<(ClientCredential, EncryptedUserProfileKey)> =
             Vec::new();
-        match processed_message.content() {
+        let sender_index = match processed_message.content() {
             // For now, we only care about commits.
             ProcessedMessageContent::ExternalJoinProposalMessage(_) => {
                 bail!("Unsupported message type")
             }
             ProcessedMessageContent::ApplicationMessage(_) => {
                 debug!("process application message");
-                return Ok(Some(ProcessMessageResult {
+                return Ok(ProcessMessageResult {
                     processed_message,
                     we_were_removed,
                     profile_infos: Vec::new(),
-                }));
+                });
             }
             ProcessedMessageContent::ProposalMessage(_proposal) => {
                 // Proposals are just returned and can then be added to the
@@ -109,6 +126,18 @@ impl Group {
                 *sender_index
             }
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
+                let pq_staged_commit = pq_processed_message
+                    .as_ref()
+                    .map(
+                        |pq_processed_message| match pq_processed_message.content() {
+                            ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
+                                Ok(staged_commit)
+                            }
+                            _ => bail!("Invalid PQ message type: expected StagedCommitMessage"),
+                        },
+                    )
+                    .transpose()?;
+
                 let sender_index = match processed_message.sender() {
                     Sender::Member(index) => index.to_owned(),
                     Sender::NewMemberCommit => {
@@ -157,6 +186,24 @@ impl Group {
                         continue;
                     };
 
+                    // Check that the signature keys of the removed user match
+                    if let Some(pq) = self.pq.as_ref() {
+                        let pq_leaf_node = pq
+                            .mls_group
+                            .public_group()
+                            .leaf(removed_index)
+                            .context("PQ sender leaf not found")?;
+                        let t_leaf_node = self
+                            .mls_group
+                            .public_group()
+                            .leaf(removed_index)
+                            .context("T sender leaf not found")?;
+                        ensure!(
+                            t_leaf_node.signature_key() == pq_leaf_node.signature_key(),
+                            "T and PQ sender signature keys do not match"
+                        );
+                    }
+
                     let removed_credential = self
                         .unverified_credential_at(removed_index)?
                         .context("Removed user credential not found")?;
@@ -194,14 +241,38 @@ impl Group {
                             .new_encrypted_user_profile_keys
                             .is_empty()
                         {
-                            let verifiable_credentials = staged_commit
-                                .add_proposals()
-                                .map(|ap| {
-                                    let credential =
-                                        ap.add_proposal().key_package().leaf_node().credential();
-                                    VerifiableClientCredential::from_basic_credential(credential)
-                                })
-                                .collect::<Result<Vec<_>, _>>()?;
+                            let mut verifiable_credentials = Vec::with_capacity(number_of_adds);
+                            let mut pq_add_proposals = pq_staged_commit
+                                .as_ref()
+                                .map(|commit| commit.add_proposals());
+
+                            for ap in staged_commit.add_proposals() {
+                                // Verify that T/PQ signature keys match
+                                if let Some(pq_add_proposals) = pq_add_proposals.as_mut() {
+                                    let pq_add_proposal = pq_add_proposals
+                                        .next()
+                                        .context("Less PQ add proposals than T")?;
+                                    let pq_signature_key = pq_add_proposal
+                                        .add_proposal()
+                                        .key_package()
+                                        .leaf_node()
+                                        .signature_key();
+                                    let t_signature_key =
+                                        ap.add_proposal().key_package().leaf_node().signature_key();
+                                    ensure!(
+                                        pq_signature_key == t_signature_key,
+                                        "T and PQ added user signature keys do not match"
+                                    );
+                                }
+
+                                // Collect the verifiable credentials
+                                let credential =
+                                    ap.add_proposal().key_package().leaf_node().credential();
+                                let credential =
+                                    VerifiableClientCredential::from_basic_credential(credential)?;
+                                verifiable_credentials.push(credential);
+                            }
+
                             let as_credentials = AsCredentials::fetch_for_verification(
                                 &mut *txn,
                                 api_clients,
@@ -261,6 +332,17 @@ impl Group {
                         let (sender_credential, sender_leaf_key) =
                             update_path_leaf_node_info(staged_commit)?;
 
+                        // Verify that T/PQ signature keys match
+                        if let Some(pq_staged_commit) = pq_staged_commit.as_ref() {
+                            let pq_leaf_node = pq_staged_commit
+                                .update_path_leaf_node()
+                                .context("Could not find sender leaf node")?;
+                            ensure!(
+                                sender_leaf_key == pq_leaf_node.signature_key(),
+                                "T and PQ sender signature keys do not match"
+                            );
+                        }
+
                         let as_credentials = AsCredentials::fetch_for_verification(
                             &mut *txn,
                             api_clients,
@@ -297,6 +379,17 @@ impl Group {
 
                         let (sender_credential, sender_leaf_key) =
                             update_path_leaf_node_info(staged_commit)?;
+
+                        // Verify that T/PQ signature keys match
+                        if let Some(pq_staged_commit) = pq_staged_commit.as_ref() {
+                            let pq_leaf_node = pq_staged_commit
+                                .update_path_leaf_node()
+                                .context("Could not find sender leaf node")?;
+                            ensure!(
+                                sender_leaf_key == pq_leaf_node.signature_key(),
+                                "T and PQ sender signature keys do not match"
+                            );
+                        }
 
                         let removed_index = staged_commit
                             .remove_proposals()
@@ -335,6 +428,24 @@ impl Group {
             }
         };
 
+        // Check that the signature keys of the sender match
+        if let Some(pq_group) = self.pq.as_ref() {
+            let pq_sender_leaf = pq_group
+                .mls_group
+                .public_group()
+                .leaf(sender_index)
+                .context("PQ sender leaf not found")?;
+            let t_sender_leaf = self
+                .mls_group
+                .public_group()
+                .leaf(sender_index)
+                .context("T sender leaf not found")?;
+            ensure!(
+                pq_sender_leaf.signature_key() == t_sender_leaf.signature_key(),
+                "T and PQ sender signature keys do not match"
+            );
+        }
+
         // Decrypt any user profile keys
         let profile_infos = encrypted_profile_infos
             .into_iter()
@@ -348,11 +459,11 @@ impl Group {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(Some(ProcessMessageResult {
+        Ok(ProcessMessageResult {
             processed_message,
             we_were_removed,
             profile_infos,
-        }))
+        })
     }
 
     async fn process_adds(
@@ -417,6 +528,56 @@ impl Group {
         // group and the credential did not change.
 
         Ok(())
+    }
+
+    #[instrument(skip_all, fields(group_id = ?self.group_id()))]
+    pub(crate) async fn process_apq_message(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        api_clients: &ApiClients,
+        message: impl Into<ApqProtocolMessage>,
+    ) -> Result<Option<ProcessMessageResult>> {
+        let pq = self.pq.as_mut().context("No PQ group")?;
+
+        let ApqProcessedMessage {
+            t_message,
+            pq_message,
+        } = match ApqMlsGroupMut::from_groups(&mut self.mls_group, &mut pq.mls_group)
+            .process_message(
+                &AirOpenMlsProvider::new(txn.as_mut()),
+                message,
+                |_, _| true, // PQ-credential is always empty
+            ) {
+            Ok(pm) => pm,
+            Err(ApqProcessMessageError::Processing(ProcessMessageError::ValidationError(
+                ValidationError::WrongEpoch,
+            ))) => {
+                // TODO: We need to handle epoch in the future gracefully and indicate a resync.
+                bail!("Wrong epoch");
+            }
+            Err(e) => {
+                return Err(e).context("Failed to process APQ message");
+            }
+        };
+
+        // The PQ message carries no Air-level semantics, so the only post-processing we need to do
+        // is on the t-message.
+        let res = Self::post_process_message(self, txn, api_clients, t_message, Some(&pq_message))
+            .await?;
+
+        // Merge the PQ staged commit
+        if let ProcessedMessageContent::StagedCommitMessage(pq_staged_commit) =
+            pq_message.into_content()
+        {
+            let provider = AirOpenMlsProvider::new(txn.as_mut());
+            self.pq
+                .as_mut()
+                .context("logic error: no PQ group")?
+                .mls_group
+                .merge_staged_commit(&provider, *pq_staged_commit)?;
+        }
+
+        Ok(Some(res))
     }
 }
 

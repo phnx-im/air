@@ -55,7 +55,6 @@ UiChatDetails _chatWithDraft(UiMessageDraft draft) => UiChatDetails(
   status: _chat.status,
   chatType: _chat.chatType,
   lastUsed: _chat.lastUsed,
-  attributes: _chat.attributes,
   messagesCount: _chat.messagesCount,
   unreadMessages: _chat.unreadMessages,
   lastMessage: _chat.lastMessage,

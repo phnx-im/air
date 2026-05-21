@@ -92,6 +92,10 @@ impl AttachmentsRepository {
                         sink.add(UiAttachmentStatus::Failed).ok();
                         break;
                     }
+                    AttachmentProgressEvent::NotFound => {
+                        sink.add(UiAttachmentStatus::NotFound).ok();
+                        break;
+                    }
                 }
             }
         } else if let Ok(Some(AttachmentStatus::Ready)) =
@@ -119,10 +123,23 @@ impl AttachmentsRepository {
     pub async fn load_image_attachment(
         &self,
         attachment_id: AttachmentId,
+        retry_download_if_failed: bool,
         chunk_event_callback: impl Fn(u64) -> DartFnFuture<()> + Send + 'static,
     ) -> anyhow::Result<LoadedImageAttachment> {
         // Remove cancelled handles
         self.in_progress.retain(|_, handle| !handle.is_cancelled());
+
+        let spawn_download = async move |chunk_event_callback| {
+            let handle = spawn_download_task(
+                &self.store,
+                &self.cancel,
+                None,
+                &self.in_progress,
+                attachment_id,
+            );
+            self.track_attachment_download(attachment_id, handle, chunk_event_callback)
+                .await
+        };
 
         let bytes = match self.store.load_attachment(attachment_id).await? {
             AttachmentContent::Ready(bytes)
@@ -130,15 +147,16 @@ impl AttachmentsRepository {
             | AttachmentContent::UploadFailed(bytes) => bytes,
             AttachmentContent::Pending => {
                 debug!(?attachment_id, "Attachment is pending; spawn download task");
-                let handle = spawn_download_task(
-                    &self.store,
-                    &self.cancel,
-                    None,
-                    &self.in_progress,
-                    attachment_id,
+                spawn_download(chunk_event_callback).await?
+            }
+            AttachmentContent::DownloadFailed | AttachmentContent::Downloading
+                if retry_download_if_failed =>
+            {
+                debug!(
+                    ?attachment_id,
+                    "Attachment failed to download but a retry was requested; spawn download task"
                 );
-                self.track_attachment_download(attachment_id, handle, chunk_event_callback)
-                    .await?
+                spawn_download(chunk_event_callback).await?
             }
             AttachmentContent::Downloading => {
                 let handle = self.in_progress.get(&attachment_id).as_deref().cloned();
@@ -153,7 +171,9 @@ impl AttachmentsRepository {
                 }
             }
             AttachmentContent::None => bail!("Attachment not found"),
-            AttachmentContent::DownloadFailed | AttachmentContent::Unknown => {
+            AttachmentContent::DownloadFailed
+            | AttachmentContent::NotFound
+            | AttachmentContent::Unknown => {
                 bail!("Attachment download failed")
             }
         };
@@ -208,6 +228,7 @@ impl AttachmentsRepository {
                         .context("Attachment download failed");
                 }
                 AttachmentProgressEvent::Failed => bail!("Attachment download failed"),
+                AttachmentProgressEvent::NotFound => bail!("Attachment not found"),
             }
         }
         bail!("Attachment download aborted")
@@ -239,7 +260,7 @@ async fn attachment_downloads_loop(
     let download_tasks_semaphore = Arc::new(Semaphore::new(NUM_CONCURRENT_DOWNLOADS));
 
     // filter the store notifications stream to only care about attachments
-    let store_notifications = store.store_notifications().flat_map(|notification| {
+    let store_notifications = store.db_notifications().flat_map(|notification| {
         let attachment_ids =
             notification
                 .ops
@@ -280,7 +301,7 @@ fn spawn_download_task(
     attachment_id: AttachmentId,
 ) -> AttachmentTaskHandle {
     let (task, cancel, handle) = match in_progress.entry(attachment_id) {
-        Entry::Occupied(mut entry) if entry.get().is_cancelled() => {
+        Entry::Occupied(mut entry) if entry.get().is_cancelled() || entry.get().is_failed() => {
             let (progress, task) = store.download_attachment(attachment_id);
             let cancel = cancel.child_token();
             let handle = AttachmentTaskHandle::with_cancellation(progress, cancel.clone());
@@ -338,6 +359,10 @@ impl AttachmentTaskHandle {
         &self.cancel
     }
 
+    fn is_failed(&self) -> bool {
+        self.progress.is_failed()
+    }
+
     fn is_cancelled(&self) -> bool {
         self.cancel.is_cancelled()
     }
@@ -352,6 +377,8 @@ pub enum UiAttachmentStatus {
     Completed,
     /// Failed to upload or download
     Failed,
+    /// Not found on the server
+    NotFound,
 }
 
 /// Bytes of an image attachment and an animation classification.

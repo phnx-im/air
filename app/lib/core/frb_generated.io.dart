@@ -710,6 +710,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   TokenId dco_decode_box_autoadd_token_id(dynamic raw);
 
   @protected
+  UiChatAttributes dco_decode_box_autoadd_ui_chat_attributes(dynamic raw);
+
+  @protected
   UiChatDetails dco_decode_box_autoadd_ui_chat_details(dynamic raw);
 
   @protected
@@ -1859,6 +1862,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   TokenId sse_decode_box_autoadd_token_id(SseDeserializer deserializer);
+
+  @protected
+  UiChatAttributes sse_decode_box_autoadd_ui_chat_attributes(
+    SseDeserializer deserializer,
+  );
 
   @protected
   UiChatDetails sse_decode_box_autoadd_ui_chat_details(
@@ -3271,6 +3279,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_token_id(TokenId self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_ui_chat_attributes(
+    UiChatAttributes self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_ui_chat_details(

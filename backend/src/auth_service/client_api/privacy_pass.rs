@@ -168,6 +168,7 @@ mod tests {
     };
     use sqlx::PgPool;
     use tls_codec::{Deserialize, Serialize};
+    use tokio_util::sync::CancellationToken;
 
     use crate::{
         auth_service::{
@@ -188,7 +189,13 @@ mod tests {
         pool: &PgPool,
     ) -> anyhow::Result<(AuthService, HashMap<OperationType, PublicKey<Ristretto255>>)> {
         // initialize() calls rotate_keys_if_needed() which creates the first key.
-        let service = AuthService::initialize(pool.clone(), "example.com".parse()?, None).await?;
+        let service = AuthService::initialize(
+            pool.clone(),
+            "example.com".parse()?,
+            None,
+            CancellationToken::new(),
+        )
+        .await?;
 
         let public_keys = crate::auth_service::privacy_pass::load_batched_token_keys(pool)
             .await?
@@ -411,10 +418,10 @@ mod tests {
 
         let challenge = build_challenge();
 
-        // Fresh user has 5 token remaining (the full GetInviteCode allowance). Requesting 6 exceeds
+        // Fresh user has 1 token remaining (the full GetInviteCode allowance). Requesting 2 exceeds
         // it, triggering the partial-quota path.
         let (token_request, _) =
-            AmortizedBatchTokenRequest::<Ristretto255>::new(public_key, &challenge, 6)?;
+            AmortizedBatchTokenRequest::<Ristretto255>::new(public_key, &challenge, 2)?;
         let err = service
             .as_issue_tokens(
                 user_record.user_id(),
@@ -436,7 +443,7 @@ mod tests {
             "token is available now, no wait needed"
         );
         assert_eq!(
-            tokens_available, 5,
+            tokens_available, 1,
             "one token remains in the current epoch"
         );
 

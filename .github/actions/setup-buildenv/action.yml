@@ -85,10 +85,9 @@ runs:
         path: |
           ${{ inputs.sccache-dir }}
           ~/.cargo
-          ~/.rustup
-        key: "sccache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/actions/setup-buildenv/action.yml', 'Cargo.lock', '.config/cargo.toml', 'rust-toolchain.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
+        key: "sccache-${{ github.job }}-${{ hashFiles('.github/actions/setup-buildenv/action.yml', 'Cargo.lock', '.config/cargo.toml', 'rust-toolchain.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
         restore-keys: |
-          sccache-${{ runner.os }}-${{ runner.arch }}
+          sccache-${{ github.job }}
 
     - name: Download Rust GitHub Actions cache
       if: github.ref != 'refs/heads/main'
@@ -97,20 +96,23 @@ runs:
         path: |
           ${{ inputs.sccache-dir }}
           ~/.cargo
-          ~/.rustup
-        key: "sccache-${{ runner.os }}-${{ runner.arch }}-${{ hashFiles('.github/actions/setup-buildenv/action.yml', 'Cargo.lock', '.config/cargo.toml', 'rust-toolchain.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
+        key: "sccache-${{ github.job }}-${{ hashFiles('.github/actions/setup-buildenv/action.yml', 'Cargo.lock', '.config/cargo.toml', 'rust-toolchain.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
         restore-keys: |
-          sccache-${{ runner.os }}-${{ runner.arch }}
+          sccache-${{ github.job }}
 
     - name: Start sccache daemon
-      shell: bash
-      run: |
-          if [[ "$GITHUB_REF_NAME" == "main" ]]; then export SCCACHE_RECACHE=y; fi
-          sccache --start-server
-          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+      uses: gacts/run-and-post-run@v1
       env:
         SCCACHE_CACHE_SIZE: ${{ inputs.sccache-size }}
         SCCACHE_DIR: "${{ inputs.sccache-dir }}"
+      with:
+        run: |
+          if [[ "$GITHUB_REF_NAME" == "main" ]]; then export SCCACHE_RECACHE=y; fi
+          sccache --start-server
+          echo "RUSTC_WRAPPER=sccache" >> $GITHUB_ENV
+          echo "SCCACHE_DIR=${{ inputs.sccache-dir }}" >> $GITHUB_ENV
+        post: |
+          sccache --show-stats
 
     - if: runner.os == 'Linux'
       name: Enable sccache wrapper for Unix
@@ -133,22 +135,6 @@ runs:
       uses: maxim-lobanov/setup-xcode@v1
       with:
         xcode-version: 26.1.1
-
-    ## rustup
-
-    - name: Configure Rust toolchain cache
-      if: github.ref == 'refs/heads/main'
-      uses: actions/cache@v5
-      with:
-        path: ~/.rustup
-        key: rust-toolchain-${{ hashFiles('rust-toolchain.toml' ) }}
-
-    - name: Download Rust toolchain cache
-      if: github.ref != 'refs/heads/main'
-      uses: actions/cache/restore@v5
-      with:
-        path: ~/.rustup
-        key: rust-toolchain-${{ hashFiles('rust-toolchain.toml' ) }}
 
     ## JDK
 

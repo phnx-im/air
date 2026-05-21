@@ -5,8 +5,8 @@
 import 'package:air/attachments/attachments.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -15,7 +15,7 @@ import 'package:mocktail/mocktail.dart';
 import '../helpers.dart';
 import '../mocks.dart';
 
-const physicalSize = Size(800, 1800);
+const physicalSize = Size(800, 2150);
 
 final file = UiAttachment(
   attachmentId: 42.attachmentId(),
@@ -36,7 +36,8 @@ Map<AttachmentId, UiAttachmentStatus> testStatuses = {
   1.attachmentId(): const UiAttachmentStatus.pending(),
   2.attachmentId(): UiAttachmentStatus.progress(BigInt.from(7 * 1024 * 1024)),
   3.attachmentId(): const UiAttachmentStatus.failed(),
-  4.attachmentId(): const UiAttachmentStatus.completed(),
+  4.attachmentId(): const UiAttachmentStatus.notFound(),
+  5.attachmentId(): const UiAttachmentStatus.completed(),
 };
 
 class _FileTestBubble extends StatelessWidget {
@@ -56,12 +57,12 @@ class _FileTestBubble extends StatelessWidget {
   Widget build(BuildContext context) {
     return Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: Spacings.s,
-        vertical: Spacings.xxs,
+        horizontal: Spacing.px16,
+        vertical: Spacing.px8,
       ),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(Spacings.sm),
+        borderRadius: BorderRadius.circular(Spacing.px20),
       ),
       child: AttachmentFile(
         attachment: attachment ?? file.copyWith(attachmentId: attachmentId),
@@ -106,11 +107,11 @@ void main() {
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
                 home: Scaffold(
                   body: Padding(
-                    padding: const EdgeInsets.all(Spacings.s),
+                    padding: const EdgeInsets.all(Spacing.px16),
                     child: SizedBox(
                       width: double.infinity,
                       child: Column(
-                        spacing: Spacings.s,
+                        spacing: Spacing.px16,
                         crossAxisAlignment: .end,
                         children: children(context),
                       ),
@@ -166,7 +167,7 @@ void main() {
     });
 
     testWidgets('renders correctly overflow', (tester) async {
-      tester.platformDispatcher.views.first.physicalSize = physicalSize;
+      tester.platformDispatcher.views.first.physicalSize = const Size(800, 600);
       addTearDown(() {
         tester.platformDispatcher.views.first.resetPhysicalSize();
       });

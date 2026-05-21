@@ -66,7 +66,7 @@ use crate::{ContactType, user_profiles::UserProfile};
 use crate::{
     MessageId,
     chats::{
-        Chat, ChatAttributes,
+        Chat,
         messages::{ChatMessage, TimestampedMessage},
     },
     clients::connection_offer::FriendshipPackage,
@@ -126,7 +126,7 @@ pub(crate) struct CoreUserInner {
     qs_user_id: QsUserId,
     qs_client_id: QsClientId,
     key_store: MemoryUserKeyStore,
-    store_notifications_pending: Arc<Notify>,
+    db_notifications_pending: Arc<Notify>,
     outbound_service: OutboundService,
     event_loop_sender: EventLoopSender,
     _event_loop_cancel: DropGuard,
@@ -320,47 +320,47 @@ impl CoreUser {
         &self.inner.key_store
     }
 
-    pub fn send_store_notification(&self, notification: DbNotification) {
+    pub fn send_db_notification(&self, notification: DbNotification) {
         if !notification.is_empty() {
             self.inner.db.notifier_tx.notify(notification);
         }
     }
 
-    /// Subscribes to store notifications.
+    /// Subscribes to db notifications.
     ///
     /// All notifications sent after this function was called are observed as items of the returned
     /// stream.
-    pub fn store_notifications(&self) -> impl Stream<Item = Arc<DbNotification>> + Send + 'static {
+    pub fn db_notifications(&self) -> impl Stream<Item = Arc<DbNotification>> + Send + 'static {
         self.inner.db.notifier_tx.subscribe()
     }
 
-    /// Subscribes to pending store notifications.
+    /// Subscribes to pending db notifications.
     ///
-    /// Unlike `subscribe_to_store_notifications`, this function does not remove stored
-    /// notifications from the persisted queue.
-    pub fn pending_store_notifications(
+    /// Unlike [`Self::db_notifications`], this function does not remove stored notifications from
+    /// the persisted queue.
+    pub fn pending_db_notifications(
         &self,
     ) -> impl Iterator<Item = Arc<DbNotification>> + Send + 'static {
         self.inner.db.notifier_tx.subscribe_iter()
     }
 
-    pub async fn enqueue_store_notification(&self, notification: &DbNotification) -> Result<()> {
+    pub async fn enqueue_db_notification(&self, notification: &DbNotification) -> Result<()> {
         notification.enqueue(self.db().write().await?).await?;
         Ok(())
     }
 
-    pub async fn dequeue_store_notification(&self) -> Result<DbNotification> {
+    pub async fn dequeue_db_notification(&self) -> Result<DbNotification> {
         Ok(DbNotification::dequeue(self.db().write().await?).await?)
     }
 
-    /// Signals that new store notifications were persisted and should be drained.
-    pub fn signal_pending_store_notifications(&self) {
-        self.inner.store_notifications_pending.notify_one();
+    /// Signals that new db notifications were persisted and should be drained.
+    pub fn signal_pending_db_notifications(&self) {
+        self.inner.db_notifications_pending.notify_one();
     }
 
     /// Notify handle.
-    pub fn store_notifications_pending(&self) -> Arc<Notify> {
-        self.inner.store_notifications_pending.clone()
+    pub fn db_notifications_pending(&self) -> Arc<Notify> {
+        self.inner.db_notifications_pending.clone()
     }
 
     pub async fn set_own_user_profile(&self, mut user_profile: UserProfile) -> Result<UserProfile> {

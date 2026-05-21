@@ -71,7 +71,7 @@ impl<'r> Decode<'r, Sqlite> for DbEntityKind {
     }
 }
 
-struct SqlStoreNotification {
+struct SqlDbNotification {
     entity_id: Vec<u8>,
     kind: DbEntityKind,
     added: bool,
@@ -79,7 +79,7 @@ struct SqlStoreNotification {
     removed: bool,
 }
 
-impl SqlStoreNotification {
+impl SqlDbNotification {
     fn into_entity_id_and_op(self) -> anyhow::Result<(DbEntityId, EnumSet<DbOperation>)> {
         let Self {
             entity_id,
@@ -147,7 +147,7 @@ impl DbNotification {
         mut connection: impl WriteConnection,
     ) -> sqlx::Result<DbNotification> {
         let mut records = query_as!(
-            SqlStoreNotification,
+            SqlDbNotification,
             r#"DELETE FROM store_notification RETURNING
                 entity_id,
                 kind AS "kind: _",
@@ -167,7 +167,7 @@ impl DbNotification {
                     *entry |= op;
                 }
                 Err(error) => {
-                    error!(%error, "Error parsing store notification; skipping");
+                    error!(%error, "Error parsing DB notification; skipping");
                 }
             }
         }

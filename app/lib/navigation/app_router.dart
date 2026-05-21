@@ -12,7 +12,7 @@ import 'package:air/developer/developer.dart';
 import 'package:air/home_screen.dart';
 import 'package:air/intro_screen.dart';
 import 'package:air/registration/registration.dart';
-import 'package:air/theme/theme.dart';
+import 'package:air/ds/theme/theme.dart';
 import 'package:air/user/user.dart';
 import 'package:air/core/core.dart';
 

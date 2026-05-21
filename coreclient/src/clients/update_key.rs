@@ -5,7 +5,7 @@
 use aircommon::{identifiers::UserId, time::TimeStamp};
 
 use crate::{
-    Chat, ChatAttributes, ChatId, ChatMessage, SystemMessage,
+    Chat, ChatAttributes, ChatId, ChatMessage, ChatType, SystemMessage,
     chats::messages::TimestampedMessage,
     db::access::{WriteConnection, WriteDbTransaction},
     job::chat_operation::ChatOperation,
@@ -52,14 +52,36 @@ pub(crate) async fn update_chat_attributes(
         message_buffer,
     )
     .await?;
-    if chat.attributes.picture != new_chat_attributes.picture {
-        chat.set_picture(&mut *txn, new_chat_attributes.picture)
-            .await?;
-        let system_message = SystemMessage::ChangePicture(sender_id.clone());
-        let group_message = TimestampedMessage::system_message(system_message, ds_timestamp);
-        message_buffer.push(group_message);
+    match &chat.chat_type {
+        ChatType::Group(attrs) => {
+            if attrs.picture != new_chat_attributes.picture {
+                chat.set_picture(&mut *txn, new_chat_attributes.picture)
+                    .await?;
+                let system_message = SystemMessage::ChangePicture(sender_id.clone());
+                let group_message =
+                    TimestampedMessage::system_message(system_message, ds_timestamp);
+                message_buffer.push(group_message);
+            }
+        }
+        ChatType::HandleConnection(_)
+        | ChatType::Connection(_)
+        | ChatType::TargetedMessageConnection(_)
+        | ChatType::PendingConnection(_) => {
+            erase_connection_chat_picture(&mut *txn, chat.id, new_chat_attributes.picture).await?;
+        }
     }
 
+    Ok(())
+}
+
+async fn erase_connection_chat_picture(
+    connection: impl WriteConnection,
+    chat_id: ChatId,
+    new_picture: Option<Vec<u8>>,
+) -> anyhow::Result<()> {
+    if new_picture.is_none() {
+        Chat::update_picture(connection, chat_id, None).await?;
+    }
     Ok(())
 }
 
@@ -71,16 +93,35 @@ pub(crate) async fn update_chat_title(
     ds_timestamp: TimeStamp,
     message_buffer: &mut Vec<TimestampedMessage>,
 ) -> anyhow::Result<()> {
-    if chat.attributes.title != new_title {
-        let old_title = chat.attributes.title.clone();
-        chat.set_title(connection, new_title.clone()).await?;
-        let system_message = SystemMessage::ChangeTitle {
-            user_id: sender_id.clone(),
-            old_title,
-            new_title,
-        };
-        let group_message = TimestampedMessage::system_message(system_message, ds_timestamp);
-        message_buffer.push(group_message);
+    match &chat.chat_type {
+        ChatType::Group(attrs) => {
+            let old_title = attrs.title.clone();
+            chat.set_title(connection, new_title.clone()).await?;
+            let system_message = SystemMessage::ChangeTitle {
+                user_id: sender_id.clone(),
+                old_title,
+                new_title,
+            };
+            let group_message = TimestampedMessage::system_message(system_message, ds_timestamp);
+            message_buffer.push(group_message);
+        }
+        ChatType::HandleConnection(_)
+        | ChatType::Connection(_)
+        | ChatType::TargetedMessageConnection(_)
+        | ChatType::PendingConnection(_) => {
+            erase_connection_chat_title(connection, chat.id, &new_title).await?;
+        }
+    }
+    Ok(())
+}
+
+async fn erase_connection_chat_title(
+    connection: impl WriteConnection,
+    chat_id: ChatId,
+    new_title: &str,
+) -> anyhow::Result<()> {
+    if new_title.is_empty() {
+        Chat::update_title(connection, chat_id, "").await?;
     }
     Ok(())
 }

@@ -9,7 +9,7 @@ import 'package:air/util/platform.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:air/core/core.dart';
-import 'package:air/theme/theme.dart';
+import 'package:air/ds/theme/theme.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -124,7 +124,7 @@ class LogsScreenView extends StatelessWidget {
         ),
         body: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
+            padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
             child: TabBarView(
               children: [
                 _LogsView(logs: appLogs),

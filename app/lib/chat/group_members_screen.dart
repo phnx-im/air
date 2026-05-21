@@ -5,8 +5,8 @@
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
 import 'package:air/user/user.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:collection/collection.dart';
@@ -133,8 +133,8 @@ class GroupMembersView extends HookWidget {
                 Expanded(
                   child: ListView.separated(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: Spacings.s,
-                      vertical: Spacings.xs,
+                      horizontal: Spacing.px16,
+                      vertical: Spacing.px12,
                     ),
                     itemCount: sortedMembers.length,
                     separatorBuilder: (context, index) => Divider(

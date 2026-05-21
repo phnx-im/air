@@ -6,22 +6,22 @@ import 'package:air/chat/widgets/member_list_item.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/components/app_scaffold.dart';
-import 'package:air/ui/components/button/button.dart'
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/components/app_scaffold.dart';
+import 'package:air/ds/components/button/button.dart'
     show AppButton, AppButtonTone;
-import 'package:air/ui/components/desktop/width_constraints.dart';
-import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/components/desktop/width_constraints.dart';
+import 'package:air/ds/components/modal/bottom_sheet_modal.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/user/user.dart';
-import 'package:air/util/dialog.dart';
+import 'package:air/ds/components/modal/dialog.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:air/ui/icons/app_icons.dart';
+import 'package:air/ds/foundations/icons/app_icons.dart';
 
 import 'change_group_title_dialog.dart';
 import 'chat_debug_info_view.dart';
@@ -48,7 +48,8 @@ class GroupDetailsScreen extends StatelessWidget {
     return AppScaffold(
       title: chat.title,
       onTitleLongPress: () {
-        var chatDetailsCubit = context.read<ChatDetailsCubit>();
+        final chatDetailsCubit = context.read<ChatDetailsCubit>();
+        final userCubit = context.read<UserCubit>();
         final debugInfoFut = chatDetailsCubit.chatDebugInfo();
         Navigator.of(context).push(
           MaterialPageRoute(
@@ -56,6 +57,7 @@ class GroupDetailsScreen extends StatelessWidget {
               title: chat.title,
               debugInfo: debugInfoFut,
               onRequestResync: () => chatDetailsCubit.requestResync(),
+              onEraseLocalChat: () => userCubit.devEraseChat(chat.id),
             ),
           ),
         );
@@ -70,13 +72,13 @@ class GroupDetailsScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      const SizedBox(height: Spacings.s),
+                      const SizedBox(height: Spacing.px16),
                       ChatAvatar(
                         chatId: chat.id,
                         size: 192,
                         onPressed: () => _selectAvatar(context, chat.id),
                       ),
-                      const SizedBox(height: Spacings.s),
+                      const SizedBox(height: Spacing.px16),
                       InkWell(
                         onTap: () => _changeGroupTitle(context, chat.title),
                         child: Text(
@@ -88,7 +90,7 @@ class GroupDetailsScreen extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(height: Spacings.xxs),
+                      const SizedBox(height: Spacing.px8),
                       Text(
                         loc.groupDetails_groupDescription,
                         textAlign: TextAlign.center,
@@ -97,7 +99,7 @@ class GroupDetailsScreen extends StatelessWidget {
                           color: colors.text.secondary,
                         ),
                       ),
-                      const SizedBox(height: Spacings.l),
+                      const SizedBox(height: Spacing.px32),
                       _PeoplePreview(memberIds: members),
                     ],
                   ),
@@ -112,7 +114,7 @@ class GroupDetailsScreen extends StatelessWidget {
                       label: loc.groupDetails_leaveChat,
                     ),
                   ),
-                  const SizedBox(width: Spacings.xs),
+                  const SizedBox(width: Spacing.px12),
                   Expanded(
                     child: AppButton(
                       onPressed: () => _delete(context, chat),
@@ -225,7 +227,7 @@ class _PeoplePreview extends HookWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.all(Spacings.xs),
+          padding: const EdgeInsets.all(Spacing.px12),
           child: Text(
             loc.groupDetails_memberCount(memberIds.length),
             style: TextStyle(
@@ -298,7 +300,7 @@ class _PeoplePreviewEntry extends StatelessWidget {
         color: colors.backgroundBase.secondary,
         borderRadius: borderRadius,
       ),
-      padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
+      padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
       child: MemberListItem(
         profile: profile,
         displayNameOverride: displayName,
@@ -347,8 +349,8 @@ class _ActionsRow extends StatelessWidget {
                 },
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: Spacings.s,
-                    vertical: Spacings.xs,
+                    horizontal: Spacing.px16,
+                    vertical: Spacing.px12,
                   ),
                   child: Row(
                     children: [
@@ -360,14 +362,14 @@ class _ActionsRow extends StatelessWidget {
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Padding(
-                          padding: const EdgeInsets.all(Spacings.xxs),
+                          padding: const EdgeInsets.all(Spacing.px8),
                           child: AppIcon.plus(
                             size: 16,
                             color: colors.function.toggleBlack,
                           ),
                         ),
                       ),
-                      const SizedBox(width: Spacings.s),
+                      const SizedBox(width: Spacing.px16),
                       Text(
                         loc.groupDetails_addPeople,
                         style: TextStyle(fontSize: BodyFontSize.base.size),
@@ -384,8 +386,8 @@ class _ActionsRow extends StatelessWidget {
                 },
                 child: Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: Spacings.s,
-                    vertical: Spacings.xs,
+                    horizontal: Spacing.px16,
+                    vertical: Spacing.px12,
                   ),
                   child: Row(
                     mainAxisAlignment: .end,
@@ -394,7 +396,7 @@ class _ActionsRow extends StatelessWidget {
                         loc.groupDetails_seeAll,
                         style: TextStyle(fontSize: BodyFontSize.base.size),
                       ),
-                      const SizedBox(width: Spacings.xs),
+                      const SizedBox(width: Spacing.px12),
                       Container(
                         height: 32,
                         width: 32,
@@ -403,7 +405,7 @@ class _ActionsRow extends StatelessWidget {
                           borderRadius: BorderRadius.circular(16),
                         ),
                         child: Padding(
-                          padding: const EdgeInsets.all(Spacings.xxs),
+                          padding: const EdgeInsets.all(Spacing.px8),
                           child: AppIcon.arrowRight(
                             size: 16,
                             color: colors.function.toggleBlack,

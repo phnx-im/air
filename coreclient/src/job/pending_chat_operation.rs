@@ -6,7 +6,10 @@ use airapiclient::ds_api::DsRequestError;
 use aircommon::{
     credentials::{ClientCredential, keys::ClientSigningKey},
     identifiers::{QualifiedGroupId, UserId},
-    messages::client_ds_out::{DeleteGroupParamsOut, GroupOperationParamsOut, SelfRemoveParamsOut},
+    messages::client_ds_out::{
+        ApqGroupOperationParamsOut, DeleteGroupParamsOut, GroupOperationParamsOut,
+        SelfRemoveParamsOut,
+    },
     time::TimeStamp,
 };
 use airprotos::client::group::GroupData;
@@ -25,7 +28,7 @@ use crate::{
     contacts::ContactAddInfos,
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
-        Group, VerifiedGroup, client_auth_info::StorableClientCredential,
+        Group, GroupDataBytes, VerifiedGroup, client_auth_info::StorableClientCredential,
         handle_group_not_found_on_ds,
     },
     job::{Job, JobContext, JobError, chat_operation::ChatOperationError},
@@ -52,6 +55,15 @@ pub(super) enum OperationType {
         #[serde(with = "serde_bytes")]
         new_chat_picture: Option<Vec<u8>>,
     },
+    ApqOther {
+        params: Box<ApqGroupOperationParamsOut>,
+        /// New chat picture (if any)
+        ///
+        /// It was already uploaded as part of the external group profile but is not yet set as the
+        /// chat picture.
+        #[serde(with = "serde_bytes")]
+        new_chat_picture: Option<Vec<u8>>,
+    },
 }
 
 impl std::fmt::Display for OperationType {
@@ -60,6 +72,7 @@ impl std::fmt::Display for OperationType {
             OperationType::Leave(_) => write!(f, "leave"),
             OperationType::Delete(_) => write!(f, "delete"),
             OperationType::Other { .. } => write!(f, "other"),
+            OperationType::ApqOther { .. } => write!(f, "apq_other"),
         }
     }
 }
@@ -79,10 +92,26 @@ impl OperationType {
         }
     }
 
+    fn apq_other(params: ApqGroupOperationParamsOut) -> Self {
+        Self::apq_other_with_picture(params, None)
+    }
+
+    fn apq_other_with_picture(
+        params: ApqGroupOperationParamsOut,
+        new_chat_picture: Option<Vec<u8>>,
+    ) -> Self {
+        Self::ApqOther {
+            params: Box::new(params),
+            new_chat_picture,
+        }
+    }
+
     fn is_commit(&self) -> bool {
         match self {
             OperationType::Leave(_) => false,
-            OperationType::Delete(_) | OperationType::Other { .. } => true,
+            OperationType::Delete(_)
+            | OperationType::Other { .. }
+            | OperationType::ApqOther { .. } => true,
         }
     }
 
@@ -146,6 +175,27 @@ impl Job for PendingChatOperation {
                     })
                     .await?;
                 Err(JobError::NotFound)
+            }
+            fatal_error @ Err(JobError::Fatal(_)) => {
+                // Clean up job after fatal error
+                context
+                    .db
+                    .write()
+                    .await?
+                    .with_transaction(async |txn| -> anyhow::Result<()> {
+                        self.group
+                            .group_mut()
+                            .discard_pending_commit(&mut *txn)
+                            .await?;
+                        Self::delete(txn, self.group.group_id()).await?;
+                        Ok(())
+                    })
+                    .await
+                    .inspect_err(|error| {
+                        error!(%error, "Failed to delete pending chat operation");
+                    })
+                    .ok();
+                fatal_error
             }
             res => res,
         }
@@ -219,6 +269,7 @@ impl PendingChatOperation {
         }
 
         let mut new_chat_picture = None;
+        // TODO: Can we avoid cloning here?
         let res = match self.operation.clone() {
             OperationType::Leave(params) => {
                 api_client
@@ -237,6 +288,15 @@ impl PendingChatOperation {
                 new_chat_picture = chat_picture;
                 api_client
                     .ds_group_operation(*params, signer, self.group.group_state_ear_key())
+                    .await
+            }
+            OperationType::ApqOther {
+                params,
+                new_chat_picture: chat_picture,
+            } => {
+                new_chat_picture = chat_picture;
+                api_client
+                    .ds_apq_group_operation(*params, signer, self.group.group_state_ear_key())
                     .await
             }
         };
@@ -352,7 +412,7 @@ impl PendingChatOperation {
 
                 self.group
                     .group_mut()
-                    .store_update(&mut *txn, Some(ds_timestamp))
+                    .store_update(&mut *txn, Some(ds_timestamp), None)
                     .await?;
                 let messages =
                     CoreUser::store_new_messages(&mut *txn, chat.id(), group_messages).await?;
@@ -377,7 +437,7 @@ impl PendingChatOperation {
 
     async fn handle_error(
         &mut self,
-        mut connection: impl WriteConnection,
+        connection: impl WriteConnection,
         error: DsRequestError,
     ) -> Result<JobError<ChatOperationError>, JobError<ChatOperationError>> {
         debug!(?error, "DS request failed");
@@ -389,30 +449,12 @@ impl PendingChatOperation {
             self.mark_as_waiting_for_queue_response(connection).await?;
 
             Err(JobError::Blocked)
-        } else if error.is_not_found() {
-            Err(JobError::NotFound)
-        } else if (error.is_network_error() || self.number_of_attempts > 0)
-            && self.number_of_attempts < MAX_RETRIES
-        {
-            // If we either get a network error (which means we don't know
-            // whether the request has been processed by the DS), or if we've
-            // gotten a network error in the past, we want to try again until
-            // we've either succeeded or reached a max number of retries.
+        } else if error.is_network_error() && self.number_of_attempts < MAX_RETRIES {
+            // If we get a network error (which means we don't know whether the request has been
+            // processed by the DS), we want to try again until we've either succeeded or reached a
+            // max number of retries.
             Ok(JobError::NetworkError)
         } else {
-            // For other errors or if the max number of retries has been
-            // reached, we consider the operation failed and delete the job.
-            connection
-                .with_transaction(async |txn| -> anyhow::Result<_> {
-                    self.group
-                        .group_mut()
-                        .discard_pending_commit(&mut *txn)
-                        .await?;
-                    Self::delete(txn, self.group.group_id()).await?;
-                    Ok(())
-                })
-                .await?;
-
             let error = if self.number_of_attempts >= MAX_RETRIES {
                 anyhow!(
                     "Job failed after {} attempts due to DS errors: {:?}",
@@ -448,12 +490,19 @@ impl PendingChatOperation {
             group.verify_role_change(own_id, target, RoleIndex::Outsider)?;
         }
 
-        let params = group
-            .group_mut()
-            .stage_remove(&mut *txn, signer, target_users)
-            .await?;
+        let operation_type = if group.is_apq() {
+            let params = group
+                .group_mut()
+                .stage_apq_remove(&mut *txn, signer, target_users)?;
+            OperationType::apq_other(params)
+        } else {
+            let params = group
+                .group_mut()
+                .stage_remove(&mut *txn, signer, target_users)?;
+            OperationType::other(params)
+        };
 
-        let job = Self::new(group, OperationType::other(params));
+        let job = Self::new(group, operation_type);
         job.store(txn).await?;
         Ok(job)
     }
@@ -487,6 +536,24 @@ impl PendingChatOperation {
         new_group_data: Option<GroupData>,
         new_chat_picture: Option<Vec<u8>>,
     ) -> anyhow::Result<Self> {
+        let group_data_bytes = new_group_data.map(|data| data.encode()).transpose()?;
+        Self::create_update_with_raw_group_data(
+            txn,
+            signer,
+            chat_id,
+            group_data_bytes,
+            new_chat_picture,
+        )
+        .await
+    }
+
+    pub(crate) async fn create_update_with_raw_group_data(
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &ClientSigningKey,
+        chat_id: ChatId,
+        group_data_bytes: Option<GroupDataBytes>,
+        new_chat_picture: Option<Vec<u8>>,
+    ) -> anyhow::Result<Self> {
         let chat = Chat::load(&mut *txn, &chat_id)
             .await?
             .with_context(|| format!("Can't find chat with id {chat_id}"))?;
@@ -494,7 +561,6 @@ impl PendingChatOperation {
         let mut group = Group::load_clean_verified(&mut *txn, group_id)
             .await?
             .with_context(|| format!("Can't find group with id {group_id:?}"))?;
-        let group_data_bytes = new_group_data.map(|data| data.encode()).transpose()?;
 
         let params = group
             .group_mut()
@@ -549,10 +615,9 @@ impl PendingChatOperation {
         new_members: Vec<UserId>,
     ) -> Result<Self, JobError<ChatOperationError>> {
         // Load local data to prepare add operation
-        let chat = connection
-            .with_transaction(async |txn| Chat::load(txn, &chat_id).await)
+        let mut group = Group::load_verified_with_chat_id(&mut connection, chat_id)
             .await?
-            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+            .context("Can't find group for chat with id {chat_id:?}")?;
 
         let mut contact_wai_keys = Vec::with_capacity(new_members.len());
         let mut contacts = Vec::with_capacity(new_members.len());
@@ -578,20 +643,13 @@ impl PendingChatOperation {
         let mut contact_add_infos: Vec<ContactAddInfos> = Vec::with_capacity(contacts.len());
         for contact in contacts {
             let add_info = contact
-                .fetch_add_infos(&mut connection, api_clients)
+                .fetch_add_infos(&mut connection, api_clients, group.is_apq())
                 .await?;
             contact_add_infos.push(add_info);
         }
 
-        let group_id = chat.group_id();
         connection
             .with_transaction(async |txn| {
-                let mut group = Group::load_clean_verified(&mut *txn, group_id)
-                    .await
-                    .map_err(JobError::fatal)?
-                    .with_context(|| format!("Can't find group with id {group_id:?}"))
-                    .map_err(JobError::fatal)?;
-
                 let own_id = signer.credential().user_id();
 
                 // Room policy check (doesn't apply changes to room state yet)
@@ -600,23 +658,42 @@ impl PendingChatOperation {
                 }
 
                 // Adds new member and stages commit
-                let params = group
-                    .group_mut()
-                    .stage_invite(
-                        &mut *txn,
-                        signer,
-                        contact_add_infos,
-                        contact_wai_keys,
-                        client_credentials,
-                    )
-                    .await?
-                    // Check if we got a leaf node validation error which is domain specific and should
-                    // be propagated to the user.
-                    .map_err(|validation| JobError::domain(ChatOperationError::from(validation)))?;
+                let operation_type = if !group.is_apq() {
+                    let params = group
+                        .group_mut()
+                        .stage_invite(
+                            &mut *txn,
+                            signer,
+                            contact_add_infos,
+                            contact_wai_keys,
+                            client_credentials,
+                        )?
+                        // Check if we got a leaf node validation error which is domain specific and should
+                        // be propagated to the user.
+                        .map_err(|validation| {
+                            JobError::domain(ChatOperationError::from(validation))
+                        })?;
+                    OperationType::other(params)
+                } else {
+                    let params = group
+                        .group_mut()
+                        .stage_apq_invite(
+                            &mut *txn,
+                            signer,
+                            contact_add_infos,
+                            contact_wai_keys,
+                            client_credentials,
+                        )?
+                        // Check if we got a leaf node validation error which is domain specific and should
+                        // be propagated to the user.
+                        .map_err(|validation| {
+                            JobError::domain(ChatOperationError::from(validation))
+                        })?;
+                    OperationType::apq_other(params)
+                };
 
                 // Create PendingChatOperation job
-                let pending_chat_operation =
-                    PendingChatOperation::new(group, OperationType::other(params));
+                let pending_chat_operation = PendingChatOperation::new(group, operation_type);
                 pending_chat_operation.store(txn).await?;
 
                 Ok(pending_chat_operation)
@@ -941,6 +1018,8 @@ mod persistence {
 #[cfg(any(test, feature = "test_utils"))]
 pub mod test_utils {
 
+    use aircommon::component::AirComponent;
+
     use crate::db::access::ReadConnection;
 
     use super::*;
@@ -965,6 +1044,37 @@ pub mod test_utils {
                 });
 
             Ok(pco)
+        }
+    }
+
+    impl PendingChatOperation {
+        /// Creates a self-update commit that forces the given [`AirComponent`] into the own leaf
+        /// node.
+        ///
+        /// Use this in tests to simulate an old client that advertises a different set of feature
+        /// flags.
+        pub(crate) async fn create_update_with_air_component(
+            txn: &mut WriteDbTransaction<'_>,
+            signer: &ClientSigningKey,
+            chat_id: ChatId,
+            air_component: AirComponent,
+        ) -> anyhow::Result<Self> {
+            let chat = Chat::load(&mut *txn, &chat_id)
+                .await?
+                .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+            let group_id = chat.group_id();
+            let mut group = Group::load_clean_verified(&mut *txn, group_id)
+                .await?
+                .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+
+            let params = group
+                .group_mut()
+                .update_with_air_component(&mut *txn, signer, air_component)
+                .await?;
+
+            let job = Self::new(group, OperationType::other(params));
+            job.store(txn).await?;
+            Ok(job)
         }
     }
 }

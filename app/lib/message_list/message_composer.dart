@@ -10,10 +10,10 @@ import 'package:air/attachments/attachments.dart';
 import 'package:air/l10n/app_localizations_extension.dart';
 import 'package:air/message_list/emoji_repository.dart';
 import 'package:air/message_list/emoji_autocomplete.dart';
-import 'package:air/ui/components/button/glass_circle_button.dart';
-import 'package:air/ui/components/modal/bottom_sheet_modal.dart';
-import 'package:air/ui/effects/material.dart';
-import 'package:air/ui/icons/app_icons.dart';
+import 'package:air/ds/components/button/glass_circle_button.dart';
+import 'package:air/ds/components/modal/bottom_sheet_modal.dart';
+import 'package:air/ds/foundations/material.dart';
+import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:air/message_list/scroll_to_bottom_controller.dart';
 import 'package:air/user/user_settings_cubit.dart';
 import 'package:air/user/users_cubit.dart';
@@ -29,10 +29,10 @@ import 'package:path_provider/path_provider.dart';
 import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/effects/elevation.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/foundations/elevation.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:provider/provider.dart';
 
 import 'package:air/util/platform.dart'
@@ -44,7 +44,7 @@ import 'text_message_tile.dart' show messageHorizontalPadding;
 final _log = Logger("MessageComposer");
 const double _composerLineHeight = 1.3;
 final double _composerFontSize = BodyFontSize.base.size;
-const double _inputVerticalPadding = Spacings.xs;
+const double _inputVerticalPadding = Spacing.px12;
 final double _composerButtonSize =
     _composerFontSize * _composerLineHeight + 2 * _inputVerticalPadding;
 
@@ -228,7 +228,7 @@ class _MessageComposerState extends State<MessageComposer>
             color: materialColor,
             borderRadius: BorderRadius.circular(_inputBorderRadius),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
+          padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
           child: _MessageInput(
             focusNode: _focusNode,
             controller: _inputController,
@@ -241,6 +241,7 @@ class _MessageComposerState extends State<MessageComposer>
                 _submitMessage(context.read<ChatDetailsCubit>()),
             onImagePasted: _handleImagePaste,
             onFilePasted: _handleFilePaste,
+            onContentInserted: _handleContentInserted,
           ),
         ),
       ),
@@ -250,7 +251,7 @@ class _MessageComposerState extends State<MessageComposer>
       padding: const EdgeInsets.only(
         left: messageHorizontalPadding,
         right: messageHorizontalPadding,
-        bottom: Spacings.xs,
+        bottom: Spacing.px12,
       ),
       child: ValueListenableBuilder<bool>(
         valueListenable:
@@ -302,7 +303,7 @@ class _MessageComposerState extends State<MessageComposer>
 
           final clipper = _ComposerClipper(
             buttonSize: _buttonSize,
-            spacing: Spacings.xxs,
+            spacing: Spacing.px8,
             inputBorderRadius: _inputBorderRadius,
             trailingButtonCount: trailingButtonCount,
           );
@@ -333,7 +334,7 @@ class _MessageComposerState extends State<MessageComposer>
                 child: CustomPaint(
                   painter: _ComposerShadowPainter(
                     buttonSize: _buttonSize,
-                    spacing: Spacings.xxs,
+                    spacing: Spacing.px8,
                     inputBorderRadius: _inputBorderRadius,
                     trailingButtonCount: trailingButtonCount,
                   ),
@@ -341,7 +342,7 @@ class _MessageComposerState extends State<MessageComposer>
               ),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
-                spacing: Spacings.xxs,
+                spacing: Spacing.px8,
                 children: [leftButton, inputField, ?rightButton],
               ),
             ],
@@ -548,6 +549,28 @@ class _MessageComposerState extends State<MessageComposer>
     );
   }
 
+  void _handleContentInserted(KeyboardInsertedContent content) async {
+    final data = content.data;
+    if (data == null || data.isEmpty) return;
+
+    final chatTitle = _chatDetailsCubit.state.chat?.title;
+    if (chatTitle == null) return;
+
+    final ext = content.mimeType.split('/').last;
+    final tempDir = await getTemporaryDirectory();
+    final tempFile = File('${tempDir.path}/keyboard_insert.$ext');
+    await tempFile.writeAsBytes(data);
+    final file = XFile(tempFile.path, mimeType: content.mimeType);
+
+    if (!mounted) return;
+    await _navigateToUploadPreview(
+      context,
+      file,
+      chatTitle: chatTitle,
+      isTempFile: true,
+    );
+  }
+
   Future<void> _navigateToUploadPreview(
     BuildContext context,
     XFile file, {
@@ -634,6 +657,7 @@ class _MessageInput extends StatelessWidget {
     required this.onSubmitMessage,
     required this.onImagePasted,
     required this.onFilePasted,
+    required this.onContentInserted,
   }) : _focusNode = focusNode,
        _controller = controller;
 
@@ -647,6 +671,7 @@ class _MessageInput extends StatelessWidget {
   final VoidCallback onSubmitMessage;
   final ValueChanged<Uint8List> onImagePasted;
   final ValueChanged<String> onFilePasted;
+  final ValueChanged<KeyboardInsertedContent> onContentInserted;
 
   @override
   Widget build(BuildContext context) {
@@ -675,9 +700,9 @@ class _MessageInput extends StatelessWidget {
         if (isEditing)
           Padding(
             padding: const EdgeInsets.only(
-              top: Spacings.xs,
-              left: Spacings.xxs,
-              right: Spacings.xxs,
+              top: Spacing.px12,
+              left: Spacing.px8,
+              right: Spacing.px8,
             ),
             child: Row(
               children: [
@@ -685,7 +710,7 @@ class _MessageInput extends StatelessWidget {
                   size: 20,
                   color: CustomColorScheme.of(context).text.tertiary,
                 ),
-                const SizedBox(width: Spacings.xxs),
+                const SizedBox(width: Spacing.px8),
                 Text(
                   loc.composer_editMessage,
                   style: TextStyle(
@@ -699,13 +724,13 @@ class _MessageInput extends StatelessWidget {
 
         if (inReplyTo case (_, final inReplyToMessage))
           Padding(
-            padding: const EdgeInsets.only(top: Spacings.xs),
+            padding: const EdgeInsets.only(top: Spacing.px12),
             child: Stack(
               children: [
                 Padding(
                   padding: const EdgeInsets.only(
-                    top: Spacings.xxxs,
-                    right: Spacings.xxxs,
+                    top: Spacing.px4,
+                    right: Spacing.px4,
                   ),
                   child: InReplyToBubble(
                     inReplyTo: inReplyToMessage,
@@ -725,8 +750,8 @@ class _MessageInput extends StatelessWidget {
                     child: IconButton(
                       icon: const AppIcon.x(size: 12),
                       constraints: const BoxConstraints(
-                        minHeight: Spacings.xxs,
-                        minWidth: Spacings.xxs,
+                        minHeight: Spacing.px8,
+                        minWidth: Spacing.px8,
                       ),
                       padding: EdgeInsets.zero,
                       onPressed: () {
@@ -775,6 +800,15 @@ class _MessageInput extends StatelessWidget {
                 : () => _focusNode.requestFocus(),
             keyboardType: TextInputType.multiline,
             textCapitalization: TextCapitalization.sentences,
+            contentInsertionConfiguration: ContentInsertionConfiguration(
+              allowedMimeTypes: const [
+                'image/gif',
+                'image/webp',
+                'image/png',
+                'image/jpeg',
+              ],
+              onContentInserted: onContentInserted,
+            ),
           ),
         ),
       ],
@@ -1056,7 +1090,7 @@ class InReplyToBubble extends StatelessWidget {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: Spacings.xxs),
+        padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
         child: Column(
           crossAxisAlignment: stretch ? .stretch : .start,
           children: [
@@ -1087,11 +1121,11 @@ class InReplyToBubble extends StatelessWidget {
 
     return Container(
       padding: const EdgeInsets.symmetric(
-        horizontal: Spacings.xs,
-        vertical: Spacings.xxs,
+        horizontal: Spacing.px12,
+        vertical: Spacing.px8,
       ),
       decoration: BoxDecoration(
-        borderRadius: const BorderRadius.all(Radius.circular(Spacings.xxs)),
+        borderRadius: const BorderRadius.all(Radius.circular(Spacing.px8)),
         color: backgroundColor,
       ),
       child: showJumpIcon

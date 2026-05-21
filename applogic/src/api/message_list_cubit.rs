@@ -536,7 +536,7 @@ impl MessageListCubitBase {
     #[frb(sync)]
     pub fn new(user_cubit: &UserCubitBase, chat_id: ChatId) -> Self {
         let store = user_cubit.core_user().clone();
-        let store_notifications = store.store_notifications();
+        let store_notifications = store.db_notifications();
 
         let core = CubitCore::new();
         let (commands_tx, commands_rx) = mpsc::channel(4);

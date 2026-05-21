@@ -376,10 +376,11 @@ async fn update_group_data() {
         .chat(&chat_id)
         .await
         .unwrap()
-        .attributes
-        .picture
+        .attributes()
         .unwrap()
-        .clone();
+        .picture()
+        .unwrap()
+        .to_owned();
 
     // Bob and Charlie should now have the updated group picture
     for user_id in [&bob, &charlie] {
@@ -397,10 +398,11 @@ async fn update_group_data() {
             .chat(&chat_id)
             .await
             .unwrap()
-            .attributes
-            .picture
+            .attributes()
             .unwrap()
-            .clone();
+            .picture()
+            .unwrap()
+            .to_owned();
         assert_eq!(actual_picture, expected_picture);
     }
 
@@ -422,7 +424,14 @@ async fn update_group_data() {
             "{:?} should process Bob's update without errors",
             user_id
         );
-        let actual_title = user.chat(&chat_id).await.unwrap().attributes.title.clone();
+        let actual_title = user
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .attributes()
+            .unwrap()
+            .title
+            .clone();
         assert_eq!(actual_title, title);
     }
 }
@@ -443,8 +452,9 @@ async fn fetch_group_profile_on_invite() {
     // Record Alice's group attributes (title and resized picture set during create_group)
     let alice_user = &setup.get_user(&alice).user;
     let alice_chat = alice_user.chat(&chat_id).await.unwrap();
-    let expected_title = alice_chat.attributes().title().to_owned();
-    let expected_picture = alice_chat.attributes().picture.clone();
+    let attributes = alice_chat.attributes().unwrap().clone();
+    let expected_title = attributes.title;
+    let expected_picture = attributes.picture;
 
     // Alice invites Bob; the encrypted group profile is already uploaded from group creation
     alice_user
@@ -465,7 +475,7 @@ async fn fetch_group_profile_on_invite() {
 
     // Bob sees the group title immediately after processing the invitation, but not the picture
     let bob_chat = bob_user.chat(&chat_id).await.unwrap();
-    assert_eq!(bob_chat.attributes().title(), &expected_title);
+    assert_eq!(bob_chat.attributes().unwrap().title(), &expected_title);
 
     // Bob runs the outbound service: this executes FetchGroupProfileOperation,
     // downloading and decrypting the encrypted group profile from object storage
@@ -473,8 +483,8 @@ async fn fetch_group_profile_on_invite() {
 
     // Bob should have the correct group attributes after fetching the encrypted profile
     let bob_chat = bob_user.chat(&chat_id).await.unwrap();
-    assert_eq!(bob_chat.attributes().title(), &expected_title);
-    assert_eq!(bob_chat.attributes().picture, expected_picture);
+    assert_eq!(bob_chat.attributes().unwrap().title(), &expected_title);
+    assert_eq!(bob_chat.attributes().unwrap().picture, expected_picture);
 }
 
 /// Tests that after a group title and picture update, other members fetch the new encrypted group
@@ -491,12 +501,12 @@ async fn fetch_group_profile_on_update() {
     setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
 
     let chat = setup.get_user(&alice).user.chat(&chat_id).await.unwrap();
-    let title = chat.attributes().title().to_owned();
+    let title = chat.attributes().unwrap().title().to_owned();
 
     // Bob sees the group title of group immediately
     let bob_user = &setup.get_user(&bob).user;
     let bob_chat = bob_user.chat(&chat_id).await.unwrap();
-    assert_eq!(bob_chat.attributes().title(), &title);
+    assert_eq!(bob_chat.attributes().unwrap().title(), &title);
 
     // Alice updates the group title and picture
     let new_title = "Updated Group Title".to_string();
@@ -511,13 +521,8 @@ async fn fetch_group_profile_on_update() {
         .unwrap();
 
     // Record Alice's stored picture (may be resized relative to test_picture_bytes)
-    let expected_picture = alice_user
-        .chat(&chat_id)
-        .await
-        .unwrap()
-        .attributes
-        .picture
-        .clone();
+    let chat = alice_user.chat(&chat_id).await.unwrap();
+    let expected_picture = chat.attributes().unwrap().picture.clone();
 
     // Bob fetches Alice's commits: this schedules FetchGroupProfileOperations
     let bob_user = &setup.get_user(&bob).user;
@@ -535,8 +540,11 @@ async fn fetch_group_profile_on_update() {
 
     // Bob should see the updated title and picture
     let bob_chat = bob_user.chat(&chat_id).await.unwrap();
-    assert_eq!(bob_chat.attributes().title(), &new_title);
-    assert_eq!(bob_chat.attributes().picture, expected_picture);
+    assert_eq!(bob_chat.attributes().unwrap().title(), &new_title);
+    assert_eq!(
+        bob_chat.attributes().unwrap().picture(),
+        expected_picture.as_deref()
+    );
 }
 
 /// This test checks that bob can leave a group where he missed a commit. He leaves the group only
@@ -907,4 +915,141 @@ async fn qs_stream_processor_partially_processes_messages() {
             QsProcessEventResult::PartiallyProcessed { .. } => unreachable!(),
         }
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Legacy group data migration", skip_all)]
+async fn legacy_group_data_migration() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let title = "Test Title".to_string();
+    let picture = test_picture_bytes();
+
+    // Alice sets the group title and picture in the legacy format
+    let alice_user = &setup.get_user(&alice).user;
+    alice_user
+        .set_legacy_group_data(chat_id, title.clone(), Some(picture.clone()))
+        .await
+        .unwrap();
+
+    // Bob fetches Alice's commit
+    let bob_user = &setup.get_user(&bob).user;
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Bob should process Alice's updates without errors: {:?}",
+        result.errors
+    );
+
+    // Bob can decode the legacy title and inline picture immediately
+    let bob_chat = bob_user.chat(&chat_id).await.unwrap();
+    assert_eq!(bob_chat.attributes().unwrap().title(), &title);
+    assert_eq!(
+        bob_chat.attributes().unwrap().picture(),
+        Some(picture.as_slice())
+    );
+    let group_data = bob_user.group_data(chat_id).await.unwrap().unwrap();
+    assert_eq!(group_data.legacy_title.as_ref(), Some(&title));
+    assert!(
+        group_data.external_group_profile.is_none(),
+        "Group should not have ExternalGroupProfile before migration"
+    );
+
+    // Bob runs self-update which migrates the group data to the new format
+    bob_user
+        .set_self_updated_at(chat_id, DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    bob_user
+        .outbound_service()
+        .schedule_self_update(DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    bob_user.outbound_service().run_once().await;
+
+    // Bob migrated the group data to the new format
+    let group_data = bob_user.group_data(chat_id).await.unwrap().unwrap();
+    assert_eq!(bob_chat.attributes().unwrap().title(), &title);
+    assert_eq!(
+        bob_chat.attributes().unwrap().picture(),
+        Some(picture.as_slice())
+    );
+    assert_eq!(group_data.legacy_title.as_ref(), Some(&title)); // Still set for old clients
+    assert!(group_data.legacy_picture.is_none());
+    assert!(group_data.encrypted_title.is_some());
+    assert!(group_data.external_group_profile.is_some());
+
+    // Alice fetches the Bob's commit
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    let result = alice_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Alice should process Bob's commit without errors: {:?}",
+        result.errors
+    );
+    alice_user.outbound_service().run_once().await;
+
+    // Alices sees the group title and picture in new format
+    let alice_chat = alice_user.chat(&chat_id).await.unwrap();
+    let group_data = alice_user.group_data(chat_id).await.unwrap().unwrap();
+    assert_eq!(alice_chat.attributes().unwrap().title(), &title);
+    assert_eq!(
+        alice_chat.attributes().unwrap().picture(),
+        Some(picture.as_slice())
+    );
+    assert_eq!(group_data.legacy_title.as_ref(), Some(&title)); // Still set for old clients
+    assert!(group_data.legacy_picture.is_none());
+    assert!(group_data.encrypted_title.is_some());
+    assert!(group_data.external_group_profile.is_some());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Create APQ group test", skip_all)]
+async fn create_apq_group() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    setup.create_apq_group(&alice).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Invite to APQ group test", skip_all)]
+async fn invite_to_apq_group() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_apq_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Send message in APQ group test", skip_all)]
+async fn send_message_in_apq_group() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_apq_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+    setup
+        .send_message(chat_id, &alice, vec![&bob, &charlie], None)
+        .await;
+    setup
+        .send_message(chat_id, &bob, vec![&alice, &charlie], None)
+        .await;
 }

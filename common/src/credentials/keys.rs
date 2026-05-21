@@ -4,6 +4,7 @@
 
 use std::ops::Deref;
 
+use apqmls::authentication::ApqSigner;
 use mls_assist::{
     openmls::prelude::{BasicCredential, Credential, SignatureScheme},
     openmls_traits::signatures::{Signer, SignerError},
@@ -216,6 +217,19 @@ impl Signer for ClientSigningKey {
 
     fn signature_scheme(&self) -> SignatureScheme {
         self.credential.signature_scheme()
+    }
+}
+
+impl ApqSigner for ClientSigningKey {
+    type TSigner = Self;
+    type PqSigner = Self;
+
+    fn t_signer(&self) -> &Self {
+        self
+    }
+
+    fn pq_signer(&self) -> &Self {
+        self
     }
 }
 

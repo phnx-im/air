@@ -5,10 +5,10 @@
 import 'dart:io';
 
 import 'package:air/l10n/l10n.dart';
-import 'package:air/theme/theme.dart';
-import 'package:air/ui/colors/themes.dart';
-import 'package:air/ui/components/desktop/width_constraints.dart';
-import 'package:air/ui/typography/font_size.dart';
+import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/themes.dart';
+import 'package:air/ds/components/desktop/width_constraints.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
@@ -56,13 +56,13 @@ class UpdateRequiredView extends StatelessWidget {
       backgroundColor: colors.backgroundBase.secondary,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
+          padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
           child: Center(
             child: ConstrainedWidth(
               child: Column(
                 crossAxisAlignment: .center,
                 children: [
-                  const SizedBox(height: 3 * Spacings.xxxl),
+                  const SizedBox(height: 3 * Spacing.px96),
 
                   SizedBox(
                     width: 104,
@@ -75,10 +75,12 @@ class UpdateRequiredView extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 2 * Spacings.xxxl),
+                  const SizedBox(height: 2 * Spacing.px96),
 
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: Spacing.px16,
+                    ),
                     child: Text(
                       loc.appOutdatedScreen_message,
                       style: TextStyle(
@@ -89,10 +91,12 @@ class UpdateRequiredView extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(height: Spacings.s),
+                  const SizedBox(height: Spacing.px16),
 
                   Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: Spacings.s),
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: Spacing.px16,
+                    ),
                     child: Text(
                       loc.appOutdatedScreen_description,
                       style: TextStyle(
@@ -109,7 +113,7 @@ class UpdateRequiredView extends StatelessWidget {
                     Center(
                       child: Container(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: Spacings.m,
+                          horizontal: Spacing.px24,
                         ),
                         width: isSmallScreen(context) ? double.infinity : null,
                         child: OutlinedButton(
@@ -134,7 +138,7 @@ class UpdateRequiredView extends StatelessWidget {
                       ),
                     ),
 
-                  const SizedBox(height: Spacings.s),
+                  const SizedBox(height: Spacing.px16),
                 ],
               ),
             ),

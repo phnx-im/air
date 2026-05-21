@@ -4,7 +4,7 @@
 
 [package]
 name = "airserver"
-version = "0.16.0"
+version = "0.16.1"
 edition = "2024"
 publish = false
 description = "Server that makes the logic implemented in the backend available to clients via a REST API"
@@ -45,8 +45,9 @@ serde.workspace = true
 serde_json.workspace = true
 thiserror.workspace = true
 tls_codec.workspace = true
-tokio = { workspace = true, features = ["macros", "rt-multi-thread"] }
+tokio = { workspace = true, features = ["macros", "rt-multi-thread", "signal"] }
 tokio-stream.workspace = true
+tokio-util.workspace = true
 tonic.workspace = true
 tonic-health.workspace = true
 tower.workspace = true

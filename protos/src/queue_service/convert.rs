@@ -14,6 +14,7 @@ use uuid::Uuid;
 
 use crate::{
     common::convert::InvalidNonceLen,
+    queue_service::v1::ApqKeyPackage,
     validation::{MissingFieldError, MissingFieldExt},
 };
 
@@ -132,6 +133,28 @@ impl TryFrom<KeyPackage> for key_packages::KeyPackageIn {
 
     fn try_from(proto: KeyPackage) -> Result<Self, Self::Error> {
         DeserializeBytes::tls_deserialize_exact_bytes(&proto.tls)
+    }
+}
+
+impl TryFrom<apqmls::messages::ApqKeyPackage> for ApqKeyPackage {
+    type Error = tls_codec::Error;
+
+    fn try_from(value: apqmls::messages::ApqKeyPackage) -> Result<Self, Self::Error> {
+        Ok(ApqKeyPackage {
+            t_key_package_tls: value.t_key_package().tls_serialize_detached()?,
+            pq_key_package_tls: value.pq_key_package().tls_serialize_detached()?,
+        })
+    }
+}
+
+impl TryFrom<ApqKeyPackage> for apqmls::messages::ApqKeyPackageIn {
+    type Error = tls_codec::Error;
+
+    fn try_from(proto: ApqKeyPackage) -> Result<Self, Self::Error> {
+        Ok(apqmls::messages::ApqKeyPackageIn::new(
+            DeserializeBytes::tls_deserialize_exact_bytes(&proto.t_key_package_tls)?,
+            DeserializeBytes::tls_deserialize_exact_bytes(&proto.pq_key_package_tls)?,
+        ))
     }
 }
 

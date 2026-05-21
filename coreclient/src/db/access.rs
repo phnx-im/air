@@ -15,10 +15,11 @@ use tracing::debug;
 use super::notification::{DbNotificationsSender, DbNotifier};
 
 /// Abstraction over a database connection pool providing read and write
-/// access, and a [`StoreNotifier`] for tracking database changes.
+/// access, and a [`DbNotifier`] for tracking database changes.
 #[derive(Debug, Clone)]
 pub struct DbAccess {
-    pool: SqlitePool,
+    read_write_pool: SqlitePool,
+    read_only_pool: SqlitePool,
     pub(crate) notifier_tx: DbNotificationsSender,
 }
 
@@ -42,13 +43,13 @@ pub(crate) struct ReadDbTransaction<'a> {
     txn: SqliteTransaction<'a>,
 }
 
-/// A write database connection incl. a [`StoreNotifier`].
+/// A write database connection incl. a [`DbNotifier`].
 ///
 /// The connection is acquired via [`DbAccess::write`].
 ///
 /// On drop,
 /// * the connection is returned to the db pool, and
-/// * the [`StoreNotifier`] is notified.
+/// * the [`DbNotifier`] is notified.
 #[derive(Debug)]
 pub(crate) struct WriteDbConnection {
     conn: PoolConnection<Sqlite>,
@@ -78,12 +79,12 @@ pub(crate) trait WriteTransaction: WriteConnection {}
 
 /// A write database connection or transaction.
 pub(crate) trait WriteConnection: ReadConnection + AsMut<SqliteConnection> + Send {
-    /// Split the connection into a connection and a [`StoreNotifier`].
+    /// Split the connection into a connection and a [`DbNotifier`].
     ///
     /// Useful when notifier needs to be accessed after the connection was used by value.
     fn split(&mut self) -> (&mut SqliteConnection, &mut DbNotifier);
 
-    /// Get a reference to the [`StoreNotifier`].
+    /// Get a reference to the [`DbNotifier`].
     fn notifier(&mut self) -> &mut DbNotifier;
 
     /// Begin a new write transaction.
@@ -99,9 +100,9 @@ pub(crate) trait WriteConnection: ReadConnection + AsMut<SqliteConnection> + Sen
 
     /// Executes a function with a write transaction.
     ///
-    /// The transaction is committed if the function returns `Ok`, and rolled
-    /// back if the function returns `Err`. The [`StoreNotifier`] is notified
-    /// after the transaction is committed successfully.
+    /// The transaction is committed if the function returns `Ok`, and rolled back if the function
+    /// returns `Err`. The [`DbNotifier`] is notified after the transaction is committed
+    /// successfully.
     //
     // Note: Even though, this method can be default implemented, in this case, Rust cannot reason
     // about the bounds of the returned future. In particular, the returned future is not Send
@@ -117,34 +118,49 @@ pub(crate) trait WriteConnection: ReadConnection + AsMut<SqliteConnection> + Sen
 }
 
 impl DbAccess {
-    /// Create a new [`DbAccess`] from a database connection pool.
-    pub(crate) fn new(pool: SqlitePool, notifier_tx: DbNotificationsSender) -> Self {
-        Self { pool, notifier_tx }
-    }
-
-    /// Create a new [`DbAccess`] for testing with a local store notifier.
-    #[cfg(test)]
-    pub(crate) fn for_tests(pool: SqlitePool) -> Self {
+    /// Create a new [`DbAccess`] from a single shared database connection pool.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub(crate) fn with_single_pool(pool: SqlitePool, notifier_tx: DbNotificationsSender) -> Self {
         Self {
-            pool,
-            notifier_tx: DbNotificationsSender::new(),
+            read_write_pool: pool.clone(),
+            read_only_pool: pool,
+            notifier_tx,
         }
     }
 
-    /// Create a new [`StoreNotifier`] for this [`DbAccess`].
+    /// Create a new [`DbAccess`] from two database connection pool.
+    pub(crate) fn with_split_pools(
+        read_write_pool: SqlitePool,
+        read_only_pool: SqlitePool,
+        notifier_tx: DbNotificationsSender,
+    ) -> Self {
+        Self {
+            read_write_pool,
+            read_only_pool,
+            notifier_tx,
+        }
+    }
+
+    /// Create a new [`DbAccess`] for testing with a local db notifier.
+    #[cfg(test)]
+    pub(crate) fn for_tests(pool: SqlitePool) -> Self {
+        Self::with_single_pool(pool, DbNotificationsSender::new())
+    }
+
+    /// Create a new [`DbNotifier`] for this [`DbAccess`].
     fn notifier(&self) -> DbNotifier {
         DbNotifier::new(self.notifier_tx.clone())
     }
 
     /// Acquire a read-only database connection.
     pub(crate) async fn read(&self) -> sqlx::Result<ReadDbConnection> {
-        let conn = self.pool.acquire().await?;
+        let conn = self.read_only_pool.acquire().await?;
         Ok(ReadDbConnection { conn })
     }
 
     /// Acquire a write database connection.
     pub(crate) async fn write(&self) -> sqlx::Result<WriteDbConnection> {
-        let conn = self.pool.acquire().await?;
+        let conn = self.read_write_pool.acquire().await?;
         Ok(WriteDbConnection {
             conn,
             notifier_tx: self.notifier_tx.clone(),

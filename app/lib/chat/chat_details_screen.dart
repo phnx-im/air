@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/navigation/navigation.dart';
-import 'package:air/ui/components/app_scaffold.dart';
+import 'package:air/ds/components/app_scaffold.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -70,13 +70,15 @@ class ChatDetailsScreenView extends StatelessWidget {
             title: chat.title,
             onTitleLongPress: () {
               final chatDetailsCubit = context.read<ChatDetailsCubit>();
+              final userCubit = context.read<UserCubit>();
               final debugInfoFut = chatDetailsCubit.chatDebugInfo();
               Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (context) => ChatDebugInfoView(
                     title: chat.title,
                     debugInfo: debugInfoFut,
-                    onRequestResync: () => {chatDetailsCubit.requestResync()},
+                    onRequestResync: () => chatDetailsCubit.requestResync(),
+                    onEraseLocalChat: () => userCubit.devEraseChat(chat.id),
                   ),
                 ),
               );

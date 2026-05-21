@@ -266,11 +266,12 @@ impl ChatDetailsCubitBase {
         path: String,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
         let path = PathBuf::from(path);
-        let (attachment_id, progress, upload_task) = match self
-            .context
-            .core_user
-            .upload_attachment(self.context.chat_id, &path)
-            .await?
+        let (attachment_id, progress, upload_task) = match Box::pin(
+            self.context
+                .core_user
+                .upload_attachment(self.context.chat_id, &path),
+        )
+        .await?
         {
             Ok(result) => result,
             Err(error) => return error.into_ui_result(),
@@ -674,7 +675,7 @@ impl ChatDetailsContext {
 
     /// Returns only when `stop` is cancelled
     async fn update_state_task(self) {
-        let mut notifications = self.core_user.store_notifications();
+        let mut notifications = self.core_user.db_notifications();
         while let Some(notification) = notifications.next().await {
             if notification.ops.contains_key(&self.chat_id.into()) {
                 self.load_and_emit_state().await;
@@ -738,7 +739,6 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         status: chat.status.into(),
         chat_type,
         last_used,
-        attributes: chat.attributes.into(),
         messages_count,
         unread_messages,
         last_message: last_message.map(From::from),
@@ -799,6 +799,8 @@ pub struct _GroupDebugInfo {
 
 #[frb(mirror(GroupDataDebugInfo))]
 pub struct _GroupDataDebugInfo {
+    pub legacy_title: Option<String>,
+    pub legacy_picture: bool,
     pub encrypted_title: Option<EncryptedGroupTitleDebugInfo>,
     pub external_group_profile: Option<ExternalGroupProfileDebugInfo>,
 }

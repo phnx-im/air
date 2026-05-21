@@ -38,9 +38,8 @@ impl CoreUser {
         let replaces_mimi_id = message.message().mimi_id().cloned();
 
         // Send the deletion message
-        let sent_message = self
-            .send_message(chat_id, null_content, Some(message))
-            .await?;
+        let sent_message =
+            Box::pin(self.send_message(chat_id, null_content, Some(message))).await?;
 
         // Redact reply references to this message
         if let Some(replaces_mimi_id) = replaces_mimi_id
@@ -127,9 +126,8 @@ impl CoreUser {
             self.update_key(chat_id).await?;
         }
 
-        let unsent_group_message = self
-            .db()
-            .with_write_transaction(async |txn| -> anyhow::Result<_> {
+        let unsent_group_message = Box::pin(self.db().with_write_transaction(
+            async |txn| -> anyhow::Result<_> {
                 let unsent_message = UnsentContent {
                     chat_id,
                     message_id: MessageId::random(),
@@ -145,8 +143,9 @@ impl CoreUser {
                     .await?;
 
                 Ok(unsent_message)
-            })
-            .await?;
+            },
+        ))
+        .await?;
 
         Ok(unsent_group_message.message)
     }

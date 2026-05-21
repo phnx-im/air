@@ -4,7 +4,7 @@
 
 [package]
 name = "airserver_test_harness"
-version = "0.16.0"
+version = "0.16.1"
 edition = "2024"
 publish = false
 license = "AGPL-3.0-or-later"
@@ -20,9 +20,11 @@ png.workspace = true
 rand.workspace = true
 rand_chacha.workspace = true
 semver.workspace = true
+sqlx.workspace = true
 tempfile.workspace = true
 tokio = { workspace = true, features = ["process"] }
 tokio-stream.workspace = true
+tokio-util.workspace = true
 tonic.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true

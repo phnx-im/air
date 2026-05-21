@@ -168,7 +168,7 @@ impl User {
     /// persisted new store notifications.
     #[frb(sync)]
     pub fn signal_pending_store_notifications(&self) {
-        self.user.signal_pending_store_notifications();
+        self.user.signal_pending_db_notifications();
     }
 
     /// Total number of unread messages across all chats
