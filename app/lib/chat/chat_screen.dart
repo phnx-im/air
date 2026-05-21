@@ -246,6 +246,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
                   title: title ?? "",
                   loadDebugInfo: () => chatDetailsCubit.chatDebugInfo(),
                   onUpdateGroup: () => chatDetailsCubit.updateKey(),
+                  onUpdateApqGroup: () => chatDetailsCubit.updateApqKey(),
                   onRequestResync: () => chatDetailsCubit.requestResync(),
                   onEraseLocalChat: () {
                     if (chatId != null) userCubit.devEraseChat(chatId);
