@@ -281,9 +281,7 @@ impl AsMut<SqliteConnection> for WriteDbTransaction<'_> {
 }
 
 impl ReadConnection for ReadDbConnection {}
-impl ReadConnection for &mut ReadDbConnection {}
 impl ReadConnection for ReadDbTransaction<'_> {}
-impl ReadConnection for &mut ReadDbTransaction<'_> {}
 
 impl ReadTransaction for ReadDbTransaction<'_> {}
 impl ReadTransaction for &mut ReadDbTransaction<'_> {}
@@ -292,8 +290,7 @@ impl ReadTransaction for &mut WriteDbTransaction<'_> {}
 impl WriteTransaction for WriteDbTransaction<'_> {}
 impl WriteTransaction for &mut WriteDbTransaction<'_> {}
 
-// write connections can be also use to read
-impl<C> ReadConnection for &mut C where C: WriteConnection {}
+impl<C> ReadConnection for &mut C where C: ReadConnection {}
 
 impl<C> WriteConnection for &mut C
 where

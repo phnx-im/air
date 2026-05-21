@@ -4,6 +4,7 @@
 
 use aircommon::{crypto::indexed_aead::keys::UserProfileKeyIndex, identifiers::UserId};
 use sqlx::{query, query_as};
+use tracing::error;
 
 use crate::db_access::{DbAccess, ReadConnection, WriteConnection};
 
@@ -126,7 +127,27 @@ impl IndexedUserProfile {
 }
 
 impl UserProfile {
-    pub async fn load(db_access: &DbAccess, user_id: &UserId) -> sqlx::Result<Option<Self>> {
+    /// Loads a user profile
+    ///
+    /// In case of an error, or if the user profile is not found, the client id is used as a
+    /// fallback.
+    pub(crate) async fn load(connection: impl ReadConnection, user_id: &UserId) -> Self {
+        IndexedUserProfile::load(connection, user_id)
+            .await
+            .inspect_err(|error| {
+                error!(%error, "Error loading user profile; fallback to user_id");
+            })
+            .ok()
+            .flatten()
+            .map(UserProfile::from)
+            .unwrap_or_else(|| UserProfile::from_user_id(user_id))
+    }
+
+    /// Public API for loading a user profile from the database directly.
+    pub async fn load_from_db(
+        db_access: &DbAccess,
+        user_id: &UserId,
+    ) -> sqlx::Result<Option<Self>> {
         IndexedUserProfile::load(db_access.read().await?, user_id)
             .await
             .map(|res| res.map(From::from))

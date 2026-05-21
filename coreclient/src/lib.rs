@@ -46,7 +46,7 @@ pub use crate::{
     contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},
     groups::debug_info::{
         AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
-        ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo,
+        ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqDebugInfo,
         RequiredDebugCapabilities,
     },
     privacy_pass::{RequestTokensError, TokenId},
