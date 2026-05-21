@@ -22,7 +22,7 @@ pub enum AttachmentProgressEvent {
 }
 
 impl AttachmentProgress {
-    pub(super) fn new() -> (AttachmentProgressSender, Self) {
+    pub(crate) fn new() -> (AttachmentProgressSender, Self) {
         let (tx, rx) = watch::channel(AttachmentProgressEvent::Init);
         (AttachmentProgressSender { tx: Some(tx) }, Self { rx })
     }
@@ -36,7 +36,7 @@ impl AttachmentProgress {
     }
 }
 
-pub(super) struct AttachmentProgressSender {
+pub(crate) struct AttachmentProgressSender {
     tx: Option<watch::Sender<AttachmentProgressEvent>>,
 }
 

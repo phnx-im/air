@@ -4,7 +4,10 @@
 
 use std::num::TryFromIntError;
 
-use airapiclient::{ApiClientInitError, ds_api::DsRequestError};
+use airapiclient::{
+    ApiClientInitError,
+    ds_api::{DsAttachmentTarget, DsRequestError},
+};
 use aircommon::{
     crypto::{
         aead::{AeadCiphertext, AeadDecryptable, keys::AttachmentEarKey},
@@ -18,6 +21,7 @@ use reqwest::StatusCode;
 use sha2::{Digest, Sha256};
 use tokio_stream::StreamExt;
 use tracing::{debug, error, info};
+use url::Url;
 
 use crate::{
     AttachmentProgress,
@@ -183,6 +187,20 @@ impl CoreUser {
         }
     }
 
+    pub(crate) async fn get_attachment_url(
+        &self,
+        object_type: StorageObjectType,
+        target: DsAttachmentTarget<'_>,
+        attachment_id: AttachmentId,
+    ) -> anyhow::Result<Url> {
+        let api_client = self.api_clients().default_client()?;
+        let download_url = api_client
+            .ds_get_attachment_url(object_type, self.signing_key(), target, attachment_id)
+            .await?
+            .parse()?;
+        Ok(download_url)
+    }
+
     async fn download_and_decrypt_attachment(
         &self,
         PendingAttachmentRecord {
@@ -228,12 +246,14 @@ impl CoreUser {
         let api_client = self.api_clients().default_client()?;
         let download_url = api_client
             .ds_get_attachment_url(
-                self.signing_key(),
-                group.group_state_ear_key(),
-                group.group_id(),
-                group.own_index(),
-                attachment_id,
                 StorageObjectType::Attachment,
+                self.signing_key(),
+                DsAttachmentTarget::Group {
+                    group_state_ear_key: group.group_state_ear_key(),
+                    group_id: group.group_id(),
+                    sender_index: group.own_index(),
+                },
+                attachment_id,
             )
             .await?;
         debug!(?attachment_id, %download_url, "Got download URL from DS");

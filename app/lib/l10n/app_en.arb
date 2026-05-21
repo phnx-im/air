@@ -303,6 +303,7 @@
   "contactUsScreen_title": "Contact",
   "contactUsScreen_subject": "Message subject",
   "contactUsScreen_body": "Body",
+  "contactUsScreen_includeLogs": "Share your logs",
   "contactUsScreen_composeEmail": "Compose email",
 
   "contactUsScreen_subject_somethingNotWorking": "Something's not working",
@@ -314,6 +315,7 @@
   "contactUsScreen_body_empty": "Enter your message",
   "contactUsScreen_body_tooShort": "Provide more information",
   "contactUsScreen_errorLaunchingEmail": "Couldn't launch email client",
+  "contactUsScreen_errorUploadingLogs": "Couldn't upload logs",
 
   "groupDetails_leaveChat": "Leave",
   "groupDetails_deleteChat": "Delete",

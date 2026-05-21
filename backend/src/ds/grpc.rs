@@ -44,6 +44,7 @@ use tonic::{Request, Response, Status, async_trait};
 use tracing::{error, warn};
 
 use crate::{
+    auth_service::AsConnector,
     ds::{attachments::ProvisionObjectError, process::Provider},
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload},
     qs::QsConnector,
@@ -56,9 +57,10 @@ use super::{
     group_state::{DsGroupState, StorableDsGroupData},
 };
 
-pub struct GrpcDs<Qep: QsConnector> {
+pub struct GrpcDs<Qep: QsConnector, As: AsConnector> {
     pub(super) ds: Ds,
     qs_connector: Qep,
+    as_connector: As,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -85,9 +87,13 @@ fn to_status(e: LoadGroupStateError) -> Status {
 
 const MAX_CONCURRENT_FANOUTS: usize = 128;
 
-impl<Qep: QsConnector> GrpcDs<Qep> {
-    pub fn new(ds: Ds, qs_connector: Qep) -> Self {
-        Self { ds, qs_connector }
+impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
+    pub fn new(ds: Ds, qs_connector: Qep, as_connector: As) -> Self {
+        Self {
+            ds,
+            qs_connector,
+            as_connector,
+        }
     }
 
     /// Loads encrypted group state from the database and decrypts it.
@@ -372,7 +378,7 @@ struct LeafVerificationData<'a, P, const LOADED_FOR_UPDATE: bool> {
 }
 
 #[async_trait]
-impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
+impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
     async fn request_group_id(
         &self,
         request: Request<RequestGroupIdRequest>,
@@ -1398,28 +1404,57 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
-        let ear_key = request.ear_key()?;
-        let qgid = payload.validated_qgid(self.ds.own_domain())?;
-        let sender_index = payload.sender.ok_or_missing_field("sender")?.into();
+        // the payload can be signed in different ways depending of the object type
+        let payload: ProvisionAttachmentPayload = match payload.object_type() {
+            StorageObjectType::Unspecified
+            | StorageObjectType::Attachment
+            | StorageObjectType::GroupProfile
+            | StorageObjectType::UserProfile => {
+                let ear_key = payload.ear_key()?;
+                let qgid = payload.validated_qgid(self.ds.own_domain())?;
+                let sender_index = payload.sender.ok_or_missing_field("sender")?.into();
 
-        let (_group_data, group_state) = self
-            .load_group_state_immutable(&qgid, &ear_key)
-            .await
-            .map_err(to_status)?;
+                let (_group_data, group_state) = self
+                    .load_group_state_immutable(&qgid, &ear_key)
+                    .await
+                    .map_err(to_status)?;
 
-        // verify signature
-        let verifying_key: LeafVerifyingKeyRef = group_state
-            .group()
-            .leaf(sender_index)
-            .ok_or_else(|| Status::invalid_argument("unknown sender"))?
-            .signature_key()
-            .into();
-        let payload: ProvisionAttachmentPayload =
-            request.verify(verifying_key).map_err(InvalidSignature)?;
+                let verifying_key: LeafVerifyingKeyRef = group_state
+                    .group()
+                    .leaf(sender_index)
+                    .ok_or_else(|| Status::invalid_argument("unknown sender"))?
+                    .signature_key()
+                    .into();
+
+                request.verify(verifying_key).map_err(InvalidSignature)?
+            }
+            StorageObjectType::DebugLogs => {
+                let user_id = payload
+                    .user_id
+                    .clone()
+                    .ok_or_missing_field("user_id")?
+                    .try_into()?;
+                let client_verifying_key = self
+                    .as_connector
+                    .client_verifying_key(&user_id)
+                    .await
+                    .map_err(|error| {
+                        error!(%error, "failed to load client verifying key from AS");
+                        Status::internal("failed to load client verifying key")
+                    })?
+                    .ok_or_else(|| Status::not_found("user not found"))?;
+
+                request
+                    .verify(&client_verifying_key)
+                    .map_err(InvalidSignature)?
+            }
+        };
+
         let content_length = payload
             .content_length
             .try_into()
             .map_err(|_| Status::invalid_argument("invalid content length"))?;
+
         let response = self
             .ds
             .provision_object(
@@ -1446,24 +1481,51 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
-        let ear_key = request.ear_key()?;
-        let qgid = payload.validated_qgid(self.ds.own_domain())?;
-        let sender_index = payload.sender.ok_or_missing_field("sender")?.into();
+        // the payload can be signed in different ways depending of the object type
+        let payload: GetAttachmentUrlPayload = match payload.object_type() {
+            StorageObjectType::Unspecified
+            | StorageObjectType::Attachment
+            | StorageObjectType::GroupProfile
+            | StorageObjectType::UserProfile => {
+                let ear_key = payload.ear_key()?;
+                let qgid = payload.validated_qgid(self.ds.own_domain())?;
+                let sender_index = payload.sender.ok_or_missing_field("sender")?.into();
 
-        let (_group_data, group_state) = self
-            .load_group_state_immutable(&qgid, &ear_key)
-            .await
-            .map_err(to_status)?;
+                let (_group_data, group_state) = self
+                    .load_group_state_immutable(&qgid, &ear_key)
+                    .await
+                    .map_err(to_status)?;
 
-        // verify signature
-        let verifying_key: LeafVerifyingKeyRef = group_state
-            .group()
-            .leaf(sender_index)
-            .ok_or_else(|| Status::invalid_argument("unknown sender"))?
-            .signature_key()
-            .into();
-        let payload: GetAttachmentUrlPayload =
-            request.verify(verifying_key).map_err(InvalidSignature)?;
+                let verifying_key: LeafVerifyingKeyRef = group_state
+                    .group()
+                    .leaf(sender_index)
+                    .ok_or_else(|| Status::invalid_argument("unknown sender"))?
+                    .signature_key()
+                    .into();
+
+                request.verify(verifying_key).map_err(InvalidSignature)?
+            }
+            StorageObjectType::DebugLogs => {
+                let user_id = payload
+                    .user_id
+                    .clone()
+                    .ok_or_missing_field("user_id")?
+                    .try_into()?;
+                let client_verifying_key = self
+                    .as_connector
+                    .client_verifying_key(&user_id)
+                    .await
+                    .map_err(|error| {
+                        error!(%error, "failed to load client verifying key from AS");
+                        Status::internal("failed to load client verifying key")
+                    })?
+                    .ok_or_else(|| Status::not_found("user not found"))?;
+
+                request
+                    .verify(&client_verifying_key)
+                    .map_err(InvalidSignature)?
+            }
+        };
 
         let object_id = payload.object_id.ok_or_missing_field("object_id")?.into();
         let object_type = StorageObjectType::try_from(payload.object_type).unwrap_or_default();
@@ -1730,15 +1792,15 @@ impl WithGroupStateEarKey for UpdateProfileKeyRequest {
     }
 }
 
-impl WithGroupStateEarKey for ProvisionAttachmentRequest {
+impl WithGroupStateEarKey for ProvisionAttachmentPayload {
     fn ear_key_proto(&self) -> Option<&v1::GroupStateEarKey> {
-        self.payload.as_ref()?.group_state_ear_key.as_ref()
+        self.group_state_ear_key.as_ref()
     }
 }
 
-impl WithGroupStateEarKey for GetAttachmentUrlRequest {
+impl WithGroupStateEarKey for GetAttachmentUrlPayload {
     fn ear_key_proto(&self) -> Option<&v1::GroupStateEarKey> {
-        self.payload.as_ref()?.group_state_ear_key.as_ref()
+        self.group_state_ear_key.as_ref()
     }
 }
 

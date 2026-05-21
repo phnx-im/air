@@ -9,6 +9,7 @@ use std::sync::Arc;
 pub(crate) use aircommon::identifiers::UsernameHash;
 use aircommon::identifiers::{UserId, Username};
 pub(crate) use aircoreclient::InviteUsersError;
+use aircoreclient::clients::StorageObjectType;
 use aircoreclient::{Asset, ChatId, ContactType, PartialContact, clients::CoreUser};
 use anyhow::ensure;
 use flutter_rust_bridge::frb;
@@ -18,6 +19,7 @@ use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
 use username::{UsernameBackgroundTasks, UsernameContext};
 
+use crate::api::logging::tar_logs;
 use crate::api::types::UiContact;
 use crate::{
     StreamSink,
@@ -436,7 +438,7 @@ impl UserCubitBase {
 
     /// Returns the pair of safety codes of the logged-in user and the given user.
     ///
-    /// The order of the codes is stable and is determined by their lexicographical order.
+    /// The order of the codes is stable anStorageObjectTyped is determined by their lexicographical order.
     #[frb(type_64bit_int)]
     pub async fn safety_codes(&self, other_user_id: UiUserId) -> anyhow::Result<[u64; 12]> {
         let mut first = self
@@ -457,6 +459,21 @@ impl UserCubitBase {
         prefix.copy_from_slice(&first.to_chunks());
         suffix.copy_from_slice(&second.to_chunks());
         Ok(code)
+    }
+
+    pub async fn upload_logs(&self, cache_dir: String) -> anyhow::Result<DebugLogsDownloadInfo> {
+        let compressed_logs = tar_logs(cache_dir)?;
+
+        let (attachment_metadata, download_url) = self
+            .core_user()
+            .upload_user_attachment(StorageObjectType::DebugLogs, compressed_logs)
+            .await?
+            .map_err(|_| anyhow::format_err!("failed to upload user attachment"))?;
+
+        Ok(DebugLogsDownloadInfo {
+            download_url: download_url.to_string(),
+            encryption_key: attachment_metadata.encryption_key_hex(),
+        })
     }
 }
 
@@ -608,4 +625,11 @@ impl CubitContext {
 #[frb(mirror(InviteUsersError))]
 enum _InviteUsersError {
     IncompatibleClient { reason: String },
+}
+
+#[frb(dart_metadata = ("freezed"))]
+#[derive(Debug, Clone, Default, Eq, PartialEq, Hash)]
+pub struct DebugLogsDownloadInfo {
+    pub download_url: String,
+    pub encryption_key: String,
 }

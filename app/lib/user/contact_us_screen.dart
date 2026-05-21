@@ -2,13 +2,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/core/api/user_cubit.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/foundations/themes.dart';
 import 'package:air/ds/foundations/font_size.dart';
+import 'package:air/user/user.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:logging/logging.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
@@ -105,6 +108,9 @@ class _EmailForm extends HookWidget {
   Widget build(BuildContext context) {
     final body = useState(initialBody ?? "");
     final selectedSubject = useState<String?>(initialSubject);
+    final includeLogs = useState(false);
+    final isUploadingLogs = useState(false);
+    final uploadedLogs = useState<DebugLogsDownloadInfo?>(null);
 
     final loc = AppLocalizations.of(context);
 
@@ -153,29 +159,88 @@ class _EmailForm extends HookWidget {
               onSaved: (value) => body.value = value ?? "",
               validator: (value) => _validateBody(value, loc),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: Spacing.px8),
+
+            // Include logs checkbox
+            GestureDetector(
+              onTap: isUploadingLogs.value
+                  ? null
+                  : () => includeLogs.value = !includeLogs.value,
+              child: Row(
+                children: [
+                  if (isUploadingLogs.value)
+                    const SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Center(
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    )
+                  else
+                    Checkbox(
+                      value: includeLogs.value,
+                      onChanged: (value) async {
+                        if (value == true) {
+                          isUploadingLogs.value = true;
+                          try {
+                            final downloadInfo = await context
+                                .read<UserCubit>()
+                                .uploadLogs();
+                            uploadedLogs.value = downloadInfo;
+                          } catch (e) {
+                            _log.severe("Failed to upload logs: $e", e);
+                            showErrorBannerStandalone(
+                              (loc) => loc.contactUsScreen_errorUploadingLogs,
+                            );
+                            isUploadingLogs.value = false;
+                            return;
+                          }
+                          isUploadingLogs.value = false;
+                        }
+                        includeLogs.value = value ?? false;
+                      },
+                    ),
+                  Text(loc.contactUsScreen_includeLogs),
+                ],
+              ),
+            ),
+            const SizedBox(height: Spacing.px8),
 
             // Submit Button
-            OutlinedButton(
-              style: const ButtonStyle(
-                shape: WidgetStatePropertyAll(
-                  RoundedRectangleBorder(
-                    borderRadius: BorderRadius.all(
-                      Radius.circular(Spacing.px12),
+            Opacity(
+              opacity: isUploadingLogs.value ? 0.4 : 1.0,
+              child: OutlinedButton(
+                style: const ButtonStyle(
+                  shape: WidgetStatePropertyAll(
+                    RoundedRectangleBorder(
+                      borderRadius: BorderRadius.all(
+                        Radius.circular(Spacing.px12),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              onPressed: () {
-                final formState = _formKey.currentState;
-                if (formState != null && formState.validate()) {
-                  formState.save();
-                  _launchEmail(context, selectedSubject.value, body.value);
-                }
-              },
-              child: Text(
-                loc.contactUsScreen_composeEmail,
-                style: TextStyle(fontSize: LabelFontSize.base.size),
+                onPressed: isUploadingLogs.value
+                    ? null
+                    : () {
+                        final formState = _formKey.currentState;
+                        if (formState != null && formState.validate()) {
+                          formState.save();
+                          _launchEmail(
+                            context,
+                            selectedSubject.value,
+                            body.value,
+                            uploadedLogs.value,
+                          );
+                        }
+                      },
+                child: Text(
+                  loc.contactUsScreen_composeEmail,
+                  style: TextStyle(fontSize: LabelFontSize.base.size),
+                ),
               ),
             ),
           ],
@@ -194,11 +259,22 @@ class _EmailForm extends HookWidget {
       ? loc.contactUsScreen_body_tooShort
       : null;
 
-  void _launchEmail(BuildContext context, String? subject, String body) async {
+  void _launchEmail(
+    BuildContext context,
+    String? subject,
+    String body,
+    DebugLogsDownloadInfo? uploadedLogs,
+  ) async {
+    if (uploadedLogs != null) {
+      body +=
+          "\n\n- Debug logs URL: ${Uri.encodeComponent(uploadedLogs.downloadUrl)}";
+      body += "\n- Debug logs encryption key: ${uploadedLogs.encryptionKey}";
+    }
     final Uri emailUri = Uri.parse(
       'mailto:help@air.ms?subject=$subject&body=$body',
     );
     try {
+      debugPrint("${emailUri}");
       await launcher.launchUrl(emailUri);
     } catch (e) {
       _log.severe("Failed to launch email: $e", e);

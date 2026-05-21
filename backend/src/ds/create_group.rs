@@ -22,6 +22,7 @@ use tonic::Status;
 use tracing::error;
 
 use crate::{
+    auth_service::AsConnector,
     ds::{
         GrpcDs,
         group_state::DsGroupState,
@@ -31,7 +32,7 @@ use crate::{
     qs::QsConnector,
 };
 
-impl<Qep: QsConnector> GrpcDs<Qep> {
+impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     pub(super) fn extract_group_state(
         &self,
         data: GroupSessionData,

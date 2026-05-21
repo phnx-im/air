@@ -843,6 +843,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get contactUsScreen_body => 'Corps du message';
 
   @override
+  String get contactUsScreen_includeLogs => 'Partager vos journaux';
+
+  @override
   String get contactUsScreen_composeEmail => 'Composer un e-mail';
 
   @override
@@ -872,6 +875,10 @@ class AppLocalizationsFr extends AppLocalizations {
   @override
   String get contactUsScreen_errorLaunchingEmail =>
       'Impossible de lancer le client de messagerie';
+
+  @override
+  String get contactUsScreen_errorUploadingLogs =>
+      'Impossible de téléverser les journaux';
 
   @override
   String get groupDetails_leaveChat => 'Quitter';

@@ -838,6 +838,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get contactUsScreen_body => 'Inhalt';
 
   @override
+  String get contactUsScreen_includeLogs => 'Protokolle teilen';
+
+  @override
   String get contactUsScreen_composeEmail => 'E-Mail verfassen';
 
   @override
@@ -865,6 +868,10 @@ class AppLocalizationsDe extends AppLocalizations {
   @override
   String get contactUsScreen_errorLaunchingEmail =>
       'E-Mail-Client konnte nicht geöffnet werden';
+
+  @override
+  String get contactUsScreen_errorUploadingLogs =>
+      'Protokolle konnten nicht hochgeladen werden';
 
   @override
   String get groupDetails_leaveChat => 'Verlassen';

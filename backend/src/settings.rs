@@ -103,6 +103,8 @@ pub struct StorageSettings {
     /// Bucket name for the storage provider
     #[serde(default = "default_bucket")]
     pub bucket: String,
+    #[serde(default = "default_debug_logs_bucket")]
+    pub debug_logs_bucket: String,
     /// Force path style for the storage provider
     #[serde(default)]
     pub force_path_style: bool,
@@ -116,6 +118,11 @@ pub struct StorageSettings {
     /// Default is 5 minutes.
     #[serde(default = "default_5min", with = "duration_seconds")]
     pub download_expiration: Duration,
+    /// Expiration for signed debug logs download URLs
+    ///
+    /// Default is the maximum allowed time by the AWS API (1 week).
+    #[serde(default = "default_1week", with = "duration_seconds")]
+    pub download_debug_logs_expiration: Duration,
     /// Maximum size of an attachment in bytes
     ///
     /// Default is 20 MiB.
@@ -234,6 +241,10 @@ fn default_5min() -> Duration {
     Duration::seconds(5 * 60)
 }
 
+fn default_1week() -> Duration {
+    Duration::days(7)
+}
+
 fn default_500ms() -> std::time::Duration {
     std::time::Duration::from_millis(500)
 }
@@ -248,6 +259,10 @@ fn default_burst() -> u32 {
 
 fn default_bucket() -> String {
     "data".to_string()
+}
+
+fn default_debug_logs_bucket() -> String {
+    "debug-logs".to_string()
 }
 
 mod duration_seconds {

@@ -67,7 +67,12 @@ impl Ds {
             return Err(GetAttachmentUrlError::NoStorageConfigured);
         };
 
-        let expiration = ExpirationData::now(storage.settings().download_expiration);
+        let download_expiration = if let StorageObjectType::DebugLogs = object_type {
+            storage.settings().download_debug_logs_expiration
+        } else {
+            storage.settings().download_expiration
+        };
+        let expiration = ExpirationData::now(download_expiration);
         let not_before: DateTime<Utc> = expiration.not_before().into();
         let not_after: DateTime<Utc> = expiration.not_after().into();
         let duration = not_after - not_before;
@@ -77,11 +82,16 @@ impl Ds {
         presigning_config.set_expires_in(Some(duration.to_std()?));
         let presigning_config = presigning_config.build()?;
 
+        let bucket = if let StorageObjectType::DebugLogs = object_type {
+            storage.settings().debug_logs_bucket.clone()
+        } else {
+            storage.settings().bucket.clone()
+        };
         let key = storage_key(&storage.settings().storage_paths, object_id, object_type);
         let request = storage
             .client()
             .get_object()
-            .bucket(storage.settings().bucket.clone())
+            .bucket(bucket)
             .key(key)
             .presigned(presigning_config)
             .await
@@ -120,12 +130,13 @@ async fn create_signed_put(
     presigning_config.set_expires_in(Some(duration.to_std()?));
     let presigning_config = presigning_config.build()?;
 
+    let bucket = if let StorageObjectType::DebugLogs = object_type {
+        storage.settings().debug_logs_bucket.clone()
+    } else {
+        storage.settings().bucket.clone()
+    };
     let key = storage_key(&storage.settings().storage_paths, object_id, object_type);
-    let request = storage
-        .client()
-        .put_object()
-        .bucket(storage.settings().bucket.clone())
-        .key(key);
+    let request = storage.client().put_object().bucket(bucket).key(key);
 
     let settings = storage.settings();
 
@@ -190,11 +201,16 @@ fn create_signed_post(
         region = settings.region,
     );
 
+    let bucket = if let StorageObjectType::DebugLogs = object_type {
+        settings.debug_logs_bucket.clone()
+    } else {
+        settings.bucket.clone()
+    };
     let key = storage_key(&storage.settings().storage_paths, object_id, object_type);
     let policy = Policy {
         expiration: not_after,
         conditions: [
-            json!({"bucket": settings.bucket}),
+            json!({"bucket": bucket}),
             json!({"key": key}),
             json!(["content-length-range", 0, settings.max_attachment_size]),
             json!({"x-amz-credential": x_amz_credential}),
@@ -252,6 +268,7 @@ fn storage_key(paths: &StoragePaths, object_id: Uuid, object_type: StorageObject
             let path = paths.user_profiles_path.trim_end_matches('/');
             format!("{path}/{key}")
         }
+        StorageObjectType::DebugLogs => key.to_string(),
     }
 }
 
@@ -384,9 +401,11 @@ mod test {
             access_key_id: "EXAMPLEKEY".to_owned(),
             secret_access_key: "EXMPLESECRET".to_owned().into(),
             bucket: "some-bucket".to_owned(),
+            debug_logs_bucket: "debug-logs-some-bucket".to_owned(),
             force_path_style: false,
             upload_expiration: Duration::seconds(60),
             download_expiration: Duration::seconds(60),
+            download_debug_logs_expiration: Duration::seconds(60),
             max_attachment_size: 20 * 1024 * 1024,
             use_post_policy: false,
             require_content_length: true,

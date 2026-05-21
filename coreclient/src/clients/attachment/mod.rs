@@ -21,7 +21,7 @@ mod download;
 pub(crate) mod persistence;
 mod process;
 pub(crate) mod progress;
-mod upload;
+pub(crate) mod upload;
 
 impl CoreUser {
     pub async fn pending_attachments(&self) -> anyhow::Result<Vec<AttachmentId>> {
@@ -51,7 +51,7 @@ impl CoreUser {
 }
 
 #[derive(TlsSize, TlsSerialize, TlsDeserializeBytes)]
-struct AttachmentBytes {
+pub(crate) struct AttachmentBytes {
     bytes: VLBytes,
 }
 
