@@ -168,7 +168,7 @@ impl GroupDebugInfo {
                 .leaf(member.index)
                 .context("No leaf node for member")?;
             let user_id = credential.user_id();
-            let user_profile = CoreUser::load_user_profile(&mut connection, user_id).await;
+            let user_profile = UserProfile::load(&mut connection, user_id).await;
             members.insert(
                 member.index.u32(),
                 DebugCapabilities::from_leaf_node(user_id, user_profile, leaf_node),
