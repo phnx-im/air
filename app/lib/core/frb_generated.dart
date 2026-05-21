@@ -255,6 +255,7 @@ abstract class RustLibApi extends BaseApi {
     required ChatListCubitBase that,
     required String groupName,
     Uint8List? picture,
+    required bool isApq,
   });
 
   bool crateApiChatListCubitChatListCubitBaseIsClosed({
@@ -2145,6 +2146,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     required ChatListCubitBase that,
     required String groupName,
     Uint8List? picture,
+    required bool isApq,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -2156,6 +2158,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
           sse_encode_String(groupName, serializer);
           sse_encode_opt_list_prim_u_8_strict(picture, serializer);
+          sse_encode_bool(isApq, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -2169,7 +2172,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ),
         constMeta:
             kCrateApiChatListCubitChatListCubitBaseCreateGroupChatConstMeta,
-        argValues: [that, groupName, picture],
+        argValues: [that, groupName, picture, isApq],
         apiImpl: this,
       ),
     );
@@ -2179,7 +2182,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiChatListCubitChatListCubitBaseCreateGroupChatConstMeta =>
       const TaskConstMeta(
         debugName: "ChatListCubitBase_create_group_chat",
-        argNames: ["that", "groupName", "picture"],
+        argNames: ["that", "groupName", "picture", "isApq"],
       );
 
   @override
@@ -17185,11 +17188,13 @@ class ChatListCubitBaseImpl extends RustOpaque implements ChatListCubitBase {
   Future<ChatId> createGroupChat({
     required String groupName,
     Uint8List? picture,
+    required bool isApq,
   }) => RustLib.instance.api
       .crateApiChatListCubitChatListCubitBaseCreateGroupChat(
         that: this,
         groupName: groupName,
         picture: picture,
+        isApq: isApq,
       );
 
   bool get isClosed => RustLib.instance.api

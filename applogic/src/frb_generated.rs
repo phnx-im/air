@@ -1504,6 +1504,7 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_create_group_chat_impl(
             >>::sse_decode(&mut deserializer);
             let api_group_name = <String>::sse_decode(&mut deserializer);
             let api_picture = <Option<Vec<u8>>>::sse_decode(&mut deserializer);
+            let api_is_apq = <bool>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
@@ -1530,6 +1531,7 @@ fn wire__crate__api__chat_list_cubit__ChatListCubitBase_create_group_chat_impl(
                                 &*api_that_guard,
                                 api_group_name,
                                 api_picture,
+                                api_is_apq,
                             )
                             .await?;
                         Ok(output_ok)

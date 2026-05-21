@@ -36,6 +36,7 @@ abstract class ChatListCubitBase implements RustOpaqueInterface {
   Future<ChatId> createGroupChat({
     required String groupName,
     Uint8List? picture,
+    required bool isApq,
   });
 
   bool get isClosed;

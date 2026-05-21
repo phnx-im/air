@@ -99,7 +99,7 @@ class _MemberSelectionStep extends HookWidget {
         scrolledUnderElevation: 0,
         automaticallyImplyLeading: false,
         titleSpacing: 0,
-        title: _GroupCreationAppBarTitle(
+        title: _CenteredAppBarTitle(
           title: loc.groupCreationScreen_title,
           leading: _CircularBackButton(
             onPressed: () => context.read<NavigationCubit>().pop(),
@@ -175,6 +175,8 @@ class _CreateGroupDetailsStep extends HookWidget {
     final picture = useState<Uint8List?>(null);
     final isCreating = useState(false);
     final nameFocusNode = useFocusNode();
+    final showHiddenSettings = useState(false);
+    final isAPQ = useState(false);
 
     final isGroupNameValid = groupName.value.trim().isNotEmpty;
     final showHelperText = nameFocusNode.hasFocus && !isGroupNameValid;
@@ -188,7 +190,7 @@ class _CreateGroupDetailsStep extends HookWidget {
         scrolledUnderElevation: 0,
         automaticallyImplyLeading: false,
         titleSpacing: 0,
-        title: _GroupCreationAppBarTitle(
+        title: _CenteredAppBarTitle(
           title: loc.groupCreationDetails_title,
           leading: _CircularBackButton(
             onPressed: () => _handleBack(context, isCreating.value),
@@ -200,6 +202,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                     groupName.value.trim(),
                     isCreating,
                     picture.value,
+                    isAPQ.value,
                   )
                 : null,
             child: isCreating.value
@@ -215,6 +218,9 @@ class _CreateGroupDetailsStep extends HookWidget {
                   )
                 : Text(loc.groupCreationDetails_create),
           ),
+          onLongPress: () {
+            showHiddenSettings.value = !showHiddenSettings.value;
+          },
         ),
       ),
       body: SafeArea(
@@ -275,6 +281,16 @@ class _CreateGroupDetailsStep extends HookWidget {
                           style: Theme.of(context).textTheme.bodySmall
                               ?.copyWith(color: colors.text.tertiary),
                         ),
+                      ),
+                    ],
+                    if (showHiddenSettings.value) ...[
+                      const SizedBox(height: Spacing.px32),
+                      SwitchField(
+                        onSubmit: (value) {
+                          isAPQ.value = value;
+                        },
+                        value: isAPQ,
+                        label: "Post-Quantum Encryption",
                       ),
                     ],
                     const SizedBox(height: Spacing.px32),
@@ -342,6 +358,7 @@ class _CreateGroupDetailsStep extends HookWidget {
     String groupName,
     ValueNotifier<bool> isCreating,
     Uint8List? picture,
+    bool isAPQ,
   ) async {
     if (groupName.isEmpty) return;
     final navigationCubit = context.read<NavigationCubit>();
@@ -357,6 +374,7 @@ class _CreateGroupDetailsStep extends HookWidget {
       final chatId = await chatListCubit.createGroupChat(
         groupName: groupName,
         picture: picture,
+        isAPQ: isAPQ,
       );
       final error = await userCubit.addUserToChat(
         chatId,
@@ -427,37 +445,18 @@ class _GroupPicturePicker extends StatelessWidget {
   }
 }
 
-class _GroupCreationAppBarTitle extends StatelessWidget {
-  const _GroupCreationAppBarTitle({
-    required this.title,
-    required this.leading,
-    required this.trailing,
-  });
-
-  final String title;
-  final Widget leading;
-  final Widget trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    return _CenteredAppBarTitle(
-      title: title,
-      leading: leading,
-      trailing: trailing,
-    );
-  }
-}
-
 class _CenteredAppBarTitle extends StatelessWidget {
   const _CenteredAppBarTitle({
     required this.title,
     required this.leading,
     required this.trailing,
+    this.onLongPress,
   });
 
   final String title;
   final Widget leading;
   final Widget trailing;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -470,9 +469,12 @@ class _CenteredAppBarTitle extends StatelessWidget {
         ),
         Expanded(
           child: Center(
-            child: Text(
-              title,
-              style: Theme.of(context).appBarTheme.titleTextStyle,
+            child: InkWell(
+              onLongPress: onLongPress,
+              child: Text(
+                title,
+                style: Theme.of(context).appBarTheme.titleTextStyle,
+              ),
             ),
           ),
         ),
