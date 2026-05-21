@@ -109,8 +109,6 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
 
   Stream<ChatDetailsState> stream();
 
-  Future<void> updateKey();
-
   Future<UploadAttachmentError?> uploadAttachment({required String path});
 }
 
