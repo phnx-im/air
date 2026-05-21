@@ -579,6 +579,12 @@ impl ChatDetailsCubitBase {
         let chat_id = self.context.chat_id;
         self.context.core_user.enqueue_group_resync(chat_id).await
     }
+
+    pub async fn update_key(&self) -> anyhow::Result<()> {
+        let chat_id = self.context.chat_id;
+        self.context.core_user.update_key(chat_id).await?;
+        Ok(())
+    }
 }
 
 /// Loads the initial state and listen to the changes

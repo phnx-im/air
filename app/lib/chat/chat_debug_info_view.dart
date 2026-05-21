@@ -10,6 +10,7 @@ import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/ds/foundations/monospace.dart';
 import 'package:air/util/scaffold_messenger.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -20,20 +21,23 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 class ChatDebugInfoView extends HookWidget {
   const ChatDebugInfoView({
     required this.title,
-    required this.debugInfo,
+    required this.loadDebugInfo,
+    required this.onUpdateGroup,
     required this.onRequestResync,
     required this.onEraseLocalChat,
     super.key,
   });
 
   final String title;
-  final Future<GroupDebugInfo> debugInfo;
+  final Future<GroupDebugInfo> Function() loadDebugInfo;
+  final AsyncCallback onUpdateGroup;
   final VoidCallback onRequestResync;
   final VoidCallback onEraseLocalChat;
 
   @override
   Widget build(BuildContext context) {
-    final snapshot = useFuture(debugInfo);
+    final debugInfoFuture = useState(useMemoized(loadDebugInfo));
+    final snapshot = useFuture(debugInfoFuture.value);
     final colors = CustomColorScheme.of(context);
 
     return AppScaffold(
@@ -41,6 +45,10 @@ class ChatDebugInfoView extends HookWidget {
       child: switch (snapshot) {
         AsyncSnapshot(hasData: true, :final data) => _GroupDebugInfoBody(
           info: data!,
+          onUpdateGroup: () async {
+            await onUpdateGroup();
+            debugInfoFuture.value = loadDebugInfo();
+          },
           onRequestResync: onRequestResync,
           onEraseLocalChat: onEraseLocalChat,
         ),
@@ -74,11 +82,13 @@ class ChatDebugInfoView extends HookWidget {
 class _GroupDebugInfoBody extends StatelessWidget {
   const _GroupDebugInfoBody({
     required this.info,
+    required this.onUpdateGroup,
     required this.onRequestResync,
     required this.onEraseLocalChat,
   });
 
   final GroupDebugInfo info;
+  final AsyncCallback onUpdateGroup;
   final VoidCallback onRequestResync;
   final VoidCallback onEraseLocalChat;
 
@@ -169,10 +179,35 @@ class _GroupDebugInfoBody extends StatelessWidget {
           ),
         ],
         const SizedBox(height: Spacing.px32),
+        _UpdateGroupButton(onTapped: onUpdateGroup),
+        const SizedBox(height: Spacing.px16),
         _RequestResyncButton(onTapped: onRequestResync),
         const SizedBox(height: Spacing.px16),
         _DeleteLocalChatButton(onTapped: onEraseLocalChat),
       ],
+    );
+  }
+}
+
+class _UpdateGroupButton extends HookWidget {
+  const _UpdateGroupButton({required this.onTapped});
+
+  final AsyncCallback onTapped;
+
+  @override
+  Widget build(BuildContext context) {
+    final isRunning = useState(false);
+    return AppButton(
+      onPressed: () async {
+        isRunning.value = true;
+        try {
+          await onTapped();
+        } finally {
+          isRunning.value = false;
+        }
+      },
+      state: isRunning.value ? AppButtonState.inactive : AppButtonState.active,
+      label: "Update group",
     );
   }
 }
