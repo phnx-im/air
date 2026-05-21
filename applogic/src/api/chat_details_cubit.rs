@@ -13,7 +13,8 @@ use aircommon::{
 };
 pub use aircoreclient::{
     AcceptContactRequestError, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
-    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, RequiredDebugCapabilities,
+    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqDebugInfo,
+    RequiredDebugCapabilities,
 };
 use aircoreclient::{
     AttachmentProgress, Chat, ChatId, ChatMessage, MessageId, ProvisionAttachmentError,
@@ -578,6 +579,12 @@ impl ChatDetailsCubitBase {
         let chat_id = self.context.chat_id;
         self.context.core_user.enqueue_group_resync(chat_id).await
     }
+
+    pub async fn update_key(&self) -> anyhow::Result<()> {
+        let chat_id = self.context.chat_id;
+        self.context.core_user.update_key(chat_id).await?;
+        Ok(())
+    }
 }
 
 /// Loads the initial state and listen to the changes
@@ -795,6 +802,19 @@ pub struct _GroupDebugInfo {
     pub required_capabilities: Option<RequiredDebugCapabilities>,
     pub members: HashMap<u32, DebugCapabilities>,
     pub group_data: Option<GroupDataDebugInfo>,
+    pub size_bytes: u64,
+    pub pq: Option<PqDebugInfo>,
+}
+
+#[frb(mirror(PqDebugInfo))]
+pub struct _PqDebugInfo {
+    pub group_id: String,
+    pub epoch: u64,
+    pub ciphersuite: String,
+    pub self_updated_at: Option<String>,
+    pub pending_proposals: usize,
+    pub has_pending_commit: bool,
+    pub size_bytes: u64,
 }
 
 #[frb(mirror(GroupDataDebugInfo))]
