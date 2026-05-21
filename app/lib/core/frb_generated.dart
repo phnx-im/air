@@ -242,6 +242,10 @@ abstract class RustLibApi extends BaseApi {
     required ChatDetailsCubitBase that,
   });
 
+  Future<void> crateApiChatDetailsCubitChatDetailsCubitBaseUpdateKey({
+    required ChatDetailsCubitBase that,
+  });
+
   Future<UploadAttachmentError?>
   crateApiChatDetailsCubitChatDetailsCubitBaseUploadAttachment({
     required ChatDetailsCubitBase that,
@@ -2099,6 +2103,44 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(
         debugName: "ChatDetailsCubitBase_stream",
         argNames: ["that", "sink"],
+      );
+
+  @override
+  Future<void> crateApiChatDetailsCubitChatDetailsCubitBaseUpdateKey({
+    required ChatDetailsCubitBase that,
+  }) {
+    return handler.executeNormal(
+      NormalTask(
+        callFfi: (port_) {
+          final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerChatDetailsCubitBase(
+            that,
+            serializer,
+          );
+          pdeCallFfi(
+            generalizedFrbRustBinding,
+            serializer,
+            funcId: 26,
+            port: port_,
+          );
+        },
+        codec: SseCodec(
+          decodeSuccessData: sse_decode_unit,
+          decodeErrorData: sse_decode_AnyhowException,
+        ),
+        constMeta:
+            kCrateApiChatDetailsCubitChatDetailsCubitBaseUpdateKeyConstMeta,
+        argValues: [that],
+        apiImpl: this,
+      ),
+    );
+  }
+
+  TaskConstMeta
+  get kCrateApiChatDetailsCubitChatDetailsCubitBaseUpdateKeyConstMeta =>
+      const TaskConstMeta(
+        debugName: "ChatDetailsCubitBase_update_key",
+        argNames: ["that"],
       );
 
   @override
@@ -17341,6 +17383,9 @@ class ChatDetailsCubitBaseImpl extends RustOpaque
 
   Stream<ChatDetailsState> stream() => RustLib.instance.api
       .crateApiChatDetailsCubitChatDetailsCubitBaseStream(that: this);
+
+  Future<void> updateKey() => RustLib.instance.api
+      .crateApiChatDetailsCubitChatDetailsCubitBaseUpdateKey(that: this);
 
   Future<UploadAttachmentError?> uploadAttachment({required String path}) =>
       RustLib.instance.api
