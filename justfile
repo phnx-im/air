@@ -123,28 +123,9 @@ regenerate-sqlx-server: start-docker-compose
 regenerate-icons:
     just dart run tool/compile_svg_icons.dart
 
-# Run cargo build, clippy and test.
-@test-rust: start-docker-compose
-    cargo clippy --locked --all-targets
-    cargo test --locked
-    just test-rust-apq-groups
-
-# Run pre-compiled integration tests with APQ groups enabled
-@test-rust-apq-groups:
-    #!/usr/bin/env -S bash -eu
-    # Note: This is such a complicated command to avoid recompilation of the
-    # integration tests, which burns quite some time in CI.
-    RUNNER=$(cargo test --no-run --message-format=json 2>/dev/null | jq -r 'select(.reason == "compiler-artifact" and .target.name == "integration") | .executable')
-    echo "Running integration tests with APQ groups enabled: $RUNNER"
-    env TEST_WITH_APQ_GROUPS=true $RUNNER
-
 # Run flutter test.
-test-flutter:
-    cd app && just flutter test
-    @echo "{{BOLD}}test-flutter done{{NORMAL}}"
-
-# Run all tests.
-test: test-rust test-flutter
+[working-directory: 'app']
+test-flutter: (flutter "test")
 
 docker-is-podman := if `command -v podman || true` =~ ".*podman$" { "true" } else { "false" }
 skip_docker := env_var_or_default("SKIP_DOCKER_COMPOSE", "false")
@@ -167,8 +148,8 @@ _generate-db-certs:
     cd backend && TEST_CERT_DIR_NAME=test_certs scripts/generate_test_certs.sh
 
 # Use the current test results as new reference images.
-update-goldens:
-    cd app && just flutter test --update-goldens
+[working-directory: 'app']
+update-goldens: (flutter "test --update-goldens")
 
 # Trigger the "Update Goldens" workflow on the current branch, or a given PR.
 [script]
@@ -178,16 +159,8 @@ update-goldens-ci pr='':
     gh workflow run update-goldens.yml --ref "$ref"
 
 # Start the app in debug mode.
-run-app *args='':
-    cd app && just flutter run {{args}}
-
-# Start the app from the last debug build.
-run-app-cached:
-    if [ "{{os()}}" = "windows" ]; then \
-        app/build/windows/x64/runner/Debug/air.exe; \
-    else \
-        app/build/macos/Build/Products/Debug/Air.app/Contents/MacOS/Air; \
-    fi
+[working-directory: 'app']
+run-app *args='': (flutter "run {{args}}")
 
 # Start the server.
 run-server:
@@ -205,10 +178,6 @@ install-fvm:
 
     curl -fsSL https://fvm.app/install.sh -o install-fvm.sh
     bash install-fvm.sh 4.0.5
-
-[working-directory: 'app']
-build platform:
-    if [[ "${CI:-false}" != "true" ]]; then just flutter build {{ platform }}; fi
 
 [linux]
 [working-directory: 'app/linux']
