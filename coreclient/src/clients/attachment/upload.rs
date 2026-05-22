@@ -63,7 +63,7 @@ impl CoreUser {
         let api_client = self.api_client()?;
         let http_client = self.http_client();
         let data = AttachmentBytes::from(bytes);
-        let user_id = self.user_id().clone().into();
+        let user_id = self.user_id().clone();
 
         match encrypt_and_provision(
             &api_client,
@@ -95,7 +95,7 @@ impl CoreUser {
 
                 Ok(Ok((metadata, download_url)))
             }
-            Err(error) => return Ok(Err(error)),
+            Err(error) => Ok(Err(error)),
         }
     }
 

@@ -8,10 +8,8 @@ import 'dart:typed_data';
 import 'package:air/core/core.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/util/platform.dart';
-import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
-import 'package:path/path.dart' as p;
 
 /// Wrapper of the [UserCubitBase] that implements a [StateStreamableSource]
 ///
