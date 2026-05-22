@@ -1,0 +1,26 @@
+experimental = ["setup-scripts"]
+
+# all tests that do not require a backend
+[profile.default]
+default-filter = "not package(airserver) and not package(airbackend) and not (package(aircoreclient) and test(clients::tests))"
+
+# all tests that require a backend (heavier)
+[profile.integration]
+default-filter = "package(airserver) or package(airbackend) or (package(aircoreclient) and test(clients::tests))"
+
+[profile.integration-with-apq]
+inherits = "integration"
+
+[scripts.setup.enable-apq]
+command = ["bash", "-c", "echo TEST_WITH_APQ_GROUPS=true >> $NEXTEST_ENV"]
+
+[scripts.setup.docker-compose-up]
+command = ["docker", "compose", "up", "--no-recreate", "-d"]
+
+[[profile.integration.scripts]]
+platform = { host = "cfg(unix)" }
+setup = ['docker-compose-up']
+
+[[profile.integration-with-apq.scripts]]
+platform = { host = "cfg(unix)" }
+setup = ['docker-compose-up', 'enable-apq']

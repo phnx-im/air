@@ -32,6 +32,10 @@ inputs:
     description: "Python packages to install with pip3"
     default: ""
     required: false
+  sccache:
+    description: "Enable sccache (with GitHub cache artifacts)"
+    default: "true"
+    required: false
   sccache-dir:
     description: "Location of cache files"
     required: false
@@ -75,11 +79,12 @@ runs:
     ## sccache
 
     - name: Create sccache cache directory
+      if: inputs.sccache == 'true'
       shell: bash
       run: mkdir -p "${{ inputs.sccache-dir }}"
 
     - name: Setup Rust GitHub Actions cache
-      if: github.ref == 'refs/heads/main'
+      if: inputs.sccache == 'true' && github.ref == 'refs/heads/main'
       uses: actions/cache@v5
       with:
         path: |
@@ -90,7 +95,7 @@ runs:
           sccache-${{ github.job }}
 
     - name: Download Rust GitHub Actions cache
-      if: github.ref != 'refs/heads/main'
+      if: inputs.sccache == 'true' && github.ref != 'refs/heads/main'
       uses: actions/cache/restore@v5
       with:
         path: |
@@ -101,6 +106,7 @@ runs:
           sccache-${{ github.job }}
 
     - name: Start sccache daemon
+      if: inputs.sccache == 'true'
       uses: gacts/run-and-post-run@v1
       env:
         SCCACHE_CACHE_SIZE: ${{ inputs.sccache-size }}
@@ -114,14 +120,14 @@ runs:
         post: |
           sccache --show-stats
 
-    - if: runner.os == 'Linux'
+    - if: inputs.sccache == 'true' && runner.os == 'Linux'
       name: Enable sccache wrapper for Unix
       shell: bash
       run: |
         echo "CC=sccache clang" >> $GITHUB_ENV
         echo "CXX=sccache clang++" >> $GITHUB_ENV
 
-    - if: runner.os == 'Windows'
+    - if: inputs.sccache == 'true' && runner.os == 'Windows'
       name: Enable sccache wrapper for Windows
       shell: bash
       run: |
