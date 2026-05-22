@@ -1034,7 +1034,7 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get memberSelectionList_client_not_supported =>
-      'Den här kontakten har en inkompatibel klient som behöver uppdateras.';
+      'Den här kontakten har en föråldrad app som behöver uppdateras.';
 
   @override
   String get homeTab_chats => 'Chattar';
