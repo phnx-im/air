@@ -48,7 +48,8 @@ check-clippy:
 
 [group('check')]
 check-cargo-deny:
-    cargo deny fetch && cargo deny check
+    cargo deny fetch
+    cargo deny check
 
 [group('check')]
 check-cargo-machete:
