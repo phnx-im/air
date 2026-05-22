@@ -1058,7 +1058,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
-        let timestamp = self
+        let (timestamp, destination_clients, group_message, individual_fan_out_messages) = self
             .update_group_state(request, None, async |verification_data| {
                 let LeafVerificationData::<'_, GroupOperationPayload, true> {
                     ear_key,
@@ -1086,29 +1086,36 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
                 group_state.proposals.clear();
 
-                let timestamp = self
-                    .fan_out_message_without_notifications(group_message, destination_clients)
-                    .await;
-
+                let timestamp = TimeStamp::now();
                 let commit_response =
                     group_state.create_commit_response(sender_index, timestamp)?;
                 individual_fan_out_messages.push(commit_response);
 
-                // TODO: Should we fan out the individual fan out messages concurrently?
-                for message in individual_fan_out_messages {
-                    if let Err(e) = self
-                        .qs_connector
-                        .dispatch(message)
-                        .await
-                        .map_err(DistributeMessageError::Connector)
-                    {
-                        error!(%e, "Failed to dispatch message");
-                    };
-                }
-
-                Ok(timestamp)
+                Ok((
+                    timestamp,
+                    destination_clients,
+                    group_message,
+                    individual_fan_out_messages,
+                ))
             })
             .await?;
+
+        // Fan out the commit message to existing members
+        self.fan_out_message_without_notifications(group_message, destination_clients)
+            .await;
+
+        // Dispatch individual fan out messages to new members
+        // TODO: Should we fan out the individual fan out messages concurrently?
+        for message in individual_fan_out_messages {
+            if let Err(e) = self
+                .qs_connector
+                .dispatch(message)
+                .await
+                .map_err(DistributeMessageError::Connector)
+            {
+                error!(%e, "Failed to dispatch message");
+            };
+        }
 
         Ok(Response::new(GroupOperationResponse {
             fanout_timestamp: Some(timestamp.into()),
@@ -1261,14 +1268,12 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
             )?;
 
         // Fan out the commit message to the destination clients
+        let timestamp = TimeStamp::now();
         let apq_payload = QsQueueMessagePayload {
-            timestamp: TimeStamp::now(),
+            timestamp,
             message_type: QsQueueMessageType::ApqMlsMessage,
             payload: serialized_apq_message.0,
         };
-        let timestamp = self
-            .fan_out_message_without_notifications(apq_payload, destination_clients)
-            .await;
 
         // Generate welcome bundles for new members
         let mut individual_fan_out_messages = match (t_add_users_state, pq_welcome) {
@@ -1297,6 +1302,23 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         let commit_response = t_group_state.create_commit_response(t_sender_index, timestamp)?;
         individual_fan_out_messages.push(commit_response);
 
+        // Persist and commit the DS state *before* dispatching welcome bundles, so that joiners
+        // fetching welcome info always observe the freshly stored past group state.
+        self.encrypt_and_persist(&mut txn, t_group_data, t_group_state, &ear_key)
+            .await?;
+        self.encrypt_and_persist(&mut txn, pq_group_data, pq_group_state, &ear_key)
+            .await?;
+
+        txn.commit().await.map_err(|error| {
+            error!(%error, "Failed to commit transaction");
+            Status::internal("Failed to commit transaction")
+        })?;
+
+        // Fan out the commit message to existing members
+        self.fan_out_message_without_notifications(apq_payload, destination_clients)
+            .await;
+
+        // Dispatch welcome bundles to new members
         for message in individual_fan_out_messages {
             if let Err(e) = self
                 .qs_connector
@@ -1307,16 +1329,6 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
                 error!(%e, "Failed to dispatch message");
             }
         }
-
-        self.encrypt_and_persist(&mut txn, t_group_data, t_group_state, &ear_key)
-            .await?;
-        self.encrypt_and_persist(&mut txn, pq_group_data, pq_group_state, &ear_key)
-            .await?;
-
-        txn.commit().await.map_err(|error| {
-            error!(%error, "Failed to commit transaction");
-            Status::internal("Failed to commit transaction")
-        })?;
 
         Ok(Response::new(ApqGroupOperationResponse {
             fanout_timestamp: Some(timestamp.into()),
