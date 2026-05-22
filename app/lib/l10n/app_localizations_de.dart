@@ -1041,7 +1041,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get memberSelectionList_client_not_supported =>
-      'This contact has an incompatible client which needs to be updated.';
+      'Dieser Kontakt hat einen inkompatiblen Client, der aktualisiert werden muss.';
 
   @override
   String get homeTab_chats => 'Chats';
