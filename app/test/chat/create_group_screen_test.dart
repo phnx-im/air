@@ -74,9 +74,7 @@ void main() {
         () => navigationCubit.state,
       ).thenReturn(const NavigationState.intro());
       when(() => userCubit.state).thenReturn(MockUiUser(id: 0));
-      when(
-        () => userCubit.contacts,
-      ).thenAnswer((_) async => _contacts);
+      when(() => userCubit.contacts).thenAnswer((_) async => _contacts);
       when(
         () => usersCubit.state,
       ).thenReturn(MockUsersState(profiles: _profiles));
