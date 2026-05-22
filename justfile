@@ -39,52 +39,40 @@ migrate-dev:
     cd coreclient && cargo sqlx migrate run --database-url {{CLIENT_DATABASE_URL}}
     cd backend && cargo sqlx migrate run --database-url {{SERVER_DATABASE_URL}}
 
-# Run fast and simple Rust lints.
-@check-rust:
-    just _check-status "cargo machete"
-    just _check-status "reuse lint -l"
-    just _check-status "cargo metadata --format-version=1 --locked > /dev/null"
-    just _check-status "cargo fmt -- --check"
-    just _check-status "cargo deny fetch && cargo deny check"
-    just _check-unstaged-changes "git --no-pager diff"
-    just _check-unstaged-changes "just regenerate-sqlx"
-    echo "✅ {{BOLD}}check-rust done{{NORMAL}}"
+[group('check')]
+check-cargo-deny:
+    cargo deny fetch && cargo deny check
 
-# Run fast and simple Flutter lints.
-@check-flutter:
-    just _check-status "git lfs --version"
-    just _check-unstaged-changes "git --no-pager diff"
-    just _check-unstaged-changes "just flutter pub get"
-    just _check-unstaged-changes "just dart format ."
-    just _check-status "just flutter analyze --no-pub"
-    just _check-unstaged-changes "just regenerate-l10n"
-    just _check-unstaged-changes "just regenerate-icons"
-    echo "✅ {{BOLD}}check-flutter done{{NORMAL}}"
+[group('check')]
+check-clippy:
+    cargo clippy --workspace --all-targets --all-features -- -D warnings
 
-# Run flutter rust bridge lint.
-@check-frb:
-    just _check-unstaged-changes "just regenerate-frb"
+[group('check')]
+check-reuse:
+    reuse lint -l
 
-# Run all fast and simple lints.
-@check: check-rust check-flutter check-frb
+[group('check')]
+check-rustfmt:
+    cargo fmt -- --check
 
-# This task will run the command. If the command fails, the task fails.
-_check-status command:
-    #!/usr/bin/env -S bash -eu
-    echo "{{BOLD}}Running {{command}}{{NORMAL}}"
-    if ! { {{command}}; }; then
-        just _log-error "{{command}}"
-    fi
+[group('check')]
+check-dart:
+    just flutter pub get
+    just dart format . -o none --set-exit-if-changed
+    just dart analyze --fatal-infos
+
+[group('check')]
+check-app-resources: regenerate-l10n regenerate-icons && _check-unstaged-changes
+
+[group('check')]
+check-frb: regenerate-frb && _check-unstaged-changes
 
 # This task will run the command. If git diff then reports unstaged changes, the task will fail.
-_check-unstaged-changes command:
+_check-unstaged-changes:
     #!/usr/bin/env -S bash -eu
-    echo "{{BOLD}}Running {{command}}{{NORMAL}}"
-    {{command}}
     if ! git diff --quiet; then
         echo -e "{{RED}}Found unstaged changes.{{NORMAL}}"
         git --no-pager diff
-        just _log-error "{{command}}"
     fi
 
 # This task will print the error and call exit 1. If this is running in GitHub CI, it will add the error to the GitHub summary as an annotation.
@@ -158,9 +146,6 @@ regenerate-icons:
 test-flutter:
     cd app && just flutter test
     @echo "{{BOLD}}test-flutter done{{NORMAL}}"
-
-# Run all lints and tests.
-ci: check test
 
 # Run all tests.
 test: test-rust test-flutter
