@@ -119,8 +119,8 @@ jobs:
           - job-name: integration tests
             nextest-args: --test integration
           - job-name: integration tests (with APQ groups)
+            env: TEST_WITH_APQ_GROUPS=true
             nextest-args: --test integration
-            nextest-env: TEST_WITH_APQ_GROUPS=true
           - job-name: unit tests
             nextest-args: --exclude integration
 
@@ -143,5 +143,4 @@ jobs:
 
       - name: Build cargo test binaries
         run: |
-          cargo nextest run --archive-file cargo-tests.tar.zst
-
+          ${{ matrix.env }} cargo nextest run --archive-file cargo-tests.tar.zst ${{ matrix.nextest-args }}
