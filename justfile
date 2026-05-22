@@ -40,12 +40,24 @@ migrate-dev:
     cd backend && cargo sqlx migrate run --database-url {{SERVER_DATABASE_URL}}
 
 [group('check')]
-check-cargo-deny:
-    cargo deny fetch && cargo deny check
+check-app-resources: regenerate-l10n regenerate-icons && _check-unstaged-changes
 
 [group('check')]
 check-clippy:
     cargo clippy --workspace --all-targets --all-features -- -D warnings
+
+[group('check')]
+check-cargo-deny:
+    cargo deny fetch && cargo deny check
+
+[group('check')]
+check-dart:
+    just flutter pub get
+    just dart format . -o none --set-exit-if-changed
+    just dart analyze --fatal-infos
+
+[group('check')]
+check-frb: regenerate-frb && _check-unstaged-changes
 
 [group('check')]
 check-reuse:
@@ -55,18 +67,6 @@ check-reuse:
 check-rustfmt:
     cargo fmt -- --check
 
-[group('check')]
-check-dart:
-    just flutter pub get
-    just dart format . -o none --set-exit-if-changed
-    just dart analyze --fatal-infos
-
-[group('check')]
-check-app-resources: regenerate-l10n regenerate-icons && _check-unstaged-changes
-
-[group('check')]
-check-frb: regenerate-frb && _check-unstaged-changes
-
 # This task will run the command. If git diff then reports unstaged changes, the task will fail.
 _check-unstaged-changes:
     #!/usr/bin/env -S bash -eu
@@ -75,23 +75,9 @@ _check-unstaged-changes:
         git --no-pager diff
     fi
 
-# This task will print the error and call exit 1. If this is running in GitHub CI, it will add the error to the GitHub summary as an annotation.
-_log-error msg:
-    #!/usr/bin/env -S bash -eu
-    if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-        echo -e "::error::{{msg}}"
-    else
-        msg="\x1b[1;31mERROR: {{msg}}\x1b[0m"
-        echo -e "$msg"
-    fi
-    exit 1
-
-
-# Regenerate frb and l10n.
-regenerate: regenerate-frb regenerate-l10n regenerate-sqlx regenerate-icons
-
 # Regenerate flutter rust bridge files.
 [working-directory: 'app']
+[group('regenerate')]
 regenerate-frb:
     rm -f ../applogic/src/frb_*.rs
     touch ../applogic/src/frb_generated.rs
@@ -103,27 +89,32 @@ regenerate-frb:
     cd .. && cargo fmt
 
 # Regenerate localization files.
+[group('regenerate')]
 regenerate-l10n:
     cd app && cargo xtask prune-unused-l10n # pass --apply and optionally --safe to prevent data loss
     cd app && just flutter gen-l10n
 
 # Regenerate database query metadata.
+[group('regenerate')]
 regenerate-sqlx: regenerate-sqlx-client regenerate-sqlx-server
 
 # Regenerate client database query metadata.
 [working-directory: 'coreclient']
+[group('regenerate')]
 regenerate-sqlx-client:
     cargo sqlx database setup --no-dotenv --database-url {{CLIENT_DATABASE_URL}}
     cargo sqlx prepare --no-dotenv --database-url {{CLIENT_DATABASE_URL}}
 
 # Regenerate server database query metadata.
 [working-directory: 'backend']
+[group('regenerate')]
 regenerate-sqlx-server: start-docker-compose
     cargo sqlx database setup --no-dotenv --database-url {{SERVER_DATABASE_URL}}
     cargo sqlx prepare --no-dotenv --database-url {{SERVER_DATABASE_URL}} -- --tests
 
 # Recompile svg icons for rendering.
 [working-directory: 'app']
+[group('regenerate')]
 regenerate-icons:
     just dart run tool/compile_svg_icons.dart
 
@@ -136,7 +127,7 @@ regenerate-icons:
 # Run pre-compiled integration tests with APQ groups enabled
 @test-rust-apq-groups:
     #!/usr/bin/env -S bash -eu
-    # Note: This such a complicated command to avoid recompilation of the
+    # Note: This is such a complicated command to avoid recompilation of the
     # integration tests, which burns quite some time in CI.
     RUNNER=$(cargo test --no-run --message-format=json 2>/dev/null | jq -r 'select(.reason == "compiler-artifact" and .target.name == "integration") | .executable')
     echo "Running integration tests with APQ groups enabled: $RUNNER"

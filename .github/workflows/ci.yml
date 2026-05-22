@@ -29,13 +29,17 @@ jobs:
       matrix:
         include:
           - check: app-resources
+          - check: cargo-clippy
           - check: cargo-deny
+            cargo-binstall-tools: cargo-deny@0.19.0
           - check: cargo-machete
-          - check: clippy
+            cargo-binstall-tools: cargo-machete@0.9.1
+          - check: dart
           - check: frb
             cargo-binstall-tools: cargo-expand flutter_rust_bridge_codegen@2.12.0
-          - check: rustfmt
           - check: reuse
+            pypi-packages: reuse~=6.2
+          - check: rustfmt
     
     steps:
       - name: Checkout code
@@ -50,6 +54,7 @@ jobs:
         with:
           git-lfs: false
           cargo-binstall-tools: ${{ matrix.cargo-binstall-tools }}
+          pypi-packages: ${{ matrix.pypi-packages }}
 
       - run: just check-${{ matrix.check }}
 
@@ -64,9 +69,6 @@ jobs:
 
       - name: Setup build environment
         uses: ./.github/actions/setup-buildenv
-
-      - name: Flutter checks
-        run: just check-flutter
 
       - name: Flutter tests
         run: just test-flutter
@@ -91,12 +93,8 @@ jobs:
       - name: Setup build environment
         uses: ./.github/actions/setup-buildenv
         with:
-          cargo-binstall-tools: cargo-deny@0.19.0 sqlx-cli@0.8.6 cargo-machete@0.9.1
-          pypi-packages: reuse~=6.2 podman-compose~=1.5
+          pypi-packages: podman-compose~=1.5
           flutter: false
-
-      - name: Rust checks
-        run: just check-rust
 
       - name: Rust tests
         run: just test-rust
