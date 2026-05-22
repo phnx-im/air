@@ -175,7 +175,7 @@ runs:
       uses: gferon/setup-flutter@1d849067b1961950d28aa76b231a2a88ce045b2e
       with:
         channel: stable
-        version: 3.41.4
+        version: 3.44.0
         cache: true
         cache-sdk: true
 
