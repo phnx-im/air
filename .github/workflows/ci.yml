@@ -21,24 +21,32 @@ env:
 
 jobs:
   check:
-    name: ${{ matrix.check }}
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - check: app-resources
-          - check: cargo-deny
+          - name: Check app resources
+            just: check-app-resources
+          - name: Check licenses and advisories
+            just: check-cargo-deny
             cargo-binstall-tools: cargo-deny@0.19.0
-          - check: cargo-machete
+          - name: Find unused crates
+            just: check-cargo-machete
             cargo-binstall-tools: cargo-machete@0.9.1
-          - check: clippy
-          - check: dart
-          - check: frb
+          - name: Rust clippy
+            just: check-clippy
+          - name: Dart lints
+            just: check-dart
+          - name: Flutter Rust Bridge
+            just: check-frb
             cargo-binstall-tools: cargo-expand flutter_rust_bridge_codegen@2.12.0
-          - check: reuse
+          - name: License headers
+            just: check-reuse
             pypi-packages: reuse~=6.2
-          - check: rustfmt
+          - name: Rust formatting
+            just: check-rustfmt
     
     steps:
       - name: Checkout code
@@ -55,7 +63,7 @@ jobs:
           cargo-binstall-tools: ${{ matrix.cargo-binstall-tools }}
           pypi-packages: ${{ matrix.pypi-packages }}
 
-      - run: just check-${{ matrix.check }}
+      - run: just ${{ matrix.just }}
 
   flutter:
     runs-on: ubuntu-latest
@@ -107,7 +115,7 @@ jobs:
           path: cargo-tests.tar.zst
 
   rust-tests:
-    name: Run Rust ${{ matrix.job-name }}
+    name: Run Rust ${{ matrix.name }}
     needs: rust-build-tests
     
     runs-on: ubuntu-latest
@@ -116,12 +124,12 @@ jobs:
     strategy:
       matrix:
         include:
-          - job-name: integration tests
+          - name: Run Rust integration tests
             nextest-args: --test integration
-          - job-name: integration tests (with APQ groups)
+          - name: Run Rust integration tests (with APQ groups)
             env: TEST_WITH_APQ_GROUPS=true
             nextest-args: --test integration
-          - job-name: unit tests
+          - name: Run Rust unit tests
             nextest-args: --exclude integration
 
     steps:
