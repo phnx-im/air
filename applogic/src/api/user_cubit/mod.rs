@@ -471,12 +471,10 @@ impl UserCubitBase {
             .await?
             .map_err(|_| anyhow::format_err!("failed to upload user attachment"))?;
 
-        // let encoded_download_url = download_url.;
-
         use base64::{Engine as _, engine::general_purpose::URL_SAFE};
         let encoded_download_url = URL_SAFE.encode(download_url.as_str());
 
-        let mut log_browse_url = Url::parse("https://air.ms/logs")?;
+        let mut log_browse_url = Url::parse("https://debuglogs.air.ms")?;
         log_browse_url
             .query_pairs_mut()
             .append_pair("object", &encoded_download_url)
