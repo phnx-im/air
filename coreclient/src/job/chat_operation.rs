@@ -27,7 +27,7 @@ enum ChatOperationType {
     Leave,
     Delete,
     Update(Option<ChatAttributes>),
-    ApqSelfUpdate,
+    ApqUpdate,
 }
 
 pub(crate) struct ChatOperation {
@@ -108,7 +108,7 @@ impl ChatOperation {
     pub(crate) fn apq_update(chat_id: ChatId) -> Self {
         ChatOperation {
             chat_id,
-            operation: ChatOperationType::ApqSelfUpdate,
+            operation: ChatOperationType::ApqUpdate,
         }
     }
 
@@ -159,7 +159,7 @@ impl ChatOperation {
             ChatOperationType::Leave
             | ChatOperationType::Delete
             | ChatOperationType::Update(_)
-            | ChatOperationType::ApqSelfUpdate => {}
+            | ChatOperationType::ApqUpdate => {}
         }
         Ok(())
     }
@@ -192,7 +192,7 @@ impl ChatOperation {
             ChatOperationType::Update(chat_attributes) => {
                 self.execute_update(context, chat_attributes).await
             }
-            ChatOperationType::ApqSelfUpdate => self.execute_apq_self_update(context).await,
+            ChatOperationType::ApqUpdate => self.execute_apq_self_update(context).await,
         }
     }
 

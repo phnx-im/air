@@ -410,9 +410,11 @@ impl PendingChatOperation {
                     chat.set_inactive(&mut *txn, past_members).await?;
                 }
 
+                let t_self_update_at = Some(ds_timestamp);
+                let pq_self_update_at = self.group.is_apq().then_some(ds_timestamp);
                 self.group
                     .group_mut()
-                    .store_update(&mut *txn, Some(ds_timestamp), None)
+                    .store_update(&mut *txn, t_self_update_at, pq_self_update_at)
                     .await?;
                 let messages =
                     CoreUser::store_new_messages(&mut *txn, chat.id(), group_messages).await?;

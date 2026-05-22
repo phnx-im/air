@@ -194,6 +194,7 @@ class _CreateGroupDetailsStep extends HookWidget {
     final isCreating = useState(false);
     final nameFocusNode = useFocusNode();
     final showHiddenSettings = useState(false);
+    final isApq = useState(false);
 
     final isGroupNameValid = groupName.value.trim().isNotEmpty;
     final showHelperText = nameFocusNode.hasFocus && !isGroupNameValid;
