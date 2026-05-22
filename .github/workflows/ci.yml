@@ -39,7 +39,7 @@ jobs:
             just: check-clippy
           - name: Dart lints
             just: check-dart
-          - name: Flutter Rust Bridge
+          - name: Check FRB
             just: check-frb
             cargo-binstall-tools: cargo-expand flutter_rust_bridge_codegen@2.12.0
           - name: License headers
@@ -107,7 +107,7 @@ jobs:
 
       - name: Build cargo test binaries
         run: |
-          cargo nextest archive --test integration --archive-file cargo-tests.tar.zst
+          cargo nextest archive --archive-file cargo-tests.tar.zst
 
       - uses: actions/upload-artifact@v7
         with:
@@ -115,7 +115,7 @@ jobs:
           path: cargo-tests.tar.zst
 
   rust-tests:
-    name: Run Rust ${{ matrix.name }}
+    name: ${{ matrix.name }}
     needs: rust-build-tests
     
     runs-on: ubuntu-latest
