@@ -23,6 +23,7 @@ class ChatDebugInfoView extends HookWidget {
     required this.title,
     required this.loadDebugInfo,
     required this.onUpdateGroup,
+    required this.onUpdateApqGroup,
     required this.onRequestResync,
     required this.onEraseLocalChat,
     super.key,
@@ -31,6 +32,7 @@ class ChatDebugInfoView extends HookWidget {
   final String title;
   final Future<GroupDebugInfo> Function() loadDebugInfo;
   final AsyncCallback onUpdateGroup;
+  final AsyncCallback onUpdateApqGroup;
   final VoidCallback onRequestResync;
   final VoidCallback onEraseLocalChat;
 
@@ -47,6 +49,10 @@ class ChatDebugInfoView extends HookWidget {
           info: data!,
           onUpdateGroup: () async {
             await onUpdateGroup();
+            debugInfoFuture.value = loadDebugInfo();
+          },
+          onUpdateApqGroup: () async {
+            await onUpdateApqGroup();
             debugInfoFuture.value = loadDebugInfo();
           },
           onRequestResync: onRequestResync,
@@ -83,12 +89,14 @@ class _GroupDebugInfoBody extends StatelessWidget {
   const _GroupDebugInfoBody({
     required this.info,
     required this.onUpdateGroup,
+    required this.onUpdateApqGroup,
     required this.onRequestResync,
     required this.onEraseLocalChat,
   });
 
   final GroupDebugInfo info;
   final AsyncCallback onUpdateGroup;
+  final AsyncCallback onUpdateApqGroup;
   final VoidCallback onRequestResync;
   final VoidCallback onEraseLocalChat;
 
@@ -179,7 +187,14 @@ class _GroupDebugInfoBody extends StatelessWidget {
           ),
         ],
         const SizedBox(height: Spacing.px32),
-        _UpdateGroupButton(onTapped: onUpdateGroup),
+        _UpdateGroupButton(onTapped: onUpdateGroup, label: "Update group"),
+        if (info.pq != null) ...[
+          const SizedBox(height: Spacing.px16),
+          _UpdateGroupButton(
+            onTapped: onUpdateApqGroup,
+            label: "Update APQ group",
+          ),
+        ],
         const SizedBox(height: Spacing.px16),
         _RequestResyncButton(onTapped: onRequestResync),
         const SizedBox(height: Spacing.px16),
@@ -190,8 +205,9 @@ class _GroupDebugInfoBody extends StatelessWidget {
 }
 
 class _UpdateGroupButton extends HookWidget {
-  const _UpdateGroupButton({required this.onTapped});
+  const _UpdateGroupButton({required this.label, required this.onTapped});
 
+  final String label;
   final AsyncCallback onTapped;
 
   @override
@@ -207,7 +223,7 @@ class _UpdateGroupButton extends HookWidget {
         }
       },
       state: isRunning.value ? AppButtonState.inactive : AppButtonState.active,
-      label: "Update group",
+      label: label,
     );
   }
 }

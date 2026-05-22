@@ -39,6 +39,10 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
     required DeleteMode deleteMode,
   });
 
+  Future<void> devUpdateApqKey();
+
+  Future<void> devUpdateKey();
+
   Future<void> editMessage({MessageId? messageId});
 
   bool get isClosed;
@@ -104,8 +108,6 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
   });
 
   Stream<ChatDetailsState> stream();
-
-  Future<void> updateKey();
 
   Future<UploadAttachmentError?> uploadAttachment({required String path});
 }

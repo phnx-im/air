@@ -25,6 +25,12 @@ impl CoreUser {
         self.update_key_with_attributes(chat_id, None).await
     }
 
+    /// Same as [`Self::update_key`], but also updates the PQ key material.
+    pub async fn update_apq_key(&self, chat_id: ChatId) -> anyhow::Result<Vec<ChatMessage>> {
+        let job = ChatOperation::apq_update(chat_id);
+        Ok(self.execute_job(job).await?)
+    }
+
     pub(crate) async fn update_key_with_attributes(
         &self,
         chat_id: ChatId,

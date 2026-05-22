@@ -210,6 +210,10 @@ impl Group {
         &self.mls_group
     }
 
+    pub(crate) fn pq(&self) -> Option<&PqGroup> {
+        self.pq.as_ref()
+    }
+
     /// Returns the [`AirComponent`] from the leaf node of the given member, or `None` if the member
     /// is not in the group.
     pub(crate) fn member_air_component(&self, user_id: &UserId) -> Option<AirComponent> {
@@ -1411,6 +1415,43 @@ impl Group {
         })
     }
 
+    /// APQ self-update on both the T and PQ groups.
+    ///
+    /// Produces a single combined commit via apqmls that forces a self-update of the key material
+    /// in both groups. Return [`ApqGroupOperationParamsOut`] so the caller can persist it as
+    /// `ApqOther` pending chat operation.
+    pub(super) fn apq_update(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &ClientSigningKey,
+    ) -> anyhow::Result<ApqGroupOperationParamsOut> {
+        let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
+            new_encrypted_user_profile_keys: Vec::new(),
+        }))
+        .tls_serialize_detached()?;
+        self.mls_group.set_aad(aad);
+
+        let provider = AirOpenMlsProvider::new(txn.as_mut());
+        let bundle = apqmls::commit_builder::CommitBuilder::from_groups(
+            &mut self.mls_group,
+            &mut self.pq.as_mut().context("No PQ group found")?.mls_group,
+        )
+        .force_self_update(true)
+        .create_group_info(true)
+        .finalize(&provider, signer, |_| true, |_| true)?;
+
+        debug_assert!(bundle.welcome.is_none());
+        ensure!(
+            bundle.group_info.is_some(),
+            "No group info in APQMLS bundle"
+        );
+
+        Ok(ApqGroupOperationParamsOut {
+            bundle,
+            encrypted_welcome_attribution_infos: Vec::new(),
+        })
+    }
+
     fn update_leaf_node_extensions(
         leaf_node_extensions: &Extensions<LeafNode>,
     ) -> anyhow::Result<LeafNodeParameters> {
@@ -1815,6 +1856,21 @@ mod test_utils {
             self_updated_at: DateTime<Utc>,
         ) -> sqlx::Result<()> {
             Chat::set_self_updated_at(self.db().write().await?, chat_id, self_updated_at).await
+        }
+
+        pub async fn pq_self_updated_at(
+            &self,
+            chat_id: ChatId,
+        ) -> sqlx::Result<Option<DateTime<Utc>>> {
+            Chat::pq_self_updated_at(self.db().read().await?, chat_id).await
+        }
+
+        pub async fn set_pq_self_updated_at(
+            &self,
+            chat_id: ChatId,
+            self_updated_at: DateTime<Utc>,
+        ) -> sqlx::Result<()> {
+            Chat::set_pq_self_updated_at(self.db().write().await?, chat_id, self_updated_at).await
         }
     }
 }
