@@ -785,9 +785,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   DebugCapabilities dco_decode_debug_capabilities(dynamic raw);
 
   @protected
-  DebugLogsDownloadInfo dco_decode_debug_logs_download_info(dynamic raw);
-
-  @protected
   DeleteMode dco_decode_delete_mode(dynamic raw);
 
   @protected
@@ -1977,11 +1974,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   DebugCapabilities sse_decode_debug_capabilities(SseDeserializer deserializer);
-
-  @protected
-  DebugLogsDownloadInfo sse_decode_debug_logs_download_info(
-    SseDeserializer deserializer,
-  );
 
   @protected
   DeleteMode sse_decode_delete_mode(SseDeserializer deserializer);
@@ -3441,12 +3433,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_debug_capabilities(
     DebugCapabilities self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_debug_logs_download_info(
-    DebugLogsDownloadInfo self,
     SseSerializer serializer,
   );
 

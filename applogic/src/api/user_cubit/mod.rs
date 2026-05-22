@@ -17,6 +17,7 @@ use qs::QueueContext;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
+use url::Url;
 use username::{UsernameBackgroundTasks, UsernameContext};
 
 use crate::api::logging::tar_logs;
@@ -461,7 +462,7 @@ impl UserCubitBase {
         Ok(code)
     }
 
-    pub async fn upload_logs(&self, cache_dir: String) -> anyhow::Result<DebugLogsDownloadInfo> {
+    pub async fn upload_logs(&self, cache_dir: String) -> anyhow::Result<String> {
         let compressed_logs = tar_logs(cache_dir)?;
 
         let (attachment_metadata, download_url) = self
@@ -470,10 +471,22 @@ impl UserCubitBase {
             .await?
             .map_err(|_| anyhow::format_err!("failed to upload user attachment"))?;
 
-        Ok(DebugLogsDownloadInfo {
-            download_url: download_url.to_string(),
-            encryption_key: attachment_metadata.encryption_key_hex(),
-        })
+        // let encoded_download_url = download_url.;
+
+        use base64::{Engine as _, engine::general_purpose::URL_SAFE};
+        let encoded_download_url = URL_SAFE.encode(download_url.as_str());
+
+        let mut log_browse_url = Url::parse("https://air.ms/logs")?;
+        log_browse_url
+            .query_pairs_mut()
+            .append_pair("object", &encoded_download_url)
+            .append_pair(
+                "encryption_key",
+                &hex::encode(attachment_metadata.encryption_key()),
+            )
+            .append_pair("nonce", &hex::encode(attachment_metadata.nonce()));
+
+        Ok(log_browse_url.to_string())
     }
 }
 
@@ -625,11 +638,4 @@ impl CubitContext {
 #[frb(mirror(InviteUsersError))]
 enum _InviteUsersError {
     IncompatibleClient { reason: String },
-}
-
-#[frb(dart_metadata = ("freezed"))]
-#[derive(Debug, Clone, Default, Eq, PartialEq, Hash)]
-pub struct DebugLogsDownloadInfo {
-    pub download_url: String,
-    pub encryption_key: String,
 }

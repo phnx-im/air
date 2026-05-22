@@ -1,0 +1,246 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Air Debug Logs</title>
+  <style>
+    :root {
+      --bg:  #1e1e1e;
+      --bg2: #252526;
+      --bg3: #2d2d30;
+      --fg:  #d4d4d4;
+      --dim: #6a6a6a;
+      --red: #f44747;
+      --accent: #4ec9b0;
+    }
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    body { background: var(--bg); color: var(--fg); font-family: monospace; font-size: 13px; height: 100dvh; display: flex; flex-direction: column; }
+
+    header { padding: 10px 16px; background: var(--bg2); border-bottom: 1px solid var(--bg3); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
+    header h1 { font-size: 13px; font-weight: normal; color: var(--accent); }
+    #header-status { color: var(--dim); font-size: 12px; }
+
+    #status-screen { padding: 20px 16px; }
+    #status-screen.error { color: var(--red); }
+
+    .tabs { display: flex; background: var(--bg2); border-bottom: 1px solid var(--bg3); flex-shrink: 0; }
+    .tab { padding: 7px 16px; cursor: pointer; border-bottom: 2px solid transparent; font-size: 12px; color: var(--dim); user-select: none; }
+    .tab.active { border-bottom-color: var(--accent); color: var(--fg); }
+    .tab:hover:not(.active) { color: var(--fg); }
+
+    #panels { flex: 1; overflow: hidden; position: relative; }
+    .log-panel { display: none; position: absolute; inset: 0; overflow: auto; padding: 12px 16px; white-space: pre; line-height: 1.55; }
+    .log-panel.active { display: block; }
+    .empty-note { color: var(--dim); font-style: italic; }
+
+    /* ANSI SGR */
+    .b { font-weight: bold; }
+    .d { opacity: 0.55; }
+    .i { font-style: italic; }
+    .u { text-decoration: underline; }
+    .c30 { color: #555;     } .c31 { color: #f44747; } .c32 { color: #6a9955; }
+    .c33 { color: #dcdcaa; } .c34 { color: #569cd6; } .c35 { color: #c586c0; }
+    .c36 { color: #4ec9b0; } .c37 { color: #d4d4d4; }
+    .c90 { color: #6a6a6a; } .c91 { color: #f44747; } .c92 { color: #4ec9b0; }
+    .c93 { color: #dcdcaa; } .c94 { color: #569cd6; } .c95 { color: #c586c0; }
+    .c96 { color: #4ec9b0; } .c97 { color: #fff;     }
+  </style>
+  <script src="https://cdn.jsdelivr.net/npm/pako@2.1.0/dist/pako.min.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/js-untar@2.0.0/build/dist/untar.js"></script>
+</head>
+<body>
+  <header>
+    <h1>Air Debug Logs</h1>
+    <span id="header-status"></span>
+  </header>
+  <div id="status-screen">Loading…</div>
+
+  <script>
+  (async () => {
+    const statusScreen = document.getElementById('status-screen');
+    const headerStatus = document.getElementById('header-status');
+
+    function fail(msg) {
+      statusScreen.textContent = msg;
+      statusScreen.className = 'error';
+    }
+
+    // 1. URL params
+    const params = new URLSearchParams(location.search);
+    const objectEncoded = params.get('object');
+    const keyHex        = params.get('encryption_key');
+    const nonceHex      = params.get('nonce');
+
+    if (!objectEncoded || !keyHex || !nonceHex) {
+      fail('Missing required URL parameters: object, encryption_key, nonce');
+      return;
+    }
+
+    // 2. Decode base64url to download URL
+    function fromBase64Url(str) {
+      const b64 = str.replace(/-/g, '+').replace(/_/g, '/');
+      const rem = b64.length % 4;
+      const padded = rem ? b64 + '='.repeat(4 - rem) : b64;
+      return atob(padded);
+    }
+
+    let downloadUrl;
+    try { downloadUrl = fromBase64Url(objectEncoded); }
+    catch (e) { fail(`Bad object parameter: ${e.message}`); return; }
+
+    // 3. Fetch
+    statusScreen.textContent = 'Downloading…';
+    let ciphertext;
+    try {
+      const r = await fetch(downloadUrl);
+      if (!r.ok) throw new Error(`HTTP ${r.status} ${r.statusText}`);
+      ciphertext = await r.arrayBuffer();
+    } catch (e) {
+      fail(`Download failed: ${e.message}`);
+      return;
+    }
+
+    // 4. AES-256-GCM decrypt
+    statusScreen.textContent = 'Decrypting…';
+    function hexToBytes(h) {
+      const b = new Uint8Array(h.length >> 1);
+      for (let i = 0; i < b.length; i++) b[i] = parseInt(h.slice(i * 2, i * 2 + 2), 16);
+      return b;
+    }
+
+    let plaintext;
+    try {
+      const key = await crypto.subtle.importKey(
+        'raw', hexToBytes(keyHex), { name: 'AES-GCM' }, false, ['decrypt']
+      );
+      plaintext = await crypto.subtle.decrypt(
+        { name: 'AES-GCM', iv: hexToBytes(nonceHex) },
+        key, ciphertext
+      );
+    } catch (e) {
+      fail(`Decryption failed: wrong key/nonce? (${e.message})`);
+      return;
+    }
+
+    // 5. TLS VLBytes deserialization
+    // The plaintext is a tls_codec VLBytes: variable-length prefix + raw bytes.
+    // Prefix encoding (high 2 bits of first byte):
+    //   00 to 1-byte prefix, value = low 6 bits
+    //   01 to 2-byte prefix, value = low 14 bits
+    //   10 to 4-byte prefix, value = low 30 bits
+    function vlBytesPayload(buf) {
+      const v = new DataView(buf);
+      const first = v.getUint8(0);
+      const tag   = (first >> 6) & 0x3;
+      let length, offset;
+      if (tag === 0)      { length = first & 0x3f;                                                                                       offset = 1; }
+      else if (tag === 1) { length = ((first & 0x3f) << 8) | v.getUint8(1);                                                              offset = 2; }
+      else if (tag === 2) { length = (first & 0x3f) * 0x1000000 + (v.getUint8(1) << 16) + (v.getUint8(2) << 8) + v.getUint8(3);         offset = 4; }
+      else                { throw new Error('8-byte VLBytes length not supported'); }
+      return new Uint8Array(buf, offset, length);
+    }
+
+    let tarGz;
+    try { tarGz = vlBytesPayload(plaintext); }
+    catch (e) { fail(`TLS deserialization failed: ${e.message}`); return; }
+
+    // 6. Gzip decompress
+    statusScreen.textContent = 'Decompressing…';
+    let tarData;
+    try { tarData = pako.ungzip(tarGz); }
+    catch (e) { fail(`Decompression failed: ${e.message}`); return; }
+
+    // 7. Tar extraction
+    const dec = new TextDecoder('utf-8', { fatal: false });
+    let tarEntries;
+    try { tarEntries = await untar(tarData.buffer); }
+    catch (e) { fail(`Tar extraction failed: ${e.message}`); return; }
+
+    const files = tarEntries
+      .filter(e => e.type === '0' || e.type === '\0' || e.type === '')
+      .map(e => ({ name: e.name, text: dec.decode(e.buffer) }));
+    if (files.length === 0) { fail('No files found in archive'); return; }
+
+    // 8. ANSI to HTML
+    function ansiToHtml(text) {
+      const esc  = { '&': '&amp;', '<': '&lt;', '>': '&gt;' };
+      const ANSI = /\x1b\[([0-9;]*)m/g;
+      let html  = '';
+      let depth = 0;
+      let last  = 0;
+
+      let m;
+      while ((m = ANSI.exec(text)) !== null) {
+        // Emit literal text before this escape
+        html += text.slice(last, m.index).replace(/[&<>]/g, c => esc[c]);
+        last  = m.index + m[0].length;
+
+        const codes = m[1] === '' ? [0] : m[1].split(';').map(Number);
+        for (const code of codes) {
+          if (code === 0) {
+            if (depth > 0) { html += '</span>'.repeat(depth); depth = 0; }
+          } else {
+            let cls = null;
+            if      (code === 1)                         cls = 'b';
+            else if (code === 2)                         cls = 'd';
+            else if (code === 3)                         cls = 'i';
+            else if (code === 4)                         cls = 'u';
+            else if (code >= 30 && code <= 37)           cls = `c${code}`;
+            else if (code >= 90 && code <= 97)           cls = `c${code}`;
+            if (cls) { html += `<span class="${cls}">`; depth++; }
+          }
+        }
+      }
+
+      html += text.slice(last).replace(/[&<>]/g, c => esc[c]);
+      if (depth > 0) html += '</span>'.repeat(depth);
+      return html;
+    }
+
+    // 9. Render
+    statusScreen.remove();
+    headerStatus.textContent = `${files.length} file${files.length !== 1 ? 's' : ''}`;
+
+    const tabBar = document.createElement('div');
+    tabBar.className = 'tabs';
+    document.body.appendChild(tabBar);
+
+    const panelsEl = document.createElement('div');
+    panelsEl.id = 'panels';
+    document.body.appendChild(panelsEl);
+
+    files.forEach((file, idx) => {
+      const label = file.name.replace(/^.*\//, '') || file.name;
+
+      const tab = document.createElement('div');
+      tab.className = 'tab' + (idx === 0 ? ' active' : '');
+      tab.textContent = label;
+      tabBar.appendChild(tab);
+
+      const panel = document.createElement('div');
+      panel.className = 'log-panel' + (idx === 0 ? ' active' : '');
+
+      if (file.text.trim() === '') {
+        panel.innerHTML = '<span class="empty-note">(empty)</span>';
+      } else {
+        panel.innerHTML = ansiToHtml(file.text);
+      }
+      panelsEl.appendChild(panel);
+
+      tab.addEventListener('click', () => {
+        tabBar.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        panelsEl.querySelectorAll('.log-panel').forEach(p => p.classList.remove('active'));
+        tab.classList.add('active');
+        panel.classList.add('active');
+      });
+    });
+
+  })().catch(err => {
+    const el = document.getElementById('status-screen') || document.body;
+    el.textContent = `Unexpected error: ${err.message}`;
+    el.className = 'error';
+  });
+  </script>
+</body>
+</html>

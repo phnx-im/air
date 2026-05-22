@@ -90,7 +90,7 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
   String get codegenVersion => '2.12.0';
 
   @override
-  int get rustContentHash => 1671049540;
+  int get rustContentHash => 1569803574;
 
   static const kDefaultExternalLibraryLoaderConfig =
       ExternalLibraryLoaderConfig(
@@ -623,7 +623,7 @@ abstract class RustLibApi extends BaseApi {
     required UiUserId userId,
   });
 
-  Future<DebugLogsDownloadInfo> crateApiUserCubitUserCubitBaseUploadLogs({
+  Future<String> crateApiUserCubitUserCubitBaseUploadLogs({
     required UserCubitBase that,
     required String cacheDir,
   });
@@ -767,8 +767,6 @@ abstract class RustLibApi extends BaseApi {
   Future<void> crateApiLoggingClearBackgroundLogs({required String cacheDir});
 
   Stream<LogEntry> crateApiLoggingCreateLogStream();
-
-  Future<DebugLogsDownloadInfo> crateApiUserCubitDebugLogsDownloadInfoDefault();
 
   Future<void> crateApiUtilsDeleteClientDatabase({
     required String dbPath,
@@ -5219,7 +5217,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       );
 
   @override
-  Future<DebugLogsDownloadInfo> crateApiUserCubitUserCubitBaseUploadLogs({
+  Future<String> crateApiUserCubitUserCubitBaseUploadLogs({
     required UserCubitBase that,
     required String cacheDir,
   }) {
@@ -5240,7 +5238,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           );
         },
         codec: SseCodec(
-          decodeSuccessData: sse_decode_debug_logs_download_info,
+          decodeSuccessData: sse_decode_String,
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiUserCubitUserCubitBaseUploadLogsConstMeta,
@@ -6583,37 +6581,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       const TaskConstMeta(debugName: "create_log_stream", argNames: ["s"]);
 
   @override
-  Future<DebugLogsDownloadInfo>
-  crateApiUserCubitDebugLogsDownloadInfoDefault() {
-    return handler.executeNormal(
-      NormalTask(
-        callFfi: (port_) {
-          final serializer = SseSerializer(generalizedFrbRustBinding);
-          pdeCallFfi(
-            generalizedFrbRustBinding,
-            serializer,
-            funcId: 149,
-            port: port_,
-          );
-        },
-        codec: SseCodec(
-          decodeSuccessData: sse_decode_debug_logs_download_info,
-          decodeErrorData: null,
-        ),
-        constMeta: kCrateApiUserCubitDebugLogsDownloadInfoDefaultConstMeta,
-        argValues: [],
-        apiImpl: this,
-      ),
-    );
-  }
-
-  TaskConstMeta get kCrateApiUserCubitDebugLogsDownloadInfoDefaultConstMeta =>
-      const TaskConstMeta(
-        debugName: "debug_logs_download_info_default",
-        argNames: [],
-      );
-
-  @override
   Future<void> crateApiUtilsDeleteClientDatabase({
     required String dbPath,
     required UiUserId userId,
@@ -6627,7 +6594,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 150,
+            funcId: 149,
             port: port_,
           );
         },
@@ -6658,7 +6625,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 151,
+            funcId: 150,
             port: port_,
           );
         },
@@ -6686,7 +6653,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 152,
+            funcId: 151,
             port: port_,
           );
         },
@@ -6717,7 +6684,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 153,
+            funcId: 152,
             port: port_,
           );
         },
@@ -6745,7 +6712,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 154,
+            funcId: 153,
           )!;
         },
         codec: SseCodec(
@@ -6775,7 +6742,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 155,
+            funcId: 154,
           )!;
         },
         codec: SseCodec(
@@ -6806,7 +6773,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 156,
+            funcId: 155,
             port: port_,
           );
         },
@@ -6839,7 +6806,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 157,
+            funcId: 156,
             port: port_,
           );
         },
@@ -6867,7 +6834,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 158,
+            funcId: 157,
             port: port_,
           );
         },
@@ -6902,7 +6869,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 159,
+            funcId: 158,
             port: port_,
           );
         },
@@ -6935,7 +6902,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 160,
+            funcId: 159,
             port: port_,
           );
         },
@@ -6968,7 +6935,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 161,
+            funcId: 160,
           )!;
         },
         codec: SseCodec(
@@ -6997,7 +6964,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 162,
+            funcId: 161,
             port: port_,
           );
         },
@@ -7027,7 +6994,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 163,
+            funcId: 162,
             port: port_,
           );
         },
@@ -7055,7 +7022,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 164,
+            funcId: 163,
             port: port_,
           );
         },
@@ -7085,7 +7052,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 165,
+            funcId: 164,
             port: port_,
           );
         },
@@ -7112,7 +7079,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 166,
+            funcId: 165,
             port: port_,
           );
         },
@@ -7140,7 +7107,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 167,
+            funcId: 166,
             port: port_,
           );
         },
@@ -7170,7 +7137,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 168,
+            funcId: 167,
           )!;
         },
         codec: SseCodec(
@@ -7203,7 +7170,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           return pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
-            funcId: 169,
+            funcId: 168,
           )!;
         },
         codec: SseCodec(
@@ -8730,18 +8697,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       extensions: dco_decode_list_String(arr[4]),
       proposals: dco_decode_list_String(arr[5]),
       appData: dco_decode_opt_box_autoadd_app_data_debug_info(arr[6]),
-    );
-  }
-
-  @protected
-  DebugLogsDownloadInfo dco_decode_debug_logs_download_info(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 2)
-      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
-    return DebugLogsDownloadInfo(
-      downloadUrl: dco_decode_String(arr[0]),
-      encryptionKey: dco_decode_String(arr[1]),
     );
   }
 
@@ -11703,19 +11658,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       extensions: var_extensions,
       proposals: var_proposals,
       appData: var_appData,
-    );
-  }
-
-  @protected
-  DebugLogsDownloadInfo sse_decode_debug_logs_download_info(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_downloadUrl = sse_decode_String(deserializer);
-    var var_encryptionKey = sse_decode_String(deserializer);
-    return DebugLogsDownloadInfo(
-      downloadUrl: var_downloadUrl,
-      encryptionKey: var_encryptionKey,
     );
   }
 
@@ -15393,16 +15335,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_debug_logs_download_info(
-    DebugLogsDownloadInfo self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_String(self.downloadUrl, serializer);
-    sse_encode_String(self.encryptionKey, serializer);
-  }
-
-  @protected
   void sse_encode_delete_mode(DeleteMode self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_i_32(self.index, serializer);
@@ -18058,11 +17990,8 @@ class UserCubitBaseImpl extends RustOpaque implements UserCubitBase {
       .api
       .crateApiUserCubitUserCubitBaseUnblockContact(that: this, userId: userId);
 
-  Future<DebugLogsDownloadInfo> uploadLogs({required String cacheDir}) =>
-      RustLib.instance.api.crateApiUserCubitUserCubitBaseUploadLogs(
-        that: this,
-        cacheDir: cacheDir,
-      );
+  Future<String> uploadLogs({required String cacheDir}) => RustLib.instance.api
+      .crateApiUserCubitUserCubitBaseUploadLogs(that: this, cacheDir: cacheDir);
 }
 
 @sealed

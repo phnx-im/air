@@ -480,8 +480,12 @@ pub struct AttachmentMetadata {
 }
 
 impl AttachmentMetadata {
-    pub fn encryption_key_hex(&self) -> String {
-        hex::encode(self.key.as_bytes())
+    pub fn encryption_key(&self) -> &[u8] {
+        self.key.as_bytes()
+    }
+
+    pub fn nonce(&self) -> &[u8; 12] {
+        &self.nonce
     }
 }
 

@@ -113,7 +113,7 @@ class UserCubit implements StateStreamableSource<UiUser> {
   Future<intArray12> safetyCodes(UiUserId userId) =>
       _impl.safetyCodes(otherUserId: userId);
 
-  Future<DebugLogsDownloadInfo> uploadLogs() async {
+  Future<String> uploadLogs() async {
     final cacheDir = await getCacheDirectory();
     return _impl.uploadLogs(cacheDir: cacheDir);
   }

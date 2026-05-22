@@ -19,7 +19,7 @@ part 'user_cubit.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `core_user`, `emit_stored_notifications`, `new`, `notification_service`, `show_notifications`, `spawn_emit_stored_notifications`, `spawn_load`
 // These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `CubitContext`, `NotificationContext`, `UiUserInner`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `drop`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `hash`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `drop`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`
 
 class intArray12 extends NonGrowableListView<int> {
   static const arraySize = 12;
@@ -118,21 +118,10 @@ abstract class UserCubitBase implements RustOpaqueInterface {
 
   Future<void> unblockContact({required UiUserId userId});
 
-  Future<DebugLogsDownloadInfo> uploadLogs({required String cacheDir});
+  Future<String> uploadLogs({required String cacheDir});
 }
 
 enum AppState { mobileBackground, desktopBackground, foreground }
-
-@freezed
-sealed class DebugLogsDownloadInfo with _$DebugLogsDownloadInfo {
-  const DebugLogsDownloadInfo._();
-  const factory DebugLogsDownloadInfo({
-    required String downloadUrl,
-    required String encryptionKey,
-  }) = _DebugLogsDownloadInfo;
-  static Future<DebugLogsDownloadInfo> default_() =>
-      RustLib.instance.api.crateApiUserCubitDebugLogsDownloadInfoDefault();
-}
 
 @freezed
 sealed class InviteUsersError with _$InviteUsersError {

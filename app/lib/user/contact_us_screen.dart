@@ -108,9 +108,27 @@ class _EmailForm extends HookWidget {
   Widget build(BuildContext context) {
     final body = useState(initialBody ?? "");
     final selectedSubject = useState<String?>(initialSubject);
-    final includeLogs = useState(false);
     final isUploadingLogs = useState(false);
-    final uploadedLogs = useState<DebugLogsDownloadInfo?>(null);
+    final debugLogsUrl = useState<String?>(null);
+
+    Future<void> onToggleLogs() async {
+      if (debugLogsUrl.value != null) {
+        debugLogsUrl.value = null;
+        return;
+      }
+      isUploadingLogs.value = true;
+      try {
+        debugLogsUrl.value = await context.read<UserCubit>().uploadLogs();
+      } catch (e) {
+        _log.severe("Failed to upload logs: $e", e);
+        showErrorBannerStandalone(
+          (loc) => loc.contactUsScreen_errorUploadingLogs,
+        );
+        debugLogsUrl.value = null;
+      } finally {
+        isUploadingLogs.value = false;
+      }
+    }
 
     final loc = AppLocalizations.of(context);
 
@@ -163,9 +181,7 @@ class _EmailForm extends HookWidget {
 
             // Include logs checkbox
             GestureDetector(
-              onTap: isUploadingLogs.value
-                  ? null
-                  : () => includeLogs.value = !includeLogs.value,
+              onTap: isUploadingLogs.value ? null : onToggleLogs,
               child: Row(
                 children: [
                   if (isUploadingLogs.value)
@@ -182,29 +198,10 @@ class _EmailForm extends HookWidget {
                     )
                   else
                     Checkbox(
-                      value: uploadedLogs.value != null,
-                      onChanged: (value) async {
-                        if (value == true) {
-                          isUploadingLogs.value = true;
-                          try {
-                            final downloadInfo = await context
-                                .read<UserCubit>()
-                                .uploadLogs();
-                            uploadedLogs.value = downloadInfo;
-                          } catch (e) {
-                            _log.severe("Failed to upload logs: $e", e);
-                            showErrorBannerStandalone(
-                              (loc) => loc.contactUsScreen_errorUploadingLogs,
-                            );
-                            isUploadingLogs.value = false;
-                            uploadedLogs.value = null;
-                            return;
-                          }
-                          isUploadingLogs.value = false;
-                        } else {
-                          uploadedLogs.value = null;
-                        }
-                      },
+                      value: debugLogsUrl.value != null,
+                      onChanged: isUploadingLogs.value
+                          ? null
+                          : (_) => onToggleLogs(),
                     ),
                   Text(loc.contactUsScreen_includeLogs),
                 ],
@@ -235,7 +232,7 @@ class _EmailForm extends HookWidget {
                             context,
                             selectedSubject.value,
                             body.value,
-                            uploadedLogs.value,
+                            debugLogsUrl.value,
                           );
                         }
                       },
@@ -265,12 +262,11 @@ class _EmailForm extends HookWidget {
     BuildContext context,
     String? subject,
     String body,
-    DebugLogsDownloadInfo? uploadedLogs,
+    String? debugLogsUrl,
   ) async {
-    if (uploadedLogs != null) {
-      body +=
-          "\n\n- Debug logs URL: ${Uri.encodeComponent(uploadedLogs.downloadUrl)}";
-      body += "\n- Debug logs encryption key: ${uploadedLogs.encryptionKey}";
+    if (debugLogsUrl != null) {
+      debugPrint(debugLogsUrl);
+      body += "\n\n- View debug logs URL: ${Uri.encodeComponent(debugLogsUrl)}";
     }
     final Uri emailUri = Uri.parse(
       'mailto:help@air.ms?subject=$subject&body=$body',
