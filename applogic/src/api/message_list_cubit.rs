@@ -606,18 +606,20 @@ impl MessageListCubitBase {
 
     pub async fn transitions(&self, sink: StreamSink<MessageListTransition>) {
         let mut rx = self.transitions_tx.subscribe();
+        let stop = self.core.cancellation_token().clone();
         self.subscribed.notify_one();
         loop {
-            match rx.recv().await {
-                Ok(transition) => {
+            match stop.run_until_cancelled(rx.recv()).await {
+                None => break, // Cancelled
+                Some(Ok(transition)) => {
                     if sink.add(transition).is_err() {
                         break;
                     }
                 }
-                Err(broadcast::error::RecvError::Lagged(n)) => {
+                Some(Err(broadcast::error::RecvError::Lagged(n))) => {
                     warn!(skipped = n, "Transition receiver lagged");
                 }
-                Err(broadcast::error::RecvError::Closed) => break,
+                Some(Err(broadcast::error::RecvError::Closed)) => break,
             }
         }
     }
