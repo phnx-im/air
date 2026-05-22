@@ -77,6 +77,7 @@ class ChatDetailsScreenView extends StatelessWidget {
                     title: chat.title,
                     loadDebugInfo: () => chatDetailsCubit.chatDebugInfo(),
                     onUpdateGroup: () => chatDetailsCubit.updateKey(),
+                    onUpdateApqGroup: () => chatDetailsCubit.updateApqKey(),
                     onRequestResync: () => chatDetailsCubit.requestResync(),
                     onEraseLocalChat: () => userCubit.devEraseChat(chat.id),
                   ),
