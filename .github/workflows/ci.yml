@@ -66,6 +66,7 @@ jobs:
       - run: just ${{ matrix.just }}
 
   flutter:
+    name: Flutter tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
