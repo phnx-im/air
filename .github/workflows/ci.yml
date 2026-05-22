@@ -107,7 +107,7 @@ jobs:
 
       - name: Build cargo test binaries
         run: |
-          cargo nextest archive --archive-file cargo-tests.tar.zst
+          cargo nextest archive --cargo-profile ci --archive-file cargo-tests.tar.zst
 
       - uses: actions/upload-artifact@v7
         with:
