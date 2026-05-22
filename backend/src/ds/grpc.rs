@@ -1058,7 +1058,7 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
         let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
-        let (timestamp, destination_clients, group_message, individual_fan_out_messages) = self
+        let (destination_clients, fan_out_payload, individual_fan_out_messages) = self
             .update_group_state(request, None, async |verification_data| {
                 let LeafVerificationData::<'_, GroupOperationPayload, true> {
                     ear_key,
@@ -1086,22 +1086,23 @@ impl<Qep: QsConnector> DeliveryService for GrpcDs<Qep> {
 
                 group_state.proposals.clear();
 
-                let timestamp = TimeStamp::now();
-                let commit_response =
-                    group_state.create_commit_response(sender_index, timestamp)?;
+                let fan_out_payload: DsFanOutPayload = group_message.into();
+
+                let commit_response = group_state
+                    .create_commit_response(sender_index, fan_out_payload.timestamp())?;
                 individual_fan_out_messages.push(commit_response);
 
                 Ok((
-                    timestamp,
                     destination_clients,
-                    group_message,
+                    fan_out_payload,
                     individual_fan_out_messages,
                 ))
             })
             .await?;
 
         // Fan out the commit message to existing members
-        self.fan_out_message_without_notifications(group_message, destination_clients)
+        let timestamp = self
+            .fan_out_message_without_notifications(fan_out_payload, destination_clients)
             .await;
 
         // Dispatch individual fan out messages to new members
