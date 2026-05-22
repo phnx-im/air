@@ -1857,6 +1857,21 @@ mod test_utils {
         ) -> sqlx::Result<()> {
             Chat::set_self_updated_at(self.db().write().await?, chat_id, self_updated_at).await
         }
+
+        pub async fn pq_self_updated_at(
+            &self,
+            chat_id: ChatId,
+        ) -> sqlx::Result<Option<DateTime<Utc>>> {
+            Chat::pq_self_updated_at(self.db().read().await?, chat_id).await
+        }
+
+        pub async fn set_pq_self_updated_at(
+            &self,
+            chat_id: ChatId,
+            self_updated_at: DateTime<Utc>,
+        ) -> sqlx::Result<()> {
+            Chat::set_pq_self_updated_at(self.db().write().await?, chat_id, self_updated_at).await
+        }
     }
 }
 
