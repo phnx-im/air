@@ -166,3 +166,8 @@ hpke-rs-rust-crypto = { git = "https://github.com/cryspen/hpke-rs", rev = "42f9b
 strip = true
 lto = true
 codegen-units = 1
+
+[profile.ci]
+inherits = "test"
+debug = 0
+strip = "symbols"

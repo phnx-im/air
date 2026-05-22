@@ -51,6 +51,10 @@ check-cargo-deny:
     cargo deny fetch && cargo deny check
 
 [group('check')]
+check-cargo-machete:
+    cargo machete
+
+[group('check')]
 check-dart:
     just flutter pub get
     just dart format . -o none --set-exit-if-changed
@@ -120,9 +124,9 @@ regenerate-icons:
 
 # Run cargo build, clippy and test.
 @test-rust: start-docker-compose
-    just _check-status "cargo clippy --locked --all-targets"
-    just _check-status "cargo test --locked"
-    just _check-status "just test-rust-apq-groups"
+    cargo clippy --locked --all-targets
+    cargo test --locked
+    just test-rust-apq-groups
 
 # Run pre-compiled integration tests with APQ groups enabled
 @test-rust-apq-groups:

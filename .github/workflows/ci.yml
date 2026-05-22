@@ -28,11 +28,11 @@ jobs:
       matrix:
         include:
           - check: app-resources
-          - check: cargo-clippy
           - check: cargo-deny
             cargo-binstall-tools: cargo-deny@0.19.0
           - check: cargo-machete
             cargo-binstall-tools: cargo-machete@0.9.1
+          - check: clippy
           - check: dart
           - check: frb
             cargo-binstall-tools: cargo-expand flutter_rust_bridge_codegen@2.12.0
@@ -79,7 +79,8 @@ jobs:
           name: golden-failures
           path: app/test/**/failures/*
 
-  rust:
+  rust-build-tests:
+    name: Build Rust tests
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -92,8 +93,55 @@ jobs:
       - name: Setup build environment
         uses: ./.github/actions/setup-buildenv
         with:
-          pypi-packages: podman-compose~=1.5
+          # pypi-packages: podman-compose~=1.5
+          cargo-binstall-tools: cargo-nextest
           flutter: false
 
-      - name: Rust tests
-        run: just test-rust
+      - name: Build cargo test binaries
+        run: |
+          cargo nextest archive --test integration --archive-file cargo-tests.tar.zst
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: test-binaries
+          path: cargo-tests.tar.zst
+
+  rust-tests:
+    name: Run Rust ${{ matrix.job-name }}
+    needs: rust-build-tests
+    
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+
+    strategy:
+      matrix:
+        include:
+          - job-name: integration tests
+            nextest-args: --test integration
+          - job-name: integration tests (with APQ groups)
+            nextest-args: --test integration
+            nextest-env: TEST_WITH_APQ_GROUPS=true
+          - job-name: unit tests
+            nextest-args: --exclude integration
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 1
+          filter: blob:none
+
+      - uses: actions/download-artifact@v8
+        with:
+          name: test-binaries
+
+      - name: Setup cargo binstall
+        uses: cargo-bins/cargo-binstall@v1.19.0
+
+      - name: Install cargo-nextest
+        run: cargo binstall --no-confirm cargo-nextest
+
+      - name: Build cargo test binaries
+        run: |
+          cargo nextest run --archive-file cargo-tests.tar.zst
+
