@@ -17,7 +17,7 @@ import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import androidx.core.app.ActivityCompat
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.google.android.gms.tasks.Task
 import com.google.firebase.messaging.FirebaseMessaging
@@ -35,7 +35,6 @@ import java.lang.ref.WeakReference
 class MainActivity : FlutterActivity() {
     companion object {
         private const val CHANNEL_NAME: String = "ms.air/channel"
-        private const val REQUEST_CODE_POST_NOTIFICATIONS = 1000
         private const val APP_DIR_NAME: String = "Air"
 
         @Volatile
@@ -46,12 +45,18 @@ class MainActivity : FlutterActivity() {
 
     private var channel: MethodChannel? = null
 
+    private var pendingNotificationPermissionResult: MethodChannel.Result? = null
+
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            pendingNotificationPermissionResult?.success(granted)
+            pendingNotificationPermissionResult = null
+        }
 
     private var pendingInitialNotification: Map<String, String?>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        requestNotificationPermissionIfNeeded()
 
         // We store a potential notification tap event, so it can be delivered
         // once the Flutter engine is ready.
@@ -176,6 +181,10 @@ class MainActivity : FlutterActivity() {
                     }
                 }
 
+                "requestNotificationPermission" -> {
+                    handleNotificationPermissionRequest(result)
+                }
+
                 "getClipboardImage" -> {
                     val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     val clip = clipboard.primaryClip
@@ -216,8 +225,10 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun requestNotificationPermissionIfNeeded() {
+    private fun handleNotificationPermissionRequest(result: MethodChannel.Result) {
+        // Pre-Android 13 grants the permission at install time.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            result.success(true)
             return
         }
 
@@ -227,14 +238,21 @@ class MainActivity : FlutterActivity() {
         ) == PackageManager.PERMISSION_GRANTED
 
         if (hasPermission) {
+            result.success(true)
             return
         }
 
-        ActivityCompat.requestPermissions(
-            this,
-            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-            REQUEST_CODE_POST_NOTIFICATIONS
-        )
+        if (pendingNotificationPermissionResult != null) {
+            result.error(
+                "ALREADY_PENDING",
+                "A notification permission request is already in flight",
+                null
+            )
+            return
+        }
+
+        pendingNotificationPermissionResult = result
+        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     private fun saveFile(

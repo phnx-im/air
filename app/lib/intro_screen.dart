@@ -93,7 +93,7 @@ class IntroScreen extends StatelessWidget {
                                   ),
                                 ),
                             onPressed: () async {
-                              await requestNotificationPermissionsIfNeeded();
+                              await requestNotificationPermission();
                               if (!context.mounted) return;
                               context.read<NavigationCubit>().openSignUp();
                             },
