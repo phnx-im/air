@@ -228,13 +228,37 @@ private let kStoreNotificationsPendingName =
                         details: nil))
             }
         } else if call.method == "getClipboardImage" {
-            if let image = UIPasteboard.general.image,
-                let data = image.jpegData(compressionQuality: 0.99)
-            {
-                result(FlutterStandardTypedData(bytes: data))
-            } else {
-                result(nil)
+            let pasteboard = UIPasteboard.general
+            // Animated formats and formats image-rs supports are passed to Rust
+            // directly.
+            let preferred: [(uti: String, mime: String)] = [
+                ("com.compuserve.gif", "image/gif"),
+                ("org.webmproject.webp", "image/webp"),
+                ("public.png", "image/png"),
+                ("public.jpeg", "image/jpeg"),
+            ]
+            var payload: [String: Any]?
+            for (uti, mime) in preferred {
+                if let data = pasteboard.data(forPasteboardType: uti) {
+                    payload = [
+                        "bytes": FlutterStandardTypedData(bytes: data),
+                        "mimeType": mime,
+                    ]
+                    break
+                }
             }
+            // Fallback for HEIC and other formats UIImage decodes but the
+            // Rust image crate does not.
+            if payload == nil,
+                let image = pasteboard.image,
+                let png = image.pngData()
+            {
+                payload = [
+                    "bytes": FlutterStandardTypedData(bytes: png),
+                    "mimeType": "image/png",
+                ]
+            }
+            result(payload)
         } else if call.method == "beginBackgroundTask" {
             let taskId = self.beginBackgroundTask()
             result(Int(taskId.rawValue))
