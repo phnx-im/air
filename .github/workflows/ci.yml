@@ -143,7 +143,7 @@ jobs:
         with:
           name: test-binaries
 
-      - name: Setup build envionment
+      - name: Setup build environment
         uses: ./.github/actions/setup-buildenv
         with:
           cargo-binstall-tools: cargo-nextest
