@@ -4,7 +4,6 @@
 
 list(APPEND FLUTTER_PLUGIN_LIST
   file_selector_windows
-  permission_handler_windows
   share_plus
   system_date_time_format
   url_launcher_windows

@@ -563,6 +563,13 @@ impl CoreUser {
     }
 
     /// Returns None if there is no chat with the given id.
+    pub async fn chat_is_apq(&self, chat_id: ChatId) -> Option<bool> {
+        Chat::load_is_apq(self.db().read().await.ok()?, chat_id)
+            .await
+            .ok()
+    }
+
+    /// Returns None if there is no chat with the given id.
     pub async fn chat_participants(&self, chat_id: ChatId) -> Option<HashSet<UserId>> {
         self.try_chat_participants(chat_id)
             .await

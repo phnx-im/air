@@ -11179,6 +11179,7 @@ impl SseDecode for crate::api::types::UiChatDetails {
         let mut var_lastMessage =
             <Option<crate::api::types::UiChatMessage>>::sse_decode(deserializer);
         let mut var_draft = <Option<crate::api::types::UiMessageDraft>>::sse_decode(deserializer);
+        let mut var_isApq = <bool>::sse_decode(deserializer);
         return crate::api::types::UiChatDetails {
             id: var_id,
             status: var_status,
@@ -11188,6 +11189,7 @@ impl SseDecode for crate::api::types::UiChatDetails {
             unread_messages: var_unreadMessages,
             last_message: var_lastMessage,
             draft: var_draft,
+            is_apq: var_isApq,
         };
     }
 }
@@ -13723,6 +13725,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiChatDetails {
             self.unread_messages.into_into_dart().into_dart(),
             self.last_message.into_into_dart().into_dart(),
             self.draft.into_into_dart().into_dart(),
+            self.is_apq.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -16517,6 +16520,7 @@ impl SseEncode for crate::api::types::UiChatDetails {
         <usize>::sse_encode(self.unread_messages, serializer);
         <Option<crate::api::types::UiChatMessage>>::sse_encode(self.last_message, serializer);
         <Option<crate::api::types::UiMessageDraft>>::sse_encode(self.draft, serializer);
+        <bool>::sse_encode(self.is_apq, serializer);
     }
 }
 
