@@ -35,7 +35,7 @@ mod persistence {
 
     use crate::{
         clients::attachment::persistence::PendingAttachmentRecord,
-        db_access::{WriteConnection, WriteDbTransaction},
+        db::access::{WriteConnection, WriteDbTransaction},
     };
 
     use super::*;
