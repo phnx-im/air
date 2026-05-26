@@ -25,11 +25,10 @@ use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
     chats::{GroupDataExt, messages::TimestampedMessage},
     clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
-    contacts::ContactAddInfos,
     db_access::{WriteConnection, WriteDbTransaction},
     groups::{
-        Group, GroupDataBytes, VerifiedGroup, client_auth_info::StorableClientCredential,
-        handle_group_not_found_on_ds,
+        Group, GroupDataBytes, PreparedInvitee, VerifiedGroup,
+        client_auth_info::StorableClientCredential, handle_group_not_found_on_ds,
     },
     job::{Job, JobContext, JobError, chat_operation::ChatOperationError},
 };
@@ -631,33 +630,48 @@ impl PendingChatOperation {
             .await?
             .context("Can't find group for chat with id {chat_id:?}")?;
 
-        let mut contact_wai_keys = Vec::with_capacity(new_members.len());
-        let mut contacts = Vec::with_capacity(new_members.len());
-        let mut client_credentials = Vec::with_capacity(new_members.len());
-
+        // Bundle the per-invitee data (contact, client credential) before we
+        // fetch the server-side add info, so that the parallel pieces stay
+        // associated with the same user end-to-end.
+        struct InviteeBuildup {
+            contact: Contact,
+            client_credential: ClientCredential,
+        }
+        let mut buildups = Vec::with_capacity(new_members.len());
         for new_member in &new_members {
-            // Get the WAI keys and client credentials for the invited users.
             let contact = Contact::load(&mut connection, new_member)
                 .await?
                 .with_context(|| format!("Can't find contact {new_member:?}"))?;
-            contact_wai_keys.push(contact.wai_ear_key().clone());
-
-            if let Some(client_credential) =
-                StorableClientCredential::load_by_user_id(&mut connection, new_member).await?
-            {
-                client_credentials.push(ClientCredential::from(client_credential));
-            }
-
-            contacts.push(contact);
+            let client_credential =
+                StorableClientCredential::load_by_user_id(&mut connection, new_member)
+                    .await?
+                    .map(ClientCredential::from)
+                    .with_context(|| {
+                        format!("Can't find client credential for contact {new_member:?}")
+                    })?;
+            buildups.push(InviteeBuildup {
+                contact,
+                client_credential,
+            });
         }
 
-        // Fetch add infos from the server
-        let mut contact_add_infos: Vec<ContactAddInfos> = Vec::with_capacity(contacts.len());
-        for contact in contacts {
+        // Fetch add infos from the server and produce one PreparedInvitee per
+        // entry so the staging API doesn't need parallel vectors.
+        let mut invitees = Vec::with_capacity(buildups.len());
+        for InviteeBuildup {
+            contact,
+            client_credential,
+        } in buildups
+        {
+            let wai_key = contact.wai_ear_key().clone();
             let add_info = contact
                 .fetch_add_infos(&mut connection, api_clients, group.is_apq())
                 .await?;
-            contact_add_infos.push(add_info);
+            invitees.push(PreparedInvitee {
+                add_info,
+                wai_key,
+                client_credential,
+            });
         }
 
         connection
@@ -673,13 +687,7 @@ impl PendingChatOperation {
                 let operation_type = if !group.is_apq() {
                     let params = group
                         .group_mut()
-                        .stage_invite(
-                            &mut *txn,
-                            signer,
-                            contact_add_infos,
-                            contact_wai_keys,
-                            client_credentials,
-                        )?
+                        .stage_invite(&mut *txn, signer, invitees)?
                         // Check if we got a leaf node validation error which is domain specific and should
                         // be propagated to the user.
                         .map_err(|validation| {
@@ -689,13 +697,7 @@ impl PendingChatOperation {
                 } else {
                     let params = group
                         .group_mut()
-                        .stage_apq_invite(
-                            &mut *txn,
-                            signer,
-                            contact_add_infos,
-                            contact_wai_keys,
-                            client_credentials,
-                        )?
+                        .stage_apq_invite(&mut *txn, signer, invitees)?
                         // Check if we got a leaf node validation error which is domain specific and should
                         // be propagated to the user.
                         .map_err(|validation| {

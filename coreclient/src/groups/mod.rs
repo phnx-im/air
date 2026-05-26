@@ -159,6 +159,13 @@ impl From<(ClientCredential, UserProfileKey)> for ProfileInfo {
     }
 }
 
+/// One contact that has been prepared for inviting to a group.
+pub(crate) struct PreparedInvitee {
+    pub(crate) add_info: ContactAddInfos,
+    pub(crate) wai_key: WelcomeAttributionInfoEarKey,
+    pub(crate) client_credential: ClientCredential,
+}
+
 /// Bytes stored in the group data extension.
 #[derive(Debug, PartialEq, Clone)]
 pub(crate) struct GroupDataBytes {
@@ -846,30 +853,28 @@ impl Group {
         &mut self,
         mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
-        // The following three vectors have to be in sync, i.e. of the same length
-        // and refer to the same contacts in order.
-        add_infos: Vec<ContactAddInfos>,
-        wai_keys: Vec<WelcomeAttributionInfoEarKey>,
-        client_credentials: Vec<ClientCredential>,
+        invitees: Vec<PreparedInvitee>,
     ) -> anyhow::Result<Result<GroupOperationParamsOut, LeafNodeValidationError>> {
         debug_assert!(!self.is_apq(), "APQ group in non-APQ stage_invite");
-        debug_assert!(add_infos.len() == wai_keys.len());
-        debug_assert!(add_infos.len() == client_credentials.len());
         // Prepare KeyPackages
 
-        let (key_packages, user_profile_keys): (Vec<ContactKeyPackage>, Vec<UserProfileKey>) =
-            add_infos
-                .into_iter()
-                .map(|ai| (ai.key_package, ai.user_profile_key))
-                .unzip();
-
-        let new_encrypted_user_profile_keys = user_profile_keys
-            .iter()
-            .zip(client_credentials.iter())
-            .map(|(upk, client_credential)| {
-                upk.encrypt(&self.identity_link_wrapper_key, client_credential.user_id())
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut key_packages = Vec::with_capacity(invitees.len());
+        let mut wai_keys = Vec::with_capacity(invitees.len());
+        let mut new_encrypted_user_profile_keys = Vec::with_capacity(invitees.len());
+        for PreparedInvitee {
+            add_info,
+            wai_key,
+            client_credential,
+        } in invitees
+        {
+            new_encrypted_user_profile_keys.push(
+                add_info
+                    .user_profile_key
+                    .encrypt(&self.identity_link_wrapper_key, client_credential.user_id())?,
+            );
+            key_packages.push(add_info.key_package);
+            wai_keys.push(wai_key);
+        }
 
         let aad_message: AadMessage = AadPayload::GroupOperation(GroupOperationParamsAad {
             new_encrypted_user_profile_keys,
@@ -950,30 +955,28 @@ impl Group {
         &mut self,
         mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
-        // The following three vectors have to be in sync, i.e. of the same length
-        // and refer to the same contacts in order.
-        add_infos: Vec<ContactAddInfos>,
-        wai_keys: Vec<WelcomeAttributionInfoEarKey>,
-        client_credentials: Vec<ClientCredential>,
+        invitees: Vec<PreparedInvitee>,
     ) -> anyhow::Result<Result<ApqGroupOperationParamsOut, LeafNodeValidationError>> {
         debug_assert!(self.is_apq(), "Non-APQ group in APQ stage_invite");
-        debug_assert!(add_infos.len() == wai_keys.len());
-        debug_assert!(add_infos.len() == client_credentials.len());
         // Prepare KeyPackages
 
-        let (key_packages, user_profile_keys): (Vec<ContactKeyPackage>, Vec<UserProfileKey>) =
-            add_infos
-                .into_iter()
-                .map(|ai| (ai.key_package, ai.user_profile_key))
-                .unzip();
-
-        let new_encrypted_user_profile_keys = user_profile_keys
-            .iter()
-            .zip(client_credentials.iter())
-            .map(|(upk, client_credential)| {
-                upk.encrypt(&self.identity_link_wrapper_key, client_credential.user_id())
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut key_packages = Vec::with_capacity(invitees.len());
+        let mut wai_keys = Vec::with_capacity(invitees.len());
+        let mut new_encrypted_user_profile_keys = Vec::with_capacity(invitees.len());
+        for PreparedInvitee {
+            add_info,
+            wai_key,
+            client_credential,
+        } in invitees
+        {
+            new_encrypted_user_profile_keys.push(
+                add_info
+                    .user_profile_key
+                    .encrypt(&self.identity_link_wrapper_key, client_credential.user_id())?,
+            );
+            key_packages.push(add_info.key_package);
+            wai_keys.push(wai_key);
+        }
 
         let aad_message: AadMessage = AadPayload::GroupOperation(GroupOperationParamsAad {
             new_encrypted_user_profile_keys,
