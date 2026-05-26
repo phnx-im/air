@@ -32,6 +32,7 @@ final chats = [
   UiChatDetails(
     id: 1.chatId(),
     status: const UiChatStatus.active(),
+    isApq: false,
     chatType: UiChatType_Connection(userProfiles[1]),
     unreadMessages: 10,
     messagesCount: 10,
@@ -61,6 +62,7 @@ final chats = [
   UiChatDetails(
     id: 2.chatId(),
     status: const UiChatStatus.active(),
+    isApq: false,
     chatType: const UiChatType_HandleConnection(
       UiUsername(plaintext: 'eve_03'),
     ),
@@ -95,6 +97,7 @@ final chats = [
   UiChatDetails(
     id: 3.chatId(),
     status: const UiChatStatus.active(),
+    isApq: false,
     chatType: const UiChatType_Group(
       UiChatAttributes(title: 'Group', picture: null),
     ),
@@ -126,6 +129,7 @@ final chats = [
   UiChatDetails(
     id: 4.chatId(),
     status: const UiChatStatus.active(),
+    isApq: false,
     chatType: const UiChatType_Group(
       UiChatAttributes(title: 'Group', picture: null),
     ),
@@ -163,6 +167,7 @@ final chats = [
   UiChatDetails(
     id: 5.chatId(),
     status: const UiChatStatus.blocked(),
+    isApq: false,
     chatType: UiChatType_Connection(userProfiles[3]),
     unreadMessages: 0,
     messagesCount: 10,

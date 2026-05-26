@@ -186,3 +186,16 @@ extension UiMimiContentExtension on UiMimiContent {
 
   bool get isDeleted => replaces != null && content == null;
 }
+
+extension AirFeaturesExtension on AirFeatures {
+  bool isSupported({required bool isApq}) {
+    return encryptedGroupProfiles && (!isApq || pqGroups);
+  }
+}
+
+extension ContactExtension on UiContact {
+  // Returns true if the contact can be added to group chats.
+  bool isSupported({required bool isApq}) {
+    return supportedFeatures?.isSupported(isApq: isApq) ?? false;
+  }
+}
