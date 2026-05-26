@@ -223,6 +223,24 @@ impl Group {
         self.pq.as_ref()
     }
 
+    /// Errors if this group (or its PQ counterpart, for APQ groups) has a
+    /// pending commit. Used by clean loaders to refuse to hand out a
+    /// `Group` whose MLS state has an in-flight commit, since further
+    /// staging on top of one is a logic error.
+    pub(crate) fn ensure_clean(&self) -> Result<()> {
+        ensure!(
+            self.mls_group.pending_commit().is_none(),
+            "Room already had a pending commit"
+        );
+        if let Some(pq) = self.pq.as_ref() {
+            ensure!(
+                pq.mls_group.pending_commit().is_none(),
+                "PQ Room already had a pending commit"
+            );
+        }
+        Ok(())
+    }
+
     /// Returns the [`AirComponent`] from the leaf node of the given member, or `None` if the member
     /// is not in the group.
     pub(crate) fn member_air_component(&self, user_id: &UserId) -> Option<AirComponent> {

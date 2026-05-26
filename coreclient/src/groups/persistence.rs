@@ -11,7 +11,7 @@ use aircommon::{
     identifiers::UserId,
     time::TimeStamp,
 };
-use anyhow::{Result, ensure};
+use anyhow::Result;
 use mimi_room_policy::{RoomState, VerifiedRoomState};
 use openmls::group::{GroupId, MlsGroup, MlsGroupState};
 use openmls::prelude::{LeafNodeIndex, StagedCommit};
@@ -240,20 +240,7 @@ impl Group {
         let Some(group) = Group::load(connection, group_id).await? else {
             return Ok(None);
         };
-
-        ensure!(
-            group.mls_group.pending_commit().is_none(),
-            "Room already had a pending commit"
-        );
-        ensure!(
-            group
-                .pq
-                .as_ref()
-                .map(|pq| pq.mls_group.pending_commit().is_none())
-                .unwrap_or(true),
-            "PQ Room already had a pending commit"
-        );
-
+        group.ensure_clean()?;
         Ok(Some(group))
     }
 
@@ -273,20 +260,7 @@ impl Group {
         let Some(group) = Group::load_with_chat_id(connection, chat_id).await? else {
             return Ok(None);
         };
-
-        ensure!(
-            group.mls_group.pending_commit().is_none(),
-            "Room already had a pending commit"
-        );
-        ensure!(
-            group
-                .pq
-                .as_ref()
-                .map(|pq| pq.mls_group.pending_commit().is_none())
-                .unwrap_or(true),
-            "PQ Room already had a pending commit"
-        );
-
+        group.ensure_clean()?;
         Ok(Some(group))
     }
 
