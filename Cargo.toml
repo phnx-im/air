@@ -170,4 +170,3 @@ codegen-units = 1
 [profile.ci]
 inherits = "test"
 debug = 0
-strip = "symbols"
