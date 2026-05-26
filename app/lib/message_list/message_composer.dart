@@ -36,7 +36,11 @@ import 'package:air/ds/foundations/font_size.dart';
 import 'package:provider/provider.dart';
 
 import 'package:air/util/platform.dart'
-    show getClipboardFilePaths, getClipboardImage, PlatformExtension;
+    show
+        ClipboardImage,
+        getClipboardFilePaths,
+        getClipboardImage,
+        PlatformExtension;
 
 import 'message_renderer.dart';
 import 'text_message_tile.dart' show messageHorizontalPadding;
@@ -415,9 +419,9 @@ class _MessageComposerState extends State<MessageComposer>
       return;
     }
 
-    final imageBytes = await getClipboardImage();
-    if (imageBytes != null && imageBytes.isNotEmpty) {
-      _handleImagePaste(imageBytes);
+    final image = await getClipboardImage();
+    if (image != null && image.bytes.isNotEmpty) {
+      _handleImagePaste(image);
       return;
     }
     // No image — fall back to text paste
@@ -531,14 +535,15 @@ class _MessageComposerState extends State<MessageComposer>
     _navigateToUploadPreview(context, file, chatTitle: chatTitle);
   }
 
-  void _handleImagePaste(Uint8List imageBytes) async {
+  void _handleImagePaste(ClipboardImage image) async {
     final chatTitle = _chatDetailsCubit.state.chat?.title;
     if (chatTitle == null) return;
 
+    final ext = image.mimeType.split('/').last;
     final tempDir = await getTemporaryDirectory();
-    final tempFile = File('${tempDir.path}/clipboard_paste.jpg');
-    await tempFile.writeAsBytes(imageBytes);
-    final file = XFile(tempFile.path);
+    final tempFile = File('${tempDir.path}/clipboard_paste.$ext');
+    await tempFile.writeAsBytes(image.bytes);
+    final file = XFile(tempFile.path, mimeType: image.mimeType);
 
     if (!mounted) return;
     await _navigateToUploadPreview(
@@ -668,7 +673,7 @@ class _MessageInput extends StatelessWidget {
   final LayerLink layerLink;
   final GlobalKey inputKey;
   final VoidCallback onSubmitMessage;
-  final ValueChanged<Uint8List> onImagePasted;
+  final ValueChanged<ClipboardImage> onImagePasted;
   final ValueChanged<String> onFilePasted;
   final ValueChanged<KeyboardInsertedContent> onContentInserted;
 
@@ -838,10 +843,10 @@ class _MessageInput extends StatelessWidget {
               onFilePasted(filePaths.first);
               return;
             }
-            final imageBytes = await getClipboardImage();
-            if (imageBytes != null && imageBytes.isNotEmpty) {
+            final image = await getClipboardImage();
+            if (image != null && image.bytes.isNotEmpty) {
               editableTextState.hideToolbar();
-              onImagePasted(imageBytes);
+              onImagePasted(image);
               return;
             }
             // No image — default text paste
@@ -865,10 +870,10 @@ class _MessageInput extends StatelessWidget {
               onFilePasted(filePaths.first);
               return;
             }
-            final imageBytes = await getClipboardImage();
-            if (imageBytes != null && imageBytes.isNotEmpty) {
+            final image = await getClipboardImage();
+            if (image != null && image.bytes.isNotEmpty) {
               editableTextState.hideToolbar();
-              onImagePasted(imageBytes);
+              onImagePasted(image);
             }
           },
         ),
