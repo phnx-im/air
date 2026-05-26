@@ -70,7 +70,7 @@ jobs:
             extra_apt_dependencies: apt-utils
 
     # only run this job on the main branch
-    # if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout repository
