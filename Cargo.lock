@@ -76,7 +76,7 @@ dependencies = [
 
 [[package]]
 name = "airapiclient"
-version = "0.16.1"
+version = "0.17.0"
 dependencies = [
  "aircommon",
  "airprotos",
@@ -99,7 +99,7 @@ dependencies = [
 
 [[package]]
 name = "airapplogic"
-version = "0.16.1"
+version = "0.17.0"
 dependencies = [
  "aircommon",
  "aircoreclient",
@@ -145,7 +145,7 @@ dependencies = [
 
 [[package]]
 name = "airbackend"
-version = "0.16.1"
+version = "0.17.0"
 dependencies = [
  "aircommon",
  "airprotos",
@@ -190,7 +190,7 @@ dependencies = [
 
 [[package]]
 name = "aircommon"
-version = "0.16.1"
+version = "0.17.0"
 dependencies = [
  "aes-gcm",
  "airmacros",
@@ -231,7 +231,7 @@ dependencies = [
 
 [[package]]
 name = "aircoreclient"
-version = "0.16.1"
+version = "0.17.0"
 dependencies = [
  "airapiclient",
  "airbackend",
@@ -282,7 +282,7 @@ dependencies = [
 
 [[package]]
 name = "airmacros"
-version = "0.16.1"
+version = "0.17.0"
 dependencies = [
  "minicbor",
  "minicbor-serde",
@@ -295,7 +295,7 @@ dependencies = [
 
 [[package]]
 name = "airprotos"
-version = "0.16.1"
+version = "0.17.0"
 dependencies = [
  "aircommon",
  "airmacros",
@@ -326,7 +326,7 @@ dependencies = [
 
 [[package]]
 name = "airserver"
-version = "0.16.1"
+version = "0.17.0"
 dependencies = [
  "airapiclient",
  "airbackend",
@@ -379,7 +379,7 @@ dependencies = [
 
 [[package]]
 name = "airserver_test_harness"
-version = "0.16.1"
+version = "0.17.0"
 dependencies = [
  "airbackend",
  "aircommon",
@@ -4638,7 +4638,7 @@ dependencies = [
 
 [[package]]
 name = "mls-assist"
-version = "0.16.1"
+version = "0.17.0"
 dependencies = [
  "apqmls",
  "chrono",
@@ -8929,7 +8929,7 @@ checksum = "32ac00cd3f8ec9c1d33fb3e7958a82df6989c42d747bd326c822b1d625283547"
 
 [[package]]
 name = "xtask"
-version = "0.16.1"
+version = "0.17.0"
 dependencies = [
  "anyhow",
  "camino",
