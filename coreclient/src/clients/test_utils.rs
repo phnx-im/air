@@ -28,11 +28,13 @@ impl CoreUser {
         push_token: Option<PushToken>,
         invitation_code: String,
     ) -> Result<Self> {
-        use crate::{store::StoreNotificationsSender, utils::persistence::open_db_in_memory};
+        use crate::{
+            db::notification::DbNotificationsSender, utils::persistence::open_db_in_memory,
+        };
 
         info!(?user_id, "creating new ephemeral user");
 
-        let notifier_tx = StoreNotificationsSender::new();
+        let notifier_tx = DbNotificationsSender::new();
 
         // Open the air db to store the client record
         let air_db = DbAccess::with_single_pool(open_db_in_memory().await?, notifier_tx.clone());

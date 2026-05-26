@@ -20,7 +20,7 @@ use uuid::Uuid;
 use crate::{
     ChatId, ChatMessage, ContentMessage, Message,
     chats::messages::InReplyToMessage,
-    db_access::{ReadConnection, WriteConnection},
+    db::access::{ReadConnection, WriteConnection},
 };
 
 use super::{ErrorMessage, EventMessage};
@@ -1089,7 +1089,7 @@ pub(crate) mod tests {
 
     use crate::{
         ContentMessage, Message, MessageId, chats::persistence::tests::test_chat,
-        db_access::DbAccess,
+        db::access::DbAccess,
     };
 
     use super::*;

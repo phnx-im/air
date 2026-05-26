@@ -688,7 +688,7 @@ impl ChatDetailsContext {
 
     /// Returns only when `stop` is cancelled
     async fn update_state_task(self) {
-        let mut notifications = self.core_user.store_notifications();
+        let mut notifications = self.core_user.db_notifications();
         while let Some(notification) = notifications.next().await {
             if notification.ops.contains_key(&self.chat_id.into()) {
                 self.load_and_emit_state().await;

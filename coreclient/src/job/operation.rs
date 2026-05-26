@@ -126,7 +126,7 @@ mod persistence {
     };
     use tracing::warn;
 
-    use crate::db_access::{WriteConnection, WriteDbTransaction};
+    use crate::db::access::{WriteConnection, WriteDbTransaction};
 
     use super::*;
 
@@ -355,7 +355,7 @@ mod persistence {
 
 #[cfg(test)]
 mod tests {
-    use crate::db_access::{DbAccess, WriteConnection};
+    use crate::db::access::{DbAccess, WriteConnection};
 
     use super::*;
     use serde::{Deserialize, Serialize};

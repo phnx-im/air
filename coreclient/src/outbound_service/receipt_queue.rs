@@ -29,7 +29,7 @@ mod persistence {
     use tracing::debug;
     use uuid::Uuid;
 
-    use crate::{ChatId, db_access::WriteConnection};
+    use crate::{ChatId, db::access::WriteConnection};
 
     use super::*;
 
