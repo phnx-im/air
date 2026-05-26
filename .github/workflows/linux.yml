@@ -53,6 +53,7 @@ jobs:
           path: app/build/linux/x64/release/bundle
 
   linux-publish:
+    name: linux-publish (${{ matrix.format }})
     environment: linux-packages
 
     needs: linux-build
