@@ -19,7 +19,7 @@ inherits = "integration"
 command = ["bash", "-c", "echo TEST_WITH_APQ_GROUPS=true >> $NEXTEST_ENV"]
 
 [scripts.setup.docker-compose-up]
-command = ["docker", "compose", "up", "--no-recreate", "-d"]
+command = ["docker", "compose", "up", "--quiet-pull", "--no-recreate", "-d"]
 
 [[profile.integration.scripts]]
 platform = { host = "cfg(unix)" }
