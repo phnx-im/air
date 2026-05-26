@@ -32,7 +32,7 @@ use tls_codec::DeserializeBytes as TlsDeserializeBytes;
 use tracing::{debug, instrument};
 
 use crate::{
-    clients::api_clients::ApiClients, db_access::WriteDbTransaction,
+    clients::api_clients::ApiClients, db::access::WriteDbTransaction,
     groups::client_auth_info::VerifiableClientCredentialExt,
     job::pending_chat_operation::PendingChatOperation, key_stores::as_credentials::AsCredentials,
 };

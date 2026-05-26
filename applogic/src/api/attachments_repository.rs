@@ -8,8 +8,8 @@ use aircommon::identifiers::AttachmentId;
 use aircoreclient::{
     AttachmentContent, AttachmentProgress, AttachmentProgressEvent, AttachmentStatus,
     clients::CoreUser,
+    db::notification::{DbEntityId, DbOperation},
     image_is_animated,
-    store::{StoreEntityId, StoreOperation},
 };
 use anyhow::{Context, bail};
 use dashmap::{DashMap, Entry};
@@ -260,16 +260,14 @@ async fn attachment_downloads_loop(
     let download_tasks_semaphore = Arc::new(Semaphore::new(NUM_CONCURRENT_DOWNLOADS));
 
     // filter the store notifications stream to only care about attachments
-    let store_notifications = store.store_notifications().flat_map(|notification| {
+    let store_notifications = store.db_notifications().flat_map(|notification| {
         let attachment_ids =
             notification
                 .ops
                 .clone()
                 .into_iter()
                 .filter_map(|(id, ops)| match id {
-                    StoreEntityId::Attachment(attachment_id)
-                        if ops.contains(StoreOperation::Add) =>
-                    {
+                    DbEntityId::Attachment(attachment_id) if ops.contains(DbOperation::Add) => {
                         Some(attachment_id)
                     }
                     _ => None,

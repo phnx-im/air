@@ -21,7 +21,7 @@ pub extern "C" fn process_new_messages(
     // Convert Java string to Rust string
     let input: String = match env.get_string(&content) {
         Ok(value) => value.into(),
-        Err(error) => {
+        Err(_error) => {
             let _ = env.throw_new(
                 "java/lang/IllegalArgumentException",
                 "Failed to read content string from Java",
@@ -44,6 +44,7 @@ pub extern "C" fn process_new_messages(
     let response = match serde_json::to_string(&batch) {
         Ok(json) => json,
         Err(error) => {
+            error!(%error, "Failed to serialize notification batch");
             let _ = env.throw_new(
                 "java/lang/RuntimeException",
                 "Failed to serialize notification batch",
@@ -55,7 +56,8 @@ pub extern "C" fn process_new_messages(
     // Convert Rust string back to Java string
     match env.new_string(response) {
         Ok(output) => output.into_raw(),
-        Err(_error) => {
+        Err(error) => {
+            error!(%error, "Failed to create Java string from Rust");
             let _ = env.throw_new(
                 "java/lang/RuntimeException",
                 "Failed to create Java string from Rust",

@@ -17,7 +17,7 @@ use uuid::Uuid;
 use crate::{
     Chat, ChatId, ChatStatus, MessageId,
     chats::StatusRecord,
-    db_access::WriteDbTransaction,
+    db::access::WriteDbTransaction,
     groups::{Group, handle_group_not_found_on_ds, openmls_provider::AirOpenMlsProvider},
     job::pending_chat_operation::PendingChatOperation,
     outbound_service::{

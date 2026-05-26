@@ -32,7 +32,7 @@ use crate::{
         targeted_message::TargetedMessageContent,
     },
     contacts::{TargetedMessageContact, UsernameContact},
-    db_access::WriteDbTransaction,
+    db::access::WriteDbTransaction,
     groups::{Group, PartialCreateGroupParams, openmls_provider::AirOpenMlsProvider},
     key_stores::{MemoryUserKeyStore, indexed_keys::StorableIndexedKey},
 };

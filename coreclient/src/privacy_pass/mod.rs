@@ -26,7 +26,7 @@ use tls_codec::{Deserialize, Serialize};
 use tokio::time;
 use tracing::{debug, info, warn};
 
-use crate::db_access::{DbAccess, ReadConnection, WriteConnection, WriteDbTransaction};
+use crate::db::access::{DbAccess, ReadConnection, WriteConnection, WriteDbTransaction};
 
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 pub struct TokenId {

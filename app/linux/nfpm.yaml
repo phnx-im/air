@@ -5,7 +5,7 @@
 name: "air"
 arch: "amd64"
 platform: "linux"
-version: 0.16.1
+version: 0.17.0
 release: "${RELEASE}"
 section: "misc"
 maintainer: "Phoenix R&D GmbH <hello@phnx.im>"

@@ -106,7 +106,7 @@ mod tests {
     use openmls::prelude::*;
     use sqlx::SqlitePool;
 
-    use crate::db_access::DbAccess;
+    use crate::db::access::DbAccess;
 
     use super::*;
 

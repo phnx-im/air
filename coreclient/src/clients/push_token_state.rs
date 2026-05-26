@@ -9,7 +9,7 @@ use aircommon::{
 use anyhow::{Result, bail};
 use sqlx::{query, query_as};
 
-use crate::db_access::{ReadConnection, WriteConnection};
+use crate::db::access::{ReadConnection, WriteConnection};
 
 const STATE_ID: i64 = 1;
 pub(crate) const PUSH_TOKEN_PENDING_MAX_FUTURE_SECS: i64 = 300;
@@ -200,7 +200,7 @@ fn operator_from_i64(value: i64) -> Result<PushTokenOperator> {
 mod tests {
     use sqlx::SqlitePool;
 
-    use crate::db_access::DbAccess;
+    use crate::db::access::DbAccess;
 
     use super::*;
 

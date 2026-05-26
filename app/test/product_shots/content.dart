@@ -118,6 +118,7 @@ final chats = [
   UiChatDetails(
     id: fredChatId,
     status: const UiChatStatus.active(),
+    isApq: false,
     chatType: UiChatType_Connection(fredProfile),
     unreadMessages: 1,
     messagesCount: 1,
@@ -132,6 +133,7 @@ final chats = [
   UiChatDetails(
     id: jessicaChatId,
     status: const UiChatStatus.active(),
+    isApq: false,
     chatType: UiChatType_Connection(jessicaProfile),
     unreadMessages: 0,
     messagesCount: 1,
@@ -146,6 +148,7 @@ final chats = [
   UiChatDetails(
     id: scienceClubId,
     status: const UiChatStatus.active(),
+    isApq: false,
     chatType: UiChatType_Group(
       UiChatAttributes(
         title: 'Science club',
@@ -165,6 +168,7 @@ final chats = [
   UiChatDetails(
     id: daveChatId,
     status: const UiChatStatus.active(),
+    isApq: false,
     chatType: UiChatType_Connection(daveProfile),
     unreadMessages: 0,
     messagesCount: 1,
@@ -179,6 +183,7 @@ final chats = [
   UiChatDetails(
     id: gardeningPartyId,
     status: const UiChatStatus.active(),
+    isApq: false,
     chatType: UiChatType_Group(
       UiChatAttributes(
         title: 'Gardening club',
@@ -198,6 +203,7 @@ final chats = [
   UiChatDetails(
     id: frankChatId,
     status: const UiChatStatus.active(),
+    isApq: false,
     chatType: UiChatType_Connection(frankProfile),
     unreadMessages: 0,
     messagesCount: 1,
@@ -212,6 +218,7 @@ final chats = [
   UiChatDetails(
     id: alexChatId,
     status: const UiChatStatus.active(),
+    isApq: false,
     chatType: UiChatType_Connection(alexProfile),
     unreadMessages: 0,
     messagesCount: 1,
@@ -222,6 +229,7 @@ final chats = [
   UiChatDetails(
     id: ireneChatId,
     status: const UiChatStatus.active(),
+    isApq: false,
     chatType: UiChatType_Connection(ireneProfile),
     unreadMessages: 0,
     messagesCount: 1,
@@ -236,6 +244,7 @@ final chats = [
   UiChatDetails(
     id: dinnerPartyId,
     status: const UiChatStatus.active(),
+    isApq: false,
     chatType: UiChatType_Group(
       UiChatAttributes(
         title: 'Dinner party',
@@ -255,6 +264,7 @@ final chats = [
   UiChatDetails(
     id: kamalChatId,
     status: const UiChatStatus.active(),
+    isApq: false,
     chatType: UiChatType_Connection(kamalProfile),
     unreadMessages: 0,
     messagesCount: 1,

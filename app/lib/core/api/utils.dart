@@ -35,7 +35,7 @@ Future<bool> isImageFile({required String path}) =>
 Future<List<String>?> readClipboardFilePaths() =>
     RustLib.instance.api.crateApiUtilsReadClipboardFilePaths();
 
-/// Reads an image from the system clipboard and returns it as JPEG bytes. Only
+/// Reads an image from the system clipboard and returns it as PNG bytes. Only
 /// supported on desktop platforms (Linux, Windows, macOS).
 ///
 /// Returns `None` if the clipboard does not contain image data, or when called

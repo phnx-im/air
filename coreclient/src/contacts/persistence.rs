@@ -16,7 +16,7 @@ use crate::{
     ChatId, Contact,
     clients::connection_offer::FriendshipPackage,
     contacts::{PartialContact, PartialContactType, TargetedMessageContact},
-    db_access::{ReadConnection, WriteConnection, WriteDbTransaction},
+    db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
 };
 
 use super::UsernameContact;
@@ -414,7 +414,7 @@ mod tests {
     use sqlx::SqlitePool;
 
     use crate::{
-        ChatId, chats::persistence::tests::test_chat, db_access::DbAccess,
+        ChatId, chats::persistence::tests::test_chat, db::access::DbAccess,
         key_stores::indexed_keys::StorableIndexedKey,
     };
 

@@ -23,7 +23,7 @@ use tracing::error;
 use crate::{
     ChatId,
     chats::messages::TimestampedMessage,
-    db_access::{ReadConnection, WriteConnection, WriteDbTransaction},
+    db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
     groups::apq_group::PqGroup,
     utils::persistence::{GroupIdRefWrapper, GroupIdWrapper},
 };

@@ -21,12 +21,14 @@ class MemberSelectionList extends HookWidget {
     required this.selectedContacts,
     required this.query,
     required this.onToggle,
+    this.isApq = false,
   });
 
   final List<UiContact> contacts;
   final Set<UiUserId> selectedContacts;
   final String query;
   final ValueChanged<UiContact> onToggle;
+  final bool isApq;
 
   @override
   Widget build(BuildContext context) {
@@ -66,8 +68,12 @@ class MemberSelectionList extends HookWidget {
         final contact = sortedContacts[index];
         final profile = profiles[contact.userId]!;
         final isSelected = selectedContacts.contains(contact.userId);
+        final features = contact.supportedFeatures;
+        final hasEncryptedGroupProfiles =
+            features?.encryptedGroupProfiles ?? false;
+        final hasPqGroups = features?.pqGroups ?? false;
         final hasSupportedClient =
-            contact.supportedFeatures?.encryptedGroupProfiles ?? false;
+            hasEncryptedGroupProfiles && (!isApq || hasPqGroups);
 
         return Opacity(
           opacity: hasSupportedClient ? 1.0 : 0.5,
