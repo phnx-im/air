@@ -189,11 +189,20 @@ impl From<Vec<u8>> for GroupDataBytes {
     }
 }
 
+/// A chat group as seen by this client.
+///
+/// `Group` bundles MLS state (`mls_group` and, for APQ groups, `pq`) with the
+/// Air-level secrets and policy state that ride alongside MLS.
+///
 #[derive(Debug)]
 pub(crate) struct Group {
     identity_link_wrapper_key: IdentityLinkWrapperKey,
     group_state_ear_key: GroupStateEarKey,
     mls_group: MlsGroup,
+    /// `room_state` is the Air/MIMI room policy state. It must be advanced
+    /// together with MLS proposal/commit application (see
+    /// [`Group::apply_staged_operations_to_room_state`] and
+    /// [`Group::merge_pending_commit`]).
     pub room_state: VerifiedRoomState,
     pending_diff: Option<StagedGroupDiff>, // Currently unused, but we're keeping it for later
     /// The time at which the user self-updated their key material in this group the last time
