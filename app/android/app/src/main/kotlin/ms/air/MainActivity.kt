@@ -22,7 +22,7 @@ import androidx.core.content.ContextCompat
 import com.google.android.gms.tasks.Task
 import com.google.firebase.messaging.FirebaseMessaging
 import io.flutter.Log
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import android.os.Environment
@@ -32,7 +32,7 @@ import java.io.File
 import java.io.IOException
 import java.lang.ref.WeakReference
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
     companion object {
         private const val CHANNEL_NAME: String = "ms.air/channel"
         private const val APP_DIR_NAME: String = "Air"
@@ -80,8 +80,8 @@ class MainActivity : FlutterActivity() {
         return mapOf("identifier" to notificationId, "chatId" to chatId)
     }
 
-    override fun detachFromFlutterEngine() {
-        super.detachFromFlutterEngine()
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        super.cleanUpFlutterEngine(flutterEngine)
 
         channel?.setMethodCallHandler(null)
         channel = null
@@ -287,7 +287,7 @@ class MainActivity : FlutterActivity() {
                     put(MediaStore.MediaColumns.IS_PENDING, 1)
                 }
 
-                val resolver = context.contentResolver
+                val resolver = contentResolver
                 val uri = resolver.insert(collectionUri, contentValues)
                     ?: throw IOException("Failed to create new MediaStore record.")
 
@@ -328,7 +328,7 @@ class MainActivity : FlutterActivity() {
 
                 // Finalize (scan the file)
                 MediaScannerConnection.scanFile(
-                    context,
+                    this,
                     arrayOf(file.absolutePath),
                     arrayOf(mimeType),
                     null
@@ -341,7 +341,7 @@ class MainActivity : FlutterActivity() {
             Log.e(TAG, "Error saving file", e)
             // If we're on modern Android and an error occurred after creating the URI, delete the orphan entry
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && finalUri != null) {
-                context.contentResolver.delete(finalUri, null, null)
+                contentResolver.delete(finalUri, null, null)
             }
             result.error("SAVE_ERROR", "Failed to save file: ${e.message}", null)
         }
