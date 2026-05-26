@@ -62,8 +62,10 @@ jobs:
       matrix:
         include:
           - format: rpm
+            glob: "air-*.rpm"
             extra_apt_dependencies: createrepo-c dnf dnf-plugins-core rpm
           - format: deb
+            glob: "air_*.deb"
             extra_apt_dependencies: apt-utils
 
     # only run this job on the main branch
@@ -129,4 +131,4 @@ jobs:
           S3_BUCKET: ${{ vars.S3_BUCKET }}
           S3_ENDPOINT: ${{ vars.S3_ENDPOINT }}
         run: |
-          cargo xtask publish-packages -- app/linux/air-*.${{ matrix.format }}
+          cargo xtask publish-packages -- app/linux/${{ matrix.glob }}
