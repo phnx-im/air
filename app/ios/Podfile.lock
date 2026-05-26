@@ -2,26 +2,20 @@ PODS:
   - airapplogic (0.0.1):
     - Flutter
   - Flutter (1.0.0)
-  - permission_handler_apple (9.3.0):
-    - Flutter
 
 DEPENDENCIES:
   - airapplogic (from `.symlinks/plugins/airapplogic/ios`)
   - Flutter (from `Flutter`)
-  - permission_handler_apple (from `.symlinks/plugins/permission_handler_apple/ios`)
 
 EXTERNAL SOURCES:
   airapplogic:
     :path: ".symlinks/plugins/airapplogic/ios"
   Flutter:
     :path: Flutter
-  permission_handler_apple:
-    :path: ".symlinks/plugins/permission_handler_apple/ios"
 
 SPEC CHECKSUMS:
   airapplogic: c38782b11ec01d75116f99a220022c31a78ef7a4
   Flutter: cabc95a1d2626b1b06e7179b784ebcf0c0cde467
-  permission_handler_apple: 4ed2196e43d0651e8ff7ca3483a069d469701f2d
 
 PODFILE CHECKSUM: 5058a99b99157fbda16cdac97b446be01149b232
 
