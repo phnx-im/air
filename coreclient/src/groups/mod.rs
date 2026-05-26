@@ -210,7 +210,7 @@ pub(crate) struct Group {
     /// together with MLS proposal/commit application (see
     /// [`Group::apply_staged_operations_to_room_state`] and
     /// [`Group::merge_pending_commit`]).
-    pub room_state: VerifiedRoomState,
+    room_state: VerifiedRoomState,
     pending_diff: Option<StagedGroupDiff>, // Currently unused, but we're keeping it for later
     /// The time at which the user self-updated their key material in this group the last time
     pub(crate) self_updated_at: Option<TimeStamp>,
@@ -238,6 +238,22 @@ impl Group {
         let Self { mls_group, pq, .. } = self;
         let pq = pq.as_mut().context("No PQ group found")?;
         Ok((mls_group, &mut pq.mls_group))
+    }
+
+    /// Consumes this group and returns its room state. Used by callers
+    /// that no longer need the rest of the group.
+    pub(crate) fn into_room_state(self) -> VerifiedRoomState {
+        self.room_state
+    }
+
+    /// Returns the set of users currently in the room according to
+    /// `room_state`.
+    pub(crate) fn participants(&self) -> Result<HashSet<UserId>> {
+        self.room_state
+            .users()
+            .keys()
+            .map(|bytes| Ok(UserId::tls_deserialize_exact_bytes(bytes)?))
+            .collect()
     }
 
     /// Errors if this group (or its PQ counterpart, for APQ groups) has a

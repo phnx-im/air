@@ -351,7 +351,7 @@ impl CoreUser {
         if let Some(chat_id) = self.chat(chat_id).await
             && let Some(group) = Group::load(self.db().read().await?, chat_id.group_id()).await?
         {
-            return Ok((self.user_id().clone(), group.room_state));
+            return Ok((self.user_id().clone(), group.into_room_state()));
         }
         bail!("Room does not exist")
     }

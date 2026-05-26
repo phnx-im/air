@@ -38,7 +38,6 @@ use own_client_info::OwnClientInfo;
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, query};
 use store::ClientRecord;
-use tls_codec::DeserializeBytes;
 use tokio::sync::Notify;
 use tokio::task::spawn_blocking;
 use tokio_stream::{Stream, StreamExt};
@@ -579,13 +578,7 @@ impl CoreUser {
         let Some(group) = Group::load_with_chat_id(self.db().read().await?, chat_id).await? else {
             return Ok(None);
         };
-        let users = group
-            .room_state
-            .users()
-            .keys()
-            .map(|bytes| Ok(UserId::tls_deserialize_exact_bytes(bytes)?))
-            .collect::<Result<HashSet<_>>>()?;
-        Ok(Some(users))
+        Ok(Some(group.participants()?))
     }
 
     pub async fn pending_removes(&self, chat_id: ChatId) -> Option<Vec<UserId>> {
