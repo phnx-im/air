@@ -580,9 +580,15 @@ impl ChatDetailsCubitBase {
         self.context.core_user.enqueue_group_resync(chat_id).await
     }
 
-    pub async fn update_key(&self) -> anyhow::Result<()> {
+    pub async fn dev_update_key(&self) -> anyhow::Result<()> {
         let chat_id = self.context.chat_id;
         self.context.core_user.update_key(chat_id).await?;
+        Ok(())
+    }
+
+    pub async fn dev_update_apq_key(&self) -> anyhow::Result<()> {
+        let chat_id = self.context.chat_id;
+        self.context.core_user.update_apq_key(chat_id).await?;
         Ok(())
     }
 }
