@@ -46,7 +46,7 @@ mod persistence {
 
     use crate::{
         ChatId,
-        db_access::{ReadConnection, WriteConnection},
+        db::access::{ReadConnection, WriteConnection},
     };
 
     use super::*;
@@ -193,7 +193,7 @@ mod persistence {
             chats::{
                 messages::persistence::tests::test_chat_message, persistence::tests::test_chat,
             },
-            db_access::DbAccess,
+            db::access::DbAccess,
         };
 
         use super::*;

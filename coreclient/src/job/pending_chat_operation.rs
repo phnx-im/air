@@ -26,7 +26,7 @@ use crate::{
     chats::{GroupDataExt, messages::TimestampedMessage},
     clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
     contacts::ContactAddInfos,
-    db_access::{WriteConnection, WriteDbTransaction},
+    db::access::{WriteConnection, WriteDbTransaction},
     groups::{
         Group, GroupDataBytes, VerifiedGroup, client_auth_info::StorableClientCredential,
         handle_group_not_found_on_ds,
@@ -410,9 +410,11 @@ impl PendingChatOperation {
                     chat.set_inactive(&mut *txn, past_members).await?;
                 }
 
+                let t_self_update_at = Some(ds_timestamp);
+                let pq_self_update_at = self.group.is_apq().then_some(ds_timestamp);
                 self.group
                     .group_mut()
-                    .store_update(&mut *txn, Some(ds_timestamp), None)
+                    .store_update(&mut *txn, t_self_update_at, pq_self_update_at)
                     .await?;
                 let messages =
                     CoreUser::store_new_messages(&mut *txn, chat.id(), group_messages).await?;
@@ -547,6 +549,20 @@ impl PendingChatOperation {
         .await
     }
 
+    pub(crate) async fn create_apq_self_update(
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &ClientSigningKey,
+        chat_id: ChatId,
+    ) -> anyhow::Result<Self> {
+        let mut group = Group::load_with_chat_id_clean_verified(&mut *txn, chat_id)
+            .await?
+            .with_context(|| format!("Can't find group with chat id {chat_id}"))?;
+        let params = group.group_mut().apq_update(txn, signer)?;
+        let job = Self::new(group, OperationType::apq_other(params));
+        job.store(txn).await?;
+        Ok(job)
+    }
+
     pub(crate) async fn create_update_with_raw_group_data(
         txn: &mut WriteDbTransaction<'_>,
         signer: &ClientSigningKey,
@@ -554,13 +570,9 @@ impl PendingChatOperation {
         group_data_bytes: Option<GroupDataBytes>,
         new_chat_picture: Option<Vec<u8>>,
     ) -> anyhow::Result<Self> {
-        let chat = Chat::load(&mut *txn, &chat_id)
+        let mut group = Group::load_with_chat_id_clean_verified(&mut *txn, chat_id)
             .await?
-            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
-        let group_id = chat.group_id();
-        let mut group = Group::load_clean_verified(&mut *txn, group_id)
-            .await?
-            .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+            .with_context(|| format!("Can't find group with chat id {chat_id}"))?;
 
         let params = group
             .group_mut()
@@ -707,7 +719,7 @@ mod persistence {
     use thiserror::Error;
     use uuid::Uuid;
 
-    use crate::db_access::{ReadConnection, WriteConnection, WriteDbTransaction};
+    use crate::db::access::{ReadConnection, WriteConnection, WriteDbTransaction};
 
     use super::*;
 
@@ -1020,7 +1032,7 @@ pub mod test_utils {
 
     use aircommon::component::AirComponent;
 
-    use crate::db_access::ReadConnection;
+    use crate::db::access::ReadConnection;
 
     use super::*;
 
@@ -1090,7 +1102,7 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
-        ChatAttributes, db_access::DbAccess, groups::GroupDataBytes,
+        ChatAttributes, db::access::DbAccess, groups::GroupDataBytes,
         utils::persistence::open_db_in_memory,
     };
 

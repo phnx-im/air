@@ -9,7 +9,7 @@ use aircommon::crypto::indexed_aead::keys::{
 };
 use sqlx::{query, query_as};
 
-use crate::db_access::{ReadConnection, WriteConnection};
+use crate::db::access::{ReadConnection, WriteConnection};
 
 pub(crate) struct SqlIndexedAeadKey<KT> {
     base_secret: BaseSecret<KT>,
@@ -154,7 +154,7 @@ mod tests {
     use aircommon::{crypto::indexed_aead::keys::UserProfileKey, identifiers::UserId};
     use sqlx::SqlitePool;
 
-    use crate::{db_access::DbAccess, key_stores::indexed_keys::StorableIndexedKey};
+    use crate::{db::access::DbAccess, key_stores::indexed_keys::StorableIndexedKey};
 
     #[sqlx::test]
     fn user_profile_key_storage(pool: SqlitePool) {

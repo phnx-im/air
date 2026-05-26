@@ -22,7 +22,7 @@ use sqlx::{
 use thiserror::Error;
 use tracing::info;
 
-use crate::db_access::{ReadConnection, WriteConnection, WriteDbTransaction};
+use crate::db::access::{ReadConnection, WriteConnection, WriteDbTransaction};
 
 use super::*;
 

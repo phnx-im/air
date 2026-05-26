@@ -31,7 +31,7 @@ use crate::{
     ChatId, UserProfile,
     chats::GroupDataExt,
     clients::CoreUser,
-    db_access::ReadConnection,
+    db::access::ReadConnection,
     groups::{Group, GroupDataBytes, openmls_provider::KeyRefWrapper},
 };
 

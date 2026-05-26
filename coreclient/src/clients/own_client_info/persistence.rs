@@ -4,7 +4,7 @@
 
 use sqlx::query;
 
-use crate::db_access::WriteConnection;
+use crate::db::access::WriteConnection;
 
 use super::OwnClientInfo;
 
@@ -36,7 +36,7 @@ mod tests {
     use sqlx::{Row, SqlitePool};
     use uuid::Uuid;
 
-    use crate::db_access::DbAccess;
+    use crate::db::access::DbAccess;
 
     use super::*;
 

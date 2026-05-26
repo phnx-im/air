@@ -24,7 +24,7 @@ use openmls_traits::OpenMlsProvider;
 use tls_codec::Serialize;
 
 use crate::{
-    db_access::WriteConnection,
+    db::access::WriteConnection,
     groups::{
         GroupDataBytes, PartialCreateGroupParams, PartialPqCreateGroupParams,
         openmls_provider::AirOpenMlsProvider,
