@@ -7,7 +7,7 @@ use airprotos::auth_service::v1::OperationType;
 use chrono::{DateTime, Utc};
 
 use crate::{
-    db_access::{ReadConnection, WriteConnection},
+    db::access::{ReadConnection, WriteConnection},
     privacy_pass::TokenId,
 };
 
@@ -191,7 +191,7 @@ pub(crate) async fn load_batched_token_keys(
 mod tests {
     use sqlx::SqlitePool;
 
-    use crate::db_access::DbAccess;
+    use crate::db::access::DbAccess;
 
     use super::*;
 

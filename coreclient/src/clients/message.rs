@@ -10,7 +10,7 @@ use crate::{
     Chat, ChatId, ChatMessage, ContentMessage, MessageId,
     chats::{StatusRecord, messages::edit::MessageEdit},
     clients::{attachment::AttachmentRecord, block_contact::BlockedContactError},
-    db_access::{WriteConnection, WriteDbTransaction},
+    db::access::{WriteConnection, WriteDbTransaction},
 };
 
 use super::{CoreUser, Group};

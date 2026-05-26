@@ -12,7 +12,7 @@ use sqlx::{
 
 use crate::{
     ChatId, MessageId,
-    db_access::{ReadConnection, WriteConnection},
+    db::access::{ReadConnection, WriteConnection},
 };
 
 /// A record of an attachment.
@@ -496,7 +496,7 @@ pub(crate) mod test {
 
     use crate::{
         chats::{messages::persistence::tests::test_chat_message, persistence::tests::test_chat},
-        db_access::DbAccess,
+        db::access::DbAccess,
     };
 
     use super::*;

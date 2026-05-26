@@ -12,7 +12,7 @@ use std::{
 use aircoreclient::{
     ChatId, ChatMessage, ChatType, MessageId,
     clients::CoreUser,
-    store::{StoreEntityId, StoreNotification, StoreOperation},
+    db::notification::{DbEntityId, DbNotification, DbOperation},
 };
 use flutter_rust_bridge::frb;
 use tokio::sync::{Notify, broadcast, mpsc, watch};
@@ -536,7 +536,7 @@ impl MessageListCubitBase {
     #[frb(sync)]
     pub fn new(user_cubit: &UserCubitBase, chat_id: ChatId) -> Self {
         let store = user_cubit.core_user().clone();
-        let store_notifications = store.store_notifications();
+        let store_notifications = store.db_notifications();
 
         let core = CubitCore::new();
         let (commands_tx, commands_rx) = mpsc::channel(4);
@@ -657,7 +657,7 @@ impl MessageListContext {
 
     fn spawn(
         mut self,
-        store_notifications: impl Stream<Item = Arc<StoreNotification>> + Send + Unpin + 'static,
+        store_notifications: impl Stream<Item = Arc<DbNotification>> + Send + Unpin + 'static,
         stop: CancellationToken,
     ) {
         spawn_from_sync(async move {
@@ -776,7 +776,7 @@ impl MessageListContext {
 
     async fn run_loop(
         &mut self,
-        mut store_notifications: impl Stream<Item = Arc<StoreNotification>> + Unpin,
+        mut store_notifications: impl Stream<Item = Arc<DbNotification>> + Unpin,
         stop: CancellationToken,
     ) {
         loop {
@@ -952,7 +952,7 @@ impl MessageListContext {
 
     // -- Store notification handling --
 
-    async fn process_store_notification(&mut self, notification: &StoreNotification) {
+    async fn process_store_notification(&mut self, notification: &DbNotification) {
         if let Err(error) = self.try_process_store_notification(notification).await {
             error!(%error, "Failed to process store notification");
         }
@@ -960,24 +960,24 @@ impl MessageListContext {
 
     async fn try_process_store_notification(
         &mut self,
-        notification: &StoreNotification,
+        notification: &DbNotification,
     ) -> anyhow::Result<()> {
         let mut needs_load_newer = false;
         let mut clear_unread_marker = false;
 
         for (id, op) in &notification.ops {
-            let StoreEntityId::Message(message_id) = id else {
+            let DbEntityId::Message(message_id) = id else {
                 continue;
             };
 
-            if op.contains(StoreOperation::Remove) {
+            if op.contains(DbOperation::Remove) {
                 if self.data.message_ids_index.contains_key(message_id)
                     && let Some(message) = self.core_user.message(*message_id).await?
                     && message.chat_id() == self.chat_id
                 {
                     self.remove_message_in_place(*message_id);
                 }
-            } else if op.contains(StoreOperation::Add) {
+            } else if op.contains(DbOperation::Add) {
                 if let Some(message) = self.core_user.message(*message_id).await?
                     && message.chat_id() == self.chat_id
                 {
@@ -990,7 +990,7 @@ impl MessageListContext {
                         needs_load_newer = true;
                     }
                 }
-            } else if op.contains(StoreOperation::Update)
+            } else if op.contains(DbOperation::Update)
                 && self.data.message_ids_index.contains_key(message_id)
                 && let Some(message) = self.core_user.message(*message_id).await?
                 && message.chat_id() == self.chat_id

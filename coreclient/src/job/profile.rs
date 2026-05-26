@@ -26,7 +26,7 @@ use tracing::{debug, error, info};
 use crate::{
     Chat, ChatAttributes, ChatStatus,
     clients::{CoreUser, update_key::update_chat_attributes},
-    db_access::WriteConnection,
+    db::access::WriteConnection,
     groups::{Group, ProfileInfo},
     job::operation::OperationId,
     key_stores::indexed_keys::StorableIndexedKey,

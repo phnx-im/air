@@ -79,7 +79,7 @@ use crate::{
         targeted_message::TargetedMessageContent,
     },
     contacts::{ContactAddInfos, ContactKeyPackage},
-    db_access::{WriteConnection, WriteDbTransaction},
+    db::access::{WriteConnection, WriteDbTransaction},
     groups::{apq_group::PqGroup, client_auth_info::VerifiableClientCredentialExt},
     key_stores::as_credentials::AsCredentials,
     outbound_service::resync::Resync,
@@ -1965,7 +1965,7 @@ mod handle_group_not_found_tests {
     use uuid::Uuid;
 
     use crate::{
-        Chat, ChatStatus, clients::block_contact::BlockedContact, db_access::DbAccess,
+        Chat, ChatStatus, clients::block_contact::BlockedContact, db::access::DbAccess,
         groups::GroupDataBytes, utils::persistence::open_db_in_memory,
     };
 

@@ -10,7 +10,7 @@ use aircommon::{
 use chrono::{DateTime, Utc};
 use sqlx::{query, query_as, query_scalar};
 
-use crate::db_access::{ReadConnection, WriteConnection};
+use crate::db::access::{ReadConnection, WriteConnection};
 
 /// A username record stored in the client database.
 ///
@@ -197,7 +197,7 @@ impl UsernameRecord {
 mod test {
     use sqlx::SqlitePool;
 
-    use crate::db_access::DbAccess;
+    use crate::db::access::DbAccess;
 
     use super::*;
 

@@ -735,7 +735,7 @@ mod persistence {
     use openmls::prelude::KeyPackageRef;
     use sqlx::QueryBuilder;
 
-    use crate::{db_access::WriteDbTransaction, groups::openmls_provider::KeyRefWrapper};
+    use crate::{db::access::WriteDbTransaction, groups::openmls_provider::KeyRefWrapper};
 
     pub(super) async fn mark_key_packages_as_live(
         txn: &mut WriteDbTransaction<'_>,
@@ -816,7 +816,8 @@ mod persistence {
         use url::Host;
 
         use crate::{
-            clients::CIPHERSUITE, db_access::DbAccess, groups::openmls_provider::AirOpenMlsProvider,
+            clients::CIPHERSUITE, db::access::DbAccess,
+            groups::openmls_provider::AirOpenMlsProvider,
         };
 
         use super::*;
