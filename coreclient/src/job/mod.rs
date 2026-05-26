@@ -58,7 +58,7 @@ impl<'s, 'c> AsMut<SqliteConnection> for JobContextReadConnection<'s, 'c> {
 }
 
 impl<'s, 'c> JobContextReadConnection<'s, 'c> {
-    pub async fn begin(&mut self) -> sqlx::Result<ReadDbTransaction<'_>> {
+    pub(crate) async fn begin(&mut self) -> sqlx::Result<ReadDbTransaction<'_>> {
         use JobContextReadConnection::*;
         Ok(match self {
             Connection(db) => db.begin().await?,
