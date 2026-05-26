@@ -882,17 +882,19 @@ impl Group {
         .into();
 
         // Set Aad to contain the encrypted client credentials.
+        let key_packages = key_packages
+            .into_iter()
+            .map(|kp| match kp {
+                ContactKeyPackage::Traditional(kp) => Ok(*kp),
+                ContactKeyPackage::Apq(_) => {
+                    Err(anyhow!("APQ key package used for traditional group invite"))
+                }
+            })
+            .collect::<Result<Vec<_>>>()?;
         let (mls_commit, welcome_option, group_info_option) = {
             let provider = AirOpenMlsProvider::new(connection.as_mut());
             self.mls_group
                 .set_aad(aad_message.tls_serialize_detached()?);
-            let key_packages = key_packages.into_iter().filter_map(|kp| match kp {
-                ContactKeyPackage::Traditional(kp) => Some(*kp),
-                ContactKeyPackage::Apq(_) => {
-                    error!("logic error: APQ key packages in traditional group");
-                    None
-                }
-            });
             let res = self
                 .mls_group
                 .commit_builder()
@@ -985,13 +987,15 @@ impl Group {
 
         let pq = self.pq.as_mut().context("No PQ group found")?;
 
-        let key_packages = key_packages.into_iter().filter_map(|kp| match kp {
-            ContactKeyPackage::Traditional(_) => {
-                error!("logic error: Traditional key packages in APQ group");
-                None
-            }
-            ContactKeyPackage::Apq(kp) => Some(*kp),
-        });
+        let key_packages = key_packages
+            .into_iter()
+            .map(|kp| match kp {
+                ContactKeyPackage::Traditional(_) => {
+                    Err(anyhow!("Traditional key package used for APQ group invite"))
+                }
+                ContactKeyPackage::Apq(kp) => Ok(*kp),
+            })
+            .collect::<Result<Vec<_>>>()?;
 
         let provider = AirOpenMlsProvider::new(connection.as_mut());
 
