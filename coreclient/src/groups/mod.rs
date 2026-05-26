@@ -230,6 +230,16 @@ impl Group {
         self.pq.as_ref()
     }
 
+    /// Returns mutable references to the T MLS group and the PQ MLS group
+    /// together, for callers that need to pass both into
+    /// [`apqmls::commit_builder::CommitBuilder::from_groups`]. Errors for
+    /// non-APQ groups.
+    pub(crate) fn apq_mls_groups_mut(&mut self) -> Result<(&mut MlsGroup, &mut MlsGroup)> {
+        let Self { mls_group, pq, .. } = self;
+        let pq = pq.as_mut().context("No PQ group found")?;
+        Ok((mls_group, &mut pq.mls_group))
+    }
+
     /// Errors if this group (or its PQ counterpart, for APQ groups) has a
     /// pending commit. Used by clean loaders to refuse to hand out a
     /// `Group` whose MLS state has an in-flight commit, since further
@@ -985,8 +995,6 @@ impl Group {
         })
         .into();
 
-        let pq = self.pq.as_mut().context("No PQ group found")?;
-
         let key_packages = key_packages
             .into_iter()
             .map(|kp| match kp {
@@ -1002,22 +1010,21 @@ impl Group {
         self.mls_group
             .set_aad(aad_message.tls_serialize_detached()?);
 
-        let bundle = match apqmls::commit_builder::CommitBuilder::from_groups(
-            &mut self.mls_group,
-            &mut pq.mls_group,
-        )
-        .force_self_update(true)
-        .propose_adds(key_packages)
-        .create_group_info(true)
-        .finalize(&provider, signer, |_| true, |_| true)
-        {
-            Ok(bundle) => bundle,
-            // Extract leaf node validation error if any
-            Err(apqmls::commit_builder::CreateCommitError::BuildCommit(error)) => {
-                return Ok(Err(to_capabilities_mismatch(error)?));
-            }
-            Err(other) => return Err(other.into()),
-        };
+        let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
+        let bundle =
+            match apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
+                .force_self_update(true)
+                .propose_adds(key_packages)
+                .create_group_info(true)
+                .finalize(&provider, signer, |_| true, |_| true)
+            {
+                Ok(bundle) => bundle,
+                // Extract leaf node validation error if any
+                Err(apqmls::commit_builder::CreateCommitError::BuildCommit(error)) => {
+                    return Ok(Err(to_capabilities_mismatch(error)?));
+                }
+                Err(other) => return Err(other.into()),
+            };
 
         ensure!(
             bundle.group_info.is_some(),
@@ -1134,14 +1141,12 @@ impl Group {
         self.mls_group.set_aad(aad);
 
         let provider = AirOpenMlsProvider::new(connection.as_mut());
-        let bundle = apqmls::commit_builder::CommitBuilder::from_groups(
-            &mut self.mls_group,
-            &mut self.pq.as_mut().context("No PQ group found")?.mls_group,
-        )
-        .force_self_update(true)
-        .propose_removals(remove_indices)
-        .create_group_info(true)
-        .finalize(&provider, signer, |_| true, |_| true)?;
+        let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
+        let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
+            .force_self_update(true)
+            .propose_removals(remove_indices)
+            .create_group_info(true)
+            .finalize(&provider, signer, |_| true, |_| true)?;
 
         debug_assert!(bundle.welcome.is_none());
         ensure!(
@@ -1466,13 +1471,11 @@ impl Group {
         self.mls_group.set_aad(aad);
 
         let provider = AirOpenMlsProvider::new(txn.as_mut());
-        let bundle = apqmls::commit_builder::CommitBuilder::from_groups(
-            &mut self.mls_group,
-            &mut self.pq.as_mut().context("No PQ group found")?.mls_group,
-        )
-        .force_self_update(true)
-        .create_group_info(true)
-        .finalize(&provider, signer, |_| true, |_| true)?;
+        let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
+        let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
+            .force_self_update(true)
+            .create_group_info(true)
+            .finalize(&provider, signer, |_| true, |_| true)?;
 
         debug_assert!(bundle.welcome.is_none());
         ensure!(

@@ -537,17 +537,16 @@ impl Group {
         api_clients: &ApiClients,
         message: impl Into<ApqProtocolMessage>,
     ) -> Result<Option<ProcessMessageResult>> {
-        let pq = self.pq.as_mut().context("No PQ group")?;
+        let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
 
         let ApqProcessedMessage {
             t_message,
             pq_message,
-        } = match ApqMlsGroupMut::from_groups(&mut self.mls_group, &mut pq.mls_group)
-            .process_message(
-                &AirOpenMlsProvider::new(txn.as_mut()),
-                message,
-                |_, _| true, // PQ-credential is always empty
-            ) {
+        } = match ApqMlsGroupMut::from_groups(t_mls_group, pq_mls_group).process_message(
+            &AirOpenMlsProvider::new(txn.as_mut()),
+            message,
+            |_, _| true, // PQ-credential is always empty
+        ) {
             Ok(pm) => pm,
             Err(ApqProcessMessageError::Processing(ProcessMessageError::ValidationError(
                 ValidationError::WrongEpoch,
