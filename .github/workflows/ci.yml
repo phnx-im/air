@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-name: CI
+name: Checks & Lints
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -27,11 +27,14 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - name: Check app resources
+          - name: Generated app resources
             just: check-app-resources
-          - name: Check licenses and advisories
+          - name: Rust licenses and advisories
             just: check-cargo-deny
             cargo-binstall-tools: cargo-deny@0.19.0
+          - name: FRB codegen
+            just: check-frb
+            cargo-binstall-tools: cargo-expand flutter_rust_bridge_codegen@2.12.0
           - name: Find unused crates
             just: check-cargo-machete
             cargo-binstall-tools: cargo-machete@0.9.1
@@ -39,13 +42,10 @@ jobs:
             just: check-clippy
           - name: Dart lints
             just: check-dart
-          - name: Check FRB
-            just: check-frb
-            cargo-binstall-tools: cargo-expand flutter_rust_bridge_codegen@2.12.0
-          - name: License headers
+          - name: SPDX License headers
             just: check-reuse
             pypi-packages: reuse~=6.2
-          - name: Rust formatting
+          - name: Rust format
             just: check-rustfmt
     
     steps:
@@ -66,7 +66,7 @@ jobs:
       - run: just ${{ matrix.just }}
 
   flutter:
-    name: Flutter tests
+    name: Run Flutter tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
