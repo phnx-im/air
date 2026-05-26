@@ -179,31 +179,47 @@ class MainActivity : FlutterActivity() {
                 "getClipboardImage" -> {
                     val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     val clip = clipboard.primaryClip
-                    if (clip != null && clip.itemCount > 0) {
-                        val item = clip.getItemAt(0)
-                        val uri = item.uri
-                        if (uri != null) {
-                            val mimeType = contentResolver.getType(uri)
-                            if (mimeType != null && mimeType.startsWith("image/")) {
-                                try {
-                                    contentResolver.openInputStream(uri)?.use { stream ->
-                                        // Decode through BitmapFactory to handle any
-                                        // format Android supports (including HEIC),
-                                        // then re-encode as JPEG so the Dart side
-                                        // always receives a widely supported format.
-                                        val bitmap = BitmapFactory.decodeStream(stream)
-                                        if (bitmap != null) {
-                                            val outputStream = java.io.ByteArrayOutputStream()
-                                            bitmap.compress(Bitmap.CompressFormat.JPEG, 99, outputStream)
-                                            bitmap.recycle()
-                                            result.success(outputStream.toByteArray())
-                                            return@setMethodCallHandler
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Failed to read clipboard image", e)
+                    val item = if (clip != null && clip.itemCount > 0) clip.getItemAt(0) else null
+                    val uri = item?.uri
+                    val mimeType = uri?.let { contentResolver.getType(it) }
+
+                    // Animated formats and formats image-rs supports are passed to Rust
+                    // directly.
+                    val preferred = setOf("image/gif", "image/webp", "image/png", "image/jpeg")
+
+                    if (uri != null && mimeType != null && mimeType in preferred) {
+                        try {
+                            contentResolver.openInputStream(uri)?.use { stream ->
+                                val bytes = stream.readBytes()
+                                result.success(mapOf("bytes" to bytes, "mimeType" to mimeType))
+                                return@setMethodCallHandler
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to read clipboard image bytes", e)
+                        }
+                    }
+
+                    // Fallback for HEIC and other formats the Rust image crate
+                    // can't decode.
+                    if (uri != null && mimeType != null && mimeType.startsWith("image/")) {
+                        try {
+                            contentResolver.openInputStream(uri)?.use { stream ->
+                                val bitmap = BitmapFactory.decodeStream(stream)
+                                if (bitmap != null) {
+                                    val outputStream = java.io.ByteArrayOutputStream()
+                                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+                                    bitmap.recycle()
+                                    result.success(
+                                        mapOf(
+                                            "bytes" to outputStream.toByteArray(),
+                                            "mimeType" to "image/png",
+                                        )
+                                    )
+                                    return@setMethodCallHandler
                                 }
                             }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to read clipboard image", e)
                         }
                     }
                     result.success(null)
