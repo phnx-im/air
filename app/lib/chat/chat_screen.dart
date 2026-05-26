@@ -240,12 +240,13 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
           onLongPress: () {
             final chatDetailsCubit = context.read<ChatDetailsCubit>();
             final userCubit = context.read<UserCubit>();
-            final debugInfoFut = chatDetailsCubit.chatDebugInfo();
             Navigator.of(context).push(
               MaterialPageRoute(
                 builder: (context) => ChatDebugInfoView(
                   title: title ?? "",
-                  debugInfo: debugInfoFut,
+                  loadDebugInfo: () => chatDetailsCubit.chatDebugInfo(),
+                  onUpdateGroup: () => chatDetailsCubit.updateKey(),
+                  onUpdateApqGroup: () => chatDetailsCubit.updateApqKey(),
                   onRequestResync: () => chatDetailsCubit.requestResync(),
                   onEraseLocalChat: () {
                     if (chatId != null) userCubit.devEraseChat(chatId);

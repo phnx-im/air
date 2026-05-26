@@ -340,7 +340,7 @@ class _CommonSettings extends HookWidget {
         const _LanguageSetting(),
 
         const SizedBox(height: Spacing.px12),
-        _SwitchField(
+        SwitchField(
           onSubmit: (value) {
             context.read<UserSettingsCubit>().setReadReceipts(
               userCubit: context.read(),
@@ -484,7 +484,7 @@ class _MobileSettings extends HookWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _SwitchField(
+        SwitchField(
           label: loc.userSettingsScreen_sendWithEnter,
           value: sendOnEnter,
           onSubmit: (value) {
@@ -710,8 +710,9 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class _SwitchField extends HookWidget {
-  const _SwitchField({
+class SwitchField extends HookWidget {
+  const SwitchField({
+    super.key,
     required this.onSubmit,
     required this.value,
     required this.label,

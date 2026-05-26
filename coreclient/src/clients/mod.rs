@@ -50,7 +50,7 @@ use crate::{
     Asset, PartialContact, UsernameRecord,
     clients::event_loop::{EventLoop, EventLoopSender},
     contacts::{TargetedMessageContact, UsernameContact},
-    db_access::{DbAccess, ReadConnection, WriteDbTransaction},
+    db_access::{DbAccess, WriteDbTransaction},
     groups::Group,
     job::{Job, JobContext, JobContextDb, JobError},
     key_stores::queue_ratchets::StorableQsQueueRatchet,
@@ -394,28 +394,12 @@ impl CoreUser {
     /// fallback.
     pub async fn user_profile(&self, user_id: &UserId) -> UserProfile {
         match self.db().read().await {
-            Ok(connection) => Self::user_profile_internal(connection, user_id).await,
+            Ok(connection) => UserProfile::load(connection, user_id).await,
             Err(error) => {
                 error!(%error, "Error loading user profile; fallback to user_id");
                 UserProfile::from_user_id(user_id)
             }
         }
-    }
-
-    // Helper to use when we already hold a connection
-    async fn user_profile_internal(
-        connection: impl ReadConnection,
-        user_id: &UserId,
-    ) -> UserProfile {
-        IndexedUserProfile::load(connection, user_id)
-            .await
-            .inspect_err(|error| {
-                error!(%error, "Error loading user profile; fallback to user_id");
-            })
-            .ok()
-            .flatten()
-            .map(UserProfile::from)
-            .unwrap_or_else(|| UserProfile::from_user_id(user_id))
     }
 
     /// Fetch and process messages from all username queues.
