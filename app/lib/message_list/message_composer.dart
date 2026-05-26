@@ -381,7 +381,8 @@ class _MessageComposerState extends State<MessageComposer>
 
     if (!modifierKeyPressed &&
         evt.logicalKey == LogicalKeyboardKey.enter &&
-        evt is KeyDownEvent) {
+        evt is KeyDownEvent &&
+        PlatformExtension.isDesktop) {
       final chatDetailsCubit = context.read<ChatDetailsCubit>();
       _submitMessage(chatDetailsCubit);
       return KeyEventResult.handled;
