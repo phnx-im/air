@@ -1019,6 +1019,49 @@ async fn create_apq_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "APQ self-update updates both T and PQ timestamps", skip_all)]
+async fn apq_self_update_updates_both_timestamps() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let chat_id = setup.create_apq_group(&alice).await;
+
+    let alice_user = setup.get_user(&alice);
+    let alice_core = &alice_user.user;
+
+    let now = Utc::now();
+
+    // Force both T and PQ self_updated_at to the past so the joint APQ
+    // self-update is triggered.
+    alice_core
+        .set_self_updated_at(chat_id, DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    alice_core
+        .set_pq_self_updated_at(chat_id, DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+
+    // Run the outbound service to perform the self-update.
+    alice_core
+        .outbound_service()
+        .schedule_self_update(DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    alice_core.outbound_service().run_once().await;
+
+    // Both T and PQ self_updated_at should now be advanced past now.
+    let after_t = alice_core.self_updated_at(chat_id).await.unwrap().unwrap();
+    let after_pq = alice_core
+        .pq_self_updated_at(chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert!(now < after_t, "T self_updated_at was not updated");
+    assert!(now < after_pq, "PQ self_updated_at was not updated");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Invite to APQ group test", skip_all)]
 async fn invite_to_apq_group() {
     let mut setup = TestBackend::single().await;

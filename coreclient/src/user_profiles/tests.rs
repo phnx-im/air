@@ -21,7 +21,7 @@ use sqlx::SqlitePool;
 
 use crate::{
     DisplayName, UserProfile,
-    db_access::{DbAccess, WriteConnection},
+    db::access::{DbAccess, WriteConnection},
     key_stores::indexed_keys::StorableIndexedKey,
     user_profiles::{IndexedUserProfile, update::UserProfileUpdate},
 };

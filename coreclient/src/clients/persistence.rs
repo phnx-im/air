@@ -15,7 +15,7 @@ use sqlx::{
 use uuid::Uuid;
 
 use crate::{
-    db_access::{ReadConnection, WriteConnection},
+    db::access::{ReadConnection, WriteConnection},
     utils::persistence::open_air_db,
 };
 
@@ -259,7 +259,7 @@ mod tests {
     use sqlx::SqlitePool;
     use uuid::Uuid;
 
-    use crate::{clients::create_user::BasicUserData, db_access::DbAccess};
+    use crate::{clients::create_user::BasicUserData, db::access::DbAccess};
 
     use super::*;
 

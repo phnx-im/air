@@ -8,7 +8,7 @@ use aircommon::{
     crypto::{indexed_aead::keys::UserProfileKeyIndex, signatures::signable::Signable as _},
 };
 
-use crate::db_access::WriteConnection;
+use crate::db::access::WriteConnection;
 
 use super::{
     Asset, DisplayName, EncryptableUserProfile, IndexedUserProfile, SignedUserProfile, UserId,

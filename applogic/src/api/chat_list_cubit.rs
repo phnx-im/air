@@ -10,7 +10,7 @@ use aircommon::identifiers::{Username, UsernameHash};
 use aircoreclient::{
     AddUsernameContactError, ChatId,
     clients::CoreUser,
-    store::{StoreEntityId, StoreNotification},
+    db::notification::{DbEntityId, DbNotification},
 };
 use flutter_rust_bridge::frb;
 use tokio::sync::watch;
@@ -47,7 +47,7 @@ impl ChatListCubitBase {
     #[frb(sync)]
     pub fn new(user_cubit: &UserCubitBase) -> Self {
         let store = user_cubit.core_user().clone();
-        let store_notifications = store.store_notifications();
+        let store_notifications = store.db_notifications();
 
         let core = CubitCore::new();
 
@@ -134,7 +134,7 @@ impl ChatListContext {
 
     fn spawn(
         self,
-        store_notifications: impl Stream<Item = Arc<StoreNotification>> + Send + Unpin + 'static,
+        store_notifications: impl Stream<Item = Arc<DbNotification>> + Send + Unpin + 'static,
         stop: CancellationToken,
     ) {
         spawn_from_sync(async move {
@@ -160,7 +160,7 @@ impl ChatListContext {
 
     async fn store_notifications_loop(
         self,
-        mut store_notifications: impl Stream<Item = Arc<StoreNotification>> + Unpin,
+        mut store_notifications: impl Stream<Item = Arc<DbNotification>> + Unpin,
         stop: CancellationToken,
     ) {
         loop {
@@ -177,10 +177,10 @@ impl ChatListContext {
         }
     }
 
-    async fn process_store_notification(&self, notification: &StoreNotification) {
+    async fn process_store_notification(&self, notification: &DbNotification) {
         let any_chat_changed = notification.ops.iter().any(|(id, op)| {
-            matches!(id, StoreEntityId::Chat(_) if !op.is_empty())
-                || matches!(id, StoreEntityId::User(_) if !op.is_empty())
+            matches!(id, DbEntityId::Chat(_) if !op.is_empty())
+                || matches!(id, DbEntityId::User(_) if !op.is_empty())
         });
         if any_chat_changed {
             // TODO(perf): This is a very coarse-grained approach. Optimally, we would only load

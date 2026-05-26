@@ -23,7 +23,7 @@ use tracing::error;
 use crate::{
     ChatId,
     chats::messages::TimestampedMessage,
-    db_access::{ReadConnection, WriteConnection, WriteDbTransaction},
+    db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
     groups::apq_group::PqGroup,
     utils::persistence::{GroupIdRefWrapper, GroupIdWrapper},
 };
@@ -288,6 +288,15 @@ impl Group {
         );
 
         Ok(Some(group))
+    }
+
+    pub(crate) async fn load_with_chat_id_clean_verified(
+        connection: impl ReadConnection,
+        chat_id: ChatId,
+    ) -> anyhow::Result<Option<VerifiedGroup>> {
+        Ok(Self::load_with_chat_id_clean(connection, chat_id)
+            .await?
+            .map(VerifiedGroup))
     }
 
     pub(crate) async fn load_verified(
