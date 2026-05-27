@@ -6,11 +6,21 @@ name: Build Android app
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 on:
   pull_request:
     branches: ["main"]
+  push:
+    branches:
+      - main
+    paths:
+      - "coreclient/**"
+      - "apiclient/**"
+      - "applogic/**"
+      - "common/**"
+      - "app/**"
+      - "Cargo.toml"
   merge_group:
 
 env:
@@ -40,10 +50,15 @@ jobs:
           cargo-binstall-tools: cargo-ndk
 
       - name: Build Android app
+        env:
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_PLAYSTORE_KEY_JSON: ${{ secrets.ANDROID_PLAYSTORE_KEY_JSON }}
         working-directory: app
-        run: bundle exec fastlane android beta_android --verbose
+        run: bundle exec fastlane android beta_android ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'upload_to_play_store:true' || '' }} --verbose
 
       - name: Upload Android app APK
+        if: github.event_name != 'push'
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: air-android

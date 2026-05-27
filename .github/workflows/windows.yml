@@ -11,6 +11,15 @@ concurrency:
 on:
   pull_request:
     branches: ["main"]
+  push:
+    branches: ["main"]
+    paths:
+      - "coreclient/**"
+      - "apiclient/**"
+      - "applogic/**"
+      - "common/**"
+      - "app/**"
+      - "Cargo.toml"
   merge_group:
 
 env:

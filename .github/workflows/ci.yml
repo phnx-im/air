@@ -11,12 +11,15 @@ concurrency:
 on:
   pull_request:
     branches: ["main"]
+  push:
+    branches: ["main"]
   merge_group:
 
 env:
   CARGO_TERM_COLOR: always
   CARGO_NET_RETRY: 10
   RUSTUP_MAX_RETRIES: 10
+  CARGO_INCREMENTAL: 0
   SQLX_OFFLINE: true
 
 jobs:
@@ -30,6 +33,7 @@ jobs:
           - name: Generated app resources
             just: check-app-resources
             flutter: true
+            sccache: false
           - name: Rust licenses and advisories
             just: check-cargo-deny
             cargo-binstall-tools: cargo-deny@0.19.0
@@ -38,12 +42,14 @@ jobs:
             just: check-frb
             cargo-binstall-tools: cargo-expand flutter_rust_bridge_codegen@2.12.0
             flutter: true
+            sccache-size: 1g
           - name: Unused crates
             just: check-cargo-machete
             cargo-binstall-tools: cargo-machete@0.9.1
             sccache: false
           - name: Rust clippy
             just: check-clippy
+            sccache-size: 1g
           - name: Dart lints
             just: check-dart
             flutter: true
@@ -70,6 +76,8 @@ jobs:
           git-lfs: false
           flutter: ${{ matrix.flutter || 'false' }}
           sccache: ${{ matrix.sccache || 'true' }}
+          sccache-size: ${{ matrix.sccache-size || '2g' }}
+          cache-key: ${{ matrix.just }}
           cargo-binstall-tools: ${{ matrix.cargo-binstall-tools }}
           pypi-packages: ${{ matrix.pypi-packages }}
 
@@ -78,6 +86,7 @@ jobs:
   flutter:
     name: Flutter tests
     runs-on: ubuntu-latest
+    if: github.event_name != 'push'
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -87,6 +96,8 @@ jobs:
 
       - name: Setup build environment
         uses: ./.github/actions/setup-buildenv
+        with:
+          sccache: false
 
       - name: Flutter tests
         run: cd app && flutter test --file-reporter=json:test-results.json
@@ -137,6 +148,7 @@ jobs:
   rust-tests:
     name: ${{ matrix.name }}
     needs: rust-build-tests
+    if: github.event_name != 'push'
 
     runs-on: ubuntu-latest
     timeout-minutes: 30
