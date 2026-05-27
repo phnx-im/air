@@ -327,6 +327,14 @@ impl Group {
                         }
                     }
                     AadPayload::JoinConnectionGroup(join_connection_group_payload) => {
+                        validate_join_connection_group_commit(
+                            processed_message.sender(),
+                            staged_commit.add_proposals().next().is_some()
+                                || staged_commit.update_proposals().next().is_some()
+                                || staged_commit.remove_proposals().next().is_some(),
+                            self.mls_group.members().count(),
+                        )?;
+
                         // JoinConnectionGroup Phase 1: Decrypt and verify the
                         // client credential of the joiner
                         let (sender_credential, sender_leaf_key) =
@@ -358,9 +366,6 @@ impl Group {
 
                         // TODO: (More) validation:
                         // * Check that the user id is unique.
-                        // * Check that the proposals fit the operation.
-                        // * Check that the sender type fits the operation.
-                        // * Check that this group is indeed a connection group.
 
                         // JoinConnectionGroup Phase 2: Persist the client credential
                         sender_credential.store(txn).await?;
@@ -590,4 +595,70 @@ fn update_path_leaf_node_info(
     let credential = VerifiableClientCredential::from_basic_credential(leaf_node.credential())?;
     let signature_key = leaf_node.signature_key();
     Ok((credential, signature_key))
+}
+
+fn validate_join_connection_group_commit(
+    sender: &Sender,
+    contains_membership_proposal: bool,
+    member_count: usize,
+) -> Result<()> {
+    ensure!(
+        matches!(sender, Sender::NewMemberCommit),
+        "JoinConnectionGroup operation must be an external commit"
+    );
+    ensure!(
+        !contains_membership_proposal,
+        "JoinConnectionGroup operation must not contain add, update, or remove proposals"
+    );
+    ensure!(
+        member_count == 1,
+        "JoinConnectionGroup operation must target a connection group"
+    );
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use openmls::prelude::LeafNodeIndex;
+
+    use super::*;
+
+    #[test]
+    fn join_connection_group_validation_enforces_operation_shape() {
+        assert!(validate_join_connection_group_commit(&Sender::NewMemberCommit, false, 1).is_ok());
+
+        let cases = [
+            (
+                Sender::Member(LeafNodeIndex::new(0)),
+                false,
+                1,
+                "JoinConnectionGroup operation must be an external commit",
+            ),
+            (
+                Sender::NewMemberCommit,
+                true,
+                1,
+                "JoinConnectionGroup operation must not contain add, update, or remove proposals",
+            ),
+            (
+                Sender::NewMemberCommit,
+                false,
+                2,
+                "JoinConnectionGroup operation must target a connection group",
+            ),
+        ];
+
+        for (sender, contains_membership_proposal, member_count, expected_error) in cases {
+            let error = validate_join_connection_group_commit(
+                &sender,
+                contains_membership_proposal,
+                member_count,
+            )
+            .expect_err("invalid JoinConnectionGroup operation should fail");
+            assert!(
+                error.to_string().contains(expected_error),
+                "unexpected error: {error:#}"
+            );
+        }
+    }
 }
