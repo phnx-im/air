@@ -166,9 +166,9 @@ run-app *args='': (flutter "run {{args}}")
 run-server:
     cargo run --bin airserver | bunyan
 
-# Increment minor version numbers and update changelog.
-bump-version:
-    cargo xtask bump-version
+# Cut a release branch and increment minor or patch version numbers and update changelog.
+bump-version *args:
+    cargo xtask bump-version {{args}}
 
 # Install fvm.
 install-fvm:

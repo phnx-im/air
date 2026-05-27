@@ -8,6 +8,7 @@ on:
   push:
     branches:
       - main
+      - release/*
     paths:
       - "coreclient/**"
       - "apiclient/**"
@@ -24,6 +25,7 @@ env:
 jobs:
   mac-publish:
     runs-on: macos-26
+    environment: apple-app-store
 
     steps:
       - name: Checkout code

@@ -39,11 +39,11 @@ jobs:
           jdk: true
           cargo-binstall-tools: cargo-ndk
 
-      - name: Build Android app
+      - name: Build Android APK
         working-directory: app
         run: bundle exec fastlane android beta_android --verbose
 
-      - name: Upload Android app APK
+      - name: Upload Android APK
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: air-android
