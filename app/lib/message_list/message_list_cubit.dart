@@ -201,12 +201,16 @@ class MessageListCubit extends StateStreamableSource<MessageListStateWrapper> {
 
   @override
   FutureOr<void> close() async {
+    // Trigger Rust-side cancellation first so the transitions() task exits
+    // and drops its StreamSink. Awaiting the Dart subscription cancel before
+    // this would deadlock: the FRB ReceivePort only closes once Rust sends
+    // CloseStreamException via the dropped sink.
+    await _impl.close();
     await _transitionSubscription.cancel();
     await _stateController.close();
     await _commandController.close();
     await _incomingMessagesController.close();
     messageData.dispose();
-    await _impl.close();
   }
 
   @override

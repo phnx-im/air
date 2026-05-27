@@ -144,6 +144,7 @@ class UiChatDetails {
   final int unreadMessages;
   final UiChatMessage? lastMessage;
   final UiMessageDraft? draft;
+  final bool isApq;
 
   const UiChatDetails({
     required this.id,
@@ -154,6 +155,7 @@ class UiChatDetails {
     required this.unreadMessages,
     this.lastMessage,
     this.draft,
+    required this.isApq,
   });
 
   @override
@@ -165,7 +167,8 @@ class UiChatDetails {
       messagesCount.hashCode ^
       unreadMessages.hashCode ^
       lastMessage.hashCode ^
-      draft.hashCode;
+      draft.hashCode ^
+      isApq.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -179,7 +182,8 @@ class UiChatDetails {
           messagesCount == other.messagesCount &&
           unreadMessages == other.unreadMessages &&
           lastMessage == other.lastMessage &&
-          draft == other.draft;
+          draft == other.draft &&
+          isApq == other.isApq;
 }
 
 /// A message in a chat

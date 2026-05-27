@@ -50,7 +50,7 @@ mod persistence {
 
     use crate::{
         ChatId,
-        db_access::{ReadConnection, WriteConnection},
+        db::access::{ReadConnection, WriteConnection},
     };
 
     use super::*;

@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatStatus, ChatType, MessageId,
-    db_access::{
+    db::access::{
         ReadConnection, ReadTransaction, WriteConnection, WriteDbTransaction, WriteTransaction,
     },
     utils::persistence::GroupIdWrapper,
@@ -868,6 +868,23 @@ impl Chat {
         .await?;
         Ok(is_blocked.unwrap_or(false))
     }
+
+    pub(crate) async fn load_is_apq(
+        mut connection: impl ReadConnection,
+        chat_id: ChatId,
+    ) -> sqlx::Result<bool> {
+        query_scalar!(
+            r#"SELECT EXISTS(
+                SELECT 1 FROM chat c
+                INNER JOIN "group" t ON c.group_id = t.group_id
+                INNER JOIN pq_group pq ON pq.group_id = t.group_id
+                WHERE chat_id = ?
+            ) AS "exists: _""#,
+            chat_id,
+        )
+        .fetch_one(connection.as_mut())
+        .await
+    }
 }
 
 #[cfg(test)]
@@ -883,7 +900,7 @@ pub mod tests {
         InactiveChat, MessageDraft,
         chats::messages::persistence::tests::{test_chat_message, test_chat_message_at},
         clients::block_contact::BlockedContact,
-        db_access::DbAccess,
+        db::access::DbAccess,
     };
 
     use super::*;

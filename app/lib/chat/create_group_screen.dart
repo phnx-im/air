@@ -58,6 +58,7 @@ class _CreateGroupFlow extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final showDetails = useState(false);
+    final isApq = useState(false);
 
     return PopScope(
       canPop: !showDetails.value,
@@ -69,8 +70,14 @@ class _CreateGroupFlow extends HookWidget {
       child: IndexedStack(
         index: showDetails.value ? 1 : 0,
         children: [
-          _MemberSelectionStep(onNext: () => showDetails.value = true),
-          _CreateGroupDetailsStep(onBack: () => showDetails.value = false),
+          _MemberSelectionStep(
+            isApq: isApq.value,
+            onNext: () => showDetails.value = true,
+          ),
+          _CreateGroupDetailsStep(
+            isApq: isApq,
+            onBack: () => showDetails.value = false,
+          ),
         ],
       ),
     );
@@ -78,9 +85,10 @@ class _CreateGroupFlow extends HookWidget {
 }
 
 class _MemberSelectionStep extends HookWidget {
-  const _MemberSelectionStep({required this.onNext});
+  const _MemberSelectionStep({required this.onNext, required this.isApq});
 
   final VoidCallback onNext;
+  final bool isApq;
 
   @override
   Widget build(BuildContext context) {
@@ -132,6 +140,7 @@ class _MemberSelectionStep extends HookWidget {
                     contacts: contacts,
                     selectedContacts: selectedContacts,
                     query: query.value,
+                    isApq: isApq,
                     onToggle: (contact) => context
                         .read<AddMembersCubit>()
                         .toggleContact(contact.userId),
@@ -147,9 +156,10 @@ class _MemberSelectionStep extends HookWidget {
 }
 
 class _CreateGroupDetailsStep extends HookWidget {
-  const _CreateGroupDetailsStep({required this.onBack});
+  const _CreateGroupDetailsStep({required this.onBack, required this.isApq});
 
   final VoidCallback onBack;
+  final ValueNotifier<bool> isApq;
 
   @override
   Widget build(BuildContext context) {
@@ -161,6 +171,14 @@ class _CreateGroupDetailsStep extends HookWidget {
       (UsersCubit cubit) => {
         for (final userId in selectedIds)
           userId: cubit.state.profile(userId: userId),
+      },
+    );
+
+    final selectedFeatures = context.select(
+      (AddMembersCubit cubit) => {
+        for (final contact in cubit.state.contacts)
+          if (selectedIds.contains(contact.userId))
+            contact.userId: contact.supportedFeatures,
       },
     );
 
@@ -205,6 +223,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                     isApq.value,
                   )
                 : null,
+
             child: isCreating.value
                 ? SizedBox(
                     width: 16,
@@ -304,9 +323,16 @@ class _CreateGroupDetailsStep extends HookWidget {
                           if (profile == null) {
                             return const SizedBox.shrink();
                           }
-                          return _SelectedParticipant(
-                            profile: profile,
-                            onRemove: () => _removeContact(context, userId),
+                          final features = selectedFeatures[userId];
+                          final isSupported =
+                              features?.isSupported(isApq: isApq.value) ??
+                              false;
+                          return Opacity(
+                            opacity: isSupported ? 1.0 : 0.5,
+                            child: _SelectedParticipant(
+                              profile: profile,
+                              onRemove: () => _removeContact(context, userId),
+                            ),
                           );
                         }).toList(),
                       )
@@ -365,6 +391,13 @@ class _CreateGroupDetailsStep extends HookWidget {
     final userCubit = context.read<UserCubit>();
     final addMembersCubit = context.read<AddMembersCubit>();
     final selectedContacts = addMembersCubit.state.selectedContacts;
+    final supportedSelectedContacts = addMembersCubit.state.contacts
+        .where((contact) {
+          if (!selectedContacts.contains(contact.userId)) return false;
+          return contact.isSupported(isApq: isApq);
+        })
+        .map((contact) => contact.userId)
+        .toList();
 
     isCreating.value = true;
 
@@ -378,7 +411,7 @@ class _CreateGroupDetailsStep extends HookWidget {
       );
       final error = await userCubit.addUserToChat(
         chatId,
-        selectedContacts.toList(),
+        supportedSelectedContacts,
       );
       switch (error) {
         // No error

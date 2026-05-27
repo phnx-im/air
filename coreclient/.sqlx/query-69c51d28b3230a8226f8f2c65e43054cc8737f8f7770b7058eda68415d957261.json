@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT EXISTS(\n                SELECT 1 FROM chat c\n                INNER JOIN \"group\" t ON c.group_id = t.group_id\n                INNER JOIN pq_group pq ON pq.group_id = t.group_id\n                WHERE chat_id = ?\n            ) AS \"exists: _\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "exists: _",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "69c51d28b3230a8226f8f2c65e43054cc8737f8f7770b7058eda68415d957261"
+}

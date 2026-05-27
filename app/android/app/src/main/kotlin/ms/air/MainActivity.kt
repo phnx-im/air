@@ -17,12 +17,12 @@ import android.media.MediaScannerConnection
 import android.net.Uri
 import android.os.Build
 import android.os.Bundle
-import androidx.core.app.ActivityCompat
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
 import com.google.android.gms.tasks.Task
 import com.google.firebase.messaging.FirebaseMessaging
 import io.flutter.Log
-import io.flutter.embedding.android.FlutterActivity
+import io.flutter.embedding.android.FlutterFragmentActivity
 import io.flutter.embedding.engine.FlutterEngine
 import io.flutter.plugin.common.MethodChannel
 import android.os.Environment
@@ -32,10 +32,9 @@ import java.io.File
 import java.io.IOException
 import java.lang.ref.WeakReference
 
-class MainActivity : FlutterActivity() {
+class MainActivity : FlutterFragmentActivity() {
     companion object {
         private const val CHANNEL_NAME: String = "ms.air/channel"
-        private const val REQUEST_CODE_POST_NOTIFICATIONS = 1000
         private const val APP_DIR_NAME: String = "Air"
 
         @Volatile
@@ -46,12 +45,18 @@ class MainActivity : FlutterActivity() {
 
     private var channel: MethodChannel? = null
 
+    private var pendingNotificationPermissionResult: MethodChannel.Result? = null
+
+    private val notificationPermissionLauncher =
+        registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+            pendingNotificationPermissionResult?.success(granted)
+            pendingNotificationPermissionResult = null
+        }
 
     private var pendingInitialNotification: Map<String, String?>? = null
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        requestNotificationPermissionIfNeeded()
 
         // We store a potential notification tap event, so it can be delivered
         // once the Flutter engine is ready.
@@ -75,8 +80,8 @@ class MainActivity : FlutterActivity() {
         return mapOf("identifier" to notificationId, "chatId" to chatId)
     }
 
-    override fun detachFromFlutterEngine() {
-        super.detachFromFlutterEngine()
+    override fun cleanUpFlutterEngine(flutterEngine: FlutterEngine) {
+        super.cleanUpFlutterEngine(flutterEngine)
 
         channel?.setMethodCallHandler(null)
         channel = null
@@ -176,34 +181,54 @@ class MainActivity : FlutterActivity() {
                     }
                 }
 
+                "requestNotificationPermission" -> {
+                    handleNotificationPermissionRequest(result)
+                }
+
                 "getClipboardImage" -> {
                     val clipboard = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
                     val clip = clipboard.primaryClip
-                    if (clip != null && clip.itemCount > 0) {
-                        val item = clip.getItemAt(0)
-                        val uri = item.uri
-                        if (uri != null) {
-                            val mimeType = contentResolver.getType(uri)
-                            if (mimeType != null && mimeType.startsWith("image/")) {
-                                try {
-                                    contentResolver.openInputStream(uri)?.use { stream ->
-                                        // Decode through BitmapFactory to handle any
-                                        // format Android supports (including HEIC),
-                                        // then re-encode as JPEG so the Dart side
-                                        // always receives a widely supported format.
-                                        val bitmap = BitmapFactory.decodeStream(stream)
-                                        if (bitmap != null) {
-                                            val outputStream = java.io.ByteArrayOutputStream()
-                                            bitmap.compress(Bitmap.CompressFormat.JPEG, 99, outputStream)
-                                            bitmap.recycle()
-                                            result.success(outputStream.toByteArray())
-                                            return@setMethodCallHandler
-                                        }
-                                    }
-                                } catch (e: Exception) {
-                                    Log.e(TAG, "Failed to read clipboard image", e)
+                    val item = if (clip != null && clip.itemCount > 0) clip.getItemAt(0) else null
+                    val uri = item?.uri
+                    val mimeType = uri?.let { contentResolver.getType(it) }
+
+                    // Animated formats and formats image-rs supports are passed to Rust
+                    // directly.
+                    val preferred = setOf("image/gif", "image/webp", "image/png", "image/jpeg")
+
+                    if (uri != null && mimeType != null && mimeType in preferred) {
+                        try {
+                            contentResolver.openInputStream(uri)?.use { stream ->
+                                val bytes = stream.readBytes()
+                                result.success(mapOf("bytes" to bytes, "mimeType" to mimeType))
+                                return@setMethodCallHandler
+                            }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to read clipboard image bytes", e)
+                        }
+                    }
+
+                    // Fallback for HEIC and other formats the Rust image crate
+                    // can't decode.
+                    if (uri != null && mimeType != null && mimeType.startsWith("image/")) {
+                        try {
+                            contentResolver.openInputStream(uri)?.use { stream ->
+                                val bitmap = BitmapFactory.decodeStream(stream)
+                                if (bitmap != null) {
+                                    val outputStream = java.io.ByteArrayOutputStream()
+                                    bitmap.compress(Bitmap.CompressFormat.PNG, 100, outputStream)
+                                    bitmap.recycle()
+                                    result.success(
+                                        mapOf(
+                                            "bytes" to outputStream.toByteArray(),
+                                            "mimeType" to "image/png",
+                                        )
+                                    )
+                                    return@setMethodCallHandler
                                 }
                             }
+                        } catch (e: Exception) {
+                            Log.e(TAG, "Failed to read clipboard image", e)
                         }
                     }
                     result.success(null)
@@ -216,8 +241,10 @@ class MainActivity : FlutterActivity() {
         }
     }
 
-    private fun requestNotificationPermissionIfNeeded() {
+    private fun handleNotificationPermissionRequest(result: MethodChannel.Result) {
+        // Pre-Android 13 grants the permission at install time.
         if (Build.VERSION.SDK_INT < Build.VERSION_CODES.TIRAMISU) {
+            result.success(true)
             return
         }
 
@@ -227,14 +254,21 @@ class MainActivity : FlutterActivity() {
         ) == PackageManager.PERMISSION_GRANTED
 
         if (hasPermission) {
+            result.success(true)
             return
         }
 
-        ActivityCompat.requestPermissions(
-            this,
-            arrayOf(Manifest.permission.POST_NOTIFICATIONS),
-            REQUEST_CODE_POST_NOTIFICATIONS
-        )
+        if (pendingNotificationPermissionResult != null) {
+            result.error(
+                "ALREADY_PENDING",
+                "A notification permission request is already in flight",
+                null
+            )
+            return
+        }
+
+        pendingNotificationPermissionResult = result
+        notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
     }
 
     private fun saveFile(
@@ -269,7 +303,7 @@ class MainActivity : FlutterActivity() {
                     put(MediaStore.MediaColumns.IS_PENDING, 1)
                 }
 
-                val resolver = context.contentResolver
+                val resolver = contentResolver
                 val uri = resolver.insert(collectionUri, contentValues)
                     ?: throw IOException("Failed to create new MediaStore record.")
 
@@ -310,7 +344,7 @@ class MainActivity : FlutterActivity() {
 
                 // Finalize (scan the file)
                 MediaScannerConnection.scanFile(
-                    context,
+                    this,
                     arrayOf(file.absolutePath),
                     arrayOf(mimeType),
                     null
@@ -323,7 +357,7 @@ class MainActivity : FlutterActivity() {
             Log.e(TAG, "Error saving file", e)
             // If we're on modern Android and an error occurred after creating the URI, delete the orphan entry
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q && finalUri != null) {
-                context.contentResolver.delete(finalUri, null, null)
+                contentResolver.delete(finalUri, null, null)
             }
             result.error("SAVE_ERROR", "Failed to save file: ${e.message}", null)
         }

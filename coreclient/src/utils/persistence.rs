@@ -23,8 +23,11 @@ use sqlx::{
 };
 use tracing::{error, info};
 
-use crate::{clients::store::ClientRecord, db_access::DbAccess};
-use crate::{store::StoreNotificationsSender, utils::global_lock::GlobalLock};
+use crate::{
+    clients::store::ClientRecord,
+    db::{access::DbAccess, notification::DbNotificationsSender},
+    utils::global_lock::GlobalLock,
+};
 
 pub(crate) const AIR_DB_NAME: &str = "air.db";
 
@@ -56,7 +59,7 @@ pub(crate) async fn open_air_db(db_path: &str) -> sqlx::Result<DbAccess> {
     Ok(DbAccess::with_split_pools(
         write_pool,
         read_pool,
-        StoreNotificationsSender::new(),
+        DbNotificationsSender::new(),
     ))
 }
 
@@ -200,7 +203,7 @@ pub async fn open_client_db(user_id: &UserId, client_db_path: &str) -> sqlx::Res
     Ok(DbAccess::with_split_pools(
         write_pool,
         read_pool,
-        StoreNotificationsSender::new(),
+        DbNotificationsSender::new(),
     ))
 }
 

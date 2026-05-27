@@ -20,7 +20,7 @@ use uuid::Uuid;
 use crate::{
     ChatId,
     clients::{CoreUser, api_clients::ApiClients},
-    db_access::{WriteConnection, WriteDbTransaction},
+    db::access::{WriteConnection, WriteDbTransaction},
     groups::{Group, ProfileInfo, handle_group_not_found_on_ds},
     job::{operation::OperationData, profile::FetchUserProfileOperation},
     outbound_service::{
@@ -266,7 +266,7 @@ mod persistence {
 
     use crate::{
         ChatId,
-        db_access::{ReadConnection, WriteConnection, WriteDbTransaction},
+        db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
     };
 
     use super::*;
