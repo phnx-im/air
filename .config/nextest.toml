@@ -15,7 +15,8 @@ default-filter = "binary(integration)"
 junit = { path = "junit.xml" }
 
 [profile.integration-with-apq]
-inherits = "integration"
+default-filter = "binary(integration)"
+junit = { path = "junit.xml" }
 
 [scripts.setup.enable-apq]
 command = ["bash", "-c", "echo TEST_WITH_APQ_GROUPS=true >> $NEXTEST_ENV"]
