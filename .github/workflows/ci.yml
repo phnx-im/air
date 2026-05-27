@@ -90,7 +90,7 @@ jobs:
           input: protos
           push: false
           breaking: false
-          comment: false
+          pr_comment: false
 
   flutter:
     name: Flutter tests
