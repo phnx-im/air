@@ -14,6 +14,7 @@ use airbackend::{
     auth_service::AuthService,
     ds::{Ds, storage::Storage},
     qs::Qs,
+    relay_service::Rs,
     settings::{DatabaseSettings, RateLimitsSettings},
 };
 use aircommon::identifiers::Fqdn;
@@ -233,6 +234,8 @@ pub(crate) async fn spawn_app(
         network: network_provider.clone(),
     };
 
+    let rs = Rs::new(stop.clone());
+
     // Start the server
     let server = run(
         ServerRunParams {
@@ -242,6 +245,7 @@ pub(crate) async fn spawn_app(
             auth_service,
             qs,
             qs_connector,
+            rs,
             rate_limits: rate_limits.unwrap_or(TEST_RATE_LIMITS),
             shutdown: stop.clone(),
         },

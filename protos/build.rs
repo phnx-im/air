@@ -7,8 +7,7 @@ use tonic_prost_build::Config;
 fn main() {
     let protoc_path = protoc_bin_vendored::protoc_bin_path().unwrap();
     let mut config = Config::new();
-    config.protoc_executable(protoc_path);
-    config.enum_attribute(
+    config.protoc_executable(&protoc_path).enum_attribute(
         "auth_service.v1.OperationType",
         "#[derive(strum::VariantArray, strum::Display)]",
     );
@@ -20,6 +19,20 @@ fn main() {
                 "api/delivery_service/v1/delivery_service.proto",
                 "api/queue_service/v1/queue_service.proto",
             ],
+            &["api"],
+        )
+        .unwrap();
+
+    let mut relay_config = Config::new();
+    relay_config
+        .protoc_executable(protoc_path)
+        .bytes([".relay_service.v1.RelayFrame.payload"]);
+
+    tonic_prost_build::configure()
+        .codec_path("crate::relay_service::codec::BytesCodec")
+        .compile_with_config(
+            relay_config,
+            &["api/relay_service/v1/relay_service.proto"],
             &["api"],
         )
         .unwrap();

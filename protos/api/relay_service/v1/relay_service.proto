@@ -1,0 +1,33 @@
+syntax = "proto3";
+
+package relay_service.v1;
+
+import "common/v1/common.proto";
+
+// buf:lint:ignore RPC_REQUEST_RESPONSE_UNIQUE
+// buf:lint:ignore RPC_REQUEST_STANDARD_NAME
+// buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
+service RelayService {
+  rpc ProvisionClient(stream RelayFrame) returns (stream RelayFrame); // blocks until dialer connects
+  rpc LinkClient(stream RelayFrame) returns (stream RelayFrame); // wakes up the listener
+}
+
+// kept in sync with queue_service.proto
+message QsUserId {
+  common.v1.Uuid value = 1;
+}
+
+message RelayFrame {
+  bytes payload = 1;
+}
+
+message LinkClientRequest {
+  LinkClientRequestPayload payload = 1;
+  common.v1.Signature signature = 2;
+}
+
+message LinkClientRequestPayload {
+  common.v1.ClientMetadata client_metadata = 1;
+  QsUserId sender = 2;
+  string session_id = 3;
+}

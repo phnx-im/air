@@ -7,6 +7,7 @@ use airbackend::{
     auth_service::AuthService,
     ds::{Ds, storage::Storage},
     qs::Qs,
+    relay_service::Rs,
 };
 use aircommon::identifiers::Fqdn;
 use airserver::{
@@ -120,6 +121,8 @@ async fn main() -> anyhow::Result<()> {
     .await
     .expect("Failed to connect to database.");
 
+    let rs = Rs::new(shutdown.clone());
+
     // New database name for the AS provider
     configuration.database.name = format!("{base_db_name}_as");
     let mut auth_service = AuthService::new(
@@ -153,6 +156,7 @@ async fn main() -> anyhow::Result<()> {
             auth_service,
             qs,
             qs_connector,
+            rs,
             rate_limits: configuration.ratelimits,
             shutdown,
         },

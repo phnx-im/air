@@ -218,4 +218,6 @@ pub trait QsConnector: Sync + Send + std::fmt::Debug + 'static {
         &self,
         message: DsFanOutMessage,
     ) -> impl Future<Output = Result<(), Self::EnqueueError>> + Send + 'static;
+
+    // TODO: add method to get QS user verifying key
 }

@@ -14,12 +14,14 @@ use airbackend::{
     qs::{
         Qs, QsConnector, errors::QsEnqueueError, grpc::GrpcQs, network_provider::NetworkProvider,
     },
+    relay_service::{Rs, grpc::GrpcRs},
     settings::RateLimitsSettings,
 };
 use airprotos::{
     auth_service::v1::auth_service_server::AuthServiceServer,
     delivery_service::v1::delivery_service_server::DeliveryServiceServer,
     queue_service::v1::queue_service_server::QueueServiceServer,
+    relay_service::v1::relay_service_server::RelayServiceServer,
 };
 use axum::extract::State;
 use connect_info::ConnectInfoInterceptor;
@@ -62,6 +64,7 @@ pub struct ServerRunParams<Qc, Listener> {
     pub auth_service: AuthService,
     pub qs: Qs,
     pub qs_connector: Qc,
+    pub rs: Rs,
     pub rate_limits: RateLimitsSettings,
     pub shutdown: CancellationToken,
 }
@@ -107,6 +110,7 @@ pub async fn run<
         auth_service,
         qs,
         qs_connector,
+        rs,
         rate_limits,
         shutdown,
     }: ServerRunParams<Qc, L>,
@@ -148,8 +152,9 @@ pub async fn run<
 
     // GRPC server
     let grpc_as = GrpcAs::new(auth_service);
-    let grpc_ds = GrpcDs::new(ds, qs_connector);
+    let grpc_ds = GrpcDs::new(ds, qs_connector.clone());
     let grpc_qs = GrpcQs::new(qs);
+    let grpc_rs = GrpcRs::new(rs, qs_connector);
 
     info!(?rate_limits, "Applying rate limits");
     let RateLimitsSettings { period, burst } = rate_limits;
@@ -200,6 +205,7 @@ pub async fn run<
         .add_service(AuthServiceServer::new(grpc_as))
         .add_service(dss)
         .add_service(QueueServiceServer::new(grpc_qs))
+        .add_service(RelayServiceServer::new(grpc_rs))
         .serve_with_incoming_shutdown(listener.into_stream(), shutdown.cancelled_owned())
 }
 
