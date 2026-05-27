@@ -913,7 +913,7 @@ impl Group {
             .map(|kp| match kp {
                 ContactKeyPackage::Traditional(kp) => Ok(*kp),
                 ContactKeyPackage::Apq(_) => {
-                    Err(anyhow!("APQ key package used for traditional group invite"))
+                    bail!("APQ key package used for traditional group invite")
                 }
             })
             .collect::<Result<Vec<_>>>()?;
@@ -1015,7 +1015,7 @@ impl Group {
             .into_iter()
             .map(|kp| match kp {
                 ContactKeyPackage::Traditional(_) => {
-                    Err(anyhow!("Traditional key package used for APQ group invite"))
+                    bail!("Traditional key package used for APQ group invite")
                 }
                 ContactKeyPackage::Apq(kp) => Ok(*kp),
             })
