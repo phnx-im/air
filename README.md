@@ -17,7 +17,7 @@ Air is a free and easy-to-use secure messaging app.
 
 Air is regularly updated with new features and improvements.
 
-> **It’s still early days.** Air is built on a solid foundation. Its underlying security protocol implementation recently undergone an [independent security audit](http://blog.phnx.im/openmls-independent-security-audit/). However, the app is still evolving. It is not yet full-featured and not all advanced security measures have been implemented.
+> **It’s still early days.** Air is built on a solid foundation. Its underlying security protocol implementation recently undergone an [independent security audit](https://blog.phnx.im/openmls-independent-security-audit/). However, the app is still evolving. It is not yet full-featured and not all advanced security measures have been implemented.
 >
 
 ## Install
