@@ -42,13 +42,14 @@ use tower_governor::{
 use tower_http::trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer};
 use tracing::{Level, enabled, error, info};
 
-use crate::grpc_metrics::GrpcMetricsLayer;
+use crate::{grpc_method_alias::GrpcMethodAliasLayer, grpc_metrics::GrpcMetricsLayer};
 
 pub mod args;
 pub mod code_command;
 pub mod configurations;
 mod connect_info;
 pub mod enqueue_provider;
+mod grpc_method_alias;
 mod grpc_metrics;
 pub mod logging;
 pub mod network_provider;
@@ -179,6 +180,7 @@ pub async fn run<
 
     tonic::transport::Server::builder()
         .http2_keepalive_interval(Some(Duration::from_secs(30)))
+        .layer(GrpcMethodAliasLayer::new())
         .layer(InterceptorLayer::new(ConnectInfoInterceptor))
         .layer(GrpcMetricsLayer::new())
         .layer(

@@ -453,7 +453,8 @@ impl QueueService for GrpcQs {
         }))
     }
 
-    type ListenStream = Pin<Box<dyn Stream<Item = Result<QueueEvent, Status>> + Send + 'static>>;
+    type ListenStream =
+        Pin<Box<dyn Stream<Item = Result<ListenResponse, Status>> + Send + 'static>>;
 
     async fn listen(
         &self,
@@ -492,8 +493,8 @@ impl QueueService for GrpcQs {
             .await?;
         let events = queue_messages.map(|message| match message {
             Some(event) => event,
-            None => QueueEvent {
-                event: Some(queue_event::Event::Empty(QueueEmpty {})),
+            None => ListenResponse {
+                event: Some(listen_response::Event::Empty(QueueEmpty {})),
             },
         });
 

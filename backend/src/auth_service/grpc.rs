@@ -536,7 +536,7 @@ impl auth_service_server::AuthService for GrpcAs {
         Ok(Response::new(ReportSpamResponse {}))
     }
 
-    async fn check_handle_exists(
+    async fn check_username_exists(
         &self,
         request: Request<CheckUsernameExistsRequest>,
     ) -> Result<Response<CheckUsernameExistsResponse>, Status> {
@@ -549,7 +549,7 @@ impl auth_service_server::AuthService for GrpcAs {
         Ok(Response::new(CheckUsernameExistsResponse { exists }))
     }
 
-    async fn create_handle(
+    async fn create_username(
         &self,
         request: Request<CreateUsernameRequest>,
     ) -> Result<Response<CreateUsernameResponse>, Status> {
@@ -581,7 +581,7 @@ impl auth_service_server::AuthService for GrpcAs {
         Ok(Response::new(CreateUsernameResponse {}))
     }
 
-    async fn delete_handle(
+    async fn delete_username(
         &self,
         request: Request<DeleteUsernameRequest>,
     ) -> Result<Response<DeleteUsernameResponse>, Status> {
@@ -612,7 +612,7 @@ impl auth_service_server::AuthService for GrpcAs {
         }))
     }
 
-    async fn refresh_handle(
+    async fn refresh_username(
         &self,
         request: Request<RefreshUsernameRequest>,
     ) -> Result<Response<RefreshUsernameResponse>, Status> {
@@ -634,12 +634,12 @@ impl auth_service_server::AuthService for GrpcAs {
         Ok(Response::new(RefreshUsernameResponse {}))
     }
 
-    type ConnectHandleStream = BoxStream<'static, Result<ConnectResponse, Status>>;
+    type ConnectUsernameStream = BoxStream<'static, Result<ConnectUsernameResponse, Status>>;
 
-    async fn connect_handle(
+    async fn connect_username(
         &self,
-        request: Request<Streaming<ConnectRequest>>,
-    ) -> Result<Response<Self::ConnectHandleStream>, Status> {
+        request: Request<Streaming<ConnectUsernameRequest>>,
+    ) -> Result<Response<Self::ConnectUsernameStream>, Status> {
         let incoming = request.into_inner();
         let (outgoing_tx, outgoing_rx) = mpsc::channel(1);
 
@@ -654,12 +654,12 @@ impl auth_service_server::AuthService for GrpcAs {
         Ok(Response::new(Box::pin(outgoing)))
     }
 
-    type ListenHandleStream = BoxStream<'static, Result<ListenUsernameResponse, Status>>;
+    type ListenUsernameStream = BoxStream<'static, Result<ListenUsernameResponse, Status>>;
 
-    async fn listen_handle(
+    async fn listen_username(
         &self,
         request: Request<Streaming<ListenUsernameRequest>>,
-    ) -> Result<Response<Self::ListenHandleStream>, Status> {
+    ) -> Result<Response<Self::ListenUsernameStream>, Status> {
         let mut requests = request.into_inner();
 
         let request = requests

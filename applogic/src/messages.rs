@@ -5,7 +5,7 @@
 use aircommon::messages::QueueMessage;
 use aircoreclient::{
     ChatId,
-    clients::{ListenQueueError, process::process_qs::ProcessedQsMessages, queue_event},
+    clients::{ListenQueueError, listen_response, process::process_qs::ProcessedQsMessages},
 };
 use anyhow::Result;
 use tokio_stream::StreamExt;
@@ -28,11 +28,11 @@ impl User {
     async fn fetch_and_process_qs_messages(&self) -> Result<ProcessedQsMessages, ListenQueueError> {
         let (stream, responder) = self.user.listen_queue().await?;
         let mut stream = stream
-            .take_while(|message| !matches!(message.event, Some(queue_event::Event::Empty(_))))
+            .take_while(|message| !matches!(message.event, Some(listen_response::Event::Empty(_))))
             .filter_map(|message| match message.event? {
-                queue_event::Event::Empty(_) => unreachable!(),
-                queue_event::Event::Message(queue_message) => queue_message.try_into().ok(),
-                queue_event::Event::Payload(_) => None,
+                listen_response::Event::Empty(_) => unreachable!(),
+                listen_response::Event::Message(queue_message) => queue_message.try_into().ok(),
+                listen_response::Event::Payload(_) => None,
             });
 
         let mut messages: Vec<QueueMessage> = Vec::new();

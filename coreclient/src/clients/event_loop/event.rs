@@ -8,7 +8,7 @@ use std::convert::Infallible;
 
 use airapiclient::qs_api::QsListenResponder;
 use aircommon::identifiers::Username;
-use airprotos::{auth_service::v1::UsernameQueueMessage, queue_service::v1::QueueEvent};
+use airprotos::{auth_service::v1::UsernameQueueMessage, queue_service::v1::ListenResponse};
 
 use crate::{
     ChatId,
@@ -26,7 +26,7 @@ use crate::{
 /// The remote queue is either the QS queue or the AS username queue.
 pub(super) enum RemoteQueueEvent {
     Qs {
-        event: QueueEvent,
+        response: ListenResponse,
         responder: Responder<QsProcessEventResult, Infallible>,
     },
     Username {
@@ -39,11 +39,14 @@ pub(super) enum RemoteQueueEvent {
 impl RemoteQueueEvent {
     /// Helper function for creating a [`RemoteQueueEvent::Qs`] message.
     pub(super) fn qs_event(
-        event: QueueEvent,
+        response: ListenResponse,
     ) -> (Self, Response<QsProcessEventResult, Infallible>) {
-        let (responder, response) = responder();
-        let message = Self::Qs { event, responder };
-        (message, response)
+        let (responder, responder_response) = responder();
+        let message = Self::Qs {
+            response,
+            responder,
+        };
+        (message, responder_response)
     }
 
     /// Helper function for creating a [`RemoteQueueEvent::Username`] message.

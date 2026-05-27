@@ -65,6 +65,12 @@ check-dart:
 check-frb: regenerate-frb && _check-unstaged-changes
 
 [group('check')]
+[working-directory('protos')]
+check-buf:
+    buf lint
+    buf breaking --against '{{justfile_directory()}}/.git#branch=origin/main'
+
+[group('check')]
 check-reuse:
     reuse lint -l
 

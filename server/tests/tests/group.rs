@@ -7,8 +7,8 @@ use std::slice;
 use aircoreclient::{
     DisplayName, UserProfile,
     clients::{
+        listen_response,
         process::process_qs::{QsProcessEventResult, QsStreamProcessor},
-        queue_event,
     },
 };
 use airserver_test_harness::utils::setup::TestBackend;
@@ -586,7 +586,9 @@ async fn missed_commit() {
     let (stream, responder) = bob_user.listen_queue().await.unwrap();
     let sequence_number = stream
         .map_while(|message| match message.event {
-            Some(queue_event::Event::Message(queue_message)) => Some(queue_message.sequence_number),
+            Some(listen_response::Event::Message(queue_message)) => {
+                Some(queue_message.sequence_number)
+            }
             _ => None,
         })
         .fold(0, |_, sequence_number| sequence_number)

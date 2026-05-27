@@ -21,7 +21,7 @@ use aircommon::{
 };
 use airprotos::{
     client::group::GroupData,
-    queue_service::v1::{QueueEvent, queue_event},
+    queue_service::v1::{ListenResponse, listen_response},
 };
 use anyhow::{Context, Result, bail, ensure};
 use apqmls::messages::ApqMlsMessageIn;
@@ -1378,21 +1378,21 @@ impl QsStreamProcessor {
     pub async fn process_event(
         &mut self,
         core_user: &CoreUser,
-        event: QueueEvent,
+        response: ListenResponse,
     ) -> QsProcessEventResult {
-        debug!(?event, "processing QS listen event");
+        debug!(?response, "processing QS listen event");
 
-        match event.event {
+        match response.event {
             None => {
                 error!("received an empty event");
                 QsProcessEventResult::Ignored
             }
-            Some(queue_event::Event::Payload(_)) => {
+            Some(listen_response::Event::Payload(_)) => {
                 // currently, we don't handle payload events
                 warn!("ignoring QS listen payload event");
                 QsProcessEventResult::Ignored
             }
-            Some(queue_event::Event::Message(message)) => match message.try_into() {
+            Some(listen_response::Event::Message(message)) => match message.try_into() {
                 Ok(message) => {
                     // Invariant: after a message there is always an Empty event as sentinel
                     // => accumulated messages will be processed there
@@ -1409,7 +1409,7 @@ impl QsStreamProcessor {
                 }
             },
             // Empty event indicates that the queue is empty
-            Some(queue_event::Event::Empty(_)) => {
+            Some(listen_response::Event::Empty(_)) => {
                 let max_sequence_number = self.messages.last().map(|m| m.sequence_number);
 
                 let messages = std::mem::take(&mut self.messages);

@@ -107,7 +107,10 @@ impl EventLoop {
             };
 
             match incoming {
-                Incoming::Remote(RemoteQueueEvent::Qs { event, responder }) => {
+                Incoming::Remote(RemoteQueueEvent::Qs {
+                    response: event,
+                    responder,
+                }) => {
                     let Some(core_user) = CoreUserInner::upgrade(&core_user) else {
                         info!("Core user dropped; exit event loop");
                         return;

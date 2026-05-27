@@ -29,7 +29,7 @@ use aircommon::{
     messages::{FriendshipToken, QueueMessage, push_token::PushToken},
 };
 pub use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
-pub use airprotos::queue_service::v1::{QueueEvent, QueueEventPayload, queue_event};
+pub use airprotos::queue_service::v1::{ListenResponse, QueueEventPayload, listen_response};
 use anyhow::{Context, Result, anyhow, ensure};
 use chrono::{DateTime, Utc};
 use openmls::prelude::Ciphersuite;
@@ -467,13 +467,13 @@ impl CoreUser {
 
         while let Some(message) = stream.next().await {
             match message.event {
-                Some(queue_event::Event::Empty(_)) => break,
-                Some(queue_event::Event::Message(queue_message)) => {
+                Some(listen_response::Event::Empty(_)) => break,
+                Some(listen_response::Event::Message(queue_message)) => {
                     if let Ok(queue_message) = queue_message.try_into() {
                         messages.push(queue_message);
                     }
                 }
-                Some(queue_event::Event::Payload(_)) => {}
+                Some(listen_response::Event::Payload(_)) => {}
                 None => {}
             }
         }
@@ -609,7 +609,10 @@ impl CoreUser {
     pub async fn listen_queue(
         &self,
     ) -> std::result::Result<
-        (impl Stream<Item = QueueEvent> + use<>, QsListenResponder),
+        (
+            impl Stream<Item = ListenResponse> + use<>,
+            QsListenResponder,
+        ),
         ListenQueueError,
     > {
         let queue_ratchet = StorableQsQueueRatchet::load(self.db().read().await?).await?;

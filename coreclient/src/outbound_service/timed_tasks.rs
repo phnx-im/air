@@ -99,7 +99,7 @@ impl TimedTaskKind {
             TimedTaskKind::UsernameRefresh => Duration::minutes(5),
             TimedTaskKind::SelfUpdate => Duration::minutes(5),
             TimedTaskKind::TokenReplenishment { operation_type } => match operation_type {
-                OperationType::Unknown => Duration::MAX,
+                OperationType::Unspecified => Duration::MAX,
                 OperationType::AddUsername => Duration::minutes(5),
                 OperationType::GetInviteCode => Duration::minutes(5),
             },
