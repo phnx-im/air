@@ -167,6 +167,11 @@ strip = true
 lto = true
 codegen-units = 1
 
+# Profile for compiling tests in CI
 [profile.ci]
 inherits = "test"
+# Keep backtraces in the test binaries
 debug = "line-tables-only"
+# This makes the tests archives much smaller. The archive is passed to
+# dependent jobs in CI running the tests in parallel.
+strip = "debuginfo"
