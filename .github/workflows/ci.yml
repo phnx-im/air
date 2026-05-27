@@ -175,12 +175,12 @@ jobs:
       - name: Run tests
         env:
           RUST_BACKTRACE: "1"
-        run: cargo nextest run --archive-file cargo-tests.tar.zst --workspace-root . --profile ${{ matrix.profile }}
+        run: cargo nextest run --archive-file cargo-tests.tar.zst --profile ${{ matrix.profile }}
 
       - name: Test report
         uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
         if: ${{ !cancelled() }}
         with:
           name: ${{ matrix.name }}
-          path: junit.xml
+          path: target/nextest/${{ matrix.profile }}/junit.xml
           reporter: java-junit
