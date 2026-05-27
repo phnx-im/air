@@ -91,9 +91,7 @@ impl CoreUser {
 
         let fingerprint_base64 = B64.encode(fingerprint.as_slice());
 
-        let (tx, mut rx) = api_client
-            .rs_provision_client(fingerprint_base64)
-            .await?;
+        let (tx, mut rx) = api_client.rs_provision_client(fingerprint_base64).await?;
 
         // The relay echoes back the session ID as the first frame
         let session_id_frame = rx.next().await.context("relay connection closed")??;
@@ -149,7 +147,7 @@ impl CoreUser {
         Ok(answer_str)
     }
 
-    pub async fn link_multi_device_pairing(&self, session_id: String) -> anyhow::Result<()> {
+    pub async fn link_multi_device_pairing(&self, session_id: String) -> anyhow::Result<String> {
         let client = self.api_client()?;
         let qs_user_id = self.inner.qs_user_id;
         let qs_user_signing_key = self.key_store().qs_user_signing_key.clone();
@@ -222,6 +220,6 @@ impl CoreUser {
         )
         .await?;
 
-        Ok(())
+        Ok(answer_str)
     }
 }

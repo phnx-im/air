@@ -22,10 +22,12 @@ async fn multi_device_pairing_session() {
     let session_id = session_id_rx.await.unwrap();
 
     // the old device scans/types the session ID
-    let alice_user = setup
+    let initiator_first_message = setup
         .get_user(&alice)
         .user()
         .link_multi_device_pairing(session_id)
         .await
         .unwrap();
+
+    assert_eq!(initiator_first_message, "ping!");
 }
