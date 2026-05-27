@@ -24,8 +24,8 @@ use mimi_room_policy::RoleIndex;
 use openmls::{
     group::{ProcessMessageError, ValidationError},
     prelude::{
-        ProcessedMessage, ProcessedMessageContent, Proposal, ProtocolMessage, Sender,
-        SignaturePublicKey, StagedCommit,
+        LeafNodeIndex, ProcessedMessage, ProcessedMessageContent, Proposal, ProtocolMessage,
+        Sender, SignaturePublicKey, StagedCommit,
     },
 };
 use tls_codec::DeserializeBytes as TlsDeserializeBytes;
@@ -43,6 +43,12 @@ pub(crate) struct ProcessMessageResult {
     pub(crate) processed_message: ProcessedMessage,
     pub(crate) we_were_removed: bool,
     pub(crate) profile_infos: Vec<(ClientCredential, UserProfileKey)>,
+}
+
+struct PostProcessState {
+    sender_index: LeafNodeIndex,
+    we_were_removed: bool,
+    encrypted_profile_infos: Vec<(ClientCredential, EncryptedUserProfileKey)>,
 }
 
 impl Group {
@@ -95,13 +101,7 @@ impl Group {
         processed_message: ProcessedMessage,
         pq_processed_message: Option<&ProcessedMessage>,
     ) -> Result<ProcessMessageResult> {
-        let group_id = self.group_id().clone();
-
-        // Will be set to true if we were removed (or the group was deleted).
-        let mut we_were_removed = false;
-        let mut encrypted_profile_infos: Vec<(ClientCredential, EncryptedUserProfileKey)> =
-            Vec::new();
-        let sender_index = match processed_message.content() {
+        let post_process_state = match processed_message.content() {
             // For now, we only care about commits.
             ProcessedMessageContent::ExternalJoinProposalMessage(_) => {
                 bail!("Unsupported message type")
@@ -110,7 +110,7 @@ impl Group {
                 debug!("process application message");
                 return Ok(ProcessMessageResult {
                     processed_message,
-                    we_were_removed,
+                    we_were_removed: false,
                     profile_infos: Vec::new(),
                 });
             }
@@ -123,308 +123,21 @@ impl Group {
 
                 // TODO: Room policy checks?
 
-                *sender_index
+                PostProcessState {
+                    sender_index: *sender_index,
+                    we_were_removed: false,
+                    encrypted_profile_infos: Vec::new(),
+                }
             }
             ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
-                let pq_staged_commit = pq_processed_message
-                    .as_ref()
-                    .map(
-                        |pq_processed_message| match pq_processed_message.content() {
-                            ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
-                                Ok(staged_commit)
-                            }
-                            _ => bail!("Invalid PQ message type: expected StagedCommitMessage"),
-                        },
-                    )
-                    .transpose()?;
-
-                let sender_index = match processed_message.sender() {
-                    Sender::Member(index) => index.to_owned(),
-                    Sender::NewMemberCommit => {
-                        self.mls_group.ext_commit_sender_index(staged_commit)?
-                    }
-                    Sender::External(_) | Sender::NewMemberProposal => {
-                        bail!("Invalid sender type.")
-                    }
-                };
-
-                // Discard any pending commits we have locally and delete any
-                // pending non-leave chat operations we may have for this group.
-                // If it's a leave operation, only delete it if it's part of
-                // this commit.
-                self.discard_pending_commit(&mut *txn).await?;
-                if let Some(pending_chat_operation) =
-                    PendingChatOperation::load_by_group_id(&mut *txn, &group_id).await?
-                {
-                    let commit_contains_our_self_remove =
-                        staged_commit.queued_proposals().any(|p| {
-                            matches!(p.proposal(), Proposal::SelfRemove)
-                                && sender_index == self.mls_group().own_leaf_index()
-                        });
-                    if !pending_chat_operation.is_leave() || commit_contains_our_self_remove {
-                        PendingChatOperation::delete(&mut *txn, &group_id).await?;
-                    }
-                }
-
-                let sender_credential = VerifiableClientCredential::from_basic_credential(
-                    processed_message.credential(),
-                )?;
-
-                // StagedCommitMessage Phase 1: Process the proposals.
-
-                // Before we process the AAD payload, we first process the
-                // proposals by value. Currently only removes are allowed.
-                for queued_proposal in staged_commit.queued_proposals() {
-                    if matches!(queued_proposal.sender(), Sender::NewMemberCommit) {
-                        // This can only happen if the removed member is rejoining
-                        // as part of the commit. No need to process the removal.
-                        continue;
-                    }
-                    // Load the removed client's index.
-                    let Some(removed_index) = removed_client(queued_proposal) else {
-                        // This is not a remove proposal, so we skip it.
-                        continue;
-                    };
-
-                    // Check that the signature keys of the removed user match
-                    if let Some(pq) = self.pq.as_ref() {
-                        let pq_leaf_node = pq
-                            .mls_group
-                            .public_group()
-                            .leaf(removed_index)
-                            .context("PQ sender leaf not found")?;
-                        let t_leaf_node = self
-                            .mls_group
-                            .public_group()
-                            .leaf(removed_index)
-                            .context("T sender leaf not found")?;
-                        ensure!(
-                            t_leaf_node.signature_key() == pq_leaf_node.signature_key(),
-                            "T and PQ sender signature keys do not match"
-                        );
-                    }
-
-                    let removed_credential = self
-                        .unverified_credential_at(removed_index)?
-                        .context("Removed user credential not found")?;
-                    let removed_id = removed_credential.user_id();
-
-                    // Room policy checks
-                    self.verify_role_change(
-                        sender_credential.user_id(),
-                        removed_id,
-                        RoleIndex::Outsider,
-                    )?;
-
-                    if removed_index == self.mls_group().own_leaf_index() {
-                        we_were_removed = true;
-                    }
-                }
-
-                // Phase 2: Process the AAD payload.
-                // Let's figure out which operation this is meant to be.
-                let aad_payload = AadMessage::tls_deserialize_exact_bytes(processed_message.aad())?
-                    .into_payload();
-                match aad_payload {
-                    AadPayload::GroupOperation(group_operation_payload) => {
-                        let number_of_adds = staged_commit.add_proposals().count();
-                        let number_of_upks = group_operation_payload
-                            .new_encrypted_user_profile_keys
-                            .len();
-                        ensure!(
-                            number_of_adds == number_of_upks,
-                            "Number of add proposals and user profile keys don't match"
-                        );
-
-                        // Process adds if there are any.
-                        if !group_operation_payload
-                            .new_encrypted_user_profile_keys
-                            .is_empty()
-                        {
-                            let mut verifiable_credentials = Vec::with_capacity(number_of_adds);
-                            let mut pq_add_proposals = pq_staged_commit
-                                .as_ref()
-                                .map(|commit| commit.add_proposals());
-
-                            for ap in staged_commit.add_proposals() {
-                                // Verify that T/PQ signature keys match
-                                if let Some(pq_add_proposals) = pq_add_proposals.as_mut() {
-                                    let pq_add_proposal = pq_add_proposals
-                                        .next()
-                                        .context("Less PQ add proposals than T")?;
-                                    let pq_signature_key = pq_add_proposal
-                                        .add_proposal()
-                                        .key_package()
-                                        .leaf_node()
-                                        .signature_key();
-                                    let t_signature_key =
-                                        ap.add_proposal().key_package().leaf_node().signature_key();
-                                    ensure!(
-                                        pq_signature_key == t_signature_key,
-                                        "T and PQ added user signature keys do not match"
-                                    );
-                                }
-
-                                // Collect the verifiable credentials
-                                let credential =
-                                    ap.add_proposal().key_package().leaf_node().credential();
-                                let credential =
-                                    VerifiableClientCredential::from_basic_credential(credential)?;
-                                verifiable_credentials.push(credential);
-                            }
-
-                            let as_credentials = AsCredentials::fetch_for_verification(
-                                &mut *txn,
-                                api_clients,
-                                verifiable_credentials.iter(),
-                            )
-                            .await?;
-                            let credentials = self
-                                .process_adds(
-                                    sender_credential.user_id(),
-                                    staged_commit,
-                                    &mut *txn,
-                                    &as_credentials,
-                                )
-                                .await?;
-                            // Match up client credentials and new UserProfileKeys
-                            let new_profile_infos: Vec<_> = credentials
-                                .into_iter()
-                                .zip(
-                                    group_operation_payload
-                                        .new_encrypted_user_profile_keys
-                                        .into_iter(),
-                                )
-                                .collect();
-                            encrypted_profile_infos.extend(new_profile_infos);
-                        }
-
-                        // Process updates if there are any.
-                        // Check if the client has updated its leaf credential.
-                        let (new_sender_credential, new_sender_leaf_key) =
-                            update_path_leaf_node_info(staged_commit)?;
-
-                        let as_credentials = AsCredentials::fetch_for_verification(
-                            &mut *txn,
-                            api_clients,
-                            iter::once(&new_sender_credential),
-                        )
-                        .await?;
-
-                        let old_credential = sender_credential;
-                        if new_sender_credential != old_credential {
-                            let credential = new_sender_credential.verify_and_validate(
-                                new_sender_leaf_key,
-                                Some(&old_credential),
-                                &as_credentials,
-                            )?;
-                            credential.store(txn).await?;
-                        }
-
-                        // Process a resync if this is one
-                        if matches!(processed_message.sender(), Sender::NewMemberCommit) {
-                            self.process_resync(&processed_message, staged_commit)?;
-                        }
-                    }
-                    AadPayload::JoinConnectionGroup(join_connection_group_payload) => {
-                        // JoinConnectionGroup Phase 1: Decrypt and verify the
-                        // client credential of the joiner
-                        let (sender_credential, sender_leaf_key) =
-                            update_path_leaf_node_info(staged_commit)?;
-
-                        // Verify that T/PQ signature keys match
-                        if let Some(pq_staged_commit) = pq_staged_commit.as_ref() {
-                            let pq_leaf_node = pq_staged_commit
-                                .update_path_leaf_node()
-                                .context("Could not find sender leaf node")?;
-                            ensure!(
-                                sender_leaf_key == pq_leaf_node.signature_key(),
-                                "T and PQ sender signature keys do not match"
-                            );
-                        }
-
-                        let as_credentials = AsCredentials::fetch_for_verification(
-                            &mut *txn,
-                            api_clients,
-                            iter::once(&sender_credential),
-                        )
-                        .await?;
-
-                        let sender_credential = sender_credential.verify_and_validate(
-                            sender_leaf_key,
-                            None, // Since the join is an external commit, we don't have an old credential.
-                            &as_credentials,
-                        )?;
-
-                        // TODO: (More) validation:
-                        // * Check that the user id is unique.
-                        // * Check that the proposals fit the operation.
-                        // * Check that the sender type fits the operation.
-                        // * Check that this group is indeed a connection group.
-
-                        // JoinConnectionGroup Phase 2: Persist the client credential
-                        sender_credential.store(txn).await?;
-                        encrypted_profile_infos.push((
-                            sender_credential.into(),
-                            join_connection_group_payload.encrypted_user_profile_key,
-                        ));
-                    }
-                    AadPayload::Resync => {
-                        // Check if it's an external commit. This implies that
-                        // there is only one remove proposal.
-                        ensure!(
-                            matches!(processed_message.sender(), Sender::NewMemberCommit),
-                            "Resync operation must be an external commit"
-                        );
-
-                        let (sender_credential, sender_leaf_key) =
-                            update_path_leaf_node_info(staged_commit)?;
-
-                        // Verify that T/PQ signature keys match
-                        if let Some(pq_staged_commit) = pq_staged_commit.as_ref() {
-                            let pq_leaf_node = pq_staged_commit
-                                .update_path_leaf_node()
-                                .context("Could not find sender leaf node")?;
-                            ensure!(
-                                sender_leaf_key == pq_leaf_node.signature_key(),
-                                "T and PQ sender signature keys do not match"
-                            );
-                        }
-
-                        let removed_index = staged_commit
-                            .remove_proposals()
-                            .next()
-                            .context("Resync operation did not contain a remove proposal")?
-                            .remove_proposal()
-                            .removed();
-
-                        let old_credential = self
-                            .mls_group
-                            .member(removed_index)
-                            .ok_or(anyhow!("Could not find removed member in group"))?;
-
-                        let as_credentials = AsCredentials::fetch_for_verification(
-                            &mut *txn,
-                            api_clients,
-                            iter::once(&sender_credential),
-                        )
-                        .await?;
-
-                        let old_credential =
-                            VerifiableClientCredential::from_basic_credential(old_credential)?;
-                        let sender_credential = sender_credential.verify_and_validate(
-                            sender_leaf_key,
-                            Some(&old_credential),
-                            &as_credentials,
-                        )?;
-                        sender_credential.store(txn).await?;
-                    }
-                    AadPayload::DeleteGroup => {
-                        we_were_removed = true;
-                        // There is nothing else to do at this point.
-                    }
-                };
-                sender_index
+                self.post_process_staged_commit(
+                    txn,
+                    api_clients,
+                    &processed_message,
+                    staged_commit,
+                    pq_processed_message,
+                )
+                .await?
             }
         };
 
@@ -433,12 +146,12 @@ impl Group {
             let pq_sender_leaf = pq_group
                 .mls_group
                 .public_group()
-                .leaf(sender_index)
+                .leaf(post_process_state.sender_index)
                 .context("PQ sender leaf not found")?;
             let t_sender_leaf = self
                 .mls_group
                 .public_group()
-                .leaf(sender_index)
+                .leaf(post_process_state.sender_index)
                 .context("T sender leaf not found")?;
             ensure!(
                 pq_sender_leaf.signature_key() == t_sender_leaf.signature_key(),
@@ -447,7 +160,8 @@ impl Group {
         }
 
         // Decrypt any user profile keys
-        let profile_infos = encrypted_profile_infos
+        let profile_infos = post_process_state
+            .encrypted_profile_infos
             .into_iter()
             .map(|(client_credential, encrypted_user_profile_key)| {
                 let user_profile_key = UserProfileKey::decrypt(
@@ -461,8 +175,320 @@ impl Group {
 
         Ok(ProcessMessageResult {
             processed_message,
-            we_were_removed,
+            we_were_removed: post_process_state.we_were_removed,
             profile_infos,
+        })
+    }
+
+    async fn post_process_staged_commit(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        api_clients: &ApiClients,
+        processed_message: &ProcessedMessage,
+        staged_commit: &StagedCommit,
+        pq_processed_message: Option<&ProcessedMessage>,
+    ) -> Result<PostProcessState> {
+        let group_id = self.group_id().clone();
+
+        // Will be set to true if we were removed (or the group was deleted).
+        let mut we_were_removed = false;
+        let mut encrypted_profile_infos: Vec<(ClientCredential, EncryptedUserProfileKey)> =
+            Vec::new();
+
+        let pq_staged_commit = pq_processed_message
+            .as_ref()
+            .map(
+                |pq_processed_message| match pq_processed_message.content() {
+                    ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
+                        Ok(staged_commit)
+                    }
+                    _ => bail!("Invalid PQ message type: expected StagedCommitMessage"),
+                },
+            )
+            .transpose()?;
+
+        let sender_index = match processed_message.sender() {
+            Sender::Member(index) => index.to_owned(),
+            Sender::NewMemberCommit => self.mls_group.ext_commit_sender_index(staged_commit)?,
+            Sender::External(_) | Sender::NewMemberProposal => {
+                bail!("Invalid sender type.")
+            }
+        };
+
+        // Discard any pending commits we have locally and delete any
+        // pending non-leave chat operations we may have for this group.
+        // If it's a leave operation, only delete it if it's part of
+        // this commit.
+        self.discard_pending_commit(&mut *txn).await?;
+        if let Some(pending_chat_operation) =
+            PendingChatOperation::load_by_group_id(&mut *txn, &group_id).await?
+        {
+            let commit_contains_our_self_remove = staged_commit.queued_proposals().any(|p| {
+                matches!(p.proposal(), Proposal::SelfRemove)
+                    && sender_index == self.mls_group().own_leaf_index()
+            });
+            if !pending_chat_operation.is_leave() || commit_contains_our_self_remove {
+                PendingChatOperation::delete(&mut *txn, &group_id).await?;
+            }
+        }
+
+        let sender_credential =
+            VerifiableClientCredential::from_basic_credential(processed_message.credential())?;
+
+        // StagedCommitMessage Phase 1: Process the proposals.
+
+        // Before we process the AAD payload, we first process the
+        // proposals by value. Currently only removes are allowed.
+        for queued_proposal in staged_commit.queued_proposals() {
+            if matches!(queued_proposal.sender(), Sender::NewMemberCommit) {
+                // This can only happen if the removed member is rejoining
+                // as part of the commit. No need to process the removal.
+                continue;
+            }
+            // Load the removed client's index.
+            let Some(removed_index) = removed_client(queued_proposal) else {
+                // This is not a remove proposal, so we skip it.
+                continue;
+            };
+
+            // Check that the signature keys of the removed user match
+            if let Some(pq) = self.pq.as_ref() {
+                let pq_leaf_node = pq
+                    .mls_group
+                    .public_group()
+                    .leaf(removed_index)
+                    .context("PQ sender leaf not found")?;
+                let t_leaf_node = self
+                    .mls_group
+                    .public_group()
+                    .leaf(removed_index)
+                    .context("T sender leaf not found")?;
+                ensure!(
+                    t_leaf_node.signature_key() == pq_leaf_node.signature_key(),
+                    "T and PQ sender signature keys do not match"
+                );
+            }
+
+            let removed_credential = self
+                .unverified_credential_at(removed_index)?
+                .context("Removed user credential not found")?;
+            let removed_id = removed_credential.user_id();
+
+            // Room policy checks
+            self.verify_role_change(sender_credential.user_id(), removed_id, RoleIndex::Outsider)?;
+
+            if removed_index == self.mls_group().own_leaf_index() {
+                we_were_removed = true;
+            }
+        }
+
+        // Phase 2: Process the AAD payload.
+        // Let's figure out which operation this is meant to be.
+        let aad_payload =
+            AadMessage::tls_deserialize_exact_bytes(processed_message.aad())?.into_payload();
+        match aad_payload {
+            AadPayload::GroupOperation(group_operation_payload) => {
+                let number_of_adds = staged_commit.add_proposals().count();
+                let number_of_upks = group_operation_payload
+                    .new_encrypted_user_profile_keys
+                    .len();
+                ensure!(
+                    number_of_adds == number_of_upks,
+                    "Number of add proposals and user profile keys don't match"
+                );
+
+                // Process adds if there are any.
+                if !group_operation_payload
+                    .new_encrypted_user_profile_keys
+                    .is_empty()
+                {
+                    let mut verifiable_credentials = Vec::with_capacity(number_of_adds);
+                    let mut pq_add_proposals = pq_staged_commit
+                        .as_ref()
+                        .map(|commit| commit.add_proposals());
+
+                    for ap in staged_commit.add_proposals() {
+                        // Verify that T/PQ signature keys match
+                        if let Some(pq_add_proposals) = pq_add_proposals.as_mut() {
+                            let pq_add_proposal = pq_add_proposals
+                                .next()
+                                .context("Less PQ add proposals than T")?;
+                            let pq_signature_key = pq_add_proposal
+                                .add_proposal()
+                                .key_package()
+                                .leaf_node()
+                                .signature_key();
+                            let t_signature_key =
+                                ap.add_proposal().key_package().leaf_node().signature_key();
+                            ensure!(
+                                pq_signature_key == t_signature_key,
+                                "T and PQ added user signature keys do not match"
+                            );
+                        }
+
+                        // Collect the verifiable credentials
+                        let credential = ap.add_proposal().key_package().leaf_node().credential();
+                        let credential =
+                            VerifiableClientCredential::from_basic_credential(credential)?;
+                        verifiable_credentials.push(credential);
+                    }
+
+                    let as_credentials = AsCredentials::fetch_for_verification(
+                        &mut *txn,
+                        api_clients,
+                        verifiable_credentials.iter(),
+                    )
+                    .await?;
+                    let credentials = self
+                        .process_adds(
+                            sender_credential.user_id(),
+                            staged_commit,
+                            &mut *txn,
+                            &as_credentials,
+                        )
+                        .await?;
+                    // Match up client credentials and new UserProfileKeys
+                    let new_profile_infos: Vec<_> = credentials
+                        .into_iter()
+                        .zip(
+                            group_operation_payload
+                                .new_encrypted_user_profile_keys
+                                .into_iter(),
+                        )
+                        .collect();
+                    encrypted_profile_infos.extend(new_profile_infos);
+                }
+
+                // Process updates if there are any.
+                // Check if the client has updated its leaf credential.
+                let (new_sender_credential, new_sender_leaf_key) =
+                    update_path_leaf_node_info(staged_commit)?;
+
+                let as_credentials = AsCredentials::fetch_for_verification(
+                    &mut *txn,
+                    api_clients,
+                    iter::once(&new_sender_credential),
+                )
+                .await?;
+
+                let old_credential = sender_credential;
+                if new_sender_credential != old_credential {
+                    let credential = new_sender_credential.verify_and_validate(
+                        new_sender_leaf_key,
+                        Some(&old_credential),
+                        &as_credentials,
+                    )?;
+                    credential.store(txn).await?;
+                }
+
+                // Process a resync if this is one
+                if matches!(processed_message.sender(), Sender::NewMemberCommit) {
+                    self.process_resync(processed_message, staged_commit)?;
+                }
+            }
+            AadPayload::JoinConnectionGroup(join_connection_group_payload) => {
+                // JoinConnectionGroup Phase 1: Decrypt and verify the
+                // client credential of the joiner
+                let (sender_credential, sender_leaf_key) =
+                    update_path_leaf_node_info(staged_commit)?;
+
+                // Verify that T/PQ signature keys match
+                if let Some(pq_staged_commit) = pq_staged_commit.as_ref() {
+                    let pq_leaf_node = pq_staged_commit
+                        .update_path_leaf_node()
+                        .context("Could not find sender leaf node")?;
+                    ensure!(
+                        sender_leaf_key == pq_leaf_node.signature_key(),
+                        "T and PQ sender signature keys do not match"
+                    );
+                }
+
+                let as_credentials = AsCredentials::fetch_for_verification(
+                    &mut *txn,
+                    api_clients,
+                    iter::once(&sender_credential),
+                )
+                .await?;
+
+                let sender_credential = sender_credential.verify_and_validate(
+                    sender_leaf_key,
+                    None, // Since the join is an external commit, we don't have an old credential.
+                    &as_credentials,
+                )?;
+
+                // TODO: (More) validation:
+                // * Check that the user id is unique.
+                // * Check that the proposals fit the operation.
+                // * Check that the sender type fits the operation.
+                // * Check that this group is indeed a connection group.
+
+                // JoinConnectionGroup Phase 2: Persist the client credential
+                sender_credential.store(txn).await?;
+                encrypted_profile_infos.push((
+                    sender_credential.into(),
+                    join_connection_group_payload.encrypted_user_profile_key,
+                ));
+            }
+            AadPayload::Resync => {
+                // Check if it's an external commit. This implies that
+                // there is only one remove proposal.
+                ensure!(
+                    matches!(processed_message.sender(), Sender::NewMemberCommit),
+                    "Resync operation must be an external commit"
+                );
+
+                let (sender_credential, sender_leaf_key) =
+                    update_path_leaf_node_info(staged_commit)?;
+
+                // Verify that T/PQ signature keys match
+                if let Some(pq_staged_commit) = pq_staged_commit.as_ref() {
+                    let pq_leaf_node = pq_staged_commit
+                        .update_path_leaf_node()
+                        .context("Could not find sender leaf node")?;
+                    ensure!(
+                        sender_leaf_key == pq_leaf_node.signature_key(),
+                        "T and PQ sender signature keys do not match"
+                    );
+                }
+
+                let removed_index = staged_commit
+                    .remove_proposals()
+                    .next()
+                    .context("Resync operation did not contain a remove proposal")?
+                    .remove_proposal()
+                    .removed();
+
+                let old_credential = self
+                    .mls_group
+                    .member(removed_index)
+                    .ok_or(anyhow!("Could not find removed member in group"))?;
+
+                let as_credentials = AsCredentials::fetch_for_verification(
+                    &mut *txn,
+                    api_clients,
+                    iter::once(&sender_credential),
+                )
+                .await?;
+
+                let old_credential =
+                    VerifiableClientCredential::from_basic_credential(old_credential)?;
+                let sender_credential = sender_credential.verify_and_validate(
+                    sender_leaf_key,
+                    Some(&old_credential),
+                    &as_credentials,
+                )?;
+                sender_credential.store(txn).await?;
+            }
+            AadPayload::DeleteGroup => {
+                we_were_removed = true;
+                // There is nothing else to do at this point.
+            }
+        };
+
+        Ok(PostProcessState {
+            sender_index,
+            we_were_removed,
+            encrypted_profile_infos,
         })
     }
 
