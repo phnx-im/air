@@ -22,7 +22,7 @@ inputs:
     required: false
   cargo-binstall-default-tools:
     description: "Default tools to install with cargo-binstall"
-    default: "sccache@0.15.0 just@1.48.1"
+    default: "just@1.48.1"
     required: false
   cargo-binstall-tools:
     description: "Space separated list of cargo-binstall tools to install"
@@ -77,6 +77,13 @@ runs:
         GITHUB_TOKEN: ${{ github.token }}
 
     ## sccache
+
+    - name: Install sccache with cargo-binstall
+      if: inputs.sccache == 'true'
+      shell: bash
+      run: cargo binstall --no-confirm sccache@0.15.0
+      env:
+        GITHUB_TOKEN: ${{ github.token }}
 
     - name: Create sccache cache directory
       if: inputs.sccache == 'true'
