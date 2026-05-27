@@ -128,7 +128,8 @@ jobs:
         run: |
           cargo nextest archive --cargo-profile ci --archive-file cargo-tests.tar.zst
 
-      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+      - name: Upload test binaries
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: test-binaries
           path: cargo-tests.tar.zst
