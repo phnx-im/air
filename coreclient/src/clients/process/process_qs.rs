@@ -1176,6 +1176,7 @@ impl CoreUser {
     ) -> anyhow::Result<()> {
         let qs_message_payload = StorableQsQueueRatchet::decrypt_qs_queue_message(txn, qs_message)
             .await
+            .inspect_err(|error| error!(%error, "QS queue message decryption failed"))
             .context("Decrypting message failed")?;
         let qs_message_plaintext = match qs_message_payload.extract() {
             Ok(extracted) => extracted,
