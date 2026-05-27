@@ -43,9 +43,8 @@ sealed class RegistrationState with _$RegistrationState {
 }
 
 class RegistrationCubit extends Cubit<RegistrationState> {
-  RegistrationCubit({required CoreClient coreClient})
-    : _coreClient = coreClient,
-      super(const RegistrationState());
+  RegistrationCubit({required this._coreClient})
+    : super(const RegistrationState());
 
   final CoreClient _coreClient;
 

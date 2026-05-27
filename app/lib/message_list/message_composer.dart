@@ -652,8 +652,8 @@ class _MessageComposerState extends State<MessageComposer>
 
 class _MessageInput extends StatelessWidget {
   const _MessageInput({
-    required FocusNode focusNode,
-    required TextEditingController controller,
+    required this._focusNode,
+    required this._controller,
     required this.chatTitle,
     required this.isEditing,
     required this.isReplying,
@@ -663,8 +663,7 @@ class _MessageInput extends StatelessWidget {
     required this.onImagePasted,
     required this.onFilePasted,
     required this.onContentInserted,
-  }) : _focusNode = focusNode,
-       _controller = controller;
+  });
 
   final FocusNode _focusNode;
   final TextEditingController _controller;
