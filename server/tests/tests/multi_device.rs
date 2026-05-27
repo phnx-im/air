@@ -11,7 +11,7 @@ async fn multi_device_pairing_session() {
 
     let (session_id_tx, session_id_rx) = tokio::sync::oneshot::channel();
 
-    tokio::spawn(async move {
+    let new_device_task = tokio::spawn(async move {
         let answer = CoreUser::provision_multi_device_pairing(domain, server_url, session_id_tx)
             .await
             .unwrap();
@@ -30,4 +30,6 @@ async fn multi_device_pairing_session() {
         .unwrap();
 
     assert_eq!(initiator_first_message, "ping!");
+
+    new_device_task.await.unwrap();
 }

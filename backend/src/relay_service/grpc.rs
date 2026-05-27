@@ -1,5 +1,9 @@
 use std::{pin::Pin, sync::Arc};
 
+use aircommon::{
+    crypto::signatures::{keys::QsUserVerifyingKey, signable::Verifiable},
+    identifiers::QsUserId,
+};
 use airprotos::{
     relay_service::v1::{
         LinkClientRequest, METADATA_SESSION_ID, RelayFrame, relay_service_server::RelayService,
@@ -15,6 +19,7 @@ use tokio::{
 use tokio_stream::{StreamExt, wrappers::ReceiverStream};
 use tonic::{Request, Response, Status, Streaming, async_trait};
 use tracing::{error, info, warn};
+use uuid::Uuid;
 
 use crate::{
     qs::QsConnector,
@@ -22,7 +27,7 @@ use crate::{
 };
 
 pub struct GrpcRs<Qep: QsConnector> {
-    pub(super) rs: Rs,
+    rs: Rs,
     qs_connector: Qep,
 }
 
@@ -152,6 +157,29 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
             })?;
 
         // TODO: we should check that the payload has been signed by the right user
+        let qs_user_id: Uuid = request
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?
+            .sender
+            .ok_or_missing_field("sender")?
+            .value
+            .ok_or_missing_field("uuid value")?
+            .into();
+
+        let qs_user_signature_key: QsUserVerifyingKey = self
+            .qs_connector
+            .user_verifying_key(aircommon::identifiers::QsUserId::from(qs_user_id))
+            .await
+            .map_err(|error| {
+                error!(%error, "failed to load QS user signing key");
+                Status::internal("internal error")
+            })?
+            .ok_or_else(|| Status::not_found("user not found"))?;
+
+        // request
+        //     .verify(&qs_user_signature_key)
+        //     .map_err(|_| Status::invalid_argument("invalid signature"))?;
 
         let session_id = request.payload.ok_or_missing_field("payload")?.session_id;
         info!(%session_id, "pairing with existing session");
