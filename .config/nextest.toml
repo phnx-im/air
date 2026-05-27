@@ -4,13 +4,15 @@
 
 experimental = ["setup-scripts"]
 
-# all tests that do not require a backend
-[profile.default]
-default-filter = "not package(airserver) and not package(airbackend) and not (package(aircoreclient) and test(clients::tests))"
+# unit tests
+[profile.unit]
+default-filter = "not binary(integration)"
+junit = { path = "junit.xml" }
 
-# all tests that require a backend (heavier)
+# integration tests
 [profile.integration]
-default-filter = "package(airserver) or package(airbackend) or (package(aircoreclient) and test(clients::tests))"
+default-filter = "binary(integration)"
+junit = { path = "junit.xml" }
 
 [profile.integration-with-apq]
 inherits = "integration"
@@ -20,6 +22,10 @@ command = ["bash", "-c", "echo TEST_WITH_APQ_GROUPS=true >> $NEXTEST_ENV"]
 
 [scripts.setup.docker-compose-up]
 command = ["just", "start-docker-compose"]
+
+[[profile.unit.scripts]]
+platform = { host = "cfg(unix)" }
+setup = ['docker-compose-up']
 
 [[profile.integration.scripts]]
 platform = { host = "cfg(unix)" }

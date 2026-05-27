@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-name: Checks & Lints
+name: CI
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -47,7 +47,7 @@ jobs:
             pypi-packages: reuse~=6.2
           - name: Rust format
             just: check-rustfmt
-    
+
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -66,7 +66,7 @@ jobs:
       - run: just ${{ matrix.just }}
 
   flutter:
-    name: Run Flutter tests
+    name: Flutter tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -117,18 +117,18 @@ jobs:
   rust-tests:
     name: ${{ matrix.name }}
     needs: rust-build-tests
-    
+
     runs-on: ubuntu-latest
     timeout-minutes: 30
 
     strategy:
       matrix:
         include:
-          - name: Run Rust unit tests
-            profile: default
-          - name: Run Rust integration tests
+          - name: Rust unit tests
+            profile: unit
+          - name: Rust integration tests
             profile: integration
-          - name: Run Rust integration tests (with APQ groups)
+          - name: Rust integration tests (with APQ groups)
             profile: integration-with-apq
 
     steps:
@@ -155,3 +155,11 @@ jobs:
         env:
           RUST_BACKTRACE: "1"
         run: cargo nextest run --archive-file cargo-tests.tar.zst --profile ${{ matrix.profile }}
+
+      - name: Test report
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
+        if: ${{ !cancelled() }}
+        with:
+          name: ${{ matrix.name }}
+          path: junit.xml
+          reporter: java-junit
