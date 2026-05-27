@@ -3,14 +3,11 @@ pub mod grpc;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use airprotos::relay_service::v1::RelayFrame;
-use rand::Rng;
 use tokio::sync::{Mutex, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
-use tracing::warn;
 
 const SESSION_TIMEOUT: Duration = Duration::from_secs(30);
-const SESSION_COLLISION_MAX_RETRIES: usize = 10;
 const ALPHABET: &[u8] = b"0123456789ABCDEFGHJKMNPQRSTUVWXYZ";
 const CODE_LEN: usize = 8;
 

@@ -12,17 +12,17 @@ pub const METADATA_SESSION_ID: &str = "session-id";
 
 impl LinkClientRequest {
     pub fn into_relay_frame(self) -> RelayFrame {
-        RelayFrame::from_bytes(prost::Message::encode_to_vec(&self))
+        prost::Message::encode_to_vec(&self).into()
+    }
+}
+
+impl<B: Into<Bytes>> From<B> for RelayFrame {
+    fn from(b: B) -> Self {
+        Self { payload: b.into() }
     }
 }
 
 impl RelayFrame {
-    pub fn from_bytes(bytes: impl Into<Bytes>) -> Self {
-        Self {
-            payload: bytes.into(),
-        }
-    }
-
     pub fn as_slice(&self) -> &[u8] {
         self.payload.as_ref()
     }

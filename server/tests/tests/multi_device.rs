@@ -12,13 +12,14 @@ async fn multi_device_pairing_session() {
     let (session_id_tx, session_id_rx) = tokio::sync::oneshot::channel();
 
     tokio::spawn(async move {
-        CoreUser::provision_multi_device_pairing(domain, server_url, session_id_tx)
+        let answer = CoreUser::provision_multi_device_pairing(domain, server_url, session_id_tx)
             .await
             .unwrap();
+
+        assert_eq!(answer, "pong!");
     });
 
     let session_id = session_id_rx.await.unwrap();
-    dbg!(&session_id);
 
     // the old device scans/types the session ID
     let alice_user = setup

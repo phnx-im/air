@@ -1,5 +1,7 @@
-use aircommon::identifiers::Fqdn;
-use airprotos::relay_service::v1::RelayFrame;
+use aircommon::{
+    crypto::aead::{AeadDecryptable, AeadEncryptable, Ciphertext, keys::MultiDevicePairingKey},
+    identifiers::Fqdn,
+};
 use anyhow::{Context, anyhow, bail};
 use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 use openmls::{
@@ -12,7 +14,7 @@ use openmls::{
 use openmls_basic_credential::SignatureKeyPair;
 use openmls_rust_crypto::OpenMlsRustCrypto;
 use openmls_traits::OpenMlsProvider;
-use tls_codec::Deserialize;
+use tls_codec::{Deserialize, DeserializeBytes, Serialize};
 use tokio_stream::StreamExt;
 use tracing::info;
 use url::Url;
@@ -20,6 +22,20 @@ use url::Url;
 use crate::clients::{CIPHERSUITE, CoreUser, api_clients::ApiClients};
 
 const EXPORTER_LABEL: &str = "multi-device-pairing";
+
+#[derive(Debug)]
+pub struct EncryptedPingPongCtype;
+pub type EncryptedPingPong = Ciphertext<EncryptedPingPongCtype>;
+
+#[derive(
+    Debug, Clone, tls_codec::TlsSerialize, tls_codec::TlsSize, tls_codec::TlsDeserializeBytes,
+)]
+pub struct PingPong {
+    msg: Vec<u8>,
+}
+
+impl AeadEncryptable<MultiDevicePairingKey, EncryptedPingPongCtype> for PingPong {}
+impl AeadDecryptable<MultiDevicePairingKey, EncryptedPingPongCtype> for PingPong {}
 
 fn make_provider_and_credential(
     identity: &[u8],
@@ -38,39 +54,18 @@ fn make_provider_and_credential(
     Ok((provider, credential_with_key, signature_keys))
 }
 
-// fn export_aead_key(
-//     group: &MlsGroup,
-//     provider: &OpenMlsRustCrypto,
-// ) -> anyhow::Result<MultiDevicePairingKey> {
-//     let key_bytes = group
-//         .export_secret(provider.crypto(), EXPORTER_LABEL, &[], 32)
-//         .context("export_secret")?
-//         .try_into()
-//         .map_err(|_| anyhow!("invalid key length"))?;
-//     Ok(MultiDevicePairingKey::from_bytes(key_bytes))
-// }
-
-// /// Encrypt `plaintext` and return `nonce || ciphertext`.
-// fn aead_seal(cipher: &AeadKey, plaintext: &[u8]) -> Result<Vec<u8>> {
-//     let ct = cipher
-//         .encrypt(&nonce, plaintext)
-//         .map_err(|e| anyhow!("encrypt: {e}"))?;
-//     let mut out = Vec::with_capacity(NONCE_LEN + ct.len());
-//     out.extend_from_slice(&nonce);
-//     out.extend_from_slice(&ct);
-//     Ok(out)
-// }
-
-// /// Decrypt a `nonce || ciphertext` frame and return the plaintext.
-// fn aead_open(cipher: &Aes256Gcm, frame: &[u8]) -> Result<Vec<u8>> {
-//     if frame.len() < NONCE_LEN {
-//         bail!("frame too short");
-//     }
-//     let nonce = Nonce::from_slice(&frame[..NONCE_LEN]);
-//     cipher
-//         .decrypt(nonce, &frame[NONCE_LEN..])
-//         .map_err(|e| anyhow!("decrypt: {e}"))
-// }
+// we consume the group and provider, so we can't keep using them
+fn export_aead_key(
+    group: MlsGroup,
+    provider: OpenMlsRustCrypto,
+) -> anyhow::Result<MultiDevicePairingKey> {
+    let key_bytes = group
+        .export_secret(provider.crypto(), EXPORTER_LABEL, &[], 32)
+        .context("export_secret")?
+        .try_into()
+        .map_err(|_| anyhow!("invalid key length"))?;
+    Ok(MultiDevicePairingKey::from_bytes(key_bytes))
+}
 
 impl CoreUser {
     pub async fn provision_multi_device_pairing(
@@ -97,17 +92,21 @@ impl CoreUser {
         let fingerprint_base64 = B64.encode(fingerprint.as_slice());
 
         let (tx, mut rx) = api_client
-            .rs_provision_client(fingerprint_base64.clone())
+            .rs_provision_client(fingerprint_base64)
             .await?;
 
-        dbg!("REPORTING");
-        session_id_tx.send(fingerprint_base64).unwrap(); // FIXME: not correct
-        dbg!("REPORTED");
+        // The relay echoes back the session ID as the first frame
+        let session_id_frame = rx.next().await.context("relay connection closed")??;
+        let session_id = String::from_utf8(session_id_frame.as_slice().to_vec())
+            .context("invalid session ID from relay")?;
+        session_id_tx
+            .send(session_id)
+            .map_err(|_| anyhow!("session ID receiver dropped"))?;
 
         // send a fresh key package to the peer, (TODO? for validation reasons) the server will look at it and check if its valid
-        tx.send(RelayFrame::from_bytes(key_package_bytes)).await?;
+        tx.send(key_package_bytes.into()).await?;
 
-        // wait fo the existing (old) client to send us the welcome
+        // wait for the existing (old) client to send us the welcome
         let welcome_bytes = rx.next().await.context("relay connection closed")??;
         let welcome_msg = MlsMessageIn::tls_deserialize_exact(welcome_bytes.as_slice())
             .context("failed to deserialize welcome")?;
@@ -125,12 +124,29 @@ impl CoreUser {
             .into_group(&provider)
             .context("join group")?;
 
-        // let cipher = export_aead_key(&group, &provider)?;
+        let cipher = export_aead_key(group, provider)?;
         info!("joined MLS group, AEAD key exported");
 
-        // TODO: start decrypting and encrypting stuff here
+        tx.send(
+            PingPong {
+                msg: b"ping!".to_vec(),
+            }
+            .encrypt(&cipher)?
+            .tls_serialize_detached()?
+            .into(),
+        )
+        .await?;
 
-        Ok(String::new())
+        let frame = rx.next().await.context("relay connection closed")??;
+        let answer = PingPong::decrypt(
+            &cipher,
+            &EncryptedPingPong::tls_deserialize_exact_bytes(frame.as_slice())?,
+        )?;
+        let answer_str = String::from_utf8(answer.msg)?;
+
+        info!("got answer from old client, ciao!");
+
+        Ok(answer_str)
     }
 
     pub async fn link_multi_device_pairing(&self, session_id: String) -> anyhow::Result<()> {
@@ -179,12 +195,32 @@ impl CoreUser {
             .merge_pending_commit(&provider)
             .context("merge pending commit")?;
 
-        // let cipher = export_aead_key(&group, &provider)?;
-
         let welcome_bytes = welcome.to_bytes().context("serialize welcome")?;
-        tx.send(RelayFrame::from_bytes(welcome_bytes))
+        tx.send(welcome_bytes.into())
             .await
             .context("send welcome")?;
+
+        let cipher = export_aead_key(group, provider)?;
+        info!("joined MLS group, AEAD key exported");
+
+        // wait for ping
+        let frame = rx.next().await.context("relay connection closed")??;
+        let answer = PingPong::decrypt(
+            &cipher,
+            &EncryptedPingPong::tls_deserialize_exact_bytes(frame.as_slice())?,
+        )?;
+        let answer_str = String::from_utf8(answer.msg)?;
+        info!(answer_str, "got ping from new client");
+
+        tx.send(
+            PingPong {
+                msg: b"pong!".to_vec(),
+            }
+            .encrypt(&cipher)?
+            .tls_serialize_detached()?
+            .into(),
+        )
+        .await?;
 
         Ok(())
     }

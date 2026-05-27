@@ -111,3 +111,14 @@ pub type AttachmentEarKey = Key<AttachmentEarKeyType>;
 impl RandomlyGeneratable for AttachmentEarKeyType {}
 
 impl AeadKey for AttachmentEarKey {}
+
+#[derive(Debug)]
+pub struct MultiDevicePairingKeyType;
+
+impl RawKey for MultiDevicePairingKeyType {}
+
+pub type MultiDevicePairingKey = Key<MultiDevicePairingKeyType>;
+
+impl RandomlyGeneratable for MultiDevicePairingKeyType {}
+
+impl AeadKey for MultiDevicePairingKey {}
