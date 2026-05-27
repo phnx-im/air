@@ -38,7 +38,7 @@ jobs:
             just: check-frb
             cargo-binstall-tools: cargo-expand flutter_rust_bridge_codegen@2.12.0
             flutter: true
-          - name: Find unused crates
+          - name: Unused crates
             just: check-cargo-machete
             cargo-binstall-tools: cargo-machete@0.9.1
             sccache: false
@@ -107,7 +107,7 @@ jobs:
           path: app/test/**/failures/*
 
   rust-build-tests:
-    name: Build Rust tests
+    name: Rust test build
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
