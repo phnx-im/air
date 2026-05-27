@@ -94,8 +94,9 @@ runs:
       shell: bash
       run: mkdir -p "${{ inputs.sccache-dir }}"
 
+    # TEMP(warm-cache): also save on PR runs to warm caches without merging to main. REVERT before merge.
     - name: Setup Rust GitHub Actions cache
-      if: inputs.sccache == 'true' && github.ref == 'refs/heads/main'
+      if: inputs.sccache == 'true' && (github.ref == 'refs/heads/main' || github.event_name == 'pull_request')
       uses: actions/cache@v5
       with:
         path: |
