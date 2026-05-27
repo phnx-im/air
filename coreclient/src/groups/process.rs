@@ -24,8 +24,8 @@ use mimi_room_policy::RoleIndex;
 use openmls::{
     group::{ProcessMessageError, ValidationError},
     prelude::{
-        LeafNodeIndex, ProcessedMessage, ProcessedMessageContent, Proposal, ProtocolMessage,
-        Sender, SignaturePublicKey, StagedCommit,
+        GroupId, LeafNodeIndex, ProcessedMessage, ProcessedMessageContent, Proposal,
+        ProtocolMessage, Sender, SignaturePublicKey, StagedCommit,
     },
 };
 use tls_codec::DeserializeBytes as TlsDeserializeBytes;
@@ -215,22 +215,8 @@ impl Group {
             }
         };
 
-        // Discard any pending commits we have locally and delete any
-        // pending non-leave chat operations we may have for this group.
-        // If it's a leave operation, only delete it if it's part of
-        // this commit.
-        self.discard_pending_commit(&mut *txn).await?;
-        if let Some(pending_chat_operation) =
-            PendingChatOperation::load_by_group_id(&mut *txn, &group_id).await?
-        {
-            let commit_contains_our_self_remove = staged_commit.queued_proposals().any(|p| {
-                matches!(p.proposal(), Proposal::SelfRemove)
-                    && sender_index == self.mls_group().own_leaf_index()
-            });
-            if !pending_chat_operation.is_leave() || commit_contains_our_self_remove {
-                PendingChatOperation::delete(&mut *txn, &group_id).await?;
-            }
-        }
+        self.discard_pending_commit_and_operations(txn, &group_id, staged_commit, sender_index)
+            .await?;
 
         let sender_credential =
             VerifiableClientCredential::from_basic_credential(processed_message.credential())?;
@@ -490,6 +476,31 @@ impl Group {
             we_were_removed,
             encrypted_profile_infos,
         })
+    }
+
+    /// Discard any pending commits we have locally and delete any pending
+    /// non-leave chat operations we may have for this group. If it's a leave
+    /// operation, only delete it if it's part of this commit.
+    async fn discard_pending_commit_and_operations(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        group_id: &GroupId,
+        staged_commit: &StagedCommit,
+        sender_index: LeafNodeIndex,
+    ) -> Result<()> {
+        self.discard_pending_commit(&mut *txn).await?;
+        if let Some(pending_chat_operation) =
+            PendingChatOperation::load_by_group_id(&mut *txn, group_id).await?
+        {
+            let commit_contains_our_self_remove = staged_commit.queued_proposals().any(|p| {
+                matches!(p.proposal(), Proposal::SelfRemove)
+                    && sender_index == self.mls_group().own_leaf_index()
+            });
+            if !pending_chat_operation.is_leave() || commit_contains_our_self_remove {
+                PendingChatOperation::delete(&mut *txn, group_id).await?;
+            }
+        }
+        Ok(())
     }
 
     async fn process_adds(
