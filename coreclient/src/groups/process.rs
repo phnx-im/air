@@ -149,22 +149,7 @@ impl Group {
         };
 
         // Check that the signature keys of the sender match
-        if let Some(pq_group) = self.pq.as_ref() {
-            let pq_sender_leaf = pq_group
-                .mls_group
-                .public_group()
-                .leaf(post_process_state.sender_index)
-                .context("PQ sender leaf not found")?;
-            let t_sender_leaf = self
-                .mls_group
-                .public_group()
-                .leaf(post_process_state.sender_index)
-                .context("T sender leaf not found")?;
-            ensure!(
-                pq_sender_leaf.signature_key() == t_sender_leaf.signature_key(),
-                "T and PQ sender signature keys do not match"
-            );
-        }
+        self.verify_pq_signature_key_at(post_process_state.sender_index)?;
 
         // Decrypt any user profile keys
         let profile_infos = post_process_state
@@ -351,31 +336,12 @@ impl Group {
             .new_encrypted_user_profile_keys
             .is_empty()
         {
+            // Verify that T/PQ added user signature keys match
+            verify_pq_added_signature_keys(staged_commit, pq_staged_commit)?;
+
+            // Collect the verifiable credentials
             let mut verifiable_credentials = Vec::with_capacity(number_of_adds);
-            let mut pq_add_proposals = pq_staged_commit
-                .as_ref()
-                .map(|commit| commit.add_proposals());
-
             for ap in staged_commit.add_proposals() {
-                // Verify that T/PQ signature keys match
-                if let Some(pq_add_proposals) = pq_add_proposals.as_mut() {
-                    let pq_add_proposal = pq_add_proposals
-                        .next()
-                        .context("Less PQ add proposals than T")?;
-                    let pq_signature_key = pq_add_proposal
-                        .add_proposal()
-                        .key_package()
-                        .leaf_node()
-                        .signature_key();
-                    let t_signature_key =
-                        ap.add_proposal().key_package().leaf_node().signature_key();
-                    ensure!(
-                        pq_signature_key == t_signature_key,
-                        "T and PQ added user signature keys do not match"
-                    );
-                }
-
-                // Collect the verifiable credentials
                 let credential = ap.add_proposal().key_package().leaf_node().credential();
                 let credential = VerifiableClientCredential::from_basic_credential(credential)?;
                 verifiable_credentials.push(credential);
@@ -453,15 +419,7 @@ impl Group {
         let (sender_credential, sender_leaf_key) = update_path_leaf_node_info(staged_commit)?;
 
         // Verify that T/PQ signature keys match
-        if let Some(pq_staged_commit) = pq_staged_commit.as_ref() {
-            let pq_leaf_node = pq_staged_commit
-                .update_path_leaf_node()
-                .context("Could not find sender leaf node")?;
-            ensure!(
-                sender_leaf_key == pq_leaf_node.signature_key(),
-                "T and PQ sender signature keys do not match"
-            );
-        }
+        verify_pq_update_path_signature_key(sender_leaf_key, pq_staged_commit)?;
 
         let as_credentials = AsCredentials::fetch_for_verification(
             &mut *txn,
@@ -510,15 +468,7 @@ impl Group {
         let (sender_credential, sender_leaf_key) = update_path_leaf_node_info(staged_commit)?;
 
         // Verify that T/PQ signature keys match
-        if let Some(pq_staged_commit) = pq_staged_commit.as_ref() {
-            let pq_leaf_node = pq_staged_commit
-                .update_path_leaf_node()
-                .context("Could not find sender leaf node")?;
-            ensure!(
-                sender_leaf_key == pq_leaf_node.signature_key(),
-                "T and PQ sender signature keys do not match"
-            );
-        }
+        verify_pq_update_path_signature_key(sender_leaf_key, pq_staged_commit)?;
 
         let removed_index = staged_commit
             .remove_proposals()
@@ -595,22 +545,7 @@ impl Group {
             };
 
             // Check that the signature keys of the removed user match
-            if let Some(pq) = self.pq.as_ref() {
-                let pq_leaf_node = pq
-                    .mls_group
-                    .public_group()
-                    .leaf(removed_index)
-                    .context("PQ sender leaf not found")?;
-                let t_leaf_node = self
-                    .mls_group
-                    .public_group()
-                    .leaf(removed_index)
-                    .context("T sender leaf not found")?;
-                ensure!(
-                    t_leaf_node.signature_key() == pq_leaf_node.signature_key(),
-                    "T and PQ sender signature keys do not match"
-                );
-            }
+            self.verify_pq_signature_key_at(removed_index)?;
 
             let removed_credential = self
                 .unverified_credential_at(removed_index)?
@@ -625,6 +560,28 @@ impl Group {
             }
         }
         Ok(we_were_removed)
+    }
+
+    /// Verify that the T and PQ leaf nodes at `index` have matching signature
+    /// keys. A no-op if there is no PQ group.
+    fn verify_pq_signature_key_at(&self, index: LeafNodeIndex) -> Result<()> {
+        if let Some(pq_group) = self.pq.as_ref() {
+            let pq_leaf = pq_group
+                .mls_group
+                .public_group()
+                .leaf(index)
+                .context("PQ sender leaf not found")?;
+            let t_leaf = self
+                .mls_group
+                .public_group()
+                .leaf(index)
+                .context("T sender leaf not found")?;
+            ensure!(
+                pq_leaf.signature_key() == t_leaf.signature_key(),
+                "T and PQ sender signature keys do not match"
+            );
+        }
+        Ok(())
     }
 
     async fn process_adds(
@@ -751,4 +708,51 @@ fn update_path_leaf_node_info(
     let credential = VerifiableClientCredential::from_basic_credential(leaf_node.credential())?;
     let signature_key = leaf_node.signature_key();
     Ok((credential, signature_key))
+}
+
+/// Verify that the T update-path leaf signature key matches the PQ update-path
+/// leaf signature key. A no-op if there is no PQ staged commit.
+fn verify_pq_update_path_signature_key(
+    t_leaf_key: &SignaturePublicKey,
+    pq_staged_commit: Option<&StagedCommit>,
+) -> Result<()> {
+    if let Some(pq_staged_commit) = pq_staged_commit {
+        let pq_leaf_node = pq_staged_commit
+            .update_path_leaf_node()
+            .context("Could not find sender leaf node")?;
+        ensure!(
+            t_leaf_key == pq_leaf_node.signature_key(),
+            "T and PQ sender signature keys do not match"
+        );
+    }
+    Ok(())
+}
+
+/// Verify that the T and PQ add proposals have matching signature keys, and
+/// that there are at least as many PQ add proposals as T add proposals. A
+/// no-op if there is no PQ staged commit.
+fn verify_pq_added_signature_keys(
+    staged_commit: &StagedCommit,
+    pq_staged_commit: Option<&StagedCommit>,
+) -> Result<()> {
+    let Some(pq_staged_commit) = pq_staged_commit else {
+        return Ok(());
+    };
+    let mut pq_add_proposals = pq_staged_commit.add_proposals();
+    for ap in staged_commit.add_proposals() {
+        let pq_add_proposal = pq_add_proposals
+            .next()
+            .context("Less PQ add proposals than T")?;
+        let pq_signature_key = pq_add_proposal
+            .add_proposal()
+            .key_package()
+            .leaf_node()
+            .signature_key();
+        let t_signature_key = ap.add_proposal().key_package().leaf_node().signature_key();
+        ensure!(
+            pq_signature_key == t_signature_key,
+            "T and PQ added user signature keys do not match"
+        );
+    }
+    Ok(())
 }
