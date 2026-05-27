@@ -190,8 +190,6 @@ impl Group {
     ) -> Result<PostProcessState> {
         let group_id = self.group_id().clone();
 
-        // Will be set to true if we were removed (or the group was deleted).
-        let mut we_were_removed = false;
         let mut encrypted_profile_infos: Vec<(ClientCredential, EncryptedUserProfileKey)> =
             Vec::new();
 
@@ -222,51 +220,9 @@ impl Group {
             VerifiableClientCredential::from_basic_credential(processed_message.credential())?;
 
         // StagedCommitMessage Phase 1: Process the proposals.
-
-        // Before we process the AAD payload, we first process the
-        // proposals by value. Currently only removes are allowed.
-        for queued_proposal in staged_commit.queued_proposals() {
-            if matches!(queued_proposal.sender(), Sender::NewMemberCommit) {
-                // This can only happen if the removed member is rejoining
-                // as part of the commit. No need to process the removal.
-                continue;
-            }
-            // Load the removed client's index.
-            let Some(removed_index) = removed_client(queued_proposal) else {
-                // This is not a remove proposal, so we skip it.
-                continue;
-            };
-
-            // Check that the signature keys of the removed user match
-            if let Some(pq) = self.pq.as_ref() {
-                let pq_leaf_node = pq
-                    .mls_group
-                    .public_group()
-                    .leaf(removed_index)
-                    .context("PQ sender leaf not found")?;
-                let t_leaf_node = self
-                    .mls_group
-                    .public_group()
-                    .leaf(removed_index)
-                    .context("T sender leaf not found")?;
-                ensure!(
-                    t_leaf_node.signature_key() == pq_leaf_node.signature_key(),
-                    "T and PQ sender signature keys do not match"
-                );
-            }
-
-            let removed_credential = self
-                .unverified_credential_at(removed_index)?
-                .context("Removed user credential not found")?;
-            let removed_id = removed_credential.user_id();
-
-            // Room policy checks
-            self.verify_role_change(sender_credential.user_id(), removed_id, RoleIndex::Outsider)?;
-
-            if removed_index == self.mls_group().own_leaf_index() {
-                we_were_removed = true;
-            }
-        }
+        // Will be set to true if we were removed (or the group was deleted).
+        let mut we_were_removed =
+            self.process_remove_proposals(staged_commit, &sender_credential)?;
 
         // Phase 2: Process the AAD payload.
         // Let's figure out which operation this is meant to be.
@@ -501,6 +457,59 @@ impl Group {
             }
         }
         Ok(())
+    }
+
+    /// Process the remove proposals in a staged commit by value. Currently only
+    /// removes are allowed. Returns `true` if we were removed.
+    fn process_remove_proposals(
+        &self,
+        staged_commit: &StagedCommit,
+        sender_credential: &VerifiableClientCredential,
+    ) -> Result<bool> {
+        let mut we_were_removed = false;
+        for queued_proposal in staged_commit.queued_proposals() {
+            if matches!(queued_proposal.sender(), Sender::NewMemberCommit) {
+                // This can only happen if the removed member is rejoining
+                // as part of the commit. No need to process the removal.
+                continue;
+            }
+            // Load the removed client's index.
+            let Some(removed_index) = removed_client(queued_proposal) else {
+                // This is not a remove proposal, so we skip it.
+                continue;
+            };
+
+            // Check that the signature keys of the removed user match
+            if let Some(pq) = self.pq.as_ref() {
+                let pq_leaf_node = pq
+                    .mls_group
+                    .public_group()
+                    .leaf(removed_index)
+                    .context("PQ sender leaf not found")?;
+                let t_leaf_node = self
+                    .mls_group
+                    .public_group()
+                    .leaf(removed_index)
+                    .context("T sender leaf not found")?;
+                ensure!(
+                    t_leaf_node.signature_key() == pq_leaf_node.signature_key(),
+                    "T and PQ sender signature keys do not match"
+                );
+            }
+
+            let removed_credential = self
+                .unverified_credential_at(removed_index)?
+                .context("Removed user credential not found")?;
+            let removed_id = removed_credential.user_id();
+
+            // Room policy checks
+            self.verify_role_change(sender_credential.user_id(), removed_id, RoleIndex::Outsider)?;
+
+            if removed_index == self.mls_group().own_leaf_index() {
+                we_were_removed = true;
+            }
+        }
+        Ok(we_were_removed)
     }
 
     async fn process_adds(
