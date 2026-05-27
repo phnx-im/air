@@ -136,6 +136,8 @@ runs:
       run: |
         echo "CC=sccache clang" >> $GITHUB_ENV
         echo "CXX=sccache clang++" >> $GITHUB_ENV
+        echo "CMAKE_C_COMPILER_LAUNCHER=sccache" >> $GITHUB_ENV
+        echo "CMAKE_CXX_COMPILER_LAUNCHER=sccache" >> $GITHUB_ENV
 
     - if: inputs.sccache == 'true' && runner.os == 'Windows'
       name: Enable sccache wrapper for Windows
@@ -143,6 +145,8 @@ runs:
       run: |
         echo "CC=sccache cl.exe" >> $GITHUB_ENV
         echo "CXX=sccache cl.exe" >> $GITHUB_ENV
+        echo "CMAKE_C_COMPILER_LAUNCHER=sccache" >> $GITHUB_ENV
+        echo "CMAKE_CXX_COMPILER_LAUNCHER=sccache" >> $GITHUB_ENV
 
     ## Xcode
 
