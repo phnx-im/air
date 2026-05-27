@@ -89,7 +89,15 @@ jobs:
         uses: ./.github/actions/setup-buildenv
 
       - name: Flutter tests
-        run: just test-flutter
+        run: cd app && flutter test --file-reporter=json:test-results.json
+
+      - name: Test report
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
+        if: ${{ !cancelled() }}
+        with:
+          name: Flutter tests
+          path: app/test-results.json
+          reporter: dart-json
 
       - if: failure()
         name: Upload failed tests screenshots
