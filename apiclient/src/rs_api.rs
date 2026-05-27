@@ -2,14 +2,14 @@ use aircommon::{
     crypto::signatures::{keys::QsUserSigningKey, signable::Signable},
     identifiers::QsUserId,
 };
-use airprotos::relay_service::v1::{LinkClientRequest, LinkClientRequestPayload, RelayFrame};
+use airprotos::relay_service::v1::{
+    LinkClientRequest, LinkClientRequestPayload, METADATA_SESSION_ID, RelayFrame,
+};
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
 use tonic::metadata::MetadataValue;
 
 use crate::ApiClient;
-
-const SESSION_ID: &str = "session-id";
 
 #[derive(thiserror::Error, Debug)]
 pub enum RsRequestError {
@@ -30,13 +30,14 @@ impl ApiClient {
     // start point (new client that shows Qrcode)
     pub async fn rs_provision_client(
         &self,
-        session_id: &[u8],
+        session_id: String,
     ) -> Result<(mpsc::Sender<RelayFrame>, tonic::Streaming<RelayFrame>), RsRequestError> {
         let (tx, rx) = mpsc::channel::<RelayFrame>(8);
         let mut request = tonic::Request::new(ReceiverStream::new(rx));
-        request
-            .metadata_mut()
-            .insert_bin(SESSION_ID, MetadataValue::from_bytes(session_id));
+        request.metadata_mut().insert(
+            METADATA_SESSION_ID,
+            MetadataValue::try_from(session_id).unwrap(),
+        );
 
         let response: tonic::Response<tonic::Streaming<RelayFrame>> =
             self.rs_grpc_client().provision_client(request).await?;

@@ -1,0 +1,30 @@
+use aircoreclient::clients::CoreUser;
+use airserver_test_harness::utils::setup::TestBackend;
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test multi-device pairing session", skip_all)]
+async fn multi_device_pairing_session() {
+    let mut setup = TestBackend::single().await;
+    let domain = setup.domain().clone();
+    let server_url = Some(setup.server_url());
+    let alice = setup.add_user().await;
+
+    let (session_id_tx, session_id_rx) = tokio::sync::oneshot::channel();
+
+    tokio::spawn(async move {
+        CoreUser::provision_multi_device_pairing(domain, server_url, session_id_tx)
+            .await
+            .unwrap();
+    });
+
+    let session_id = session_id_rx.await.unwrap();
+    dbg!(&session_id);
+
+    // the old device scans/types the session ID
+    let alice_user = setup
+        .get_user(&alice)
+        .user()
+        .link_multi_device_pairing(session_id)
+        .await
+        .unwrap();
+}

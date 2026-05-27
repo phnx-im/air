@@ -1,11 +1,13 @@
-use std::pin::Pin;
+use std::{pin::Pin, sync::Arc};
 
 use airprotos::{
-    relay_service::v1::{LinkClientRequest, RelayFrame, relay_service_server::RelayService},
+    relay_service::v1::{
+        LinkClientRequest, METADATA_SESSION_ID, RelayFrame, relay_service_server::RelayService,
+    },
     validation::MissingFieldExt,
 };
 use futures_util::Stream;
-use prost::{Message, bytes::Bytes};
+use prost::bytes::Bytes;
 use tokio::{
     sync::{mpsc, oneshot},
     time::timeout,
@@ -28,39 +30,38 @@ impl<Qep: QsConnector> GrpcRs<Qep> {
     pub fn new(rs: Rs, qs_connector: Qep) -> Self {
         Self { rs, qs_connector }
     }
+}
 
-    fn pipe_inbound_to_peer_outbound(
-        session_id: String,
-        mut inbound: Streaming<RelayFrame>,
-        peer_outbound: mpsc::Sender<Result<RelayFrame, Status>>,
-    ) {
-        // Pipe inbound -> peer_outbound.
-        tokio::spawn(async move {
-            let timed_out = timeout(SESSION_TIMEOUT, async {
-                while let Some(msg) = inbound.next().await {
-                    match msg {
-                        Ok(frame) => {
-                            if peer_outbound.send(Ok(frame)).await.is_err() {
-                                break;
-                            }
-                        }
-                        Err(status) => {
-                            warn!(%session_id, %status , "inbound error");
+fn pipe_inbound_to_peer_outbound(
+    session_id: String,
+    mut inbound: Streaming<RelayFrame>,
+    peer_outbound: mpsc::Sender<Result<RelayFrame, Status>>,
+) {
+    tokio::spawn(async move {
+        let timed_out = timeout(SESSION_TIMEOUT, async {
+            while let Some(msg) = inbound.next().await {
+                match msg {
+                    Ok(frame) => {
+                        if peer_outbound.send(Ok(frame)).await.is_err() {
                             break;
                         }
                     }
+                    Err(status) => {
+                        warn!(%session_id, %status, "inbound error");
+                        break;
+                    }
                 }
-            })
-            .await
-            .is_err();
-
-            if timed_out {
-                warn!(session_id = %session_id, "session timed out after 30s");
-            } else {
-                info!(session_id = %session_id, "client disconnected");
             }
-        });
-    }
+        })
+        .await
+        .is_err();
+
+        if timed_out {
+            warn!(session_id = %session_id, "session timed out after 30s");
+        } else {
+            info!(session_id = %session_id, "client disconnected");
+        }
+    });
 }
 
 #[async_trait]
@@ -71,21 +72,37 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
         &self,
         request: Request<Streaming<RelayFrame>>,
     ) -> Result<Response<Self::ProvisionClientStream>, Status> {
+        let requested_session_id = request
+            .metadata()
+            .get(METADATA_SESSION_ID)
+            .ok_or_else(|| Status::invalid_argument("no session id in metadata"))?
+            .to_str()
+            .map_err(|_| Status::invalid_argument("invalid session id"))?
+            .to_owned();
+
         let inbound = request.into_inner();
 
         let (outbound_tx, outbound_rx) = mpsc::channel::<Result<RelayFrame, Status>>(8);
         let (peer_ready_tx, peer_ready_rx) = oneshot::channel();
 
-        let session_id = self
-            .rs
-            .insert_session(Pending {
+        let mut sessions = self.rs.sessions.lock().await;
+        if sessions.contains_key(&requested_session_id) {
+            return Err(Status::aborted("session ID collision"));
+        }
+
+        info!(%requested_session_id, "starting new pairing session");
+        sessions.insert(
+            requested_session_id.to_string(),
+            Pending {
                 outbound_tx: outbound_tx.clone(),
                 peer_ready: peer_ready_tx,
-            })
-            .await
-            .ok_or_else(|| Status::internal("no more session IDs available"))?;
+            },
+        );
+
+        drop(sessions);
 
         // we report the session ID to the peer
+        let session_id = requested_session_id.to_string();
         // TODO: this should be instead the fingerprint of the key package
         outbound_tx
             .send(Ok(RelayFrame {
@@ -94,17 +111,19 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
             .await
             .map_err(|_| Status::internal("failed to send session ID"))?;
 
-        let peer_outbound = match timeout(SESSION_TIMEOUT, peer_ready_rx).await {
-            Ok(Ok(tx)) => tx,
-            Ok(Err(_)) => return Err(Status::aborted("peer never arrived")),
-            Err(_) => {
-                self.rs.sessions.lock().await.remove(&session_id);
-                warn!(%session_id, "timed out waiting for peer");
-                return Err(Status::deadline_exceeded("timed out waiting for peer"));
-            }
-        };
-
-        Self::pipe_inbound_to_peer_outbound(session_id, inbound, peer_outbound);
+        let sessions = Arc::clone(&self.rs.sessions);
+        tokio::spawn(async move {
+            let peer_outbound = match timeout(SESSION_TIMEOUT, peer_ready_rx).await {
+                Ok(Ok(tx)) => tx,
+                Ok(Err(_)) => return,
+                Err(_) => {
+                    sessions.lock().await.remove(&session_id);
+                    warn!(%session_id, "timed out waiting for peer");
+                    return;
+                }
+            };
+            pipe_inbound_to_peer_outbound(session_id, inbound, peer_outbound);
+        });
 
         let out_stream = ReceiverStream::new(outbound_rx);
         Ok(Response::new(
@@ -135,6 +154,7 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
         // TODO: we should check that the payload has been signed by the right user
 
         let session_id = request.payload.ok_or_missing_field("payload")?.session_id;
+        info!(%session_id, "pairing with existing session");
 
         // Outbound channel: messages we will send back to *this* client.
         let (outbound_tx, outbound_rx) = mpsc::channel::<Result<RelayFrame, Status>>(8);
@@ -143,7 +163,7 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
         if let Some(pending) = sessions.remove(&session_id) {
             // Fire the peer's oneshot with our outbound sender so they can start forwarding to us.
             let _ = pending.peer_ready.send(outbound_tx.clone());
-            Self::pipe_inbound_to_peer_outbound(session_id, inbound, pending.outbound_tx);
+            pipe_inbound_to_peer_outbound(session_id, inbound, pending.outbound_tx);
         } else {
             return Err(Status::not_found("session not found"));
         }

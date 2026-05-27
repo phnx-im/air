@@ -37,29 +37,4 @@ impl Rs {
             stop,
         }
     }
-
-    fn generate_session_id(session_id: &mut String) {
-        let mut rng = rand::thread_rng();
-        for _ in 0..CODE_LEN {
-            session_id.push(ALPHABET[rng.gen_range(0..ALPHABET.len())] as char);
-        }
-    }
-
-    pub(crate) async fn insert_session(&self, pending: Pending) -> Option<String> {
-        let mut sessions = self.sessions.lock().await;
-        let mut session_id = String::new();
-        for _ in 0..SESSION_COLLISION_MAX_RETRIES {
-            session_id.clear();
-            Self::generate_session_id(&mut session_id);
-            if sessions.contains_key(&session_id) {
-                warn!("session ID collision, retrying");
-                continue;
-            }
-
-            sessions.insert(session_id.clone(), pending);
-            return Some(session_id);
-        }
-
-        None
-    }
 }

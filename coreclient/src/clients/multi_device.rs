@@ -1,7 +1,7 @@
-use airapiclient::ApiClient;
-use aircommon::crypto::{RawKey, indexed_aead::keys::Key};
+use aircommon::identifiers::Fqdn;
 use airprotos::relay_service::v1::RelayFrame;
 use anyhow::{Context, anyhow, bail};
+use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 use openmls::{
     group::{MlsGroup, MlsGroupCreateConfig, MlsGroupJoinConfig, StagedWelcome},
     prelude::{
@@ -15,18 +15,11 @@ use openmls_traits::OpenMlsProvider;
 use tls_codec::Deserialize;
 use tokio_stream::StreamExt;
 use tracing::info;
+use url::Url;
 
-use crate::clients::{CIPHERSUITE, CoreUser};
+use crate::clients::{CIPHERSUITE, CoreUser, api_clients::ApiClients};
 
 const EXPORTER_LABEL: &str = "multi-device-pairing";
-
-struct MultiDevicePairingKeyType {}
-
-// impl RawKey for MultiDevicePairingKeyType {}
-
-// impl AeadKey for MultiDevicePairingKey {}
-
-// pub type MultiDevicePairingKey = Key<MultiDevicePairingKeyType>;
 
 fn make_provider_and_credential(
     identity: &[u8],
@@ -45,17 +38,17 @@ fn make_provider_and_credential(
     Ok((provider, credential_with_key, signature_keys))
 }
 
-fn export_aead_key(
-    group: &MlsGroup,
-    provider: &OpenMlsRustCrypto,
-) -> anyhow::Result<MultiDevicePairingKey> {
-    let key_bytes = group
-        .export_secret(provider.crypto(), EXPORTER_LABEL, &[], 32)
-        .context("export_secret")?
-        .try_into()
-        .map_err(|_| anyhow!("invalid key length"))?;
-    Ok(MultiDevicePairingKey::from_bytes(key_bytes))
-}
+// fn export_aead_key(
+//     group: &MlsGroup,
+//     provider: &OpenMlsRustCrypto,
+// ) -> anyhow::Result<MultiDevicePairingKey> {
+//     let key_bytes = group
+//         .export_secret(provider.crypto(), EXPORTER_LABEL, &[], 32)
+//         .context("export_secret")?
+//         .try_into()
+//         .map_err(|_| anyhow!("invalid key length"))?;
+//     Ok(MultiDevicePairingKey::from_bytes(key_bytes))
+// }
 
 // /// Encrypt `plaintext` and return `nonce || ciphertext`.
 // fn aead_seal(cipher: &AeadKey, plaintext: &[u8]) -> Result<Vec<u8>> {
@@ -80,7 +73,14 @@ fn export_aead_key(
 // }
 
 impl CoreUser {
-    pub async fn provision_multi_device_pairing(client: ApiClient) -> anyhow::Result<String> {
+    pub async fn provision_multi_device_pairing(
+        domain: Fqdn,
+        server_url: Option<Url>,
+        session_id_tx: tokio::sync::oneshot::Sender<String>,
+    ) -> anyhow::Result<String> {
+        let api_clients = ApiClients::new(domain, server_url);
+        let api_client = api_clients.default_client()?;
+
         let (provider, credential_with_key, signature_keys) =
             make_provider_and_credential(b"initiator")?;
 
@@ -94,11 +94,17 @@ impl CoreUser {
             .to_bytes()
             .context("serialize key package")?;
 
-        let fingeprint_bytes = fingerprint.as_slice();
+        let fingerprint_base64 = B64.encode(fingerprint.as_slice());
 
-        let (tx, mut rx) = client.rs_provision_client(fingeprint_bytes).await?;
+        let (tx, mut rx) = api_client
+            .rs_provision_client(fingerprint_base64.clone())
+            .await?;
 
-        // send a fesh key package to the peer, (TODO? for validation reasons) the server will look at it and check if its valid
+        dbg!("REPORTING");
+        session_id_tx.send(fingerprint_base64).unwrap(); // FIXME: not correct
+        dbg!("REPORTED");
+
+        // send a fresh key package to the peer, (TODO? for validation reasons) the server will look at it and check if its valid
         tx.send(RelayFrame::from_bytes(key_package_bytes)).await?;
 
         // wait fo the existing (old) client to send us the welcome
@@ -119,7 +125,7 @@ impl CoreUser {
             .into_group(&provider)
             .context("join group")?;
 
-        let cipher = export_aead_key(&group, &provider)?;
+        // let cipher = export_aead_key(&group, &provider)?;
         info!("joined MLS group, AEAD key exported");
 
         // TODO: start decrypting and encrypting stuff here
@@ -173,9 +179,12 @@ impl CoreUser {
             .merge_pending_commit(&provider)
             .context("merge pending commit")?;
 
-        let cipher = export_aead_key(&group, &provider)?;
+        // let cipher = export_aead_key(&group, &provider)?;
 
-        // DO STUFF HERE
+        let welcome_bytes = welcome.to_bytes().context("serialize welcome")?;
+        tx.send(RelayFrame::from_bytes(welcome_bytes))
+            .await
+            .context("send welcome")?;
 
         Ok(())
     }

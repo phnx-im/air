@@ -8,6 +8,8 @@ use prost::bytes::Bytes;
 
 tonic::include_proto!("relay_service.v1");
 
+pub const METADATA_SESSION_ID: &str = "session-id";
+
 impl LinkClientRequest {
     pub fn into_relay_frame(self) -> RelayFrame {
         RelayFrame::from_bytes(prost::Message::encode_to_vec(&self))
