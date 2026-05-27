@@ -158,8 +158,11 @@ impl Group {
                 {
                     let commit_contains_our_self_remove =
                         staged_commit.queued_proposals().any(|p| {
+                            let Sender::Member(proposal_sender_index) = p.sender() else {
+                                return false;
+                            };
                             matches!(p.proposal(), Proposal::SelfRemove)
-                                && sender_index == self.mls_group().own_leaf_index()
+                                && proposal_sender_index == &self.mls_group().own_leaf_index()
                         });
                     if !pending_chat_operation.is_leave() || commit_contains_our_self_remove {
                         PendingChatOperation::delete(&mut *txn, &group_id).await?;
