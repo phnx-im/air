@@ -152,4 +152,6 @@ jobs:
           sccache: false
 
       - name: Run tests
+        env:
+          RUST_BACKTRACE: "1"
         run: cargo nextest run --archive-file cargo-tests.tar.zst --profile ${{ matrix.profile }}
