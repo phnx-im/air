@@ -85,18 +85,14 @@ abstract class TextAutocompleteStrategy<T> {
 /// Drives autocompletion for a text field using a pluggable strategy.
 class TextAutocompleteController<T> {
   TextAutocompleteController({
-    required TextEditingController textController,
+    required this._textController,
     required FocusNode focusNode,
-    required GlobalKey inputFieldKey,
+    required this._inputFieldKey,
     required LayerLink anchorLink,
     required TickerProvider vsync,
-    required BuildContext Function() contextProvider,
-    required TextAutocompleteStrategy<T> strategy,
-  }) : _textController = textController,
-       _focusNode = focusNode,
-       _inputFieldKey = inputFieldKey,
-       _contextProvider = contextProvider,
-       _strategy = strategy,
+    required this._contextProvider,
+    required this._strategy,
+  }) : _focusNode = focusNode,
        _overlayController = SuggestionOverlayController<T>(
          vsync: vsync,
          anchorLink: anchorLink,

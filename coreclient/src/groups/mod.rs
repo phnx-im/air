@@ -159,6 +159,13 @@ impl From<(ClientCredential, UserProfileKey)> for ProfileInfo {
     }
 }
 
+/// One contact that has been prepared for inviting to a group.
+pub(crate) struct PreparedInvitee {
+    pub(crate) add_info: ContactAddInfos,
+    pub(crate) wai_key: WelcomeAttributionInfoEarKey,
+    pub(crate) client_credential: ClientCredential,
+}
+
 /// Bytes stored in the group data extension.
 #[derive(Debug, PartialEq, Clone)]
 pub(crate) struct GroupDataBytes {
@@ -189,12 +196,21 @@ impl From<Vec<u8>> for GroupDataBytes {
     }
 }
 
+/// A chat group as seen by this client.
+///
+/// `Group` bundles MLS state (`mls_group` and, for APQ groups, `pq`) with the
+/// Air-level secrets and policy state that ride alongside MLS.
+///
 #[derive(Debug)]
 pub(crate) struct Group {
     identity_link_wrapper_key: IdentityLinkWrapperKey,
     group_state_ear_key: GroupStateEarKey,
     mls_group: MlsGroup,
-    pub room_state: VerifiedRoomState,
+    /// `room_state` is the Air/MIMI room policy state. It must be advanced
+    /// together with MLS proposal/commit application (see
+    /// [`Group::apply_staged_operations_to_room_state`] and
+    /// [`Group::merge_pending_commit`]).
+    room_state: VerifiedRoomState,
     pending_diff: Option<StagedGroupDiff>, // Currently unused, but we're keeping it for later
     /// The time at which the user self-updated their key material in this group the last time
     pub(crate) self_updated_at: Option<TimeStamp>,
@@ -212,6 +228,50 @@ impl Group {
 
     pub(crate) fn pq(&self) -> Option<&PqGroup> {
         self.pq.as_ref()
+    }
+
+    /// Returns mutable references to the T MLS group and the PQ MLS group
+    /// together, for callers that need to pass both into
+    /// [`apqmls::commit_builder::CommitBuilder::from_groups`]. Errors for
+    /// non-APQ groups.
+    pub(crate) fn apq_mls_groups_mut(&mut self) -> Result<(&mut MlsGroup, &mut MlsGroup)> {
+        let Self { mls_group, pq, .. } = self;
+        let pq = pq.as_mut().context("No PQ group found")?;
+        Ok((mls_group, &mut pq.mls_group))
+    }
+
+    /// Consumes this group and returns its room state. Used by callers
+    /// that no longer need the rest of the group.
+    pub(crate) fn into_room_state(self) -> VerifiedRoomState {
+        self.room_state
+    }
+
+    /// Returns the set of users currently in the room according to
+    /// `room_state`.
+    pub(crate) fn participants(&self) -> Result<HashSet<UserId>> {
+        self.room_state
+            .users()
+            .keys()
+            .map(|bytes| Ok(UserId::tls_deserialize_exact_bytes(bytes)?))
+            .collect()
+    }
+
+    /// Errors if this group (or its PQ counterpart, for APQ groups) has a
+    /// pending commit. Used by clean loaders to refuse to hand out a
+    /// `Group` whose MLS state has an in-flight commit, since further
+    /// staging on top of one is a logic error.
+    pub(crate) fn ensure_clean(&self) -> Result<()> {
+        ensure!(
+            self.mls_group.pending_commit().is_none(),
+            "Room already had a pending commit"
+        );
+        if let Some(pq) = self.pq.as_ref() {
+            ensure!(
+                pq.mls_group.pending_commit().is_none(),
+                "PQ Room already had a pending commit"
+            );
+        }
+        Ok(())
     }
 
     /// Returns the [`AirComponent`] from the leaf node of the given member, or `None` if the member
@@ -819,30 +879,28 @@ impl Group {
         &mut self,
         mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
-        // The following three vectors have to be in sync, i.e. of the same length
-        // and refer to the same contacts in order.
-        add_infos: Vec<ContactAddInfos>,
-        wai_keys: Vec<WelcomeAttributionInfoEarKey>,
-        client_credentials: Vec<ClientCredential>,
+        invitees: Vec<PreparedInvitee>,
     ) -> anyhow::Result<Result<GroupOperationParamsOut, LeafNodeValidationError>> {
         debug_assert!(!self.is_apq(), "APQ group in non-APQ stage_invite");
-        debug_assert!(add_infos.len() == wai_keys.len());
-        debug_assert!(add_infos.len() == client_credentials.len());
         // Prepare KeyPackages
 
-        let (key_packages, user_profile_keys): (Vec<ContactKeyPackage>, Vec<UserProfileKey>) =
-            add_infos
-                .into_iter()
-                .map(|ai| (ai.key_package, ai.user_profile_key))
-                .unzip();
-
-        let new_encrypted_user_profile_keys = user_profile_keys
-            .iter()
-            .zip(client_credentials.iter())
-            .map(|(upk, client_credential)| {
-                upk.encrypt(&self.identity_link_wrapper_key, client_credential.user_id())
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut key_packages = Vec::with_capacity(invitees.len());
+        let mut wai_keys = Vec::with_capacity(invitees.len());
+        let mut new_encrypted_user_profile_keys = Vec::with_capacity(invitees.len());
+        for PreparedInvitee {
+            add_info,
+            wai_key,
+            client_credential,
+        } in invitees
+        {
+            new_encrypted_user_profile_keys.push(
+                add_info
+                    .user_profile_key
+                    .encrypt(&self.identity_link_wrapper_key, client_credential.user_id())?,
+            );
+            key_packages.push(add_info.key_package);
+            wai_keys.push(wai_key);
+        }
 
         let aad_message: AadMessage = AadPayload::GroupOperation(GroupOperationParamsAad {
             new_encrypted_user_profile_keys,
@@ -850,17 +908,19 @@ impl Group {
         .into();
 
         // Set Aad to contain the encrypted client credentials.
+        let key_packages = key_packages
+            .into_iter()
+            .map(|kp| match kp {
+                ContactKeyPackage::Traditional(kp) => Ok(*kp),
+                ContactKeyPackage::Apq(_) => {
+                    bail!("APQ key package used for traditional group invite")
+                }
+            })
+            .collect::<Result<Vec<_>>>()?;
         let (mls_commit, welcome_option, group_info_option) = {
             let provider = AirOpenMlsProvider::new(connection.as_mut());
             self.mls_group
                 .set_aad(aad_message.tls_serialize_detached()?);
-            let key_packages = key_packages.into_iter().filter_map(|kp| match kp {
-                ContactKeyPackage::Traditional(kp) => Some(*kp),
-                ContactKeyPackage::Apq(_) => {
-                    error!("logic error: APQ key packages in traditional group");
-                    None
-                }
-            });
             let res = self
                 .mls_group
                 .commit_builder()
@@ -923,67 +983,64 @@ impl Group {
         &mut self,
         mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
-        // The following three vectors have to be in sync, i.e. of the same length
-        // and refer to the same contacts in order.
-        add_infos: Vec<ContactAddInfos>,
-        wai_keys: Vec<WelcomeAttributionInfoEarKey>,
-        client_credentials: Vec<ClientCredential>,
+        invitees: Vec<PreparedInvitee>,
     ) -> anyhow::Result<Result<ApqGroupOperationParamsOut, LeafNodeValidationError>> {
         debug_assert!(self.is_apq(), "Non-APQ group in APQ stage_invite");
-        debug_assert!(add_infos.len() == wai_keys.len());
-        debug_assert!(add_infos.len() == client_credentials.len());
         // Prepare KeyPackages
 
-        let (key_packages, user_profile_keys): (Vec<ContactKeyPackage>, Vec<UserProfileKey>) =
-            add_infos
-                .into_iter()
-                .map(|ai| (ai.key_package, ai.user_profile_key))
-                .unzip();
-
-        let new_encrypted_user_profile_keys = user_profile_keys
-            .iter()
-            .zip(client_credentials.iter())
-            .map(|(upk, client_credential)| {
-                upk.encrypt(&self.identity_link_wrapper_key, client_credential.user_id())
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let mut key_packages = Vec::with_capacity(invitees.len());
+        let mut wai_keys = Vec::with_capacity(invitees.len());
+        let mut new_encrypted_user_profile_keys = Vec::with_capacity(invitees.len());
+        for PreparedInvitee {
+            add_info,
+            wai_key,
+            client_credential,
+        } in invitees
+        {
+            new_encrypted_user_profile_keys.push(
+                add_info
+                    .user_profile_key
+                    .encrypt(&self.identity_link_wrapper_key, client_credential.user_id())?,
+            );
+            key_packages.push(add_info.key_package);
+            wai_keys.push(wai_key);
+        }
 
         let aad_message: AadMessage = AadPayload::GroupOperation(GroupOperationParamsAad {
             new_encrypted_user_profile_keys,
         })
         .into();
 
-        let pq = self.pq.as_mut().context("No PQ group found")?;
-
-        let key_packages = key_packages.into_iter().filter_map(|kp| match kp {
-            ContactKeyPackage::Traditional(_) => {
-                error!("logic error: Traditional key packages in APQ group");
-                None
-            }
-            ContactKeyPackage::Apq(kp) => Some(*kp),
-        });
+        let key_packages = key_packages
+            .into_iter()
+            .map(|kp| match kp {
+                ContactKeyPackage::Traditional(_) => {
+                    bail!("Traditional key package used for APQ group invite")
+                }
+                ContactKeyPackage::Apq(kp) => Ok(*kp),
+            })
+            .collect::<Result<Vec<_>>>()?;
 
         let provider = AirOpenMlsProvider::new(connection.as_mut());
 
         self.mls_group
             .set_aad(aad_message.tls_serialize_detached()?);
 
-        let bundle = match apqmls::commit_builder::CommitBuilder::from_groups(
-            &mut self.mls_group,
-            &mut pq.mls_group,
-        )
-        .force_self_update(true)
-        .propose_adds(key_packages)
-        .create_group_info(true)
-        .finalize(&provider, signer, |_| true, |_| true)
-        {
-            Ok(bundle) => bundle,
-            // Extract leaf node validation error if any
-            Err(apqmls::commit_builder::CreateCommitError::BuildCommit(error)) => {
-                return Ok(Err(to_capabilities_mismatch(error)?));
-            }
-            Err(other) => return Err(other.into()),
-        };
+        let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
+        let bundle =
+            match apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
+                .force_self_update(true)
+                .propose_adds(key_packages)
+                .create_group_info(true)
+                .finalize(&provider, signer, |_| true, |_| true)
+            {
+                Ok(bundle) => bundle,
+                // Extract leaf node validation error if any
+                Err(apqmls::commit_builder::CreateCommitError::BuildCommit(error)) => {
+                    return Ok(Err(to_capabilities_mismatch(error)?));
+                }
+                Err(other) => return Err(other.into()),
+            };
 
         ensure!(
             bundle.group_info.is_some(),
@@ -1100,14 +1157,12 @@ impl Group {
         self.mls_group.set_aad(aad);
 
         let provider = AirOpenMlsProvider::new(connection.as_mut());
-        let bundle = apqmls::commit_builder::CommitBuilder::from_groups(
-            &mut self.mls_group,
-            &mut self.pq.as_mut().context("No PQ group found")?.mls_group,
-        )
-        .force_self_update(true)
-        .propose_removals(remove_indices)
-        .create_group_info(true)
-        .finalize(&provider, signer, |_| true, |_| true)?;
+        let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
+        let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
+            .force_self_update(true)
+            .propose_removals(remove_indices)
+            .create_group_info(true)
+            .finalize(&provider, signer, |_| true, |_| true)?;
 
         debug_assert!(bundle.welcome.is_none());
         ensure!(
@@ -1432,13 +1487,11 @@ impl Group {
         self.mls_group.set_aad(aad);
 
         let provider = AirOpenMlsProvider::new(txn.as_mut());
-        let bundle = apqmls::commit_builder::CommitBuilder::from_groups(
-            &mut self.mls_group,
-            &mut self.pq.as_mut().context("No PQ group found")?.mls_group,
-        )
-        .force_self_update(true)
-        .create_group_info(true)
-        .finalize(&provider, signer, |_| true, |_| true)?;
+        let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
+        let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
+            .force_self_update(true)
+            .create_group_info(true)
+            .finalize(&provider, signer, |_| true, |_| true)?;
 
         debug_assert!(bundle.welcome.is_none());
         ensure!(

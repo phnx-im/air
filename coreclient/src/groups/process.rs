@@ -26,7 +26,7 @@ use mimi_room_policy::RoleIndex;
 use openmls::{
     group::{ProcessMessageError, ValidationError},
     prelude::{
-        GroupId, LeafNodeIndex, ProcessedMessage, ProcessedMessageContent, Proposal,
+        Credential, GroupId, LeafNodeIndex, ProcessedMessage, ProcessedMessageContent, Proposal,
         ProtocolMessage, Sender, SignaturePublicKey, StagedCommit,
     },
 };
@@ -136,12 +136,11 @@ impl Group {
                     encrypted_profile_infos: Vec::new(),
                 }
             }
-            ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
+            ProcessedMessageContent::StagedCommitMessage(_) => {
                 self.post_process_staged_commit(
                     txn,
                     api_clients,
                     &processed_message,
-                    staged_commit,
                     pq_processed_message,
                 )
                 .await?
@@ -177,22 +176,12 @@ impl Group {
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         processed_message: &ProcessedMessage,
-        staged_commit: &StagedCommit,
         pq_processed_message: Option<&ProcessedMessage>,
     ) -> Result<PostProcessState> {
         let group_id = self.group_id().clone();
 
-        let pq_staged_commit = pq_processed_message
-            .as_ref()
-            .map(
-                |pq_processed_message| match pq_processed_message.content() {
-                    ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
-                        Ok(staged_commit)
-                    }
-                    _ => bail!("Invalid PQ message type: expected StagedCommitMessage"),
-                },
-            )
-            .transpose()?;
+        let staged_commit = expect_staged_commit(processed_message)?;
+        let pq_staged_commit = pq_processed_message.map(expect_staged_commit).transpose()?;
 
         let sender_index = match processed_message.sender() {
             Sender::Member(index) => index.to_owned(),
@@ -202,7 +191,7 @@ impl Group {
             }
         };
 
-        self.discard_pending_commit_and_operations(txn, &group_id, staged_commit, sender_index)
+        self.discard_pending_commit_and_operations(txn, &group_id, staged_commit)
             .await?;
 
         let sender_credential =
@@ -218,8 +207,7 @@ impl Group {
                 txn,
                 api_clients,
                 processed_message,
-                staged_commit,
-                pq_staged_commit.map(|commit| &**commit),
+                pq_staged_commit,
                 sender_credential,
             )
             .await?;
@@ -242,7 +230,6 @@ impl Group {
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         processed_message: &ProcessedMessage,
-        staged_commit: &StagedCommit,
         pq_staged_commit: Option<&StagedCommit>,
         sender_credential: VerifiableClientCredential,
     ) -> Result<PostProcessAadResult> {
@@ -256,7 +243,6 @@ impl Group {
                         txn,
                         api_clients,
                         processed_message,
-                        staged_commit,
                         pq_staged_commit,
                         sender_credential,
                         group_operation_payload,
@@ -272,7 +258,7 @@ impl Group {
                     .process_join_connection_group_aad(
                         txn,
                         api_clients,
-                        staged_commit,
+                        processed_message,
                         pq_staged_commit,
                         join_connection_group_payload,
                     )
@@ -283,14 +269,8 @@ impl Group {
                 }
             }
             AadPayload::Resync => {
-                self.process_resync_aad(
-                    txn,
-                    api_clients,
-                    processed_message,
-                    staged_commit,
-                    pq_staged_commit,
-                )
-                .await?;
+                self.process_resync_aad(txn, api_clients, processed_message, pq_staged_commit)
+                    .await?;
                 PostProcessAadResult {
                     we_were_removed: false,
                     encrypted_profile_infos: Vec::new(),
@@ -314,11 +294,12 @@ impl Group {
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         processed_message: &ProcessedMessage,
-        staged_commit: &StagedCommit,
         pq_staged_commit: Option<&StagedCommit>,
         sender_credential: VerifiableClientCredential,
         group_operation_payload: GroupOperationParamsAad,
     ) -> Result<Vec<(ClientCredential, EncryptedUserProfileKey)>> {
+        let staged_commit = expect_staged_commit(processed_message)?;
+
         let mut encrypted_profile_infos: Vec<(ClientCredential, EncryptedUserProfileKey)> =
             Vec::new();
 
@@ -397,7 +378,7 @@ impl Group {
 
         // Process a resync if this is one
         if matches!(processed_message.sender(), Sender::NewMemberCommit) {
-            self.process_resync(processed_message, staged_commit)?;
+            self.process_resync(processed_message.credential(), staged_commit)?;
         }
 
         Ok(encrypted_profile_infos)
@@ -410,10 +391,20 @@ impl Group {
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
-        staged_commit: &StagedCommit,
+        processed_message: &ProcessedMessage,
         pq_staged_commit: Option<&StagedCommit>,
         join_connection_group_payload: JoinConnectionGroupParamsAad,
     ) -> Result<(ClientCredential, EncryptedUserProfileKey)> {
+        let staged_commit = expect_staged_commit(processed_message)?;
+
+        validate_join_connection_group_commit(
+            processed_message.sender(),
+            staged_commit.add_proposals().next().is_some()
+                || staged_commit.update_proposals().next().is_some()
+                || staged_commit.remove_proposals().next().is_some(),
+            self.mls_group.members().count(),
+        )?;
+
         // JoinConnectionGroup Phase 1: Decrypt and verify the
         // client credential of the joiner
         let (sender_credential, sender_leaf_key) = update_path_leaf_node_info(staged_commit)?;
@@ -436,9 +427,6 @@ impl Group {
 
         // TODO: (More) validation:
         // * Check that the user id is unique.
-        // * Check that the proposals fit the operation.
-        // * Check that the sender type fits the operation.
-        // * Check that this group is indeed a connection group.
 
         // JoinConnectionGroup Phase 2: Persist the client credential
         sender_credential.store(txn).await?;
@@ -455,9 +443,10 @@ impl Group {
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         processed_message: &ProcessedMessage,
-        staged_commit: &StagedCommit,
         pq_staged_commit: Option<&StagedCommit>,
     ) -> Result<()> {
+        let staged_commit = expect_staged_commit(processed_message)?;
+
         // Check if it's an external commit. This implies that
         // there is only one remove proposal.
         ensure!(
@@ -507,15 +496,17 @@ impl Group {
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
         staged_commit: &StagedCommit,
-        sender_index: LeafNodeIndex,
     ) -> Result<()> {
         self.discard_pending_commit(&mut *txn).await?;
         if let Some(pending_chat_operation) =
             PendingChatOperation::load_by_group_id(&mut *txn, group_id).await?
         {
             let commit_contains_our_self_remove = staged_commit.queued_proposals().any(|p| {
+                let Sender::Member(proposal_sender_index) = p.sender() else {
+                    return false;
+                };
                 matches!(p.proposal(), Proposal::SelfRemove)
-                    && sender_index == self.mls_group().own_leaf_index()
+                    && proposal_sender_index == &self.mls_group().own_leaf_index()
             });
             if !pending_chat_operation.is_leave() || commit_contains_our_self_remove {
                 PendingChatOperation::delete(&mut *txn, group_id).await?;
@@ -619,11 +610,7 @@ impl Group {
         Ok(credentials)
     }
 
-    fn process_resync(
-        &self,
-        processed_message: &ProcessedMessage,
-        staged_commit: &StagedCommit,
-    ) -> Result<()> {
+    fn process_resync(&self, credential: &Credential, staged_commit: &StagedCommit) -> Result<()> {
         let removed_index = staged_commit
             .remove_proposals()
             .next()
@@ -638,7 +625,7 @@ impl Group {
         };
 
         // Check that the leaf credential hasn't changed during the resync.
-        if &removed_member.credential != processed_message.credential() {
+        if &removed_member.credential != credential {
             bail!("Invalid resync operation: Leaf credential does not match.")
         }
 
@@ -655,17 +642,16 @@ impl Group {
         api_clients: &ApiClients,
         message: impl Into<ApqProtocolMessage>,
     ) -> Result<Option<ProcessMessageResult>> {
-        let pq = self.pq.as_mut().context("No PQ group")?;
+        let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
 
         let ApqProcessedMessage {
             t_message,
             pq_message,
-        } = match ApqMlsGroupMut::from_groups(&mut self.mls_group, &mut pq.mls_group)
-            .process_message(
-                &AirOpenMlsProvider::new(txn.as_mut()),
-                message,
-                |_, _| true, // PQ-credential is always empty
-            ) {
+        } = match ApqMlsGroupMut::from_groups(t_mls_group, pq_mls_group).process_message(
+            &AirOpenMlsProvider::new(txn.as_mut()),
+            message,
+            |_, _| true, // PQ-credential is always empty
+        ) {
             Ok(pm) => pm,
             Err(ApqProcessMessageError::Processing(ProcessMessageError::ValidationError(
                 ValidationError::WrongEpoch,
@@ -697,6 +683,16 @@ impl Group {
 
         Ok(Some(res))
     }
+}
+
+/// Extract the staged commit from a processed message. Errors if the message
+/// is not a staged commit message.
+fn expect_staged_commit(processed_message: &ProcessedMessage) -> Result<&StagedCommit> {
+    let ProcessedMessageContent::StagedCommitMessage(staged_commit) = processed_message.content()
+    else {
+        bail!("Expected a StagedCommitMessage");
+    };
+    Ok(staged_commit)
 }
 
 fn update_path_leaf_node_info(
@@ -755,4 +751,70 @@ fn verify_pq_added_signature_keys(
         );
     }
     Ok(())
+}
+
+fn validate_join_connection_group_commit(
+    sender: &Sender,
+    contains_membership_proposal: bool,
+    member_count: usize,
+) -> Result<()> {
+    ensure!(
+        matches!(sender, Sender::NewMemberCommit),
+        "JoinConnectionGroup operation must be an external commit"
+    );
+    ensure!(
+        !contains_membership_proposal,
+        "JoinConnectionGroup operation must not contain add, update, or remove proposals"
+    );
+    ensure!(
+        member_count == 1,
+        "JoinConnectionGroup operation must target a connection group"
+    );
+    Ok(())
+}
+
+#[cfg(test)]
+mod tests {
+    use openmls::prelude::LeafNodeIndex;
+
+    use super::*;
+
+    #[test]
+    fn join_connection_group_validation_enforces_operation_shape() {
+        assert!(validate_join_connection_group_commit(&Sender::NewMemberCommit, false, 1).is_ok());
+
+        let cases = [
+            (
+                Sender::Member(LeafNodeIndex::new(0)),
+                false,
+                1,
+                "JoinConnectionGroup operation must be an external commit",
+            ),
+            (
+                Sender::NewMemberCommit,
+                true,
+                1,
+                "JoinConnectionGroup operation must not contain add, update, or remove proposals",
+            ),
+            (
+                Sender::NewMemberCommit,
+                false,
+                2,
+                "JoinConnectionGroup operation must target a connection group",
+            ),
+        ];
+
+        for (sender, contains_membership_proposal, member_count, expected_error) in cases {
+            let error = validate_join_connection_group_commit(
+                &sender,
+                contains_membership_proposal,
+                member_count,
+            )
+            .expect_err("invalid JoinConnectionGroup operation should fail");
+            assert!(
+                error.to_string().contains(expected_error),
+                "unexpected error: {error:#}"
+            );
+        }
+    }
 }
