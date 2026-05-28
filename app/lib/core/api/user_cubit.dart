@@ -117,6 +117,8 @@ abstract class UserCubitBase implements RustOpaqueInterface {
   Stream<UiUser> stream();
 
   Future<void> unblockContact({required UiUserId userId});
+
+  Future<String> uploadLogs({required String cacheDir});
 }
 
 enum AppState { mobileBackground, desktopBackground, foreground }

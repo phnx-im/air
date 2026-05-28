@@ -34,6 +34,14 @@ pub enum QsEnqueueError<N: NetworkProvider> {
     InvalidResponse,
 }
 
+/// Error communicating with the As.
+#[derive(Error, Debug)]
+pub enum AsConnectorError {
+    /// Error in the underlying storage provider
+    #[error("Error in the underlying storage provider")]
+    Storage(#[from] StorageError),
+}
+
 /// Error enqueuing a fanned-out message.
 #[derive(Error, Debug, PartialEq, Eq, Clone)]
 pub enum EnqueueError {

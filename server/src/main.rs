@@ -11,8 +11,8 @@ use airbackend::{
 };
 use aircommon::identifiers::Fqdn;
 use airserver::{
-    ServerRunParams, code_command::run_code_command, configurations::*,
-    enqueue_provider::SimpleEnqueueProvider, logging::init_logging,
+    ServerRunParams, as_connector::SimpleAsConnector, code_command::run_code_command,
+    configurations::*, enqueue_provider::SimpleEnqueueProvider, logging::init_logging,
     network_provider::MockNetworkProvider,
     push_notification_provider::ProductionPushNotificationProvider, run,
     username_command::run_username_command,
@@ -137,6 +137,8 @@ async fn main() -> anyhow::Result<()> {
         auth_service.set_unredeemable_code(code);
     }
 
+    let as_connector = SimpleAsConnector::new(&auth_service);
+
     let push_notification_provider =
         ProductionPushNotificationProvider::new(configuration.fcm, configuration.apns)?;
     let qs_connector = SimpleEnqueueProvider {
@@ -154,6 +156,7 @@ async fn main() -> anyhow::Result<()> {
             metrics_listener: Some(metrics_listener),
             ds,
             auth_service,
+            as_connector,
             qs,
             qs_connector,
             rs,

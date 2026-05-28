@@ -29,6 +29,7 @@ use aircommon::{
     messages::{FriendshipToken, QueueMessage, push_token::PushToken},
 };
 pub use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
+pub use airprotos::delivery_service::v1::StorageObjectType;
 pub use airprotos::queue_service::v1::{QueueEvent, QueueEventPayload, queue_event};
 use anyhow::{Context, Result, anyhow, ensure};
 use chrono::{DateTime, Utc};
@@ -608,6 +609,10 @@ impl CoreUser {
     > {
         let queue_ratchet = StorableQsQueueRatchet::load(self.db().read().await?).await?;
         let sequence_number_start = queue_ratchet.sequence_number();
+        info!(
+            sequence_number_start,
+            "listening to QS queue from sequence number"
+        );
         let api_client = self.inner.api_clients.default_client()?;
         let client_signing_key = &self.inner.key_store.qs_client_signing_key;
         let (stream, responder) = api_client

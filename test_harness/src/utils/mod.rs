@@ -19,8 +19,9 @@ use airbackend::{
 };
 use aircommon::identifiers::Fqdn;
 use airserver::{
-    Addressed as _, ServerRunParams, configurations::get_configuration_from_str,
-    enqueue_provider::SimpleEnqueueProvider, network_provider::MockNetworkProvider,
+    Addressed as _, ServerRunParams, as_connector::SimpleAsConnector,
+    configurations::get_configuration_from_str, enqueue_provider::SimpleEnqueueProvider,
+    network_provider::MockNetworkProvider,
     push_notification_provider::ProductionPushNotificationProvider, run,
 };
 use sqlx::{Connection, PgConnection, Row};
@@ -196,6 +197,9 @@ pub(crate) async fn spawn_app(
     )
     .await
     .expect("Failed to connect to database.");
+
+    let as_connector = SimpleAsConnector::new(&auth_service);
+
     let codes = if !invitation_only {
         auth_service.disable_invitation_only();
         Vec::new()
@@ -243,6 +247,7 @@ pub(crate) async fn spawn_app(
             metrics_listener: None,
             ds,
             auth_service,
+            as_connector,
             qs,
             qs_connector,
             rs,

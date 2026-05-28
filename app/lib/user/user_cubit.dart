@@ -7,6 +7,7 @@ import 'dart:typed_data';
 
 import 'package:air/core/core.dart';
 import 'package:air/navigation/navigation.dart';
+import 'package:air/util/platform.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:freezed_annotation/freezed_annotation.dart';
 
@@ -109,4 +110,9 @@ class UserCubit implements StateStreamableSource<UiUser> {
 
   Future<intArray12> safetyCodes(UiUserId userId) =>
       _impl.safetyCodes(otherUserId: userId);
+
+  Future<String> uploadLogs() async {
+    final cacheDir = await getCacheDirectory();
+    return _impl.uploadLogs(cacheDir: cacheDir);
+  }
 }

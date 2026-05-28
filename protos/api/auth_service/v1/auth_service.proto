@@ -85,11 +85,6 @@ service AuthService {
 
 // common
 
-message UserId {
-  common.v1.Uuid uuid = 1;
-  common.v1.Fqdn domain = 2;
-}
-
 message AirProtocolVersion {
   uint32 version = 1;
 }
@@ -129,7 +124,7 @@ message ClientCredentialPayload {
 
 message ClientCredentialCsr {
   uint32 msl_version = 1;
-  UserId user_id = 2;
+  common.v1.UserId user_id = 2;
   SignatureScheme signature_scheme = 3;
   ClientVerifyingKey verifying_key = 4;
 }
@@ -200,7 +195,7 @@ message DeleteUserRequest {
 
 message DeleteUserPayload {
   common.v1.ClientMetadata client_metadata = 3;
-  UserId user_id = 2;
+  common.v1.UserId user_id = 2;
 }
 
 message DeleteUserResponse {}
@@ -229,7 +224,7 @@ message StageUserProfileRequest {
 
 message StageUserProfilePayload {
   common.v1.ClientMetadata client_metadata = 3;
-  UserId user_id = 1;
+  common.v1.UserId user_id = 1;
   EncryptedUserProfile encrypted_user_profile = 2;
 }
 
@@ -244,7 +239,7 @@ message MergeUserProfileRequest {
 
 message MergeUserProfilePayload {
   common.v1.ClientMetadata client_metadata = 2;
-  UserId user_id = 1;
+  common.v1.UserId user_id = 1;
 }
 
 message MergeUserProfileResponse {}
@@ -253,7 +248,7 @@ message MergeUserProfileResponse {}
 
 message GetUserProfileRequest {
   common.v1.ClientMetadata client_metadata = 3;
-  UserId user_id = 1;
+  common.v1.UserId user_id = 1;
   bytes key_index = 2;
 }
 
@@ -340,7 +335,7 @@ message IssueTokensRequest {
 message IssueTokensPayload {
   common.v1.ClientMetadata client_metadata = 3;
   OperationType operation_type = 4;
-  UserId user_id = 1;
+  common.v1.UserId user_id = 1;
   bytes token_request = 2;
 }
 
@@ -357,8 +352,8 @@ message ReportSpamRequest {
 
 message ReportSpamPayload {
   common.v1.ClientMetadata client_metadata = 3;
-  UserId reporter_id = 1;
-  UserId spammer_id = 2;
+  common.v1.UserId reporter_id = 1;
+  common.v1.UserId spammer_id = 2;
 }
 
 message ReportSpamResponse {}

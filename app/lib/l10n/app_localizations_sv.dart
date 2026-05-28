@@ -832,6 +832,9 @@ class AppLocalizationsSv extends AppLocalizations {
   String get contactUsScreen_body => 'Meddelande';
 
   @override
+  String get contactUsScreen_includeLogs => 'Dela dina loggar';
+
+  @override
   String get contactUsScreen_composeEmail => 'Skriv e-post';
 
   @override
@@ -857,8 +860,17 @@ class AppLocalizationsSv extends AppLocalizations {
   String get contactUsScreen_body_tooShort => 'Ge mer information';
 
   @override
+  String contactUsScreen_body_logsUrl(Object url) {
+    return 'Här är några loggar för att hjälpa dig felsöka mitt problem: $url';
+  }
+
+  @override
   String get contactUsScreen_errorLaunchingEmail =>
       'Kunde inte öppna e-postklienten';
+
+  @override
+  String get contactUsScreen_errorUploadingLogs =>
+      'Det gick inte att ladda upp loggar';
 
   @override
   String get groupDetails_leaveChat => 'Lämna';
