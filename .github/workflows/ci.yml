@@ -202,3 +202,4 @@ jobs:
           name: ${{ matrix.name }}
           path: target/nextest/${{ matrix.profile }}/junit.xml
           reporter: java-junit
+          fail-on-error: false

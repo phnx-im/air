@@ -7,15 +7,19 @@ experimental = ["setup-scripts"]
 # unit tests
 [profile.unit]
 default-filter = "not binary(integration)"
+fail-fast = false
 junit = { path = "junit.xml" }
 
 # integration tests
 [profile.integration]
 default-filter = "binary(integration)"
+fail-fast = false
 junit = { path = "junit.xml" }
 
+# integration tests (with APQ enabled for all tests)
 [profile.integration-with-apq]
 default-filter = "binary(integration)"
+fail-fast = false
 junit = { path = "junit.xml" }
 
 [scripts.setup.enable-apq]

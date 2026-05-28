@@ -451,11 +451,9 @@ mod test {
         let context = DelayedCounterContext::default();
         let service = OutboundService::with_context(context.clone(), global_lock());
 
-        service.start().await;
-        sleep(Duration::from_millis(100)).await; // +1
-        service.notify_work();
-        sleep(Duration::from_millis(100)).await; // +1
-        service.notify_work();
+        service.start().await; // +1 => counter = 1
+        service.notify_work().await; // +1 => counter = 2
+        service.notify_work(); // asynchronously
         timeout(Duration::from_millis(100), service.stop())
             .await
             .unwrap(); // cancelled
