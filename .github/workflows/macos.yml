@@ -47,6 +47,7 @@ jobs:
         uses: ./.github/actions/setup-buildenv
         with:
           fastlane: true
+          sccache: true
 
       - name: Detect if PR is from a fork
         id: detect_fork

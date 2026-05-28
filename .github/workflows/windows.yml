@@ -44,6 +44,8 @@ jobs:
       - id: setup-buildenv
         name: Setup build environment
         uses: ./.github/actions/setup-buildenv
+        with:
+          sccache: true
 
       - name: Build Windows app
         working-directory: app

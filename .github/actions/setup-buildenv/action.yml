@@ -34,7 +34,7 @@ inputs:
     required: false
   sccache:
     description: "Enable sccache (with GitHub cache artifacts)"
-    default: "true"
+    default: "false"
     required: false
   sccache-dir:
     description: "Location of cache files"

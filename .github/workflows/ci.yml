@@ -33,34 +33,30 @@ jobs:
           - name: Generated app resources
             just: check-app-resources
             flutter: true
-            sccache: false
           - name: Rust licenses and advisories
             just: check-cargo-deny
             cargo-binstall-tools: cargo-deny@0.19.0
-            sccache: false
           - name: FRB codegen
             just: check-frb
             cargo-binstall-tools: cargo-expand flutter_rust_bridge_codegen@2.12.0
             flutter: true
+            sccache: true
             sccache-size: 1g
           - name: Unused crates
             just: check-cargo-machete
             cargo-binstall-tools: cargo-machete@0.9.1
-            sccache: false
           - name: Rust clippy
             just: check-clippy
+            sccache: true
             sccache-size: 1g
           - name: Dart lints
             just: check-dart
             flutter: true
-            sccache: false
           - name: SPDX License headers
             just: check-reuse
             pypi-packages: reuse~=6.2
-            sccache: false
           - name: Rust format
             just: check-rustfmt
-            sccache: false
 
     steps:
       - name: Checkout code
@@ -75,7 +71,7 @@ jobs:
         with:
           git-lfs: false
           flutter: ${{ matrix.flutter || 'false' }}
-          sccache: ${{ matrix.sccache || 'true' }}
+          sccache: ${{ matrix.sccache || 'false' }}
           sccache-size: ${{ matrix.sccache-size || '2g' }}
           cache-key: ${{ matrix.just }}
           cargo-binstall-tools: ${{ matrix.cargo-binstall-tools }}
@@ -96,8 +92,6 @@ jobs:
 
       - name: Setup build environment
         uses: ./.github/actions/setup-buildenv
-        with:
-          sccache: false
 
       - name: Flutter tests
         run: cd app && flutter test --file-reporter=json:test-results.json
@@ -134,6 +128,7 @@ jobs:
           git-lfs: false
           cargo-binstall-tools: cargo-nextest
           flutter: false
+          sccache: true
 
       - name: Build cargo test binaries
         run: |
@@ -183,7 +178,6 @@ jobs:
           cargo-binstall-tools: cargo-nextest
           pypi-packages: podman-compose~=1.5
           flutter: false
-          sccache: false
 
       - name: Run tests
         env:
