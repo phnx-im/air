@@ -164,7 +164,7 @@ hpke-rs-rust-crypto = { git = "https://github.com/cryspen/hpke-rs", rev = "42f9b
 
 [profile.release]
 strip = true
-lto = true
+lto = "thin"
 codegen-units = 1
 
 # Profile for compiling tests in CI
