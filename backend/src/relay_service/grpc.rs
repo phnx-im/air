@@ -81,14 +81,19 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
 
         let (peer_ready_tx, peer_ready_rx) = oneshot::channel();
 
-        match self.rs.sessions.entry(requested_session_id.clone()) {
-            Entry::Occupied(_) => return Err(Status::aborted("session ID collision")),
-            Entry::Vacant(vacant) => {
-                info!(requested_session_id = %vacant.key(), "starting new pairing session");
-                vacant.insert(Pending {
-                    outbound_tx,
-                    peer_ready_tx,
-                });
+        loop {
+            match self.rs.sessions.entry(requested_session_id.clone()) {
+                Entry::Occupied(_) => {
+                    return Err(Status::aborted("session ID collision"));
+                }
+                Entry::Vacant(vacant) => {
+                    info!(requested_session_id = %vacant.key(), "starting new pairing session");
+                    vacant.insert(Pending {
+                        outbound_tx,
+                        peer_ready_tx,
+                    });
+                    break;
+                }
             }
         }
 
@@ -146,7 +151,6 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
                 Status::internal("decoding failure")
             })?;
 
-        // TODO: we should check that the payload has been signed by the right user
         let qs_user_id: Uuid = request
             .payload
             .as_ref()
