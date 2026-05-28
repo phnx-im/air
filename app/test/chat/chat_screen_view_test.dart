@@ -59,6 +59,7 @@ UiChatDetails _chatWithDraft(UiMessageDraft draft) => UiChatDetails(
   unreadMessages: _chat.unreadMessages,
   lastMessage: _chat.lastMessage,
   draft: draft,
+  isApq: _chat.isApq,
 );
 
 void main() {

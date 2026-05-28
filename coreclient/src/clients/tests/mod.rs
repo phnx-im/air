@@ -7,8 +7,7 @@ use airserver_test_harness::utils::setup::TestBackend;
 
 use crate::{
     clients::store::{ClientRecord, ClientRecordState, UserCreationState},
-    db_access::DbAccess,
-    store::StoreNotificationsSender,
+    db::{access::DbAccess, notification::DbNotificationsSender},
     utils::persistence::open_db_in_memory,
 };
 
@@ -22,7 +21,7 @@ async fn user_stages() -> anyhow::Result<()> {
 
     let user_id = UserId::random("example.com".parse().unwrap());
 
-    let notifier_tx = StoreNotificationsSender::new();
+    let notifier_tx = DbNotificationsSender::new();
     let air_db = DbAccess::with_single_pool(open_db_in_memory().await?, notifier_tx.clone());
     let client_db = DbAccess::with_single_pool(open_db_in_memory().await?, notifier_tx);
 

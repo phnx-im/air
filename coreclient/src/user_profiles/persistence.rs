@@ -6,7 +6,7 @@ use aircommon::{crypto::indexed_aead::keys::UserProfileKeyIndex, identifiers::Us
 use sqlx::{query, query_as};
 use tracing::error;
 
-use crate::db_access::{DbAccess, ReadConnection, WriteConnection};
+use crate::db::access::{DbAccess, ReadConnection, WriteConnection};
 
 use super::{Asset, IndexedUserProfile, UserProfile, display_name::BaseDisplayName};
 
@@ -159,7 +159,7 @@ mod tests {
     use aircommon::crypto::indexed_aead::keys::UserProfileKey;
     use sqlx::SqlitePool;
 
-    use crate::{Asset, db_access::DbAccess, key_stores::indexed_keys::StorableIndexedKey};
+    use crate::{Asset, db::access::DbAccess, key_stores::indexed_keys::StorableIndexedKey};
 
     use super::*;
 

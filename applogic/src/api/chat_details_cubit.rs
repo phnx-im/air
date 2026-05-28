@@ -580,9 +580,15 @@ impl ChatDetailsCubitBase {
         self.context.core_user.enqueue_group_resync(chat_id).await
     }
 
-    pub async fn update_key(&self) -> anyhow::Result<()> {
+    pub async fn dev_update_key(&self) -> anyhow::Result<()> {
         let chat_id = self.context.chat_id;
         self.context.core_user.update_key(chat_id).await?;
+        Ok(())
+    }
+
+    pub async fn dev_update_apq_key(&self) -> anyhow::Result<()> {
+        let chat_id = self.context.chat_id;
+        self.context.core_user.update_apq_key(chat_id).await?;
         Ok(())
     }
 }
@@ -682,7 +688,7 @@ impl ChatDetailsContext {
 
     /// Returns only when `stop` is cancelled
     async fn update_state_task(self) {
-        let mut notifications = self.core_user.store_notifications();
+        let mut notifications = self.core_user.db_notifications();
         while let Some(notification) = notifications.next().await {
             if notification.ops.contains_key(&self.chat_id.into()) {
                 self.load_and_emit_state().await;
@@ -741,6 +747,8 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         .unwrap_or_default()
         .map(Into::into);
 
+    let is_apq = core_user.chat_is_apq(chat.id).await.unwrap_or(false);
+
     UiChatDetails {
         id: chat.id,
         status: chat.status.into(),
@@ -750,6 +758,7 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         unread_messages,
         last_message: last_message.map(From::from),
         draft,
+        is_apq,
     }
 }
 

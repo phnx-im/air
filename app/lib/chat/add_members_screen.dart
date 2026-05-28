@@ -15,6 +15,7 @@ import 'package:air/widgets/widgets.dart';
 import 'package:logging/logging.dart';
 
 import 'add_members_cubit.dart';
+import 'chat_details_cubit.dart';
 import 'widgets/member_search_field.dart';
 import 'widgets/member_selection_list.dart';
 
@@ -25,17 +26,33 @@ class AddMembersScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider(
-      create: (context) {
-        final userCubit = context.read<UserCubit>();
-        final navigationCubit = context.read<NavigationCubit>();
-        final chatId = navigationCubit.state.chatId;
-        final contactsFuture = chatId != null
-            ? userCubit.addableContacts(chatId)
-            : Future.value(<UiContact>[]);
+    final navigationCubit = context.read<NavigationCubit>();
+    final chatId = navigationCubit.state.chatId;
 
-        return AddMembersCubit()..loadContacts(contactsFuture);
-      },
+    return MultiBlocProvider(
+      providers: [
+        BlocProvider(
+          create: (context) {
+            final userCubit = context.read<UserCubit>();
+            final contactsFuture = chatId != null
+                ? userCubit.addableContacts(chatId)
+                : Future.value(<UiContact>[]);
+
+            return AddMembersCubit()..loadContacts(contactsFuture);
+          },
+        ),
+        if (chatId != null)
+          BlocProvider(
+            create: (context) => ChatDetailsCubit(
+              userCubit: context.read<UserCubit>(),
+              userSettingsCubit: context.read<UserSettingsCubit>(),
+              chatsRepository: context.read<ChatsRepository>(),
+              attachmentsRepository: context.read<AttachmentsRepository>(),
+              chatId: chatId,
+              withMembers: false,
+            ),
+          ),
+      ],
       child: const AddMembersScreenView(),
     );
   }
@@ -63,6 +80,9 @@ class _AddMembersScreenViewState extends State<AddMembersScreenView> {
     final (contacts, selectedContacts) = context.select(
       (AddMembersCubit cubit) =>
           (cubit.state.contacts, cubit.state.selectedContacts),
+    );
+    final isApq = context.select(
+      (ChatDetailsCubit cubit) => cubit.state.chat?.isApq ?? false,
     );
     final loc = AppLocalizations.of(context);
 
@@ -102,6 +122,7 @@ class _AddMembersScreenViewState extends State<AddMembersScreenView> {
                     contacts: contacts,
                     selectedContacts: selectedContacts,
                     query: _query,
+                    isApq: isApq,
                     onToggle: (contact) => context
                         .read<AddMembersCubit>()
                         .toggleContact(contact.userId),

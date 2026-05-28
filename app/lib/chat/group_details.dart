@@ -56,6 +56,7 @@ class GroupDetailsScreen extends StatelessWidget {
               title: chat.title,
               loadDebugInfo: () => chatDetailsCubit.chatDebugInfo(),
               onUpdateGroup: () => chatDetailsCubit.updateKey(),
+              onUpdateApqGroup: () => chatDetailsCubit.updateApqKey(),
               onRequestResync: () => chatDetailsCubit.requestResync(),
               onEraseLocalChat: () => userCubit.devEraseChat(chat.id),
             ),
@@ -295,19 +296,20 @@ class _PeoplePreviewEntry extends StatelessWidget {
       _PeopleEntryPosition.last => BorderRadius.zero,
     };
 
-    return Container(
-      decoration: BoxDecoration(
-        color: colors.backgroundBase.secondary,
-        borderRadius: borderRadius,
-      ),
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
-      child: MemberListItem(
-        profile: profile,
-        displayNameOverride: displayName,
-        enabled: !isSelf,
-        onTap: isSelf
-            ? null
-            : () => context.read<NavigationCubit>().openMemberDetails(memberId),
+    return Material(
+      color: colors.backgroundBase.secondary,
+      borderRadius: borderRadius,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+        child: MemberListItem(
+          profile: profile,
+          displayNameOverride: displayName,
+          enabled: !isSelf,
+          onTap: isSelf
+              ? null
+              : () =>
+                    context.read<NavigationCubit>().openMemberDetails(memberId),
+        ),
       ),
     );
   }
@@ -334,91 +336,86 @@ class _ActionsRow extends StatelessWidget {
     };
 
     return Material(
-      color: Colors.transparent,
-      child: Container(
-        decoration: BoxDecoration(
-          color: colors.backgroundBase.secondary,
-          borderRadius: borderRadius,
-        ),
-        child: Row(
-          children: [
-            Expanded(
-              child: InkWell(
-                onTap: () {
-                  context.read<NavigationCubit>().openAddMembers();
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: Spacing.px16,
-                    vertical: Spacing.px12,
-                  ),
-                  child: Row(
-                    children: [
-                      Container(
-                        height: 32,
-                        width: 32,
-                        decoration: BoxDecoration(
-                          color: colors.backgroundElevated.primary,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(Spacing.px8),
-                          child: AppIcon.plus(
-                            size: 16,
-                            color: colors.function.toggleBlack,
-                          ),
+      color: colors.backgroundBase.secondary,
+      borderRadius: borderRadius,
+      child: Row(
+        children: [
+          Expanded(
+            child: InkWell(
+              onTap: () {
+                context.read<NavigationCubit>().openAddMembers();
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: Spacing.px16,
+                  vertical: Spacing.px12,
+                ),
+                child: Row(
+                  children: [
+                    Container(
+                      height: 32,
+                      width: 32,
+                      decoration: BoxDecoration(
+                        color: colors.backgroundElevated.primary,
+                        borderRadius: BorderRadius.circular(16),
+                      ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(Spacing.px8),
+                        child: AppIcon.plus(
+                          size: 16,
+                          color: colors.function.toggleBlack,
                         ),
                       ),
-                      const SizedBox(width: Spacing.px16),
-                      Text(
-                        loc.groupDetails_addPeople,
-                        style: TextStyle(fontSize: BodyFontSize.base.size),
-                      ),
-                    ],
-                  ),
+                    ),
+                    const SizedBox(width: Spacing.px16),
+                    Text(
+                      loc.groupDetails_addPeople,
+                      style: TextStyle(fontSize: BodyFontSize.base.size),
+                    ),
+                  ],
                 ),
               ),
             ),
-            Expanded(
-              child: InkWell(
-                onTap: () {
-                  context.read<NavigationCubit>().openGroupMembers();
-                },
-                child: Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: Spacing.px16,
-                    vertical: Spacing.px12,
-                  ),
-                  child: Row(
-                    mainAxisAlignment: .end,
-                    children: [
-                      Text(
-                        loc.groupDetails_seeAll,
-                        style: TextStyle(fontSize: BodyFontSize.base.size),
+          ),
+          Expanded(
+            child: InkWell(
+              onTap: () {
+                context.read<NavigationCubit>().openGroupMembers();
+              },
+              child: Padding(
+                padding: const EdgeInsets.symmetric(
+                  horizontal: Spacing.px16,
+                  vertical: Spacing.px12,
+                ),
+                child: Row(
+                  mainAxisAlignment: .end,
+                  children: [
+                    Text(
+                      loc.groupDetails_seeAll,
+                      style: TextStyle(fontSize: BodyFontSize.base.size),
+                    ),
+                    const SizedBox(width: Spacing.px12),
+                    Container(
+                      height: 32,
+                      width: 32,
+                      decoration: BoxDecoration(
+                        color: colors.backgroundElevated.primary,
+                        borderRadius: BorderRadius.circular(16),
                       ),
-                      const SizedBox(width: Spacing.px12),
-                      Container(
-                        height: 32,
-                        width: 32,
-                        decoration: BoxDecoration(
-                          color: colors.backgroundElevated.primary,
-                          borderRadius: BorderRadius.circular(16),
-                        ),
-                        child: Padding(
-                          padding: const EdgeInsets.all(Spacing.px8),
-                          child: AppIcon.arrowRight(
-                            size: 16,
-                            color: colors.function.toggleBlack,
-                          ),
+                      child: Padding(
+                        padding: const EdgeInsets.all(Spacing.px8),
+                        child: AppIcon.arrowRight(
+                          size: 16,
+                          color: colors.function.toggleBlack,
                         ),
                       ),
-                    ],
-                  ),
+                    ),
+                  ],
                 ),
               ),
             ),
-          ],
-        ),
+          ),
+        ],
       ),
     );
   }

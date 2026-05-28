@@ -102,6 +102,7 @@ pub struct UiChatDetails {
     pub unread_messages: usize,
     pub last_message: Option<UiChatMessage>,
     pub draft: Option<UiMessageDraft>,
+    pub is_apq: bool,
 }
 
 impl UiChatDetails {

@@ -5,7 +5,7 @@
 use aircommon::identifiers::UserId;
 use sqlx::{query, query_scalar};
 
-use crate::db_access::{ReadConnection, WriteConnection};
+use crate::db::access::{ReadConnection, WriteConnection};
 
 use super::StorableClientCredential;
 
@@ -66,7 +66,7 @@ mod tests {
     use tls_codec::Serialize;
     use uuid::Uuid;
 
-    use crate::db_access::DbAccess;
+    use crate::db::access::DbAccess;
 
     use super::*;
 

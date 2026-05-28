@@ -9,13 +9,12 @@
 mod chats;
 pub mod clients;
 mod contacts;
-pub(crate) mod db_access;
+pub mod db;
 mod groups;
 mod job;
 mod key_stores;
 pub mod outbound_service;
 pub(crate) mod privacy_pass;
-pub mod store;
 mod user_profiles;
 mod usernames;
 mod utils;

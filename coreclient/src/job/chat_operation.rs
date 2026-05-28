@@ -16,7 +16,7 @@ use thiserror::Error;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus,
-    db_access::WriteConnection,
+    db::access::WriteConnection,
     groups::Group,
     job::{Job, JobContext, JobContextDb, JobError, pending_chat_operation::PendingChatOperation},
 };
@@ -28,6 +28,7 @@ enum ChatOperationType {
     Leave,
     Delete,
     Update(Option<ChatAttributes>),
+    ApqUpdate,
 }
 
 pub(crate) struct ChatOperation {
@@ -105,6 +106,13 @@ impl ChatOperation {
         }
     }
 
+    pub(crate) fn apq_update(chat_id: ChatId) -> Self {
+        ChatOperation {
+            chat_id,
+            operation: ChatOperationType::ApqUpdate,
+        }
+    }
+
     pub(crate) fn delete_chat(chat_id: ChatId) -> Self {
         ChatOperation {
             chat_id,
@@ -149,8 +157,10 @@ impl ChatOperation {
             }
             // The following operations are always valid as long as the
             // group is active.
-            ChatOperationType::Leave | ChatOperationType::Delete | ChatOperationType::Update(_) => {
-            }
+            ChatOperationType::Leave
+            | ChatOperationType::Delete
+            | ChatOperationType::Update(_)
+            | ChatOperationType::ApqUpdate => {}
         }
         Ok(())
     }
@@ -183,6 +193,7 @@ impl ChatOperation {
             ChatOperationType::Update(chat_attributes) => {
                 self.execute_update(context, chat_attributes).await
             }
+            ChatOperationType::ApqUpdate => self.execute_apq_self_update(context).await,
         }
     }
 
@@ -350,6 +361,26 @@ impl ChatOperation {
             })
             .await?;
 
+        job.execute(context).await
+    }
+
+    async fn execute_apq_self_update(
+        self,
+        context: &mut JobContext<'_, '_>,
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
+        let JobContext { db, key_store, .. } = context;
+        let job = db
+            .write()
+            .await?
+            .with_transaction(async |txn| {
+                PendingChatOperation::create_apq_self_update(
+                    txn,
+                    &key_store.signing_key,
+                    self.chat_id,
+                )
+                .await
+            })
+            .await?;
         job.execute(context).await
     }
 

@@ -17,7 +17,7 @@ use sqlx::{
 };
 use tracing::error;
 
-use crate::db_access::{ReadConnection, WriteConnection, WriteDbTransaction};
+use crate::db::access::{ReadConnection, WriteConnection, WriteDbTransaction};
 
 use super::*;
 

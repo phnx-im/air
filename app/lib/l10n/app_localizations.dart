@@ -1836,7 +1836,7 @@ abstract class AppLocalizations {
   /// No description provided for @memberSelectionList_client_not_supported.
   ///
   /// In en, this message translates to:
-  /// **'This contact has an incompatible client which needs to be updated.'**
+  /// **'This contact has an outdated app which needs to be updated.'**
   String get memberSelectionList_client_not_supported;
 
   /// No description provided for @homeTab_chats.

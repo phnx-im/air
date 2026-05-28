@@ -36,8 +36,13 @@ pub const KEY_PACKAGES: usize = 100;
 /// Currently only a last resort key package is uploaded.
 pub const APQ_KEY_PACKAGES: usize = 0;
 
-/// Interval at which the self-update in a group is executed
+/// Interval at which the self-update in a group is executed.
 const SELF_UPDATE_INTERVAL: Duration = Duration::days(1);
+
+/// Interval at which the joint APQ self-update is executed.
+///
+/// This is always greater than [`SELF_UPDATE_INTERVAL`].
+const PQ_SELF_UPDATE_INTERVAL: Duration = Duration::days(7);
 
 /// A task to be executed at some point in the future
 #[derive(Debug, Serialize, Deserialize)]
@@ -588,7 +593,7 @@ impl OutboundServiceContext {
     async fn self_update_in_chat(&self, chat_id: ChatId) -> anyhow::Result<bool> {
         debug!(?chat_id, "Self-update in chat");
 
-        let (group, is_connection, erase_attributes) = {
+        let (group, is_connection, erase_attributes, pq_due) = {
             let mut read = self.db.read().await?;
             let mut read_txn = read.begin().await?;
 
@@ -599,7 +604,11 @@ impl OutboundServiceContext {
                 );
                 return Ok(false);
             };
-            if group.mls_group().pending_commit().is_some() {
+            if group.mls_group().pending_commit().is_some()
+                || group
+                    .pq()
+                    .is_some_and(|pq| pq.mls_group.pending_commit().is_some())
+            {
                 debug!(
                     ?chat_id,
                     "Skipping self-update in chat because there is a pending commit"
@@ -607,17 +616,18 @@ impl OutboundServiceContext {
                 return Ok(false);
             }
 
-            if group.mls_group().pending_proposals().next().is_some() {
-                debug!(
-                    ?chat_id,
-                    "Skipping self-update in chat because there are pending proposals"
-                );
-                return Ok(false);
-            }
-
-            let self_update_at: DateTime<Utc> =
+            let now = Utc::now();
+            let t_self_update_at: DateTime<Utc> =
                 group.self_updated_at.map(From::from).unwrap_or_default();
-            if Utc::now() <= self_update_at + SELF_UPDATE_INTERVAL {
+            let t_due = t_self_update_at + SELF_UPDATE_INTERVAL < now;
+
+            let pq_due = group.pq().is_some_and(|pq| {
+                let pq_self_update_at: DateTime<Utc> =
+                    pq.self_updated_at.map(From::from).unwrap_or_default();
+                pq_self_update_at + PQ_SELF_UPDATE_INTERVAL < now
+            });
+
+            if !t_due && !pq_due {
                 return Ok(false);
             }
 
@@ -646,7 +656,7 @@ impl OutboundServiceContext {
                 false
             };
 
-            (group, is_connection, erase_attributes)
+            (group, is_connection, erase_attributes, pq_due)
         };
 
         let migration_attrs = legacy_group_data_migration(&group, is_connection, erase_attributes);
@@ -654,7 +664,20 @@ impl OutboundServiceContext {
             info!(%chat_id, "Migrating legacy group data");
         }
 
-        let job = ChatOperation::update(chat_id, migration_attrs);
+        let job = if migration_attrs.is_some() {
+            // Migration takes precedence over PQ self-update (PQ interval is long, so this is
+            // fine).
+            info!(%chat_id, "Migrating legacy group data");
+            ChatOperation::update(chat_id, migration_attrs)
+        } else if pq_due {
+            // Both T and PQ are due and no migration is needed, so the joint APQ update covers
+            // both.
+            info!(%chat_id, "Performing joint APQ self-update");
+            ChatOperation::apq_update(chat_id)
+        } else {
+            // Pure T-only update
+            ChatOperation::update(chat_id, None)
+        };
         let res = self.execute_job(job).await;
 
         match res {
@@ -712,7 +735,7 @@ mod persistence {
     use openmls::prelude::KeyPackageRef;
     use sqlx::QueryBuilder;
 
-    use crate::{db_access::WriteDbTransaction, groups::openmls_provider::KeyRefWrapper};
+    use crate::{db::access::WriteDbTransaction, groups::openmls_provider::KeyRefWrapper};
 
     pub(super) async fn mark_key_packages_as_live(
         txn: &mut WriteDbTransaction<'_>,
@@ -793,7 +816,8 @@ mod persistence {
         use url::Host;
 
         use crate::{
-            clients::CIPHERSUITE, db_access::DbAccess, groups::openmls_provider::AirOpenMlsProvider,
+            clients::CIPHERSUITE, db::access::DbAccess,
+            groups::openmls_provider::AirOpenMlsProvider,
         };
 
         use super::*;

@@ -146,11 +146,19 @@ Future<List<String>?> getClipboardFilePaths() async {
   return null;
 }
 
-Future<Uint8List?> getClipboardImage() async {
+typedef ClipboardImage = ({Uint8List bytes, String mimeType});
+
+Future<ClipboardImage?> getClipboardImage() async {
   if (Platform.isIOS || Platform.isAndroid) {
     try {
-      final bytes = await platform.invokeMethod<Uint8List>('getClipboardImage');
-      return bytes;
+      final map = await platform.invokeMapMethod<String, dynamic>(
+        'getClipboardImage',
+      );
+      if (map == null) return null;
+      final bytes = map['bytes'] as Uint8List?;
+      final mimeType = map['mimeType'] as String?;
+      if (bytes == null || mimeType == null) return null;
+      return (bytes: bytes, mimeType: mimeType);
     } on PlatformException catch (e, stacktrace) {
       _log.severe(
         "Failed to get clipboard image: '${e.message}'.",
@@ -160,7 +168,10 @@ Future<Uint8List?> getClipboardImage() async {
     }
   } else if (Platform.isMacOS || Platform.isWindows || Platform.isLinux) {
     try {
-      return await rust_utils.readClipboardImage();
+      final bytes = await rust_utils.readClipboardImage();
+      if (bytes == null) return null;
+      // Desktop path re-encodes to PNG (lossless, alpha-preserving).
+      return (bytes: bytes, mimeType: 'image/png');
     } catch (e, stacktrace) {
       _log.severe("Failed to get clipboard image: '$e'.", e, stacktrace);
     }
@@ -205,31 +216,6 @@ Future<void> endBackgroundTask(int? taskId) async {
       e,
       stacktrace,
     );
-  }
-}
-
-Future<bool> requestNotificationPermission() async {
-  if (!Platform.isMacOS) {
-    return false;
-  }
-  try {
-    final result = await platform.invokeMethod('requestNotificationPermission');
-    if (result is bool) {
-      return result;
-    } else {
-      _log.warning(
-        "requestNotificationPermission returned unexpected type: ${result.runtimeType}",
-      );
-      return false;
-    }
-  } on PlatformException catch (e, stacktrace) {
-    _log.severe(
-      "Failed to request notification permission: '${e.message}'.",
-      e,
-      stacktrace,
-    );
-    // Re-throw the error so the caller knows there was a system error vs. permission denial
-    rethrow;
   }
 }
 

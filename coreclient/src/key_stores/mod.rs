@@ -23,7 +23,7 @@ use tls_codec::Serialize as TlsSerializeTrait;
 
 use crate::{
     clients::{CIPHERSUITE, api_clients::ApiClients},
-    db_access::WriteConnection,
+    db::access::WriteConnection,
     groups::openmls_provider::AirOpenMlsProvider,
 };
 
