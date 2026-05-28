@@ -873,6 +873,11 @@ class AppLocalizationsFr extends AppLocalizations {
       'Veuillez fournir plus d\'informations';
 
   @override
+  String contactUsScreen_body_logsUrl(Object url) {
+    return 'Voici des journaux pour vous aider à déboguer mon problème : $url';
+  }
+
+  @override
   String get contactUsScreen_errorLaunchingEmail =>
       'Impossible de lancer le client de messagerie';
 

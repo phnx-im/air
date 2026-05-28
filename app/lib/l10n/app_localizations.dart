@@ -1509,6 +1509,12 @@ abstract class AppLocalizations {
   /// **'Provide more information'**
   String get contactUsScreen_body_tooShort;
 
+  /// No description provided for @contactUsScreen_body_logsUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Here are some logs to help you debug my issue: {url}'**
+  String contactUsScreen_body_logsUrl(Object url);
+
   /// No description provided for @contactUsScreen_errorLaunchingEmail.
   ///
   /// In en, this message translates to:

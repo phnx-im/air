@@ -264,8 +264,11 @@ class _EmailForm extends HookWidget {
     String? debugLogsUrl,
   ) async {
     if (debugLogsUrl != null) {
-      debugPrint(debugLogsUrl);
-      body += "\n\n- View debug logs URL: ${Uri.encodeComponent(debugLogsUrl)}";
+      final loc = AppLocalizations.of(context);
+      body += "\n\n";
+      body += loc.contactUsScreen_body_logsUrl(
+        Uri.encodeComponent(debugLogsUrl),
+      );
     }
     final Uri emailUri = Uri.parse(
       'mailto:help@air.ms?subject=$subject&body=$body',

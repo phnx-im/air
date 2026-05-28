@@ -260,6 +260,7 @@
   "contactUsScreen_subject_empty": "Välj ett ämne",
   "contactUsScreen_body_empty": "Skriv ditt meddelande",
   "contactUsScreen_body_tooShort": "Ge mer information",
+  "contactUsScreen_body_logsUrl": "Här är några loggar för att hjälpa dig felsöka mitt problem: {url}",
   "contactUsScreen_errorLaunchingEmail": "Kunde inte öppna e-postklienten",
   "contactUsScreen_errorUploadingLogs": "Det gick inte att ladda upp loggar",
   "groupDetails_leaveChat": "Lämna",

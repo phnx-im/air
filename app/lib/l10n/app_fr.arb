@@ -261,6 +261,7 @@
   "contactUsScreen_subject_empty": "Veuillez sélectionner un objet",
   "contactUsScreen_body_empty": "Entrez votre message",
   "contactUsScreen_body_tooShort": "Veuillez fournir plus d'informations",
+  "contactUsScreen_body_logsUrl": "Voici des journaux pour vous aider à déboguer mon problème : {url}",
   "contactUsScreen_errorLaunchingEmail": "Impossible de lancer le client de messagerie",
   "contactUsScreen_errorUploadingLogs": "Impossible de téléverser les journaux",
   "groupDetails_leaveChat": "Quitter",

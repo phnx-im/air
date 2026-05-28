@@ -852,6 +852,11 @@ class AppLocalizationsEn extends AppLocalizations {
   String get contactUsScreen_body_tooShort => 'Provide more information';
 
   @override
+  String contactUsScreen_body_logsUrl(Object url) {
+    return 'Here are some logs to help you debug my issue: $url';
+  }
+
+  @override
   String get contactUsScreen_errorLaunchingEmail =>
       'Couldn\'t launch email client';
 
