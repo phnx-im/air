@@ -51,6 +51,12 @@ jobs:
         working-directory: app
         run: flutter build windows -v --build-number=${{ steps.setup-buildenv.outputs.build-number }}
 
+      # Show sccache stats manually (because it fails in the post setup-buildenv step)
+      - name: Show sccache stats
+        if: always()
+        shell: bash
+        run: sccache --show-stats
+
       - name: Upload Windows app
         uses: actions/upload-artifact@v6
         with:
