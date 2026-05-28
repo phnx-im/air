@@ -161,12 +161,14 @@ impl CoreUser {
         let qs_user_signing_key = self.key_store().qs_user_signing_key.clone();
 
         let (tx, mut rx) = client
-            .rs_link_client(qs_user_id, &qs_user_signing_key, session_id)
+            .rs_link_client(qs_user_id, &qs_user_signing_key, session_id.clone())
             .await?;
 
         let key_package_bytes = rx.next().await.context("relay connection closed")??;
 
-        // TODO: verify that our incoming key package fits the fingerprint in the session ID (even if truncated)
+        if !session_id.validate(key_package_bytes.as_slice()) {
+            bail!("key package does not match session ID");
+        }
 
         let (provider, credential_with_key, signature_keys) =
             make_provider_and_credential(b"existing-client")?;

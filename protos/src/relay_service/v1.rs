@@ -59,6 +59,12 @@ impl LinkingSessionId {
         None
     }
 
+    pub fn validate(&self, bytes: &[u8]) -> bool {
+        let digest: [u8; 32] = Sha256::digest(bytes).into();
+        let digits = self.len();
+        Self::from_digest(&digest, digits).is_some_and(|other| other == *self)
+    }
+
     pub fn len(&self) -> u32 {
         self.value.len() as u32
     }
