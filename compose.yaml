@@ -56,12 +56,14 @@ services:
       minio:
         condition: service_healthy
     restart: "no"
-    entrypoint: >
-      sh -exc "
-      mc alias set local http://minio:9000 minioadmin minioadmin;
-      mc admin user add local minioaccesskey miniosecretkey;
-      mc admin policy attach local readwrite --user=minioaccesskey;
-      mc mb local/data"
+    entrypoint: ["/bin/sh", "-exc"]
+    command:
+      - |
+        mc alias set local http://minio:9000 minioadmin minioadmin
+        mc admin user add local minioaccesskey miniosecretkey
+        mc admin policy attach local readwrite --user=minioaccesskey
+        mc mb local/data
+        mc mb local/debug-logs
 
 x-podman:
   in_pod: false

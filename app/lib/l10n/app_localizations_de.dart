@@ -838,6 +838,9 @@ class AppLocalizationsDe extends AppLocalizations {
   String get contactUsScreen_body => 'Inhalt';
 
   @override
+  String get contactUsScreen_includeLogs => 'Logs teilen';
+
+  @override
   String get contactUsScreen_composeEmail => 'E-Mail verfassen';
 
   @override
@@ -863,8 +866,17 @@ class AppLocalizationsDe extends AppLocalizations {
   String get contactUsScreen_body_tooShort => 'Bitte gib mehr Informationen an';
 
   @override
+  String contactUsScreen_body_logsUrl(Object url) {
+    return 'Hier sind einige Logs, die dir bei der Fehlersuche helfen: $url';
+  }
+
+  @override
   String get contactUsScreen_errorLaunchingEmail =>
       'E-Mail-Client konnte nicht geöffnet werden';
+
+  @override
+  String get contactUsScreen_errorUploadingLogs =>
+      'Logs konnten nicht hochgeladen werden';
 
   @override
   String get groupDetails_leaveChat => 'Verlassen';

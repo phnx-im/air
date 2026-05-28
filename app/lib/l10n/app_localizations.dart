@@ -1455,6 +1455,12 @@ abstract class AppLocalizations {
   /// **'Body'**
   String get contactUsScreen_body;
 
+  /// No description provided for @contactUsScreen_includeLogs.
+  ///
+  /// In en, this message translates to:
+  /// **'Share your logs'**
+  String get contactUsScreen_includeLogs;
+
   /// No description provided for @contactUsScreen_composeEmail.
   ///
   /// In en, this message translates to:
@@ -1503,11 +1509,23 @@ abstract class AppLocalizations {
   /// **'Provide more information'**
   String get contactUsScreen_body_tooShort;
 
+  /// No description provided for @contactUsScreen_body_logsUrl.
+  ///
+  /// In en, this message translates to:
+  /// **'Here are some logs to help you debug my issue: {url}'**
+  String contactUsScreen_body_logsUrl(Object url);
+
   /// No description provided for @contactUsScreen_errorLaunchingEmail.
   ///
   /// In en, this message translates to:
   /// **'Couldn\'t launch email client'**
   String get contactUsScreen_errorLaunchingEmail;
+
+  /// No description provided for @contactUsScreen_errorUploadingLogs.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t upload logs'**
+  String get contactUsScreen_errorUploadingLogs;
 
   /// No description provided for @groupDetails_leaveChat.
   ///

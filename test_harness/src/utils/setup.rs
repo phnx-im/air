@@ -976,7 +976,7 @@ impl TestBackend {
         std::fs::write(&path, attachment).unwrap();
 
         let (attachment_id, _progress, upload_task) = sender
-            .upload_attachment(chat_id, &path)
+            .upload_chat_attachment(chat_id, &path)
             .await
             .expect("fatal error")?;
 
