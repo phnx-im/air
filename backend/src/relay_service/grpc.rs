@@ -1,9 +1,10 @@
-use std::{pin::Pin, sync::Arc};
+use std::pin::Pin;
 
-use aircommon::crypto::signatures::keys::QsUserVerifyingKey;
+use aircommon::crypto::signatures::{keys::QsUserVerifyingKey, signable::Verifiable};
 use airprotos::{
     relay_service::v1::{
-        LinkClientRequest, METADATA_SESSION_ID, RelayFrame, relay_service_server::RelayService,
+        LinkClientRequest, LinkClientRequestPayload, METADATA_SESSION_ID, RelayFrame,
+        relay_service_server::RelayService,
     },
     validation::MissingFieldExt,
 };
@@ -156,7 +157,7 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
             .ok_or_missing_field("uuid value")?
             .into();
 
-        let _qs_user_signature_key: QsUserVerifyingKey = self
+        let qs_user_signature_key: QsUserVerifyingKey = self
             .qs_connector
             .user_verifying_key(aircommon::identifiers::QsUserId::from(qs_user_id))
             .await
@@ -166,11 +167,11 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
             })?
             .ok_or_else(|| Status::not_found("user not found"))?;
 
-        // request
-        //     .verify(&qs_user_signature_key)
-        //     .map_err(|_| Status::invalid_argument("invalid signature"))?;
+        let payload: LinkClientRequestPayload = request
+            .verify(&qs_user_signature_key)
+            .map_err(|_| Status::invalid_argument("invalid signature"))?;
 
-        let session_id = request.payload.ok_or_missing_field("payload")?.session_id;
+        let session_id = payload.session_id;
         info!(%session_id, "pairing with existing session");
 
         // Outbound channel: messages we will send back to *this* client.

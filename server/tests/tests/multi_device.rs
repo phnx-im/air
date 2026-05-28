@@ -7,6 +7,7 @@ async fn multi_device_pairing_session() {
     let mut setup = TestBackend::single().await;
     let domain = setup.domain().clone();
     let server_url = Some(setup.server_url());
+
     let alice = setup.add_user().await;
 
     let (session_id_tx, session_id_rx) = tokio::sync::oneshot::channel();
