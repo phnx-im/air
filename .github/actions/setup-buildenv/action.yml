@@ -106,7 +106,7 @@ runs:
           sccache-${{ inputs.cache-key || github.job }}
 
     - name: Download Rust GitHub Actions cache
-      if: inputs.sccache == 'true' && github.ref != 'refs/heads/main'
+      if: inputs.sccache == 'true' && github.ref != 'refs/heads/main' && github.event_name != 'pull_request'
       uses: actions/cache/restore@v5
       with:
         path: |
