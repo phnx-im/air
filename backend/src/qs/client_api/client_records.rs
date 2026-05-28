@@ -114,7 +114,7 @@ impl Qs {
         &self,
         params: DeleteClientRecordParams,
     ) -> Result<(), QsUpdateClientRecordError> {
-        QsClientRecord::delete(&self.db_pool, &params.sender)
+        QsClientRecord::soft_delete(&self.db_pool, &params.sender)
             .await
             .map_err(|e| {
                 error!("Error deleting client record: {:?}", e);

@@ -139,7 +139,7 @@ pub(crate) mod persistence {
                 FROM
                     qs_client_record
                 WHERE
-                    client_id = $1"#,
+                    client_id = $1 AND deleted_at IS NULL"#,
                 client_id,
             )
             .fetch_optional(connection)
@@ -172,7 +172,7 @@ pub(crate) mod persistence {
                 FROM
                     qs_client_record
                 WHERE
-                    client_id = $1
+                    client_id = $1 AND deleted_at IS NULL
                 FOR UPDATE"#,
                 client_id,
             )
@@ -200,7 +200,8 @@ pub(crate) mod persistence {
                 FROM
                     qs_client_record
                 WHERE
-                    client_id = $1"#,
+                    client_id = $1
+                    AND deleted_at IS NULL"#,
                 client_id,
             )
             .fetch_optional(connection)
@@ -215,7 +216,8 @@ pub(crate) mod persistence {
             activity_time: TimeStamp,
         ) -> sqlx::Result<()> {
             query!(
-                "UPDATE qs_client_record SET activity_time = $1 WHERE client_id = $2",
+                "UPDATE qs_client_record SET activity_time = $1
+                WHERE client_id = $2 AND deleted_at IS NULL",
                 &activity_time as &TimeStamp,
                 client_id as _,
             )
@@ -224,17 +226,66 @@ pub(crate) mod persistence {
             Ok(())
         }
 
-        pub(in crate::qs) async fn delete(
+        pub(in crate::qs) async fn soft_delete(
             connection: impl PgExecutor<'_>,
             client_id: &QsClientId,
         ) -> Result<(), StorageError> {
+            // Delete the client record to trigger cascading deletes, and reinsert a tombstone.
             query!(
-                "DELETE FROM qs_client_record WHERE client_id = $1",
+                r#"WITH deleted_client_record AS (
+                    DELETE FROM qs_client_record
+                    WHERE client_id = $1
+                    RETURNING client_id, user_id
+                )
+                INSERT INTO qs_client_record (
+                    client_id,
+                    user_id,
+                    deleted_at,
+                    activity_time,
+                    encrypted_push_token,
+                    owner_public_key,
+                    owner_signature_key,
+                    ratchet
+                )
+                SELECT
+                    client_id,
+                    user_id,
+                    NOW(),
+                    NOW(),
+                    NULL,
+                    '\x',
+                    '\x',
+                    '\x'
+                FROM deleted_client_record;
+                "#,
                 client_id as &QsClientId
             )
             .execute(connection)
             .await?;
             Ok(())
+        }
+
+        /// Load all client ids that belong the user of the given client id.
+        ///
+        /// The given client id might be inactive.
+        ///
+        /// Only returns client ids that are active.
+        pub(in crate::qs) async fn load_client_ids(
+            connection: impl PgExecutor<'_>,
+            client_id: &QsClientId,
+        ) -> Result<Vec<QsClientId>, StorageError> {
+            sqlx::query_scalar!(
+                r#"SELECT other.client_id AS "client_id: QsClientId"
+                FROM qs_client_record c
+                LEFT JOIN qs_client_record AS other ON
+                    other.user_id = c.user_id
+                    AND other.deleted_at IS NULL
+                WHERE c.client_id = $1"#,
+                client_id.as_uuid(),
+            )
+            .fetch_all(connection)
+            .await
+            .map_err(From::from)
         }
 
         /// Deletes token from client's database record if it still set.
@@ -392,9 +443,18 @@ pub(crate) mod persistence {
                 .expect("missing client record");
             assert_eq!(loaded, client_record);
 
-            QsClientRecord::delete(&pool, &client_record.client_id).await?;
+            QsClientRecord::soft_delete(&pool, &client_record.client_id).await?;
             let loaded = QsClientRecord::load(&pool, &client_record.client_id).await?;
             assert_eq!(loaded, None);
+
+            let tombstone_user_id: QsUserId = sqlx::query_scalar(
+                "SELECT user_id FROM qs_client_record
+                WHERE client_id = $1 AND deleted_at IS NOT NULL",
+            )
+            .bind(client_record.client_id)
+            .fetch_one(&pool)
+            .await?;
+            assert_eq!(tombstone_user_id, user_record.user_id);
 
             Ok(())
         }
