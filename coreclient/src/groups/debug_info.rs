@@ -10,11 +10,11 @@ use aircommon::{
     credentials::VerifiableClientCredential,
     identifiers::{QualifiedGroupId, UserId},
     mls_group_config::{
-        AIR_COMPONENT_ID, FRIENDSHIP_PACKAGE_PROPOSAL_TYPE, GROUP_DATA_EXTENSION_TYPE,
+        FRIENDSHIP_PACKAGE_PROPOSAL_TYPE, GROUP_DATA_EXTENSION_TYPE,
         QS_CLIENT_REFERENCE_EXTENSION_TYPE, SUPPORTED_PROTOCOL_VERSIONS,
     },
 };
-use airprotos::client::component::AirComponent;
+use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent};
 use airprotos::client::group::{EncryptedGroupTitle, ExternalGroupProfile, GroupData};
 use anyhow::Context as _;
 use hex::ToHex as _;

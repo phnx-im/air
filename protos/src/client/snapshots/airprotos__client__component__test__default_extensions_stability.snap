@@ -1,5 +1,5 @@
 ---
-source: common/src/mls_group_config.rs
+source: protos/src/client/component.rs
 expression: diag
 ---
 a1                                               # map(1)

@@ -1032,7 +1032,7 @@ mod persistence {
 #[cfg(any(test, feature = "test_utils"))]
 pub mod test_utils {
 
-    use aircommon::component::AirComponent;
+    use airprotos::client::component::AirComponent;
 
     use crate::db::access::ReadConnection;
 
