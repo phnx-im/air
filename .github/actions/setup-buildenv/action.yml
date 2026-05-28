@@ -115,12 +115,6 @@ runs:
         restore-keys: |
           sccache-${{ inputs.cache-key || github.job }}
 
-    - if: inputs.sccache == 'true' && runner.os == 'Windows'
-      name: Prepend git-bash to PATH (works around WindowsApps bash.EXE EACCES)
-      shell: pwsh
-      run: |
-        "C:\Program Files\Git\bin" | Out-File -FilePath $env:GITHUB_PATH -Append -Encoding utf8
-
     - name: Start sccache daemon
       if: inputs.sccache == 'true'
       uses: gacts/run-and-post-run@v1
@@ -151,8 +145,6 @@ runs:
       run: |
         echo "CC=sccache cl.exe" >> $GITHUB_ENV
         echo "CXX=sccache cl.exe" >> $GITHUB_ENV
-        echo "CMAKE_C_COMPILER_LAUNCHER=sccache" >> $GITHUB_ENV
-        echo "CMAKE_CXX_COMPILER_LAUNCHER=sccache" >> $GITHUB_ENV
 
     ## Xcode
 
