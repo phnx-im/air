@@ -82,6 +82,8 @@ jobs:
   flutter:
     name: Flutter tests
     runs-on: ubuntu-latest
+    # Skipped on push to main: tests already ran on the PR; the push run only
+    # exists to warm sccache for subsequent PRs.
     if: github.event_name != 'push'
     steps:
       - name: Checkout code
@@ -143,6 +145,8 @@ jobs:
   rust-tests:
     name: ${{ matrix.name }}
     needs: rust-build-tests
+    # Skipped on push to main: tests already ran on the PR. rust-build-tests
+    # still runs above to populate sccache for subsequent PRs.
     if: github.event_name != 'push'
 
     runs-on: ubuntu-latest
