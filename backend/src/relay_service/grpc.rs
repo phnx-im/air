@@ -3,12 +3,11 @@ use std::pin::Pin;
 use aircommon::crypto::signatures::{keys::QsUserVerifyingKey, signable::Verifiable};
 use airprotos::{
     relay_service::v1::{
-        LinkClientRequest, LinkClientRequestPayload, METADATA_SESSION_ID, RelayFrame,
-        relay_service_server::RelayService,
+        LinkClientRequest, LinkClientRequestPayload, LinkingSessionId, METADATA_SESSION_ID,
+        RelayFrame, relay_service_server::RelayService,
     },
     validation::MissingFieldExt,
 };
-use dashmap::Entry;
 use futures_util::Stream;
 use prost::bytes::Bytes;
 use tokio::{
@@ -37,7 +36,7 @@ impl<Qep: QsConnector> GrpcRs<Qep> {
 }
 
 async fn pipe_inbound_to_peer_outbound(
-    session_id: String,
+    session_id: LinkingSessionId,
     mut inbound: Streaming<RelayFrame>,
     peer_outbound: mpsc::Sender<Result<RelayFrame, Status>>,
 ) {
@@ -81,28 +80,29 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
 
         let (peer_ready_tx, peer_ready_rx) = oneshot::channel();
 
-        loop {
-            match self.rs.sessions.entry(requested_session_id.clone()) {
-                Entry::Occupied(_) => {
-                    return Err(Status::aborted("session ID collision"));
-                }
-                Entry::Vacant(vacant) => {
-                    info!(requested_session_id = %vacant.key(), "starting new pairing session");
-                    vacant.insert(Pending {
-                        outbound_tx,
-                        peer_ready_tx,
-                    });
-                    break;
-                }
-            }
-        }
+        // we take the requested session ID from the initiator and truncate it as long as we don't have collisions
+        let mut sessions = self.rs.sessions.lock().await;
+        let truncated_session_id =
+            LinkingSessionId::generate(requested_session_id.as_ref(), |session_id| {
+                sessions.contains_key(session_id)
+            })
+            .ok_or_else(|| Status::already_exists("linking session collision"))?;
 
-        // we report the session ID to the peer
-        let session_id = requested_session_id.to_string();
-        // TODO: this should be instead the fingerprint of the key package
+        info!(%truncated_session_id, "starting new pairing session");
+        sessions.insert(
+            truncated_session_id.clone(),
+            Pending {
+                outbound_tx,
+                peer_ready_tx,
+            },
+        );
+
+        drop(sessions);
+
+        // we report the length of the truncated session ID to the peer
         first_frame_outbound_tx
             .send(Ok(RelayFrame {
-                payload: Bytes::from(session_id.clone()),
+                payload: Bytes::from_owner(truncated_session_id.len().to_be_bytes()),
             }))
             .await
             .map_err(|_| Status::internal("failed to send session ID"))?;
@@ -112,17 +112,17 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
             let peer_outbound = match timeout(SESSION_TIMEOUT, peer_ready_rx).await {
                 Ok(Ok(tx)) => tx,
                 Ok(Err(_)) => {
-                    sessions.remove(&session_id);
+                    sessions.lock().await.remove(&truncated_session_id);
                     error!("peer disconnected before sending outbound channel");
                     return;
                 }
                 Err(_) => {
-                    sessions.remove(&session_id);
-                    warn!(%session_id, "timed out waiting for peer");
+                    sessions.lock().await.remove(&truncated_session_id);
+                    warn!(%truncated_session_id, "timed out waiting for peer");
                     return;
                 }
             };
-            pipe_inbound_to_peer_outbound(session_id, inbound, peer_outbound).await;
+            pipe_inbound_to_peer_outbound(truncated_session_id, inbound, peer_outbound).await;
         }));
 
         let out_stream = ReceiverStream::new(outbound_rx);
@@ -175,13 +175,13 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
             .verify(&qs_user_signature_key)
             .map_err(|_| Status::invalid_argument("invalid signature"))?;
 
-        let session_id = payload.session_id;
+        let session_id = payload.session_id.ok_or_missing_field("session_id")?;
         info!(%session_id, "pairing with existing session");
 
         // Outbound channel: messages we will send back to *this* client.
         let (outbound_tx, outbound_rx) = mpsc::channel::<Result<RelayFrame, Status>>(8);
 
-        if let Some((_, pending)) = self.rs.sessions.remove(&session_id) {
+        if let Some(pending) = self.rs.sessions.lock().await.remove(&session_id) {
             // Fire the peer's oneshot with our outbound sender so they can start forwarding to us.
             if pending.peer_ready_tx.send(outbound_tx).is_err() {
                 error!("failed to send peer ready oneshot");

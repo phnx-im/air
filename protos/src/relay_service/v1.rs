@@ -4,6 +4,8 @@
 
 #![expect(clippy::large_enum_variant)]
 
+use std::fmt;
+
 use prost::bytes::Bytes;
 
 tonic::include_proto!("relay_service.v1");
@@ -28,21 +30,51 @@ impl RelayFrame {
     }
 }
 
-pub struct SessionId {}
+impl LinkingSessionId {
+    pub fn from_bytes(bytes: &[u8], digits: u32) -> Option<Self> {
+        bytes
+            .get(..8)?
+            .try_into()
+            .ok()
+            .map(u64::from_be_bytes)
+            .map(|n| Self {
+                value: format!("{:0width$}", n % 10u64.pow(digits), width = digits as usize),
+            })
+    }
 
-impl SessionId {
-    pub fn generate(bytes: &[u8], mut has_collision: impl FnMut(&str) -> bool) -> Option<String> {
+    pub fn generate(bytes: &[u8], mut has_collision: impl FnMut(&Self) -> bool) -> Option<Self> {
         const MIN_DIGITS: u32 = 8;
 
-        let n = u64::from_be_bytes(bytes.get(..8)?.try_into().ok()?);
-        let max_digits = u64::MAX.ilog10(); // 19
+        let max_digits = u64::MAX.ilog10(); // 19 digits, we can make it longer if necessary
         for digits in MIN_DIGITS..=max_digits {
-            let code = format!("{:0width$}", n % 10u64.pow(digits), width = digits as usize);
+            let code = Self::from_bytes(bytes, digits)?;
             if !has_collision(&code) {
                 return Some(code);
             }
         }
         None
+    }
+
+    pub fn len(&self) -> usize {
+        self.value.len()
+    }
+}
+
+impl AsRef<[u8]> for LinkingSessionId {
+    fn as_ref(&self) -> &[u8] {
+        self.value.as_bytes()
+    }
+}
+
+impl fmt::Display for LinkingSessionId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.value.fmt(f)
+    }
+}
+
+impl<S: Into<String>> From<S> for LinkingSessionId {
+    fn from(s: S) -> Self {
+        Self { value: s.into() }
     }
 }
 
@@ -56,44 +88,44 @@ mod tests {
 
     #[test]
     fn returns_8_digit_code_when_no_collision() {
-        let code = SessionId::generate(&bytes_for(12345), |_| false).unwrap();
+        let code = LinkingSessionId::generate(&bytes_for(12345), |_| false).unwrap();
         assert_eq!(code.len(), 8);
     }
 
     #[test]
     fn code_is_zero_padded_to_8_digits() {
-        // n=5 → 5 % 10^8 = 5 → formatted as "00000005"
-        let code = SessionId::generate(&bytes_for(5), |_| false).unwrap();
-        assert_eq!(code, "00000005");
+        // 5 formatted as "00000005"
+        let code = LinkingSessionId::generate(&bytes_for(5), |_| false).unwrap();
+        assert_eq!(code, "00000005".into());
     }
 
     #[test]
     fn escalates_digits_on_collision() {
         // collide on every 8-digit code; should escalate to 9 digits
-        let code = SessionId::generate(&bytes_for(12345), |c| c.len() == 8).unwrap();
+        let code = LinkingSessionId::generate(&bytes_for(12345), |c| c.len() == 8).unwrap();
         assert_eq!(code.len(), 9);
     }
 
     #[test]
     fn escalates_multiple_times() {
         // collide on 8 and 9 digit codes; should escalate to 10 digits
-        let code = SessionId::generate(&bytes_for(12345), |c| c.len() <= 9).unwrap();
+        let code = LinkingSessionId::generate(&bytes_for(12345), |c| c.len() <= 9).unwrap();
         assert_eq!(code.len(), 10);
     }
 
     #[test]
     fn all_lengths_collide() {
-        assert!(SessionId::generate(&bytes_for(12345), |_| true).is_none());
+        assert!(LinkingSessionId::generate(&bytes_for(12345), |_| true).is_none());
     }
 
     #[test]
     fn input_too_short() {
-        assert!(SessionId::generate(&[0u8; 7], |_| false).is_none());
+        assert!(LinkingSessionId::generate(&[0u8; 7], |_| false).is_none());
     }
 
     #[test]
     fn accepts_exactly_8_bytes() {
-        assert!(SessionId::generate(&[0u8; 8], |_| false).is_some());
+        assert!(LinkingSessionId::generate(&[0u8; 8], |_| false).is_some());
     }
 
     #[test]
@@ -104,14 +136,14 @@ mod tests {
         b[..8].copy_from_slice(&bytes_for(42));
         b[8..].fill(0xff); // tail bytes differ
         assert_eq!(
-            SessionId::generate(&a, |_| false),
-            SessionId::generate(&b, |_| false),
+            LinkingSessionId::generate(&a, |_| false),
+            LinkingSessionId::generate(&b, |_| false),
         );
     }
 
     #[test]
     fn code_contains_only_digits() {
-        let code = SessionId::generate(&bytes_for(u64::MAX), |_| false).unwrap();
-        assert!(code.chars().all(|c| c.is_ascii_digit()));
+        let code = LinkingSessionId::generate(&bytes_for(u64::MAX), |_| false).unwrap();
+        assert!(code.value.chars().all(|c| c.is_ascii_digit()));
     }
 }

@@ -17,6 +17,10 @@ message QsUserId {
   common.v1.Uuid value = 1;
 }
 
+message LinkingSessionId {
+  string value = 1;
+}
+
 message RelayFrame {
   bytes payload = 1;
 }
@@ -29,5 +33,5 @@ message LinkClientRequest {
 message LinkClientRequestPayload {
   common.v1.ClientMetadata client_metadata = 1;
   QsUserId sender = 2;
-  string session_id = 3;
+  LinkingSessionId session_id = 3;
 }

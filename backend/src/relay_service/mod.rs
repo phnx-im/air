@@ -1,10 +1,10 @@
 pub mod grpc;
 
-use std::{sync::Arc, time::Duration};
+use std::{collections::HashMap, sync::Arc, time::Duration};
 
-use airprotos::relay_service::v1::RelayFrame;
+use airprotos::relay_service::v1::{LinkingSessionId, RelayFrame};
 use dashmap::DashMap;
-use tokio::sync::{mpsc, oneshot};
+use tokio::sync::{Mutex, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
 
@@ -23,14 +23,14 @@ pub(crate) struct Pending {
 
 #[derive(Debug, Clone)]
 pub struct Rs {
-    sessions: Arc<DashMap<String, Pending>>,
+    sessions: Arc<Mutex<HashMap<LinkingSessionId, Pending>>>,
     stop: CancellationToken,
 }
 
 impl Rs {
     pub fn new(stop: CancellationToken) -> Self {
         Self {
-            sessions: Arc::new(DashMap::new()),
+            sessions: Arc::new(Mutex::new(HashMap::new())),
             stop,
         }
     }
