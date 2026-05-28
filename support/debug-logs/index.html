@@ -18,7 +18,7 @@ SPDX-License-Identifier: AGPL-3.0-or-later
       --red: #f44747;
       --accent: #4ec9b0;
     }
-    * { box-sizing: border-box; margin: 0; padding: 0; }>
+    * { box-sizing: border-box; margin: 0; padding: 0; }
     body { background: var(--bg); color: var(--fg); font-family: monospace; font-size: 13px; height: 100dvh; display: flex; flex-direction: column; }
 
     header { padding: 10px 16px; background: var(--bg2); border-bottom: 1px solid var(--bg3); display: flex; align-items: center; gap: 12px; flex-shrink: 0; }
@@ -70,14 +70,20 @@ SPDX-License-Identifier: AGPL-3.0-or-later
       statusScreen.className = 'error';
     }
 
-    // 1. URL params
+    // 1. URL params: object in query string, encryption_key+nonce in fragment
     const params = new URLSearchParams(location.search);
     const objectEncoded = params.get('object');
-    const keyHex        = params.get('encryption_key');
-    const nonceHex      = params.get('nonce');
+
+    const fragmentParams = {};
+    for (const part of location.hash.slice(1).split(',')) {
+      const eq = part.indexOf('=');
+      if (eq > 0) fragmentParams[part.slice(0, eq).trim()] = part.slice(eq + 1).trim();
+    }
+    const keyHex   = fragmentParams['encryption_key'];
+    const nonceHex = fragmentParams['nonce'];
 
     if (!objectEncoded || !keyHex || !nonceHex) {
-      fail('Missing required URL parameters: object, encryption_key, nonce');
+      fail('Missing required parameters: object (query string), encryption_key and nonce (URL fragment)');
       return;
     }
 

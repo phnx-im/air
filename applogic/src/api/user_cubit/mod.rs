@@ -474,15 +474,15 @@ impl UserCubitBase {
         use base64::{Engine as _, engine::general_purpose::URL_SAFE};
         let encoded_download_url = URL_SAFE.encode(download_url.as_str());
 
-        let mut log_browse_url = Url::parse("https://debuglogs.air.ms")?;
+        let mut log_browse_url = Url::parse("https://logs.air.ms")?;
         log_browse_url
             .query_pairs_mut()
-            .append_pair("object", &encoded_download_url)
-            .append_pair(
-                "encryption_key",
-                &hex::encode(attachment_metadata.encryption_key()),
-            )
-            .append_pair("nonce", &hex::encode(attachment_metadata.nonce()));
+            .append_pair("object", &encoded_download_url);
+        log_browse_url.set_fragment(Some(&format!(
+            "encryption_key={},nonce={}",
+            hex::encode(&attachment_metadata.encryption_key()),
+            hex::encode(&attachment_metadata.nonce())
+        )));
 
         Ok(log_browse_url.to_string())
     }
