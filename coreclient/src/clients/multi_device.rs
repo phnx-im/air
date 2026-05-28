@@ -158,6 +158,8 @@ impl CoreUser {
 
         let key_package_bytes = rx.next().await.context("relay connection closed")??;
 
+        // TODO: verify that our incoming key package fits the fingerprint in the session ID (even if truncated)
+
         let (provider, credential_with_key, signature_keys) =
             make_provider_and_credential(b"existing-client")?;
 
@@ -198,6 +200,7 @@ impl CoreUser {
             .await
             .context("send welcome")?;
 
+        // TODO: maybe use OpenMLS application messages instead? (because they're signed?)
         let cipher = export_aead_key(group, provider)?;
         info!("joined MLS group, AEAD key exported");
 

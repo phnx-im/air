@@ -12,24 +12,25 @@ async fn multi_device_pairing_session() {
     let (session_id_tx, session_id_rx) = tokio::sync::oneshot::channel();
 
     let new_device_task = tokio::spawn(async move {
-        let answer = CoreUser::provision_multi_device_pairing(domain, server_url, session_id_tx)
-            .await
-            .unwrap();
+        let old_device_message =
+            CoreUser::provision_multi_device_pairing(domain, server_url, session_id_tx)
+                .await
+                .unwrap();
 
-        assert_eq!(answer, "pong!");
+        assert_eq!(old_device_message, "pong!");
     });
 
     let session_id = session_id_rx.await.unwrap();
 
     // the old device scans/types the session ID
-    let initiator_first_message = setup
+    let new_device_message = setup
         .get_user(&alice)
         .user()
         .link_multi_device_pairing(session_id)
         .await
         .unwrap();
 
-    assert_eq!(initiator_first_message, "ping!");
+    assert_eq!(new_device_message, "ping!");
 
     new_device_task.await.unwrap();
 }
