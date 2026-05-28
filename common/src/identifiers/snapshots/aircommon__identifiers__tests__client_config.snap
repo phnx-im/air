@@ -1,0 +1,6 @@
+---
+source: common/src/identifiers/mod.rs
+expression: serialized
+extension: bin
+snapshot_kind: binary
+---
