@@ -379,9 +379,14 @@ class _MessageComposerState extends State<MessageComposer>
         HardwareKeyboard.instance.isMetaPressed ||
         HardwareKeyboard.instance.isControlPressed;
 
+    // On desktop, Enter always sends (Shift+Enter inserts newline via the
+    // modifier check above). On mobile, ignore Enter key events entirely:
+    // sending is handled by onEditingComplete (IME callback),
+    // which hardware USB keyboards also use/go through on Android.
     if (!modifierKeyPressed &&
         evt.logicalKey == LogicalKeyboardKey.enter &&
-        evt is KeyDownEvent) {
+        evt is KeyDownEvent &&
+        PlatformExtension.isDesktop) {
       final chatDetailsCubit = context.read<ChatDetailsCubit>();
       _submitMessage(chatDetailsCubit);
       return KeyEventResult.handled;
