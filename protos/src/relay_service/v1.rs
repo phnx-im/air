@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-#![expect(clippy::large_enum_variant)]
-
 use std::fmt;
 
 use prost::bytes::Bytes;

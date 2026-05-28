@@ -47,6 +47,10 @@ impl tonic::codec::Decoder for RelayFrameDecoder {
         src: &mut tonic::codec::DecodeBuf<'_>,
     ) -> Result<Option<Self::Item>, Self::Error> {
         let payload = src.copy_to_bytes(src.remaining());
-        Ok(Some(RelayFrame { payload }))
+        Ok(if payload.is_empty() {
+            None
+        } else {
+            Some(RelayFrame { payload })
+        })
     }
 }

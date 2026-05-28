@@ -4,6 +4,7 @@ use aircommon::{
 };
 use airprotos::relay_service::v1::LinkingSessionId;
 use anyhow::{Context, anyhow, bail};
+use apqmls::messages::ApqKeyPackage;
 use openmls::{
     group::{MlsGroup, MlsGroupCreateConfig, MlsGroupJoinConfig, StagedWelcome},
     prelude::{
