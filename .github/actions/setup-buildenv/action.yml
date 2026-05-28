@@ -115,6 +115,13 @@ runs:
         restore-keys: |
           sccache-${{ inputs.cache-key || github.job }}
 
+    - if: inputs.sccache == 'true' && runner.os == 'Windows'
+      name: Remove WSL bash stub (works around runner EACCES)
+      shell: pwsh
+      run: |
+        Remove-Item "$env:LOCALAPPDATA\Microsoft\WindowsApps\bash.exe" -Force -ErrorAction SilentlyContinue
+        Remove-Item "$env:LOCALAPPDATA\Microsoft\WindowsApps\wsl.exe" -Force -ErrorAction SilentlyContinue
+
     - name: Start sccache daemon
       if: inputs.sccache == 'true'
       uses: gacts/run-and-post-run@v1
