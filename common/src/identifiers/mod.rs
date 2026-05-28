@@ -363,6 +363,13 @@ impl HpkeDecryptable<ClientIdKeyType, SealedClientReference> for ClientConfig {}
 #[sqlx(transparent)]
 pub struct QsClientId(TlsUuid);
 
+impl fmt::Display for QsClientId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let uuid = *self.0;
+        write!(f, "{uuid}")
+    }
+}
+
 impl QsClientId {
     pub fn random(rng: &mut (impl CryptoRng + Rng)) -> Self {
         let random_bytes = rng.r#gen::<[u8; 16]>();

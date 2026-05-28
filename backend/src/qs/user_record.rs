@@ -61,7 +61,7 @@ impl UserMetrics {
 }
 
 pub(crate) mod persistence {
-    use aircommon::identifiers::{QsClientId, QsUserId};
+    use aircommon::identifiers::QsUserId;
     use sqlx::{PgExecutor, query_as};
 
     use crate::errors::StorageError;

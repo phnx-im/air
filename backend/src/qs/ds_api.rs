@@ -6,10 +6,14 @@ use aircommon::{
     crypto::hpke::HpkeDecryptable, identifiers::ClientConfig, messages::AirProtocolVersion,
 };
 use tls_codec::Serialize;
+use tracing::error;
 
-use crate::messages::{
-    intra_backend::DsFanOutMessage,
-    qs_qs::{QsToQsMessage, QsToQsPayload},
+use crate::{
+    messages::{
+        intra_backend::DsFanOutMessage,
+        qs_qs::{QsToQsMessage, QsToQsPayload},
+    },
+    qs::errors::EnqueueError,
 };
 
 use super::{
@@ -80,15 +84,34 @@ impl Qs {
                 client_config.push_token_ear_key
             };
 
-            QsClientRecord::enqueue(
-                &self.db_pool,
-                client_config.client_id,
-                self.queues(),
-                push_notification_provider,
-                message.payload,
-                push_token_ear_key,
-            )
-            .await?;
+            let client_ids =
+                QsClientRecord::load_client_ids(&self.db_pool, &client_config.client_id)
+                    .await
+                    .map_err(|_| QsEnqueueError::StorageError)?
+                    .ok_or(EnqueueError::ClientNotFound)?;
+            for qs_client_id in client_ids {
+                match QsClientRecord::enqueue(
+                    &self.db_pool,
+                    qs_client_id,
+                    self.queues(),
+                    push_notification_provider,
+                    &message.payload,
+                    push_token_ear_key.as_ref(),
+                )
+                .await
+                {
+                    Ok(()) => (),
+                    Err(EnqueueError::ClientNotFound) => {
+                        // Sibling was soft-deleted mid fan-out => drop silently
+                    }
+                    Err(error) => {
+                        error!(
+                            %error,
+                            %qs_client_id, "Failed to enqueue message; message will be lost"
+                        );
+                    }
+                }
+            }
         }
         Ok(())
     }

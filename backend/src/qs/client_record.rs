@@ -265,17 +265,19 @@ pub(crate) mod persistence {
             Ok(())
         }
 
-        /// Load all client ids that belong the user of the given client id.
+        /// Returns the active client ids for the user owning the given client id.
         ///
-        /// The given client id might be inactive.
-        ///
-        /// Only returns client ids that are active.
+        /// - `Ok(None)` if no row with `client_id` exists.
+        /// - `Ok(Some(vec![]))` if the row exists but no active client ids (e.g. tombstoned
+        /// representative with no remaining devices).
+        /// - `Ok(Some(vec![...]))` otherwise. The given client id is included if it is itself
+        ///   active.
         pub(in crate::qs) async fn load_client_ids(
             connection: impl PgExecutor<'_>,
             client_id: &QsClientId,
-        ) -> Result<Vec<QsClientId>, StorageError> {
-            sqlx::query_scalar!(
-                r#"SELECT other.client_id AS "client_id: QsClientId"
+        ) -> Result<Option<Vec<QsClientId>>, StorageError> {
+            let rows: Vec<Option<QsClientId>> = sqlx::query_scalar!(
+                r#"SELECT other.client_id AS "client_id?: QsClientId"
                 FROM qs_client_record c
                 LEFT JOIN qs_client_record AS other ON
                     other.user_id = c.user_id
@@ -284,8 +286,14 @@ pub(crate) mod persistence {
                 client_id.as_uuid(),
             )
             .fetch_all(connection)
-            .await
-            .map_err(From::from)
+            .await?;
+            if rows.is_empty() {
+                // anchor row does not exist
+                Ok(None)
+            } else {
+                // anchor exists
+                Ok(Some(rows.into_iter().flatten().collect()))
+            }
         }
 
         /// Deletes token from client's database record if it still set.
@@ -297,7 +305,9 @@ pub(crate) mod persistence {
                 query!(
                     "UPDATE qs_client_record
                     SET encrypted_push_token = NULL
-                    WHERE client_id = $1 AND encrypted_push_token = $2",
+                    WHERE client_id = $1
+                        AND encrypted_push_token = $2
+                        AND deleted_at IS NULL",
                     self.client_id as _,
                     encrypted_push_token as _,
                 )
@@ -326,7 +336,8 @@ pub(crate) mod persistence {
                     ratchet = $4,
                     activity_time = $5
                 WHERE
-                    client_id = $6",
+                    client_id = $6
+                    AND deleted_at IS NULL",
                 self.encrypted_push_token.as_ref() as Option<&EncryptedPushToken>,
                 owner_public_key as _,
                 owner_signature_key as _,
@@ -348,7 +359,8 @@ pub(crate) mod persistence {
             query!(
                 "UPDATE qs_client_record
                 SET ratchet = $1
-                WHERE client_id = $2",
+                WHERE client_id = $2
+                AND deleted_at IS NULL",
                 ratchet as _,
                 &self.client_id as &QsClientId,
             )
@@ -434,7 +446,7 @@ pub(crate) mod persistence {
         }
 
         #[sqlx::test]
-        async fn delete(pool: PgPool) -> anyhow::Result<()> {
+        async fn soft_delete(pool: PgPool) -> anyhow::Result<()> {
             let user_record = store_random_user_record(&pool).await?;
             let client_record = store_random_client_record(&pool, user_record.user_id).await?;
 
@@ -444,8 +456,19 @@ pub(crate) mod persistence {
             assert_eq!(loaded, client_record);
 
             QsClientRecord::soft_delete(&pool, &client_record.client_id).await?;
+
             let loaded = QsClientRecord::load(&pool, &client_record.client_id).await?;
             assert_eq!(loaded, None);
+
+            let loaded = QsClientRecord::load_for_update(&pool, &client_record.client_id).await?;
+            assert_eq!(loaded, None);
+
+            let loaded =
+                QsClientRecord::load_verifying_key(&pool, &client_record.client_id).await?;
+            assert_eq!(loaded, None);
+
+            let loaded = QsClientRecord::load_client_ids(&pool, &client_record.client_id).await?;
+            assert_eq!(loaded, Some(vec![]));
 
             let tombstone_user_id: QsUserId = sqlx::query_scalar(
                 "SELECT user_id FROM qs_client_record
@@ -513,8 +536,8 @@ impl QsClientRecord {
         client_id: QsClientId,
         queues: &Queues,
         push_notification_provider: &P,
-        msg: DsFanOutPayload,
-        push_token_key_option: Option<PushTokenEarKey>,
+        msg: &DsFanOutPayload,
+        push_token_key_option: Option<&PushTokenEarKey>,
     ) -> Result<(), EnqueueError> {
         match msg {
             // Enqueue a queue message.
@@ -532,7 +555,7 @@ impl QsClientRecord {
                     // - there is a push token decryption key
                     // - the decryption is successful
                     if let Some(ref encrypted_push_token) = client_record.encrypted_push_token
-                        && let Some(ref ear_key) = push_token_key_option
+                        && let Some(ear_key) = push_token_key_option
                     {
                         // Attempt to decrypt the push token.
                         match PushToken::decrypt(ear_key, encrypted_push_token) {
@@ -612,10 +635,10 @@ impl QsClientRecord {
             }) => {
                 let payload = QueueEventPayload {
                     group_id: Some(group_id.ref_into()),
-                    sender: Some(sender_index.into()),
-                    epoch: Some(epoch.into()),
-                    timestamp: Some(timestamp.into()),
-                    payload,
+                    sender: Some((*sender_index).into()),
+                    epoch: Some((*epoch).into()),
+                    timestamp: Some((*timestamp).into()),
+                    payload: payload.clone(),
                 };
                 queues.send_payload(client_id, payload).await?;
             }
@@ -629,7 +652,7 @@ impl QsClientRecord {
         pool: &PgPool,
         client_id: QsClientId,
         queues: &Queues,
-        queue_message: QsQueueMessagePayload,
+        queue_message: &QsQueueMessagePayload,
     ) -> Result<(QsClientRecord, bool), EnqueueError> {
         let mut txn = pool.begin().await?;
 
@@ -637,7 +660,7 @@ impl QsClientRecord {
             .await?
             .ok_or(EnqueueError::ClientNotFound)?;
 
-        let queue_message = client_record.ratchet_key.encrypt(&queue_message)?;
+        let queue_message = client_record.ratchet_key.encrypt(queue_message)?;
         let queue_message_proto: airprotos::queue_service::v1::QueueMessage = queue_message.into();
         trace!("Enqueueing message in storage provider");
 
@@ -694,7 +717,7 @@ mod tests {
                     &pool,
                     client_record.client_id,
                     &queue_notifier,
-                    queue_message_payload,
+                    &queue_message_payload,
                 )
                 .await
             });
@@ -730,6 +753,48 @@ mod tests {
         assert_eq!(sequences_numbers, (0..N).collect::<Vec<_>>());
 
         assert!(!has_error);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn load_client_ids(pool: PgPool) -> anyhow::Result<()> {
+        use std::collections::HashSet;
+
+        let user = store_random_user_record(&pool).await?;
+        let other_user = store_random_user_record(&pool).await?;
+
+        // Case 1: unknown anchor => Ok(None)
+        let unknown = QsClientId::random(&mut rand::thread_rng());
+        assert_eq!(
+            QsClientRecord::load_client_ids(&pool, &unknown).await?,
+            None
+        );
+
+        let a = store_random_client_record(&pool, user.user_id).await?;
+        let b = store_random_client_record(&pool, user.user_id).await?;
+        // unrelated client: must NOT leak into results
+        let _other = store_random_client_record(&pool, other_user.user_id).await?;
+
+        // Case 3a: active anchor => all active client ids of the same user, including itself
+        let result = QsClientRecord::load_client_ids(&pool, &a.client_id).await?;
+        let got: HashSet<_> = result.expect("anchor missing").into_iter().collect();
+        let want: HashSet<_> = [a.client_id, b.client_id].into_iter().collect();
+        assert_eq!(got, want);
+
+        // Case 3b: tombstone the queried client; anchor still resolves, returns only the live sibling
+        QsClientRecord::soft_delete(&pool, &a.client_id).await?;
+        assert_eq!(
+            QsClientRecord::load_client_ids(&pool, &a.client_id).await?,
+            Some(vec![b.client_id]),
+        );
+
+        // Case 2: tombstone the remaining sibling → anchor present, zero actives
+        QsClientRecord::soft_delete(&pool, &b.client_id).await?;
+        assert_eq!(
+            QsClientRecord::load_client_ids(&pool, &a.client_id).await?,
+            Some(vec![]),
+        );
 
         Ok(())
     }
