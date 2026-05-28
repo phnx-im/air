@@ -7,10 +7,9 @@
 use std::fmt;
 
 use prost::bytes::Bytes;
+use sha2::{Digest, Sha256};
 
 tonic::include_proto!("relay_service.v1");
-
-pub const METADATA_SESSION_ID: &str = "session-id";
 
 impl LinkClientRequest {
     pub fn into_relay_frame(self) -> RelayFrame {
@@ -28,12 +27,19 @@ impl RelayFrame {
     pub fn as_slice(&self) -> &[u8] {
         self.payload.as_ref()
     }
+
+    pub fn as_u32(&self) -> Option<u32> {
+        self.payload
+            .as_ref()
+            .try_into()
+            .ok()
+            .map(u32::from_be_bytes)
+    }
 }
 
 impl LinkingSessionId {
-    pub fn from_bytes(bytes: &[u8], digits: u32) -> Option<Self> {
-        bytes
-            .get(..8)?
+    pub fn from_digest(sha256: &[u8; 32], digits: u32) -> Option<Self> {
+        sha256[..8]
             .try_into()
             .ok()
             .map(u64::from_be_bytes)
@@ -43,11 +49,9 @@ impl LinkingSessionId {
     }
 
     pub fn generate(bytes: &[u8], mut has_collision: impl FnMut(&Self) -> bool) -> Option<Self> {
-        const MIN_DIGITS: u32 = 8;
-
-        let max_digits = u64::MAX.ilog10(); // 19 digits, we can make it longer if necessary
-        for digits in MIN_DIGITS..=max_digits {
-            let code = Self::from_bytes(bytes, digits)?;
+        let digest: [u8; 32] = Sha256::digest(bytes).into();
+        for digits in 8..=16 {
+            let code = Self::from_digest(&digest, digits)?;
             if !has_collision(&code) {
                 return Some(code);
             }
@@ -55,8 +59,8 @@ impl LinkingSessionId {
         None
     }
 
-    pub fn len(&self) -> usize {
-        self.value.len()
+    pub fn len(&self) -> u32 {
+        self.value.len() as u32
     }
 }
 
@@ -82,68 +86,34 @@ impl<S: Into<String>> From<S> for LinkingSessionId {
 mod tests {
     use super::*;
 
-    fn bytes_for(n: u64) -> [u8; 8] {
-        n.to_be_bytes()
-    }
-
     #[test]
     fn returns_8_digit_code_when_no_collision() {
-        let code = LinkingSessionId::generate(&bytes_for(12345), |_| false).unwrap();
+        let code = LinkingSessionId::generate("hello-world".as_bytes(), |_| false).unwrap();
         assert_eq!(code.len(), 8);
-    }
-
-    #[test]
-    fn code_is_zero_padded_to_8_digits() {
-        // 5 formatted as "00000005"
-        let code = LinkingSessionId::generate(&bytes_for(5), |_| false).unwrap();
-        assert_eq!(code, "00000005".into());
     }
 
     #[test]
     fn escalates_digits_on_collision() {
         // collide on every 8-digit code; should escalate to 9 digits
-        let code = LinkingSessionId::generate(&bytes_for(12345), |c| c.len() == 8).unwrap();
+        let code = LinkingSessionId::generate("hello-world".as_bytes(), |c| c.len() == 8).unwrap();
         assert_eq!(code.len(), 9);
     }
 
     #[test]
     fn escalates_multiple_times() {
         // collide on 8 and 9 digit codes; should escalate to 10 digits
-        let code = LinkingSessionId::generate(&bytes_for(12345), |c| c.len() <= 9).unwrap();
+        let code = LinkingSessionId::generate("hello-world".as_bytes(), |c| c.len() <= 9).unwrap();
         assert_eq!(code.len(), 10);
     }
 
     #[test]
     fn all_lengths_collide() {
-        assert!(LinkingSessionId::generate(&bytes_for(12345), |_| true).is_none());
-    }
-
-    #[test]
-    fn input_too_short() {
-        assert!(LinkingSessionId::generate(&[0u8; 7], |_| false).is_none());
-    }
-
-    #[test]
-    fn accepts_exactly_8_bytes() {
-        assert!(LinkingSessionId::generate(&[0u8; 8], |_| false).is_some());
-    }
-
-    #[test]
-    fn uses_only_first_8_bytes() {
-        let mut a = [0u8; 16];
-        a[..8].copy_from_slice(&bytes_for(42));
-        let mut b = [0u8; 16];
-        b[..8].copy_from_slice(&bytes_for(42));
-        b[8..].fill(0xff); // tail bytes differ
-        assert_eq!(
-            LinkingSessionId::generate(&a, |_| false),
-            LinkingSessionId::generate(&b, |_| false),
-        );
+        assert!(LinkingSessionId::generate("hello-world".as_bytes(), |_| true).is_none());
     }
 
     #[test]
     fn code_contains_only_digits() {
-        let code = LinkingSessionId::generate(&bytes_for(u64::MAX), |_| false).unwrap();
+        let code = LinkingSessionId::generate("hello-world".as_bytes(), |_| false).unwrap();
         assert!(code.value.chars().all(|c| c.is_ascii_digit()));
     }
 }

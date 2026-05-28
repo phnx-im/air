@@ -3,8 +3,8 @@ use std::pin::Pin;
 use aircommon::crypto::signatures::{keys::QsUserVerifyingKey, signable::Verifiable};
 use airprotos::{
     relay_service::v1::{
-        LinkClientRequest, LinkClientRequestPayload, LinkingSessionId, METADATA_SESSION_ID,
-        RelayFrame, relay_service_server::RelayService,
+        LinkClientRequest, LinkClientRequestPayload, LinkingSessionId, RelayFrame,
+        relay_service_server::RelayService,
     },
     validation::MissingFieldExt,
 };
@@ -65,63 +65,80 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
         &self,
         request: Request<Streaming<RelayFrame>>,
     ) -> Result<Response<Self::ProvisionClientStream>, Status> {
-        let requested_session_id = request
-            .metadata()
-            .get(METADATA_SESSION_ID)
-            .ok_or_else(|| Status::invalid_argument("no session id in metadata"))?
-            .to_str()
-            .map_err(|_| Status::invalid_argument("invalid session id"))?
-            .to_owned();
-
-        let inbound = request.into_inner();
+        let mut inbound = request.into_inner();
 
         let (outbound_tx, outbound_rx) = mpsc::channel::<Result<RelayFrame, Status>>(8);
         let first_frame_outbound_tx = outbound_tx.clone();
 
-        let (peer_ready_tx, peer_ready_rx) = oneshot::channel();
-
-        // we take the requested session ID from the initiator and truncate it as long as we don't have collisions
-        let mut sessions = self.rs.sessions.lock().await;
-        let truncated_session_id =
-            LinkingSessionId::generate(requested_session_id.as_ref(), |session_id| {
-                sessions.contains_key(session_id)
-            })
-            .ok_or_else(|| Status::already_exists("linking session collision"))?;
-
-        info!(%truncated_session_id, "starting new pairing session");
-        sessions.insert(
-            truncated_session_id.clone(),
-            Pending {
-                outbound_tx,
-                peer_ready_tx,
-            },
-        );
-
-        drop(sessions);
-
-        // we report the length of the truncated session ID to the peer
-        first_frame_outbound_tx
-            .send(Ok(RelayFrame {
-                payload: Bytes::from_owner(truncated_session_id.len().to_be_bytes()),
-            }))
-            .await
-            .map_err(|_| Status::internal("failed to send session ID"))?;
-
-        let sessions = self.rs.sessions.clone();
+        let relay_sessions = self.rs.sessions.clone();
         tokio::spawn(self.rs.stop.clone().run_until_cancelled_owned(async move {
+            // we always expect a KeyPackage as first frame from the initiating client
+            // and we use its SHA256 digest as the session ID
+            let Some(Ok(key_package_bytes)) = inbound.next().await else {
+                error!("failed to receive KeyPackage");
+                return;
+            };
+
+            // we take the requested session ID from the initiator and truncate it as long as we don't have collisions
+            // we lock sessions for all clients because we might check many buckets
+            let mut sessions = relay_sessions.lock().await;
+            let Some(truncated_session_id) =
+                LinkingSessionId::generate(key_package_bytes.as_slice(), |session_id| {
+                    sessions.contains_key(session_id)
+                })
+            else {
+                error!("linking session ID collision");
+                return;
+            };
+
+            info!(%truncated_session_id, "starting new pairing session");
+
+            let (peer_ready_tx, peer_ready_rx) = oneshot::channel();
+
+            sessions.insert(
+                truncated_session_id.clone(),
+                Pending {
+                    outbound_tx,
+                    peer_ready_tx,
+                },
+            );
+
+            // release the lock
+            drop(sessions);
+
+            // we report the length of the truncated session ID to the peer
+            if let Err(_) = first_frame_outbound_tx
+                .send(Ok(RelayFrame {
+                    payload: Bytes::from_owner(truncated_session_id.len().to_be_bytes()),
+                }))
+                .await
+            {
+                error!("failed to send session ID length");
+                return;
+            };
+
+            // then we wait for the peer to connect
             let peer_outbound = match timeout(SESSION_TIMEOUT, peer_ready_rx).await {
                 Ok(Ok(tx)) => tx,
                 Ok(Err(_)) => {
-                    sessions.lock().await.remove(&truncated_session_id);
+                    relay_sessions.lock().await.remove(&truncated_session_id);
                     error!("peer disconnected before sending outbound channel");
                     return;
                 }
                 Err(_) => {
-                    sessions.lock().await.remove(&truncated_session_id);
+                    relay_sessions.lock().await.remove(&truncated_session_id);
                     warn!(%truncated_session_id, "timed out waiting for peer");
                     return;
                 }
             };
+
+            // then we (re)send the key package to the peer
+            if let Err(_) = peer_outbound.send(Ok(key_package_bytes.into())).await {
+                error!("failed to send key package");
+                return;
+            };
+
+            // finally we pipe the inbound relay frames to the peer
             pipe_inbound_to_peer_outbound(truncated_session_id, inbound, peer_outbound).await;
         }));
 

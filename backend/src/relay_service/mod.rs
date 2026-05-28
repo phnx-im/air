@@ -3,13 +3,11 @@ pub mod grpc;
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use airprotos::relay_service::v1::{LinkingSessionId, RelayFrame};
-use dashmap::DashMap;
 use tokio::sync::{Mutex, mpsc, oneshot};
 use tokio_util::sync::CancellationToken;
 use tonic::Status;
 
 const SESSION_TIMEOUT: Duration = Duration::from_secs(60);
-const MINIMUM_CODE_LEN: usize = 8;
 
 /// A "pending" half of a session: someone joined but their peer hasn't yet.
 #[derive(Debug)]

@@ -2,8 +2,8 @@ use aircommon::{
     crypto::aead::{AeadDecryptable, AeadEncryptable, Ciphertext, keys::MultiDevicePairingKey},
     identifiers::Fqdn,
 };
+use airprotos::relay_service::v1::LinkingSessionId;
 use anyhow::{Context, anyhow, bail};
-use base64::{Engine as _, engine::general_purpose::STANDARD as B64};
 use openmls::{
     group::{MlsGroup, MlsGroupCreateConfig, MlsGroupJoinConfig, StagedWelcome},
     prelude::{
@@ -14,6 +14,7 @@ use openmls::{
 use openmls_basic_credential::SignatureKeyPair;
 use openmls_rust_crypto::OpenMlsRustCrypto;
 use openmls_traits::OpenMlsProvider;
+use sha2::{Digest, Sha256};
 use tls_codec::{Deserialize, DeserializeBytes, Serialize};
 use tokio_stream::StreamExt;
 use tracing::info;
@@ -71,7 +72,7 @@ impl CoreUser {
     pub async fn provision_multi_device_pairing(
         domain: Fqdn,
         server_url: Option<Url>,
-        session_id_tx: tokio::sync::oneshot::Sender<String>,
+        session_id_tx: tokio::sync::oneshot::Sender<LinkingSessionId>,
     ) -> anyhow::Result<String> {
         let api_clients = ApiClients::new(domain, server_url);
         let api_client = api_clients.default_client()?;
@@ -82,27 +83,31 @@ impl CoreUser {
         let key_package_bundle = KeyPackage::builder()
             .build(CIPHERSUITE, &provider, &signature_keys, credential_with_key)
             .context("build key package")?;
-        let fingerprint = key_package_bundle
-            .key_package()
-            .hash_ref(provider.crypto())?;
         let key_package_bytes = MlsMessageOut::from(key_package_bundle)
             .to_bytes()
             .context("serialize key package")?;
+        let key_package_checksum: [u8; 32] = Sha256::digest(&key_package_bytes).into();
 
-        let fingerprint_base64 = B64.encode(fingerprint.as_slice());
+        let (tx, mut rx) = api_client.rs_provision_client().await?;
 
-        let (tx, mut rx) = api_client.rs_provision_client(fingerprint_base64).await?;
+        // send the key package to the server
+        tx.send(key_package_bytes.into()).await?;
 
         // The relay echoes back the session ID as the first frame
-        let session_id_frame = rx.next().await.context("relay connection closed")??;
-        let session_id = String::from_utf8(session_id_frame.as_slice().to_vec())
-            .context("invalid session ID from relay")?;
+        let session_id_length = rx
+            .next()
+            .await
+            .context("relay connection closed")??
+            .as_u32()
+            .context("unexpected format for first frame")?;
+
+        // we recompose the session ID from our key package digest and the session ID length
+        let session_id = LinkingSessionId::from_digest(&key_package_checksum, session_id_length)
+            .context("invalid session ID")?;
+
         session_id_tx
             .send(session_id)
             .map_err(|_| anyhow!("session ID receiver dropped"))?;
-
-        // send a fresh key package to the peer, (TODO? for validation reasons) the server will look at it and check if its valid
-        tx.send(key_package_bytes.into()).await?;
 
         // wait for the existing (old) client to send us the welcome
         let welcome_bytes = rx.next().await.context("relay connection closed")??;
@@ -147,7 +152,10 @@ impl CoreUser {
         Ok(answer_str)
     }
 
-    pub async fn link_multi_device_pairing(&self, session_id: String) -> anyhow::Result<String> {
+    pub async fn link_multi_device_pairing(
+        &self,
+        session_id: LinkingSessionId,
+    ) -> anyhow::Result<String> {
         let client = self.api_client()?;
         let qs_user_id = self.inner.qs_user_id;
         let qs_user_signing_key = self.key_store().qs_user_signing_key.clone();

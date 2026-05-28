@@ -3,11 +3,10 @@ use aircommon::{
     identifiers::QsUserId,
 };
 use airprotos::relay_service::v1::{
-    LinkClientRequest, LinkClientRequestPayload, METADATA_SESSION_ID, RelayFrame,
+    LinkClientRequest, LinkClientRequestPayload, LinkingSessionId, RelayFrame,
 };
 use tokio::sync::mpsc;
 use tokio_stream::wrappers::ReceiverStream;
-use tonic::metadata::MetadataValue;
 
 use crate::ApiClient;
 
@@ -23,21 +22,12 @@ pub enum RsRequestError {
     SendError(#[from] mpsc::error::SendError<RelayFrame>),
 }
 
-// TODO: TruncatedSessionId with ALPHABET and 6 chars all lowercase, normalised
-// with a function from_bytes
-
 impl ApiClient {
-    // start point (new client that shows Qrcode)
     pub async fn rs_provision_client(
         &self,
-        session_id: String,
     ) -> Result<(mpsc::Sender<RelayFrame>, tonic::Streaming<RelayFrame>), RsRequestError> {
         let (tx, rx) = mpsc::channel::<RelayFrame>(8);
-        let mut request = tonic::Request::new(ReceiverStream::new(rx));
-        request.metadata_mut().insert(
-            METADATA_SESSION_ID,
-            MetadataValue::try_from(session_id).unwrap(),
-        );
+        let request = tonic::Request::new(ReceiverStream::new(rx));
 
         let response: tonic::Response<tonic::Streaming<RelayFrame>> =
             self.rs_grpc_client().provision_client(request).await?;
@@ -49,14 +39,14 @@ impl ApiClient {
         &self,
         qs_user_id: QsUserId,
         qs_user_signing_key: &QsUserSigningKey,
-        session_id: String,
+        linking_session_id: LinkingSessionId,
     ) -> Result<(mpsc::Sender<RelayFrame>, tonic::Streaming<RelayFrame>), RsRequestError> {
         let (tx, rx) = mpsc::channel::<RelayFrame>(8);
 
         let payload = LinkClientRequestPayload {
             client_metadata: Some(self.metadata().clone()),
             sender: Some(qs_user_id.into()),
-            session_id,
+            session_id: Some(linking_session_id),
         };
 
         let link_client_request: LinkClientRequest = payload.sign(qs_user_signing_key)?;
