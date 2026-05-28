@@ -3,11 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::UserId;
-use aircoreclient::{
-    ChatId,
-    clients::CoreUser,
-    store::{Store, StoreEntityId},
-};
+use aircoreclient::{ChatId, clients::CoreUser, db::notification::DbEntityId};
 use flutter_rust_bridge::frb;
 use mimi_room_policy::{MimiProposal, RoleIndex, VerifiedRoomState};
 use tls_codec::Serialize;
@@ -135,14 +131,14 @@ impl MemberDetailsContext {
     }
 
     async fn update_state_task(self) {
-        let mut notifications = self.store.subscribe();
+        let mut notifications = self.store.db_notifications();
         while let Some(notification) = notifications.next().await {
             // If this chat has changed, or any user changed
             if notification.ops.contains_key(&self.chat_id.into())
                 || notification
                     .ops
                     .keys()
-                    .any(|entity_id| matches!(entity_id, StoreEntityId::User(_)))
+                    .any(|entity_id| matches!(entity_id, DbEntityId::User(_)))
             {
                 self.load_and_emit_state().await;
             }

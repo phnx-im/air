@@ -8,7 +8,7 @@ use chrono::{DateTime, Utc};
 use crate::{clients::CoreUser, user_profiles::display_name::BaseDisplayName};
 
 impl CoreUser {
-    pub(crate) async fn block_contact(&self, user_id: UserId) -> anyhow::Result<()> {
+    pub async fn block_contact(&self, user_id: UserId) -> anyhow::Result<()> {
         let profile = self.user_profile(&user_id).await;
         let blocked_contact = BlockedContact {
             user_id,
@@ -18,7 +18,7 @@ impl CoreUser {
         Ok(blocked_contact.store(self.db().write().await?).await?)
     }
 
-    pub(crate) async fn unblock_contact(&self, user_id: UserId) -> anyhow::Result<()> {
+    pub async fn unblock_contact(&self, user_id: UserId) -> anyhow::Result<()> {
         Ok(BlockedContact::delete_by_id(self.db().write().await?, user_id).await?)
     }
 }
@@ -50,7 +50,7 @@ mod persistence {
 
     use crate::{
         ChatId,
-        db_access::{ReadConnection, WriteConnection},
+        db::access::{ReadConnection, WriteConnection},
     };
 
     use super::*;

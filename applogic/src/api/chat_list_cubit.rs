@@ -10,7 +10,7 @@ use aircommon::identifiers::{Username, UsernameHash};
 use aircoreclient::{
     AddUsernameContactError, ChatId,
     clients::CoreUser,
-    store::{Store, StoreEntityId, StoreNotification},
+    db::notification::{DbEntityId, DbNotification},
 };
 use flutter_rust_bridge::frb;
 use tokio::sync::watch;
@@ -36,7 +36,7 @@ pub struct ChatListState {
 #[frb(opaque)]
 pub struct ChatListCubitBase {
     core: CubitCore<ChatListState>,
-    context: ChatListContext<CoreUser>,
+    context: ChatListContext,
 }
 
 impl ChatListCubitBase {
@@ -47,7 +47,7 @@ impl ChatListCubitBase {
     #[frb(sync)]
     pub fn new(user_cubit: &UserCubitBase) -> Self {
         let store = user_cubit.core_user().clone();
-        let store_notifications = store.subscribe();
+        let store_notifications = store.db_notifications();
 
         let core = CubitCore::new();
 
@@ -91,7 +91,7 @@ impl ChatListCubitBase {
     ) -> anyhow::Result<Option<AddUsernameContactError>> {
         let username = Username::new(username.plaintext)?;
         self.context
-            .store
+            .core_user
             .add_contact(username, hash)
             .await
             .map(Result::err)
@@ -104,8 +104,13 @@ impl ChatListCubitBase {
         &self,
         group_name: String,
         picture: Option<Vec<u8>>,
+        is_apq: bool,
     ) -> anyhow::Result<ChatId> {
-        let id = self.context.store.create_chat(group_name, picture).await?;
+        let id = self
+            .context
+            .core_user
+            .create_chat(group_name, picture, is_apq)
+            .await?;
         self.context.load_and_emit_state().await;
         Ok(id)
     }
@@ -114,22 +119,22 @@ impl ChatListCubitBase {
 /// Loads the initial state and listen to the changes
 #[frb(ignore)]
 #[derive(Clone)]
-struct ChatListContext<S> {
-    store: S,
+struct ChatListContext {
+    core_user: CoreUser,
     state_tx: watch::Sender<ChatListState>,
 }
 
-impl<S> ChatListContext<S>
-where
-    S: Store + Send + Sync + 'static,
-{
-    fn new(store: S, state_tx: watch::Sender<ChatListState>) -> Self {
-        Self { store, state_tx }
+impl ChatListContext {
+    fn new(core_user: CoreUser, state_tx: watch::Sender<ChatListState>) -> Self {
+        Self {
+            core_user,
+            state_tx,
+        }
     }
 
     fn spawn(
         self,
-        store_notifications: impl Stream<Item = Arc<StoreNotification>> + Send + Unpin + 'static,
+        store_notifications: impl Stream<Item = Arc<DbNotification>> + Send + Unpin + 'static,
         stop: CancellationToken,
     ) {
         spawn_from_sync(async move {
@@ -140,9 +145,14 @@ where
     }
 
     async fn load_and_emit_state(&self) {
-        let Ok(chat_ids) = self.store.ordered_chat_ids().await.inspect_err(|error| {
-            error!(%error, "Failed to load chats");
-        }) else {
+        let Ok(chat_ids) = self
+            .core_user
+            .ordered_chat_ids()
+            .await
+            .inspect_err(|error| {
+                error!(%error, "Failed to load chats");
+            })
+        else {
             return;
         };
         self.state_tx.send_modify(|state| state.chat_ids = chat_ids);
@@ -150,7 +160,7 @@ where
 
     async fn store_notifications_loop(
         self,
-        mut store_notifications: impl Stream<Item = Arc<StoreNotification>> + Unpin,
+        mut store_notifications: impl Stream<Item = Arc<DbNotification>> + Unpin,
         stop: CancellationToken,
     ) {
         loop {
@@ -167,10 +177,10 @@ where
         }
     }
 
-    async fn process_store_notification(&self, notification: &StoreNotification) {
+    async fn process_store_notification(&self, notification: &DbNotification) {
         let any_chat_changed = notification.ops.iter().any(|(id, op)| {
-            matches!(id, StoreEntityId::Chat(_) if !op.is_empty())
-                || matches!(id, StoreEntityId::User(_) if !op.is_empty())
+            matches!(id, DbEntityId::Chat(_) if !op.is_empty())
+                || matches!(id, DbEntityId::User(_) if !op.is_empty())
         });
         if any_chat_changed {
             // TODO(perf): This is a very coarse-grained approach. Optimally, we would only load

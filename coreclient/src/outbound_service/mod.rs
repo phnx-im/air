@@ -20,14 +20,14 @@ use tracing::{debug, error, info};
 
 use crate::{
     clients::api_clients::ApiClients,
-    db_access::DbAccess,
+    db::access::DbAccess,
     job::{Job, JobContext, JobContextDb, JobError},
     key_stores::MemoryUserKeyStore,
     outbound_service::error::OutboundServiceRunError,
     utils::global_lock::GlobalLock,
 };
 
-pub use timed_tasks::KEY_PACKAGES;
+pub use timed_tasks::{APQ_KEY_PACKAGES, KEY_PACKAGES};
 
 mod chat_message_queue;
 mod chat_messages;
@@ -237,7 +237,7 @@ impl OutboundServiceContext {
         if let Err(error) = self.perform_queued_resyncs(&run_token).await {
             error!(%error, "Failed to perform queued resyncs");
         }
-        match self.send_pending_chat_operations(&run_token).await {
+        match Box::pin(self.send_pending_chat_operations(&run_token)).await {
             Err(OutboundServiceRunError::NetworkError) => {
                 info!("Network appears unavailable, terminating outbound service run");
                 return;

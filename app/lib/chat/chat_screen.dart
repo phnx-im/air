@@ -15,6 +15,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'chat_debug_info_view.dart';
 import 'chat_details_cubit.dart';
 import 'delete_contact_button.dart';
 import 'report_spam_button.dart';
@@ -236,6 +237,24 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
                   context.read<NavigationCubit>().openChatDetails();
                 }
               : null,
+          onLongPress: () {
+            final chatDetailsCubit = context.read<ChatDetailsCubit>();
+            final userCubit = context.read<UserCubit>();
+            Navigator.of(context).push(
+              MaterialPageRoute(
+                builder: (context) => ChatDebugInfoView(
+                  title: title ?? "",
+                  loadDebugInfo: () => chatDetailsCubit.chatDebugInfo(),
+                  onUpdateGroup: () => chatDetailsCubit.updateKey(),
+                  onUpdateApqGroup: () => chatDetailsCubit.updateApqKey(),
+                  onRequestResync: () => chatDetailsCubit.requestResync(),
+                  onEraseLocalChat: () {
+                    if (chatId != null) userCubit.devEraseChat(chatId);
+                  },
+                ),
+              ),
+            );
+          },
           child: Row(
             mainAxisSize: MainAxisSize.min,
             spacing: Spacing.px12,

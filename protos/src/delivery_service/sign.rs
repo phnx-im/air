@@ -4,10 +4,14 @@
 
 use prost::Message;
 
-use crate::delivery_service::v1::{
-    AssistedMessage, GetAttachmentUrlPayload, GetAttachmentUrlRequest, GroupStateEarKey,
-    LeafNodeIndex, ProvisionAttachmentPayload, ProvisionAttachmentRequest, TargetedMessagePayload,
-    TargetedMessageRequest,
+use crate::{
+    delivery_service::v1::{
+        ApqGroupOperationPayload, ApqGroupOperationRequest, AssistedMessage, CreateApqGroupPayload,
+        CreateApqGroupRequest, GetAttachmentUrlPayload, GetAttachmentUrlRequest, GroupStateEarKey,
+        LeafNodeIndex, ProvisionAttachmentPayload, ProvisionAttachmentRequest,
+        TargetedMessagePayload, TargetedMessageRequest,
+    },
+    sign::impl_signed_payload,
 };
 
 use super::v1::{
@@ -139,8 +143,6 @@ impl Verifiable for WelcomeInfoRequest {
     }
 }
 
-const CREATE_GROUP_PAYLOAD_LABEL: &str = "CreateGroupPayload";
-
 impl VerifiedStruct<WelcomeInfoRequest> for WelcomeInfoPayload {
     type SealingType = private_mod::Seal;
 
@@ -148,6 +150,8 @@ impl VerifiedStruct<WelcomeInfoRequest> for WelcomeInfoPayload {
         verifiable.payload.unwrap()
     }
 }
+
+const CREATE_GROUP_PAYLOAD_LABEL: &str = "CreateGroupPayload";
 
 impl SignedStruct<CreateGroupPayload, ClientKeyType> for CreateGroupRequest {
     fn from_payload(payload: CreateGroupPayload, signature: ClientSignature) -> Self {
@@ -198,6 +202,20 @@ impl Verifiable for CreateGroupRequest {
         CREATE_GROUP_PAYLOAD_LABEL
     }
 }
+
+impl_signed_payload!(
+    CreateApqGroupRequest,
+    CreateApqGroupPayload,
+    ClientKeyType,
+    "CreateApqGroupPayload"
+);
+
+impl_signed_payload!(
+    ApqGroupOperationRequest,
+    ApqGroupOperationPayload,
+    ClientKeyType,
+    "ApqGroupOperationPayload"
+);
 
 const DELETE_GROUP_PAYLOAD_LABEL: &str = "DeleteGroupPayload";
 

@@ -11,9 +11,12 @@ use tracing::info;
 
 use crate::{
     clients::api_clients::ApiClients,
-    db_access::{
-        DbAccess, ReadConnection, ReadDbConnection, ReadDbTransaction, WriteConnection,
-        WriteDbConnection, WriteDbTransaction,
+    db::{
+        access::{
+            DbAccess, ReadConnection, ReadDbConnection, ReadDbTransaction, WriteConnection,
+            WriteDbConnection, WriteDbTransaction,
+        },
+        notification::DbNotifier,
     },
     key_stores::MemoryUserKeyStore,
 };
@@ -96,7 +99,7 @@ pub(crate) enum JobContextWriteConnection<'a, 'c> {
 impl<'a, 'c> ReadConnection for JobContextWriteConnection<'a, 'c> {}
 
 impl<'a, 'c> WriteConnection for JobContextWriteConnection<'a, 'c> {
-    fn split(&mut self) -> (&mut SqliteConnection, &mut crate::store::StoreNotifier) {
+    fn split(&mut self) -> (&mut SqliteConnection, &mut DbNotifier) {
         use JobContextWriteConnection::*;
         match self {
             Connection(connection) => connection.split(),
@@ -104,7 +107,7 @@ impl<'a, 'c> WriteConnection for JobContextWriteConnection<'a, 'c> {
         }
     }
 
-    fn notifier(&mut self) -> &mut crate::store::StoreNotifier {
+    fn notifier(&mut self) -> &mut DbNotifier {
         use JobContextWriteConnection::*;
         match self {
             Connection(connection) => connection.notifier(),

@@ -7,7 +7,7 @@ use aircommon::{identifiers::UserId, time::TimeStamp};
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatType, SystemMessage,
     chats::messages::TimestampedMessage,
-    db_access::{WriteConnection, WriteDbTransaction},
+    db::access::{WriteConnection, WriteDbTransaction},
     job::chat_operation::ChatOperation,
 };
 
@@ -21,7 +21,17 @@ impl CoreUser {
     /// more than one effect on the group. As a result this function returns a
     /// vector of [`ChatMessage`]s that represents the changes to the
     /// group. Note that these returned message have already been persisted.
-    pub(crate) async fn update_key(
+    pub async fn update_key(&self, chat_id: ChatId) -> anyhow::Result<Vec<ChatMessage>> {
+        self.update_key_with_attributes(chat_id, None).await
+    }
+
+    /// Same as [`Self::update_key`], but also updates the PQ key material.
+    pub async fn update_apq_key(&self, chat_id: ChatId) -> anyhow::Result<Vec<ChatMessage>> {
+        let job = ChatOperation::apq_update(chat_id);
+        Ok(self.execute_job(job).await?)
+    }
+
+    pub(crate) async fn update_key_with_attributes(
         &self,
         chat_id: ChatId,
         new_chat_attributes: Option<ChatAttributes>,

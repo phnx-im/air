@@ -10,7 +10,6 @@ use aircoreclient::{
         process::process_qs::{QsProcessEventResult, QsStreamProcessor},
         queue_event,
     },
-    store::Store,
 };
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::{DateTime, Duration, Utc};
@@ -1009,4 +1008,91 @@ async fn legacy_group_data_migration() {
     assert!(group_data.legacy_picture.is_none());
     assert!(group_data.encrypted_title.is_some());
     assert!(group_data.external_group_profile.is_some());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Create APQ group test", skip_all)]
+async fn create_apq_group() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    setup.create_apq_group(&alice).await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "APQ self-update updates both T and PQ timestamps", skip_all)]
+async fn apq_self_update_updates_both_timestamps() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let chat_id = setup.create_apq_group(&alice).await;
+
+    let alice_user = setup.get_user(&alice);
+    let alice_core = &alice_user.user;
+
+    let now = Utc::now();
+
+    // Force both T and PQ self_updated_at to the past so the joint APQ
+    // self-update is triggered.
+    alice_core
+        .set_self_updated_at(chat_id, DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    alice_core
+        .set_pq_self_updated_at(chat_id, DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+
+    // Run the outbound service to perform the self-update.
+    alice_core
+        .outbound_service()
+        .schedule_self_update(DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    alice_core.outbound_service().run_once().await;
+
+    // Both T and PQ self_updated_at should now be advanced past now.
+    let after_t = alice_core.self_updated_at(chat_id).await.unwrap().unwrap();
+    let after_pq = alice_core
+        .pq_self_updated_at(chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+
+    assert!(now < after_t, "T self_updated_at was not updated");
+    assert!(now < after_pq, "PQ self_updated_at was not updated");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Invite to APQ group test", skip_all)]
+async fn invite_to_apq_group() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_apq_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Send message in APQ group test", skip_all)]
+async fn send_message_in_apq_group() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    let chat_id = setup.create_apq_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie])
+        .await;
+    setup
+        .send_message(chat_id, &alice, vec![&bob, &charlie], None)
+        .await;
+    setup
+        .send_message(chat_id, &bob, vec![&alice, &charlie], None)
+        .await;
 }

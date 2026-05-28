@@ -6,9 +6,7 @@ use std::time::Duration;
 
 use aircommon::component::{AirComponent, AirFeatures};
 use aircommon::time::TimeStamp;
-use aircoreclient::{
-    ChatId, EventMessage, Message, SystemMessage, clients::CoreUser, store::Store,
-};
+use aircoreclient::{ChatId, EventMessage, Message, SystemMessage, clients::CoreUser};
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::{DateTime, TimeZone};
 use tokio::task::spawn_blocking;
@@ -547,6 +545,7 @@ async fn erase_connection_group_data_mixed_feature_support() {
         features: AirFeatures {
             encrypted_group_profiles: true,
             empty_connection_group_attributes: false,
+            pq_groups: setup.apq_groups,
         },
     };
     bob_user
@@ -619,6 +618,7 @@ async fn erase_connection_group_data_mixed_feature_support() {
         features: AirFeatures {
             encrypted_group_profiles: true,
             empty_connection_group_attributes: true,
+            pq_groups: setup.apq_groups,
         },
     };
     bob_user

@@ -8,7 +8,7 @@ use aircommon::{
     identifiers::UserId,
 };
 
-use crate::db_access::{ReadConnection, WriteConnection};
+use crate::db::access::{ReadConnection, WriteConnection};
 
 use super::{
     IndexedUserProfile, UnvalidatedUserProfile, UserProfileValidationError, VerifiableUserProfile,

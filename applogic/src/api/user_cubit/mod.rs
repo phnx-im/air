@@ -9,7 +9,7 @@ use std::sync::Arc;
 pub(crate) use aircommon::identifiers::UsernameHash;
 use aircommon::identifiers::{UserId, Username};
 pub(crate) use aircoreclient::InviteUsersError;
-use aircoreclient::{Asset, ChatId, ContactType, PartialContact, clients::CoreUser, store::Store};
+use aircoreclient::{Asset, ChatId, ContactType, PartialContact, clients::CoreUser};
 use anyhow::ensure;
 use flutter_rust_bridge::frb;
 use qs::QueueContext;
@@ -285,6 +285,15 @@ impl UserCubitBase {
         Ok(())
     }
 
+    /// Only delete the local chat data, do not delete the chat on the server or try to leave it.
+    ///
+    /// Used for development purposes.
+    #[frb(positional)]
+    pub async fn dev_erase_chat(&self, chat_id: ChatId) -> anyhow::Result<()> {
+        self.context.core_user.erase_chat(chat_id).await?;
+        Ok(())
+    }
+
     #[frb(positional)]
     pub async fn leave_chat(&self, chat_id: ChatId) -> anyhow::Result<()> {
         self.context.core_user.leave_chat(chat_id).await
@@ -301,7 +310,7 @@ impl UserCubitBase {
     }
 
     pub async fn contact(&self, user_id: UiUserId) -> anyhow::Result<Option<UiContact>> {
-        let Some(contact) = Store::contact(&self.context.core_user, &user_id.into()).await? else {
+        let Some(contact) = self.context.core_user.contact_type(&user_id.into()).await? else {
             return Ok(None);
         };
         match contact {
@@ -491,7 +500,7 @@ impl CubitContext {
         mut app_state: watch::Receiver<AppState>,
         cancel: CancellationToken,
     ) -> anyhow::Result<()> {
-        let pending = core_user.store_notifications_pending();
+        let pending = core_user.db_notifications_pending();
         loop {
             let should_drain = tokio::select! {
                 // We got cancelled, let's abort
@@ -509,9 +518,9 @@ impl CubitContext {
                 continue;
             }
             // Finally eat these yummy notifications! Nom nom nom
-            match core_user.dequeue_notification().await {
+            match core_user.dequeue_db_notification().await {
                 Ok(store_notification) if !store_notification.is_empty() => {
-                    core_user.notify(store_notification);
+                    core_user.send_db_notification(store_notification);
                 }
                 Ok(_) => {}
                 Err(error) => {

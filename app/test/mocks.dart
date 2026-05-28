@@ -29,9 +29,8 @@ class MockUserCubit extends MockCubit<UiUser> implements UserCubit {
 class MockUsersCubit extends MockCubit<UsersState> implements UsersCubit {}
 
 class MockUiUser implements UiUser {
-  MockUiUser({required int id, List<UiUsername> usernames = const []})
-    : _userId = id.userId(),
-      _usernames = usernames;
+  MockUiUser({required int id, this._usernames = const []})
+    : _userId = id.userId();
 
   final UiUserId _userId;
   final List<UiUsername> _usernames;

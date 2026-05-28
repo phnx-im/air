@@ -2,7 +2,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use openmls::prelude::{ContentType, OpenMlsCrypto, ProtocolMessage, Verifiable};
+use apqmls::{
+    messages::{ApqGroupInfo, ApqProtocolMessage},
+    public_group::ApqPublicGroupMut,
+};
+use openmls::prelude::{ContentType, Credential, OpenMlsCrypto, ProtocolMessage, Verifiable};
+
+use crate::group::{apq::ApqGroupRef, errors::ProcessApqAssistedMessageError};
 
 use super::{errors::LibraryError, *};
 
@@ -35,7 +41,9 @@ impl Group {
                         // Proposals are fed to the PublicGroup s.t. they are
                         // put into the ProposalStore. Otherwise we don't do
                         // anything with them.
-                        let processed_message = self.public_group.process_message(provider, *pm)?;
+                        let processed_message = self
+                            .public_group
+                            .process_message_with_app_data_updates(provider, *pm)?;
                         let processed_assisted_message =
                             ProcessedAssistedMessage::NonCommit(processed_message);
                         let message_plus = ProcessedAssistedMessagePlus {
@@ -59,49 +67,18 @@ impl Group {
         };
         // First process the message, then verify that the group info
         // checks out.
-        let processed_message = self
-            .public_group
-            .process_message(provider, ProtocolMessage::PublicMessage(commit.clone()))?;
-        let sender = processed_message.sender().clone();
+        let processed_message = self.public_group.process_message_with_app_data_updates(
+            provider,
+            ProtocolMessage::PublicMessage(commit.clone()),
+        )?;
         let confirmation_tag = commit
             .confirmation_tag()
             .ok_or(LibraryError::LibraryError)?
             .clone();
-        let ProcessedMessageContent::StagedCommitMessage(staged_commit) =
-            processed_message.content()
-        else {
-            return Err(ProcessAssistedMessageError::LibraryError(
-                LibraryError::LibraryError, // Mismatching message type
-            ));
-        };
-        let assisted_sender = match sender {
-            Sender::Member(leaf_index) => AssistedSender::Member(leaf_index),
-            Sender::NewMemberCommit => {
-                // If it's a new member commit, we can figure out the signature
-                // key of the sender by looking at the add proposal.
-                let Some(external_add) = staged_commit.update_path_leaf_node() else {
-                    return Err(ProcessAssistedMessageError::UnknownSender);
-                };
-                let signature_key = external_add.signature_key().clone();
-                AssistedSender::External(signature_key)
-            }
-            Sender::External(_) | Sender::NewMemberProposal => {
-                return Err(ProcessAssistedMessageError::LibraryError(
-                    LibraryError::LibraryError, // Invalid sender after validation.
-                ));
-            }
-        };
-        let group_info: GroupInfo = self.validate_group_info(
-            provider,
-            assisted_sender,
-            staged_commit,
-            confirmation_tag,
-            assisted_group_info,
-        )?;
-        // This is really only relevant for the "Full" group info case above.
-        if group_info.group_context() != staged_commit.group_context() {
-            return Err(ProcessAssistedMessageError::InconsistentGroupContext);
-        }
+        let validation_params =
+            ValidateGroupInfoParams::from_processed_commit(confirmation_tag, &processed_message)?;
+        let group_info: GroupInfo =
+            self.validate_group_info(provider, validation_params, assisted_group_info)?;
         let processed_assisted_message =
             ProcessedAssistedMessage::Commit(processed_message, Box::new(group_info));
         let message_plus = ProcessedAssistedMessagePlus {
@@ -117,18 +94,173 @@ enum AssistedSender {
     External(SignaturePublicKey),
 }
 
+impl ApqGroupRef<'_> {
+    /// Process incoming APQ assisted message.
+    ///
+    /// Similar to [`Group::process_assisted_message`], but for APQ.
+    pub fn process_apq_assisted_message<CryptoProvider: OpenMlsCrypto>(
+        &mut self,
+        crypto: &CryptoProvider,
+        t_assisted_message: AssistedMessageIn,
+        pq_assisted_message: AssistedMessageIn,
+        sender_equivalence: impl Fn(&Credential, &Credential) -> bool,
+    ) -> Result<ApqProcessedAssistedMessagePlus, ProcessApqAssistedMessageError> {
+        // APQ only supports public commits
+        let extract_public_commit =
+            |AssistedMessageIn {
+                 mls_message,
+                 serialized_mls_message,
+                 group_info_option,
+             }: AssistedMessageIn| match mls_message {
+                ProtocolMessage::PrivateMessage(_) => None,
+                ProtocolMessage::PublicMessage(pm) => match pm.content_type() {
+                    ContentType::Application => None,
+                    ContentType::Proposal => None,
+                    ContentType::Commit => {
+                        // Group info is required for public commits
+                        Some((pm, serialized_mls_message, group_info_option?))
+                    }
+                },
+            };
+
+        let Some((pq_commit, pq_serialized_message, pq_group_info)) =
+            extract_public_commit(pq_assisted_message)
+        else {
+            return Err(ProcessApqAssistedMessageError::InvalidAssistedMessage);
+        };
+
+        let Some((t_commit, t_serialized_message, t_group_info)) =
+            extract_public_commit(t_assisted_message)
+        else {
+            return Err(ProcessApqAssistedMessageError::InvalidAssistedMessage);
+        };
+
+        let t_confirmation_tag = t_commit
+            .confirmation_tag()
+            .ok_or(LibraryError::LibraryError)?
+            .clone();
+        let pq_confirmation_tag = pq_commit
+            .confirmation_tag()
+            .ok_or(LibraryError::LibraryError)?
+            .clone();
+
+        let apq_message = ApqProtocolMessage::new(
+            ProtocolMessage::PublicMessage(t_commit),
+            ProtocolMessage::PublicMessage(pq_commit),
+        );
+
+        let mut apq_group = ApqPublicGroupMut::from_groups(
+            &mut self.t_group.public_group,
+            &mut self.pq_group.public_group,
+        );
+        let apq_processed = apq_group.process_message(crypto, apq_message, sender_equivalence)?;
+
+        let t_validation_params = ValidateGroupInfoParams::from_processed_commit(
+            t_confirmation_tag,
+            &apq_processed.t_message,
+        )?;
+        let t_group_info =
+            self.t_group
+                .validate_group_info(crypto, t_validation_params, t_group_info)?;
+
+        let pq_validation_params = ValidateGroupInfoParams::from_processed_commit(
+            pq_confirmation_tag,
+            &apq_processed.pq_message,
+        )?;
+        let pq_group_info =
+            self.pq_group
+                .validate_group_info(crypto, pq_validation_params, pq_group_info)?;
+
+        let group_info = ApqGroupInfo::new(t_group_info, pq_group_info);
+
+        let processed_assisted_message = ApqProcessedAssistedMessage {
+            processed_message: apq_processed,
+            group_info,
+        };
+
+        let serialized_apq_message =
+            SerializedMlsMessage([&*t_serialized_message.0, &*pq_serialized_message.0].concat());
+
+        // Verify that the concat bytes is the same as TLS serialized ApqMlsMessageIn
+        #[cfg(debug_assertions)]
+        {
+            use apqmls::messages::ApqMlsMessageIn;
+            use openmls::prelude::MlsMessageIn;
+            use tls_codec::DeserializeBytes;
+
+            let apq_message =
+                ApqMlsMessageIn::tls_deserialize_exact_bytes(&serialized_apq_message.0)
+                    .expect("concat bytes must be valid ApqMlsMessageIn");
+            let t_message = MlsMessageIn::tls_deserialize_exact_bytes(&t_serialized_message.0)
+                .expect("MLS message must be valid");
+            let pq_message = MlsMessageIn::tls_deserialize_exact_bytes(&pq_serialized_message.0)
+                .expect("MLS message must be valid");
+            debug_assert_eq!(apq_message.t_message(), &t_message);
+            debug_assert_eq!(apq_message.pq_message(), &pq_message);
+        }
+
+        Ok(ApqProcessedAssistedMessagePlus {
+            processed_assisted_message,
+            serialized_apq_message,
+        })
+    }
+}
+
+struct ValidateGroupInfoParams<'a> {
+    assisted_sender: AssistedSender,
+    staged_commit: &'a StagedCommit,
+    confirmation_tag: ConfirmationTag,
+}
+
+impl<'a> ValidateGroupInfoParams<'a> {
+    fn from_processed_commit(
+        confirmation_tag: ConfirmationTag,
+        processed: &'a ProcessedMessage,
+    ) -> Result<Self, LibraryError> {
+        let ProcessedMessageContent::StagedCommitMessage(staged_commit) = processed.content()
+        else {
+            // Mismatching message type
+            return Err(LibraryError::LibraryError);
+        };
+
+        let assisted_sender = match processed.sender() {
+            Sender::Member(leaf_index) => AssistedSender::Member(*leaf_index),
+            Sender::External(_) | Sender::NewMemberProposal => {
+                return Err(LibraryError::LibraryError);
+            }
+            Sender::NewMemberCommit => {
+                // If it's a new member commit, we can figure out the signature key of the
+                // sender by looking at the add proposal.
+                let Some(external_add) = staged_commit.update_path_leaf_node() else {
+                    return Err(LibraryError::LibraryError);
+                };
+                let signature_key = external_add.signature_key().clone();
+                AssistedSender::External(signature_key)
+            }
+        };
+
+        Ok(Self {
+            staged_commit,
+            assisted_sender,
+            confirmation_tag,
+        })
+    }
+}
+
 // Helper functions
 impl Group {
     fn validate_group_info<CryptoProvider: OpenMlsCrypto>(
         &self,
         provider: &CryptoProvider,
-        sender: AssistedSender,
-        staged_commit: &StagedCommit,
-        confirmation_tag: ConfirmationTag,
+        ValidateGroupInfoParams {
+            assisted_sender,
+            staged_commit,
+            confirmation_tag,
+        }: ValidateGroupInfoParams,
         assisted_group_info: AssistedGroupInfoIn,
-    ) -> Result<GroupInfo, ProcessAssistedMessageError> {
+    ) -> Result<GroupInfo, GroupInfoValidationError> {
         let signature_scheme = self.group_info().group_context().ciphersuite().into();
-        let (sender_index, sender_pk) = match sender {
+        let (sender_index, sender_pk) = match assisted_sender {
             AssistedSender::Member(index) => {
                 let sender_pk = self
                     .public_group
@@ -146,7 +278,7 @@ impl Group {
                             signature_scheme,
                         )
                     })
-                    .ok_or(ProcessAssistedMessageError::UnknownSender)?;
+                    .ok_or(GroupInfoValidationError::UnknownSender)?;
                 (index, sender_pk)
             }
             AssistedSender::External(signature_public_key) => {
@@ -167,8 +299,29 @@ impl Group {
             confirmation_tag,
         );
 
-        verifiable_group_info
+        let group_info = verifiable_group_info
             .verify(provider, &sender_pk)
-            .map_err(|_| ProcessAssistedMessageError::InvalidGroupInfoSignature)
+            .map_err(|_| GroupInfoValidationError::InvalidGroupInfoSignature)?;
+
+        // This is really only relevant for the "Full" group info case above
+        if group_info.group_context() != staged_commit.group_context() {
+            return Err(GroupInfoValidationError::InconsistentGroupContext);
+        }
+
+        Ok(group_info)
     }
+}
+
+#[derive(Debug, thiserror::Error, PartialEq, Clone)]
+pub enum GroupInfoValidationError {
+    #[error(transparent)]
+    LibraryError(#[from] LibraryError),
+    #[error(transparent)]
+    OpenMlsLibraryError(#[from] openmls::prelude::LibraryError),
+    #[error("Unknown sender")]
+    UnknownSender,
+    #[error("Invalid group info signature")]
+    InvalidGroupInfoSignature,
+    #[error("Group context is inconsistent between assisted group info and staged commit")]
+    InconsistentGroupContext,
 }

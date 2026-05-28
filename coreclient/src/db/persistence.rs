@@ -15,47 +15,47 @@ use tokio_stream::StreamExt;
 use tracing::error;
 use uuid::Uuid;
 
-use crate::{ChatId, MessageId, db_access::WriteConnection};
+use crate::{ChatId, MessageId, db::access::WriteConnection};
 
-use super::{StoreEntityId, StoreNotification, StoreOperation, notification::StoreEntityKind};
+use super::notification::{DbEntityId, DbEntityKind, DbNotification, DbOperation};
 
 #[derive(Serialize, Deserialize)]
 struct StoredUserId<'a>(Cow<'a, UserId>);
 
-impl Type<Sqlite> for StoreEntityId {
+impl Type<Sqlite> for DbEntityId {
     fn type_info() -> <Sqlite as sqlx::Database>::TypeInfo {
         <Vec<u8> as Type<Sqlite>>::type_info()
     }
 }
 
-impl<'q> Encode<'q, Sqlite> for StoreEntityId {
+impl<'q> Encode<'q, Sqlite> for DbEntityId {
     fn encode_by_ref(
         &self,
         buf: &mut <Sqlite as sqlx::Database>::ArgumentBuffer<'q>,
     ) -> Result<IsNull, BoxDynError> {
         match self {
-            StoreEntityId::User(user_id) => {
+            DbEntityId::User(user_id) => {
                 let bytes = PersistenceCodec::to_vec(&StoredUserId(Cow::Borrowed(user_id)))?;
                 Encode::<Sqlite>::encode(bytes, buf)
             }
-            StoreEntityId::Chat(chat_id) => Encode::<Sqlite>::encode_by_ref(&chat_id.uuid, buf),
-            StoreEntityId::Message(message_id) => {
+            DbEntityId::Chat(chat_id) => Encode::<Sqlite>::encode_by_ref(&chat_id.uuid, buf),
+            DbEntityId::Message(message_id) => {
                 Encode::<Sqlite>::encode_by_ref(&message_id.uuid, buf)
             }
-            StoreEntityId::Attachment(attachment_id) => {
+            DbEntityId::Attachment(attachment_id) => {
                 Encode::<Sqlite>::encode_by_ref(&attachment_id.uuid, buf)
             }
         }
     }
 }
 
-impl Type<Sqlite> for StoreEntityKind {
+impl Type<Sqlite> for DbEntityKind {
     fn type_info() -> <Sqlite as sqlx::Database>::TypeInfo {
         <i64 as Type<Sqlite>>::type_info()
     }
 }
 
-impl<'q> Encode<'q, Sqlite> for StoreEntityKind {
+impl<'q> Encode<'q, Sqlite> for DbEntityKind {
     fn encode_by_ref(
         &self,
         buf: &mut <Sqlite as sqlx::Database>::ArgumentBuffer<'q>,
@@ -64,23 +64,23 @@ impl<'q> Encode<'q, Sqlite> for StoreEntityKind {
     }
 }
 
-impl<'r> Decode<'r, Sqlite> for StoreEntityKind {
+impl<'r> Decode<'r, Sqlite> for DbEntityKind {
     fn decode(value: <Sqlite as sqlx::Database>::ValueRef<'r>) -> Result<Self, BoxDynError> {
         let value: i64 = Decode::<Sqlite>::decode(value)?;
         Ok(value.try_into()?)
     }
 }
 
-struct SqlStoreNotification {
+struct SqlDbNotification {
     entity_id: Vec<u8>,
-    kind: StoreEntityKind,
+    kind: DbEntityKind,
     added: bool,
     updated: bool,
     removed: bool,
 }
 
-impl SqlStoreNotification {
-    fn into_entity_id_and_op(self) -> anyhow::Result<(StoreEntityId, EnumSet<StoreOperation>)> {
+impl SqlDbNotification {
+    fn into_entity_id_and_op(self) -> anyhow::Result<(DbEntityId, EnumSet<DbOperation>)> {
         let Self {
             entity_id,
             kind,
@@ -89,42 +89,40 @@ impl SqlStoreNotification {
             removed,
         } = self;
         let entity_id = match kind {
-            StoreEntityKind::User => {
+            DbEntityKind::User => {
                 let StoredUserId(user_id) = PersistenceCodec::from_slice(&entity_id)?;
-                StoreEntityId::User(user_id.into_owned())
+                DbEntityId::User(user_id.into_owned())
             }
-            StoreEntityKind::Chat => {
-                StoreEntityId::Chat(ChatId::new(Uuid::from_slice(&entity_id)?))
+            DbEntityKind::Chat => DbEntityId::Chat(ChatId::new(Uuid::from_slice(&entity_id)?)),
+            DbEntityKind::Message => {
+                DbEntityId::Message(MessageId::new(Uuid::from_slice(&entity_id)?))
             }
-            StoreEntityKind::Message => {
-                StoreEntityId::Message(MessageId::new(Uuid::from_slice(&entity_id)?))
-            }
-            StoreEntityKind::Attachment => {
-                StoreEntityId::Attachment(AttachmentId::new(Uuid::from_slice(&entity_id)?))
+            DbEntityKind::Attachment => {
+                DbEntityId::Attachment(AttachmentId::new(Uuid::from_slice(&entity_id)?))
             }
         };
-        let mut op: EnumSet<StoreOperation> = Default::default();
+        let mut op: EnumSet<DbOperation> = Default::default();
         if added {
-            op.insert(StoreOperation::Add);
+            op.insert(DbOperation::Add);
         }
         if updated {
-            op.insert(StoreOperation::Update);
+            op.insert(DbOperation::Update);
         }
         if removed {
-            op.insert(StoreOperation::Remove);
+            op.insert(DbOperation::Remove);
         }
         Ok((entity_id, op))
     }
 }
 
-impl StoreNotification {
+impl DbNotification {
     pub(crate) async fn enqueue(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
         let mut transaction = connection.begin().await?;
         for (entity_id, operation) in &self.ops {
             let kind = entity_id.kind();
-            let added = operation.contains(StoreOperation::Add);
-            let updated = operation.contains(StoreOperation::Update);
-            let removed = operation.contains(StoreOperation::Remove);
+            let added = operation.contains(DbOperation::Add);
+            let updated = operation.contains(DbOperation::Update);
+            let removed = operation.contains(DbOperation::Remove);
             query!(
                 "INSERT INTO store_notification (entity_id, kind, added, updated, removed)
                 VALUES (?1, ?2, ?3, ?4, ?5)
@@ -147,9 +145,9 @@ impl StoreNotification {
 
     pub(crate) async fn dequeue(
         mut connection: impl WriteConnection,
-    ) -> sqlx::Result<StoreNotification> {
+    ) -> sqlx::Result<DbNotification> {
         let mut records = query_as!(
-            SqlStoreNotification,
+            SqlDbNotification,
             r#"DELETE FROM store_notification RETURNING
                 entity_id,
                 kind AS "kind: _",
@@ -169,11 +167,11 @@ impl StoreNotification {
                     *entry |= op;
                 }
                 Err(error) => {
-                    error!(%error, "Error parsing store notification; skipping");
+                    error!(%error, "Error parsing DB notification; skipping");
                 }
             }
         }
-        Ok(StoreNotification { ops })
+        Ok(DbNotification { ops })
     }
 }
 
@@ -182,37 +180,37 @@ mod tests {
     use sqlx::SqlitePool;
     use uuid::Uuid;
 
-    use crate::{ChatId, MessageId, db_access::DbAccess};
+    use crate::{ChatId, MessageId, db::access::DbAccess};
 
     use super::*;
 
     #[sqlx::test]
     async fn queue_dequeue_notification(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
-        let mut notification = StoreNotification::default();
+        let mut notification = DbNotification::default();
         notification.ops.insert(
-            StoreEntityId::User(UserId::random("localhost".parse()?)),
-            StoreOperation::Add.into(),
+            DbEntityId::User(UserId::random("localhost".parse()?)),
+            DbOperation::Add.into(),
         );
         notification.ops.insert(
-            StoreEntityId::Chat(ChatId {
+            DbEntityId::Chat(ChatId {
                 uuid: Uuid::new_v4(),
             }),
-            StoreOperation::Update.into(),
+            DbOperation::Update.into(),
         );
         notification.ops.insert(
-            StoreEntityId::Message(MessageId {
+            DbEntityId::Message(MessageId {
                 uuid: uuid::Uuid::new_v4(),
             }),
-            StoreOperation::Remove | StoreOperation::Update,
+            DbOperation::Remove | DbOperation::Update,
         );
 
         notification.enqueue(pool.write().await?).await?;
 
-        let dequeued_notification = StoreNotification::dequeue(pool.write().await?).await?;
+        let dequeued_notification = DbNotification::dequeue(pool.write().await?).await?;
         assert_eq!(notification, dequeued_notification);
 
-        let dequeued_notification = StoreNotification::dequeue(pool.write().await?).await?;
+        let dequeued_notification = DbNotification::dequeue(pool.write().await?).await?;
         assert!(dequeued_notification.is_empty());
 
         Ok(())
@@ -223,29 +221,29 @@ mod tests {
         let pool = DbAccess::for_tests(pool);
         let chat_id = ChatId::new(Uuid::new_v4());
 
-        let mut notification = StoreNotification::default();
+        let mut notification = DbNotification::default();
         notification
             .ops
-            .insert(StoreEntityId::Chat(chat_id), StoreOperation::Add.into());
+            .insert(DbEntityId::Chat(chat_id), DbOperation::Add.into());
         notification.enqueue(pool.write().await?).await?;
 
-        let mut notification = StoreNotification::default();
+        let mut notification = DbNotification::default();
         notification
             .ops
-            .insert(StoreEntityId::Chat(chat_id), StoreOperation::Update.into());
+            .insert(DbEntityId::Chat(chat_id), DbOperation::Update.into());
         notification.enqueue(pool.write().await?).await?;
 
-        let mut notification = StoreNotification::default();
+        let mut notification = DbNotification::default();
         notification
             .ops
-            .insert(StoreEntityId::Chat(chat_id), StoreOperation::Remove.into());
+            .insert(DbEntityId::Chat(chat_id), DbOperation::Remove.into());
         notification.enqueue(pool.write().await?).await?;
 
-        let dequeued_notification = StoreNotification::dequeue(pool.write().await?).await?;
-        let expected = StoreNotification {
+        let dequeued_notification = DbNotification::dequeue(pool.write().await?).await?;
+        let expected = DbNotification {
             ops: [(
-                StoreEntityId::Chat(chat_id),
-                StoreOperation::Add | StoreOperation::Update | StoreOperation::Remove,
+                DbEntityId::Chat(chat_id),
+                DbOperation::Add | DbOperation::Update | DbOperation::Remove,
             )]
             .into(),
         };

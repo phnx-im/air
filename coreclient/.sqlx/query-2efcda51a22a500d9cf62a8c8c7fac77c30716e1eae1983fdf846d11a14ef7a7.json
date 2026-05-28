@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT t_group_id AS \"t_group_id: _\" FROM pq_group WHERE group_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "t_group_id: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "2efcda51a22a500d9cf62a8c8c7fac77c30716e1eae1983fdf846d11a14ef7a7"
+}

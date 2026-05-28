@@ -11,7 +11,8 @@ use std::{
 
 use aircoreclient::{
     ChatId, ChatMessage, ChatType, MessageId,
-    store::{Store, StoreEntityId, StoreNotification, StoreOperation},
+    clients::CoreUser,
+    db::notification::{DbEntityId, DbNotification, DbOperation},
 };
 use flutter_rust_bridge::frb;
 use tokio::sync::{Notify, broadcast, mpsc, watch};
@@ -535,7 +536,7 @@ impl MessageListCubitBase {
     #[frb(sync)]
     pub fn new(user_cubit: &UserCubitBase, chat_id: ChatId) -> Self {
         let store = user_cubit.core_user().clone();
-        let store_notifications = store.subscribe();
+        let store_notifications = store.db_notifications();
 
         let core = CubitCore::new();
         let (commands_tx, commands_rx) = mpsc::channel(4);
@@ -605,18 +606,20 @@ impl MessageListCubitBase {
 
     pub async fn transitions(&self, sink: StreamSink<MessageListTransition>) {
         let mut rx = self.transitions_tx.subscribe();
+        let stop = self.core.cancellation_token().clone();
         self.subscribed.notify_one();
         loop {
-            match rx.recv().await {
-                Ok(transition) => {
+            match stop.run_until_cancelled(rx.recv()).await {
+                None => break, // Cancelled
+                Some(Ok(transition)) => {
                     if sink.add(transition).is_err() {
                         break;
                     }
                 }
-                Err(broadcast::error::RecvError::Lagged(n)) => {
+                Some(Err(broadcast::error::RecvError::Lagged(n))) => {
                     warn!(skipped = n, "Transition receiver lagged");
                 }
-                Err(broadcast::error::RecvError::Closed) => break,
+                Some(Err(broadcast::error::RecvError::Closed)) => break,
             }
         }
     }
@@ -624,8 +627,8 @@ impl MessageListCubitBase {
 
 /// Loads the initial state and listens to changes in a background task.
 #[frb(ignore)]
-struct MessageListContext<S> {
-    store: S,
+struct MessageListContext {
+    core_user: CoreUser,
     state_tx: watch::Sender<MessageListState>,
     transitions_tx: broadcast::Sender<MessageListTransition>,
     chat_id: ChatId,
@@ -634,9 +637,9 @@ struct MessageListContext<S> {
     data: MessageListData,
 }
 
-impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
+impl MessageListContext {
     fn new(
-        store: S,
+        core_user: CoreUser,
         state_tx: watch::Sender<MessageListState>,
         transitions_tx: broadcast::Sender<MessageListTransition>,
         chat_id: ChatId,
@@ -644,7 +647,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
         subscribed: Arc<Notify>,
     ) -> Self {
         Self {
-            store,
+            core_user,
             state_tx,
             transitions_tx,
             chat_id,
@@ -656,7 +659,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
 
     fn spawn(
         mut self,
-        store_notifications: impl Stream<Item = Arc<StoreNotification>> + Send + Unpin + 'static,
+        store_notifications: impl Stream<Item = Arc<DbNotification>> + Send + Unpin + 'static,
         stop: CancellationToken,
     ) {
         spawn_from_sync(async move {
@@ -685,7 +688,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
 
         // Try to find the first unread message
         let first_unread = self
-            .store
+            .core_user
             .first_unread_message(self.chat_id)
             .await
             .inspect_err(|error| {
@@ -698,7 +701,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
             let unread_ts = unread.timestamp().into();
             let unread_id = unread.id();
             let (messages, has_older, has_newer) = match self
-                .store
+                .core_user
                 .messages_around(self.chat_id, unread_ts, unread_id, PAGE_SIZE)
                 .await
             {
@@ -733,7 +736,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
 
     async fn load_bottom(&mut self, is_connection_chat: Option<bool>, scroll_to_bottom: bool) {
         let limit = PAGE_SIZE + 1;
-        let messages = match self.store.messages(self.chat_id, limit).await {
+        let messages = match self.core_user.messages(self.chat_id, limit).await {
             Ok(messages) => messages,
             Err(error) => {
                 error!(chat_id =% self.chat_id, %error, "Failed to load messages");
@@ -765,14 +768,9 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
     }
 
     async fn load_is_connection_chat(&self) -> Option<bool> {
-        self.store
-            .chat(self.chat_id)
+        self.core_user
+            .chat(&self.chat_id)
             .await
-            .inspect_err(|error| {
-                error!(chat_id =% self.chat_id, %error, "Failed to load chat");
-            })
-            .ok()
-            .flatten()
             .map(|chat| matches!(chat.chat_type(), ChatType::Connection(_)))
     }
 
@@ -780,7 +778,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
 
     async fn run_loop(
         &mut self,
-        mut store_notifications: impl Stream<Item = Arc<StoreNotification>> + Unpin,
+        mut store_notifications: impl Stream<Item = Arc<DbNotification>> + Unpin,
         stop: CancellationToken,
     ) {
         loop {
@@ -816,7 +814,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
         };
 
         let (messages, has_older) = match self
-            .store
+            .core_user
             .messages_before(self.chat_id, oldest_ts, oldest_id, PAGE_SIZE)
             .await
         {
@@ -857,7 +855,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
         };
 
         let (messages, has_newer) = match self
-            .store
+            .core_user
             .messages_after(self.chat_id, newest_ts, newest_id, PAGE_SIZE)
             .await
         {
@@ -909,7 +907,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
         }
 
         // Load the target message to get its timestamp
-        let message = match self.store.message(message_id).await {
+        let message = match self.core_user.message(message_id).await {
             Ok(Some(msg)) => msg,
             Ok(None) => {
                 warn!(?message_id, "Jump target message not found");
@@ -925,7 +923,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
         let anchor_ts = message.timestamp().into();
         let anchor_id = message.id();
         let (messages, has_older, has_newer) = match self
-            .store
+            .core_user
             .messages_around(self.chat_id, anchor_ts, anchor_id, PAGE_SIZE)
             .await
         {
@@ -956,7 +954,7 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
 
     // -- Store notification handling --
 
-    async fn process_store_notification(&mut self, notification: &StoreNotification) {
+    async fn process_store_notification(&mut self, notification: &DbNotification) {
         if let Err(error) = self.try_process_store_notification(notification).await {
             error!(%error, "Failed to process store notification");
         }
@@ -964,25 +962,25 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
 
     async fn try_process_store_notification(
         &mut self,
-        notification: &StoreNotification,
+        notification: &DbNotification,
     ) -> anyhow::Result<()> {
         let mut needs_load_newer = false;
         let mut clear_unread_marker = false;
 
         for (id, op) in &notification.ops {
-            let StoreEntityId::Message(message_id) = id else {
+            let DbEntityId::Message(message_id) = id else {
                 continue;
             };
 
-            if op.contains(StoreOperation::Remove) {
+            if op.contains(DbOperation::Remove) {
                 if self.data.message_ids_index.contains_key(message_id)
-                    && let Some(message) = self.store.message(*message_id).await?
+                    && let Some(message) = self.core_user.message(*message_id).await?
                     && message.chat_id() == self.chat_id
                 {
                     self.remove_message_in_place(*message_id);
                 }
-            } else if op.contains(StoreOperation::Add) {
-                if let Some(message) = self.store.message(*message_id).await?
+            } else if op.contains(DbOperation::Add) {
+                if let Some(message) = self.core_user.message(*message_id).await?
                     && message.chat_id() == self.chat_id
                 {
                     // Own message (not yet sent to server) clears the
@@ -994,9 +992,9 @@ impl<S: Store + Send + Sync + 'static> MessageListContext<S> {
                         needs_load_newer = true;
                     }
                 }
-            } else if op.contains(StoreOperation::Update)
+            } else if op.contains(DbOperation::Update)
                 && self.data.message_ids_index.contains_key(message_id)
-                && let Some(message) = self.store.message(*message_id).await?
+                && let Some(message) = self.core_user.message(*message_id).await?
                 && message.chat_id() == self.chat_id
             {
                 self.update_message_in_place(message);

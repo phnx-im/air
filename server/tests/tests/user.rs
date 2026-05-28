@@ -8,7 +8,7 @@ use airapiclient::as_api::AsRequestError;
 use aircommon::{assert_matches, identifiers::Username};
 use aircoreclient::{
     AddUsernameContactError, Asset, BlockedContactError, DisplayName, EventMessage, Message,
-    SystemMessage, UserProfile, clients::CoreUser, store::Store,
+    SystemMessage, UserProfile, clients::CoreUser,
 };
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use mimi_content::MimiContent;

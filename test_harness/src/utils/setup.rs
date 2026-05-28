@@ -19,7 +19,7 @@ use aircommon::{
     OpenMlsRand, RustCrypto,
     identifiers::{Fqdn, MimiId, UserId, Username},
 };
-use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, store::Store, *};
+use aircoreclient::{ChatId, ChatStatus, ChatType, clients::CoreUser, *};
 use airserver::network_provider::MockNetworkProvider;
 use anyhow::Context;
 use mimi_content::{
@@ -149,6 +149,15 @@ impl TestUser {
     }
 }
 
+fn parse_apq_groups_env_var() -> anyhow::Result<bool> {
+    let apq_group_by_default = std::env::var("TEST_WITH_APQ_GROUPS")
+        .context("failed to read TEST_WITH_APQ_GROUPS env var")?;
+    let apq_groups: bool = apq_group_by_default.parse().context(
+        "failed to parse TEST_WITH_APQ_GROUPS env var as bool: expected 'true' or 'false'",
+    )?;
+    Ok(apq_groups)
+}
+
 enum TestKind {
     SingleBackend(String), // url of the single backend
 }
@@ -156,13 +165,17 @@ enum TestKind {
 pub struct TestBackend {
     pub users: HashMap<UserId, TestUser>,
     pub groups: HashMap<ChatId, HashSet<UserId>>,
-    // This is what we feed to the test clients.
+    /// This is what we feed to the test clients.
     server_url: ServerUrl,
     domain: Fqdn,
     invitation_codes: Vec<String>,
     temp_dir: TempDir,
-    // Present only if we spawned a local server.
+    /// Present only if we spawned a local server.
     listener_control_handle: Option<ControlHandle>,
+    /// Whether to create APQ groups by default
+    ///
+    /// Read from the `TEST_WITH_APQ_GROUPS` environment variable.
+    pub apq_groups: bool,
     _guard: Option<LocalEnterGuard>,
     _cleanup: Option<Box<dyn Any>>,
 }
@@ -270,6 +283,15 @@ impl TestBackend {
                 }
             };
 
+        let apq_groups = std::env::var("TEST_WITH_APQ_GROUPS").unwrap_or("false".to_string());
+        let apq_groups: bool = apq_groups
+            .parse()
+            .context(
+                "failed to parse TEST_WITH_APQ_GROUPS env var as bool: expected 'true' or 'false'",
+            )
+            .unwrap();
+        info!(enabled = apq_groups, "APQ groups by default");
+
         Self {
             users: HashMap::new(),
             groups: HashMap::new(),
@@ -278,6 +300,7 @@ impl TestBackend {
             temp_dir: tempfile::tempdir().unwrap(),
             listener_control_handle,
             invitation_codes,
+            apq_groups,
             _guard: Some(_guard),
             _cleanup,
         }
@@ -1083,13 +1106,24 @@ impl TestBackend {
         result
     }
 
+    pub async fn create_apq_group(&mut self, user_id: &UserId) -> ChatId {
+        self.create_group_inner(user_id, true).await
+    }
+
     pub async fn create_group(&mut self, user_id: &UserId) -> ChatId {
+        self.create_group_inner(user_id, self.apq_groups).await
+    }
+
+    async fn create_group_inner(&mut self, user_id: &UserId, is_apq: bool) -> ChatId {
         let test_user = self.users.get_mut(user_id).unwrap();
         let user = &mut test_user.user;
         let user_chats_before = user.chats().await;
 
         let group_name = Uuid::new_v4().to_string();
-        let chat_id = user.create_chat(group_name.clone(), None).await.unwrap();
+        let chat_id = user
+            .create_chat(group_name.clone(), None, is_apq)
+            .await
+            .unwrap();
         let mut user_chats_after = user.chats().await;
         let new_chat_position = user_chats_after
             .iter()
@@ -1709,19 +1743,21 @@ impl TestBackend {
     }
 }
 
-trait StoreExt: Store {
+trait CoreUSerExt {
     // Note: It's inefficient to load all chats, but it is ok to do it in tests.
+    async fn chats(&self) -> Vec<Chat>;
+}
+
+impl CoreUSerExt for CoreUser {
     async fn chats(&self) -> Vec<Chat> {
         let chat_ids = self.ordered_chat_ids().await.unwrap();
-        let mut chats = Vec::new();
+        let mut chats = Vec::with_capacity(chat_ids.len());
         for chat_id in chat_ids {
-            chats.push(self.chat(chat_id).await.unwrap().unwrap());
+            chats.push(self.chat(&chat_id).await.unwrap());
         }
         chats
     }
 }
-
-impl<T: Store> StoreExt for T {}
 
 fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet<String> {
     display_messages

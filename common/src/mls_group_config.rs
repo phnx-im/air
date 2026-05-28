@@ -4,6 +4,7 @@
 
 //! Configuration for MLS groups.
 
+use apqmls::ApqCiphersuite;
 use mls_assist::{
     components::ComponentsList,
     openmls::{
@@ -51,6 +52,11 @@ pub const QS_CLIENT_REFERENCE_EXTENSION_TYPE: u16 = 0xff00;
 const DEFAULT_MLS_VERSION: ProtocolVersion = ProtocolVersion::Mls10;
 const DEFAULT_CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
+const PQ_CIPHERSUITE: Ciphersuite = Ciphersuite::AIR_128_MLKEM768_AES256GCM_SHA384_Ed25519;
+
+pub const APQ_CIPHERSUITE: ApqCiphersuite =
+    ApqCiphersuite::new(DEFAULT_CIPHERSUITE, PQ_CIPHERSUITE);
+
 // Required capabilities
 const REQUIRED_EXTENSIONS: &[ExtensionType] = &[
     ExtensionType::Unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE),
@@ -75,12 +81,16 @@ pub fn default_group_required_extensions() -> RequiredCapabilitiesExtension {
 pub const SUPPORTED_PROTOCOL_VERSIONS: &[ProtocolVersion] = &[DEFAULT_MLS_VERSION];
 pub const SUPPORTED_CIPHERSUITES: &[Ciphersuite] = &[DEFAULT_CIPHERSUITE];
 pub const SUPPORTED_EXTENSIONS: &[ExtensionType] = &[
-    ExtensionType::Unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE),
-    ExtensionType::Unknown(GROUP_DATA_EXTENSION_TYPE),
-    ExtensionType::LastResort,
+    ExtensionType::Unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE), // Also in REQUIRED_EXTENSIONS
+    ExtensionType::Unknown(GROUP_DATA_EXTENSION_TYPE),          // Also in REQUIRED_EXTENSIONS
+    ExtensionType::LastResort,                                  // Also in REQUIRED_EXTENSIONS
     ExtensionType::AppDataDictionary,
 ];
-pub const SUPPORTED_PROPOSALS: &[ProposalType] = REQUIRED_PROPOSALS;
+pub const SUPPORTED_PROPOSALS: &[ProposalType] = &[
+    ProposalType::Custom(FRIENDSHIP_PACKAGE_PROPOSAL_TYPE), // Also in REQUIRED_PROPOSALS
+    ProposalType::SelfRemove,                               // Also in REQUIRED_PROPOSALS
+    ProposalType::AppDataUpdate,
+];
 pub const SUPPORTED_CREDENTIALS: &[CredentialType] = REQUIRED_CREDENTIALS;
 pub const SUPPORTED_COMPONENTS: &[ComponentId] = &[AIR_COMPONENT_ID];
 

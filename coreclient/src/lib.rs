@@ -9,13 +9,12 @@
 mod chats;
 pub mod clients;
 mod contacts;
-pub(crate) mod db_access;
+pub mod db;
 mod groups;
 mod job;
 mod key_stores;
 pub mod outbound_service;
 pub(crate) mod privacy_pass;
-pub mod store;
 mod user_profiles;
 mod usernames;
 mod utils;
@@ -41,12 +40,12 @@ pub use crate::{
         invitation_code::{InvitationCode, RequestInvitationCodeError},
         invite_users::InviteUsersError,
         safety_code::SafetyCode,
-        user_settings::ReadReceiptsSetting,
+        user_settings::{ReadReceiptsSetting, UserSetting},
     },
     contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},
     groups::debug_info::{
         AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
-        ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo,
+        ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqDebugInfo,
         RequiredDebugCapabilities,
     },
     privacy_pass::{RequestTokensError, TokenId},

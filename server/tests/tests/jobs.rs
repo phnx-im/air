@@ -48,7 +48,7 @@
 use std::time::Duration;
 
 use aircommon::identifiers::UserId;
-use aircoreclient::{ChatId, ChatStatus, store::Store};
+use aircoreclient::{ChatId, ChatStatus};
 use airserver_test_harness::utils::setup::TestBackend;
 use tokio::time::sleep;
 
@@ -113,7 +113,7 @@ async fn chat_operation_fails_if_pending_operation_fails() {
         .await
         .unwrap()
         .expect("pending operation should exist");
-    assert_eq!(pending.operation_type, "other");
+    assert!(pending.operation_type == "other" || pending.operation_type == "apq_other");
     assert_eq!(pending.request_status, "ready_to_retry");
 
     setup.listener_control_handle().set_drop_next_response();
@@ -127,7 +127,7 @@ async fn chat_operation_fails_if_pending_operation_fails() {
         .await
         .unwrap()
         .expect("pending operation should still exist");
-    assert_eq!(pending_after.operation_type, "other");
+    assert!(pending_after.operation_type == "other" || pending_after.operation_type == "apq_other");
     assert_eq!(pending_after.request_status, "ready_to_retry");
     assert!(pending_after.number_of_attempts >= pending.number_of_attempts);
 
@@ -314,5 +314,47 @@ async fn leave_with_wrong_epoch_applies_locally_and_keeps_pending() {
     assert!(
         pending_after.is_none(),
         "pending operation should be deleted after successful retry"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn pending_leave_is_deleted_when_another_member_commits_self_remove() {
+    let (setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;
+    let alice_user = &setup.get_user(&alice).user;
+    let bob_user = &setup.get_user(&bob).user;
+
+    setup.listener_control_handle().set_drop_next_response();
+    alice_user.leave_chat(chat_id).await.unwrap();
+
+    let pending = alice_user
+        .pending_chat_operation_info(chat_id)
+        .await
+        .unwrap()
+        .expect("pending leave should remain after dropped response");
+    assert_eq!(pending.operation_type, "leave");
+
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Bob should process Alice's self-remove proposal without errors"
+    );
+
+    bob_user.update_key(chat_id).await.unwrap();
+
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    let result = alice_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Alice should process Bob's commit without errors"
+    );
+
+    let pending_after = alice_user
+        .pending_chat_operation_info(chat_id)
+        .await
+        .unwrap();
+    assert!(
+        pending_after.is_none(),
+        "pending leave should be deleted once another member commits our self-remove"
     );
 }

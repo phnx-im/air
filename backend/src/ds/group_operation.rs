@@ -6,17 +6,20 @@ use std::collections::HashSet;
 
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
-    group::ProcessedAssistedMessage,
-    messages::{AssistedWelcome, SerializedMlsMessage},
+    group::{ApqProcessedAssistedMessagePlus, ProcessedAssistedMessage, apq::ApqGroupRef},
+    messages::{AssistedMessageIn, AssistedWelcome, SerializedMlsMessage},
     openmls::{
         group::StagedCommit,
         prelude::{
-            Extension, KeyPackage, LeafNodeIndex, OpenMlsProvider, ProcessedMessageContent, Sender,
+            Extension, KeyPackage, LeafNodeIndex, OpenMlsProvider, ProcessedMessage,
+            ProcessedMessageContent, Sender,
         },
     },
     openmls_rust_crypto::OpenMlsRustCrypto,
     provider_traits::MlsAssistProvider,
 };
+
+use apqmls::messages::ApqWelcome;
 
 use aircommon::{
     credentials::VerifiableClientCredential,
@@ -27,8 +30,8 @@ use aircommon::{
     identifiers::QsReference,
     messages::{
         client_ds::{
-            AadMessage, AadPayload, AddUsersInfo, DsJoinerInformation, GroupOperationParams,
-            GroupOperationParamsAad, QsQueueMessagePayload, WelcomeBundle,
+            AadMessage, AadPayload, AddUsersInfo, ApqWelcomeBundle, DsJoinerInformation,
+            GroupOperationParams, GroupOperationParamsAad, QsQueueMessagePayload, WelcomeBundle,
         },
         welcome_attribution_info::EncryptedWelcomeAttributionInfo,
     },
@@ -63,28 +66,22 @@ impl SenderIndex {
     }
 }
 
+struct TCommitValidation {
+    sender_index: SenderIndex,
+    added_users_state: Option<AddUsersState>,
+    external_sender_information: Option<(EncryptedUserProfileKey, QsReference)>,
+    removed_clients: Vec<LeafNodeIndex>,
+}
+
 impl DsGroupState {
-    // TODO: Make into a sans-io-style state machine
-    pub(crate) async fn group_operation(
+    /// Perform DS-level validation
+    fn validate_t_commit(
         &mut self,
-        params: GroupOperationParams,
-        group_state_ear_key: &GroupStateEarKey,
-    ) -> Result<(SerializedMlsMessage, Vec<DsFanOutMessage>), GroupOperationError> {
-        // Process message (but don't apply it yet). This performs mls-assist-level validations.
-        let processed_assisted_message_plus = self
-            .group
-            .process_assisted_message(self.provider.crypto(), params.commit)?;
-
-        // Perform DS-level validation
-        // Make sure that we have the right message type.
-        let ProcessedAssistedMessage::Commit(processed_message, _group_info) =
-            &processed_assisted_message_plus.processed_assisted_message
-        else {
-            // This should be a commit.
-            warn!("Group operation is not a commit");
-            return Err(GroupOperationError::InvalidMessage);
-        };
-
+        processed_message: &ProcessedMessage,
+        add_users_info: Option<AddUsersInfo>,
+        pq_group_state: Option<&DsGroupState>,
+        pq_staged_commit: Option<&StagedCommit>,
+    ) -> Result<TCommitValidation, GroupOperationError> {
         // Validate that the AAD includes enough encrypted credential chains
         let aad_message = AadMessage::tls_deserialize_exact_bytes(processed_message.aad())
             .map_err(|e| {
@@ -149,18 +146,20 @@ impl DsGroupState {
         //       commit.
 
         // Validation related to adding users
-        let added_users_state_option = if !adds_users {
+        let added_users_state = if !adds_users {
             None
         } else {
-            let Some(add_users_info) = params.add_users_info_option else {
+            let Some(add_users_info) = add_users_info else {
                 warn!("Group operation adds users but no add users info is provided");
                 return Err(GroupOperationError::InvalidMessage);
             };
 
             let add_users_state = validate_added_users(staged_commit, aad_payload, add_users_info)?;
 
+            let mut pq_add_proposals = pq_staged_commit.map(|commit| commit.add_proposals());
+
             for ((added_key_package, _), _) in &add_users_state.added_users {
-                let added = VerifiableClientCredential::from_basic_credential(
+                let added_credential = VerifiableClientCredential::from_basic_credential(
                     added_key_package.leaf_node().credential(),
                 )
                 .map_err(|e| {
@@ -168,8 +167,35 @@ impl DsGroupState {
                     GroupOperationError::InvalidMessage
                 })?;
 
-                self.room_state_change_role(sender.user_id(), added.user_id(), RoleIndex::Regular)
-                    .ok_or(GroupOperationError::InvalidMessage)?;
+                if let Some(pq_adds_sig_keys) = pq_add_proposals.as_mut() {
+                    let pq_add_proposal = pq_adds_sig_keys.next().ok_or_else(|| {
+                        error!("PQ has fewer add proposals than T");
+                        GroupOperationError::InvalidMessage
+                    })?;
+                    let pq_signature_key = pq_add_proposal
+                        .add_proposal()
+                        .key_package()
+                        .leaf_node()
+                        .signature_key();
+                    if added_key_package.leaf_node().signature_key() != pq_signature_key {
+                        error!("T and PQ added user signature keys do not match");
+                        return Err(GroupOperationError::InvalidMessage);
+                    }
+                }
+
+                self.room_state_change_role(
+                    sender.user_id(),
+                    added_credential.user_id(),
+                    RoleIndex::Regular,
+                )
+                .ok_or(GroupOperationError::InvalidMessage)?;
+            }
+
+            if let Some(pq_adds_sig_keys) = pq_add_proposals.as_mut()
+                && pq_adds_sig_keys.next().is_some()
+            {
+                error!("PQ has more add proposals than T");
+                return Err(GroupOperationError::InvalidMessage);
             }
 
             Some(add_users_state)
@@ -216,28 +242,79 @@ impl DsGroupState {
 
         let removed_clients = removed_clients(staged_commit);
 
-        for removed in &removed_clients {
-            if *removed == sender_index.leaf_index() {
+        for &removed_index in &removed_clients {
+            if removed_index == sender_index.leaf_index() {
                 return Err(GroupOperationError::InvalidMessage);
             }
 
-            let removed = VerifiableClientCredential::from_basic_credential(
-                self.group
-                    .leaf(*removed)
-                    .ok_or_else(|| {
-                        error!("Leaf of removed user not found");
-                        GroupOperationError::InvalidMessage
-                    })?
-                    .credential(),
-            )
-            .map_err(|e| {
-                error!(%e, "Credential of removed user is invalid");
+            let removed_leaf = self.group.leaf(removed_index).ok_or_else(|| {
+                error!("Leaf of removed user not found");
                 GroupOperationError::InvalidMessage
             })?;
 
-            self.room_state_change_role(sender.user_id(), removed.user_id(), RoleIndex::Outsider)
-                .ok_or(GroupOperationError::InvalidMessage)?;
+            if let Some(pq_group_state) = pq_group_state {
+                let pq_removed_signature_key = pq_group_state
+                    .group
+                    .leaf(removed_index)
+                    .ok_or_else(|| {
+                        error!("Leaf of removed user not found in PQ group");
+                        GroupOperationError::InvalidMessage
+                    })?
+                    .signature_key();
+                if removed_leaf.signature_key() != pq_removed_signature_key {
+                    error!("T and PQ removed user signature keys do not match");
+                    return Err(GroupOperationError::InvalidMessage);
+                }
+            }
+
+            let removed_credential =
+                VerifiableClientCredential::from_basic_credential(removed_leaf.credential())
+                    .map_err(|e| {
+                        error!(%e, "Credential of removed user is invalid");
+                        GroupOperationError::InvalidMessage
+                    })?;
+
+            self.room_state_change_role(
+                sender.user_id(),
+                removed_credential.user_id(),
+                RoleIndex::Outsider,
+            )
+            .ok_or(GroupOperationError::InvalidMessage)?;
         }
+
+        Ok(TCommitValidation {
+            sender_index,
+            added_users_state,
+            external_sender_information,
+            removed_clients,
+        })
+    }
+
+    // TODO: Make into a sans-io-style state machine
+    pub(crate) async fn process_group_operation(
+        &mut self,
+        params: GroupOperationParams,
+    ) -> Result<(SerializedMlsMessage, Option<AddUsersState>), GroupOperationError> {
+        // Process message (but don't apply it yet). This performs mls-assist-level validations.
+        let processed_assisted_message_plus = self
+            .group
+            .process_assisted_message(self.provider.crypto(), params.commit)?;
+
+        // Make sure that we have the right message type.
+        let ProcessedAssistedMessage::Commit(processed_message, _group_info) =
+            &processed_assisted_message_plus.processed_assisted_message
+        else {
+            // This should be a commit.
+            warn!("Group operation is not a commit");
+            return Err(GroupOperationError::InvalidMessage);
+        };
+
+        let TCommitValidation {
+            sender_index,
+            added_users_state,
+            external_sender_information,
+            removed_clients,
+        } = self.validate_t_commit(processed_message, params.add_users_info_option, None, None)?;
 
         // Everything seems to be okay.
         // Now we have to update the group state and distribute.
@@ -252,29 +329,14 @@ impl DsGroupState {
         // Process removes
         self.remove_profiles(removed_clients);
 
-        // ... s.t. it's easier to update the user and client profiles.
-
-        let mut fan_out_messages: Vec<DsFanOutMessage> = vec![];
-
-        // If users were added, update the list of user profiles
-        if let Some(AddUsersState {
-            added_users,
-            welcome,
-        }) = added_users_state_option
-        {
-            self.update_membership_profiles(&added_users)?;
-            fan_out_messages.extend(self.generate_fan_out_messages(
-                added_users,
-                group_state_ear_key,
-                &welcome,
-            )?);
+        // Update membership profiles for added users
+        if let Some(add_users_state) = &added_users_state {
+            self.update_membership_profiles(&add_users_state.added_users)?;
         }
 
         // Process resync operations
         if let Some((encrypted_user_profile_key, client_queue_config)) = external_sender_information
         {
-            // The original client profile was already removed. We just have to
-            // add the new one.
             let client_profile = MemberProfile {
                 leaf_index: sender_index.leaf_index(),
                 client_queue_config,
@@ -286,11 +348,153 @@ impl DsGroupState {
                 .insert(sender_index.leaf_index(), client_profile);
         }
 
-        // Finally, we create the message for distribution.
         Ok((
             processed_assisted_message_plus.serialized_mls_message,
-            fan_out_messages,
+            added_users_state,
         ))
+    }
+
+    /// Returns (serialized message, T added users state, PQ welcome info)
+    pub(crate) fn process_apq_group_operation(
+        t_group_state: &mut DsGroupState,
+        pq_group_state: &mut DsGroupState,
+        t_message: AssistedMessageIn,
+        pq_message: AssistedMessageIn,
+        t_add_users_info: Option<AddUsersInfo>,
+        pq_add_users_info: Option<AddUsersInfo>,
+    ) -> Result<
+        (
+            SerializedMlsMessage,
+            Option<AddUsersState>,
+            Option<AssistedWelcome>,
+        ),
+        GroupOperationError,
+    > {
+        let crypto = t_group_state.provider.crypto();
+        let ApqProcessedAssistedMessagePlus {
+            processed_assisted_message,
+            serialized_apq_message,
+        } = ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
+            .process_apq_assisted_message(crypto, t_message, pq_message, |_, _| true)?;
+
+        // PQ-side validation: sender type, self-remove check, welcome
+        let (pq_staged_commit, pq_welcome) = {
+            let ProcessedMessageContent::StagedCommitMessage(pq_staged_commit) =
+                processed_assisted_message
+                    .processed_message
+                    .pq_message
+                    .content()
+            else {
+                warn!("PQ message content is not a staged commit");
+                return Err(GroupOperationError::InvalidMessage);
+            };
+            let pq_sender_index = match processed_assisted_message
+                .processed_message
+                .pq_message
+                .sender()
+            {
+                Sender::Member(leaf_index) => SenderIndex::Member(*leaf_index),
+                Sender::NewMemberCommit => {
+                    let Some(remove_proposal) = pq_staged_commit.remove_proposals().next() else {
+                        warn!("PQ external commit is not a resync operation");
+                        return Err(GroupOperationError::InvalidMessage);
+                    };
+                    SenderIndex::External(remove_proposal.remove_proposal().removed())
+                }
+                Sender::External(_) | Sender::NewMemberProposal => {
+                    warn!("PQ group operation must be a member or external commit");
+                    return Err(GroupOperationError::InvalidMessage);
+                }
+            };
+            for removed in removed_clients(pq_staged_commit) {
+                if removed == pq_sender_index.leaf_index() {
+                    return Err(GroupOperationError::InvalidMessage);
+                }
+            }
+            let pq_welcome = if pq_staged_commit.add_proposals().count() != 0 {
+                let Some(pq_add_users_info) = pq_add_users_info else {
+                    warn!("PQ group operation adds users but no add users info is provided");
+                    return Err(GroupOperationError::InvalidMessage);
+                };
+                validate_welcome_only(pq_staged_commit, &pq_add_users_info.welcome)?;
+                Some(pq_add_users_info.welcome)
+            } else {
+                None
+            };
+            (pq_staged_commit, pq_welcome)
+        };
+
+        let TCommitValidation {
+            sender_index: t_sender_index,
+            added_users_state: t_add_users_state,
+            external_sender_information,
+            removed_clients: t_removed_clients,
+        } = t_group_state.validate_t_commit(
+            &processed_assisted_message.processed_message.t_message,
+            t_add_users_info,
+            Some(pq_group_state),
+            Some(pq_staged_commit),
+        )?;
+
+        // Everything seems to be okay.
+        // Now we have to update the group state and distribute.
+
+        // We first accept the message into the group state ...
+        ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
+            .accept_apq_processed_message(
+                t_group_state.provider.storage(),
+                pq_group_state.provider.storage(),
+                processed_assisted_message,
+                Duration::days(USER_EXPIRATION_DAYS),
+            )?;
+
+        // Process removes
+        t_group_state.remove_profiles(t_removed_clients);
+
+        // Update membership profiles for added users
+        if let Some(ref add_users_state) = t_add_users_state {
+            t_group_state.update_membership_profiles(&add_users_state.added_users)?;
+        }
+
+        // Process resync operations
+        if let Some((encrypted_user_profile_key, client_queue_config)) = external_sender_information
+        {
+            let client_profile = MemberProfile {
+                leaf_index: t_sender_index.leaf_index(),
+                client_queue_config,
+                activity_time: TimeStamp::now(),
+                activity_epoch: t_group_state.group().epoch(),
+                encrypted_user_profile_key,
+            };
+            t_group_state
+                .member_profiles
+                .insert(t_sender_index.leaf_index(), client_profile);
+        }
+
+        Ok((serialized_apq_message, t_add_users_state, pq_welcome))
+    }
+
+    pub(crate) async fn group_operation(
+        &mut self,
+        params: GroupOperationParams,
+        group_state_ear_key: &GroupStateEarKey,
+    ) -> Result<(SerializedMlsMessage, Vec<DsFanOutMessage>), GroupOperationError> {
+        let (serialized_message, added_users_state) = self.process_group_operation(params).await?;
+
+        let mut fan_out_messages: Vec<DsFanOutMessage> = vec![];
+        if let Some(AddUsersState {
+            added_users,
+            welcome,
+        }) = added_users_state
+        {
+            fan_out_messages.extend(self.generate_fan_out_messages(
+                added_users,
+                group_state_ear_key,
+                &welcome,
+            )?);
+        }
+
+        Ok((serialized_message, fan_out_messages))
     }
 
     /// Updates client and user profiles based on the added users.
@@ -390,6 +594,58 @@ impl DsGroupState {
         Ok(fan_out_messages)
     }
 
+    pub(crate) fn generate_apq_fan_out_messages(
+        &self,
+        added_users: Vec<(AddedUserInfo, EncryptedWelcomeAttributionInfo)>,
+        t_welcome: &AssistedWelcome,
+        pq_welcome: &AssistedWelcome,
+        ear_key: &GroupStateEarKey,
+    ) -> Result<Vec<DsFanOutMessage>, GroupOperationError> {
+        let mut fan_out_messages = vec![];
+        for ((t_key_package, _), attribution_info) in added_users.into_iter() {
+            let client_queue_config = QsReference::tls_deserialize_exact_bytes(
+                t_key_package
+                    .leaf_node()
+                    .extensions()
+                    .iter()
+                    .find_map(|e| match e {
+                        Extension::Unknown(QS_CLIENT_REFERENCE_EXTENSION_TYPE, bytes) => {
+                            Some(&bytes.0)
+                        }
+                        _ => None,
+                    })
+                    .ok_or(GroupOperationError::MissingQueueConfig)?
+                    .as_slice(),
+            )
+            .map_err(|_| GroupOperationError::MissingQueueConfig)?;
+            let info = &[];
+            let aad = &[];
+            let encryption_key: JoinerInfoEncryptionKey =
+                t_key_package.hpke_init_key().clone().into();
+            let encrypted_joiner_info = DsJoinerInformation {
+                group_state_ear_key: ear_key.clone(),
+            }
+            .encrypt(&encryption_key, info, aad);
+            let welcome = ApqWelcome::new(t_welcome.welcome.clone(), pq_welcome.welcome.clone());
+            let welcome_bundle = ApqWelcomeBundle {
+                welcome,
+                encrypted_attribution_info: attribution_info,
+                encrypted_joiner_info,
+            };
+            let fan_out_message = DsFanOutMessage {
+                payload: DsFanOutPayload::QueueMessage(
+                    welcome_bundle
+                        .try_into()
+                        .map_err(|_| GroupOperationError::LibraryError)?,
+                ),
+                client_reference: client_queue_config,
+                suppress_notifications: false.into(),
+            };
+            fan_out_messages.push(fan_out_message);
+        }
+        Ok(fan_out_messages)
+    }
+
     /// Removes user and client profiles based on the list of removed clients.
     fn remove_profiles(&mut self, removed_clients: Vec<LeafNodeIndex>) {
         for client_index in removed_clients {
@@ -429,11 +685,42 @@ impl DsGroupState {
     }
 }
 
-type AddedUserInfo = (KeyPackage, EncryptedUserProfileKey);
+pub(crate) type AddedUserInfo = (KeyPackage, EncryptedUserProfileKey);
 
-struct AddUsersState {
-    added_users: Vec<(AddedUserInfo, EncryptedWelcomeAttributionInfo)>,
-    welcome: AssistedWelcome,
+pub(crate) struct AddUsersState {
+    pub(crate) added_users: Vec<(AddedUserInfo, EncryptedWelcomeAttributionInfo)>,
+    pub(crate) welcome: AssistedWelcome,
+}
+
+/// Checks that each add proposal has a corresponding Welcome entry and vice versa.
+fn validate_welcome_only(
+    staged_commit: &StagedCommit,
+    welcome: &AssistedWelcome,
+) -> Result<(), GroupOperationError> {
+    let mut remaining_welcomes = welcome.joiners().collect::<HashSet<_>>();
+
+    if staged_commit
+        .add_proposals()
+        .map(|ap| {
+            ap.add_proposal()
+                .key_package()
+                .hash_ref(OpenMlsRustCrypto::default().crypto())
+        })
+        .any(|add_proposal_ref| {
+            let Ok(hash_ref) = add_proposal_ref else {
+                return true;
+            };
+            !remaining_welcomes.remove(&hash_ref)
+        })
+    {
+        return Err(GroupOperationError::IncompleteWelcome);
+    }
+
+    if !remaining_welcomes.is_empty() {
+        return Err(GroupOperationError::IncompleteWelcome);
+    }
+
+    Ok(())
 }
 
 fn validate_added_users(
@@ -447,32 +734,7 @@ fn validate_added_users(
         return Err(GroupOperationError::InvalidMessage);
     }
 
-    // Check if for each added member, there is a corresponding entry
-    // in the Welcome.
-    let mut remaining_welcomes = add_users_info.welcome.joiners().collect::<HashSet<_>>();
-
-    if staged_commit
-        .add_proposals()
-        .map(|ap| {
-            ap.add_proposal()
-                .key_package()
-                .hash_ref(OpenMlsRustCrypto::default().crypto())
-        })
-        .any(|add_proposal_ref| {
-            // Hashing shouldn't fail, so we ignore it here.
-            let Ok(hash_ref) = add_proposal_ref else {
-                return true;
-            };
-            !remaining_welcomes.remove(&hash_ref)
-        })
-    {
-        return Err(GroupOperationError::IncompleteWelcome);
-    }
-
-    // Check if all welcomes had a corresponding add proposal
-    if !remaining_welcomes.is_empty() {
-        return Err(GroupOperationError::IncompleteWelcome);
-    }
+    validate_welcome_only(staged_commit, &add_users_info.welcome)?;
 
     let added_users = staged_commit
         .add_proposals()

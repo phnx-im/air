@@ -82,16 +82,27 @@ class MainFlutterWindow: NSWindow {
 
   private func requestNotificationPermission(result: @escaping FlutterResult) {
     let center = UNUserNotificationCenter.current()
-    center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
-      DispatchQueue.main.async {
-        if let error = error {
-          result(FlutterError(
-            code: "PERMISSION_ERROR",
-            message: "Failed to request notification permission: \(error.localizedDescription)",
-            details: nil))
-        } else {
-          result(granted)
+    center.getNotificationSettings { settings in
+      switch settings.authorizationStatus {
+      case .notDetermined:
+        center.requestAuthorization(options: [.alert, .sound, .badge]) { granted, error in
+          DispatchQueue.main.async {
+            if let error = error {
+              result(FlutterError(
+                code: "PERMISSION_ERROR",
+                message: "Failed to request notification permission: \(error.localizedDescription)",
+                details: nil))
+            } else {
+              result(granted)
+            }
+          }
         }
+      case .authorized, .provisional, .ephemeral:
+        DispatchQueue.main.async { result(true) }
+      case .denied:
+        DispatchQueue.main.async { result(false) }
+      @unknown default:
+        DispatchQueue.main.async { result(false) }
       }
     }
   }

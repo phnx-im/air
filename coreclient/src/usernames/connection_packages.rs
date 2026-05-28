@@ -11,7 +11,7 @@ use aircommon::{
 };
 use sqlx::{Result, query, query_scalar};
 
-use crate::db_access::{ReadConnection, WriteConnection};
+use crate::db::access::{ReadConnection, WriteConnection};
 
 pub(crate) trait StorableConnectionPackage: Sized + Borrow<ConnectionPackage> {
     /// Store the connection package in the database.
@@ -90,7 +90,7 @@ impl StorableConnectionPackage for ConnectionPackage {}
 
 #[cfg(test)]
 mod tests {
-    use crate::{UsernameRecord, db_access::DbAccess};
+    use crate::{UsernameRecord, db::access::DbAccess};
 
     use super::*;
 

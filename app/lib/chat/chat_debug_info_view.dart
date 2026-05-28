@@ -10,6 +10,7 @@ import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/ds/foundations/monospace.dart';
 import 'package:air/util/scaffold_messenger.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -20,18 +21,25 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 class ChatDebugInfoView extends HookWidget {
   const ChatDebugInfoView({
     required this.title,
-    required this.debugInfo,
+    required this.loadDebugInfo,
+    required this.onUpdateGroup,
+    required this.onUpdateApqGroup,
     required this.onRequestResync,
+    required this.onEraseLocalChat,
     super.key,
   });
 
   final String title;
-  final Future<GroupDebugInfo> debugInfo;
+  final Future<GroupDebugInfo> Function() loadDebugInfo;
+  final AsyncCallback onUpdateGroup;
+  final AsyncCallback onUpdateApqGroup;
   final VoidCallback onRequestResync;
+  final VoidCallback onEraseLocalChat;
 
   @override
   Widget build(BuildContext context) {
-    final snapshot = useFuture(debugInfo);
+    final debugInfoFuture = useState(useMemoized(loadDebugInfo));
+    final snapshot = useFuture(debugInfoFuture.value);
     final colors = CustomColorScheme.of(context);
 
     return AppScaffold(
@@ -39,7 +47,16 @@ class ChatDebugInfoView extends HookWidget {
       child: switch (snapshot) {
         AsyncSnapshot(hasData: true, :final data) => _GroupDebugInfoBody(
           info: data!,
+          onUpdateGroup: () async {
+            await onUpdateGroup();
+            debugInfoFuture.value = loadDebugInfo();
+          },
+          onUpdateApqGroup: () async {
+            await onUpdateApqGroup();
+            debugInfoFuture.value = loadDebugInfo();
+          },
           onRequestResync: onRequestResync,
+          onEraseLocalChat: onEraseLocalChat,
         ),
         AsyncSnapshot(hasError: true, :final error) => Center(
           child: Padding(
@@ -71,11 +88,17 @@ class ChatDebugInfoView extends HookWidget {
 class _GroupDebugInfoBody extends StatelessWidget {
   const _GroupDebugInfoBody({
     required this.info,
+    required this.onUpdateGroup,
+    required this.onUpdateApqGroup,
     required this.onRequestResync,
+    required this.onEraseLocalChat,
   });
 
   final GroupDebugInfo info;
+  final AsyncCallback onUpdateGroup;
+  final AsyncCallback onUpdateApqGroup;
   final VoidCallback onRequestResync;
+  final VoidCallback onEraseLocalChat;
 
   @override
   Widget build(BuildContext context) {
@@ -108,8 +131,41 @@ class _GroupDebugInfoBody extends StatelessWidget {
               label: 'Pending Commit',
               value: info.hasPendingCommit ? 'yes' : 'no',
             ),
+            _InfoRow(label: 'Size', value: _formatBytes(info.sizeBytes)),
           ],
         ),
+        const SizedBox(height: Spacing.px16),
+        const _SectionHeader('Post-Quantum'),
+        if (info.pq == null)
+          const _InfoCard(
+            children: [_InfoRow(label: 'Enabled', value: 'no')],
+          )
+        else
+          _InfoCard(
+            children: [
+              const _InfoRow(label: 'Enabled', value: 'yes'),
+              _InfoRow(
+                label: 'Group ID',
+                value: info.pq!.groupId,
+                monospace: true,
+              ),
+              _InfoRow(label: 'Epoch', value: info.pq!.epoch.toString()),
+              _InfoRow(label: 'Ciphersuite', value: info.pq!.ciphersuite),
+              _InfoRow(
+                label: 'Self Updated At',
+                value: info.pq!.selfUpdatedAt ?? '—',
+              ),
+              _InfoRow(
+                label: 'Pending Proposals',
+                value: info.pq!.pendingProposals.toString(),
+              ),
+              _InfoRow(
+                label: 'Pending Commit',
+                value: info.pq!.hasPendingCommit ? 'yes' : 'no',
+              ),
+              _InfoRow(label: 'Size', value: _formatBytes(info.pq!.sizeBytes)),
+            ],
+          ),
         if (info.groupData != null) ...[
           const SizedBox(height: Spacing.px16),
           const _SectionHeader('Group Data'),
@@ -131,8 +187,43 @@ class _GroupDebugInfoBody extends StatelessWidget {
           ),
         ],
         const SizedBox(height: Spacing.px32),
+        _UpdateGroupButton(onTapped: onUpdateGroup, label: "Update group"),
+        if (info.pq != null) ...[
+          const SizedBox(height: Spacing.px16),
+          _UpdateGroupButton(
+            onTapped: onUpdateApqGroup,
+            label: "Update APQ group",
+          ),
+        ],
+        const SizedBox(height: Spacing.px16),
         _RequestResyncButton(onTapped: onRequestResync),
+        const SizedBox(height: Spacing.px16),
+        _DeleteLocalChatButton(onTapped: onEraseLocalChat),
       ],
+    );
+  }
+}
+
+class _UpdateGroupButton extends HookWidget {
+  const _UpdateGroupButton({required this.label, required this.onTapped});
+
+  final String label;
+  final AsyncCallback onTapped;
+
+  @override
+  Widget build(BuildContext context) {
+    final isRunning = useState(false);
+    return AppButton(
+      onPressed: () async {
+        isRunning.value = true;
+        try {
+          await onTapped();
+        } finally {
+          isRunning.value = false;
+        }
+      },
+      state: isRunning.value ? AppButtonState.inactive : AppButtonState.active,
+      label: label,
     );
   }
 }
@@ -155,6 +246,36 @@ class _RequestResyncButton extends HookWidget {
       label: "DANGER: Request resync",
     );
   }
+}
+
+class _DeleteLocalChatButton extends HookWidget {
+  const _DeleteLocalChatButton({required this.onTapped});
+
+  final VoidCallback onTapped;
+
+  @override
+  Widget build(BuildContext context) {
+    final isTapped = useState(false);
+    return AppButton(
+      onPressed: () {
+        isTapped.value = true;
+        onTapped();
+      },
+      tone: AppButtonTone.danger,
+      state: isTapped.value ? AppButtonState.inactive : AppButtonState.active,
+      label: "DANGER: Delete local chat",
+    );
+  }
+}
+
+String _formatBytes(BigInt bytes) {
+  final n = bytes.toInt();
+  if (n < 1024) return '$n B';
+  if (n < 1024 * 1024) return '${(n / 1024).toStringAsFixed(1)} KiB';
+  if (n < 1024 * 1024 * 1024) {
+    return '${(n / (1024 * 1024)).toStringAsFixed(2)} MiB';
+  }
+  return '${(n / (1024 * 1024 * 1024)).toStringAsFixed(2)} GiB';
 }
 
 class _SectionHeader extends StatelessWidget {

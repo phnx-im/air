@@ -13,7 +13,7 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatStatus, ChatType, MessageId,
-    db_access::{
+    db::access::{
         ReadConnection, ReadTransaction, WriteConnection, WriteDbTransaction, WriteTransaction,
     },
     utils::persistence::GroupIdWrapper,
@@ -807,6 +807,45 @@ impl Chat {
         Ok(())
     }
 
+    #[cfg(feature = "test_utils")]
+    pub(crate) async fn pq_self_updated_at(
+        mut connection: impl ReadConnection,
+        chat_id: ChatId,
+    ) -> sqlx::Result<Option<DateTime<Utc>>> {
+        sqlx::query_scalar(
+            r#"SELECT
+                pq.self_updated_at AS "self_updated_at: _"
+            FROM chat c
+            INNER JOIN pq_group pq ON pq.t_group_id = c.group_id
+            WHERE c.chat_id = ?"#,
+        )
+        .bind(chat_id)
+        .fetch_optional(connection.as_mut())
+        .await
+        .map(Option::flatten)
+    }
+
+    #[cfg(feature = "test_utils")]
+    pub(crate) async fn set_pq_self_updated_at(
+        mut connection: impl WriteConnection,
+        chat_id: ChatId,
+        self_updated_at: DateTime<Utc>,
+    ) -> sqlx::Result<()> {
+        sqlx::query(
+            r#"UPDATE pq_group
+            SET self_updated_at = ?1
+            WHERE t_group_id = (
+                SELECT group_id FROM chat WHERE chat_id = ?2
+            )
+            "#,
+        )
+        .bind(self_updated_at)
+        .bind(chat_id)
+        .execute(connection.as_mut())
+        .await?;
+        Ok(())
+    }
+
     /// Return `true` if the given chat is a 1:1 chat with a blocked contact.
     ///
     /// If the chat does not exist, returns `false`.
@@ -829,6 +868,23 @@ impl Chat {
         .await?;
         Ok(is_blocked.unwrap_or(false))
     }
+
+    pub(crate) async fn load_is_apq(
+        mut connection: impl ReadConnection,
+        chat_id: ChatId,
+    ) -> sqlx::Result<bool> {
+        query_scalar!(
+            r#"SELECT EXISTS(
+                SELECT 1 FROM chat c
+                INNER JOIN "group" t ON c.group_id = t.group_id
+                INNER JOIN pq_group pq ON pq.group_id = t.group_id
+                WHERE chat_id = ?
+            ) AS "exists: _""#,
+            chat_id,
+        )
+        .fetch_one(connection.as_mut())
+        .await
+    }
 }
 
 #[cfg(test)]
@@ -844,7 +900,7 @@ pub mod tests {
         InactiveChat, MessageDraft,
         chats::messages::persistence::tests::{test_chat_message, test_chat_message_at},
         clients::block_contact::BlockedContact,
-        db_access::DbAccess,
+        db::access::DbAccess,
     };
 
     use super::*;

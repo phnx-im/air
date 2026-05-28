@@ -36,7 +36,11 @@ import 'package:air/ds/foundations/font_size.dart';
 import 'package:provider/provider.dart';
 
 import 'package:air/util/platform.dart'
-    show getClipboardFilePaths, getClipboardImage, PlatformExtension;
+    show
+        ClipboardImage,
+        getClipboardFilePaths,
+        getClipboardImage,
+        PlatformExtension;
 
 import 'message_renderer.dart';
 import 'text_message_tile.dart' show messageHorizontalPadding;
@@ -241,6 +245,7 @@ class _MessageComposerState extends State<MessageComposer>
                 _submitMessage(context.read<ChatDetailsCubit>()),
             onImagePasted: _handleImagePaste,
             onFilePasted: _handleFilePaste,
+            onContentInserted: _handleContentInserted,
           ),
         ),
       ),
@@ -414,9 +419,9 @@ class _MessageComposerState extends State<MessageComposer>
       return;
     }
 
-    final imageBytes = await getClipboardImage();
-    if (imageBytes != null && imageBytes.isNotEmpty) {
-      _handleImagePaste(imageBytes);
+    final image = await getClipboardImage();
+    if (image != null && image.bytes.isNotEmpty) {
+      _handleImagePaste(image);
       return;
     }
     // No image — fall back to text paste
@@ -530,14 +535,37 @@ class _MessageComposerState extends State<MessageComposer>
     _navigateToUploadPreview(context, file, chatTitle: chatTitle);
   }
 
-  void _handleImagePaste(Uint8List imageBytes) async {
+  void _handleImagePaste(ClipboardImage image) async {
     final chatTitle = _chatDetailsCubit.state.chat?.title;
     if (chatTitle == null) return;
 
+    final ext = image.mimeType.split('/').last;
     final tempDir = await getTemporaryDirectory();
-    final tempFile = File('${tempDir.path}/clipboard_paste.jpg');
-    await tempFile.writeAsBytes(imageBytes);
-    final file = XFile(tempFile.path);
+    final tempFile = File('${tempDir.path}/clipboard_paste.$ext');
+    await tempFile.writeAsBytes(image.bytes);
+    final file = XFile(tempFile.path, mimeType: image.mimeType);
+
+    if (!mounted) return;
+    await _navigateToUploadPreview(
+      context,
+      file,
+      chatTitle: chatTitle,
+      isTempFile: true,
+    );
+  }
+
+  void _handleContentInserted(KeyboardInsertedContent content) async {
+    final data = content.data;
+    if (data == null || data.isEmpty) return;
+
+    final chatTitle = _chatDetailsCubit.state.chat?.title;
+    if (chatTitle == null) return;
+
+    final ext = content.mimeType.split('/').last;
+    final tempDir = await getTemporaryDirectory();
+    final tempFile = File('${tempDir.path}/keyboard_insert.$ext');
+    await tempFile.writeAsBytes(data);
+    final file = XFile(tempFile.path, mimeType: content.mimeType);
 
     if (!mounted) return;
     await _navigateToUploadPreview(
@@ -624,8 +652,8 @@ class _MessageComposerState extends State<MessageComposer>
 
 class _MessageInput extends StatelessWidget {
   const _MessageInput({
-    required FocusNode focusNode,
-    required TextEditingController controller,
+    required this._focusNode,
+    required this._controller,
     required this.chatTitle,
     required this.isEditing,
     required this.isReplying,
@@ -634,8 +662,8 @@ class _MessageInput extends StatelessWidget {
     required this.onSubmitMessage,
     required this.onImagePasted,
     required this.onFilePasted,
-  }) : _focusNode = focusNode,
-       _controller = controller;
+    required this.onContentInserted,
+  });
 
   final FocusNode _focusNode;
   final TextEditingController _controller;
@@ -645,8 +673,9 @@ class _MessageInput extends StatelessWidget {
   final LayerLink layerLink;
   final GlobalKey inputKey;
   final VoidCallback onSubmitMessage;
-  final ValueChanged<Uint8List> onImagePasted;
+  final ValueChanged<ClipboardImage> onImagePasted;
   final ValueChanged<String> onFilePasted;
+  final ValueChanged<KeyboardInsertedContent> onContentInserted;
 
   @override
   Widget build(BuildContext context) {
@@ -775,6 +804,15 @@ class _MessageInput extends StatelessWidget {
                 : () => _focusNode.requestFocus(),
             keyboardType: TextInputType.multiline,
             textCapitalization: TextCapitalization.sentences,
+            contentInsertionConfiguration: ContentInsertionConfiguration(
+              allowedMimeTypes: const [
+                'image/gif',
+                'image/webp',
+                'image/png',
+                'image/jpeg',
+              ],
+              onContentInserted: onContentInserted,
+            ),
           ),
         ),
       ],
@@ -805,10 +843,10 @@ class _MessageInput extends StatelessWidget {
               onFilePasted(filePaths.first);
               return;
             }
-            final imageBytes = await getClipboardImage();
-            if (imageBytes != null && imageBytes.isNotEmpty) {
+            final image = await getClipboardImage();
+            if (image != null && image.bytes.isNotEmpty) {
               editableTextState.hideToolbar();
-              onImagePasted(imageBytes);
+              onImagePasted(image);
               return;
             }
             // No image — default text paste
@@ -832,10 +870,10 @@ class _MessageInput extends StatelessWidget {
               onFilePasted(filePaths.first);
               return;
             }
-            final imageBytes = await getClipboardImage();
-            if (imageBytes != null && imageBytes.isNotEmpty) {
+            final image = await getClipboardImage();
+            if (image != null && image.bytes.isNotEmpty) {
               editableTextState.hideToolbar();
-              onImagePasted(imageBytes);
+              onImagePasted(image);
             }
           },
         ),

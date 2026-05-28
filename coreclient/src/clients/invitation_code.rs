@@ -116,7 +116,7 @@ impl CoreUser {
 }
 
 mod persistence {
-    use crate::db_access::{ReadConnection, WriteConnection};
+    use crate::db::access::{ReadConnection, WriteConnection};
 
     use super::InvitationCode;
 

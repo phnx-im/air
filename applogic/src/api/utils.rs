@@ -50,7 +50,7 @@ pub fn read_clipboard_file_paths() -> Option<Vec<String>> {
     }
 }
 
-/// Reads an image from the system clipboard and returns it as JPEG bytes. Only
+/// Reads an image from the system clipboard and returns it as PNG bytes. Only
 /// supported on desktop platforms (Linux, Windows, macOS).
 ///
 /// Returns `None` if the clipboard does not contain image data, or when called
@@ -59,22 +59,25 @@ pub fn read_clipboard_image() -> Option<Vec<u8>> {
     // arboard is only supported on desktop platforms
     #[cfg(any(target_os = "linux", target_os = "windows", target_os = "macos"))]
     {
-        use image::codecs::jpeg::JpegEncoder;
-        use std::io::Cursor;
+        use image::ImageEncoder;
+        use image::codecs::png::PngEncoder;
 
         let mut clipboard = arboard::Clipboard::new().ok()?;
         let img_data = clipboard.get_image().ok()?;
 
-        let rgba = image::RgbaImage::from_raw(
-            img_data.width as u32,
-            img_data.height as u32,
-            img_data.bytes.into_owned(),
-        )?;
+        let width = img_data.width as u32;
+        let height = img_data.height as u32;
+        let rgba = image::RgbaImage::from_raw(width, height, img_data.bytes.into_owned())?;
 
         let mut buf = Vec::new();
-        let mut cursor = Cursor::new(&mut buf);
-        let mut encoder = JpegEncoder::new_with_quality(&mut cursor, 99);
-        encoder.encode_image(&rgba).ok()?;
+        PngEncoder::new(&mut buf)
+            .write_image(
+                rgba.as_raw(),
+                width,
+                height,
+                image::ExtendedColorType::Rgba8,
+            )
+            .ok()?;
 
         Some(buf)
     }

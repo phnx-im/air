@@ -53,8 +53,24 @@ jobs:
           path: app/build/linux/x64/release/bundle
 
   linux-publish:
+    name: linux-publish (${{ matrix.format }})
+    environment: linux-packages
+
     needs: linux-build
     runs-on: ubuntu-latest
+
+    strategy:
+      matrix:
+        include:
+          - format: rpm
+            glob: "air-*.rpm"
+            extra_apt_dependencies: createrepo-c dnf dnf-plugins-core rpm
+          - format: deb
+            glob: "air_*.deb"
+            extra_apt_dependencies: apt-utils
+
+    # only run this job on the main branch
+    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
 
     steps:
       - name: Checkout repository
@@ -69,18 +85,51 @@ jobs:
       - name: Install just
         uses: extractions/setup-just@v3
 
-      - name: Install nfpm
+      - name: Install awscli
+        uses: unfor19/install-aws-cli-action@v1
+
+      - name: Install dependencies
         run: |
           echo 'deb [trusted=yes] https://repo.goreleaser.com/apt/ /' | sudo tee /etc/apt/sources.list.d/goreleaser.list
-          sudo apt-get update && sudo apt-get install -y nfpm
+          sudo apt-get update && sudo apt-get install -y gpg nfpm ${{ matrix.extra_apt_dependencies }}
 
       - name: Build packages
-        run: RELEASE=${{ needs.linux-build.outputs.build-number }} just build-deb build-rpm
+        run: RELEASE=${{ needs.linux-build.outputs.build-number }} just build-${{ matrix.format }}
+
+      - name: Import GPG key and unlock it in the agent
+        env:
+          GPG_KEY_ID: ${{ vars.GPG_KEY_ID }}
+          GPG_PASSPHRASE: ${{ secrets.GPG_PASSPHRASE }}
+          GPG_SIGNING_KEY: ${{ secrets.GPG_SIGNING_KEY }}
+        run: |
+          mkdir -p ~/.gnupg
+          chmod 700 ~/.gnupg
+          cat >> ~/.gnupg/gpg-agent.conf <<'EOF'
+          allow-loopback-pinentry
+          allow-preset-passphrase
+          default-cache-ttl 7200
+          max-cache-ttl 7200
+          EOF
+          echo "pinentry-mode loopback" >> ~/.gnupg/gpg.conf
+          gpg-connect-agent reloadagent /bye
+          echo "$GPG_SIGNING_KEY" | gpg --batch --import
+
+          # Preload the passphrase into gpg-agent so subsequent signing calls
+          # (including gpg invocations spawned by rpm --addsign) don't prompt.
+          preset_bin="$(gpgconf --list-dirs libexecdir)/gpg-preset-passphrase"
+          while IFS= read -r keygrip; do
+            [ -n "$keygrip" ] || continue
+            "$preset_bin" --preset --passphrase "$GPG_PASSPHRASE" "$keygrip"
+          done < <(gpg --batch --with-colons --with-keygrip --list-secret-keys "$GPG_KEY_ID" \
+            | awk -F: '/^grp:/ {print $10}')
 
       - name: Upload packages
-        uses: actions/upload-artifact@v6
-        with:
-          name: linux-x64-packages
-          path: |
-            app/linux/*.deb
-            app/linux/*.rpm
+        env:
+          AWS_ACCESS_KEY_ID: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          AWS_SECRET_ACCESS_KEY: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          GPG_KEY_ID: ${{ vars.GPG_KEY_ID }}
+          REPOSITORY_BASE_URL: ${{ vars.REPOSITORY_BASE_URL }}
+          S3_BUCKET: ${{ vars.S3_BUCKET }}
+          S3_ENDPOINT: ${{ vars.S3_ENDPOINT }}
+        run: |
+          cargo xtask publish-packages -- app/linux/${{ matrix.glob }}

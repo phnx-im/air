@@ -15,15 +15,47 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
-  CARGO_INCREMENTAL: 0
   CARGO_NET_RETRY: 10
   RUSTUP_MAX_RETRIES: 10
-  RUSTFLAGS: -D warnings
   SQLX_OFFLINE: true
 
 jobs:
-  frb:
+  check:
+    name: ${{ matrix.name }}
     runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Generated app resources
+            just: check-app-resources
+            flutter: true
+          - name: Rust licenses and advisories
+            just: check-cargo-deny
+            cargo-binstall-tools: cargo-deny@0.19.0
+            sccache: false
+          - name: FRB codegen
+            just: check-frb
+            cargo-binstall-tools: cargo-expand flutter_rust_bridge_codegen@2.12.0
+            flutter: true
+          - name: Unused crates
+            just: check-cargo-machete
+            cargo-binstall-tools: cargo-machete@0.9.1
+            sccache: false
+          - name: Rust clippy
+            just: check-clippy
+          - name: Dart lints
+            just: check-dart
+            flutter: true
+            sccache: false
+          - name: SPDX License headers
+            just: check-reuse
+            pypi-packages: reuse~=6.2
+            sccache: false
+          - name: Rust format
+            just: check-rustfmt
+            sccache: false
+
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -36,12 +68,15 @@ jobs:
         uses: ./.github/actions/setup-buildenv
         with:
           git-lfs: false
-          cargo-binstall-tools: cargo-expand flutter_rust_bridge_codegen@2.12.0
+          flutter: ${{ matrix.flutter || 'false' }}
+          sccache: ${{ matrix.sccache || 'true' }}
+          cargo-binstall-tools: ${{ matrix.cargo-binstall-tools }}
+          pypi-packages: ${{ matrix.pypi-packages }}
 
-      - name: Check generated Flutter Rust Bridge (FRB) files
-        run: just check-frb
+      - run: just ${{ matrix.just }}
 
   flutter:
+    name: Flutter tests
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
@@ -53,20 +88,26 @@ jobs:
       - name: Setup build environment
         uses: ./.github/actions/setup-buildenv
 
-      - name: Flutter checks
-        run: just check-flutter
-
       - name: Flutter tests
-        run: just test-flutter
+        run: cd app && flutter test --file-reporter=json:test-results.json
+
+      - name: Test report
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
+        if: ${{ !cancelled() }}
+        with:
+          name: Flutter tests
+          path: app/test-results.json
+          reporter: dart-json
 
       - if: failure()
         name: Upload failed tests screenshots
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
         with:
           name: golden-failures
           path: app/test/**/failures/*
 
-  rust-lints:
+  rust-build-tests:
+    name: Rust test build
     runs-on: ubuntu-latest
     timeout-minutes: 30
     steps:
@@ -79,15 +120,38 @@ jobs:
       - name: Setup build environment
         uses: ./.github/actions/setup-buildenv
         with:
-          pypi-packages: podman-compose~=1.5
+          git-lfs: false
+          cargo-binstall-tools: cargo-nextest
           flutter: false
 
-      - name: Rust checks
-        run: just check-rust
+      - name: Build cargo test binaries
+        run: |
+          cargo nextest archive --cargo-profile ci --archive-file cargo-tests.tar.zst
+
+      - name: Upload test binaries
+        uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        with:
+          name: test-binaries
+          path: cargo-tests.tar.zst
 
   rust-tests:
+    name: ${{ matrix.name }}
+    needs: rust-build-tests
+
     runs-on: ubuntu-latest
     timeout-minutes: 30
+
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: Rust unit tests
+            profile: unit
+          - name: Rust integration tests
+            profile: integration
+          - name: Rust integration tests (with APQ groups)
+            profile: integration-with-apq
+
     steps:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
@@ -95,12 +159,29 @@ jobs:
           fetch-depth: 1
           filter: blob:none
 
+      - name: Download test binaries
+        uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: test-binaries
+
       - name: Setup build environment
         uses: ./.github/actions/setup-buildenv
         with:
-          cargo-binstall-tools: cargo-deny@0.19.0 sqlx-cli@0.8.6 cargo-machete@0.9.1
-          pypi-packages: reuse~=6.2 podman-compose~=1.5
+          git-lfs: false
+          cargo-binstall-tools: cargo-nextest
+          pypi-packages: podman-compose~=1.5
           flutter: false
+          sccache: false
 
-      - name: Rust tests
-        run: just test-rust
+      - name: Run tests
+        env:
+          RUST_BACKTRACE: "1"
+        run: cargo nextest run --archive-file cargo-tests.tar.zst --profile ${{ matrix.profile }}
+
+      - name: Test report
+        uses: dorny/test-reporter@a43b3a5f7366b97d083190328d2c652e1a8b6aa2 # v3.0.0
+        if: ${{ !cancelled() }}
+        with:
+          name: ${{ matrix.name }}
+          path: target/nextest/${{ matrix.profile }}/junit.xml
+          reporter: java-junit

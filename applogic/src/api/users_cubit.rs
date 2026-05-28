@@ -10,7 +10,8 @@ use std::{
 use aircommon::identifiers::UserId;
 use aircoreclient::{
     DisplayName, UserProfile,
-    store::{Store, StoreEntityId, StoreNotification, StoreOperation},
+    clients::CoreUser,
+    db::notification::{DbEntityId, DbNotification, DbOperation},
 };
 use flutter_rust_bridge::frb;
 use tokio::sync::{mpsc, watch};
@@ -233,22 +234,22 @@ impl UsersCubitBase {
 ///
 /// 1. there is a store notification about a user profile change/removal, or
 /// 2. profile loading is requested from the state.
-struct ProfileLoadingTask<S: Store + Sync + 'static> {
-    store: S,
+struct ProfileLoadingTask {
+    core_user: CoreUser,
     state_tx: watch::Sender<UsersState>,
     load_profile_rx: mpsc::Receiver<UserId>,
     cancel: CancellationToken,
 }
 
-impl<S: Store + Sync + 'static> ProfileLoadingTask<S> {
+impl ProfileLoadingTask {
     fn new(
-        store: S,
+        core_user: CoreUser,
         state_tx: watch::Sender<UsersState>,
         load_profile_rx: mpsc::Receiver<UserId>,
         cancel: CancellationToken,
     ) -> Self {
         Self {
-            store,
+            core_user,
             state_tx,
             load_profile_rx,
             cancel,
@@ -260,7 +261,7 @@ impl<S: Store + Sync + 'static> ProfileLoadingTask<S> {
     }
 
     async fn process(mut self) -> Option<()> {
-        let mut store_notifications = self.store.subscribe();
+        let mut store_notifications = self.core_user.db_notifications();
         loop {
             // wait for the next store notification, explicit load profile request or cancellation
             let changed_profiles = tokio::select! {
@@ -269,7 +270,7 @@ impl<S: Store + Sync + 'static> ProfileLoadingTask<S> {
                 }
                 user_id = self.load_profile_rx.recv() => {
                     let user_id = user_id?;
-                    let user_profile = self.store.user_profile(&user_id).await;
+                    let user_profile = self.core_user.user_profile(&user_id).await;
                     vec![(user_id, Some(user_profile))]
                 }
                 _ = self.cancel.cancelled() => return None,
@@ -296,11 +297,11 @@ impl<S: Store + Sync + 'static> ProfileLoadingTask<S> {
 
     async fn process_notification(
         &self,
-        notification: Arc<StoreNotification>,
+        notification: Arc<DbNotification>,
     ) -> Vec<(UserId, Option<UserProfile>)> {
         let mut changed_profiles = Vec::new();
         for (entity_id, op) in notification.ops.iter() {
-            let StoreEntityId::User(user_id) = entity_id else {
+            let DbEntityId::User(user_id) = entity_id else {
                 continue;
             };
 
@@ -310,12 +311,12 @@ impl<S: Store + Sync + 'static> ProfileLoadingTask<S> {
             }
 
             // We consider Add/Update to be of higher precedence than Remove
-            if op.contains(StoreOperation::Add) || op.contains(StoreOperation::Update) {
+            if op.contains(DbOperation::Add) || op.contains(DbOperation::Update) {
                 changed_profiles.push((
                     user_id.clone(),
-                    Some(self.store.user_profile(user_id).await),
+                    Some(self.core_user.user_profile(user_id).await),
                 ));
-            } else if op.contains(StoreOperation::Remove) {
+            } else if op.contains(DbOperation::Remove) {
                 changed_profiles.push((user_id.clone(), None));
             }
         }

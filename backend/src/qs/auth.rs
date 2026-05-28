@@ -12,8 +12,9 @@ use aircommon::{
 use airprotos::queue_service::v1::{
     CreateClientPayload, CreateClientRequest, DeleteClientPayload, DeleteClientRequest,
     DeleteUserPayload, DeleteUserRequest, InitListenPayload, InitListenRequest,
-    PublishKeyPackagesPayload, PublishKeyPackagesRequest, QsClientId, QsUserId,
-    UpdateClientPayload, UpdateClientRequest, UpdateUserPayload, UpdateUserRequest,
+    PublishApqKeyPackagesPayload, PublishApqKeyPackagesRequest, PublishKeyPackagesPayload,
+    PublishKeyPackagesRequest, QsClientId, QsUserId, UpdateClientPayload, UpdateClientRequest,
+    UpdateUserPayload, UpdateUserRequest,
 };
 use tonic::Status;
 use tracing::error;
@@ -260,6 +261,18 @@ impl WithQsClientId for PublishKeyPackagesRequest {
             client_id,
             key_packages,
         }
+    }
+}
+
+impl WithQsClientId for PublishApqKeyPackagesRequest {
+    type Payload = PublishApqKeyPackagesPayload;
+
+    fn client_id_proto(&self) -> Option<QsClientId> {
+        self.payload.as_ref()?.client_id
+    }
+
+    fn into_unverified_payload(self) -> Self::Payload {
+        unreachable!("APQ key packages are not supported by the legacy API")
     }
 }
 

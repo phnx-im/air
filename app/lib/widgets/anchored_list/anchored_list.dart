@@ -1362,11 +1362,7 @@ class _MeasuredItem extends SingleChildRenderObjectWidget {
 /// stays current when items resize (e.g. an image finishes loading or a
 /// message bubble reflows after a width change).
 class _RenderMeasuredItem extends RenderProxyBox {
-  _RenderMeasuredItem({
-    required Object id,
-    required AnchoredListHeightCache cache,
-  }) : _id = id,
-       _cache = cache;
+  _RenderMeasuredItem({required this._id, required this._cache});
 
   Object _id;
   AnchoredListHeightCache _cache;

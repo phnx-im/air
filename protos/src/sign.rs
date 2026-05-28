@@ -24,6 +24,7 @@ impl From<MissingPayloadError> for tls_codec::Error {
 /// * `label` is the label of the payload prepended when signing.
 macro_rules! impl_signed_payload {
     ($request:ty, $payload:ty, $key_type:ty, $label:expr) => {
+        #[allow(clippy::needless_update)]
         impl ::aircommon::crypto::signatures::signable::SignedStruct<$payload, $key_type>
             for $request
         {

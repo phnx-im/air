@@ -2,10 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircoreclient::{
-    ReadReceiptsSetting,
-    store::{Store, UserSetting},
-};
+use aircoreclient::{ReadReceiptsSetting, UserSetting};
 use anyhow::{anyhow, bail};
 use flutter_rust_bridge::frb;
 use tokio::sync::watch;
@@ -84,12 +81,12 @@ impl UserSettingsCubitBase {
     }
 
     pub async fn load_state(&self, user: &User) {
-        let store = &user.user;
-        let locale = store.user_setting().await;
-        let interface_scale = store.user_setting().await;
-        let sidebar_width = store.user_setting().await;
-        let send_on_enter = store.user_setting().await;
-        let read_receipts = store.user_setting().await;
+        let core_user = &user.user;
+        let locale = core_user.user_setting().await;
+        let interface_scale = core_user.user_setting().await;
+        let sidebar_width = core_user.user_setting().await;
+        let send_on_enter = core_user.user_setting().await;
+        let read_receipts = core_user.user_setting().await;
         self.core.state_tx().send_modify(|state| {
             state.locale = locale.map(|LocaleSetting(value)| value);
             state.interface_scale = interface_scale.map(|InterfaceScaleSetting(value)| value);

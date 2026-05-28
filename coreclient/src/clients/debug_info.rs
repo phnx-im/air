@@ -73,6 +73,7 @@ impl TimedTaskKind {
     fn display_name(&self) -> &'static str {
         match self {
             TimedTaskKind::KeyPackageUpload => "Key Package Upload",
+            TimedTaskKind::ApqKeyPackageUpload => "APQ Key Package Upload",
             TimedTaskKind::UsernameRefresh => "Username Refresh",
             TimedTaskKind::SelfUpdate => "Self Update",
             TimedTaskKind::TokenReplenishment { operation_type } => match operation_type {

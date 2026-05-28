@@ -38,7 +38,6 @@ use own_client_info::OwnClientInfo;
 use serde::{Deserialize, Serialize};
 use sqlx::{Row, query};
 use store::ClientRecord;
-use tls_codec::DeserializeBytes;
 use tokio::sync::Notify;
 use tokio::task::spawn_blocking;
 use tokio_stream::{Stream, StreamExt};
@@ -46,17 +45,15 @@ use tokio_util::sync::DropGuard;
 use tracing::{error, info, warn};
 use url::Url;
 
-use crate::user_profiles::UserProfile;
 use crate::{
-    Asset, UsernameRecord,
+    Asset, PartialContact, UsernameRecord,
     clients::event_loop::{EventLoop, EventLoopSender},
     contacts::{TargetedMessageContact, UsernameContact},
-    db_access::{DbAccess, ReadConnection, WriteDbTransaction},
+    db::access::{DbAccess, WriteDbTransaction},
     groups::Group,
     job::{Job, JobContext, JobContextDb, JobError},
     key_stores::queue_ratchets::StorableQsQueueRatchet,
     outbound_service::OutboundService,
-    store::Store,
     utils::{
         global_lock::GlobalLock,
         image::resize_profile_image,
@@ -64,6 +61,7 @@ use crate::{
     },
 };
 use crate::{ChatId, key_stores::as_credentials::AsCredentials};
+use crate::{ContactType, user_profiles::UserProfile};
 use crate::{
     MessageId,
     chats::{
@@ -72,8 +70,8 @@ use crate::{
     },
     clients::connection_offer::FriendshipPackage,
     contacts::Contact,
+    db::notification::DbNotification,
     key_stores::MemoryUserKeyStore,
-    store::StoreNotification,
     user_profiles::IndexedUserProfile,
     utils::persistence::{open_air_db, open_client_db},
 };
@@ -127,7 +125,7 @@ pub(crate) struct CoreUserInner {
     qs_user_id: QsUserId,
     qs_client_id: QsClientId,
     key_store: MemoryUserKeyStore,
-    store_notifications_pending: Arc<Notify>,
+    db_notifications_pending: Arc<Notify>,
     outbound_service: OutboundService,
     event_loop_sender: EventLoopSender,
     _event_loop_cancel: DropGuard,
@@ -321,52 +319,47 @@ impl CoreUser {
         &self.inner.key_store
     }
 
-    pub(crate) fn send_store_notification(&self, notification: StoreNotification) {
+    pub fn send_db_notification(&self, notification: DbNotification) {
         if !notification.is_empty() {
             self.inner.db.notifier_tx.notify(notification);
         }
     }
 
-    /// Subscribes to store notifications.
+    /// Subscribes to db notifications.
     ///
     /// All notifications sent after this function was called are observed as items of the returned
     /// stream.
-    pub(crate) fn subscribe_to_store_notifications(
-        &self,
-    ) -> impl Stream<Item = Arc<StoreNotification>> + Send + 'static {
+    pub fn db_notifications(&self) -> impl Stream<Item = Arc<DbNotification>> + Send + 'static {
         self.inner.db.notifier_tx.subscribe()
     }
 
-    /// Subscribes to pending store notifications.
+    /// Subscribes to pending db notifications.
     ///
-    /// Unlike `subscribe_to_store_notifications`, this function does not remove stored
-    /// notifications from the persisted queue.
-    pub(crate) fn subscribe_iter_to_store_notifications(
+    /// Unlike [`Self::db_notifications`], this function does not remove stored notifications from
+    /// the persisted queue.
+    pub fn pending_db_notifications(
         &self,
-    ) -> impl Iterator<Item = Arc<StoreNotification>> + Send + 'static {
+    ) -> impl Iterator<Item = Arc<DbNotification>> + Send + 'static {
         self.inner.db.notifier_tx.subscribe_iter()
     }
 
-    pub(crate) async fn enqueue_store_notification(
-        &self,
-        notification: &StoreNotification,
-    ) -> Result<()> {
+    pub async fn enqueue_db_notification(&self, notification: &DbNotification) -> Result<()> {
         notification.enqueue(self.db().write().await?).await?;
         Ok(())
     }
 
-    pub(crate) async fn dequeue_store_notification(&self) -> Result<StoreNotification> {
-        Ok(StoreNotification::dequeue(self.db().write().await?).await?)
+    pub async fn dequeue_db_notification(&self) -> Result<DbNotification> {
+        Ok(DbNotification::dequeue(self.db().write().await?).await?)
     }
 
-    /// Signals that new store notifications were persisted and should be drained.
-    pub fn signal_pending_store_notifications(&self) {
-        self.inner.store_notifications_pending.notify_one();
+    /// Signals that new db notifications were persisted and should be drained.
+    pub fn signal_pending_db_notifications(&self) {
+        self.inner.db_notifications_pending.notify_one();
     }
 
     /// Notify handle.
-    pub fn store_notifications_pending(&self) -> Arc<Notify> {
-        self.inner.store_notifications_pending.clone()
+    pub fn db_notifications_pending(&self) -> Arc<Notify> {
+        self.inner.db_notifications_pending.clone()
     }
 
     pub async fn set_own_user_profile(&self, mut user_profile: UserProfile) -> Result<UserProfile> {
@@ -398,28 +391,12 @@ impl CoreUser {
     /// fallback.
     pub async fn user_profile(&self, user_id: &UserId) -> UserProfile {
         match self.db().read().await {
-            Ok(connection) => Self::user_profile_internal(connection, user_id).await,
+            Ok(connection) => UserProfile::load(connection, user_id).await,
             Err(error) => {
                 error!(%error, "Error loading user profile; fallback to user_id");
                 UserProfile::from_user_id(user_id)
             }
         }
-    }
-
-    // Helper to use when we already hold a connection
-    async fn user_profile_internal(
-        connection: impl ReadConnection,
-        user_id: &UserId,
-    ) -> UserProfile {
-        IndexedUserProfile::load(connection, user_id)
-            .await
-            .inspect_err(|error| {
-                error!(%error, "Error loading user profile; fallback to user_id");
-            })
-            .ok()
-            .flatten()
-            .map(UserProfile::from)
-            .unwrap_or_else(|| UserProfile::from_user_id(user_id))
     }
 
     /// Fetch and process messages from all username queues.
@@ -517,6 +494,20 @@ impl CoreUser {
         Ok(contacts)
     }
 
+    pub async fn contact_type(&self, user_id: &UserId) -> anyhow::Result<Option<ContactType>> {
+        if let Some(contact) = self.try_contact(user_id).await? {
+            Ok(Some(ContactType::Full(contact)))
+        } else if let Some(targeted_message_contact) =
+            self.try_targeted_message_contact(user_id).await?
+        {
+            Ok(Some(ContactType::Partial(PartialContact::TargetedMessage(
+                targeted_message_contact,
+            ))))
+        } else {
+            Ok(None)
+        }
+    }
+
     pub async fn contact(&self, user_id: &UserId) -> Option<Contact> {
         self.try_contact(user_id).await.ok().flatten()
     }
@@ -571,6 +562,13 @@ impl CoreUser {
     }
 
     /// Returns None if there is no chat with the given id.
+    pub async fn chat_is_apq(&self, chat_id: ChatId) -> Option<bool> {
+        Chat::load_is_apq(self.db().read().await.ok()?, chat_id)
+            .await
+            .ok()
+    }
+
+    /// Returns None if there is no chat with the given id.
     pub async fn chat_participants(&self, chat_id: ChatId) -> Option<HashSet<UserId>> {
         self.try_chat_participants(chat_id)
             .await
@@ -585,13 +583,7 @@ impl CoreUser {
         let Some(group) = Group::load_with_chat_id(self.db().read().await?, chat_id).await? else {
             return Ok(None);
         };
-        let users = group
-            .room_state
-            .users()
-            .keys()
-            .map(|bytes| Ok(UserId::tls_deserialize_exact_bytes(bytes)?))
-            .collect::<Result<HashSet<_>>>()?;
-        Ok(Some(users))
+        Ok(Some(group.participants()?))
     }
 
     pub async fn pending_removes(&self, chat_id: ChatId) -> Option<Vec<UserId>> {
@@ -695,10 +687,6 @@ impl CoreUser {
 
     pub(crate) async fn try_messages_count(&self, chat_id: ChatId) -> sqlx::Result<usize> {
         Chat::messages_count(self.db().read().await?, chat_id).await
-    }
-
-    pub(crate) async fn try_unread_messages_count(&self, chat_id: ChatId) -> sqlx::Result<usize> {
-        Chat::unread_messages_count(self.db().read().await?, chat_id).await
     }
 
     /// Schedules the client's push token update on the QS.

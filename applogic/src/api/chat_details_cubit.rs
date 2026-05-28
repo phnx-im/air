@@ -13,11 +13,12 @@ use aircommon::{
 };
 pub use aircoreclient::{
     AcceptContactRequestError, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
-    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, RequiredDebugCapabilities,
+    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqDebugInfo,
+    RequiredDebugCapabilities,
 };
 use aircoreclient::{
     AttachmentProgress, Chat, ChatId, ChatMessage, MessageId, ProvisionAttachmentError,
-    UploadTaskError, clients::CoreUser, store::Store,
+    UploadTaskError, clients::CoreUser,
 };
 use anyhow::{Context as _, bail};
 use chrono::{DateTime, Local, SubsecRound, Utc};
@@ -151,11 +152,17 @@ impl ChatDetailsCubitBase {
     ///
     /// When `bytes` is `None`, the chat picture is removed.
     pub async fn set_chat_picture(&self, bytes: Option<Vec<u8>>) -> anyhow::Result<()> {
-        Store::set_chat_picture(&self.context.store, self.context.chat_id, bytes.clone()).await
+        self.context
+            .core_user
+            .set_chat_picture(self.context.chat_id, bytes.clone())
+            .await
     }
 
     pub async fn set_chat_title(&self, title: String) -> anyhow::Result<()> {
-        Store::set_chat_title(&self.context.store, self.context.chat_id, title).await
+        self.context
+            .core_user
+            .set_chat_title(self.context.chat_id, title)
+            .await
     }
 
     pub async fn delete_message(
@@ -168,7 +175,7 @@ impl ChatDetailsCubitBase {
                 // Send NullPart via network to delete for all participants
                 Box::pin(
                     self.context
-                        .store
+                        .core_user
                         .delete_message(self.context.chat_id, message_id),
                 )
                 .await
@@ -177,7 +184,7 @@ impl ChatDetailsCubitBase {
             DeleteMode::ForMe => {
                 // Delete locally - completely remove the message from the database
                 self.context
-                    .store
+                    .core_user
                     .delete_message_locally(message_id)
                     .await
                     .inspect_err(|error| error!(%error, "Failed to delete message locally"))?;
@@ -204,7 +211,7 @@ impl ChatDetailsCubitBase {
         // Remove stored draft
         if draft.is_some() {
             self.context
-                .store
+                .core_user
                 .store_message_draft(self.context.chat_id, None)
                 .await?;
         }
@@ -218,7 +225,7 @@ impl ChatDetailsCubitBase {
             // Load the original message and the Mimi ID of the original message
             let original: ChatMessage = self
                 .context
-                .store
+                .core_user
                 .message(replaces_id)
                 .await?
                 .with_context(|| format!("Can't find message with id {replaces_id:?}"))?;
@@ -244,11 +251,13 @@ impl ChatDetailsCubitBase {
         // TODO: we should have nice setters and not have to deal with encoding ourselves (in mimi_content)
         content.in_reply_to = in_reply_to_mimi_id.map(Into::into);
 
-        self.context
-            .store
-            .send_message(self.context.chat_id, content, replaces)
-            .await
-            .inspect_err(|error| error!(%error, "Failed to send message"))?;
+        Box::pin(
+            self.context
+                .core_user
+                .send_message(self.context.chat_id, content, replaces),
+        )
+        .await
+        .inspect_err(|error| error!(%error, "Failed to send message"))?;
 
         Ok(())
     }
@@ -258,11 +267,12 @@ impl ChatDetailsCubitBase {
         path: String,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
         let path = PathBuf::from(path);
-        let (attachment_id, progress, upload_task) = match self
-            .context
-            .store
-            .upload_attachment(self.context.chat_id, &path)
-            .await?
+        let (attachment_id, progress, upload_task) = match Box::pin(
+            self.context
+                .core_user
+                .upload_attachment(self.context.chat_id, &path),
+        )
+        .await?
         {
             Ok(result) => result,
             Err(error) => return error.into_ui_result(),
@@ -278,7 +288,7 @@ impl ChatDetailsCubitBase {
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
         let (new_attachment_id, progress, upload_task) = match self
             .context
-            .store
+            .core_user
             .retry_upload_attachment(attachment_id)
             .await?
         {
@@ -302,7 +312,7 @@ impl ChatDetailsCubitBase {
         match cancel.run_until_cancelled_owned(upload_task).await {
             Some(Ok(message)) => {
                 self.context
-                    .store
+                    .core_user
                     .outbound_service()
                     .enqueue_chat_message(message.id(), Some(attachment_id))
                     .await?;
@@ -310,7 +320,7 @@ impl ChatDetailsCubitBase {
             Some(Err(UploadTaskError { message_id, error })) => {
                 error!(%error, ?attachment_id, "Failed to upload attachment");
                 self.context
-                    .store
+                    .core_user
                     .outbound_service()
                     .fail_enqueued_chat_message(message_id, Some(attachment_id))
                     .await?;
@@ -331,7 +341,7 @@ impl ChatDetailsCubitBase {
         until_timestamp: DateTime<Utc>,
     ) -> anyhow::Result<()> {
         const MARK_AS_READ_DEBOUNCE: Duration = Duration::from_millis(300);
-        let service = MarkAsRead::new(&self.context.store, &self.context.notification_service);
+        let service = MarkAsRead::new(&self.context.core_user, &self.context.notification_service);
         crate::mark_as_read::mark_as_read(
             &service,
             &self.context.mark_as_read_tx,
@@ -420,11 +430,11 @@ impl ChatDetailsCubitBase {
     pub async fn edit_message(&self, message_id: Option<MessageId>) -> anyhow::Result<()> {
         // Load message
         let message = match message_id {
-            Some(message_id) => self.context.store.message(message_id).await?,
+            Some(message_id) => self.context.core_user.message(message_id).await?,
             None => {
                 self.context
-                    .store
-                    .last_message_by_user(self.context.chat_id, self.context.store.user_id())
+                    .core_user
+                    .last_message_by_user(self.context.chat_id, self.context.core_user.user_id())
                     .await?
             }
         };
@@ -474,7 +484,7 @@ impl ChatDetailsCubitBase {
 
     pub async fn reply_to_message(&self, message_id: MessageId) -> anyhow::Result<()> {
         // Load message
-        let Some(chat_message) = self.context.store.message(message_id).await? else {
+        let Some(chat_message) = self.context.core_user.message(message_id).await? else {
             warn!("could not load selected message to stage a reply");
             return Ok(());
         };
@@ -542,7 +552,7 @@ impl ChatDetailsCubitBase {
                 .map(UiMessageDraft::to_draft_without_content)
         });
         self.context
-            .store
+            .core_user
             .store_message_draft(self.context.chat_id, draft.as_ref())
             .await?;
         Ok(())
@@ -554,7 +564,7 @@ impl ChatDetailsCubitBase {
         let chat_id = self.context.chat_id;
         Ok(self
             .context
-            .store
+            .core_user
             .accept_contact_request(chat_id)
             .await?
             .err())
@@ -562,12 +572,24 @@ impl ChatDetailsCubitBase {
 
     pub async fn chat_debug_info(&self) -> anyhow::Result<GroupDebugInfo> {
         let chat_id = self.context.chat_id;
-        self.context.store.chat_debug_info(chat_id).await
+        self.context.core_user.chat_debug_info(chat_id).await
     }
 
     pub async fn request_resync(&self) -> anyhow::Result<()> {
         let chat_id = self.context.chat_id;
-        self.context.store.enqueue_group_resync(chat_id).await
+        self.context.core_user.enqueue_group_resync(chat_id).await
+    }
+
+    pub async fn dev_update_key(&self) -> anyhow::Result<()> {
+        let chat_id = self.context.chat_id;
+        self.context.core_user.update_key(chat_id).await?;
+        Ok(())
+    }
+
+    pub async fn dev_update_apq_key(&self) -> anyhow::Result<()> {
+        let chat_id = self.context.chat_id;
+        self.context.core_user.update_apq_key(chat_id).await?;
+        Ok(())
     }
 }
 
@@ -575,7 +597,7 @@ impl ChatDetailsCubitBase {
 #[frb(ignore)]
 #[derive(Clone)]
 struct ChatDetailsContext {
-    store: CoreUser,
+    core_user: CoreUser,
     chats_repository: ChatsRepository,
     notification_service: NotificationService,
     state_tx: watch::Sender<ChatDetailsState>,
@@ -595,7 +617,7 @@ impl ChatDetailsContext {
     ) -> Self {
         let (mark_as_read_tx, _) = watch::channel(Default::default());
         Self {
-            store,
+            core_user: store,
             chats_repository,
             notification_service,
             state_tx,
@@ -638,7 +660,7 @@ impl ChatDetailsContext {
 
         if self.with_members {
             let mut members: Vec<UiUserId> = self
-                .store
+                .core_user
                 .chat_participants(self.chat_id)
                 .await
                 .unwrap_or_default()
@@ -658,15 +680,15 @@ impl ChatDetailsContext {
     }
 
     async fn load_chat_details(&self) -> Option<(UiChatDetails, DateTime<Utc>)> {
-        let chat = self.store.chat(&self.chat_id).await?;
+        let chat = self.core_user.chat(&self.chat_id).await?;
         let last_read = chat.last_read();
-        let details = load_chat_details(&self.store, chat).await;
+        let details = load_chat_details(&self.core_user, chat).await;
         Some((details, last_read))
     }
 
     /// Returns only when `stop` is cancelled
     async fn update_state_task(self) {
-        let mut notifications = self.store.subscribe();
+        let mut notifications = self.core_user.db_notifications();
         while let Some(notification) = notifications.next().await {
             if notification.ops.contains_key(&self.chat_id.into()) {
                 self.load_and_emit_state().await;
@@ -703,13 +725,13 @@ impl ChatDetailsContext {
 }
 
 /// Loads additional details for a chat and converts it into a [`UiChatDetails`]
-pub(super) async fn load_chat_details(store: &impl Store, chat: Chat) -> UiChatDetails {
-    let messages_count = store.messages_count(chat.id()).await.unwrap_or_default();
-    let unread_messages = store
-        .unread_messages_count(chat.id())
+pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiChatDetails {
+    let messages_count = core_user
+        .messages_count(chat.id())
         .await
         .unwrap_or_default();
-    let last_message = store.last_message(chat.id()).await.ok().flatten();
+    let unread_messages = core_user.unread_messages_count(chat.id()).await;
+    let last_message = core_user.last_message(chat.id()).await.ok().flatten();
     let last_used = last_message
         .as_ref()
         .map(|m| m.timestamp())
@@ -717,13 +739,15 @@ pub(super) async fn load_chat_details(store: &impl Store, chat: Chat) -> UiChatD
         .unwrap_or_default() // default is UNIX_EPOCH
         .with_timezone(&Local);
 
-    let chat_type = UiChatType::load_from_chat_type(store, chat.chat_type).await;
+    let chat_type = UiChatType::load_from_chat_type(core_user, chat.chat_type).await;
 
-    let draft = store
+    let draft = core_user
         .message_draft(chat.id)
         .await
         .unwrap_or_default()
         .map(Into::into);
+
+    let is_apq = core_user.chat_is_apq(chat.id).await.unwrap_or(false);
 
     UiChatDetails {
         id: chat.id,
@@ -734,6 +758,7 @@ pub(super) async fn load_chat_details(store: &impl Store, chat: Chat) -> UiChatD
         unread_messages,
         last_message: last_message.map(From::from),
         draft,
+        is_apq,
     }
 }
 
@@ -786,6 +811,19 @@ pub struct _GroupDebugInfo {
     pub required_capabilities: Option<RequiredDebugCapabilities>,
     pub members: HashMap<u32, DebugCapabilities>,
     pub group_data: Option<GroupDataDebugInfo>,
+    pub size_bytes: u64,
+    pub pq: Option<PqDebugInfo>,
+}
+
+#[frb(mirror(PqDebugInfo))]
+pub struct _PqDebugInfo {
+    pub group_id: String,
+    pub epoch: u64,
+    pub ciphersuite: String,
+    pub self_updated_at: Option<String>,
+    pub pending_proposals: usize,
+    pub has_pending_commit: bool,
+    pub size_bytes: u64,
 }
 
 #[frb(mirror(GroupDataDebugInfo))]

@@ -58,6 +58,7 @@ class _CreateGroupFlow extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final showDetails = useState(false);
+    final isApq = useState(false);
 
     return PopScope(
       canPop: !showDetails.value,
@@ -69,8 +70,14 @@ class _CreateGroupFlow extends HookWidget {
       child: IndexedStack(
         index: showDetails.value ? 1 : 0,
         children: [
-          _MemberSelectionStep(onNext: () => showDetails.value = true),
-          _CreateGroupDetailsStep(onBack: () => showDetails.value = false),
+          _MemberSelectionStep(
+            isApq: isApq.value,
+            onNext: () => showDetails.value = true,
+          ),
+          _CreateGroupDetailsStep(
+            isApq: isApq,
+            onBack: () => showDetails.value = false,
+          ),
         ],
       ),
     );
@@ -78,9 +85,10 @@ class _CreateGroupFlow extends HookWidget {
 }
 
 class _MemberSelectionStep extends HookWidget {
-  const _MemberSelectionStep({required this.onNext});
+  const _MemberSelectionStep({required this.onNext, required this.isApq});
 
   final VoidCallback onNext;
+  final bool isApq;
 
   @override
   Widget build(BuildContext context) {
@@ -99,7 +107,7 @@ class _MemberSelectionStep extends HookWidget {
         scrolledUnderElevation: 0,
         automaticallyImplyLeading: false,
         titleSpacing: 0,
-        title: _GroupCreationAppBarTitle(
+        title: _CenteredAppBarTitle(
           title: loc.groupCreationScreen_title,
           leading: _CircularBackButton(
             onPressed: () => context.read<NavigationCubit>().pop(),
@@ -132,6 +140,7 @@ class _MemberSelectionStep extends HookWidget {
                     contacts: contacts,
                     selectedContacts: selectedContacts,
                     query: query.value,
+                    isApq: isApq,
                     onToggle: (contact) => context
                         .read<AddMembersCubit>()
                         .toggleContact(contact.userId),
@@ -147,9 +156,10 @@ class _MemberSelectionStep extends HookWidget {
 }
 
 class _CreateGroupDetailsStep extends HookWidget {
-  const _CreateGroupDetailsStep({required this.onBack});
+  const _CreateGroupDetailsStep({required this.onBack, required this.isApq});
 
   final VoidCallback onBack;
+  final ValueNotifier<bool> isApq;
 
   @override
   Widget build(BuildContext context) {
@@ -164,6 +174,14 @@ class _CreateGroupDetailsStep extends HookWidget {
       },
     );
 
+    final selectedFeatures = context.select(
+      (AddMembersCubit cubit) => {
+        for (final contact in cubit.state.contacts)
+          if (selectedIds.contains(contact.userId))
+            contact.userId: contact.supportedFeatures,
+      },
+    );
+
     final sortedSelectedIds = useMemoized(
       () => selectedIds.sortedBy(
         (userId) => selectedProfiles[userId]!.displayName.toLowerCase(),
@@ -175,6 +193,8 @@ class _CreateGroupDetailsStep extends HookWidget {
     final picture = useState<Uint8List?>(null);
     final isCreating = useState(false);
     final nameFocusNode = useFocusNode();
+    final showHiddenSettings = useState(false);
+    final isApq = useState(false);
 
     final isGroupNameValid = groupName.value.trim().isNotEmpty;
     final showHelperText = nameFocusNode.hasFocus && !isGroupNameValid;
@@ -188,7 +208,7 @@ class _CreateGroupDetailsStep extends HookWidget {
         scrolledUnderElevation: 0,
         automaticallyImplyLeading: false,
         titleSpacing: 0,
-        title: _GroupCreationAppBarTitle(
+        title: _CenteredAppBarTitle(
           title: loc.groupCreationDetails_title,
           leading: _CircularBackButton(
             onPressed: () => _handleBack(context, isCreating.value),
@@ -200,8 +220,10 @@ class _CreateGroupDetailsStep extends HookWidget {
                     groupName.value.trim(),
                     isCreating,
                     picture.value,
+                    isApq.value,
                   )
                 : null,
+
             child: isCreating.value
                 ? SizedBox(
                     width: 16,
@@ -215,6 +237,9 @@ class _CreateGroupDetailsStep extends HookWidget {
                   )
                 : Text(loc.groupCreationDetails_create),
           ),
+          onLongPress: () {
+            showHiddenSettings.value = !showHiddenSettings.value;
+          },
         ),
       ),
       body: SafeArea(
@@ -277,6 +302,16 @@ class _CreateGroupDetailsStep extends HookWidget {
                         ),
                       ),
                     ],
+                    if (showHiddenSettings.value) ...[
+                      const SizedBox(height: Spacing.px32),
+                      SwitchField(
+                        onSubmit: (value) {
+                          isApq.value = value;
+                        },
+                        value: isApq,
+                        label: "Post-Quantum Encryption",
+                      ),
+                    ],
                     const SizedBox(height: Spacing.px32),
                     if (selectedIds.isNotEmpty)
                       Wrap(
@@ -288,9 +323,16 @@ class _CreateGroupDetailsStep extends HookWidget {
                           if (profile == null) {
                             return const SizedBox.shrink();
                           }
-                          return _SelectedParticipant(
-                            profile: profile,
-                            onRemove: () => _removeContact(context, userId),
+                          final features = selectedFeatures[userId];
+                          final isSupported =
+                              features?.isSupported(isApq: isApq.value) ??
+                              false;
+                          return Opacity(
+                            opacity: isSupported ? 1.0 : 0.5,
+                            child: _SelectedParticipant(
+                              profile: profile,
+                              onRemove: () => _removeContact(context, userId),
+                            ),
                           );
                         }).toList(),
                       )
@@ -342,12 +384,20 @@ class _CreateGroupDetailsStep extends HookWidget {
     String groupName,
     ValueNotifier<bool> isCreating,
     Uint8List? picture,
+    bool isApq,
   ) async {
     if (groupName.isEmpty) return;
     final navigationCubit = context.read<NavigationCubit>();
     final userCubit = context.read<UserCubit>();
     final addMembersCubit = context.read<AddMembersCubit>();
     final selectedContacts = addMembersCubit.state.selectedContacts;
+    final supportedSelectedContacts = addMembersCubit.state.contacts
+        .where((contact) {
+          if (!selectedContacts.contains(contact.userId)) return false;
+          return contact.isSupported(isApq: isApq);
+        })
+        .map((contact) => contact.userId)
+        .toList();
 
     isCreating.value = true;
 
@@ -357,10 +407,11 @@ class _CreateGroupDetailsStep extends HookWidget {
       final chatId = await chatListCubit.createGroupChat(
         groupName: groupName,
         picture: picture,
+        isApq: isApq,
       );
       final error = await userCubit.addUserToChat(
         chatId,
-        selectedContacts.toList(),
+        supportedSelectedContacts,
       );
       switch (error) {
         // No error
@@ -427,37 +478,18 @@ class _GroupPicturePicker extends StatelessWidget {
   }
 }
 
-class _GroupCreationAppBarTitle extends StatelessWidget {
-  const _GroupCreationAppBarTitle({
-    required this.title,
-    required this.leading,
-    required this.trailing,
-  });
-
-  final String title;
-  final Widget leading;
-  final Widget trailing;
-
-  @override
-  Widget build(BuildContext context) {
-    return _CenteredAppBarTitle(
-      title: title,
-      leading: leading,
-      trailing: trailing,
-    );
-  }
-}
-
 class _CenteredAppBarTitle extends StatelessWidget {
   const _CenteredAppBarTitle({
     required this.title,
     required this.leading,
     required this.trailing,
+    this.onLongPress,
   });
 
   final String title;
   final Widget leading;
   final Widget trailing;
+  final VoidCallback? onLongPress;
 
   @override
   Widget build(BuildContext context) {
@@ -470,9 +502,12 @@ class _CenteredAppBarTitle extends StatelessWidget {
         ),
         Expanded(
           child: Center(
-            child: Text(
-              title,
-              style: Theme.of(context).appBarTheme.titleTextStyle,
+            child: InkWell(
+              onLongPress: onLongPress,
+              child: Text(
+                title,
+                style: Theme.of(context).appBarTheme.titleTextStyle,
+              ),
             ),
           ),
         ),

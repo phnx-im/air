@@ -26,7 +26,7 @@ use crate::{
         connection_offer::{FriendshipPackage, payload::ConnectionInfo},
     },
     contacts::UsernameContact,
-    db_access::WriteConnection,
+    db::access::WriteConnection,
     groups::Group,
     key_stores::indexed_keys::StorableIndexedKey,
     usernames::connection_packages::StorableConnectionPackage,
@@ -43,7 +43,7 @@ pub(crate) struct PendingConnectionInfo {
 
 impl CoreUser {
     #[instrument(skip(self), err)]
-    pub(crate) async fn accept_contact_request(
+    pub async fn accept_contact_request(
         &self,
         chat_id: ChatId,
     ) -> anyhow::Result<Result<(), AcceptContactRequestError>> {
@@ -181,9 +181,8 @@ impl CoreUser {
                     RoleIndex::Regular,
                 )?;
 
-                group
-                    .store_update(&mut *txn, Some(TimeStamp::now()))
-                    .await?;
+                let now = TimeStamp::now();
+                group.store_update(&mut *txn, Some(now), Some(now)).await?;
 
                 if let Some(hash) = connection_package_hash {
                     // Delete the connection package if it's not last resort
@@ -294,7 +293,7 @@ impl CoreUser {
 mod persistence {
     use sqlx::{query, query_as};
 
-    use crate::db_access::ReadConnection;
+    use crate::db::access::ReadConnection;
 
     use super::*;
 

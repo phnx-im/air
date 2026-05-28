@@ -15,7 +15,7 @@ impl CoreUser {
     /// more than one effect on the group. As a result this function returns a
     /// vector of [`ChatMessage`]s that represents the changes to the
     /// group. Note that these returned message have already been persisted.
-    pub(crate) async fn remove_users(
+    pub async fn remove_users(
         &self,
         chat_id: ChatId,
         target_users: Vec<UserId>,
