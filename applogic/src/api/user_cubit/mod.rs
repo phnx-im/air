@@ -480,8 +480,8 @@ impl UserCubitBase {
             .append_pair("object", &encoded_download_url);
         log_browse_url.set_fragment(Some(&format!(
             "encryption_key={},nonce={}",
-            hex::encode(&attachment_metadata.encryption_key()),
-            hex::encode(&attachment_metadata.nonce())
+            hex::encode(attachment_metadata.encryption_key()),
+            hex::encode(attachment_metadata.nonce())
         )));
 
         Ok(log_browse_url.to_string())

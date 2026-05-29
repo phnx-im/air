@@ -1,10 +1,9 @@
-use aircommon::{
-    crypto::aead::{AeadDecryptable, AeadEncryptable, Ciphertext, keys::MultiDevicePairingKey},
-    identifiers::Fqdn,
+use airapiclient::ApiClient;
+use aircommon::crypto::aead::{
+    AeadDecryptable, AeadEncryptable, Ciphertext, keys::MultiDevicePairingKey,
 };
 use airprotos::relay_service::v1::LinkingSessionId;
 use anyhow::{Context, anyhow, bail};
-use apqmls::messages::ApqKeyPackage;
 use openmls::{
     group::{MlsGroup, MlsGroupCreateConfig, MlsGroupJoinConfig, StagedWelcome},
     prelude::{
@@ -19,9 +18,8 @@ use sha2::{Digest, Sha256};
 use tls_codec::{Deserialize, DeserializeBytes, Serialize};
 use tokio_stream::StreamExt;
 use tracing::info;
-use url::Url;
 
-use crate::clients::{CIPHERSUITE, CoreUser, api_clients::ApiClients};
+use crate::clients::{CIPHERSUITE, CoreUser};
 
 const EXPORTER_LABEL: &str = "multi-device-pairing";
 
@@ -71,13 +69,9 @@ fn export_aead_key(
 
 impl CoreUser {
     pub async fn provision_multi_device_pairing(
-        domain: Fqdn,
-        server_url: Option<Url>,
+        api_client: &ApiClient,
         session_id_tx: tokio::sync::oneshot::Sender<LinkingSessionId>,
     ) -> anyhow::Result<String> {
-        let api_clients = ApiClients::new(domain, server_url);
-        let api_client = api_clients.default_client()?;
-
         let (provider, credential_with_key, signature_keys) =
             make_provider_and_credential(b"initiator")?;
 

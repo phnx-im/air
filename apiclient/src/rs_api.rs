@@ -26,7 +26,8 @@ impl ApiClient {
     pub async fn rs_provision_client(
         &self,
     ) -> Result<(mpsc::Sender<RelayFrame>, tonic::Streaming<RelayFrame>), RsRequestError> {
-        let (tx, rx) = mpsc::channel::<RelayFrame>(8);
+        // don't buffer frames: we expect the peer to consume what we send before we move forward
+        let (tx, rx) = mpsc::channel::<RelayFrame>(1);
         let request = tonic::Request::new(ReceiverStream::new(rx));
 
         let response: tonic::Response<tonic::Streaming<RelayFrame>> =
@@ -41,7 +42,8 @@ impl ApiClient {
         qs_user_signing_key: &QsUserSigningKey,
         linking_session_id: LinkingSessionId,
     ) -> Result<(mpsc::Sender<RelayFrame>, tonic::Streaming<RelayFrame>), RsRequestError> {
-        let (tx, rx) = mpsc::channel::<RelayFrame>(8);
+        // don't buffer frames: we expect the peer to consume what we send before we move forward
+        let (tx, rx) = mpsc::channel::<RelayFrame>(1);
 
         let payload = LinkClientRequestPayload {
             client_metadata: Some(self.metadata().clone()),

@@ -20,7 +20,7 @@ use airbackend::{
 use aircommon::identifiers::Fqdn;
 use airserver::{
     Addressed as _, ServerRunParams, as_connector::SimpleAsConnector,
-    configurations::get_configuration_from_str, enqueue_provider::SimpleEnqueueProvider,
+    configurations::get_configuration_from_str, qs_connector::SimpleEnqueueProvider,
     network_provider::MockNetworkProvider,
     push_notification_provider::ProductionPushNotificationProvider, run,
 };

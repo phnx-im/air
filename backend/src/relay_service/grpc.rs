@@ -107,34 +107,34 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
             drop(sessions);
 
             // we report the length of the truncated session ID to the peer
-            if let Err(_) = first_frame_outbound_tx
+            if let Err(error) = first_frame_outbound_tx
                 .send(Ok(RelayFrame {
-                    payload: Bytes::from_owner(truncated_session_id.len().to_be_bytes()),
+                    payload: Bytes::from_owner(truncated_session_id.digits().to_be_bytes()),
                 }))
                 .await
             {
-                error!("failed to send session ID length");
+                error!(%error, "failed to send session ID length");
                 return;
             };
 
             // then we wait for the peer to connect
             let peer_outbound = match timeout(SESSION_TIMEOUT, peer_ready_rx).await {
                 Ok(Ok(tx)) => tx,
-                Ok(Err(_)) => {
+                Ok(Err(error)) => {
                     relay_sessions.lock().await.remove(&truncated_session_id);
-                    error!("peer disconnected before sending outbound channel");
+                    info!(%error, "peer disconnected before sending outbound channel");
                     return;
                 }
                 Err(_) => {
                     relay_sessions.lock().await.remove(&truncated_session_id);
-                    warn!(%truncated_session_id, "timed out waiting for peer");
+                    info!(%truncated_session_id, "timed out waiting for peer");
                     return;
                 }
             };
 
             // then we (re)send the key package to the peer
-            if let Err(_) = peer_outbound.send(Ok(key_package_bytes.into())).await {
-                error!("failed to send key package");
+            if let Err(error) = peer_outbound.send(Ok(key_package_bytes)).await {
+                error!(%error, "failed to send key package");
                 return;
             };
 
@@ -201,7 +201,7 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
         if let Some(pending) = self.rs.sessions.lock().await.remove(&session_id) {
             // Fire the peer's oneshot with our outbound sender so they can start forwarding to us.
             if pending.peer_ready_tx.send(outbound_tx).is_err() {
-                error!("failed to send peer ready oneshot");
+                warn!("failed to signal that peer is ready (initiator disconnected)");
                 return Err(Status::aborted(
                     "peer disconnected before establishing relay pipe",
                 ));

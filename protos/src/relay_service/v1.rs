@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::fmt;
+use std::{fmt, ops::RangeInclusive};
 
 use prost::bytes::Bytes;
 use sha2::{Digest, Sha256};
@@ -36,7 +36,12 @@ impl RelayFrame {
 }
 
 impl LinkingSessionId {
+    const DIGITS: RangeInclusive<u32> = 8..=16;
+
     pub fn from_digest(sha256: &[u8; 32], digits: u32) -> Option<Self> {
+        if !Self::DIGITS.contains(&digits) {
+            return None;
+        }
         sha256[..8]
             .try_into()
             .ok()
@@ -48,7 +53,7 @@ impl LinkingSessionId {
 
     pub fn generate(bytes: &[u8], mut has_collision: impl FnMut(&Self) -> bool) -> Option<Self> {
         let digest: [u8; 32] = Sha256::digest(bytes).into();
-        for digits in 8..=16 {
+        for digits in Self::DIGITS {
             let code = Self::from_digest(&digest, digits)?;
             if !has_collision(&code) {
                 return Some(code);
@@ -59,11 +64,11 @@ impl LinkingSessionId {
 
     pub fn validate(&self, bytes: &[u8]) -> bool {
         let digest: [u8; 32] = Sha256::digest(bytes).into();
-        let digits = self.len();
+        let digits = self.digits();
         Self::from_digest(&digest, digits).is_some_and(|other| other == *self)
     }
 
-    pub fn len(&self) -> u32 {
+    pub fn digits(&self) -> u32 {
         self.value.len() as u32
     }
 }
@@ -80,12 +85,6 @@ impl fmt::Display for LinkingSessionId {
     }
 }
 
-impl<S: Into<String>> From<S> for LinkingSessionId {
-    fn from(s: S) -> Self {
-        Self { value: s.into() }
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -93,21 +92,23 @@ mod tests {
     #[test]
     fn returns_8_digit_code_when_no_collision() {
         let code = LinkingSessionId::generate("hello-world".as_bytes(), |_| false).unwrap();
-        assert_eq!(code.len(), 8);
+        assert_eq!(code.digits(), 8);
     }
 
     #[test]
     fn escalates_digits_on_collision() {
         // collide on every 8-digit code; should escalate to 9 digits
-        let code = LinkingSessionId::generate("hello-world".as_bytes(), |c| c.len() == 8).unwrap();
-        assert_eq!(code.len(), 9);
+        let code =
+            LinkingSessionId::generate("hello-world".as_bytes(), |c| c.digits() == 8).unwrap();
+        assert_eq!(code.digits(), 9);
     }
 
     #[test]
     fn escalates_multiple_times() {
         // collide on 8 and 9 digit codes; should escalate to 10 digits
-        let code = LinkingSessionId::generate("hello-world".as_bytes(), |c| c.len() <= 9).unwrap();
-        assert_eq!(code.len(), 10);
+        let code =
+            LinkingSessionId::generate("hello-world".as_bytes(), |c| c.digits() <= 9).unwrap();
+        assert_eq!(code.digits(), 10);
     }
 
     #[test]
