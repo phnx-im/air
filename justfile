@@ -181,10 +181,10 @@ install-fvm:
 
 [linux]
 [working-directory: 'app/linux']
-build-rpm: (flutter "build linux")
+build-rpm:
     nfpm package -p rpm
 
 [linux]
 [working-directory: 'app/linux']
-build-deb: (flutter "build linux")
+build-deb:
     nfpm package -p deb
