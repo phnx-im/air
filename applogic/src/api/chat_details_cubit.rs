@@ -270,7 +270,7 @@ impl ChatDetailsCubitBase {
         let (attachment_id, progress, upload_task) = match Box::pin(
             self.context
                 .core_user
-                .upload_attachment(self.context.chat_id, &path),
+                .upload_chat_attachment(self.context.chat_id, &path),
         )
         .await?
         {
@@ -289,7 +289,7 @@ impl ChatDetailsCubitBase {
         let (new_attachment_id, progress, upload_task) = match self
             .context
             .core_user
-            .retry_upload_attachment(attachment_id)
+            .retry_upload_chat_attachment(attachment_id)
             .await?
         {
             Ok(result) => result,

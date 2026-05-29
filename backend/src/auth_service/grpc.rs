@@ -6,7 +6,7 @@ use std::io;
 
 use airprotos::{
     auth_service::v1::{auth_service_server, *},
-    common::v1::ClientMetadata,
+    common::v1::{ClientMetadata, UserId},
     validation::MissingFieldExt,
 };
 use displaydoc::Display;
@@ -53,7 +53,6 @@ use crate::{
 
 use super::{
     AuthService,
-    client_record::ClientRecord,
     usernames::{UsernameQueues, UsernameRecord},
 };
 
@@ -81,14 +80,14 @@ impl GrpcAs {
         &self,
         user_id: &identifiers::UserId,
     ) -> Result<keys::ClientVerifyingKey, Status> {
-        let client_record = ClientRecord::load(&self.inner.db_pool, user_id)
+        self.inner
+            .load_client_verifying_key(user_id)
             .await
             .map_err(|error| {
                 error!(%error, ?user_id, "failed to load client");
                 Status::internal("database error")
             })?
-            .ok_or_else(|| Status::not_found("unknown client"))?;
-        Ok(client_record.credential.verifying_key().clone())
+            .ok_or_else(|| Status::not_found("unknown client"))
     }
 
     async fn verify_username_auth<R, P>(

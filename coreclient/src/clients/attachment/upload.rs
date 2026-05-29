@@ -9,15 +9,19 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use airapiclient::{ApiClient, ds_api::ProvisionAttachmentResponse};
+use airapiclient::{
+    ApiClient,
+    ds_api::{DsAttachmentTarget, ProvisionAttachmentResponse},
+};
 use aircommon::{
     credentials::keys::ClientSigningKey,
     crypto::aead::{AeadCiphertext, AeadEncryptable, keys::AttachmentEarKey},
-    identifiers::AttachmentId,
+    identifiers::{AttachmentId, UserId},
 };
 use airprotos::{
     common::v1::AttachmentTooLargeDetail,
     delivery_service::v1::{SignedPostPolicy, StorageObjectType},
+    validation::MissingFieldExt,
 };
 use anyhow::{Context, bail, ensure};
 use base64::{Engine, prelude::BASE64_STANDARD};
@@ -32,6 +36,7 @@ use serde_json::Value;
 use sha2::{Digest, Sha256};
 use tokio_stream::StreamExt;
 use tokio_util::io::ReaderStream;
+use url::Url;
 
 use crate::{
     AttachmentContent, AttachmentProgressEvent, AttachmentStatus, AttachmentUrl, Chat, ChatId,
@@ -49,8 +54,53 @@ use crate::{
 };
 
 impl CoreUser {
-    /// Uploads an attachment and sends a message containing it.
-    pub async fn upload_attachment(
+    /// Uploads an attachment tied to the user (signed with their signing key)
+    pub async fn upload_user_attachment(
+        &self,
+        object_type: StorageObjectType,
+        bytes: Vec<u8>,
+    ) -> anyhow::Result<Result<(AttachmentMetadata, Url), ProvisionAttachmentError>> {
+        let api_client = self.api_client()?;
+        let http_client = self.http_client();
+        let data = AttachmentBytes::from(bytes);
+        let user_id = self.user_id().clone();
+
+        match encrypt_and_provision(
+            &api_client,
+            self.signing_key(),
+            AttachmentTarget::User(&user_id),
+            object_type,
+            &data,
+        )
+        .await?
+        {
+            Ok(ProvisionedAttachment {
+                metadata,
+                ciphertext,
+                response,
+            }) => {
+                let attachment_id =
+                    AttachmentId::new(response.object_id.ok_or_missing_field("object_id")?.into());
+                let (progress_tx, _progress) = AttachmentProgress::new();
+                upload_encrypted_attachment(&http_client, response, progress_tx, ciphertext)
+                    .await?;
+
+                let download_url = self
+                    .get_attachment_url(
+                        object_type,
+                        DsAttachmentTarget::User { user_id: &user_id },
+                        attachment_id,
+                    )
+                    .await?;
+
+                Ok(Ok((metadata, download_url)))
+            }
+            Err(error) => Ok(Err(error)),
+        }
+    }
+
+    /// Uploads an attachment tied to a chat/group and stores a transaction message
+    pub async fn upload_chat_attachment(
         &self,
         chat_id: ChatId,
         path: &Path,
@@ -72,10 +122,15 @@ impl CoreUser {
         let mut attachment = ProcessedAttachment::from_file(path)?;
 
         // encrypt the content and provision the attachment, but don't upload it yet
-        let (attachment_metadata, ciphertext, provision_response) = match encrypt_and_provision(
+        let ProvisionedAttachment {
+            metadata,
+            ciphertext,
+            response,
+        } = match encrypt_and_provision(
             &self.api_client()?,
             self.signing_key(),
-            &group,
+            AttachmentTarget::Group(&group),
+            StorageObjectType::Attachment,
             &attachment.content,
         )
         .await?
@@ -85,7 +140,7 @@ impl CoreUser {
         };
 
         // store local attachment message
-        let attachment_id = attachment_metadata.attachment_id;
+        let attachment_id = metadata.attachment_id;
         let content_bytes = mem::replace(&mut attachment.content.bytes, Vec::new().into());
         let content_type = attachment.content_type;
 
@@ -93,7 +148,7 @@ impl CoreUser {
             nested_part: NestedPart::MultiPart {
                 disposition: Disposition::Attachment,
                 part_semantics: PartSemantics::ProcessAll,
-                parts: attachment.into_nested_parts(attachment_metadata)?,
+                parts: attachment.into_nested_parts(metadata)?,
                 language: Default::default(),
             },
             ..Default::default()
@@ -127,11 +182,11 @@ impl CoreUser {
 
         // upload the encrypted attachment
         let (progress, task) =
-            self.upload_attachment_task(attachment_id, message, ciphertext, provision_response);
+            self.upload_attachment_task(attachment_id, message, ciphertext, response);
         Ok(Ok((attachment_id, progress, task)))
     }
 
-    pub async fn retry_upload_attachment(
+    pub async fn retry_upload_chat_attachment(
         &self,
         attachment_id: AttachmentId,
     ) -> anyhow::Result<
@@ -181,13 +236,22 @@ impl CoreUser {
             .await?;
 
         // encrypt the content and provision the attachment, but don't upload it yet
-        let (attachment_metadata, ciphertext, provision_response) =
-            match encrypt_and_provision(&self.api_client()?, self.signing_key(), &group, &content)
-                .await?
-            {
-                Ok(result) => result,
-                Err(error) => return Ok(Err(error)),
-            };
+        let ProvisionedAttachment {
+            metadata,
+            ciphertext,
+            response,
+        } = match encrypt_and_provision(
+            &self.api_client()?,
+            self.signing_key(),
+            AttachmentTarget::Group(&group),
+            StorageObjectType::Attachment,
+            &content,
+        )
+        .await?
+        {
+            Ok(result) => result,
+            Err(error) => return Ok(Err(error)),
+        };
 
         // update local attachment message
 
@@ -204,21 +268,16 @@ impl CoreUser {
             } = attachment_part
             && let Ok(attachment_url) = AttachmentUrl::from_url(&url.parse()?)
         {
-            *url = AttachmentUrl::new(attachment_metadata.attachment_id, attachment_url.dimensions)
-                .to_string();
-            *key = attachment_metadata.key.into_bytes().to_vec();
-            *nonce = attachment_metadata.nonce.to_vec();
+            *url =
+                AttachmentUrl::new(metadata.attachment_id, attachment_url.dimensions).to_string();
+            *key = metadata.key.into_bytes().to_vec();
+            *nonce = metadata.nonce.to_vec();
 
             self.db()
                 .with_write_transaction(async |txn| -> anyhow::Result<()> {
                     message.update(&mut *txn).await?;
-                    AttachmentRecord::copy(
-                        &mut *txn,
-                        attachment_id,
-                        attachment_metadata.attachment_id,
-                        false,
-                    )
-                    .await?;
+                    AttachmentRecord::copy(&mut *txn, attachment_id, metadata.attachment_id, false)
+                        .await?;
                     AttachmentRecord::delete(txn, attachment_id, false).await?;
 
                     Ok(())
@@ -229,17 +288,9 @@ impl CoreUser {
         }
 
         // upload task
-        let (progress, upload_task) = self.upload_attachment_task(
-            attachment_metadata.attachment_id,
-            message,
-            ciphertext,
-            provision_response,
-        );
-        Ok(Ok((
-            attachment_metadata.attachment_id,
-            progress,
-            upload_task,
-        )))
+        let (progress, upload_task) =
+            self.upload_attachment_task(metadata.attachment_id, message, ciphertext, response);
+        Ok(Ok((metadata.attachment_id, progress, upload_task)))
     }
 
     fn upload_attachment_task(
@@ -422,10 +473,20 @@ impl ProcessedAttachment {
 }
 
 /// Metadata of an encrypted and uploaded attachment
-struct AttachmentMetadata {
+pub struct AttachmentMetadata {
     attachment_id: AttachmentId,
     key: AttachmentEarKey,
     nonce: [u8; 12],
+}
+
+impl AttachmentMetadata {
+    pub fn encryption_key(&self) -> &[u8] {
+        self.key.as_bytes()
+    }
+
+    pub fn nonce(&self) -> &[u8; 12] {
+        &self.nonce
+    }
 }
 
 #[derive(Debug)]
@@ -433,14 +494,37 @@ pub enum ProvisionAttachmentError {
     TooLarge(AttachmentTooLargeDetail),
 }
 
+enum AttachmentTarget<'a> {
+    Group(&'a Group),
+    User(&'a UserId),
+}
+
+impl<'a> From<AttachmentTarget<'a>> for DsAttachmentTarget<'a> {
+    fn from(target: AttachmentTarget<'a>) -> Self {
+        match target {
+            AttachmentTarget::Group(group) => DsAttachmentTarget::Group {
+                group_state_ear_key: group.group_state_ear_key(),
+                group_id: group.group_id(),
+                sender_index: group.own_index(),
+            },
+            AttachmentTarget::User(user_id) => DsAttachmentTarget::User { user_id },
+        }
+    }
+}
+
+struct ProvisionedAttachment {
+    metadata: AttachmentMetadata,
+    ciphertext: Vec<u8>,
+    response: ProvisionAttachmentResponse,
+}
+
 async fn encrypt_and_provision(
     api_client: &ApiClient,
     signing_key: &ClientSigningKey,
-    group: &Group,
+    target: AttachmentTarget<'_>,
+    object_type: StorageObjectType,
     content: &AttachmentBytes,
-) -> anyhow::Result<
-    Result<(AttachmentMetadata, Vec<u8>, ProvisionAttachmentResponse), ProvisionAttachmentError>,
-> {
+) -> anyhow::Result<Result<ProvisionedAttachment, ProvisionAttachmentError>> {
     // encrypt the content
     let key = AttachmentEarKey::random()?;
     let ciphertext: AeadCiphertext = content.encrypt(&key)?.into();
@@ -449,14 +533,7 @@ async fn encrypt_and_provision(
     // provision attachment
     let content_length = ciphertext.len().try_into().context("usize overflow")?;
     let response = match api_client
-        .ds_provision_attachment(
-            signing_key,
-            group.group_state_ear_key(),
-            group.group_id(),
-            group.own_index(),
-            content_length,
-            StorageObjectType::Attachment,
-        )
+        .ds_provision_attachment(signing_key, target.into(), content_length, object_type)
         .await
     {
         Ok(response) => response,
@@ -471,13 +548,16 @@ async fn encrypt_and_provision(
     };
 
     let attachment_id = AttachmentId::new(response.object_id.context("no object id")?.into());
-
-    let metadata = AttachmentMetadata {
-        attachment_id,
-        key,
-        nonce,
+    let attachment = ProvisionedAttachment {
+        metadata: AttachmentMetadata {
+            attachment_id,
+            key,
+            nonce,
+        },
+        ciphertext,
+        response,
     };
-    Ok(Ok((metadata, ciphertext, response)))
+    Ok(Ok(attachment))
 }
 
 async fn upload_encrypted_attachment(

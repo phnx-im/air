@@ -34,7 +34,7 @@ inputs:
     required: false
   sccache:
     description: "Enable sccache (with GitHub cache artifacts)"
-    default: "true"
+    default: "false"
     required: false
   sccache-dir:
     description: "Location of cache files"
@@ -44,6 +44,10 @@ inputs:
     description: "Max. size of sccache"
     required: false
     default: "2g"
+  cache-key:
+    description: "Cache key discriminator; defaults to the job id"
+    required: false
+    default: ""
 outputs:
   build-number:
     description: "Build number derived from the count of git commit in the repository"
@@ -96,10 +100,9 @@ runs:
       with:
         path: |
           ${{ inputs.sccache-dir }}
-          ~/.cargo
-        key: "sccache-${{ github.job }}-${{ hashFiles('.github/actions/setup-buildenv/action.yml', 'Cargo.lock', '.config/cargo.toml', 'rust-toolchain.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
+        key: "sccache-${{ inputs.cache-key || github.job }}-${{ hashFiles('.github/actions/setup-buildenv/action.yml', 'Cargo.lock', '.config/cargo.toml', 'rust-toolchain.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
         restore-keys: |
-          sccache-${{ github.job }}
+          sccache-${{ inputs.cache-key || github.job }}
 
     - name: Download Rust GitHub Actions cache
       if: inputs.sccache == 'true' && github.ref != 'refs/heads/main'
@@ -107,10 +110,9 @@ runs:
       with:
         path: |
           ${{ inputs.sccache-dir }}
-          ~/.cargo
-        key: "sccache-${{ github.job }}-${{ hashFiles('.github/actions/setup-buildenv/action.yml', 'Cargo.lock', '.config/cargo.toml', 'rust-toolchain.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
+        key: "sccache-${{ inputs.cache-key || github.job }}-${{ hashFiles('.github/actions/setup-buildenv/action.yml', 'Cargo.lock', '.config/cargo.toml', 'rust-toolchain.toml', 'app/pubspec.lock', 'app/.fvmrc') }}"
         restore-keys: |
-          sccache-${{ github.job }}
+          sccache-${{ inputs.cache-key || github.job }}
 
     - name: Start sccache daemon
       if: inputs.sccache == 'true'
@@ -133,6 +135,8 @@ runs:
       run: |
         echo "CC=sccache clang" >> $GITHUB_ENV
         echo "CXX=sccache clang++" >> $GITHUB_ENV
+        echo "CMAKE_C_COMPILER_LAUNCHER=sccache" >> $GITHUB_ENV
+        echo "CMAKE_CXX_COMPILER_LAUNCHER=sccache" >> $GITHUB_ENV
 
     - if: inputs.sccache == 'true' && runner.os == 'Windows'
       name: Enable sccache wrapper for Windows
