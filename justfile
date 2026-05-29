@@ -188,3 +188,6 @@ build-rpm: (flutter "build linux")
 [working-directory: 'app/linux']
 build-deb: (flutter "build linux")
     nfpm package -p deb
+
+spdx:
+    reuse annotate --copyright "`date +%Y` Phoenix R&D GmbH <hello@phnx.im>" --license AGPL-3.0-or-later $(reuse lint -l | cut -d ':' -f1)
