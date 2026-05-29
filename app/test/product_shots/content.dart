@@ -128,6 +128,7 @@ final chats = [
       fredId,
       'My favorite planet is Jupiter. But I also like Venus a lot.',
     ),
+    mutedUntil: null,
   ),
   // Jessica
   UiChatDetails(
@@ -143,6 +144,7 @@ final chats = [
       jessicaId,
       "What's the recipe for that olive oil cake you made? It was so good.",
     ),
+    mutedUntil: null,
   ),
   // Science club
   UiChatDetails(
@@ -163,6 +165,7 @@ final chats = [
       samId,
       "Riemanian Zeta function is one of the most important mathematical functions in the history of mathematics.",
     ),
+    mutedUntil: null,
   ),
   // Dave
   UiChatDetails(
@@ -178,6 +181,7 @@ final chats = [
       daveId,
       'I have to tell you all about my weekend...',
     ),
+    mutedUntil: null,
   ),
   // Gardening club
   UiChatDetails(
@@ -198,6 +202,7 @@ final chats = [
       jessicaId,
       "Last year I grew 5 different kinds of carrots! Let me see if I can find a good primer about how to grow them...",
     ),
+    mutedUntil: null,
   ),
   // Frank
   UiChatDetails(
@@ -213,6 +218,7 @@ final chats = [
       frankId,
       'Going to the store. Need anything?',
     ),
+    mutedUntil: null,
   ),
   // Alex
   UiChatDetails(
@@ -224,6 +230,7 @@ final chats = [
     messagesCount: 1,
     lastUsed: now.subtract(const Duration(days: 1)),
     lastMessage: _lastChatMessage(alexChatId, alexId, "See you there."),
+    mutedUntil: null,
   ),
   // Irene
   UiChatDetails(
@@ -239,6 +246,7 @@ final chats = [
       ireneId,
       "The nearest star is Proxima Centauri.",
     ),
+    mutedUntil: null,
   ),
   // Dinner party
   UiChatDetails(
@@ -259,6 +267,7 @@ final chats = [
       daveId,
       "Sorry, I can't join the party. I'm going to the movies already.",
     ),
+    mutedUntil: null,
   ),
   // Kamal
   UiChatDetails(
@@ -274,6 +283,7 @@ final chats = [
       ownId,
       "Hey Kamal, I'm going to the movies with my friends. Want to come with us?",
     ),
+    mutedUntil: null,
   ),
 ];
 

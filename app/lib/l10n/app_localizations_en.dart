@@ -105,6 +105,12 @@ class AppLocalizationsEn extends AppLocalizations {
   String get contactDetailsScreen_viewSafetyCode => 'View Safety Code';
 
   @override
+  String get contactDetailsScreen_mute => 'Mute';
+
+  @override
+  String get contactDetailsScreen_unmute => 'Unmute';
+
+  @override
   String get safetyCodeScreen_title => 'Safety Code';
 
   @override
@@ -120,6 +126,24 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatDetailsScreen_unknownChat => 'Unknown chat';
+
+  @override
+  String get muteDurationSheet_title => 'Mute notifications';
+
+  @override
+  String get muteDurationSheet_1hour => '1 hour';
+
+  @override
+  String get muteDurationSheet_8hours => '8 hours';
+
+  @override
+  String get muteDurationSheet_untilTomorrow => 'Until tomorrow';
+
+  @override
+  String get muteDurationSheet_untilNextMonday => 'Until next Monday';
+
+  @override
+  String get muteDurationSheet_always => 'Always (until I change it)';
 
   @override
   String blockedChatFooter_message(Object displayName) {
@@ -585,6 +609,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get chatList_blocked => 'Blocked';
+
+  @override
+  String get chatList_muted => 'Muted';
+
+  @override
+  String get chatList_contextMenu_mute => 'Mute';
+
+  @override
+  String get chatList_contextMenu_unmute => 'Unmute';
 
   @override
   String newChatDialog_error(Object chatName) {

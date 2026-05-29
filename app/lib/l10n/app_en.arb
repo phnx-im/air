@@ -35,6 +35,8 @@
 
   "contactDetailsScreen_chat": "Chat",
   "contactDetailsScreen_viewSafetyCode": "View Safety Code",
+  "contactDetailsScreen_mute": "Mute",
+  "contactDetailsScreen_unmute": "Unmute",
 
   "safetyCodeScreen_title": "Safety Code",
   "safetyCodeScreen_tapToCopy": "Tap to copy",
@@ -42,6 +44,13 @@
   "safetyCodeScreen_safetyCodeExplanation": "Compare what you see as the safety code with what {displayName} sees. If the codes match, you know that you're sending and receiving end-to-end encrypted messages with the correct person.",
 
   "chatDetailsScreen_unknownChat": "Unknown chat",
+
+  "muteDurationSheet_title": "Mute notifications",
+  "muteDurationSheet_1hour": "1 hour",
+  "muteDurationSheet_8hours": "8 hours",
+  "muteDurationSheet_untilTomorrow": "Until tomorrow",
+  "muteDurationSheet_untilNextMonday": "Until next Monday",
+  "muteDurationSheet_always": "Always (until I change it)",
 
   "blockedChatFooter_message": "You won’t receive messages from {displayName} unless you unblock them.",
   "inactiveChatFooter_message": "You're no longer a member of this chat.",
@@ -203,6 +212,9 @@
   "chatList_imageEmoji": "🖼️",
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blocked",
+  "chatList_muted": "Muted",
+  "chatList_contextMenu_mute": "Mute",
+  "chatList_contextMenu_unmute": "Unmute",
 
   "newChatDialog_error": "Failed to create new group chat with name {chatName}",
   "newChatDialog_error_incompatibleClient": "Couldn't create new group chat with name {chatName} because one of the contacts has an incompatible client.",

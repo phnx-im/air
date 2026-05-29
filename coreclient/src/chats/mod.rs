@@ -92,6 +92,7 @@ pub struct Chat {
     pub last_message_at: Option<DateTime<Utc>>,
     pub status: ChatStatus,
     pub chat_type: ChatType,
+    pub muted_until: Option<DateTime<Utc>>,
 }
 
 impl Chat {
@@ -104,6 +105,7 @@ impl Chat {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::HandleConnection(username),
+            muted_until: None,
         }
     }
 
@@ -116,6 +118,7 @@ impl Chat {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::TargetedMessageConnection(user_id),
+            muted_until: None,
         }
     }
 
@@ -128,6 +131,7 @@ impl Chat {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::Group(attributes),
+            muted_until: None,
         }
     }
 
@@ -139,6 +143,7 @@ impl Chat {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::PendingConnection(user_id),
+            muted_until: None,
         }
     }
 
@@ -187,6 +192,10 @@ impl Chat {
     pub(crate) fn owner_domain(&self) -> Fqdn {
         let qgid = QualifiedGroupId::try_from(self.group_id.clone()).unwrap();
         qgid.owning_domain().clone()
+    }
+
+    pub fn is_muted(&self, when: DateTime<Utc>) -> bool {
+        self.muted_until.is_some_and(|until| until > when)
     }
 
     pub(crate) async fn set_picture(

@@ -6,7 +6,10 @@ import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:air/chat/chat_details.dart';
+import 'package:air/chat/mute_chat_sheet.dart';
 import 'package:air/chat_list/chat_list_view.dart';
+import 'package:air/ds/components/context_menu/context_menu.dart';
+import 'package:air/ds/components/context_menu/context_menu_item_ui.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/message_list/display_message_tile.dart';
@@ -159,64 +162,104 @@ class _NoChats extends StatelessWidget {
   }
 }
 
-class _ListTile extends StatelessWidget {
+class _ListTile extends StatefulWidget {
   const _ListTile({required this.chatId});
 
   final ChatId chatId;
+
+  @override
+  State<_ListTile> createState() => _ListTileState();
+}
+
+class _ListTileState extends State<_ListTile> {
+  final _contextMenuController = OverlayPortalController();
 
   @override
   Widget build(BuildContext context) {
     final currentChatId = context.select(
       (NavigationCubit cubit) => cubit.state.openChatId,
     );
-    final isSelected = currentChatId == chatId;
+    final isSelected = currentChatId == widget.chatId;
+    final loc = AppLocalizations.of(context);
 
-    return GestureDetector(
-      onTap: () => context.read<NavigationCubit>().openChat(chatId),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(
-          Spacing.px16,
-          Spacing.px16,
-          Spacing.px16,
-          Spacing.px12,
-        ),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? CustomColorScheme.of(context).backgroundElevated.primary
-              : null,
-        ),
-        child: Builder(
-          builder: (context) {
-            final chat = context.select(
-              (ChatDetailsCubit cubit) => cubit.state.chat,
-            );
-            if (chat == null) {
-              return const SizedBox.shrink();
-            }
-            return Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: .start,
-              spacing: Spacing.px12,
-              children: [
-                ChatAvatar(chatId: chat.id, size: 48),
-                Expanded(
-                  child: Column(
-                    mainAxisSize: .min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    spacing: 0,
+    return Builder(
+      builder: (context) {
+        final isMuted = context.select(
+          (ChatDetailsCubit cubit) => cubit.state.chat?.isMuted ?? false,
+        );
+
+        return ContextMenu(
+          direction: ContextMenuDirection.right,
+          controller: _contextMenuController,
+          menuItems: [
+            ContextMenuItem(
+              label: isMuted
+                  ? loc.chatList_contextMenu_unmute
+                  : loc.chatList_contextMenu_mute,
+              leading: isMuted
+                  ? const AppIcon.bell(size: 16)
+                  : const AppIcon.bellOff(size: 16),
+              onPressed: () {
+                if (isMuted) {
+                  context.read<ChatDetailsCubit>().unmuteChat();
+                } else {
+                  showMuteChatSheet(context);
+                }
+              },
+            ),
+          ],
+          child: GestureDetector(
+            onTap: () =>
+                context.read<NavigationCubit>().openChat(widget.chatId),
+            onLongPress: _contextMenuController.show,
+            onSecondaryTap: _contextMenuController.show,
+            behavior: HitTestBehavior.opaque,
+            child: Container(
+              padding: const EdgeInsets.fromLTRB(
+                Spacing.px16,
+                Spacing.px16,
+                Spacing.px16,
+                Spacing.px12,
+              ),
+              decoration: BoxDecoration(
+                color: isSelected
+                    ? CustomColorScheme.of(context).backgroundElevated.primary
+                    : null,
+              ),
+              child: Builder(
+                builder: (context) {
+                  final chat = context.select(
+                    (ChatDetailsCubit cubit) => cubit.state.chat,
+                  );
+                  if (chat == null) {
+                    return const SizedBox.shrink();
+                  }
+                  return Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    crossAxisAlignment: .start,
+                    spacing: Spacing.px12,
                     children: [
-                      _ListTileTop(chat: chat),
-                      _ListTileBottom(chat: chat),
+                      ChatAvatar(chatId: chat.id, size: 48),
+                      Expanded(
+                        child: Column(
+                          mainAxisSize: .min,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          spacing: 0,
+                          children: [
+                            _ListTileTop(chat: chat),
+                            _ListTileBottom(chat: chat),
+                          ],
+                        ),
+                      ),
                     ],
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-      ),
+                  );
+                },
+              ),
+            ),
+          ),
+        );
+      },
     );
   }
 }
@@ -228,11 +271,21 @@ class _ListTileTop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tertiaryColor = CustomColorScheme.of(context).text.tertiary;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       spacing: Spacing.px12,
       children: [
-        Expanded(child: _ChatTitle(title: chat.title)),
+        Expanded(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: Spacing.px4,
+            children: [
+              Flexible(child: _ChatTitle(title: chat.title)),
+              if (chat.isMuted) AppIcon.bellOff(size: 16, color: tertiaryColor),
+            ],
+          ),
+        ),
         _LastUpdated(chat: chat),
       ],
     );

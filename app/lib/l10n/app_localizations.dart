@@ -276,6 +276,18 @@ abstract class AppLocalizations {
   /// **'View Safety Code'**
   String get contactDetailsScreen_viewSafetyCode;
 
+  /// No description provided for @contactDetailsScreen_mute.
+  ///
+  /// In en, this message translates to:
+  /// **'Mute'**
+  String get contactDetailsScreen_mute;
+
+  /// No description provided for @contactDetailsScreen_unmute.
+  ///
+  /// In en, this message translates to:
+  /// **'Unmute'**
+  String get contactDetailsScreen_unmute;
+
   /// No description provided for @safetyCodeScreen_title.
   ///
   /// In en, this message translates to:
@@ -305,6 +317,42 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Unknown chat'**
   String get chatDetailsScreen_unknownChat;
+
+  /// No description provided for @muteDurationSheet_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Mute notifications'**
+  String get muteDurationSheet_title;
+
+  /// No description provided for @muteDurationSheet_1hour.
+  ///
+  /// In en, this message translates to:
+  /// **'1 hour'**
+  String get muteDurationSheet_1hour;
+
+  /// No description provided for @muteDurationSheet_8hours.
+  ///
+  /// In en, this message translates to:
+  /// **'8 hours'**
+  String get muteDurationSheet_8hours;
+
+  /// No description provided for @muteDurationSheet_untilTomorrow.
+  ///
+  /// In en, this message translates to:
+  /// **'Until tomorrow'**
+  String get muteDurationSheet_untilTomorrow;
+
+  /// No description provided for @muteDurationSheet_untilNextMonday.
+  ///
+  /// In en, this message translates to:
+  /// **'Until next Monday'**
+  String get muteDurationSheet_untilNextMonday;
+
+  /// No description provided for @muteDurationSheet_always.
+  ///
+  /// In en, this message translates to:
+  /// **'Always (until I change it)'**
+  String get muteDurationSheet_always;
 
   /// No description provided for @blockedChatFooter_message.
   ///
@@ -1058,6 +1106,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Blocked'**
   String get chatList_blocked;
+
+  /// No description provided for @chatList_muted.
+  ///
+  /// In en, this message translates to:
+  /// **'Muted'**
+  String get chatList_muted;
+
+  /// No description provided for @chatList_contextMenu_mute.
+  ///
+  /// In en, this message translates to:
+  /// **'Mute'**
+  String get chatList_contextMenu_mute;
+
+  /// No description provided for @chatList_contextMenu_unmute.
+  ///
+  /// In en, this message translates to:
+  /// **'Unmute'**
+  String get chatList_contextMenu_unmute;
 
   /// No description provided for @newChatDialog_error.
   ///

@@ -105,6 +105,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get contactDetailsScreen_viewSafetyCode => 'Sicherheitscode anzeigen';
 
   @override
+  String get contactDetailsScreen_mute => 'Stummschalten';
+
+  @override
+  String get contactDetailsScreen_unmute => 'Stummschaltung aufheben';
+
+  @override
   String get safetyCodeScreen_title => 'Sicherheitscode';
 
   @override
@@ -120,6 +126,24 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatDetailsScreen_unknownChat => 'Unbekannter Chat';
+
+  @override
+  String get muteDurationSheet_title => 'Benachrichtigungen stummschalten';
+
+  @override
+  String get muteDurationSheet_1hour => '1 Stunde';
+
+  @override
+  String get muteDurationSheet_8hours => '8 Stunden';
+
+  @override
+  String get muteDurationSheet_untilTomorrow => 'Bis morgen';
+
+  @override
+  String get muteDurationSheet_untilNextMonday => 'Bis nächsten Montag';
+
+  @override
+  String get muteDurationSheet_always => 'Immer (bis ich es ändere)';
 
   @override
   String blockedChatFooter_message(Object displayName) {
@@ -595,6 +619,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatList_blocked => 'Blockiert';
+
+  @override
+  String get chatList_muted => 'Stummgeschaltet';
+
+  @override
+  String get chatList_contextMenu_mute => 'Stummschalten';
+
+  @override
+  String get chatList_contextMenu_unmute => 'Stummschaltung aufheben';
 
   @override
   String newChatDialog_error(Object chatName) {

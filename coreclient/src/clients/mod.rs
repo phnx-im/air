@@ -694,6 +694,34 @@ impl CoreUser {
         Chat::messages_count(self.db().read().await?, chat_id).await
     }
 
+    // pub async fn is_chat_muted(&self, chat_id: ChatId) -> bool {
+    //     let Ok(connection) = self
+    //         .db()
+    //         .read()
+    //         .await
+    //         .inspect_err(|error| error!(%error, "Failed to get read connection"))
+    //     else {
+    //         return false;
+    //     };
+    //     Chat::is_muted(connection, chat_id, Utc::now())
+    //         .await
+    //         .inspect_err(|error| error!(%error, "Error while fetching mute state"))
+    //         .unwrap_or(false)
+    // }
+
+    pub async fn set_chat_muted_until(
+        &self,
+        chat_id: ChatId,
+        muted_until: Option<DateTime<Utc>>,
+    ) -> anyhow::Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| {
+                Chat::set_muted_until(txn, chat_id, muted_until).await?;
+                Ok(())
+            })
+            .await
+    }
+
     /// Schedules the client's push token update on the QS.
     pub async fn update_push_token(&self, push_token: Option<PushToken>) -> Result<()> {
         let should_notify =

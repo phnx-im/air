@@ -57,6 +57,7 @@ final chats = [
       position: UiFlightPosition.single,
       status: UiMessageStatus.sent,
     ),
+    mutedUntil: null,
   ),
   // Connection request
   UiChatDetails(
@@ -92,6 +93,7 @@ final chats = [
       position: UiFlightPosition.single,
       status: UiMessageStatus.sent,
     ),
+    mutedUntil: null,
   ),
   // Group chat
   UiChatDetails(
@@ -124,6 +126,7 @@ final chats = [
       position: UiFlightPosition.single,
       status: UiMessageStatus.sent,
     ),
+    mutedUntil: null,
   ),
   // Group chat with a draft
   UiChatDetails(
@@ -162,6 +165,7 @@ final chats = [
       updatedAt: DateTime.now(),
       isCommitted: true,
     ),
+    mutedUntil: null,
   ),
   // A blocked contact
   UiChatDetails(
@@ -173,6 +177,7 @@ final chats = [
     messagesCount: 10,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: null,
+    mutedUntil: null,
   ),
 ];
 

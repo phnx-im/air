@@ -101,6 +101,7 @@ pub struct UiChatDetails {
     pub last_message: Option<UiChatMessage>,
     pub draft: Option<UiMessageDraft>,
     pub is_apq: bool,
+    pub muted_until: Option<DateTime<Utc>>,
 }
 
 impl UiChatDetails {

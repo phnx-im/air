@@ -95,6 +95,11 @@ class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
   Future<AcceptContactRequestError?> acceptContactRequest() =>
       _impl.acceptContactRequest();
 
+  Future<void> muteChat({DateTime? mutedUntil}) =>
+      _impl.muteChat(mutedUntil: mutedUntil);
+
+  Future<void> unmuteChat() => _impl.unmuteChat();
+
   Future<GroupDebugInfo> chatDebugInfo() => _impl.chatDebugInfo();
 
   Future<void> requestResync() => _impl.requestResync();
