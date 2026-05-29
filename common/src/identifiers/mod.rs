@@ -484,6 +484,6 @@ mod tests {
             push_token_ear_key: Some(PushTokenEarKey::from_bytes([0x42; 32])),
         };
         let serialized = client_config.tls_serialize_detached().unwrap();
-        insta::assert_binary_snapshot!("client_config.bin", serialized);
+        insta::assert_binary_snapshot!("client_config.tls", serialized);
     }
 }

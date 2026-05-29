@@ -1,6 +1,6 @@
 ---
 source: common/src/identifiers/mod.rs
 expression: serialized
-extension: bin
+extension: tls
 snapshot_kind: binary
 ---
