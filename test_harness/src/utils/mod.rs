@@ -20,9 +20,9 @@ use airbackend::{
 use aircommon::identifiers::Fqdn;
 use airserver::{
     Addressed as _, ServerRunParams, as_connector::SimpleAsConnector,
-    configurations::get_configuration_from_str, qs_connector::SimpleEnqueueProvider,
-    network_provider::MockNetworkProvider,
-    push_notification_provider::ProductionPushNotificationProvider, run,
+    configurations::get_configuration_from_str, network_provider::MockNetworkProvider,
+    push_notification_provider::ProductionPushNotificationProvider,
+    qs_connector::SimpleEnqueueProvider, run,
 };
 use sqlx::{Connection, PgConnection, Row};
 use tokio::{

@@ -12,10 +12,9 @@ use airbackend::{
 use aircommon::identifiers::Fqdn;
 use airserver::{
     ServerRunParams, as_connector::SimpleAsConnector, code_command::run_code_command,
-    configurations::*, qs_connector::SimpleEnqueueProvider, logging::init_logging,
-    network_provider::MockNetworkProvider,
-    push_notification_provider::ProductionPushNotificationProvider, run,
-    username_command::run_username_command,
+    configurations::*, logging::init_logging, network_provider::MockNetworkProvider,
+    push_notification_provider::ProductionPushNotificationProvider,
+    qs_connector::SimpleEnqueueProvider, run, username_command::run_username_command,
 };
 use anyhow::{Context, bail};
 use clap::Parser;

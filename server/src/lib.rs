@@ -54,11 +54,11 @@ pub mod as_connector;
 pub mod code_command;
 pub mod configurations;
 mod connect_info;
-pub mod qs_connector;
 mod grpc_metrics;
 pub mod logging;
 pub mod network_provider;
 pub mod push_notification_provider;
+pub mod qs_connector;
 pub mod username_command;
 
 pub struct ServerRunParams<Qc, Ac, Listener> {
