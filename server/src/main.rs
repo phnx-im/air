@@ -12,7 +12,7 @@ use airbackend::{
 use aircommon::identifiers::Fqdn;
 use airserver::{
     ServerRunParams, as_connector::SimpleAsConnector, code_command::run_code_command,
-    configurations::*, enqueue_provider::SimpleEnqueueProvider, logging::init_logging,
+    configurations::*, qs_connector::SimpleEnqueueProvider, logging::init_logging,
     network_provider::MockNetworkProvider,
     push_notification_provider::ProductionPushNotificationProvider, run,
     username_command::run_username_command,
