@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "UPDATE qs_client_record\n                SET\n                    encrypted_push_token = $1,\n                    owner_public_key = $2,\n                    owner_signature_key = $3,\n                    ratchet = $4,\n                    activity_time = $5\n                WHERE\n                    client_id = $6",
+  "query": "UPDATE qs_client_record\n                SET\n                    encrypted_push_token = $1,\n                    owner_public_key = $2,\n                    owner_signature_key = $3,\n                    ratchet = $4,\n                    activity_time = $5\n                WHERE\n                    client_id = $6\n                    AND deleted_at IS NULL",
   "describe": {
     "columns": [],
     "parameters": {
@@ -31,5 +31,5 @@
     },
     "nullable": []
   },
-  "hash": "15a51d9b3230efc54b6d8986e157cead312ed99d1bc588f89281c5869905f235"
+  "hash": "1b20ab84fffce6b29ad35fc086aa462dbd2ed0671b7ebe672c981527c9902e3a"
 }

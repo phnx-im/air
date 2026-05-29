@@ -92,7 +92,7 @@ pub(crate) mod persistence {
     use crate::errors::StorageError;
 
     impl QsClientRecord {
-        pub(super) async fn store(
+        pub(crate) async fn store(
             &self,
             connection: impl PgExecutor<'_>,
         ) -> Result<(), StorageError> {
@@ -269,7 +269,7 @@ pub(crate) mod persistence {
         ///
         /// - `Ok(None)` if no row with `client_id` exists.
         /// - `Ok(Some(vec![]))` if the row exists but no active client ids (e.g. tombstoned
-        /// representative with no remaining devices).
+        ///    representative with no remaining devices).
         /// - `Ok(Some(vec![...]))` otherwise. The given client id is included if it is itself
         ///   active.
         pub(in crate::qs) async fn load_client_ids(

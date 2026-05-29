@@ -116,3 +116,113 @@ impl Qs {
         Ok(())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use std::collections::VecDeque;
+
+    use aircommon::{
+        identifiers::{Fqdn, QsReference},
+        messages::{
+            QueueMessage,
+            client_ds::{QsQueueMessagePayload, QsQueueMessageType},
+            push_token::PushToken,
+        },
+        time::TimeStamp,
+    };
+    use sqlx::PgPool;
+    use tokio_util::sync::CancellationToken;
+
+    use crate::{
+        air_service::BackendService,
+        messages::intra_backend::DsFanOutPayload,
+        qs::{
+            PushNotificationError, client_record::persistence::tests::store_random_client_record,
+            queue::Queue, user_record::persistence::tests::store_random_user_record,
+        },
+    };
+
+    use super::*;
+
+    #[derive(Debug)]
+    struct NoopPushNotificationProvider;
+
+    impl PushNotificationProvider for NoopPushNotificationProvider {
+        async fn push(&self, _push_token: PushToken) -> Result<(), PushNotificationError> {
+            Ok(())
+        }
+    }
+
+    #[derive(Debug)]
+    struct UnreachableNetworkProvider;
+
+    impl NetworkProvider for UnreachableNetworkProvider {
+        type NetworkError = std::io::Error;
+
+        async fn deliver(
+            &self,
+            _bytes: Vec<u8>,
+            _destination: Fqdn,
+        ) -> Result<FederatedProcessingResult, Self::NetworkError> {
+            unreachable!()
+        }
+    }
+
+    #[sqlx::test]
+    async fn enqueue_message_fans_out_to_all_active_clients(pool: PgPool) -> anyhow::Result<()> {
+        let domain: Fqdn = "example.com".parse()?;
+        let qs =
+            Qs::initialize(pool.clone(), domain.clone(), None, CancellationToken::new()).await?;
+
+        let user = store_random_user_record(&pool).await?;
+
+        let client_a = store_random_client_record(&pool, user.user_id).await?;
+        let client_b = store_random_client_record(&pool, user.user_id).await?;
+
+        let decryption_key = StorableClientIdDecryptionKey::load(&pool)
+            .await?
+            .expect("missing QS decryption key");
+        let sealed_reference =
+            decryption_key
+                .encryption_key()
+                .seal_client_config(ClientConfig {
+                    client_id: client_a.client_id,
+                    push_token_ear_key: None,
+                })?;
+
+        let expected_payload = b"fan-out test";
+        let message = DsFanOutMessage {
+            payload: DsFanOutPayload::QueueMessage(QsQueueMessagePayload {
+                timestamp: TimeStamp::now(),
+                message_type: QsQueueMessageType::WelcomeBundle,
+                payload: expected_payload.to_vec(),
+            }),
+            client_reference: QsReference {
+                client_homeserver_domain: domain.clone(),
+                sealed_reference,
+            },
+            suppress_notifications: false.into(),
+        };
+
+        qs.enqueue_message(
+            &NoopPushNotificationProvider,
+            &UnreachableNetworkProvider,
+            message,
+        )
+        .await?;
+
+        for client in [client_a, client_b] {
+            let mut buf = VecDeque::new();
+            let client_id = client.client_id;
+            Queue::fetch_into(&pool, &client_id, 0, 10, &mut buf).await?;
+            assert_eq!(buf.len(), 1, "client {client_id} did not receive message");
+
+            let ciphertext: QueueMessage = buf.pop_front().unwrap().try_into().unwrap();
+            let payload = client.ratchet_key.clone().decrypt(ciphertext).unwrap();
+            assert_eq!(payload.payload, expected_payload);
+            assert_eq!(payload.message_type, QsQueueMessageType::WelcomeBundle);
+        }
+
+        Ok(())
+    }
+}

@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT\n                    user_id as \"user_id: QsUserId\",\n                    encrypted_push_token as \"encrypted_push_token: EncryptedPushToken\",\n                    owner_public_key AS \"owner_public_key: BlobDecoded<RatchetEncryptionKey>\",\n                    owner_signature_key AS \"owner_signature_key: BlobDecoded<QsClientVerifyingKey>\",\n                    ratchet AS \"ratchet: BlobDecoded<QsQueueRatchet>\",\n                    activity_time AS \"activity_time: TimeStamp\"\n                FROM\n                    qs_client_record\n                WHERE\n                    client_id = $1\n                FOR UPDATE",
+  "query": "SELECT\n                    user_id as \"user_id: QsUserId\",\n                    encrypted_push_token as \"encrypted_push_token: EncryptedPushToken\",\n                    owner_public_key AS \"owner_public_key: BlobDecoded<RatchetEncryptionKey>\",\n                    owner_signature_key AS \"owner_signature_key: BlobDecoded<QsClientVerifyingKey>\",\n                    ratchet AS \"ratchet: BlobDecoded<QsQueueRatchet>\",\n                    activity_time AS \"activity_time: TimeStamp\"\n                FROM\n                    qs_client_record\n                WHERE\n                    client_id = $1 AND deleted_at IS NULL",
   "describe": {
     "columns": [
       {
@@ -64,5 +64,5 @@
       false
     ]
   },
-  "hash": "ca733382fa4c4994af9a7594a92bb4e6f56eeb3822c65e1b93bcbf50c099e0f4"
+  "hash": "7ea4514dc0f09e096252b65f1ae24e491a0eedda6ee56371c79ca79baf68345d"
 }
