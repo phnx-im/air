@@ -80,6 +80,10 @@ impl<KT: RawKey> Key<KT> {
     pub fn into_bytes(self) -> [u8; AEAD_KEY_SIZE] {
         self.secret.into_secret()
     }
+
+    pub fn as_bytes(&self) -> &[u8; AEAD_KEY_SIZE] {
+        self.secret.secret()
+    }
 }
 
 pub trait RawIndex {}

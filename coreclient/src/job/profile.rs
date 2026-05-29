@@ -6,6 +6,7 @@
 
 use std::convert::Infallible;
 
+use airapiclient::ds_api::DsAttachmentTarget;
 use aircommon::{
     credentials::ClientCredential,
     crypto::indexed_aead::{ciphertexts::IndexDecryptable, keys::UserProfileKey},
@@ -253,12 +254,14 @@ impl Job for FetchGroupProfileOperation {
         let attachment_id = AttachmentId::new(external_group_profile.object_id);
         let url = api_client
             .ds_get_attachment_url(
-                &context.key_store.signing_key,
-                group.group_state_ear_key(),
-                &group_id,
-                group.own_index(),
-                attachment_id,
                 StorageObjectType::GroupProfile,
+                &context.key_store.signing_key,
+                DsAttachmentTarget::Group {
+                    group_state_ear_key: group.group_state_ear_key(),
+                    group_id: group.group_id(),
+                    sender_index: group.own_index(),
+                },
+                attachment_id,
             )
             .await?;
         let bytes = context

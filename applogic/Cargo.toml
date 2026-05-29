@@ -26,6 +26,7 @@ aircommon.workspace = true
 aircoreclient.workspace = true
 airprotos.workspace = true
 anyhow.workspace = true
+base64.workspace = true
 blake3.workspace = true
 bytes.workspace = true
 chrono.workspace = true
@@ -35,6 +36,7 @@ deunicode.workspace = true
 flate2.workspace = true
 flutter_rust_bridge.workspace = true
 futures-util.workspace = true
+hex.workspace = true
 image.workspace = true
 jni.workspace = true
 lru.workspace = true
@@ -55,6 +57,7 @@ tokio-stream.workspace = true
 tokio-util.workspace = true
 tracing.workspace = true
 tracing-subscriber.workspace = true
+url.workspace = true
 uuid = { workspace = true, features = ["v4"] }
 
 [target.'cfg(any(target_os = "android", target_os = "ios"))'.dependencies]

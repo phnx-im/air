@@ -106,6 +106,7 @@ dependencies = [
  "airprotos",
  "anyhow",
  "arboard",
+ "base64",
  "blake3",
  "bytes",
  "chrono",
@@ -115,6 +116,7 @@ dependencies = [
  "flate2",
  "flutter_rust_bridge",
  "futures-util",
+ "hex",
  "image",
  "jni",
  "libc",
@@ -141,6 +143,7 @@ dependencies = [
  "tokio-util",
  "tracing",
  "tracing-subscriber",
+ "url",
  "uuid",
 ]
 

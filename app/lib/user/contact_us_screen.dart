@@ -6,9 +6,11 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/foundations/themes.dart';
 import 'package:air/ds/foundations/font_size.dart';
+import 'package:air/user/user.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:logging/logging.dart';
 import 'package:url_launcher/url_launcher.dart' as url_launcher;
@@ -105,6 +107,27 @@ class _EmailForm extends HookWidget {
   Widget build(BuildContext context) {
     final body = useState(initialBody ?? "");
     final selectedSubject = useState<String?>(initialSubject);
+    final isUploadingLogs = useState(false);
+    final debugLogsUrl = useState<String?>(null);
+
+    Future<void> onToggleLogs() async {
+      if (debugLogsUrl.value != null) {
+        debugLogsUrl.value = null;
+        return;
+      }
+      isUploadingLogs.value = true;
+      try {
+        debugLogsUrl.value = await context.read<UserCubit>().uploadLogs();
+      } catch (e) {
+        _log.severe("Failed to upload logs: $e", e);
+        showErrorBannerStandalone(
+          (loc) => loc.contactUsScreen_errorUploadingLogs,
+        );
+        debugLogsUrl.value = null;
+      } finally {
+        isUploadingLogs.value = false;
+      }
+    }
 
     final loc = AppLocalizations.of(context);
 
@@ -153,29 +176,69 @@ class _EmailForm extends HookWidget {
               onSaved: (value) => body.value = value ?? "",
               validator: (value) => _validateBody(value, loc),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: Spacing.px8),
+
+            // Include logs checkbox
+            GestureDetector(
+              onTap: isUploadingLogs.value ? null : onToggleLogs,
+              child: Row(
+                children: [
+                  if (isUploadingLogs.value)
+                    const SizedBox(
+                      width: 48,
+                      height: 48,
+                      child: Center(
+                        child: SizedBox(
+                          width: 18,
+                          height: 18,
+                          child: CircularProgressIndicator(strokeWidth: 2),
+                        ),
+                      ),
+                    )
+                  else
+                    Checkbox(
+                      value: debugLogsUrl.value != null,
+                      onChanged: isUploadingLogs.value
+                          ? null
+                          : (_) => onToggleLogs(),
+                    ),
+                  Text(loc.contactUsScreen_includeLogs),
+                ],
+              ),
+            ),
+            const SizedBox(height: Spacing.px8),
 
             // Submit Button
-            OutlinedButton(
-              style: const ButtonStyle(
-                shape: WidgetStatePropertyAll(
-                  RoundedRectangleBorder(
-                    borderRadius: BorderRadius.all(
-                      Radius.circular(Spacing.px12),
+            Opacity(
+              opacity: isUploadingLogs.value ? 0.4 : 1.0,
+              child: OutlinedButton(
+                style: const ButtonStyle(
+                  shape: WidgetStatePropertyAll(
+                    RoundedRectangleBorder(
+                      borderRadius: BorderRadius.all(
+                        Radius.circular(Spacing.px12),
+                      ),
                     ),
                   ),
                 ),
-              ),
-              onPressed: () {
-                final formState = _formKey.currentState;
-                if (formState != null && formState.validate()) {
-                  formState.save();
-                  _launchEmail(context, selectedSubject.value, body.value);
-                }
-              },
-              child: Text(
-                loc.contactUsScreen_composeEmail,
-                style: TextStyle(fontSize: LabelFontSize.base.size),
+                onPressed: isUploadingLogs.value
+                    ? null
+                    : () {
+                        final formState = _formKey.currentState;
+                        if (formState != null && formState.validate()) {
+                          formState.save();
+                          _launchEmail(
+                            context,
+                            selectedSubject.value,
+                            body.value,
+                            debugLogsUrl.value,
+                          );
+                        }
+                      },
+                child: Text(
+                  loc.contactUsScreen_composeEmail,
+                  style: TextStyle(fontSize: LabelFontSize.base.size),
+                ),
               ),
             ),
           ],
@@ -194,7 +257,19 @@ class _EmailForm extends HookWidget {
       ? loc.contactUsScreen_body_tooShort
       : null;
 
-  void _launchEmail(BuildContext context, String? subject, String body) async {
+  void _launchEmail(
+    BuildContext context,
+    String? subject,
+    String body,
+    String? debugLogsUrl,
+  ) async {
+    if (debugLogsUrl != null) {
+      final loc = AppLocalizations.of(context);
+      body += "\n\n";
+      body += loc.contactUsScreen_body_logsUrl(
+        Uri.encodeComponent(debugLogsUrl),
+      );
+    }
     final Uri emailUri = Uri.parse(
       'mailto:help@air.ms?subject=$subject&body=$body',
     );

@@ -11,6 +11,15 @@ concurrency:
 on:
   pull_request:
     branches: ["main"]
+  push:
+    branches: ["main"]
+    paths:
+      - "coreclient/**"
+      - "apiclient/**"
+      - "applogic/**"
+      - "common/**"
+      - "app/**"
+      - "Cargo.toml"
   merge_group:
 
 env:
@@ -35,10 +44,18 @@ jobs:
       - id: setup-buildenv
         name: Setup build environment
         uses: ./.github/actions/setup-buildenv
+        with:
+          sccache: true
 
       - name: Build Windows app
         working-directory: app
         run: flutter build windows -v --build-number=${{ steps.setup-buildenv.outputs.build-number }}
+
+      # Show sccache stats manually (because it fails in the post setup-buildenv step)
+      - name: Show sccache stats
+        if: always()
+        shell: bash
+        run: sccache --show-stats
 
       - name: Upload Windows app
         uses: actions/upload-artifact@v6
