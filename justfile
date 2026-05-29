@@ -179,12 +179,16 @@ install-fvm:
     curl -fsSL https://fvm.app/install.sh -o install-fvm.sh
     bash install-fvm.sh 4.0.5
 
+[working-directory: 'app']
+build platform:
+    if [[ "${CI:-false}" != "true" ]]; then fvm flutter build {{ platform }}; fi
+
 [linux]
 [working-directory: 'app/linux']
-build-rpm: (flutter "build linux")
+build-rpm: (build "linux")
     nfpm package -p rpm
 
 [linux]
 [working-directory: 'app/linux']
-build-deb: (flutter "build linux")
+build-deb: (build "linux")
     nfpm package -p deb
