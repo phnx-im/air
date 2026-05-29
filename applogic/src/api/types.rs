@@ -10,11 +10,9 @@
 use std::fmt;
 
 // Re-export for FRB-reasons
-pub(crate) use aircommon::{
-    component::{AirComponent, AirFeatures},
-    identifiers::{Username, UsernameValidationError},
-};
+pub(crate) use aircommon::identifiers::{Username, UsernameValidationError};
 pub(crate) use aircoreclient::{AddUsernameContactError, ChatId, MessageId};
+pub(crate) use airprotos::client::component::{AirComponent, AirFeatures};
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{
