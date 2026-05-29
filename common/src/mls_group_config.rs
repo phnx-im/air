@@ -20,7 +20,22 @@ use mls_assist::{
 };
 use tls_codec::Serialize;
 
-use crate::component::AirComponent;
+/// An app-level MLS component that can be stored in the app data dictionary of a group, leaf node,
+/// or key package.
+///
+/// This is a dependency-inversion. The implementation lives in higher-level crates so that this
+/// crate stays free of any specific component's data model.
+pub trait AppComponent {
+    /// The component id under which the serialized component is stored in the app data dictionary.
+    const COMPONENT_ID: ComponentId;
+
+    /// The default component instance to store in a freshly-created leaf node or key package.
+    fn default_for_leaf_or_key_package() -> Self;
+
+    /// Serializes the component into the on-the-wire bytes that are stored in the app data
+    /// dictionary.
+    fn to_bytes(&self) -> Vec<u8>;
+}
 
 /// Dictates for how many past epochs we want to keep around message secrets.
 pub const MAX_PAST_EPOCHS: usize = 5;
@@ -92,7 +107,6 @@ pub const SUPPORTED_PROPOSALS: &[ProposalType] = &[
     ProposalType::AppDataUpdate,
 ];
 pub const SUPPORTED_CREDENTIALS: &[CredentialType] = REQUIRED_CREDENTIALS;
-pub const SUPPORTED_COMPONENTS: &[ComponentId] = &[AIR_COMPONENT_ID];
 
 /// Capabilities that are used in the leaf node.
 pub fn default_leaf_node_capabilities() -> Capabilities {
@@ -105,54 +119,51 @@ pub fn default_leaf_node_capabilities() -> Capabilities {
     )
 }
 
-/// The component id of the Air component.
-pub const AIR_COMPONENT_ID: ComponentId = 0x8000;
-
 /// Extension used in the leaf node.
-pub fn default_leaf_node_extensions() -> Extensions<LeafNode> {
-    default_extensions()
+pub fn default_leaf_node_extensions<C: AppComponent>() -> Extensions<LeafNode> {
+    default_extensions::<LeafNode, C>()
 }
 
 /// Extension used in the key package.
-pub fn default_key_package_extensions() -> Extensions<KeyPackage> {
-    default_extensions()
+pub fn default_key_package_extensions<C: AppComponent>() -> Extensions<KeyPackage> {
+    default_extensions::<KeyPackage, C>()
 }
 
 /// # Panics
 ///
 /// Since we are building a single static essential extension here, we can assume that this
 /// function never panics. Panic-safety is additionally tested in the unit tests.
-fn default_extensions<T>() -> Extensions<T>
+fn default_extensions<T, C>() -> Extensions<T>
 where
     T: ExtensionValidator,
     InvalidExtensionError: From<T::Error>,
+    C: AppComponent,
 {
-    Extensions::from_vec(vec![default_app_data_dictionary_extension()]).expect("invalid extensions")
+    Extensions::from_vec(vec![default_app_data_dictionary_extension::<C>()])
+        .expect("invalid extensions")
 }
 
 /// # Panics
 ///
 /// Since we are building a static list of components here, we can assume that this function never
 /// panics. Panic-safety is additionally tested in the unit tests.
-pub fn default_app_data_dictionary_extension() -> Extension {
+pub fn default_app_data_dictionary_extension<C: AppComponent>() -> Extension {
     let mut app_data_dictionary = AppDataDictionary::new();
 
-    // Advertise that we support the Air component in the app data dictionary.
+    // Advertise that we support the component in the app data dictionary.
     app_data_dictionary.insert(
         ComponentType::AppComponents.into(),
         ComponentsList {
-            component_ids: SUPPORTED_COMPONENTS.to_vec(),
+            component_ids: vec![C::COMPONENT_ID],
         }
         .tls_serialize_detached()
         .expect("invalid component list"),
     );
 
-    // Add Air component to the app data dictionary.
+    // Add the component to the app data dictionary.
     app_data_dictionary.insert(
-        AIR_COMPONENT_ID,
-        AirComponent::default_leaf_or_key_package_component()
-            .to_bytes()
-            .expect("invalid Air component"),
+        C::COMPONENT_ID,
+        C::default_for_leaf_or_key_package().to_bytes(),
     );
 
     Extension::AppDataDictionary(AppDataDictionaryExtension::new(app_data_dictionary))
@@ -160,10 +171,6 @@ pub fn default_app_data_dictionary_extension() -> Extension {
 
 #[cfg(test)]
 mod test {
-    use mls_assist::openmls::component::PrivateComponentId;
-
-    use crate::codec::PersistenceCodec;
-
     use super::*;
 
     #[test]
@@ -186,35 +193,5 @@ mod test {
         for capability in group_extensions {
             assert!(leaf_node_extensions.contains(capability));
         }
-    }
-
-    #[test]
-    fn air_component_id_is_private() {
-        PrivateComponentId::new(AIR_COMPONENT_ID).expect("Should be private");
-    }
-
-    #[test]
-    fn default_extensions_are_valid() {
-        // Checks that the function below never panic
-        let _ = default_app_data_dictionary_extension();
-        let _ = default_leaf_node_extensions();
-        let _ = default_key_package_extensions();
-    }
-
-    /// Default extensions can be extended by must be backwards compatible.
-    #[test]
-    fn default_extensions_stability() {
-        let leaf_node_extensions = default_leaf_node_extensions();
-        let key_package_extensions = default_key_package_extensions();
-        for (a, b) in leaf_node_extensions
-            .iter()
-            .zip(key_package_extensions.iter())
-        {
-            assert_eq!(a, b);
-        }
-
-        let bytes = PersistenceCodec::to_vec(&leaf_node_extensions).unwrap();
-        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
-        insta::assert_snapshot!(diag);
     }
 }

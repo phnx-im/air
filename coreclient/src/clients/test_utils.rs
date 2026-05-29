@@ -3,11 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 use openmls::group::Member;
 
-use aircommon::{codec::PersistenceCodec, component::AirComponent, identifiers::QualifiedGroupId};
+use aircommon::{codec::PersistenceCodec, identifiers::QualifiedGroupId};
 use openmls::prelude::GroupId;
 use uuid::Uuid;
 
-use airprotos::client::group::GroupData;
+use airprotos::client::{component::AirComponent, group::GroupData};
 
 use crate::{
     chats::GroupDataExt,

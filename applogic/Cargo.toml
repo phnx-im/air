@@ -24,6 +24,7 @@ unexpected_cfgs = { level = "warn", check-cfg = ['cfg(frb_expand)'] }
 [dependencies]
 aircommon.workspace = true
 aircoreclient.workspace = true
+airprotos.workspace = true
 anyhow.workspace = true
 base64.workspace = true
 blake3.workspace = true

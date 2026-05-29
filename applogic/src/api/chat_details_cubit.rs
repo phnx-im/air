@@ -8,7 +8,6 @@ use std::{collections::HashMap, path::PathBuf, time::Duration};
 
 use aircommon::{
     OpenMlsRand, RustCrypto,
-    component::AirComponent,
     identifiers::{AttachmentId, UserId},
 };
 pub use aircoreclient::{
@@ -20,6 +19,7 @@ use aircoreclient::{
     AttachmentProgress, Chat, ChatId, ChatMessage, MessageId, ProvisionAttachmentError,
     UploadTaskError, clients::CoreUser,
 };
+use airprotos::client::component::AirComponent;
 use anyhow::{Context as _, bail};
 use chrono::{DateTime, Local, SubsecRound, Utc};
 use flutter_rust_bridge::frb;

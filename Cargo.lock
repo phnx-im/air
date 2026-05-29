@@ -103,6 +103,7 @@ version = "0.17.0"
 dependencies = [
  "aircommon",
  "aircoreclient",
+ "airprotos",
  "anyhow",
  "arboard",
  "base64",
@@ -196,7 +197,6 @@ name = "aircommon"
 version = "0.17.0"
 dependencies = [
  "aes-gcm",
- "airmacros",
  "apqmls",
  "argon2",
  "cbor-diag",
