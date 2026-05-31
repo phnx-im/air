@@ -122,14 +122,16 @@ class _ChatSeparator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMobile = isSmallScreen(context);
-    // On desktop the separator above and below the active item is suppressed
-    // so the selection background reads as a single rounded surface.
+    // On desktop the separator above and below the active item is made
+    // transparent so the selection background reads as a single rounded
+    // surface while the row height stays constant.
+    var color = CustomColorScheme.of(context).separator.secondary;
     if (!isMobile) {
       final openChatId = context.select(
         (NavigationCubit cubit) => cubit.state.openChatId,
       );
       if (openChatId == aboveId || openChatId == belowId) {
-        return const SizedBox.shrink();
+        color = Colors.transparent;
       }
     }
     return Divider(
@@ -137,7 +139,7 @@ class _ChatSeparator extends StatelessWidget {
       thickness: 0.5,
       indent: Spacing.px16 + Spacing.px48 + Spacing.px12,
       endIndent: Spacing.px16,
-      color: CustomColorScheme.of(context).separator.secondary,
+      color: color,
     );
   }
 }
