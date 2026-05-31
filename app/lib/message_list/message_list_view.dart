@@ -71,7 +71,13 @@ class _MessageListViewState extends State<MessageListView>
   MessageListCubit? _commandsCubit;
   StreamSubscription<MessageListCommand>? _commandSubscription;
   StreamSubscription<Set<MessageId>>? _incomingMessagesSubscription;
+  StreamSubscription<JumpedToEvent>? _jumpedToIdSubscription;
   bool _initialUnreadScrollHandled = false;
+
+  /// When there are unread messages, we automatically scroll to the first
+  /// unread message. During that automatic scroll, we should not mark messages
+  /// as read.
+  bool _awaitingInitialUnreadScroll = false;
 
   /// Whether the user is currently scrolling (or has scrolled within the
   /// last [_floatingHeaderHideDelay]). Drives the floating date header's
@@ -94,6 +100,11 @@ class _MessageListViewState extends State<MessageListView>
     _listController.newestVisibleId.addListener(
       _markCurrentVisibleMessageAsRead,
     );
+    // We listen to events to know when the initial scroll to the first unread
+    // message is complete.
+    _jumpedToIdSubscription = _listController.jumpedToId
+        .where((event) => event.intent == JumpIntent.firstUnread)
+        .listen((_) => _onInitialUnreadScrollSettled());
   }
 
   @override
@@ -116,6 +127,7 @@ class _MessageListViewState extends State<MessageListView>
     widget.scrollToBottomController?.onScrollToBottom = null;
     _commandSubscription?.cancel();
     _incomingMessagesSubscription?.cancel();
+    _jumpedToIdSubscription?.cancel();
     _listController.isAtBottom.removeListener(_updateShowButton);
     _listController.newestVisibleId.removeListener(
       _markCurrentVisibleMessageAsRead,
@@ -179,6 +191,9 @@ class _MessageListViewState extends State<MessageListView>
   /// and exposes the newest visible ID via its controller, so this avoids the
   /// old fixed-height approximation based on scroll offset alone.
   void _markCurrentVisibleMessageAsRead() {
+    // We skip marking messages as read during the automatic initial scroll.
+    if (_awaitingInitialUnreadScroll) return;
+
     // AnchoredList tracks the newest item currently visible in the viewport
     // and exposes its ID via the controller. Use that directly instead of
     // approximating visibility from scroll offset and guessed item heights.
@@ -203,9 +218,24 @@ class _MessageListViewState extends State<MessageListView>
     );
   }
 
+  /// We lift the mark-as-read suppression once the initial scroll to the first
+  /// unread message.
+  void _onInitialUnreadScrollSettled() {
+    if (!_awaitingInitialUnreadScroll || !mounted) return;
+    setState(() {
+      _awaitingInitialUnreadScroll = false;
+    });
+    _markCurrentVisibleMessageAsRead();
+  }
+
   /// Shows the floating header during active scroll and hides it again
   /// after [_floatingHeaderHideDelay] of inactivity.
   bool _handleScrollNotification(ScrollNotification notification) {
+    // This is a user-initiated scroll.
+    if (notification is ScrollStartNotification &&
+        notification.dragDetails != null) {
+      _onInitialUnreadScrollSettled();
+    }
     if (notification is ScrollUpdateNotification) {
       _floatingHeaderHideTimer?.cancel();
       _scrollActive.value = true;
@@ -245,6 +275,7 @@ class _MessageListViewState extends State<MessageListView>
     if (message == null) return;
 
     _initialUnreadScrollHandled = true;
+    _awaitingInitialUnreadScroll = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _listController.goToId(message.id, intent: JumpIntent.firstUnread);
@@ -317,7 +348,9 @@ class _MessageListViewState extends State<MessageListView>
           bottomPadding: bottomPadding,
           oldestVisibleTopThreshold: swapTopThreshold,
           canLoadOlder: state.hasOlder,
-          canLoadNewer: state.hasNewer,
+          // We should not load newer messages when we scroll to the first
+          // unread message.
+          canLoadNewer: state.hasNewer && !_awaitingInitialUnreadScroll,
           onLoadOlder: () {
             context.read<MessageListCubit>().loadOlder();
           },
