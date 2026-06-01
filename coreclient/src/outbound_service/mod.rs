@@ -6,6 +6,7 @@ use std::{
     pin::Pin,
     sync::Arc,
     task::{Context, Poll},
+    time::Duration,
 };
 
 use aircommon::{
@@ -14,7 +15,7 @@ use aircommon::{
 };
 use chrono::Utc;
 use pin_project::pin_project;
-use tokio::sync::watch;
+use tokio::{sync::watch, time};
 use tokio_util::sync::{CancellationToken, WaitForCancellationFutureOwned};
 use tracing::{debug, error, info};
 
@@ -40,12 +41,16 @@ pub(crate) mod resync;
 mod retry_pending_chat_operations;
 pub(crate) mod timed_tasks;
 
+/// Cadence at which a started outbound service wakes itself to run scheduled work.
+const PERIODIC_WAKE_INTERVAL: Duration = Duration::from_secs(60);
+
 /// A service which is responsible for processing outbound messages.
 ///
 /// The service starts a background task which dequeues messages from the corresponding work queues.
 /// The initial state of the service is `Stopped`, that is, the background task is not running. The
-/// background task only runs when the service is started, and when there is a notification to run.
-/// After doing the work once, it wait for the next notification, or stops if it is stopped.
+/// background task runs when the service is started, when there is a notification to run, and
+/// periodically every [`PERIODIC_WAKE_INTERVAL`] while started. After doing the work once, it waits
+/// for the next notification or wake, or stops if it is stopped.
 #[derive(Debug)]
 pub struct OutboundService<C: OutboundServiceWork = OutboundServiceContext> {
     context: Arc<C>,
@@ -93,9 +98,14 @@ impl OutboundService<OutboundServiceContext> {
 
 impl<C: OutboundServiceWork> OutboundService<C> {
     fn with_context(context: C, global_lock: GlobalLock) -> Self {
+        Self::build(context, global_lock, PERIODIC_WAKE_INTERVAL)
+    }
+
+    fn build(context: C, global_lock: GlobalLock, wake_interval: Duration) -> Self {
         let (run_token_tx, run_token_rx) = watch::channel(RunToken::new_cancelled());
         let task = OutboundServiceTask {
             context: context.clone(),
+            wake_interval,
         };
         tokio::spawn(task.run(run_token_rx, global_lock));
         Self {
@@ -167,25 +177,39 @@ impl<C: OutboundServiceWork> OutboundService<C> {
 
 struct OutboundServiceTask<C> {
     context: C,
+    wake_interval: Duration,
 }
 
 impl<C: OutboundServiceWork> OutboundServiceTask<C> {
     async fn run(self, mut run_token_rx: watch::Receiver<RunToken>, mut global_lock: GlobalLock) {
+        let mut ticker = time::interval_at(
+            time::Instant::now() + self.wake_interval,
+            self.wake_interval,
+        );
+        ticker.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
+
         loop {
-            if run_token_rx.changed().await.is_err() {
-                break;
-            }
-
-            let run_token = {
-                let run_token = run_token_rx.borrow_and_update().clone();
-                debug!(?run_token, "incoming work notification");
-
-                if run_token.is_cancelled() {
-                    run_token.mark_as_done();
-                    continue;
+            let run_token = tokio::select! {
+                changed = run_token_rx.changed() => {
+                    if changed.is_err() {
+                        break;
+                    }
+                    let run_token = run_token_rx.borrow_and_update().clone();
+                    debug!(?run_token, "incoming work notification");
+                    if run_token.is_cancelled() {
+                        run_token.mark_as_done();
+                        continue;
+                    }
+                    run_token
                 }
-
-                run_token
+                _ = ticker.tick() => {
+                    let run_token = run_token_rx.borrow().clone();
+                    if run_token.is_cancelled() {
+                        continue;
+                    }
+                    debug!("periodic wake");
+                    run_token
+                }
             };
 
             {
@@ -413,6 +437,40 @@ mod test {
         service.start().await;
 
         assert_eq!(1, context.counter.load(Ordering::SeqCst));
+    }
+
+    /// A short wake interval used in tests so the periodic ticker fires quickly.
+    const TEST_WAKE_INTERVAL: Duration = Duration::from_millis(20);
+
+    #[tokio::test]
+    async fn periodic_wake_runs_work_while_started() {
+        init_test_tracing();
+
+        let context = DelayedCounterContext::default();
+        let service = OutboundService::build(context.clone(), global_lock(), TEST_WAKE_INTERVAL);
+
+        service.start().await; // +1 => counter = 1
+        assert_eq!(1, context.counter.load(Ordering::SeqCst));
+
+        // Without any external notification, the periodic ticker wakes the started service and runs
+        // work again once the interval elapses.
+        sleep(TEST_WAKE_INTERVAL * 3).await;
+
+        assert!(context.counter.load(Ordering::SeqCst) >= 2);
+    }
+
+    #[tokio::test]
+    async fn periodic_wake_does_nothing_while_stopped() {
+        init_test_tracing();
+
+        let context = DelayedCounterContext::default();
+        // Keep the service alive so its background task keeps ticking during the sleep.
+        let _service = OutboundService::build(context.clone(), global_lock(), TEST_WAKE_INTERVAL);
+
+        // The service starts in the stopped state; ticks must not run work.
+        sleep(TEST_WAKE_INTERVAL * 5).await;
+
+        assert_eq!(0, context.counter.load(Ordering::SeqCst));
     }
 
     #[tokio::test]
