@@ -189,7 +189,7 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
         ticker.set_missed_tick_behavior(time::MissedTickBehavior::Skip);
 
         loop {
-            let run_token = tokio::select! {
+            let (run_token, from_notification) = tokio::select! {
                 changed = run_token_rx.changed() => {
                     if changed.is_err() {
                         break;
@@ -200,7 +200,7 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
                         run_token.mark_as_done();
                         continue;
                     }
-                    run_token
+                    (run_token, true)
                 }
                 _ = ticker.tick() => {
                     let run_token = run_token_rx.borrow().clone();
@@ -208,7 +208,7 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
                         continue;
                     }
                     debug!("periodic wake");
-                    run_token
+                    (run_token, false)
                 }
             };
 
@@ -220,6 +220,11 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
                 debug!("starting doing work in background task");
                 self.context.work(run_token.cancel.clone()).await;
                 debug!("finished work in background task");
+            }
+
+            // We reset the ticker when the work was triggered by a notification.
+            if from_notification {
+                ticker.reset();
             }
 
             run_token.mark_as_done();
