@@ -63,7 +63,7 @@ jobs:
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
 
-  deploy-staging: &deploy
+  deploy-staging:
     name: Update staging deployment
     needs: build-and-publish
     runs-on: ubuntu-latest

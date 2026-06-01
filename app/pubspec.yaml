@@ -90,6 +90,7 @@ flutter:
   assets:
     - assets/images/logo.svg
     - assets/emoji/emoji.json
+    - path: assets/fonts/NotoEmoji-Emoji.ttf
 
   # An image asset can refer to one or more resolution-specific "variants", see
   # https://flutter.dev/assets-and-images/#resolution-aware.
