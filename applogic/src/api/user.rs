@@ -189,6 +189,13 @@ impl User {
     pub async fn user_debug_info(&self) -> Result<UserDebugInfo> {
         self.user.user_debug_info().await
     }
+
+    /// Force a timed task to run as soon as possible.
+    #[frb(positional)]
+    pub async fn trigger_timed_task(&self, id: Vec<u8>) -> Result<()> {
+        self.user.trigger_timed_task(id).await?;
+        Ok(())
+    }
 }
 
 #[frb(mirror(UserDebugInfo))]
@@ -201,6 +208,7 @@ pub struct _UserDebugInfo {
 
 #[frb(mirror(TimedTaskDebugInfo))]
 pub struct _TimedTaskDebugInfo {
+    pub id: Vec<u8>,
     pub name: String,
     pub scheduled_at: chrono::DateTime<chrono::Utc>,
 }
