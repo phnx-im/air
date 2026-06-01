@@ -1180,7 +1180,7 @@ impl CoreUser {
                 .inspect_err(|error| error!(%error, "QS queue message decryption failed"))
                 .context("Decrypting message failed")?
         else {
-            // Skip the message if it is behing the ratchet (replay)
+            // Skip the message if it is behind the ratchet (replay)
             return Ok(());
         };
 
