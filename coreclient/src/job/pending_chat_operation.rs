@@ -1100,6 +1100,7 @@ pub mod test_utils {
 #[cfg(test)]
 mod tests {
     use aircommon::{
+        assert_matches,
         credentials::{keys::ClientSigningKey, test_utils::create_test_credentials},
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QualifiedGroupId, UserId},
