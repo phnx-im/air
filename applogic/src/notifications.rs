@@ -177,10 +177,10 @@ impl NotificationService {
         }
     }
 
-    // notify-rusty v4 does not set the sender-pid hint, which is required for GNOME 46+ compatibility.
-    // doing it manually also lets us enable notifications grouping per chat
+    // Version 4.x of `notify-rust` does not set the `sender-pid` hint, which is required for GNOME 46+ compatibility.
+    // Doing it manually also lets us enable notifications grouping per chat.
     //
-    // the future is to use the XDG Portal API instead, but it is only supported (not buggy) on GNOME 46+
+    // The future is to use the XDG Portal API instead, but it is only supported (= not buggy) on GNOME 46+
     // and does not support notifications grouping. It also currently has sparse support on
     // other Desktop Environments.
     #[cfg(any(target_os = "linux"))]
