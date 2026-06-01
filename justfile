@@ -185,10 +185,10 @@ build platform:
 
 [linux]
 [working-directory: 'app/linux']
-build-rpm: (build "linux")
+build-rpm:
     nfpm package -p rpm
 
 [linux]
 [working-directory: 'app/linux']
-build-deb: (build "linux")
+build-deb:
     nfpm package -p deb
