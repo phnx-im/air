@@ -103,8 +103,10 @@ version = "0.17.0"
 dependencies = [
  "aircommon",
  "aircoreclient",
+ "airprotos",
  "anyhow",
  "arboard",
+ "base64",
  "blake3",
  "bytes",
  "chrono",
@@ -114,6 +116,7 @@ dependencies = [
  "flate2",
  "flutter_rust_bridge",
  "futures-util",
+ "hex",
  "image",
  "jni",
  "libc",
@@ -140,7 +143,9 @@ dependencies = [
  "tokio-util",
  "tracing",
  "tracing-subscriber",
+ "url",
  "uuid",
+ "zbus",
 ]
 
 [[package]]
@@ -193,7 +198,6 @@ name = "aircommon"
 version = "0.17.0"
 dependencies = [
  "aes-gcm",
- "airmacros",
  "apqmls",
  "argon2",
  "cbor-diag",

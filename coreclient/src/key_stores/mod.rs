@@ -12,6 +12,7 @@ use aircommon::{
         default_leaf_node_capabilities, default_leaf_node_extensions,
     },
 };
+use airprotos::client::component::AirComponent;
 use anyhow::Result;
 use apqmls::{authentication::ApqCredentialWithKey, messages::ApqKeyPackage};
 use openmls::prelude::{
@@ -92,7 +93,7 @@ impl MemoryUserKeyStore {
             ),
         };
 
-        let mut leaf_node_extensions = default_leaf_node_extensions();
+        let mut leaf_node_extensions = default_leaf_node_extensions::<AirComponent>();
 
         let client_reference = self.create_own_client_reference(qs_client_id);
         let client_ref_extension = Extension::Unknown(
@@ -102,12 +103,12 @@ impl MemoryUserKeyStore {
         leaf_node_extensions.add(client_ref_extension)?;
 
         let key_package_extensions = if last_resort {
-            let mut extensions = default_key_package_extensions();
+            let mut extensions = default_key_package_extensions::<AirComponent>();
             let last_resort_extension = Extension::LastResort(LastResortExtension::new());
             extensions.add(last_resort_extension)?;
             extensions
         } else {
-            default_key_package_extensions()
+            default_key_package_extensions::<AirComponent>()
         };
 
         let provider = AirOpenMlsProvider::new(connection.as_mut());
@@ -152,7 +153,7 @@ impl MemoryUserKeyStore {
             pq_credential,
         };
 
-        let mut leaf_node_extensions = default_leaf_node_extensions();
+        let mut leaf_node_extensions = default_leaf_node_extensions::<AirComponent>();
 
         let client_reference = self.create_own_client_reference(qs_client_id);
         let client_ref_extension = Extension::Unknown(
@@ -162,12 +163,12 @@ impl MemoryUserKeyStore {
         leaf_node_extensions.add(client_ref_extension)?;
 
         let key_package_extensions = if last_resort {
-            let mut extensions = default_key_package_extensions();
+            let mut extensions = default_key_package_extensions::<AirComponent>();
             let last_resort_extension = Extension::LastResort(LastResortExtension::new());
             extensions.add(last_resort_extension)?;
             extensions
         } else {
-            default_key_package_extensions()
+            default_key_package_extensions::<AirComponent>()
         };
 
         let provider = AirOpenMlsProvider::new(connection.as_mut());

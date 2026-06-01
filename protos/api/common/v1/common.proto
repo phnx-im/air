@@ -66,6 +66,11 @@ message ClientMetadata {
   Version version = 1;
 }
 
+message UserId {
+  common.v1.Uuid uuid = 1;
+  common.v1.Fqdn domain = 2;
+}
+
 // Semver with additional build metadata
 message Version {
   uint64 major = 1;

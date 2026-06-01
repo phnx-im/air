@@ -5,7 +5,6 @@
 use std::iter;
 
 use aircommon::{
-    component::AirFeatures,
     credentials::VerifiableClientCredential,
     crypto::{
         aead::keys::{FriendshipPackageEarKey, WelcomeAttributionInfoEarKey},
@@ -14,6 +13,7 @@ use aircommon::{
     identifiers::{UserId, Username},
     messages::{FriendshipToken, client_as::ConnectionOfferHash},
 };
+use airprotos::client::component::AirFeatures;
 use apqmls::messages::ApqKeyPackage;
 use openmls::{prelude::KeyPackage, versions::ProtocolVersion};
 use openmls_rust_crypto::RustCrypto;

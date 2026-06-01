@@ -29,6 +29,7 @@ use aircommon::{
     messages::{FriendshipToken, QueueMessage, push_token::PushToken},
 };
 pub use airprotos::auth_service::v1::{UsernameQueueMessage, username_queue_message};
+pub use airprotos::delivery_service::v1::StorageObjectType;
 pub use airprotos::queue_service::v1::{ListenResponse, QueueEventPayload, listen_response};
 use anyhow::{Context, Result, anyhow, ensure};
 use chrono::{DateTime, Utc};

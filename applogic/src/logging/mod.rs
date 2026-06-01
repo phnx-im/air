@@ -18,7 +18,7 @@ use tracing_subscriber::{fmt, layer::SubscriberExt};
 
 use crate::util::{FileRingBuffer, FileRingBufferLock};
 
-pub(crate) const LOG_FILE_RING_BUFFER_SIZE: usize = 500 * 1024; // 500 KiB
+pub(crate) const LOG_FILE_RING_BUFFER_SIZE: usize = 4 * 1024 * 1024; // 4 MiB
 
 pub(crate) static LOG_FILE_RING_BUFFER: OnceLock<Arc<FileRingBufferLock>> = OnceLock::new();
 

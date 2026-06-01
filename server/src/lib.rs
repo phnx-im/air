@@ -9,10 +9,13 @@
 use std::{future, time::Duration};
 
 use airbackend::{
-    auth_service::{AuthService, grpc::GrpcAs},
+    auth_service::{AsConnector, AuthService, grpc::GrpcAs},
     ds::{Ds, GrpcDs},
     qs::{
-        Qs, QsConnector, errors::QsEnqueueError, grpc::GrpcQs, network_provider::NetworkProvider,
+        Qs, QsConnector,
+        errors::{AsConnectorError, QsEnqueueError},
+        grpc::GrpcQs,
+        network_provider::NetworkProvider,
     },
     settings::RateLimitsSettings,
 };
@@ -42,9 +45,10 @@ use tower_governor::{
 use tower_http::trace::{DefaultMakeSpan, DefaultOnRequest, DefaultOnResponse, TraceLayer};
 use tracing::{Level, enabled, error, info};
 
-use crate::{grpc_method_alias::GrpcMethodAliasLayer, grpc_metrics::GrpcMetricsLayer};
+use crate::grpc_metrics::GrpcMetricsLayer;
 
 pub mod args;
+pub mod as_connector;
 pub mod code_command;
 pub mod configurations;
 mod connect_info;
@@ -56,11 +60,12 @@ pub mod network_provider;
 pub mod push_notification_provider;
 pub mod username_command;
 
-pub struct ServerRunParams<Qc, Listener> {
+pub struct ServerRunParams<Qc, Ac, Listener> {
     pub listener: Listener,
     pub metrics_listener: Option<TcpListener>,
     pub ds: Ds,
     pub auth_service: AuthService,
+    pub as_connector: Ac,
     pub qs: Qs,
     pub qs_connector: Qc,
     pub rate_limits: RateLimitsSettings,
@@ -98,6 +103,7 @@ impl IntoStream for TcpListener {
 /// Configure and run the server application.
 pub async fn run<
     Qc: QsConnector<EnqueueError = QsEnqueueError<Np>> + Clone,
+    Ac: AsConnector<Error = AsConnectorError> + Clone,
     Np: NetworkProvider,
     L: Addressed + IntoStream,
 >(
@@ -108,9 +114,10 @@ pub async fn run<
         auth_service,
         qs,
         qs_connector,
+        as_connector,
         rate_limits,
         shutdown,
-    }: ServerRunParams<Qc, L>,
+    }: ServerRunParams<Qc, Ac, L>,
     #[cfg(any(feature = "test_utils", test))] interceptor: impl Fn(
         Request<()>,
     ) -> Result<Request<()>, Status>
@@ -149,7 +156,7 @@ pub async fn run<
 
     // GRPC server
     let grpc_as = GrpcAs::new(auth_service);
-    let grpc_ds = GrpcDs::new(ds, qs_connector);
+    let grpc_ds = GrpcDs::new(ds, qs_connector, as_connector);
     let grpc_qs = GrpcQs::new(qs);
 
     info!(?rate_limits, "Applying rate limits");
@@ -171,7 +178,7 @@ pub async fn run<
         }
     }));
 
-    let health_service = configure_health_service::<Qc, Np>().await;
+    let health_service = configure_health_service::<Qc, Ac, Np>().await;
 
     #[cfg(any(feature = "test_utils", test))]
     let dss = DeliveryServiceServer::with_interceptor(grpc_ds, interceptor);
@@ -180,7 +187,7 @@ pub async fn run<
 
     tonic::transport::Server::builder()
         .http2_keepalive_interval(Some(Duration::from_secs(30)))
-        .layer(GrpcMethodAliasLayer::new())
+        .layer(grpc_method_alias::layer())
         .layer(InterceptorLayer::new(ConnectInfoInterceptor))
         .layer(GrpcMetricsLayer::new())
         .layer(
@@ -263,12 +270,13 @@ fn serve_metrics(metrics_listener: Option<TcpListener>) {
 
 async fn configure_health_service<
     Qc: QsConnector<EnqueueError = QsEnqueueError<Np>> + Clone,
+    Ac: AsConnector<Error = AsConnectorError> + Clone,
     Np: NetworkProvider,
 >() -> HealthServer<impl Health> {
     let (reporter, service) = tonic_health::server::health_reporter();
     reporter.set_serving::<AuthServiceServer<GrpcAs>>().await;
     reporter
-        .set_serving::<DeliveryServiceServer<GrpcDs<Qc>>>()
+        .set_serving::<DeliveryServiceServer<GrpcDs<Qc, Ac>>>()
         .await;
     reporter.set_serving::<QueueServiceServer<GrpcQs>>().await;
     service

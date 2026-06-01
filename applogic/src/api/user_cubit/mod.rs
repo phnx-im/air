@@ -9,6 +9,7 @@ use std::sync::Arc;
 pub(crate) use aircommon::identifiers::UsernameHash;
 use aircommon::identifiers::{UserId, Username};
 pub(crate) use aircoreclient::InviteUsersError;
+use aircoreclient::clients::StorageObjectType;
 use aircoreclient::{Asset, ChatId, ContactType, PartialContact, clients::CoreUser};
 use anyhow::ensure;
 use flutter_rust_bridge::frb;
@@ -16,8 +17,10 @@ use qs::QueueContext;
 use tokio::sync::watch;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
+use url::Url;
 use username::{UsernameBackgroundTasks, UsernameContext};
 
+use crate::api::logging::tar_logs;
 use crate::api::types::UiContact;
 use crate::{
     StreamSink,
@@ -457,6 +460,31 @@ impl UserCubitBase {
         prefix.copy_from_slice(&first.to_chunks());
         suffix.copy_from_slice(&second.to_chunks());
         Ok(code)
+    }
+
+    pub async fn upload_logs(&self, cache_dir: String) -> anyhow::Result<String> {
+        let compressed_logs = tar_logs(cache_dir)?;
+
+        let (attachment_metadata, download_url) = self
+            .core_user()
+            .upload_user_attachment(StorageObjectType::DebugLogs, compressed_logs)
+            .await?
+            .map_err(|_| anyhow::format_err!("failed to upload user attachment"))?;
+
+        use base64::{Engine as _, engine::general_purpose::URL_SAFE};
+        let encoded_download_url = URL_SAFE.encode(download_url.as_str());
+
+        let mut log_browse_url = Url::parse("https://logs.air.ms")?;
+        log_browse_url
+            .query_pairs_mut()
+            .append_pair("object", &encoded_download_url);
+        log_browse_url.set_fragment(Some(&format!(
+            "encryption_key={},nonce={}",
+            hex::encode(attachment_metadata.encryption_key()),
+            hex::encode(attachment_metadata.nonce())
+        )));
+
+        Ok(log_browse_url.to_string())
     }
 }
 

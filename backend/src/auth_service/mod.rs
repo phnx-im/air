@@ -4,7 +4,11 @@
 
 use std::sync::Arc;
 
-use aircommon::{crypto::signatures::DEFAULT_SIGNATURE_SCHEME, identifiers::Fqdn};
+use aircommon::{
+    credentials::keys::ClientVerifyingKey,
+    crypto::signatures::DEFAULT_SIGNATURE_SCHEME,
+    identifiers::{Fqdn, UserId},
+};
 use credentials::{
     CredentialGenerationError, intermediate_signing_key::IntermediateSigningKey,
     signing_key::StorableSigningKey,
@@ -17,6 +21,7 @@ use usernames::UsernameQueues;
 
 use crate::{
     air_service::{BackendService, ServiceCreationError},
+    auth_service::client_record::ClientRecord,
     errors::StorageError,
 };
 
@@ -42,6 +47,10 @@ pub struct AuthService {
 }
 
 impl AuthService {
+    pub fn database_pool(&self) -> &PgPool {
+        &self.db_pool
+    }
+
     pub fn disable_invitation_only(&mut self) {
         self.invitation_only = false;
     }
@@ -52,6 +61,16 @@ impl AuthService {
 
     pub fn is_unredeemable_code(&self, code: &str) -> bool {
         self.unredeemable_code.as_deref() == Some(code)
+    }
+
+    pub async fn load_client_verifying_key(
+        &self,
+        user_id: &UserId,
+    ) -> Result<Option<ClientVerifyingKey>, StorageError> {
+        let client_verifying_key = ClientRecord::load(&self.db_pool, user_id)
+            .await?
+            .map(|record| record.credential.verifying_key().clone());
+        Ok(client_verifying_key)
     }
 }
 
@@ -127,4 +146,13 @@ impl AuthService {
     pub fn db_pool(&self) -> &PgPool {
         &self.db_pool
     }
+}
+
+pub trait AsConnector: Sync + Send + std::fmt::Debug + 'static {
+    type Error: Send + std::error::Error;
+
+    fn client_verifying_key(
+        &self,
+        user_id: &UserId,
+    ) -> impl Future<Output = Result<Option<ClientVerifyingKey>, Self::Error>> + Send;
 }

@@ -2,9 +2,15 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-name: Publish macOS app
+name: Build macOS app
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 on:
+  pull_request:
+    branches: ["main"]
   push:
     branches:
       - main
@@ -15,15 +21,17 @@ on:
       - "common/**"
       - "app/**"
       - "Cargo.toml"
+  merge_group:
 
 env:
   CARGO_TERM_COLOR: always
   CARGO_INCREMENTAL: 0
   SQLX_OFFLINE: true
+  RUSTFLAGS: "-D warnings"
 
 jobs:
-  mac-publish:
-    runs-on: macos-26
+  macos-build:
+    runs-on: macOS-26
 
     steps:
       - name: Checkout code
@@ -33,14 +41,35 @@ jobs:
           fetch-depth: 0
           # Don't download historical file contents (blobs)
           filter: blob:none
-          
+
       - id: setup-buildenv
         name: Setup build environment
         uses: ./.github/actions/setup-buildenv
         with:
           fastlane: true
+          sccache: true
 
-      - name: Build and upload to TestFlight
+      - name: Detect if PR is from a fork
+        id: detect_fork
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "pull_request" ]; then
+            if [ "${{ github.event.pull_request.head.repo.full_name }}" = "${{ github.repository }}" ]; then
+              echo "is_fork=false" >> $GITHUB_OUTPUT
+            else
+              echo "is_fork=true" >> $GITHUB_OUTPUT
+            fi
+          else
+            echo "is_fork=false" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build macOS app
+        if: ${{ steps.detect_fork.outputs.is_fork == 'true' || github.actor == 'dependabot[bot]' }}
+        working-directory: app
+        run: bundle exec fastlane mac build_macos --verbose
+
+      - name: Build, sign and upload macOS app
+        if: ${{ steps.detect_fork.outputs.is_fork == 'false' && github.actor != 'dependabot[bot]' }}
         env:
           APP_STORE_KEY_ID: ${{ secrets.APP_STORE_KEY_ID }}
           APP_STORE_ISSUER_ID: ${{ secrets.APP_STORE_ISSUER_ID }}
@@ -51,4 +80,4 @@ jobs:
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
         working-directory: app
-        run: bundle exec fastlane mac beta_macos upload_to_test_flight:true --verbose
+        run: bundle exec fastlane mac beta_macos ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'upload_to_test_flight:true' || '' }} --verbose

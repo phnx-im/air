@@ -41,6 +41,8 @@ jobs:
       - id: setup-buildenv
         name: Setup build environment
         uses: ./.github/actions/setup-buildenv
+        with:
+          sccache: true
 
       - name: Build app
         working-directory: app
@@ -53,7 +55,7 @@ jobs:
           path: app/build/linux/x64/release/bundle
 
   linux-publish:
-    name: linux-publish (${{ matrix.format }})
+    name: linux-publish
     environment: linux-packages
 
     needs: linux-build
