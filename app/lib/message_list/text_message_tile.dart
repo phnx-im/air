@@ -460,7 +460,11 @@ class _MessageView extends HookWidget {
                     // gesture arena as usual.
                     child: GestureDetector(
                       behavior: HitTestBehavior.deferToChild,
-                      onTap: () => isRevealed.value = true,
+                      onTap:
+                          (status == UiMessageStatus.hidden &&
+                              !isRevealed.value)
+                          ? () => isRevealed.value = true
+                          : null,
                       onLongPress: onLongPress,
                       child: bubble,
                     ),
