@@ -1,5 +1,5 @@
-name: Setup build environment
-description: Sets up platform specific tools we need for our CI workflows
+name: Deploy to Kubernetess
+description: Updates the container image of the airserver deployment to Kubernetes
 inputs:
   kubeconfig:
     description: "Kubeconfig to use for deployment"
