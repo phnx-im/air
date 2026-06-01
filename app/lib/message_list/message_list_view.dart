@@ -14,6 +14,7 @@ import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/themes.dart';
 import 'package:air/user/user.dart';
+import 'package:air/util/platform.dart';
 import 'package:air/widgets/anchored_list/anchored_list.dart';
 import 'package:air/widgets/anchored_list/controller.dart';
 import 'package:air/widgets/widgets.dart';
@@ -88,6 +89,11 @@ class _MessageListViewState extends State<MessageListView>
   /// only rebuilds the header itself, not the surrounding tree.
   final ValueNotifier<bool> _scrollActive = ValueNotifier<bool>(false);
   Timer? _floatingHeaderHideTimer;
+
+  /// Number of pixels we dragged down the message list since the beginning of
+  /// the drag.
+  double _downwardDragSinceStart = 0;
+  bool _keyboardDismissedThisDrag = false;
 
   @override
   void initState() {
@@ -231,14 +237,17 @@ class _MessageListViewState extends State<MessageListView>
   /// Shows the floating header during active scroll and hides it again
   /// after [_floatingHeaderHideDelay] of inactivity.
   bool _handleScrollNotification(ScrollNotification notification) {
-    // This is a user-initiated scroll.
-    if (notification is ScrollStartNotification &&
-        notification.dragDetails != null) {
-      _onInitialUnreadScrollSettled();
-    }
-    if (notification is ScrollUpdateNotification) {
+    if (notification is ScrollStartNotification) {
+      _downwardDragSinceStart = 0;
+      _keyboardDismissedThisDrag = false;
+      // This is a user-initiated scroll.
+      if (notification.dragDetails != null) {
+        _onInitialUnreadScrollSettled();
+      }
+    } else if (notification is ScrollUpdateNotification) {
       _floatingHeaderHideTimer?.cancel();
       _scrollActive.value = true;
+      _maybeDismissKeyboardOnDrag(notification);
     } else if (notification is ScrollEndNotification) {
       _floatingHeaderHideTimer?.cancel();
       _floatingHeaderHideTimer = Timer(_floatingHeaderHideDelay, () {
@@ -247,6 +256,18 @@ class _MessageListViewState extends State<MessageListView>
       });
     }
     return false;
+  }
+
+  /// Dismisses the keyboard once a drag has pulled down past
+  /// [_keyboardDismissDragThreshold].
+  void _maybeDismissKeyboardOnDrag(ScrollUpdateNotification notification) {
+    if (!PlatformExtension.isMobile || _keyboardDismissedThisDrag) return;
+    final drag = notification.dragDetails;
+    if (drag == null) return;
+    _downwardDragSinceStart = max(0, _downwardDragSinceStart + drag.delta.dy);
+    if (_downwardDragSinceStart < _keyboardDismissDragThreshold) return;
+    _keyboardDismissedThisDrag = true;
+    FocusScope.of(context).unfocus();
   }
 
   /// Resolves the timestamp of the message with [id], for the floating
@@ -338,7 +359,7 @@ class _MessageListViewState extends State<MessageListView>
     final bgColor = CustomColorScheme.of(context).backgroundBase.primary;
 
     Widget buildAnchoredList({double bottomPadding = 0.0}) {
-      return NotificationListener<ScrollNotification>(
+      Widget list = NotificationListener<ScrollNotification>(
         onNotification: _handleScrollNotification,
         child: AnchoredList<UiChatMessage>(
           data: context.read<MessageListCubit>().messageData,
@@ -369,6 +390,17 @@ class _MessageListViewState extends State<MessageListView>
           },
         ),
       );
+
+      // On mobile, we want to dismiss the keyboard by tapping anywhere in the
+      // list, except when tapping interactive elements like e.g. links.
+      if (PlatformExtension.isMobile) {
+        list = GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: list,
+        );
+      }
+      return list;
     }
 
     final floatingHeader = Positioned(
@@ -574,6 +606,9 @@ bool _isSameLocalDay(DateTime a, DateTime b) {
 }
 
 const double _bottomGap = Spacing.px16;
+
+/// Downward drag distance to dismiss the keyboard.
+const double _keyboardDismissDragThreshold = Spacing.px64;
 
 /// How long an incoming message id stays eligible for the entrance animation.
 /// Chosen comfortably larger than the animation duration so the tile always

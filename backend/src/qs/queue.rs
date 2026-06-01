@@ -6,7 +6,7 @@ use std::{borrow::Cow, collections::VecDeque, sync::Arc};
 
 use aircommon::identifiers::QsClientId;
 use airprotos::queue_service::v1::{
-    QueueEmpty, QueueEvent, QueueEventPayload, QueueMessage, queue_event,
+    ListenResponse, QueueEmpty, QueueEventPayload, QueueMessage, listen_response,
 };
 use dashmap::DashMap;
 use futures_util::{Stream, stream};
@@ -81,7 +81,7 @@ impl Queues {
         client_id: QsClientId,
         client_version: Option<Version>,
         sequence_number_start: u64,
-    ) -> Result<impl Stream<Item = Option<QueueEvent>> + use<>, QueueError> {
+    ) -> Result<impl Stream<Item = Option<ListenResponse>> + use<>, QueueError> {
         let notifications = self.pg_listener_task_handle.subscribe(client_id);
         let (payload_tx, payload_rx) = mpsc::channel(1024);
 
@@ -98,18 +98,18 @@ impl Queues {
         };
 
         let message_stream = context.into_stream().map(|message| match message {
-            Some(message) => Some(QueueEvent {
-                event: Some(queue_event::Event::Message(message)),
+            Some(message) => Some(ListenResponse {
+                event: Some(listen_response::Event::Message(message)),
             }),
-            None => Some(QueueEvent {
-                event: Some(queue_event::Event::Empty(QueueEmpty {})),
+            None => Some(ListenResponse {
+                event: Some(listen_response::Event::Empty(QueueEmpty {})),
             }),
         });
 
         let payload_stream =
             tokio_stream::wrappers::ReceiverStream::new(payload_rx).map(|payload| {
-                Some(QueueEvent {
-                    event: Some(queue_event::Event::Payload(payload)),
+                Some(ListenResponse {
+                    event: Some(listen_response::Event::Payload(payload)),
                 })
             });
 

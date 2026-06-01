@@ -1,0 +1,19 @@
+---
+source: common/src/identifiers/mod.rs
+expression: diag
+---
+a2                                     # map(2)
+   64                                  #   text(4)
+      75756964                         #     "uuid"
+   50                                  #   bytes(16)
+      00000000000000000000000000000001 #     "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01"
+   66                                  #   text(6)
+      646f6d61696e                     #     "domain"
+   a1                                  #   map(1)
+      66                               #     text(6)
+         646f6d61696e                  #       "domain"
+      a1                               #     map(1)
+         66                            #       text(6)
+            446f6d61696e               #         "Domain"
+         6b                            #       text(11)
+            6578616d706c652e636f6d     #         "example.com"

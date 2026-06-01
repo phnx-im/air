@@ -29,9 +29,9 @@ use airprotos::{
     common::v1::{StatusDetails, StatusDetailsCode},
     queue_service::v1::{
         AckListenRequest, ApqKeyPackageRequest, CreateClientPayload, DeleteClientPayload,
-        DeleteUserPayload, FetchListenRequest, InitListenPayload, PublishApqKeyPackagesPayload,
-        PublishKeyPackagesPayload, QueueEvent, UpdateClientPayload, UpdateUserPayload,
-        listen_request,
+        DeleteUserPayload, FetchListenRequest, InitListenPayload, ListenResponse,
+        PublishApqKeyPackagesPayload, PublishKeyPackagesPayload, UpdateClientPayload,
+        UpdateUserPayload, listen_request,
     },
 };
 use airprotos::{
@@ -337,7 +337,7 @@ impl ApiClient {
     /// returned. The server can safely discard events with a sequence number lower than the one
     /// specified.
     ///
-    /// Returns a stream of [`QueueEvent`]s and a [`QsListenResponder`].
+    /// Returns a stream of [`ListenResponse`]s and a [`QsListenResponder`].
     ///
     /// The connection to server is bound to the lifetime of the stream. When the stream has ended
     /// or is dropped, the connection is closed. In this case, the [`QsListenResponder`] is closed.
@@ -346,7 +346,13 @@ impl ApiClient {
         client_id: QsClientId,
         sequence_number_start: u64,
         signing_key: &QsClientSigningKey,
-    ) -> Result<(impl Stream<Item = QueueEvent> + use<>, QsListenResponder), QsRequestError> {
+    ) -> Result<
+        (
+            impl Stream<Item = ListenResponse> + use<>,
+            QsListenResponder,
+        ),
+        QsRequestError,
+    > {
         let init_payload = InitListenPayload {
             client_metadata: Some(self.metadata().clone()),
             client_id: Some(client_id.into()),

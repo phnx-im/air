@@ -16,7 +16,7 @@ use crate::{
     },
 };
 
-#[derive(Debug, Clone, PartialEq)]
+#[derive(Debug, PartialEq)]
 pub(super) struct UserRecord {
     pub(super) user_id: QsUserId,
     pub(super) verifying_key: QsUserVerifyingKey,

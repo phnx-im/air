@@ -10,9 +10,9 @@ use airprotos::{
     auth_service::{
         convert::UsernameHashError,
         v1::{
-            ConnectRequest, ConnectResponse, ConnectionOfferMessage,
-            EnqueueConnectionOfferResponse, FetchConnectionPackageResponse, connect_request,
-            connect_response, username_queue_message,
+            ConnectUsernameRequest, ConnectUsernameResponse, ConnectionOfferMessage,
+            EnqueueConnectionOfferResponse, FetchConnectionPackageResponse,
+            connect_username_request, connect_username_response, username_queue_message,
         },
     },
     validation::{MissingFieldError, MissingFieldExt},
@@ -37,8 +37,8 @@ pub(crate) trait ConnectUsernameProtocol {
     /// Implements the Connect Username protocol
     async fn connect_username_protocol(
         self,
-        incoming: Streaming<ConnectRequest>,
-        outgoing: mpsc::Sender<Result<ConnectResponse, Status>>,
+        incoming: Streaming<ConnectUsernameRequest>,
+        outgoing: mpsc::Sender<Result<ConnectUsernameResponse, Status>>,
     ) where
         Self: Sized,
     {
@@ -67,8 +67,8 @@ pub(crate) trait ConnectUsernameProtocol {
 
 async fn run_protocol(
     protocol: &impl ConnectUsernameProtocol,
-    incoming: impl Stream<Item = Result<ConnectRequest, Status>> + Unpin,
-    outgoing: &mpsc::Sender<Result<ConnectResponse, Status>>,
+    incoming: impl Stream<Item = Result<ConnectUsernameRequest, Status>> + Unpin,
+    outgoing: &mpsc::Sender<Result<ConnectUsernameResponse, Status>>,
 ) {
     if let Err(error) = run_protocol_impl(protocol, incoming, outgoing).await {
         error!(%error, "error in connect username protocol");
@@ -78,15 +78,15 @@ async fn run_protocol(
 
 async fn run_protocol_impl(
     protocol: &impl ConnectUsernameProtocol,
-    mut incoming: impl Stream<Item = Result<ConnectRequest, Status>> + Unpin,
-    outgoing: &mpsc::Sender<Result<ConnectResponse, Status>>,
+    mut incoming: impl Stream<Item = Result<ConnectUsernameRequest, Status>> + Unpin,
+    outgoing: &mpsc::Sender<Result<ConnectUsernameResponse, Status>>,
 ) -> Result<(), ConnectProtocolError> {
     // step 1: fetch connection package for a handle hash
     debug!("step 1: waiting for fetch connection package step");
     let step = incoming.next().await;
     let fetch_connection_package = match step {
-        Some(Ok(ConnectRequest {
-            step: Some(connect_request::Step::Fetch(fetch)),
+        Some(Ok(ConnectUsernameRequest {
+            step: Some(connect_username_request::Step::Fetch(fetch)),
         })) => fetch,
         Some(Ok(_)) => {
             return Err(ConnectProtocolError::ProtocolViolation("expected fetch"));
@@ -120,8 +120,8 @@ async fn run_protocol_impl(
     debug!("get connection package for username");
     let connection_package = protocol.get_connection_package_for_username(&hash).await?;
     if outgoing
-        .send(Ok(ConnectResponse {
-            step: Some(connect_response::Step::FetchResponse(
+        .send(Ok(ConnectUsernameResponse {
+            step: Some(connect_username_response::Step::FetchResponse(
                 FetchConnectionPackageResponse {
                     connection_package: Some(connection_package.into()),
                 },
@@ -137,8 +137,8 @@ async fn run_protocol_impl(
     debug!("step 2: waiting for enqueue package step");
     let step = incoming.next().await;
     let enqueue_offer = match step {
-        Some(Ok(ConnectRequest {
-            step: Some(connect_request::Step::Enqueue(enqueue_package)),
+        Some(Ok(ConnectUsernameRequest {
+            step: Some(connect_username_request::Step::Enqueue(enqueue_package)),
         })) => enqueue_package,
         Some(Ok(_)) => {
             return Err(ConnectProtocolError::ProtocolViolation("expected enqueue"));
@@ -162,8 +162,8 @@ async fn run_protocol_impl(
     // acknowledge
     debug!("acknowledge protocol finished");
     if outgoing
-        .send(Ok(ConnectResponse {
-            step: Some(connect_response::Step::EnqueueResponse(
+        .send(Ok(ConnectUsernameResponse {
+            step: Some(connect_username_response::Step::EnqueueResponse(
                 EnqueueConnectionOfferResponse {},
             )),
         }))
@@ -316,8 +316,8 @@ mod tests {
     fn run_test_protocol(
         mock_protocol: MockConnectUsernameProtocol,
     ) -> (
-        mpsc::Sender<Result<ConnectRequest, Status>>,
-        mpsc::Receiver<Result<ConnectResponse, Status>>,
+        mpsc::Sender<Result<ConnectUsernameRequest, Status>>,
+        mpsc::Receiver<Result<ConnectUsernameResponse, Status>>,
         JoinHandle<()>,
     ) {
         let (requests_tx, requests_rx) = mpsc::channel(10);
@@ -378,21 +378,25 @@ mod tests {
 
         let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
 
-        let request_fetch = ConnectRequest {
-            step: Some(connect_request::Step::Fetch(FetchConnectionPackageStep {
-                client_metadata: Some(CLIENT_METADATA.clone()),
-                hash: Some(hash.into()),
-            })),
+        let request_fetch = ConnectUsernameRequest {
+            step: Some(connect_username_request::Step::Fetch(
+                FetchConnectionPackageStep {
+                    client_metadata: Some(CLIENT_METADATA.clone()),
+                    hash: Some(hash.into()),
+                },
+            )),
         };
 
         // step 1
         requests.send(Ok(request_fetch)).await.unwrap();
         match responses.recv().await.unwrap() {
-            Ok(ConnectResponse {
+            Ok(ConnectUsernameResponse {
                 step:
-                    Some(connect_response::Step::FetchResponse(FetchConnectionPackageResponse {
-                        connection_package: Some(received_connection_package),
-                    })),
+                    Some(connect_username_response::Step::FetchResponse(
+                        FetchConnectionPackageResponse {
+                            connection_package: Some(received_connection_package),
+                        },
+                    )),
             }) => {
                 let connection_package_proto: v1::ConnectionPackage = connection_package.into();
                 assert_eq!(connection_package_proto, received_connection_package);
@@ -401,16 +405,20 @@ mod tests {
         }
 
         // step 2
-        let request_enqueue = ConnectRequest {
-            step: Some(connect_request::Step::Enqueue(EnqueueConnectionOfferStep {
-                connection_offer: Some(connection_offer.clone()),
-            })),
+        let request_enqueue = ConnectUsernameRequest {
+            step: Some(connect_username_request::Step::Enqueue(
+                EnqueueConnectionOfferStep {
+                    connection_offer: Some(connection_offer.clone()),
+                },
+            )),
         };
         requests.send(Ok(request_enqueue)).await.unwrap();
         match responses.recv().await.unwrap() {
-            Ok(ConnectResponse {
+            Ok(ConnectUsernameResponse {
                 step:
-                    Some(connect_response::Step::EnqueueResponse(EnqueueConnectionOfferResponse {})),
+                    Some(connect_username_response::Step::EnqueueResponse(
+                        EnqueueConnectionOfferResponse {},
+                    )),
             }) => {}
             _ => panic!("unexpected response type"),
         }
@@ -437,11 +445,13 @@ mod tests {
 
         let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
 
-        let request_fetch = ConnectRequest {
-            step: Some(connect_request::Step::Fetch(FetchConnectionPackageStep {
-                client_metadata: Some(CLIENT_METADATA.clone()),
-                hash: Some(hash.into()),
-            })),
+        let request_fetch = ConnectUsernameRequest {
+            step: Some(connect_username_request::Step::Fetch(
+                FetchConnectionPackageStep {
+                    client_metadata: Some(CLIENT_METADATA.clone()),
+                    hash: Some(hash.into()),
+                },
+            )),
         };
 
         requests.send(Ok(request_fetch)).await.unwrap();
@@ -471,11 +481,13 @@ mod tests {
 
         let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
 
-        let request_fetch = ConnectRequest {
-            step: Some(connect_request::Step::Fetch(FetchConnectionPackageStep {
-                client_metadata: Some(CLIENT_METADATA.clone()),
-                hash: Some(hash.into()),
-            })),
+        let request_fetch = ConnectUsernameRequest {
+            step: Some(connect_username_request::Step::Fetch(
+                FetchConnectionPackageStep {
+                    client_metadata: Some(CLIENT_METADATA.clone()),
+                    hash: Some(hash.into()),
+                },
+            )),
         };
 
         requests.send(Ok(request_fetch)).await.unwrap();
@@ -498,7 +510,7 @@ mod tests {
         // empty requests in step 1
 
         requests
-            .send(Ok(ConnectRequest { step: None }))
+            .send(Ok(ConnectUsernameRequest { step: None }))
             .await
             .unwrap();
         let response = responses.recv().await.unwrap();
@@ -515,10 +527,12 @@ mod tests {
         // enqueue in step 1
 
         requests
-            .send(Ok(ConnectRequest {
-                step: Some(connect_request::Step::Enqueue(EnqueueConnectionOfferStep {
-                    connection_offer: None,
-                })),
+            .send(Ok(ConnectUsernameRequest {
+                step: Some(connect_username_request::Step::Enqueue(
+                    EnqueueConnectionOfferStep {
+                        connection_offer: None,
+                    },
+                )),
             }))
             .await
             .unwrap();
@@ -561,11 +575,13 @@ mod tests {
         let (requests, mut responses, run_handle) = run_test_protocol(mock_protocol);
 
         requests
-            .send(Ok(ConnectRequest {
-                step: Some(connect_request::Step::Fetch(FetchConnectionPackageStep {
-                    client_metadata: Some(CLIENT_METADATA.clone()),
-                    hash: Some(hash.into()),
-                })),
+            .send(Ok(ConnectUsernameRequest {
+                step: Some(connect_username_request::Step::Fetch(
+                    FetchConnectionPackageStep {
+                        client_metadata: Some(CLIENT_METADATA.clone()),
+                        hash: Some(hash.into()),
+                    },
+                )),
             }))
             .await
             .unwrap();
@@ -573,11 +589,13 @@ mod tests {
         assert!(response.is_ok());
 
         requests
-            .send(Ok(ConnectRequest {
-                step: Some(connect_request::Step::Fetch(FetchConnectionPackageStep {
-                    client_metadata: Some(CLIENT_METADATA.clone()),
-                    hash: Some(hash.into()),
-                })),
+            .send(Ok(ConnectUsernameRequest {
+                step: Some(connect_username_request::Step::Fetch(
+                    FetchConnectionPackageStep {
+                        client_metadata: Some(CLIENT_METADATA.clone()),
+                        hash: Some(hash.into()),
+                    },
+                )),
             }))
             .await
             .unwrap();

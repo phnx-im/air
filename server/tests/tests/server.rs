@@ -15,7 +15,7 @@ use aircommon::{
 };
 use aircoreclient::{
     ChatId,
-    clients::{QueueEvent, process::process_qs::ProcessedQsMessages, queue_event},
+    clients::{ListenResponse, listen_response, process::process_qs::ProcessedQsMessages},
     outbound_service::{APQ_KEY_PACKAGES, KEY_PACKAGES},
 };
 
@@ -32,7 +32,7 @@ use rand::thread_rng;
 use semver::VersionReq;
 use tokio::time::{sleep, timeout};
 use tokio_stream::StreamExt;
-use tonic::transport::Channel;
+use tonic::{Code, codegen::http, transport::Channel};
 use tonic_health::pb::{
     HealthCheckRequest, health_check_response::ServingStatus, health_client::HealthClient,
 };
@@ -150,6 +150,65 @@ async fn user_deletion_triggers() {
         bob_user_profile_charlie,
         aircoreclient::UserProfile::from_user_id(&charlie)
     );
+}
+
+/// Old method paths must not return UNIMPLEMENTED: proves the alias layer is wired up.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn grpc_method_aliases() {
+    use tower::ServiceExt as _;
+
+    const OLD_PATHS: &[&str] = &[
+        "/auth_service.v1.AuthService/CheckHandleExists",
+        "/auth_service.v1.AuthService/CreateHandle",
+        "/auth_service.v1.AuthService/DeleteHandle",
+        "/auth_service.v1.AuthService/RefreshHandle",
+        "/auth_service.v1.AuthService/ConnectHandle",
+        "/auth_service.v1.AuthService/ListenHandle",
+    ];
+
+    let setup = TestBackend::single().await;
+    let channel = Channel::from_shared(String::from(setup.server_url()))
+        .unwrap()
+        .connect()
+        .await
+        .unwrap();
+
+    for path in OLD_PATHS {
+        let request = http::Request::builder()
+            .method(http::Method::POST)
+            .uri(*path)
+            .header("content-type", "application/grpc")
+            .header("te", "trailers")
+            .body(tonic::body::Body::empty())
+            .unwrap();
+
+        let response = channel.clone().oneshot(request).await.unwrap();
+
+        // Expect either a code != UNIMPLEMENTED (non-streaming RPC) or an abstent grpc-status which
+        // is a 200 HTTP/2 request (streaming RPC). Both cases mean that the redirect worked.
+        let code = response
+            .headers()
+            .get("grpc-status")
+            .map(|v| Code::from_bytes(v.as_bytes()));
+        match code {
+            Some(code) => {
+                // Non-streaming RPC: returns grpc-status as header
+                assert_ne!(code, Code::Unknown, "grpc status failed to parse");
+                assert_ne!(
+                    code,
+                    Code::Unimplemented,
+                    "path {path} is unknown to the server",
+                );
+            }
+            None => {
+                // Streaming RPC: returns HTTP/2 200 OK and no grpc-status header
+                assert!(
+                    response.status().is_success(),
+                    "path {path} is unknown to the server"
+                );
+            }
+        }
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -836,16 +895,16 @@ async fn listen_stream_eviction() {
     let (mut stream_a, _responder_a) = alice_user.listen_queue().await.unwrap();
     assert_matches!(
         stream_a.next().await,
-        Some(QueueEvent {
-            event: Some(queue_event::Event::Empty(_)),
+        Some(ListenResponse {
+            event: Some(listen_response::Event::Empty(_)),
         })
     );
 
     let (mut stream_b, _responder_b) = alice_user.listen_queue().await.unwrap();
     assert_matches!(
         stream_b.next().await,
-        Some(QueueEvent {
-            event: Some(queue_event::Event::Empty(_)),
+        Some(ListenResponse {
+            event: Some(listen_response::Event::Empty(_)),
         })
     );
 

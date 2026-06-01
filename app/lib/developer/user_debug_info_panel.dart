@@ -23,12 +23,17 @@ class UserDebugInfoPanel extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final snapshot = useFuture(useMemoized(() => user.userDebugInfo()));
+    final refreshKey = useState(0);
+    final snapshot = useFuture(
+      useMemoized(() => user.userDebugInfo(), [refreshKey.value]),
+    );
     final colors = CustomColorScheme.of(context);
 
     return switch (snapshot) {
       AsyncSnapshot(hasData: true, :final data) => _UserDebugInfoBody(
         info: data!,
+        user: user,
+        onRefresh: () => refreshKey.value++,
       ),
       AsyncSnapshot(hasError: true, :final error) => Center(
         child: Padding(
@@ -57,9 +62,15 @@ class UserDebugInfoPanel extends HookWidget {
 }
 
 class _UserDebugInfoBody extends StatelessWidget {
-  const _UserDebugInfoBody({required this.info});
+  const _UserDebugInfoBody({
+    required this.info,
+    required this.user,
+    required this.onRefresh,
+  });
 
   final UserDebugInfo info;
+  final User user;
+  final VoidCallback onRefresh;
 
   @override
   Widget build(BuildContext context) {
@@ -95,11 +106,32 @@ class _UserDebugInfoBody extends StatelessWidget {
                 label: task.name,
                 value:
                     '${_formatDateTime(task.scheduledAt.toLocal())}  (${_formatRelative(task.scheduledAt)})',
+                trailing: _TriggerButton(onPressed: () => _trigger(task)),
               ),
           ],
         ),
       ],
     );
+  }
+
+  Future<void> _trigger(TimedTaskDebugInfo task) async {
+    try {
+      await user.triggerTimedTask(task.id);
+      showSnackBarStandalone(
+        (loc) => SnackBar(
+          content: Text('Triggered ${task.name}'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (error) {
+      showSnackBarStandalone(
+        (loc) => SnackBar(
+          content: Text('Failed to trigger ${task.name}: $error'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+    onRefresh();
   }
 
   String _formatDateTime(DateTime dt) {
@@ -201,11 +233,13 @@ class _InfoRow extends StatelessWidget {
     required this.label,
     required this.value,
     this.monospace = false,
+    this.trailing,
   });
 
   final String label;
   final String value;
   final bool monospace;
+  final Widget? trailing;
 
   @override
   Widget build(BuildContext context) {
@@ -250,9 +284,29 @@ class _InfoRow extends StatelessWidget {
             ),
             const SizedBox(width: Spacing.px12),
             Expanded(child: Text(value, style: valueStyle)),
+            ?trailing,
           ],
         ),
       ),
+    );
+  }
+}
+
+class _TriggerButton extends StatelessWidget {
+  const _TriggerButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = CustomColorScheme.of(context);
+    return IconButton(
+      onPressed: onPressed,
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(),
+      tooltip: 'Run now',
+      icon: Icon(Icons.play_arrow, size: 20, color: colors.text.primary),
     );
   }
 }
