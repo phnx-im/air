@@ -58,7 +58,7 @@ jobs:
         run: sccache --show-stats
 
       - name: Upload Windows app
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: windows-app-x64
           path: app/build/windows/x64/runner/Release
