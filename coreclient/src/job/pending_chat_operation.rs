@@ -1241,7 +1241,7 @@ mod tests {
         let error = DsRequestError::Tonic(tonic::Status::not_found("group not found"));
         let result = pending.handle_error(pool.write().await?, error).await;
 
-        assert!(matches!(result, Ok(JobError::NotFound)));
+        assert_matches!(result, Ok(JobError::NotFound));
 
         Ok(())
     }
