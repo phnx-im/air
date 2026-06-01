@@ -682,12 +682,17 @@ impl OutboundServiceContext {
 
         match res {
             Ok(_messages) => Ok(true),
+            // A network error is likely something transient that would affect
+            // all chats, so we return the error to retry the task with backoff.
+            Err(error @ JobError::NetworkError) => Err(error.into()),
+            // The operation is no longer applicable to this chat, so we skip
+            // it.
             Err(JobError::NotFound | JobError::Blocked) => Ok(false),
-            // Fatal or network errors abort the whole batch because we assume that they will
-            // persist for the next chat in the batch.
-            Err(error @ (JobError::Fatal(_) | JobError::NetworkError | JobError::Domain(_))) => {
-                debug!(?chat_id, %error, "Failed to self-update in chat");
-                Err(error.into())
+            // Any other failure is specific to this chat, so we log and skip
+            // it, but continue with the rest of the batch.
+            Err(error) => {
+                warn!(?chat_id, %error, "Skipping self-update in chat due to unexpected error");
+                Ok(false)
             }
         }
     }
