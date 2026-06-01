@@ -2,12 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use core::fmt;
-
 use aircoreclient::{ChatId, ChatMessage, ChatType};
 use serde::{Deserialize, Serialize};
-#[cfg(any(target_os = "linux"))]
-use tracing::error;
 use uuid::Uuid;
 
 use crate::api::{notifications::DartNotificationService, user::User};
@@ -141,7 +137,7 @@ pub struct NotificationHandle {
 pub(crate) struct NotificationService {
     #[cfg(any(target_os = "ios", target_os = "android", target_os = "macos"))]
     dart_service: DartNotificationService,
-    #[cfg(any(target_os = "linux"))]
+    #[cfg(target_os = "linux")]
     zbus_connection: Option<zbus::blocking::Connection>,
 }
 
@@ -151,9 +147,9 @@ impl NotificationService {
         Self {
             #[cfg(any(target_os = "ios", target_os = "android", target_os = "macos"))]
             dart_service,
-            #[cfg(any(target_os = "linux"))]
+            #[cfg(target_os = "linux")]
             zbus_connection: zbus::blocking::Connection::session()
-                .inspect_err(|error| error!(%error, "failed to connect to DBus"))
+                .inspect_err(|error| tracing::error!(%error, "failed to connect to D-Bus"))
                 .ok(),
         }
     }
@@ -161,19 +157,19 @@ impl NotificationService {
     pub(crate) async fn show_notification(&self, notification: NotificationContent) {
         #[cfg(any(target_os = "ios", target_os = "android", target_os = "macos"))]
         self.dart_service.send_notification(notification).await;
-        #[cfg(any(target_os = "windows"))]
+        #[cfg(target_os = "windows")]
         {
             if let Err(error) = notify_rust::Notification::new()
                 .summary(notification.title.as_str())
                 .body(notification.body.as_str())
                 .show()
             {
-                error!(%error, "Failed to send desktop notification");
+                tracing::error!(%error, "Failed to send desktop notification");
             }
         }
-        #[cfg(any(target_os = "linux"))]
+        #[cfg(target_os = "linux")]
         if let Err(error) = self.send_xdg_portal_notification(notification) {
-            error!(%error, "Failed to send desktop notification");
+            tracing::error!(%error, "Failed to send desktop notification");
         }
     }
 
@@ -183,7 +179,7 @@ impl NotificationService {
     // The future is to use the XDG Portal API instead, but it is only supported (= not buggy) on GNOME 46+
     // and does not support notifications grouping. It also currently has sparse support on
     // other Desktop Environments.
-    #[cfg(any(target_os = "linux"))]
+    #[cfg(target_os = "linux")]
     pub(crate) fn send_xdg_portal_notification(
         &self,
         NotificationContent {
