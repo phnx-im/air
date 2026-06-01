@@ -2,8 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use core::fmt;
+
 use aircoreclient::{ChatId, ChatMessage, ChatType};
 use serde::{Deserialize, Serialize};
+#[cfg(any(target_os = "linux"))]
+use tracing::error;
 use uuid::Uuid;
 
 use crate::api::{notifications::DartNotificationService, user::User};
@@ -118,6 +122,12 @@ impl NotificationId {
     }
 }
 
+impl fmt::Display for NotificationId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        self.0.fmt(f)
+    }
+}
+
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct NotificationContent {
@@ -137,6 +147,8 @@ pub struct NotificationHandle {
 pub(crate) struct NotificationService {
     #[cfg(any(target_os = "ios", target_os = "android", target_os = "macos"))]
     dart_service: DartNotificationService,
+    #[cfg(any(target_os = "linux"))]
+    zbus_connection: Option<zbus::blocking::Connection>,
 }
 
 impl NotificationService {
@@ -145,22 +157,82 @@ impl NotificationService {
         Self {
             #[cfg(any(target_os = "ios", target_os = "android", target_os = "macos"))]
             dart_service,
+            #[cfg(any(target_os = "linux"))]
+            zbus_connection: zbus::blocking::Connection::session()
+                .inspect_err(|error| error!(%error, "failed to connect to DBus"))
+                .ok(),
         }
     }
 
     pub(crate) async fn show_notification(&self, notification: NotificationContent) {
         #[cfg(any(target_os = "ios", target_os = "android", target_os = "macos"))]
         self.dart_service.send_notification(notification).await;
-        #[cfg(any(target_os = "linux", target_os = "windows"))]
+        #[cfg(any(target_os = "windows"))]
         {
             if let Err(error) = notify_rust::Notification::new()
                 .summary(notification.title.as_str())
                 .body(notification.body.as_str())
                 .show()
             {
-                tracing::error!(%error, "Failed to send desktop notification");
+                error!(%error, "Failed to send desktop notification");
             }
         }
+        #[cfg(any(target_os = "linux"))]
+        if let Err(error) = self.send_xdg_portal_notification(notification) {
+            error!(%error, "Failed to send desktop notification");
+        }
+    }
+
+    // notify-rusty v4 does not set the sender-pid hint, which is required for GNOME 46+ compatibility.
+    // doing it manually also lets us enable notifications grouping per chat
+    //
+    // the future is to use the XDG Portal API instead, but it is only supported (not buggy) on GNOME 46+
+    // and does not support notifications grouping. It also currently has sparse support on
+    // other Desktop Environments.
+    #[cfg(any(target_os = "linux"))]
+    pub(crate) fn send_xdg_portal_notification(
+        &self,
+        NotificationContent {
+            chat_id,
+            title,
+            body,
+            ..
+        }: NotificationContent,
+    ) -> anyhow::Result<()> {
+        use std::collections::HashMap;
+
+        use zbus::{blocking::Proxy, zvariant::Value};
+
+        let Some(zbus_connection) = self.zbus_connection.as_ref() else {
+            return Ok(());
+        };
+        let proxy = Proxy::new(
+            zbus_connection,
+            "org.freedesktop.Notifications",
+            "/org/freedesktop/Notifications",
+            "org.freedesktop.Notifications",
+        )?;
+
+        let mut hints: HashMap<&str, Value> = HashMap::new();
+        // for GNOME 46+ compatibility
+        hints.insert("sender-pid", std::process::id().into());
+        hints.insert("x-gnome-stack-group", format!("air-chat-{chat_id}").into());
+
+        proxy.call_method(
+            "Notify",
+            &(
+                "Air",              // app_name
+                0u32,               // replaces_id
+                "ms.air",           // icon
+                title,              // summary
+                body,               // body
+                Vec::<&str>::new(), // actions
+                hints,
+                -1i32, // timeout (-1 = default)
+            ),
+        )?;
+
+        Ok(())
     }
 
     pub(crate) async fn get_active_notifications(&self) -> Vec<NotificationHandle> {
