@@ -443,7 +443,11 @@ impl PendingChatOperation {
     ) -> Result<JobError<ChatOperationError>, JobError<ChatOperationError>> {
         debug!(?error, "DS request failed");
         const MAX_RETRIES: u32 = 5;
-        if error.is_wrong_epoch() {
+        if error.is_not_found() {
+            // The group no longer exists on the DS. There is no point
+            // in retrying, the group needs to be torn down instead.
+            Ok(JobError::NotFound)
+        } else if error.is_wrong_epoch() {
             // If we get a WrongEpochError, we know the commit was
             // either accepted on a previous try, or the DS rejected
             // it because another one got there first.
@@ -1096,6 +1100,7 @@ pub mod test_utils {
 #[cfg(test)]
 mod tests {
     use aircommon::{
+        assert_matches,
         credentials::{keys::ClientSigningKey, test_utils::create_test_credentials},
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QualifiedGroupId, UserId},
@@ -1221,6 +1226,25 @@ mod tests {
                 Ok(())
             })
             .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn not_found_ds_error_is_routed_to_not_found() -> anyhow::Result<()> {
+        let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
+
+        let leave_params = group
+            .group_mut()
+            .stage_leave_group(pool.write().await?, &signing_key)?;
+        let mut pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
+
+        // A "group not found" response from the DS must be classified as
+        // NotFound so the group is torn down, not retried as a generic fatal.
+        let error = DsRequestError::Tonic(tonic::Status::not_found("group not found"));
+        let result = pending.handle_error(pool.write().await?, error).await;
+
+        assert_matches!(result, Ok(JobError::NotFound));
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread")]
