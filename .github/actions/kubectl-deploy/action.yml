@@ -19,7 +19,7 @@ runs:
   using: composite
   steps:
     - name: Set up kubectl
-      uses: azure/setup-kubectl@v4
+      uses: azure/setup-kubectl@f295d40337e8d881362a99e58b39f1b266517068 # v5.1.0
       
     - name: Configure kubectl
       shell: bash
