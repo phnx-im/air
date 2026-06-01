@@ -117,35 +117,66 @@ impl StorableQsQueueRatchet {
     }
 
     /// Decrypt a `QueueMessage` received from the QS queue.
+    ///
+    /// # Contract
+    ///
+    /// QS is expected to deliver, in strict sequence order, only messages whose `sequence_number`
+    /// is at or above the client's locally persisted ratchet sequence number: the value the client
+    /// passes as `sequence_number_start` when it opens the listen stream (see
+    /// [`CoreUser::listen_queue`]). Under that contract, every received message satisfies
+    /// `message_seq_nr == ratchet_seq_nr` on arrival, the ratchet decrypts it with the current key,
+    /// and advances by one.
+    ///
+    /// The two non-happy-path branches below recover from a violation of that contract:
+    ///
+    /// * `message_seq_nr > ratchet_seq_nr`: a gap. The ratchet is forward-only, so we ratchet
+    ///   forward through the gap to decrypt this message; any messages at the skipped sequence
+    ///   numbers become permanently undecryptable. Lossy, but unavoidable given the forward-only
+    ///   design.
+    ///
+    /// * `message_seq_nr < ratchet_seq_nr`: a replay of an already-consumed sequence. Returns
+    ///   `Ok(None)` so the caller skips this message; the ratchet is not updated. The most common
+    ///   trigger is a *client-side* violation: the listen start seq we sent to the server was stale
+    ///   relative to our actual ratchet (e.g., read from a lagging read-pool snapshot while the
+    ///   write-pool ratchet had already advanced).
     pub(crate) async fn decrypt_qs_queue_message(
         txn: &mut WriteDbTransaction<'_>,
         qs_message_ciphertext: QueueMessage,
-    ) -> Result<QsQueueMessagePayload, DecryptQsQueueMessageError> {
+    ) -> Result<Option<QsQueueMessagePayload>, DecryptQsQueueMessageError> {
         let mut qs_queue_ratchet = StorableQsQueueRatchet::load(&mut *txn).await?;
 
         let message_seq_nr = qs_message_ciphertext.sequence_number;
         let ratchet_seq_nr = qs_queue_ratchet.sequence_number();
 
-        // In case the message sequence number is ahead of the ratchet, we need
-        // to ratchet forward to catch up. This really shouldn't happen, so we
-        // log an error in case it does.
         if message_seq_nr > ratchet_seq_nr {
+            // In case the message sequence number is ahead of the ratchet, we need to ratchet
+            // forward to catch up. This really shouldn't happen, so we log an error in case it
+            // does.
             error!(
                 "QS queue ratchet is behind message sequence number: \
                     ratchet_seq_nr = {}, \
                     message_seq_nr = {}",
                 ratchet_seq_nr, message_seq_nr
             );
-        }
-
-        while message_seq_nr > qs_queue_ratchet.sequence_number() {
-            qs_queue_ratchet.ratchet_forward().map_err(|error| {
-                DecryptQsQueueMessageError::Decrypt {
-                    error: error.into(),
-                    ratchet_seq_nr,
-                    message_seq_nr,
-                }
-            })?;
+            while message_seq_nr > qs_queue_ratchet.sequence_number() {
+                qs_queue_ratchet.ratchet_forward().map_err(|error| {
+                    DecryptQsQueueMessageError::Decrypt {
+                        error: error.into(),
+                        ratchet_seq_nr,
+                        message_seq_nr,
+                    }
+                })?;
+            }
+        } else if message_seq_nr < ratchet_seq_nr {
+            // In case the message sequence number is behind the ratchet, this is most likely a
+            // replay of already received message. We log an error and skip the message.
+            error!(
+                "QS queue ratchet is ahead of message sequence number: \
+                    ratchet_seq_nr = {}, \
+                    message_seq_nr = {}",
+                ratchet_seq_nr, message_seq_nr
+            );
+            return Ok(None);
         }
 
         let payload = qs_queue_ratchet
@@ -157,7 +188,7 @@ impl StorableQsQueueRatchet {
             })?;
         qs_queue_ratchet.update(txn, QueueType::Qs).await?;
 
-        Ok(payload)
+        Ok(Some(payload))
     }
 
     pub(crate) async fn load(connection: impl ReadConnection) -> sqlx::Result<Self> {

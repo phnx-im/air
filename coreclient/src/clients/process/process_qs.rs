@@ -1174,10 +1174,16 @@ impl CoreUser {
         result: &mut ProcessedQsMessages,
         read_receipts_enabled: bool,
     ) -> anyhow::Result<()> {
-        let qs_message_payload = StorableQsQueueRatchet::decrypt_qs_queue_message(txn, qs_message)
-            .await
-            .inspect_err(|error| error!(%error, "QS queue message decryption failed"))
-            .context("Decrypting message failed")?;
+        let Some(qs_message_payload) =
+            StorableQsQueueRatchet::decrypt_qs_queue_message(txn, qs_message)
+                .await
+                .inspect_err(|error| error!(%error, "QS queue message decryption failed"))
+                .context("Decrypting message failed")?
+        else {
+            // Skip the message if it is behing the ratchet (replay)
+            return Ok(());
+        };
+
         let qs_message_plaintext = match qs_message_payload.extract() {
             Ok(extracted) => extracted,
             Err(error) => {
