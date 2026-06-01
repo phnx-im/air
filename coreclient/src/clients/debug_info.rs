@@ -15,6 +15,7 @@ use crate::{
 
 #[derive(Debug, Clone)]
 pub struct TimedTaskDebugInfo {
+    pub id: Vec<u8>,
     pub name: String,
     pub scheduled_at: DateTime<Utc>,
 }
@@ -35,7 +36,7 @@ impl CoreUser {
         let user_id = format!("{}@{}", uid.uuid(), uid.domain());
 
         let rows = sqlx::query(
-            "SELECT data, scheduled_at FROM operation
+            "SELECT operation_id, data, scheduled_at FROM operation
             WHERE kind = 'timed_task' ORDER BY scheduled_at ASC",
         )
         .fetch_all(db.read().await?.as_mut())
@@ -43,10 +44,12 @@ impl CoreUser {
 
         let mut timed_tasks = Vec::new();
         for row in rows {
+            let id: Vec<u8> = row.get("operation_id");
             let data: Vec<u8> = row.get("data");
             let scheduled_at: DateTime<Utc> = row.get("scheduled_at");
             if let Ok(task) = PersistenceCodec::from_slice::<TimedTask>(&data) {
                 timed_tasks.push(TimedTaskDebugInfo {
+                    id,
                     name: task.kind.display_name().to_string(),
                     scheduled_at,
                 });
@@ -66,6 +69,21 @@ impl CoreUser {
             add_username_token_count,
             invitation_code_token_count,
         })
+    }
+
+    /// Force a timed task to run as soon as possible.
+    pub async fn trigger_timed_task(&self, operation_id: Vec<u8>) -> anyhow::Result<()> {
+        let now = Utc::now();
+        sqlx::query(
+            "UPDATE operation SET scheduled_at = ?
+            WHERE operation_id = ? AND kind = 'timed_task'",
+        )
+        .bind(now)
+        .bind(operation_id)
+        .execute(self.db().write().await?.as_mut())
+        .await?;
+        self.outbound_service().start();
+        Ok(())
     }
 }
 
