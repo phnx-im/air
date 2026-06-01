@@ -1,0 +1,30 @@
+name: Setup build environment
+description: Sets up platform specific tools we need for our CI workflows
+inputs:
+  kubeconfig:
+    description: "Kubeconfig to use for deployment"
+    required: true
+  namespace:
+    description: "Kubernetes namespace to operate in"
+    required: true
+  container_image:
+    description: "Container image to deploy"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@v4
+      
+    - name: Configure kubectl
+      shell: bash
+      env:
+        KUBECONFIG: ${{ inputs.kubeconfig }}
+      run: |
+        mkdir -p $HOME/.kube
+        echo "${KUBECONFIG}" > $HOME/.kube/config
+
+    - name: Update container image in Kubernetes
+      shell: bash
+      run: kubectl -n staging set image deployment/airserver airserver=${{ inputs.container_image }}

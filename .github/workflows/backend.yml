@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-name: Build, publish and deploy airserver image
+name: Backend
 
 # Configures this workflow to run every time a release is published.
 on:
@@ -24,6 +24,7 @@ env:
 # There is a single job in this workflow. It's configured to run on the latest available version of Ubuntu.
 jobs:
   build-and-publish:
+    name: Publish server container image
     runs-on: ubuntu-latest
     outputs: 
       digest: ${{ steps.build-and-push.outputs.digest }} 
@@ -61,21 +62,27 @@ jobs:
           file: server/Dockerfile
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
-  deploy:
+
+  deploy-staging: &deploy
+    name: Update staging deployment
     needs: build-and-publish
     runs-on: ubuntu-latest
 
     steps:
-      - name: Set up kubectl
-        uses: azure/setup-kubectl@v4
-      
-      - name: Configure kubectl 
-        env:
-          KUBECONFIG: ${{ secrets.KUBECONFIG }}
-        run: |
-          mkdir -p $HOME/.kube
-          echo "${KUBECONFIG}" > $HOME/.kube/config
+      - uses: ./.github/actions/kubectl-deploy
+        with:
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+          namespace: staging
+          container_image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build-and-publish.outputs.digest }}
 
-      - name: Deploy to Kubernetes
-        run: |
-          kubectl set image deployment/airserver airserver=${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build-and-publish.outputs.digest }}
+  deploy-production:
+    name: Update production deployment
+    needs: [build-and-publish, deploy-staging] # only if staging deployment succeeded
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: ./.github/actions/kubectl-deploy
+        with:
+          kubeconfig: ${{ secrets.KUBECONFIG }}
+          namespace: default
+          container_image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build-and-publish.outputs.digest }}
