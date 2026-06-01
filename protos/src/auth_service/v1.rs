@@ -11,7 +11,7 @@ tonic::include_proto!("auth_service.v1");
 impl OperationType {
     pub fn max_tokens_allowance(&self) -> u16 {
         match self {
-            OperationType::Unknown => 0,
+            OperationType::Unspecified => 0,
             OperationType::AddUsername => 10,
             OperationType::GetInviteCode => 1,
         }
@@ -19,7 +19,7 @@ impl OperationType {
 
     pub fn low_tokens_threshold(&self) -> u16 {
         match self {
-            OperationType::Unknown => 0,
+            OperationType::Unspecified => 0,
             OperationType::AddUsername => 5,
             OperationType::GetInviteCode => 1,
         }
@@ -27,7 +27,7 @@ impl OperationType {
 
     pub fn valid_until_starting_at(&self, at: DateTime<Utc>) -> DateTime<Utc> {
         match self {
-            OperationType::Unknown => at,
+            OperationType::Unspecified => at,
             OperationType::AddUsername => at + Months::new(1),
             OperationType::GetInviteCode => at + Days::new(1),
         }
@@ -36,6 +36,6 @@ impl OperationType {
     pub fn all() -> impl Iterator<Item = OperationType> {
         Self::VARIANTS
             .iter()
-            .filter_map(|v| (*v != Self::Unknown).then_some(*v))
+            .filter_map(|v| (*v != Self::Unspecified).then_some(*v))
     }
 }

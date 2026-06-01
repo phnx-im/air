@@ -435,7 +435,7 @@ message ProvisionAttachmentPayload {
 
   // or for a user
   common.v1.UserId user_id = 8;
-  
+
   bool use_post_policy = 4;
   int64 content_length = 5;
   StorageObjectType object_type = 7;

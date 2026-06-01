@@ -95,7 +95,7 @@ impl TimedTaskKind {
             TimedTaskKind::UsernameRefresh => "Username Refresh",
             TimedTaskKind::SelfUpdate => "Self Update",
             TimedTaskKind::TokenReplenishment { operation_type } => match operation_type {
-                OperationType::Unknown => "Unknown",
+                OperationType::Unspecified => "Unknown",
                 OperationType::AddUsername => "Token Replenishment (Add Username)",
                 OperationType::GetInviteCode => "Token Replenishment (Invite Code)",
             },
