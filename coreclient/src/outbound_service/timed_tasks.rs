@@ -221,6 +221,10 @@ impl OutboundServiceContext {
         // For now, the APQ feature is not fully released, so we don't enable APQ key package
         // uploads yet.
         #[cfg(any(feature = "test_utils", test))]
+        TimedTask::new(TimedTaskKind::ApqKeyPackageUpload)
+            .into_operation()
+            .enqueue_if_not_exists(self.db.write().await?)
+            .await?;
         TimedTask::new(TimedTaskKind::UsernameRefresh)
             .into_operation()
             .enqueue_if_not_exists(self.db.write().await?)
