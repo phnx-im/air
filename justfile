@@ -65,6 +65,14 @@ check-dart:
 check-frb: regenerate-frb && _check-unstaged-changes
 
 [group('check')]
+[working-directory('protos')]
+check-buf:
+    buf build
+    buf lint
+    buf format --diff --exit-code
+    # buf breaking --against '{{justfile_directory()}}/.git#branch=origin/main'
+
+[group('check')]
 check-reuse:
     reuse lint -l
 
@@ -179,15 +187,16 @@ install-fvm:
     curl -fsSL https://fvm.app/install.sh -o install-fvm.sh
     bash install-fvm.sh 4.0.5
 
+[working-directory: 'app']
+build platform:
+    if [[ "${CI:-false}" != "true" ]]; then fvm flutter build {{ platform }}; fi
+
 [linux]
 [working-directory: 'app/linux']
-build-rpm: (flutter "build linux")
+build-rpm:
     nfpm package -p rpm
 
 [linux]
 [working-directory: 'app/linux']
-build-deb: (flutter "build linux")
+build-deb:
     nfpm package -p deb
-
-spdx:
-    reuse annotate --copyright "Phoenix R&D GmbH <hello@phnx.im>" --license AGPL-3.0-or-later $(reuse lint -l | cut -d ':' -f1)
