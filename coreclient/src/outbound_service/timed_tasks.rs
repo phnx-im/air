@@ -218,10 +218,6 @@ impl OutboundServiceContext {
             .into_operation()
             .enqueue_if_not_exists(self.db.write().await?)
             .await?;
-        TimedTask::new(TimedTaskKind::ApqKeyPackageUpload)
-            .into_operation()
-            .enqueue_if_not_exists(self.db.write().await?)
-            .await?;
         TimedTask::new(TimedTaskKind::UsernameRefresh)
             .into_operation()
             .enqueue_if_not_exists(self.db.write().await?)
