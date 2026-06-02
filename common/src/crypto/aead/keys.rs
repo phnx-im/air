@@ -34,6 +34,9 @@ pub type GroupStateEarKey = Key<GroupStateEarKeyType>;
 #[derive(Debug)]
 pub struct PushTokenEarKeyType;
 
+#[cfg(any(test, feature = "test_utils"))]
+impl RawKey for PushTokenEarKeyType {}
+
 pub type PushTokenEarKey = Key<PushTokenEarKeyType>;
 
 impl RandomlyGeneratable for PushTokenEarKeyType {}

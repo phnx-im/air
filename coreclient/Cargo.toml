@@ -4,7 +4,7 @@
 
 [package]
 name = "aircoreclient"
-version = "0.17.0"
+version = "0.18.0"
 authors = ["Phoenix R&D GmbH <hello@phnx.im>"]
 edition = "2024"
 publish = false
@@ -63,6 +63,7 @@ airserver_test_harness.workspace = true
 cbor-diag.workspace = true
 insta = { workspace = true, features = ["json"] }
 tempfile.workspace = true
+tonic.workspace = true
 tracing-subscriber.workspace = true
 
 [features]

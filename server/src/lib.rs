@@ -54,6 +54,7 @@ pub mod as_connector;
 pub mod code_command;
 pub mod configurations;
 mod connect_info;
+mod grpc_method_alias;
 mod grpc_metrics;
 pub mod logging;
 pub mod network_provider;
@@ -191,6 +192,7 @@ pub async fn run<
 
     tonic::transport::Server::builder()
         .http2_keepalive_interval(Some(Duration::from_secs(30)))
+        .layer(grpc_method_alias::layer())
         .layer(InterceptorLayer::new(ConnectInfoInterceptor))
         .layer(GrpcMetricsLayer::new())
         .layer(

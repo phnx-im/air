@@ -51,15 +51,15 @@ use aircommon::{
         },
     },
     mls_group_config::{
-        AIR_COMPONENT_ID, GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, SUPPORTED_COMPONENTS,
-        default_app_data_dictionary_extension, default_group_required_extensions,
-        default_leaf_node_capabilities, default_leaf_node_extensions,
-        default_mls_group_join_config, default_sender_ratchet_configuration,
+        GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, default_app_data_dictionary_extension,
+        default_group_required_extensions, default_leaf_node_capabilities,
+        default_leaf_node_extensions, default_mls_group_join_config,
+        default_sender_ratchet_configuration,
     },
     time::TimeStamp,
     utils::removed_client,
 };
-use airprotos::client::component::AirComponent;
+use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent, SUPPORTED_COMPONENTS};
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use mimi_content::MimiContent;
 use mimi_room_policy::{MimiProposal, RoleIndex, RoomPolicy, VerifiedRoomState};
@@ -339,7 +339,7 @@ impl Group {
             .with_group_id(group_id.clone())
             .with_capabilities(default_leaf_node_capabilities())
             .with_group_context_extensions(gc_extensions)
-            .with_leaf_node_extensions(default_leaf_node_extensions())?
+            .with_leaf_node_extensions(default_leaf_node_extensions::<AirComponent>())?
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
             .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
@@ -790,7 +790,7 @@ impl Group {
 
             let leaf_node_parameters = LeafNodeParameters::builder()
                 .with_capabilities(default_leaf_node_capabilities())
-                .with_extensions(default_leaf_node_extensions())
+                .with_extensions(default_leaf_node_extensions::<AirComponent>())
                 .build();
 
             let mut builder = ExternalCommitBuilder::new()
@@ -1582,7 +1582,7 @@ impl Group {
         } else {
             // App data extension is not present, add it with default values
             let mut leaf_node_extensions = leaf_node_extensions.clone();
-            leaf_node_extensions.add(default_app_data_dictionary_extension())?;
+            leaf_node_extensions.add(default_app_data_dictionary_extension::<AirComponent>())?;
             leaf_node_parameters = leaf_node_parameters.with_extensions(leaf_node_extensions);
         }
 
@@ -2248,7 +2248,8 @@ fn to_capabilities_mismatch(error: CreateCommitError) -> anyhow::Result<LeafNode
 
 #[cfg(test)]
 mod tests {
-    use aircommon::mls_group_config::{AIR_COMPONENT_ID, default_app_data_dictionary_extension};
+    use aircommon::mls_group_config::default_app_data_dictionary_extension;
+    use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent};
     use mls_assist::components::ComponentsList;
     use openmls::{
         component::ComponentType,
@@ -2315,8 +2316,9 @@ mod tests {
     /// AIR_COMPONENT_ID already present -> extensions in params are unchanged (None)
     #[test]
     fn app_components_with_air_component_id_already() {
-        let extensions = Extensions::from_vec(vec![default_app_data_dictionary_extension()])
-            .expect("valid extensions");
+        let extensions =
+            Extensions::from_vec(vec![default_app_data_dictionary_extension::<AirComponent>()])
+                .expect("valid extensions");
         let params = Group::update_leaf_node_extensions(&extensions).unwrap();
         assert!(params.extensions().is_none());
     }

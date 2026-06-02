@@ -762,7 +762,21 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
         break;
       }
     }
-    final newestVisible = visibleItems.isEmpty ? null : visibleItems.last.id;
+    // We should not mark messages as read when they are in the bottom inset.
+    final viewportBox = _viewportBox;
+    final usableBottom = viewportBox != null
+        ? viewportBox.size.height - widget.bottomPadding
+        : double.infinity;
+    Object? newestVisible;
+    if (usableBottom > topInset) {
+      for (var i = visibleItems.length - 1; i >= 0; i--) {
+        if (visibleItems[i].top < usableBottom) {
+          newestVisible = visibleItems[i].id;
+          break;
+        }
+      }
+    }
+    newestVisible ??= visibleItems.isEmpty ? null : visibleItems.last.id;
     if (_controller.newestVisibleIdNotifier.value != newestVisible) {
       _controller.newestVisibleIdNotifier.value = newestVisible;
     }
@@ -946,16 +960,21 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
     });
   }
 
-  /// Resets jump state and, if [reachedTarget], notifies the controller
-  /// with the jump's [JumpIntent] so listeners can react per situation.
-  /// Aborted jumps (target disappeared, exhausted retries off-screen)
-  /// don't notify.
+  /// Resets jump state and notifies the controller that the jump settled,
+  /// carrying the jump's [JumpIntent] and whether it [reachedTarget]. The
+  /// event fires even for aborted jumps so listeners tracking "the jump is
+  /// over" (e.g. lifting initial mark-as-read suppression) react reliably;
+  /// listeners that only care about successful landings filter on `reached`.
   void _completeJump({required bool reachedTarget}) {
     final targetId = _jumpState.targetId;
     final intent = _jumpState.intent;
     _jumpState.onScrollComplete();
-    if (reachedTarget && targetId != null) {
-      _controller.notifyJumpedToId(targetId, intent: intent);
+    if (targetId != null) {
+      _controller.notifyJumpedToId(
+        targetId,
+        intent: intent,
+        reached: reachedTarget,
+      );
     }
   }
 

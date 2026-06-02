@@ -26,7 +26,7 @@ service QueueService {
 
   rpc QsEncryptionKey(QsEncryptionKeyRequest) returns (QsEncryptionKeyResponse);
 
-  rpc Listen(stream ListenRequest) returns (stream QueueEvent);
+  rpc Listen(stream ListenRequest) returns (stream ListenResponse);
 }
 
 // common
@@ -293,7 +293,7 @@ message AckListenRequest {
 
 message FetchListenRequest {}
 
-message QueueEvent {
+message ListenResponse {
   oneof event {
     QueueEmpty empty = 1;
     QueueMessage message = 2;

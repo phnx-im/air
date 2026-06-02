@@ -30,7 +30,7 @@ service AuthService {
   // Usernames API
 
   // Checks whether the username with the given hash exists.
-  rpc CheckHandleExists(CheckUsernameExistsRequest) returns (CheckUsernameExistsResponse);
+  rpc CheckUsernameExists(CheckUsernameExistsRequest) returns (CheckUsernameExistsResponse);
 
   // Creates a new username
   //
@@ -40,19 +40,19 @@ service AuthService {
   //
   // If a username with the same hash already exists, and is not expired, the
   // request will be rejected with `ALREADY_EXISTS`.
-  rpc CreateHandle(CreateUsernameRequest) returns (CreateUsernameResponse);
+  rpc CreateUsername(CreateUsernameRequest) returns (CreateUsernameResponse);
 
   // Deletes an existing username
   //
   // The payload must be signed by the username's verifying key.
-  rpc DeleteHandle(DeleteUsernameRequest) returns (DeleteUsernameResponse);
+  rpc DeleteUsername(DeleteUsernameRequest) returns (DeleteUsernameResponse);
 
   // Refreshes an existing username
   //
   // The payload must be signed by the username's verifying key. The username's
   // expiration time will be updated. If the username is expired or does not exist,
   // the request will be rejected with `NOT_FOUND`.
-  rpc RefreshHandle(RefreshUsernameRequest) returns (RefreshUsernameResponse);
+  rpc RefreshUsername(RefreshUsernameRequest) returns (RefreshUsernameResponse);
 
   // User Connection API
 
@@ -63,7 +63,7 @@ service AuthService {
   // 2. Server responds with a connection package for the username hash.
   // 3. User sends an `enqueue` request with an encrypted connection offer.
   // 4. Server responds with an empty acknowledgement.
-  rpc ConnectHandle(stream ConnectRequest) returns (stream ConnectResponse);
+  rpc ConnectUsername(stream ConnectUsernameRequest) returns (stream ConnectUsernameResponse);
 
   // Listens for incoming messages for a specific username.
   //
@@ -80,7 +80,7 @@ service AuthService {
   //
   // Note: this will replace the old `Listen` method. Then it will be renamed
   // to `Listen`.
-  rpc ListenHandle(stream ListenUsernameRequest) returns (stream ListenUsernameResponse);
+  rpc ListenUsername(stream ListenUsernameRequest) returns (stream ListenUsernameResponse);
 }
 
 // common
@@ -270,9 +270,9 @@ message AsCredentialsResponse {
 }
 
 enum OperationType {
-  UNKNOWN = 0;
-  ADD_USERNAME = 1;
-  GET_INVITE_CODE = 2;
+  OPERATION_TYPE_UNSPECIFIED = 0;
+  OPERATION_TYPE_ADD_USERNAME = 1;
+  OPERATION_TYPE_GET_INVITE_CODE = 2;
 }
 
 message BatchedTokenKey {
@@ -424,7 +424,7 @@ message RefreshUsernameResponse {}
 
 // connect
 
-message ConnectRequest {
+message ConnectUsernameRequest {
   oneof step {
     FetchConnectionPackageStep fetch = 1;
     EnqueueConnectionOfferStep enqueue = 2;
@@ -449,7 +449,7 @@ message ConnectionOfferMessage {
   Hash connection_package_hash = 3;
 }
 
-message ConnectResponse {
+message ConnectUsernameResponse {
   oneof step {
     FetchConnectionPackageResponse fetch_response = 1;
     EnqueueConnectionOfferResponse enqueue_response = 2;
