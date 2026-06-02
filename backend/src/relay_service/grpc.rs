@@ -63,12 +63,13 @@ async fn pipe_inbound_to_peer_outbound(
 
 #[async_trait]
 impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
-    type ProvisionClientStream = Pin<Box<dyn Stream<Item = Result<RelayFrame, Status>> + Send>>;
+    type MultiDeviceProvisionClientStream =
+        Pin<Box<dyn Stream<Item = Result<RelayFrame, Status>> + Send>>;
 
-    async fn provision_client(
+    async fn multi_device_provision_client(
         &self,
         request: Request<Streaming<RelayFrame>>,
-    ) -> Result<Response<Self::ProvisionClientStream>, Status> {
+    ) -> Result<Response<Self::MultiDeviceProvisionClientStream>, Status> {
         let mut inbound = request.into_inner();
 
         let (outbound_tx, outbound_rx) = mpsc::channel::<Result<RelayFrame, Status>>(8);
@@ -76,15 +77,13 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
 
         let relay_sessions = self.rs.sessions.clone();
         tokio::spawn(self.rs.stop.clone().run_until_cancelled_owned(async move {
-            // we always expect a KeyPackage as first frame from the initiating client
-            // and we use its SHA256 digest as the session ID
+            // Expect a KeyPackage as the first frame; its SHA256 digest becomes the session ID.
             let Some(Ok(key_package_bytes)) = inbound.next().await else {
                 error!("failed to receive KeyPackage");
                 return;
             };
 
-            // we take the requested session ID from the initiator and truncate it as long as we don't have collisions
-            // we lock sessions for all clients because we might check many buckets
+            // Lock sessions for all clients because we might check many buckets.
             let mut sessions = relay_sessions.lock().await;
             let Some(truncated_session_id) =
                 LinkingSessionId::generate(key_package_bytes.as_slice(), |session_id| {
@@ -95,7 +94,7 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
                 return;
             };
 
-            info!(%truncated_session_id, "starting new pairing session");
+            info!(%truncated_session_id, "starting new linking session");
 
             let (peer_ready_tx, peer_ready_rx) = oneshot::channel();
 
@@ -107,10 +106,10 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
                 },
             );
 
-            // release the lock
+            // Release the lock.
             drop(sessions);
 
-            // we report the length of the truncated session ID to the peer
+            // Report the session ID length to the peer.
             if let Err(error) = first_frame_outbound_tx
                 .send(Ok(RelayFrame {
                     payload: Bytes::from_owner(truncated_session_id.digits().to_be_bytes()),
@@ -121,7 +120,7 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
                 return;
             };
 
-            // then we wait for the peer to connect
+            // Wait for the peer to connect.
             let peer_outbound = match timeout(SESSION_TIMEOUT, peer_ready_rx).await {
                 Ok(Ok(tx)) => tx,
                 Ok(Err(error)) => {
@@ -136,31 +135,32 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
                 }
             };
 
-            // then we (re)send the key package to the peer
+            // Forward the key package to the peer.
             if let Err(error) = peer_outbound.send(Ok(key_package_bytes)).await {
                 error!(%error, "failed to send key package");
                 return;
             };
 
-            // finally we pipe the inbound relay frames to the peer
+            // Pipe inbound relay frames to the peer.
             pipe_inbound_to_peer_outbound(truncated_session_id, inbound, peer_outbound).await;
         }));
 
         let out_stream = ReceiverStream::new(outbound_rx);
         Ok(Response::new(
-            Box::pin(out_stream) as Self::ProvisionClientStream
+            Box::pin(out_stream) as Self::MultiDeviceProvisionClientStream
         ))
     }
 
-    type LinkClientStream = Pin<Box<dyn Stream<Item = Result<RelayFrame, Status>> + Send>>;
+    type MultiDeviceLinkClientStream =
+        Pin<Box<dyn Stream<Item = Result<RelayFrame, Status>> + Send>>;
 
-    async fn link_client(
+    async fn multi_device_link_client(
         &self,
         request: Request<Streaming<RelayFrame>>,
-    ) -> Result<Response<Self::LinkClientStream>, Status> {
+    ) -> Result<Response<Self::MultiDeviceLinkClientStream>, Status> {
         let mut inbound = request.into_inner();
 
-        // the first frame we expect is the initial request payload
+        // The first frame is the initial request payload.
         let first_frame = inbound
             .message()
             .await?
@@ -197,7 +197,7 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
             .map_err(|_| Status::invalid_argument("invalid signature"))?;
 
         let session_id = payload.session_id.ok_or_missing_field("session_id")?;
-        info!(%session_id, "pairing with existing session");
+        info!(%session_id, "linking with existing session");
 
         // Outbound channel: messages we will send back to *this* client.
         let (outbound_tx, outbound_rx) = mpsc::channel::<Result<RelayFrame, Status>>(8);
@@ -219,6 +219,8 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
         }
 
         let out_stream = ReceiverStream::new(outbound_rx);
-        Ok(Response::new(Box::pin(out_stream) as Self::LinkClientStream))
+        Ok(Response::new(
+            Box::pin(out_stream) as Self::MultiDeviceLinkClientStream
+        ))
     }
 }

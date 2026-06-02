@@ -8,8 +8,8 @@ use airprotos::relay_service::v1::LinkingSessionId;
 use airserver_test_harness::utils::setup::TestBackend;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test multi-device pairing session", skip_all)]
-async fn multi_device_pairing_session() {
+#[tracing::instrument(name = "Test multi-device linking session", skip_all)]
+async fn multi_device_linking_session() {
     let mut setup = TestBackend::single().await;
     let server_url = setup.server_url();
 
@@ -20,7 +20,7 @@ async fn multi_device_pairing_session() {
     let new_device_task = tokio::spawn(async move {
         let api_client = ApiClient::with_endpoint(&server_url).unwrap();
         let old_device_message =
-            CoreUser::provision_multi_device_pairing(&api_client, session_id_tx)
+            CoreUser::multi_device_provision_client(&api_client, session_id_tx)
                 .await
                 .unwrap();
 
@@ -29,11 +29,11 @@ async fn multi_device_pairing_session() {
 
     let session_id = session_id_rx.await.unwrap();
 
-    // the old device scans/types the session ID
+    // The old device scans/types the session ID.
     let new_device_message = setup
         .get_user(&alice)
         .user()
-        .link_multi_device_pairing(session_id)
+        .multi_device_link_client(session_id)
         .await
         .unwrap();
 
@@ -58,7 +58,7 @@ async fn multi_device_link_with_nonexistent_session_id() {
     let result = setup
         .get_user(&alice)
         .user()
-        .link_multi_device_pairing(fake_session_id)
+        .multi_device_link_client(fake_session_id)
         .await;
 
     assert!(result.is_err());
@@ -77,7 +77,7 @@ async fn multi_device_second_link_attempt_returns_error() {
 
     let new_device_task = tokio::spawn(async move {
         let api_client = ApiClient::with_endpoint(&server_url).unwrap();
-        CoreUser::provision_multi_device_pairing(&api_client, session_id_tx)
+        CoreUser::multi_device_provision_client(&api_client, session_id_tx)
             .await
             .unwrap()
     });
@@ -87,7 +87,7 @@ async fn multi_device_second_link_attempt_returns_error() {
     let result = setup
         .get_user(&alice)
         .user()
-        .link_multi_device_pairing(session_id.clone())
+        .multi_device_link_client(session_id.clone())
         .await
         .unwrap();
     assert_eq!(result, "ping!");
@@ -98,17 +98,17 @@ async fn multi_device_second_link_attempt_returns_error() {
     let second_result = setup
         .get_user(&alice)
         .user()
-        .link_multi_device_pairing(session_id)
+        .multi_device_link_client(session_id)
         .await;
 
     assert!(second_result.is_err());
 }
 
-// Two concurrent pairing sessions must not interfere with each other.
+// Two concurrent linking sessions must not interfere with each other.
 // Each new device must be linked to the correct existing device.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test concurrent pairing sessions don't interfere", skip_all)]
-async fn multi_device_concurrent_pairing_sessions_dont_interfere() {
+#[tracing::instrument(name = "Test concurrent linking sessions don't interfere", skip_all)]
+async fn multi_device_concurrent_linking_sessions_dont_interfere() {
     let mut setup = TestBackend::single().await;
     let server_url = setup.server_url();
     let alice = setup.add_user().await;
@@ -120,14 +120,14 @@ async fn multi_device_concurrent_pairing_sessions_dont_interfere() {
     let server_url_clone = server_url.clone();
     let alice_new_device = tokio::spawn(async move {
         let api_client = ApiClient::with_endpoint(&server_url_clone).unwrap();
-        CoreUser::provision_multi_device_pairing(&api_client, alice_session_id_tx)
+        CoreUser::multi_device_provision_client(&api_client, alice_session_id_tx)
             .await
             .unwrap()
     });
 
     let bob_new_device = tokio::spawn(async move {
         let api_client = ApiClient::with_endpoint(&server_url).unwrap();
-        CoreUser::provision_multi_device_pairing(&api_client, bob_session_id_tx)
+        CoreUser::multi_device_provision_client(&api_client, bob_session_id_tx)
             .await
             .unwrap()
     });
@@ -141,7 +141,7 @@ async fn multi_device_concurrent_pairing_sessions_dont_interfere() {
     let alice_result = setup
         .get_user(&alice)
         .user()
-        .link_multi_device_pairing(alice_session_id)
+        .multi_device_link_client(alice_session_id)
         .await
         .unwrap();
     assert_eq!(alice_result, "ping!");
@@ -149,7 +149,7 @@ async fn multi_device_concurrent_pairing_sessions_dont_interfere() {
     let bob_result = setup
         .get_user(&bob)
         .user()
-        .link_multi_device_pairing(bob_session_id)
+        .multi_device_link_client(bob_session_id)
         .await
         .unwrap();
     assert_eq!(bob_result, "ping!");

@@ -113,12 +113,12 @@ impl RandomlyGeneratable for AttachmentEarKeyType {}
 impl AeadKey for AttachmentEarKey {}
 
 #[derive(Debug)]
-pub struct MultiDevicePairingKeyType;
+pub struct MultiDeviceLinkingKeyType;
 
-impl RawKey for MultiDevicePairingKeyType {}
+impl RawKey for MultiDeviceLinkingKeyType {}
 
-pub type MultiDevicePairingKey = Key<MultiDevicePairingKeyType>;
+pub type MultiDeviceLinkingKey = Key<MultiDeviceLinkingKeyType>;
 
-impl RandomlyGeneratable for MultiDevicePairingKeyType {}
+impl RandomlyGeneratable for MultiDeviceLinkingKeyType {}
 
-impl AeadKey for MultiDevicePairingKey {}
+impl AeadKey for MultiDeviceLinkingKey {}

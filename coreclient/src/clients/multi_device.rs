@@ -4,7 +4,7 @@
 
 use airapiclient::ApiClient;
 use aircommon::crypto::aead::{
-    AeadDecryptable, AeadEncryptable, Ciphertext, keys::MultiDevicePairingKey,
+    AeadDecryptable, AeadEncryptable, Ciphertext, keys::MultiDeviceLinkingKey,
 };
 use airprotos::relay_service::v1::LinkingSessionId;
 use anyhow::{Context, anyhow, bail};
@@ -25,7 +25,7 @@ use tracing::info;
 
 use crate::clients::{CIPHERSUITE, CoreUser};
 
-const EXPORTER_LABEL: &str = "multi-device-pairing";
+const EXPORTER_LABEL: &str = "multi-device-linking";
 
 #[derive(Debug)]
 pub struct EncryptedPingPongCtype;
@@ -38,8 +38,8 @@ pub struct PingPong {
     msg: Vec<u8>,
 }
 
-impl AeadEncryptable<MultiDevicePairingKey, EncryptedPingPongCtype> for PingPong {}
-impl AeadDecryptable<MultiDevicePairingKey, EncryptedPingPongCtype> for PingPong {}
+impl AeadEncryptable<MultiDeviceLinkingKey, EncryptedPingPongCtype> for PingPong {}
+impl AeadDecryptable<MultiDeviceLinkingKey, EncryptedPingPongCtype> for PingPong {}
 
 fn make_provider_and_credential(
     identity: &[u8],
@@ -58,21 +58,21 @@ fn make_provider_and_credential(
     Ok((provider, credential_with_key, signature_keys))
 }
 
-// we consume the group and provider, so we can't keep using them
+// Consumes the group and provider by value; they can't be used after export.
 fn export_aead_key(
     group: MlsGroup,
     provider: OpenMlsRustCrypto,
-) -> anyhow::Result<MultiDevicePairingKey> {
+) -> anyhow::Result<MultiDeviceLinkingKey> {
     let key_bytes = group
         .export_secret(provider.crypto(), EXPORTER_LABEL, &[], 32)
         .context("export_secret")?
         .try_into()
         .map_err(|_| anyhow!("invalid key length"))?;
-    Ok(MultiDevicePairingKey::from_bytes(key_bytes))
+    Ok(MultiDeviceLinkingKey::from_bytes(key_bytes))
 }
 
 impl CoreUser {
-    pub async fn provision_multi_device_pairing(
+    pub async fn multi_device_provision_client(
         api_client: &ApiClient,
         session_id_tx: tokio::sync::oneshot::Sender<LinkingSessionId>,
     ) -> anyhow::Result<String> {
@@ -87,9 +87,9 @@ impl CoreUser {
             .context("serialize key package")?;
         let key_package_checksum: [u8; 32] = Sha256::digest(&key_package_bytes).into();
 
-        let (tx, mut rx) = api_client.rs_provision_client().await?;
+        let (tx, mut rx) = api_client.rs_multi_device_provision_client().await?;
 
-        // send the key package to the server
+        // Send the key package to the server.
         tx.send(key_package_bytes.into()).await?;
 
         // The relay echoes back the session ID as the first frame
@@ -151,7 +151,7 @@ impl CoreUser {
         Ok(answer_str)
     }
 
-    pub async fn link_multi_device_pairing(
+    pub async fn multi_device_link_client(
         &self,
         session_id: LinkingSessionId,
     ) -> anyhow::Result<String> {
@@ -160,7 +160,7 @@ impl CoreUser {
         let qs_user_signing_key = self.key_store().qs_user_signing_key.clone();
 
         let (tx, mut rx) = client
-            .rs_link_client(qs_user_id, &qs_user_signing_key, session_id.clone())
+            .rs_multi_device_link_client(qs_user_id, &qs_user_signing_key, session_id.clone())
             .await?;
 
         let key_package_bytes = rx.next().await.context("relay connection closed")??;

@@ -12,8 +12,8 @@ import "common/v1/common.proto";
 // buf:lint:ignore RPC_REQUEST_STANDARD_NAME
 // buf:lint:ignore RPC_RESPONSE_STANDARD_NAME
 service RelayService {
-  rpc ProvisionClient(stream RelayFrame) returns (stream RelayFrame); // blocks until dialer connects
-  rpc LinkClient(stream RelayFrame) returns (stream RelayFrame); // wakes up the listener
+  rpc MultiDeviceProvisionClient(stream RelayFrame) returns (stream RelayFrame); // blocks until dialer connects
+  rpc MultiDeviceLinkClient(stream RelayFrame) returns (stream RelayFrame); // wakes up the listener
 }
 
 // kept in sync with queue_service.proto

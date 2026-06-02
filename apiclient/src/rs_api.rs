@@ -27,20 +27,22 @@ pub enum RsRequestError {
 }
 
 impl ApiClient {
-    pub async fn rs_provision_client(
+    pub async fn rs_multi_device_provision_client(
         &self,
     ) -> Result<(mpsc::Sender<RelayFrame>, tonic::Streaming<RelayFrame>), RsRequestError> {
         // don't buffer frames: we expect the peer to consume what we send before we move forward
         let (tx, rx) = mpsc::channel::<RelayFrame>(1);
         let request = tonic::Request::new(ReceiverStream::new(rx));
 
-        let response: tonic::Response<tonic::Streaming<RelayFrame>> =
-            self.rs_grpc_client().provision_client(request).await?;
+        let response: tonic::Response<tonic::Streaming<RelayFrame>> = self
+            .rs_grpc_client()
+            .multi_device_provision_client(request)
+            .await?;
 
         Ok((tx, response.into_inner()))
     }
 
-    pub async fn rs_link_client(
+    pub async fn rs_multi_device_link_client(
         &self,
         qs_user_id: QsUserId,
         qs_user_signing_key: &QsUserSigningKey,
@@ -60,7 +62,7 @@ impl ApiClient {
 
         let response = self
             .rs_grpc_client()
-            .link_client(tonic::Request::new(ReceiverStream::new(rx)))
+            .multi_device_link_client(tonic::Request::new(ReceiverStream::new(rx)))
             .await?;
 
         Ok((tx, response.into_inner()))
