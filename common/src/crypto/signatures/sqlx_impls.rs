@@ -36,7 +36,7 @@ where
 {
     fn encode_by_ref(
         &self,
-        buf: &mut <DB as Database>::ArgumentBuffer<'a>,
+        buf: &mut <DB as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         <Vec<u8> as Encode<DB>>::encode_by_ref(&self.key, buf)
     }

@@ -262,7 +262,7 @@ mod trait_impls {
     {
         fn encode_by_ref(
             &self,
-            buf: &mut <DB as Database>::ArgumentBuffer<'q>,
+            buf: &mut <DB as Database>::ArgumentBuffer,
         ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
             self.bytes.encode_by_ref(buf)
         }

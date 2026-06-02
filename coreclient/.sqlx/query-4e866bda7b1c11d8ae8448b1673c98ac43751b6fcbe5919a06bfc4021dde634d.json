@@ -6,67 +6,140 @@
       {
         "name": "chat_id: _",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "chat_id"
+          }
+        }
       },
       {
         "name": "chat_title",
         "ordinal": 1,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "chat_title"
+          }
+        }
       },
       {
         "name": "chat_picture",
         "ordinal": 2,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "chat_picture"
+          }
+        }
       },
       {
         "name": "group_id: _",
         "ordinal": 3,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "group_id"
+          }
+        }
       },
       {
         "name": "last_read: _",
         "ordinal": 4,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "last_read"
+          }
+        }
       },
       {
         "name": "last_message_at: _",
         "ordinal": 5,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "timestamp"
+          }
+        }
       },
       {
         "name": "connection_user_uuid: _",
         "ordinal": 6,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "connection_user_uuid"
+          }
+        }
       },
       {
         "name": "connection_user_domain: _",
         "ordinal": 7,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "connection_user_domain"
+          }
+        }
       },
       {
         "name": "connection_user_handle: _",
         "ordinal": 8,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "connection_user_handle"
+          }
+        }
       },
       {
         "name": "is_confirmed_connection",
         "ordinal": 9,
-        "type_info": "Bool"
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "is_confirmed_connection"
+          }
+        }
       },
       {
         "name": "is_active",
         "ordinal": 10,
-        "type_info": "Bool"
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "is_active"
+          }
+        }
       },
       {
         "name": "is_incoming",
         "ordinal": 11,
-        "type_info": "Bool"
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "is_incoming"
+          }
+        }
       },
       {
         "name": "is_blocked!: _",
         "ordinal": 12,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": "Expression"
       }
     ],
     "parameters": {
