@@ -80,10 +80,10 @@ minicbor = { version = "2.2.1", features = ["std"] }
 minicbor-serde = { version = "0.6", features = ["std"] }
 mockall = "0.13.1"
 mockito = "1.7.0"
-openmls = { version = "0.8.1", features = ["extensions-draft-08", "draft-ietf-mls-pq-ciphersuites"] }
-openmls_memory_storage = { version = "0.5.0", features = ["extensions-draft-08", "draft-ietf-mls-pq-ciphersuites"] }
+openmls = { version = "0.8.1", features = ["extensions-draft-08", "draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
+openmls_memory_storage = { version = "0.5.0", features = ["extensions-draft-08", "draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
 openmls_rust_crypto = { version = "0.5.1", features = ["draft-ietf-mls-pq-ciphersuites"] }
-openmls_traits = { version = "0.5.0", features = ["draft-ietf-mls-pq-ciphersuites"] }
+openmls_traits = { version = "0.5.0", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
 parking_lot = "0.12"
 pin-project = "1.1.10"
 png = "0.17"
@@ -137,17 +137,17 @@ zeroize = "1.8.1"
 # <https://github.com/openmls/openmls/commit/b73621ba14ead6b32636a4e910f2cbfabb0d1ee9>
 #
 # Also, use the post-quantum-support branch of openmls.
-openmls = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
-openmls_rust_crypto = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
-openmls_traits = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
-openmls_memory_storage = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
-openmls_basic_credential = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
-# openmls = { path = "../openmls/openmls" }
-# openmls_rust_crypto = { path = "../openmls/openmls_rust_crypto" }
-# openmls_traits = { path = "../openmls/traits" }
-# openmls_memory_storage = { path = "../openmls/memory_storage" }
-# openmls_sqlite_storage = { path = "../openmls/sqlite_storage" }
-# openmls_basic_credential = { path = "../openmls/basic_credential" }
+# openmls = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
+# openmls_rust_crypto = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
+# openmls_traits = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
+# openmls_memory_storage = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
+# openmls_basic_credential = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
+openmls = { path = "../openmls/openmls" }
+openmls_rust_crypto = { path = "../openmls/openmls_rust_crypto" }
+openmls_traits = { path = "../openmls/traits" }
+openmls_memory_storage = { path = "../openmls/memory_storage" }
+# cgit openmls_sqlite_storage = { path = "../openmls/sqlite_storage" }
+openmls_basic_credential = { path = "../openmls/basic_credential" }
 
 # feat: add p384 support
 # <https://github.com/cryspen/hpke-rs/pull/150>

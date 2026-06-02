@@ -779,6 +779,62 @@ impl StorageProvider<CURRENT_VERSION> for SqliteStorageProvider<'_> {
             storable.delete_group_data(&mut **connection, GroupDataType::ApplicationExportTree);
         block_async_in_place(task)
     }
+
+    fn write_vc_emulation_epoch_state<
+        EpochId: traits::VcEpochId<CURRENT_VERSION>,
+        VcEmulationEpochState: traits::VcEmulationEpochState<CURRENT_VERSION>,
+    >(
+        &self,
+        _epoch_id: &EpochId,
+        _vc_emulation_epoch_state: &VcEmulationEpochState,
+    ) -> Result<(), Self::Error> {
+        todo!()
+    }
+
+    fn write_vc_pprf<
+        EpochId: traits::VcEpochId<CURRENT_VERSION>,
+        VcPprf: traits::VcPprf<CURRENT_VERSION>,
+    >(
+        &self,
+        _epoch_id: &EpochId,
+        _vc_pprf: &VcPprf,
+    ) -> Result<(), Self::Error> {
+        todo!()
+    }
+
+    fn vc_emulation_epoch_state<
+        EpochId: traits::VcEpochId<CURRENT_VERSION>,
+        VcEmulationEpochState: traits::VcEmulationEpochState<CURRENT_VERSION>,
+    >(
+        &self,
+        _epoch_id: &EpochId,
+    ) -> Result<Option<VcEmulationEpochState>, Self::Error> {
+        todo!()
+    }
+
+    fn vc_pprf<
+        EpochId: traits::VcEpochId<CURRENT_VERSION>,
+        VcPprf: traits::VcPprf<CURRENT_VERSION>,
+    >(
+        &self,
+        _epoch_id: &EpochId,
+    ) -> Result<Option<VcPprf>, Self::Error> {
+        todo!()
+    }
+
+    fn delete_vc_emulation_epoch_state<EpochId: traits::VcEpochId<CURRENT_VERSION>>(
+        &self,
+        _epoch_id: &EpochId,
+    ) -> Result<(), Self::Error> {
+        todo!()
+    }
+
+    fn delete_vc_pprf<EpochId: traits::VcEpochId<CURRENT_VERSION>>(
+        &self,
+        _epoch_id: &EpochId,
+    ) -> Result<(), Self::Error> {
+        todo!()
+    }
 }
 
 impl<T: Key<CURRENT_VERSION>> Type<Sqlite> for KeyRefWrapper<'_, T> {

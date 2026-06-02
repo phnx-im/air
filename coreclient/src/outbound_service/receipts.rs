@@ -150,8 +150,9 @@ impl OutboundServiceContext {
         }
 
         // load group and create MLS message
+        let tag2_value = Some(unsent_receipt.collision_tag_value());
         let (group_state_ear_key, params) = self
-            .new_mls_message(&chat, unsent_receipt.content)
+            .new_mls_message(&chat, unsent_receipt.content, tag2_value)
             .await
             .map_err(OutboundServiceError::fatal)?;
 
@@ -187,10 +188,14 @@ impl OutboundServiceContext {
         Ok(())
     }
 
+    /// `tag2_value`: value for the `aux` collision-detection tag.
+    /// Pass `None` for regular messages (tag derives from generation) or
+    /// `Some(bytes)` for receipts (tag derives from the serialized message IDs).
     pub(super) async fn new_mls_message(
         &self,
         chat: &Chat,
         mimi_content: MimiContent,
+        tag2_value: Option<Vec<u8>>,
     ) -> anyhow::Result<(GroupStateEarKey, SendMessageParamsOut)> {
         self.db
             .with_write_transaction(async |txn| {
@@ -198,10 +203,12 @@ impl OutboundServiceContext {
                 let mut group = Group::load_clean(&mut *txn, group_id)
                     .await?
                     .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+                let provider = AirOpenMlsProvider::new(txn.as_mut());
                 let params = group.create_message(
-                    &AirOpenMlsProvider::new(txn.as_mut()),
+                    &provider,
                     self.signing_key(),
                     mimi_content,
+                    tag2_value.as_deref(),
                 )?;
                 Ok((group.group_state_ear_key().clone(), params))
             })
@@ -249,5 +256,26 @@ impl UnsentReceipt {
         };
 
         Ok(Some(Self { report, content }))
+    }
+
+    /// Bytes used as the `aux` collision-detection tag for this receipt.
+    ///
+    /// Derived from the sorted set of message IDs being receipted, so two
+    /// emulator clients sending a receipt for the same messages produce the
+    /// same value and the DS can detect the duplicate.
+    fn collision_tag_value(&self) -> Vec<u8> {
+        let mut ids: Vec<&[u8]> = self
+            .report
+            .statuses
+            .iter()
+            .map(|s| s.mimi_id.as_slice())
+            .collect();
+        ids.sort_unstable();
+        let mut value = b"receipt:".to_vec();
+        for id in ids {
+            value.extend_from_slice(&(id.len() as u32).to_be_bytes());
+            value.extend_from_slice(id);
+        }
+        value
     }
 }

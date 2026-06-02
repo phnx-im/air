@@ -81,10 +81,30 @@ pub struct SelfRemoveParamsOut {
 }
 
 #[derive(Debug)]
+pub struct SendMessageCollisionTag([u8; 32]);
+
+impl SendMessageCollisionTag {
+    pub fn new(bytes: [u8; 32]) -> Self {
+        Self(bytes)
+    }
+
+    pub fn to_vec(&self) -> Vec<u8> {
+        self.0.to_vec()
+    }
+}
+
+#[derive(Debug)]
+pub struct SendMessageCollisionTags {
+    pub tag1: SendMessageCollisionTag,
+    pub tag2: SendMessageCollisionTag,
+}
+
+#[derive(Debug)]
 pub struct SendMessageParamsOut {
     pub message: AssistedMessageOut,
     pub sender: LeafNodeIndex,
     pub suppress_notifications: bool,
+    pub collision_tags: Option<SendMessageCollisionTags>,
 }
 
 #[derive(Debug)]

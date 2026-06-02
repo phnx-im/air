@@ -196,7 +196,7 @@ impl OutboundServiceContext {
 
         // load group and create MLS message
         let (group_state_ear_key, params) = self
-            .new_mls_message(&chat, content.content().clone())
+            .new_mls_message(&chat, content.content().clone(), None)
             .await?;
 
         // send MLS message to DS

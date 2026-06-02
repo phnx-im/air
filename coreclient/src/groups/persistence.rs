@@ -116,6 +116,7 @@ impl SqlGroup {
             room_state,
             self_updated_at,
             pq,
+            send_message_collision_key: None,
         }
     }
 }

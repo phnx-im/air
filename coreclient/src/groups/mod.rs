@@ -43,8 +43,9 @@ use aircommon::{
         client_ds_out::{
             AddUsersInfoOut, ApqGroupOperationParamsOut, CreateGroupParamsOut,
             CreatePqGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn,
-            GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageParamsOut,
-            TargetedMessageParamsOut, TargetedMessageType, WelcomeInfoIn,
+            GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageCollisionTag,
+            SendMessageCollisionTags, SendMessageParamsOut, TargetedMessageParamsOut,
+            TargetedMessageType, WelcomeInfoIn,
         },
         welcome_attribution_info::{
             WelcomeAttributionInfo, WelcomeAttributionInfoPayload, WelcomeAttributionInfoTbs,
@@ -60,13 +61,16 @@ use aircommon::{
     utils::removed_client,
 };
 use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent, SUPPORTED_COMPONENTS};
+
 use anyhow::{Context, Result, anyhow, bail, ensure};
+use hkdf::Hkdf;
 use mimi_content::MimiContent;
 use mimi_room_policy::{MimiProposal, RoleIndex, RoomPolicy, VerifiedRoomState};
 use mls_assist::{components::ComponentsList, messages::AssistedMessageOut};
 use openmls_provider::AirOpenMlsProvider;
 use openmls_traits::storage::StorageProvider;
 use serde::Serialize;
+use sha2::Sha256;
 use tls_codec::DeserializeBytes;
 use tracing::{Level, debug, enabled, error};
 
@@ -88,8 +92,9 @@ use std::collections::HashSet;
 
 use openmls::{
     component::ComponentType,
+    components::vc_derivation_info::VC_COMPONENT_ID,
     group::{
-        CreateCommitError, ExternalCommitBuilder, JoinBuilder, ProcessedWelcome,
+        CreateCommitError, ExternalCommitBuilder, GroupEpoch, JoinBuilder, ProcessedWelcome,
         ProposalValidationError,
     },
     key_packages::KeyPackageBundle,
@@ -196,6 +201,70 @@ impl From<Vec<u8>> for GroupDataBytes {
     }
 }
 
+#[derive(Debug)]
+struct SendMessageCollisionKey {
+    // The group epoch this secret key was exported from.
+    epoch: GroupEpoch,
+    // The HKDF instance used to derive the collision tag.
+    kdf: Hkdf<Sha256>,
+}
+
+impl SendMessageCollisionKey {
+    pub fn from_group(group: &mut Group, provider: &impl OpenMlsProvider) -> Option<Self> {
+        let epoch = group.mls_group.epoch();
+        let epoch_secret = match group.mls_group.safe_export_secret(
+            provider.crypto(),
+            provider.storage(),
+            VC_COMPONENT_ID,
+        ) {
+            Ok(epoch_secret) => epoch_secret,
+            Err(error) => {
+                error!(%error, "failed to call safe_export_secret on MLS group");
+                return None;
+            }
+        };
+
+        let mut k = [0u8; 32];
+        match Hkdf::<Sha256>::new(None, &epoch_secret)
+            .expand(b"virtual-client-collision-detection-v1", &mut k)
+        {
+            Ok(()) => {
+                let kdf = Hkdf::from_prk(&k).expect("input is 32 bytes, a valid HKDF PRK");
+                Some(Self { epoch, kdf })
+            }
+            Err(error) => {
+                error!(%error, "failed to expand HKDF");
+                None
+            }
+        }
+    }
+
+    fn compute_collision_tag(&self, salt: &'static str, info: &[u8]) -> SendMessageCollisionTag {
+        // 32 bytes is well within the HKDF-Expand limit (255 * 32)
+        let mut tag = [0u8; 32];
+        let info = &[salt.as_bytes(), info].concat();
+        self.kdf
+            .expand(info.as_slice(), &mut tag)
+            .expect("32 bytes is a valid HKDF-Expand output length");
+        SendMessageCollisionTag::new(tag)
+    }
+
+    /// Compute the two sorted collision-detection tags for a given epoch key and generation.
+    ///
+    /// `tag2_value`: specify extra data for the second tag (for example, receipts),
+    ///  otherwise we use the same input as for the first tag (with a different salt).
+    pub fn compute_collision_tags(
+        &self,
+        generation: u32,
+        tag2_value: Option<&[u8]>,
+    ) -> SendMessageCollisionTags {
+        let generation_bytes = generation.to_be_bytes();
+        let tag1 = self.compute_collision_tag("seq", &generation_bytes);
+        let tag2 = self.compute_collision_tag("aux", tag2_value.unwrap_or(&generation_bytes));
+        SendMessageCollisionTags { tag1, tag2 }
+    }
+}
+
 /// A chat group as seen by this client.
 ///
 /// `Group` bundles MLS state (`mls_group` and, for APQ groups, `pq`) with the
@@ -215,6 +284,10 @@ pub(crate) struct Group {
     /// The time at which the user self-updated their key material in this group the last time
     pub(crate) self_updated_at: Option<TimeStamp>,
     pq: Option<PqGroup>,
+    /// Symmetric key used as the PRK for collision-detection tag derivation.
+    ///
+    /// Set by the application on every group epoch change.
+    send_message_collision_key: Option<SendMessageCollisionKey>,
 }
 
 impl Group {
@@ -368,6 +441,7 @@ impl Group {
             pending_diff: None,
             self_updated_at: Some(TimeStamp::now()),
             pq: None,
+            send_message_collision_key: None,
         };
 
         Ok((group, params))
@@ -513,6 +587,7 @@ impl Group {
             room_state,
             self_updated_at: Some(TimeStamp::now()),
             pq: None,
+            send_message_collision_key: None,
         };
 
         // Phase 7: Store the group and client credentials.
@@ -693,6 +768,7 @@ impl Group {
                 mls_group: pq_mls_group,
                 self_updated_at: Some(self_updated_at),
             }),
+            send_message_collision_key: None,
         };
         group.store(&mut *txn).await?;
         for credential in &credentials {
@@ -836,6 +912,7 @@ impl Group {
             room_state,
             self_updated_at: Some(TimeStamp::now()),
             pq: None,
+            send_message_collision_key: None,
         };
 
         // Phase 4: Store the group and client auth info.
@@ -1260,6 +1337,7 @@ impl Group {
         ds_timestamp: TimeStamp,
     ) -> Result<(Vec<TimestampedMessage>, Option<GroupDataBytes>)> {
         let staged_commit_option: Option<StagedCommit> = staged_commit_option.into();
+        let provider = AirOpenMlsProvider::new(txn.as_mut());
 
         self.apply_staged_operations_to_room_state(staged_commit_option.as_ref())?;
 
@@ -1275,7 +1353,6 @@ impl Group {
 
             let group_data = GroupDataBytes::from_staged_commit(&staged_commit);
 
-            let provider = AirOpenMlsProvider::new(txn.as_mut());
             self.mls_group
                 .merge_staged_commit(&provider, staged_commit)?;
             if let Some(pq) = &mut self.pq
@@ -1301,7 +1378,7 @@ impl Group {
                 } else {
                     (vec![], None)
                 };
-            let provider = AirOpenMlsProvider::new(txn.as_mut());
+
             self.mls_group.merge_pending_commit(&provider)?;
             if let Some(pq) = &mut self.pq
                 && pq.mls_group.pending_commit().is_some()
@@ -1322,28 +1399,56 @@ impl Group {
         }
 
         self.pending_diff = None;
+        self.send_message_collision_key = None;
         Ok((event_messages, group_data))
     }
 
+    /// Derive and register the collision-detection key for the current epoch if not already set
+    fn ensure_collision_key(&mut self, provider: &impl OpenMlsProvider) {
+        if let Some(key) = self.send_message_collision_key.as_ref()
+            && key.epoch == self.mls_group.epoch()
+        {
+            return;
+        }
+
+        self.send_message_collision_key = SendMessageCollisionKey::from_group(self, provider);
+    }
+
     /// Send an application message to the group.
+    ///
+    /// `tag2_value` controls the `aux` collision-detection tag:
+    /// - `None`: the tag uses the current generation (regular messages)
+    /// - `Some(bytes)`: the tag uses the supplied bytes (receipts, keyed by message ID)
+    ///
+    /// Collision tags are only included when a collision key has been registered via
+    /// `ensure_collision_key` (i.e. the group is acting as a virtual client).
     pub(super) fn create_message(
         &mut self,
-        provider: &impl OpenMlsProvider,
+        provider: &AirOpenMlsProvider<'_>,
         signer: &ClientSigningKey,
         content: MimiContent,
+        tag2_value: Option<&[u8]>,
     ) -> Result<SendMessageParamsOut, GroupOperationError> {
         let mls_message = self
             .mls_group
             .create_message(provider, signer, &content.serialize()?)?;
 
         let message = AssistedMessageOut::new(mls_message, None);
-
         let suppress_notifications = suppress_notifications(&content);
+
+        // TODO(gabriel): technically we should never fail to derive the collision key, but
+        // we're not doing it here to avoid a panic in the case of a bug.
+        self.ensure_collision_key(provider);
+        let collision_tags = self.send_message_collision_key.as_ref().map(|k| {
+            let generation = self.mls_group.own_application_message_generation();
+            k.compute_collision_tags(generation, tag2_value)
+        });
 
         let send_message_params = SendMessageParamsOut {
             sender: self.mls_group.own_leaf_index(),
             message,
             suppress_notifications,
+            collision_tags,
         };
 
         Ok(send_message_params)
@@ -1352,7 +1457,7 @@ impl Group {
     /// Send an application message to the group.
     pub(super) fn create_targeted_application_message(
         &mut self,
-        provider: &impl OpenMlsProvider,
+        provider: &AirOpenMlsProvider<'_>,
         signer: &ClientSigningKey,
         recipient: UserId,
         content: TargetedMessageContent,

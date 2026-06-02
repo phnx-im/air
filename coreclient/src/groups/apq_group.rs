@@ -124,6 +124,7 @@ impl Group {
                 mls_group: pq_group,
                 self_updated_at: Some(now),
             }),
+            send_message_collision_key: None,
         };
 
         Ok((group, params))
