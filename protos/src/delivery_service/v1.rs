@@ -33,6 +33,6 @@ pub enum GenerationCollisionDetailTag {
 
 impl GenerationCollisionDetail {
     pub fn tags(&self) -> GenerationCollisionDetailTags {
-        self.tags.try_into().unwrap_or_default()
+        GenerationCollisionDetailTags(EnumSet::from_u32_truncated(self.tags))
     }
 }

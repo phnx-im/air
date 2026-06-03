@@ -252,8 +252,8 @@ impl SendMessageCollisionKey {
 
     /// Compute the two sorted collision-detection tags for a given epoch key and generation.
     ///
-    /// `tag2_value`: specify extra data for the second tag (for example, receipts),
-    ///  otherwise we use the same input as for the first tag (with a different salt).
+    /// `tag2_value` is extra data for the second tag (e.g. receipt message IDs); if `None`,
+    /// the same generation bytes are used as input for both tags (with different salts).
     pub fn compute_collision_tags(
         &self,
         generation: u32,
