@@ -90,7 +90,7 @@ impl DsRequestError {
             && let StatusDetailsCode::GenerationCollision = details.code()
             && let Some(status_details::Detail::GenerationCollision(generation_collision_detail)) =
                 details.detail
-            && generation_collision_detail.into() == expected_detail
+            && generation_collision_detail == expected_detail as i32
         {
             true
         } else {
