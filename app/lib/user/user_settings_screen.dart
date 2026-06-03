@@ -340,7 +340,7 @@ class _CommonSettings extends HookWidget {
         const _LanguageSetting(),
 
         const SizedBox(height: Spacing.px12),
-        SwitchField(
+        _SwitchField(
           onSubmit: (value) {
             context.read<UserSettingsCubit>().setReadReceipts(
               userCubit: context.read(),
@@ -484,7 +484,7 @@ class _MobileSettings extends HookWidget {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        SwitchField(
+        _SwitchField(
           label: loc.userSettingsScreen_sendWithEnter,
           value: sendOnEnter,
           onSubmit: (value) {
@@ -710,9 +710,10 @@ class _SectionHeader extends StatelessWidget {
   }
 }
 
-class SwitchField extends HookWidget {
-  const SwitchField({
-    super.key,
+/// A switch field that toggles a [ValueNotifier] optimistically and submits
+/// the final value after a debounce delay.
+class _SwitchField extends HookWidget {
+  const _SwitchField({
     required this.onSubmit,
     required this.value,
     required this.label,
