@@ -5051,6 +5051,7 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 [[package]]
 name = "openmls"
 version = "0.8.1"
+source = "git+https://github.com/boxdot/openmls?rev=afcfc4554777c4ab2055ddc5db2b9294e59db57d#afcfc4554777c4ab2055ddc5db2b9294e59db57d"
 dependencies = [
  "log",
  "openmls_basic_credential",
@@ -5070,6 +5071,7 @@ dependencies = [
 [[package]]
 name = "openmls_basic_credential"
 version = "0.5.0"
+source = "git+https://github.com/boxdot/openmls?rev=afcfc4554777c4ab2055ddc5db2b9294e59db57d#afcfc4554777c4ab2055ddc5db2b9294e59db57d"
 dependencies = [
  "ed25519-dalek",
  "ml-dsa",
@@ -5085,6 +5087,7 @@ dependencies = [
 [[package]]
 name = "openmls_libcrux_crypto"
 version = "0.3.1"
+source = "git+https://github.com/boxdot/openmls?rev=afcfc4554777c4ab2055ddc5db2b9294e59db57d#afcfc4554777c4ab2055ddc5db2b9294e59db57d"
 dependencies = [
  "hpke-rs",
  "hpke-rs-crypto",
@@ -5105,6 +5108,7 @@ dependencies = [
 [[package]]
 name = "openmls_memory_storage"
 version = "0.5.0"
+source = "git+https://github.com/boxdot/openmls?rev=afcfc4554777c4ab2055ddc5db2b9294e59db57d#afcfc4554777c4ab2055ddc5db2b9294e59db57d"
 dependencies = [
  "hex",
  "log",
@@ -5117,6 +5121,7 @@ dependencies = [
 [[package]]
 name = "openmls_rust_crypto"
 version = "0.5.1"
+source = "git+https://github.com/boxdot/openmls?rev=afcfc4554777c4ab2055ddc5db2b9294e59db57d#afcfc4554777c4ab2055ddc5db2b9294e59db57d"
 dependencies = [
  "aes-gcm",
  "chacha20poly1305",
@@ -5143,6 +5148,7 @@ dependencies = [
 [[package]]
 name = "openmls_sqlite_storage"
 version = "0.2.0"
+source = "git+https://github.com/boxdot/openmls?rev=afcfc4554777c4ab2055ddc5db2b9294e59db57d#afcfc4554777c4ab2055ddc5db2b9294e59db57d"
 dependencies = [
  "log",
  "openmls_traits",
@@ -5155,6 +5161,7 @@ dependencies = [
 [[package]]
 name = "openmls_traits"
 version = "0.5.0"
+source = "git+https://github.com/boxdot/openmls?rev=afcfc4554777c4ab2055ddc5db2b9294e59db57d#afcfc4554777c4ab2055ddc5db2b9294e59db57d"
 dependencies = [
  "serde",
  "tls_codec",
@@ -7163,7 +7170,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "32497e9a4c7b38532efcdebeef879707aa9f794296a4f0244f6f69e9bc8574bd"
 dependencies = [
  "fastrand",
- "getrandom 0.3.4",
+ "getrandom 0.4.2",
  "once_cell",
  "rustix",
  "windows-sys 0.61.2",
