@@ -6,7 +6,9 @@ use airprotos::{
     common::v1::{
         GenerationCollisionDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
     },
-    delivery_service::v1::CollisionTags,
+    delivery_service::v1::{
+        CollisionTags, GenerationCollisionDetailTag, GenerationCollisionDetailTags,
+    },
 };
 use prost::Message as _;
 use sqlx::{PgExecutor, PgPool};
@@ -25,42 +27,50 @@ pub(super) async fn check_and_insert(
     epoch: i64,
     tags: CollisionTags,
 ) -> Result<(), Status> {
-    let check_collision = async |tag: Vec<u8>, detail: GenerationCollisionDetail| {
-        let inserted = sqlx::query_scalar!(
-            "INSERT INTO ds_collision_tag (group_id, epoch, tag)
+    let mut colliding_tags = GenerationCollisionDetailTags::default();
+    let mut check_collision =
+        async |tag: Vec<u8>, detail_tag: GenerationCollisionDetailTag| -> Result<(), Status> {
+            let inserted = sqlx::query!(
+                "INSERT INTO ds_collision_tag (group_id, epoch, tag)
                 VALUES ($1, $2, $3)
                 ON CONFLICT DO NOTHING",
-            group_id,
-            epoch,
-            tag
-        )
-        .execute(pool)
-        .await
-        .map_err(|error| {
-            error!(%error, "Failed to check/insert collision tags");
-            Status::internal("storage error")
-        })?;
+                group_id,
+                epoch,
+                tag
+            )
+            .execute(pool)
+            .await
+            .map_err(|error| {
+                error!(%error, "Failed to check/insert collision tags");
+                Status::internal("storage error")
+            })?;
 
-        if inserted.rows_affected() == 1 {
+            if inserted.rows_affected() != 1 {
+                colliding_tags.insert(detail_tag);
+            }
+
             Ok(())
-        } else {
-            Err(Status::with_details(
-                Code::AlreadyExists,
-                "generation collision",
-                StatusDetails {
-                    code: StatusDetailsCode::GenerationCollision.into(),
-                    detail: Some(Detail::GenerationCollision(detail.into())),
-                }
-                .encode_to_vec()
-                .into(),
-            ))
-        }
-    };
+        };
 
-    check_collision(tags.tag1, GenerationCollisionDetail::Tag1).await?;
-    check_collision(tags.tag2, GenerationCollisionDetail::Tag2).await?;
+    check_collision(tags.tag1, GenerationCollisionDetailTag::Tag1).await?;
+    check_collision(tags.tag2, GenerationCollisionDetailTag::Tag2).await?;
 
-    Ok(())
+    if colliding_tags.is_empty() {
+        Ok(())
+    } else {
+        Err(Status::with_details(
+            Code::AlreadyExists,
+            "generation collision",
+            StatusDetails {
+                code: StatusDetailsCode::GenerationCollision.into(),
+                detail: Some(Detail::GenerationCollision(GenerationCollisionDetail {
+                    tags: colliding_tags.into(),
+                })),
+            }
+            .encode_to_vec()
+            .into(),
+        ))
+    }
 }
 
 /// Delete all collision tags for the given group that belong to epochs older

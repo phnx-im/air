@@ -284,7 +284,6 @@ dependencies = [
  "url",
  "uuid",
  "webpx",
- "zeroize",
 ]
 
 [[package]]
@@ -311,6 +310,7 @@ dependencies = [
  "chrono",
  "derive_more 0.99.20",
  "displaydoc",
+ "enumset",
  "insta",
  "mimi-room-policy",
  "mimi_content",

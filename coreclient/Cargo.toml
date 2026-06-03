@@ -55,7 +55,6 @@ tracing.workspace = true
 url.workspace = true
 uuid = { workspace = true, features = ["v4", "serde"] }
 webpx.workspace = true
-zeroize.workspace = true
 
 [dev-dependencies]
 airbackend.workspace = true

@@ -125,8 +125,6 @@ message TokenQuotaExceededDetail {
 
 message WrongEpochDetail {}
 
-enum GenerationCollisionDetail {
-  GENERATION_COLLISION_DETAIL_UNSPECIFIED = 0;
-  GENERATION_COLLISION_DETAIL_TAG_1 = 1;
-  GENERATION_COLLISION_DETAIL_TAG_2 = 2;
+message GenerationCollisionDetail {
+  uint32 tags = 1;
 }

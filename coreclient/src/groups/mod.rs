@@ -1429,6 +1429,7 @@ impl Group {
         content: MimiContent,
         tag2_value: Option<&[u8]>,
     ) -> Result<SendMessageParamsOut, GroupOperationError> {
+        let generation = self.mls_group.own_application_message_generation();
         let mls_message = self
             .mls_group
             .create_message(provider, signer, &content.serialize()?)?;
@@ -1436,13 +1437,11 @@ impl Group {
         let message = AssistedMessageOut::new(mls_message, None);
         let suppress_notifications = suppress_notifications(&content);
 
-        // TODO(gabriel): technically we should never fail to derive the collision key, but
-        // we're not doing it here to avoid a panic in the case of a bug.
         self.ensure_collision_key(provider);
-        let collision_tags = self.send_message_collision_key.as_ref().map(|k| {
-            let generation = self.mls_group.own_application_message_generation();
-            k.compute_collision_tags(generation, tag2_value)
-        });
+        let collision_tags = self
+            .send_message_collision_key
+            .as_ref()
+            .map(|k| k.compute_collision_tags(generation, tag2_value));
 
         let send_message_params = SendMessageParamsOut {
             sender: self.mls_group.own_leaf_index(),

@@ -9,6 +9,7 @@ use aircommon::{
     messages::{client_ds, client_ds_out::AddUsersInfoOut, welcome_attribution_info},
 };
 use apqmls::messages::{ApqMlsMessageIn, ApqMlsMessageOut};
+use enumset::EnumSet;
 use mls_assist::messages::AssistedWelcome;
 use openmls::prelude::{MlsMessageBodyIn, MlsMessageIn, group_info};
 use tls_codec::{DeserializeBytes, Serialize};
@@ -18,7 +19,7 @@ use crate::{
     common::convert::InvalidNonceLen,
     convert::{FromRef, TryFromRef, TryRefInto},
     delivery_service::v1::{
-        ApqAddUsersInfo, ApqMlsMessage, TargetedApplicationMessage,
+        ApqAddUsersInfo, ApqMlsMessage, GenerationCollisionDetailTags, TargetedApplicationMessage,
         targeted_message_payload::TargetedMessageType,
     },
     validation::{MissingFieldError, MissingFieldExt},
@@ -454,5 +455,27 @@ impl TryFromRef<'_, aircommon::messages::client_ds_out::TargetedMessageType>
                 },
             )),
         }
+    }
+}
+
+impl From<GenerationCollisionDetailTags> for u32 {
+    fn from(f: GenerationCollisionDetailTags) -> u32 {
+        f.0.as_u32()
+    }
+}
+
+#[derive(thiserror::Error, Debug)]
+pub enum GenerationCollisionDetailTagsConvertError {
+    #[error("unknown bits in enum set: {0:#066b}")]
+    UnknownBits(u32),
+}
+
+impl TryFrom<u32> for GenerationCollisionDetailTags {
+    type Error = GenerationCollisionDetailTagsConvertError;
+
+    fn try_from(bits: u32) -> Result<Self, Self::Error> {
+        EnumSet::try_from_u32(bits)
+            .map(GenerationCollisionDetailTags)
+            .ok_or(Self::Error::UnknownBits(bits))
     }
 }
