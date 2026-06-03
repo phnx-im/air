@@ -4,6 +4,8 @@
 
 use enumset::{EnumSet, EnumSetType};
 
+use crate::common::v1::GenerationCollisionDetail;
+
 tonic::include_proto!("delivery_service.v1");
 
 #[derive(Debug, Clone, Default)]
@@ -17,10 +19,20 @@ impl GenerationCollisionDetailTags {
     pub fn is_empty(&self) -> bool {
         self.0.is_empty()
     }
+
+    pub fn contains(&self, other: GenerationCollisionDetailTag) -> bool {
+        self.0.contains(other)
+    }
 }
 
 #[derive(Debug, EnumSetType)]
 pub enum GenerationCollisionDetailTag {
     Tag1,
     Tag2,
+}
+
+impl GenerationCollisionDetail {
+    pub fn tags(&self) -> GenerationCollisionDetailTags {
+        self.tags.try_into().unwrap_or_default()
+    }
 }

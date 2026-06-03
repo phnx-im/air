@@ -4,7 +4,7 @@
 
 use aircommon::messages::client_ds_out::{SendMessageCollisionTag, SendMessageCollisionTags};
 use aircoreclient::{ChatId, ChatMessage, MimiContentExt, ReadReceiptsSetting, clients::CoreUser};
-use airprotos::common::v1::GenerationCollisionDetail;
+use airprotos::delivery_service::v1::GenerationCollisionDetailTag;
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use mimi_content::{MessageStatus, MimiContent};
 use rand::{Rng, distributions::Alphanumeric, rngs::OsRng};
@@ -1004,7 +1004,7 @@ async fn generation_collision() {
         .expect_err("second send with identical tags should be rejected");
 
     assert!(
-        error.is_generation_collision(GenerationCollisionDetail::Tag1),
+        error.is_generation_collision(GenerationCollisionDetailTag::Tag1),
         "expected GenerationCollision error, got: {error:?}"
     );
 }

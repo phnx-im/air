@@ -22,18 +22,18 @@ use aircommon::{
 pub use airprotos::delivery_service::v1::ProvisionAttachmentResponse;
 use airprotos::{
     common::v1::{
-        AttachmentTooLargeDetail, GenerationCollisionDetail, StatusDetails, StatusDetailsCode,
+        AttachmentTooLargeDetail, StatusDetails, StatusDetailsCode,
         status_details::{self, Detail},
     },
     convert::{RefInto, TryRefInto},
     delivery_service::v1::{
         AddUsersInfo, ApqAddUsersInfo, ApqAssistedMlsMessage, ApqGroupOperationPayload,
         CollisionTags, ConnectionGroupInfoRequest, CreateApqGroupPayload, CreateGroupPayload,
-        DeleteGroupPayload, ExternalCommitInfoRequest, GetAttachmentUrlPayload,
-        GroupOperationPayload, GroupSessionData, JoinConnectionGroupRequest,
-        ProvisionAttachmentPayload, RequestGroupIdRequest, ResyncPayload, SelfRemovePayload,
-        SendMessagePayload, StorageObjectType, TargetedMessagePayload, UpdateProfileKeyPayload,
-        WelcomeInfoPayload,
+        DeleteGroupPayload, ExternalCommitInfoRequest, GenerationCollisionDetailTag,
+        GetAttachmentUrlPayload, GroupOperationPayload, GroupSessionData,
+        JoinConnectionGroupRequest, ProvisionAttachmentPayload, RequestGroupIdRequest,
+        ResyncPayload, SelfRemovePayload, SendMessagePayload, StorageObjectType,
+        TargetedMessagePayload, UpdateProfileKeyPayload, WelcomeInfoPayload,
     },
     validation::MissingFieldExt,
 };
@@ -83,14 +83,14 @@ impl DsRequestError {
         }
     }
 
-    pub fn is_generation_collision(&self, expected_detail: GenerationCollisionDetail) -> bool {
+    pub fn is_generation_collision(&self, tag: GenerationCollisionDetailTag) -> bool {
         if let Self::Tonic(status) = self
             && status.code() == tonic::Code::AlreadyExists
             && let Some(details) = StatusDetails::from_status(status)
             && let StatusDetailsCode::GenerationCollision = details.code()
             && let Some(status_details::Detail::GenerationCollision(generation_collision_detail)) =
                 details.detail
-            && generation_collision_detail == expected_detail as i32
+            && generation_collision_detail.tags().contains(tag)
         {
             true
         } else {
