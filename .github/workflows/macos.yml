@@ -21,6 +21,7 @@ on:
       - "common/**"
       - "app/**"
       - "Cargo.toml"
+      - "Cargo.lock"
   merge_group:
 
 env:
