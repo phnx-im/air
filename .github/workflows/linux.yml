@@ -12,7 +12,16 @@ on:
   pull_request:
     branches: ["main"]
   push:
-    branches: ["main"]
+    branches:
+      - main
+    paths:
+      - "coreclient/**"
+      - "apiclient/**"
+      - "applogic/**"
+      - "common/**"
+      - "app/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
   merge_group:
 
 env:
