@@ -17,6 +17,7 @@ use crate::{
 pub use grpc::GrpcDs;
 
 mod attachments;
+mod collision_tags;
 mod create_group;
 mod delete_group;
 mod group_operation;
