@@ -642,6 +642,8 @@ class _MemberCard extends StatelessWidget {
                       .emptyConnectionGroupAttributes ==
                   true)
                 'empty_connection_group_attributes',
+              if (caps.appData?.airComponent?.features.pqGroups == true)
+                'pq_groups',
             ],
           ),
         ],

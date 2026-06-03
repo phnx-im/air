@@ -60,8 +60,9 @@ use aircommon::{
     time::TimeStamp,
     utils::removed_client,
 };
-use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent, SUPPORTED_COMPONENTS};
-
+use airprotos::client::component::{
+    AIR_COMPONENT_ID, AirComponent, AirFeatures, SUPPORTED_COMPONENTS,
+};
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use hkdf::Hkdf;
 use mimi_content::MimiContent;
@@ -355,6 +356,7 @@ impl Group {
                 .map(|c| c.user_id() == user_id)
                 .unwrap_or(false)
         })?;
+
         let leaf_node = self.mls_group.public_group().leaf(member.index)?;
         leaf_node
             .extensions()
@@ -1657,9 +1659,10 @@ impl Group {
                     })
                     .ok()
             }) {
-                // Enabled encrypted group profiles
-                if !air_component.features.encrypted_group_profiles {
-                    air_component.features.encrypted_group_profiles = true;
+                // Update features to the current version of the client
+                let current_features = AirFeatures::default_leaf_or_key_package_features();
+                if air_component.features != current_features {
+                    air_component.features = current_features;
                     updated_dict
                         .get_or_insert_with(|| dict.clone())
                         .insert(AIR_COMPONENT_ID, air_component.to_bytes()?);
