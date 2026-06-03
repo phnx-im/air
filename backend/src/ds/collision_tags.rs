@@ -9,7 +9,7 @@ use airprotos::{
     delivery_service::v1::CollisionTags,
 };
 use prost::Message as _;
-use sqlx::{PgPool, PgTransaction};
+use sqlx::{PgExecutor, PgPool};
 use tonic::{Code, Status};
 use tracing::error;
 use uuid::Uuid;
@@ -68,7 +68,7 @@ pub(super) async fn check_and_insert(
 ///
 /// Called after a successful commit to keep the table bounded.
 pub(super) async fn delete_old(
-    txn: &mut PgTransaction<'_>,
+    connection: impl PgExecutor<'_>,
     group_id: Uuid,
     current_epoch: u64,
     max_past_epochs: u64,
@@ -79,7 +79,7 @@ pub(super) async fn delete_old(
         group_id,
         cutoff,
     )
-    .execute(txn.as_mut())
+    .execute(connection)
     .await?;
 
     Ok(())

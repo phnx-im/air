@@ -22,7 +22,8 @@ use aircommon::{
 pub use airprotos::delivery_service::v1::ProvisionAttachmentResponse;
 use airprotos::{
     common::v1::{
-        AttachmentTooLargeDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
+        AttachmentTooLargeDetail, GenerationCollisionDetail, StatusDetails, StatusDetailsCode,
+        status_details::{self, Detail},
     },
     convert::{RefInto, TryRefInto},
     delivery_service::v1::{
@@ -79,6 +80,21 @@ impl DsRequestError {
             }
         } else {
             None
+        }
+    }
+
+    pub fn is_generation_collision(&self, expected_detail: GenerationCollisionDetail) -> bool {
+        if let Self::Tonic(status) = self
+            && status.code() == tonic::Code::AlreadyExists
+            && let Some(details) = StatusDetails::from_status(status)
+            && let StatusDetailsCode::GenerationCollision = details.code()
+            && let Some(status_details::Detail::GenerationCollision(generation_collision_detail)) =
+                details.detail
+            && generation_collision_detail.into() == expected_detail
+        {
+            true
+        } else {
+            false
         }
     }
 

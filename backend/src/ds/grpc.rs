@@ -256,8 +256,14 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         self.encrypt_and_persist(&mut txn, group_data, group_state, ear_key)
             .await?;
 
+        txn.commit().await.map_err(|error| {
+            error!(%error, "Failed to commit transaction");
+            Status::internal("Failed to commit transaction")
+        })?;
+
+        // Since this is a maintenance function, we don't want the txn to rollback if we fail here.
         super::collision_tags::delete_old(
-            &mut txn,
+            &self.ds.db_pool,
             qgid.group_uuid(),
             new_epoch,
             MAX_PAST_EPOCHS as u64,
@@ -267,11 +273,6 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             warn!(%error, "Failed to clean up old collision tags");
         })
         .ok();
-
-        txn.commit().await.map_err(|error| {
-            error!(%error, "Failed to commit transaction");
-            Status::internal("Failed to commit transaction")
-        })?;
 
         Ok(value)
     }
@@ -339,8 +340,14 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         self.encrypt_and_persist(&mut txn, group_data, group_state, &ear_key)
             .await?;
 
+        txn.commit().await.map_err(|error| {
+            error!(%error, "Failed to commit transaction");
+            Status::internal("Failed to commit transaction")
+        })?;
+
+        // Since this is a maintenance function, we don't want the txn to rollback if we fail here.
         super::collision_tags::delete_old(
-            &mut txn,
+            &self.ds.db_pool,
             qgid.group_uuid(),
             new_epoch,
             MAX_PAST_EPOCHS as u64,
@@ -348,11 +355,6 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         .await
         .inspect_err(|error| warn!(%error, "Failed to clean up old collision tags"))
         .ok();
-
-        txn.commit().await.map_err(|error| {
-            error!(%error, "Failed to commit transaction");
-            Status::internal("Failed to commit transaction")
-        })?;
 
         Ok(value)
     }

@@ -1404,7 +1404,7 @@ impl Group {
     }
 
     /// Derive and register the collision-detection key for the current epoch if not already set
-    fn ensure_collision_key(&mut self, provider: &impl OpenMlsProvider) {
+    pub(crate) fn ensure_collision_key(&mut self, provider: &impl OpenMlsProvider) {
         if let Some(key) = self.send_message_collision_key.as_ref()
             && key.epoch == self.mls_group.epoch()
         {

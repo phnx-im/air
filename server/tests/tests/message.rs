@@ -2,11 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use aircommon::messages::client_ds_out::{SendMessageCollisionTag, SendMessageCollisionTags};
+use aircoreclient::{ChatId, ChatMessage, MimiContentExt, ReadReceiptsSetting, clients::CoreUser};
+use airprotos::common::v1::GenerationCollisionDetail;
+use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use mimi_content::{MessageStatus, MimiContent};
 use rand::{Rng, distributions::Alphanumeric, rngs::OsRng};
-
-use aircoreclient::{ChatId, ChatMessage, MimiContentExt, ReadReceiptsSetting, clients::CoreUser};
-use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Edit message", skip_all)]
@@ -972,4 +973,38 @@ async fn delete_message_with_attachment() {
             "Bob's attachment should be deleted after message deletion"
         );
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Generation collision detection", skip_all)]
+async fn generation_collision() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+
+    let make_tags = || SendMessageCollisionTags {
+        tag1: SendMessageCollisionTag::new([0xAAu8; 32]),
+        tag2: SendMessageCollisionTag::new([0xBBu8; 32]),
+    };
+
+    // First send: DS stores the tags and fans out the message.
+    alice_user
+        .send_message_with_fixed_collision_tags(chat_id, make_tags())
+        .await
+        .expect("first send with these tags should succeed");
+
+    // Second send with the same tags: simulates a second emulator client
+    // trying to use the same generation. DS must reject it.
+    let error = alice_user
+        .send_message_with_fixed_collision_tags(chat_id, make_tags())
+        .await
+        .expect_err("second send with identical tags should be rejected");
+
+    assert!(
+        error.is_generation_collision(GenerationCollisionDetail::Tag1),
+        "expected GenerationCollision error, got: {error:?}"
+    );
 }

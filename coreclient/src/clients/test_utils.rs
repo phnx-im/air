@@ -191,4 +191,52 @@ impl CoreUser {
         self.execute_job(op).await?;
         Ok(())
     }
+
+    /// Send a message to the DS using the given collision tags instead of
+    /// auto-derived ones. Used in tests to simulate a second emulator client
+    /// sending with the same generation.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub async fn send_message_with_fixed_collision_tags(
+        &self,
+        chat_id: ChatId,
+        collision_tags: aircommon::messages::client_ds_out::SendMessageCollisionTags,
+    ) -> Result<(), airapiclient::ds_api::DsRequestError> {
+        use anyhow::Context as _;
+        use mimi_content::MimiContent;
+
+        use crate::groups::{Group, openmls_provider::AirOpenMlsProvider};
+
+        let content = MimiContent::simple_markdown_message("collision-test".into(), [0u8; 16]);
+
+        let chat = self
+            .db()
+            .with_read_transaction(async |conn| crate::Chat::load(conn, &chat_id).await)
+            .await
+            .expect("db error")
+            .expect("chat not found");
+
+        let (group_state_ear_key, params) = self
+            .db()
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                let group_id = chat.group_id();
+                let mut group = Group::load_clean(&mut *txn, group_id)
+                    .await?
+                    .context("group not found")?;
+                let provider = AirOpenMlsProvider::new(txn.as_mut());
+                group.ensure_collision_key(&provider);
+                let mut params =
+                    group.create_message(&provider, self.signing_key(), content, None)?;
+                params.collision_tags = Some(collision_tags);
+                Ok((group.group_state_ear_key().clone(), params))
+            })
+            .await
+            .expect("failed to create message");
+
+        let api_client = self.api_client().expect("no api client");
+        api_client
+            .ds_send_message(params, self.signing_key(), &group_state_ear_key)
+            .await?;
+
+        Ok(())
+    }
 }
