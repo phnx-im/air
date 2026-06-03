@@ -188,9 +188,10 @@ impl OutboundServiceContext {
         Ok(())
     }
 
-    /// `tag2_value`: value for the `aux` collision-detection tag.
-    /// Pass `None` for regular messages (tag derives from generation) or
-    /// `Some(bytes)` for receipts (tag derives from the serialized message IDs).
+    /// Creates a new MLS message for the given chat.
+    ///
+    /// `tag2_value` is the auxiliary collision-detection tag; pass `None` for
+    /// regular messages or `Some(bytes)` for receipts.
     pub(super) async fn new_mls_message(
         &self,
         chat: &Chat,

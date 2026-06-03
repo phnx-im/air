@@ -261,7 +261,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             Status::internal("Failed to commit transaction")
         })?;
 
-        // Since this is a maintenance function, we don't want the txn to rollback if we fail here.
+        // Best-effort cleanup: the transaction is already committed, so failures here are non-fatal.
         super::collision_tags::delete_old(
             &self.ds.db_pool,
             qgid.group_uuid(),
@@ -345,7 +345,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             Status::internal("Failed to commit transaction")
         })?;
 
-        // Since this is a maintenance function, we don't want the txn to rollback if we fail here.
+        // Best-effort cleanup: the transaction is already committed, so failures here are non-fatal.
         super::collision_tags::delete_old(
             &self.ds.db_pool,
             qgid.group_uuid(),
