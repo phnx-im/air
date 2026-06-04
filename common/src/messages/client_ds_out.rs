@@ -7,6 +7,8 @@
 //! TODO: We should eventually factor this module out, together with the crypto
 //! module, to allow re-use by the client implementation.
 
+use std::collections::HashMap;
+
 use apqmls::commit_builder::ApqCommitMessageBundle;
 use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
@@ -30,6 +32,7 @@ pub struct ExternalCommitInfoIn {
     pub encrypted_user_profile_keys: Vec<EncryptedUserProfileKey>,
     pub room_state: VerifiedRoomState,
     pub proposals: Vec<Vec<u8>>,
+    pub indexed_encrypted_user_profile_keys: HashMap<LeafNodeIndex, EncryptedUserProfileKey>,
 }
 
 #[derive(Debug)]
@@ -37,6 +40,7 @@ pub struct WelcomeInfoIn {
     pub ratchet_tree: RatchetTreeIn,
     pub encrypted_user_profile_keys: Vec<EncryptedUserProfileKey>,
     pub room_state: VerifiedRoomState,
+    pub indexed_encrypted_user_profile_keys: HashMap<LeafNodeIndex, EncryptedUserProfileKey>,
 }
 
 #[derive(Debug)]
