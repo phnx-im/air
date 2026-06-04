@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+pub(crate) mod apq_group;
 pub(crate) mod client_auth_info;
+pub(crate) mod debug_info;
 // TODO: Allowing dead code here for now. We'll need diffs when we start
 // rotating keys.
-pub(crate) mod apq_group;
-pub(crate) mod debug_info;
 #[allow(dead_code)]
 pub(crate) mod diff;
 pub(crate) mod error;
@@ -16,6 +16,8 @@ pub(crate) mod process;
 
 pub(crate) use error::*;
 pub(crate) use persistence::VerifiedGroup;
+
+use std::collections::{HashMap, HashSet};
 
 use aircommon::{
     credentials::{
@@ -86,7 +88,6 @@ use crate::{
     key_stores::as_credentials::AsCredentials,
     outbound_service::resync::Resync,
 };
-use std::collections::HashSet;
 
 use openmls::{
     component::ComponentType,
@@ -761,20 +762,9 @@ impl Group {
             })
             .collect();
 
-        // Figure out who was removed so we can filter out the encrypted profile keys later.
-        let removed_members: Vec<_> = proposals
-            .iter()
-            .filter_map(|pm| {
-                let Sender::Member(sender) = pm.sender() else {
-                    return None;
-                };
-                Some(*sender)
-            })
-            .collect();
-
         // Let's create the group first so that we can access the GroupId.
         // Phase 1: Create and store the group
-        let (mls_group, commit, group_info) = {
+        let (mls_group, commit, group_info, encrypted_profile_keys) = {
             let provider = AirOpenMlsProvider::new(txn.as_mut());
             // Prepare PSK proposal if we have a connection offer hash.
             let psk_proposal = match connection_offer_hash {
@@ -795,6 +785,18 @@ impl Group {
                 .with_capabilities(default_leaf_node_capabilities())
                 .with_extensions(default_leaf_node_extensions::<AirComponent>())
                 .build();
+
+            let encrypted_profile_keys: HashMap<UserId, EncryptedUserProfileKey> = ratchet_tree_in
+                .leaves()
+                .zip(encrypted_user_profile_keys)
+                .filter_map(|(leaf_node, profile_key)| {
+                    let cred =
+                        VerifiableClientCredential::from_basic_credential(leaf_node.credential())
+                            .ok()?;
+                    // Credentials will be verified below
+                    Some((cred.user_id().clone(), profile_key))
+                })
+                .collect();
 
             let mut builder = ExternalCommitBuilder::new()
                 .with_proposals(proposals)
@@ -825,6 +827,7 @@ impl Group {
                 mls_group,
                 commit,
                 group_info.context("No group info found")?,
+                encrypted_profile_keys,
             )
         };
 
@@ -845,32 +848,31 @@ impl Group {
         // If the group previously existed, delete it first.
         Group::delete_from_db(txn, group.group_id()).await?;
         group.store(&mut *txn).await?;
-        for credential in &credentials {
-            credential.store(&mut *txn).await?;
-        }
-        // Also store own credential
-        let own_credential = signer.credential().clone();
-        StorableClientCredential::from(own_credential)
-            .store(&mut *txn)
-            .await?;
 
-        // Compile a list of user profile keys for the members.
-        let member_profile_info = encrypted_user_profile_keys
-            .into_iter()
-            .enumerate()
-            .filter_map(|(index, eupk)| {
-                (!removed_members.contains(&LeafNodeIndex::new(index as u32))).then_some(eupk)
+        // Store credentials and accumulate member profile keys (excl. own member)
+        let mut member_profile_info = Vec::with_capacity(credentials.len());
+        for credential in credentials {
+            credential.store(&mut *txn).await?; // store everyone incl. self
+
+            // Decrypt the user profile key
+            if credential.user_id() == signer.credential().user_id() {
+                continue; // skip profile-key lookup for self
+            }
+            let eupk = encrypted_profile_keys
+                .get(credential.user_id())
+                .context("Missing user profile key")?;
+            let profile_info = UserProfileKey::decrypt(
+                &group.identity_link_wrapper_key,
+                eupk,
+                credential.user_id(),
+            )
+            .map(|user_profile_key| ProfileInfo {
+                user_profile_key,
+                client_credential: credential.into(),
             })
-            .zip(credentials)
-            .map(|(eupk, ci)| {
-                UserProfileKey::decrypt(&group.identity_link_wrapper_key, &eupk, ci.user_id()).map(
-                    |user_profile_key| ProfileInfo {
-                        user_profile_key,
-                        client_credential: ci.into(),
-                    },
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+            .context("Failed to decrypt user profile key")?;
+            member_profile_info.push(profile_info);
+        }
 
         Ok(Ok((group, commit, group_info.into(), member_profile_info)))
     }
