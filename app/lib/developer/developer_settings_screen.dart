@@ -4,6 +4,7 @@
 
 import 'dart:io';
 
+import 'package:air/util/debouncer.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -16,6 +17,7 @@ import 'package:air/ds/theme/theme.dart';
 import 'package:air/util/platform.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:air/ds/foundations/icons/app_icons.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
 
 import 'user_debug_info_panel.dart';
@@ -99,6 +101,10 @@ class DeveloperSettingsScreenView extends StatelessWidget {
           )
         : null;
 
+    final isDeveloper = context.select(
+      (UserSettingsCubit cubit) => cubit.state.isDeveloper,
+    );
+
     return Scaffold(
       appBar: AppBar(
         clipBehavior: Clip.none,
@@ -118,6 +124,17 @@ class DeveloperSettingsScreenView extends StatelessWidget {
               ),
               child: ListView(
                 children: [
+                  const _SectionHeader("Developer mode"),
+                  SwitchListTile(
+                    title: const Text("Enable experimental features"),
+                    value: isDeveloper,
+                    onChanged: (value) {
+                      context.read<UserSettingsCubit>().setIsDeveloper(
+                        userCubit: context.read(),
+                        value: value,
+                      );
+                    },
+                  ),
                   if (isMobile) ...[
                     const _SectionHeader("Mobile Device"),
                     ListTile(

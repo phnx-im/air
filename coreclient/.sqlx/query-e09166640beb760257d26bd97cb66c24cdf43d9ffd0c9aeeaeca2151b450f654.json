@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT pending_commit_failed as 'p: _' FROM \"group\" WHERE group_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "p: _",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e09166640beb760257d26bd97cb66c24cdf43d9ffd0c9aeeaeca2151b450f654"
+}

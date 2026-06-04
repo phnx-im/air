@@ -317,7 +317,7 @@ impl Chat {
                 c.chat_id AS "chat_id: _"
             FROM chat c
             INNER JOIN "group" g ON g.group_id = c.group_id
-            WHERE (g.self_updated_at IS NULL OR g.self_updated_at < ?1)
+            WHERE (g.self_updated_at IS NULL OR g.self_updated_at < ?1 OR g.pending_commit_failed IS TRUE)
                 AND c.is_active = TRUE
             ORDER BY g.self_updated_at ASC"#,
             until_due_at as _,

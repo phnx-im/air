@@ -226,6 +226,8 @@ pub(crate) struct Group {
     /// The time at which the user self-updated their key material in this group the last time
     pub(crate) self_updated_at: Option<TimeStamp>,
     pq: Option<PqGroup>,
+    /// Set when a commit send fails non-transiently. Cleared on merge or discard.
+    pending_commit_failed: bool,
 }
 
 impl Group {
@@ -239,6 +241,29 @@ impl Group {
 
     pub(crate) fn pq(&self) -> Option<&PqGroup> {
         self.pq.as_ref()
+    }
+
+    #[allow(unused)]
+    pub fn is_out_of_sync(&self) -> bool {
+        self.pending_commit_failed
+    }
+
+    pub(crate) async fn mark_commit_failed(
+        &mut self,
+        connection: impl WriteConnection,
+    ) -> anyhow::Result<()> {
+        self.pending_commit_failed = true;
+        self.store_pending_commit_failed(connection).await?;
+        Ok(())
+    }
+
+    pub(crate) async fn clear_commit_failed(
+        &mut self,
+        connection: impl WriteConnection,
+    ) -> anyhow::Result<()> {
+        self.pending_commit_failed = false;
+        self.store_pending_commit_failed(connection).await?;
+        Ok(())
     }
 
     /// Returns mutable references to the T MLS group and the PQ MLS group
@@ -380,6 +405,7 @@ impl Group {
             pending_diff: None,
             self_updated_at: Some(TimeStamp::now()),
             pq: None,
+            pending_commit_failed: false,
         };
 
         Ok((group, params))
@@ -526,6 +552,7 @@ impl Group {
             room_state,
             self_updated_at: Some(TimeStamp::now()),
             pq: None,
+            pending_commit_failed: false,
         };
 
         // Phase 7: Store the group and client credentials.
@@ -620,7 +647,7 @@ impl Group {
         // Check if there is already a group with the same ID.
         if let Some(t_group_id) = Self::load_group_id_for_pq(&mut *txn, pq_group_id).await? {
             // If the group is active, we can't join it.
-            if Self::is_active(txn.as_mut(), &t_group_id)? {
+            if Self::is_active(&mut *txn, &t_group_id)? {
                 bail!("We can't join a group that is still active.");
             }
             // Otherwise, we delete the old group.
@@ -709,6 +736,7 @@ impl Group {
                 mls_group: pq_mls_group,
                 self_updated_at: Some(self_updated_at),
             }),
+            pending_commit_failed: false,
         };
         group.store(&mut *txn).await?;
         for credential in &credentials {
@@ -929,6 +957,7 @@ impl Group {
             room_state,
             self_updated_at: Some(TimeStamp::now()),
             pq: None,
+            pending_commit_failed: false,
         };
 
         // Phase 4: Store the group and client auth info.
@@ -1301,6 +1330,7 @@ impl Group {
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
     ) -> Result<()> {
+        self.clear_commit_failed(&mut *txn).await?;
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         self.pending_diff = None;
         self.mls_group.clear_pending_commit(provider.storage())?;
@@ -1400,6 +1430,7 @@ impl Group {
         }
 
         self.pending_diff = None;
+        self.clear_commit_failed(&mut *txn).await?;
         Ok((event_messages, group_data))
     }
 

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                g.group_id AS \"group_id: _\",\n                pq.group_id AS \"pq_group_id: _\",\n                identity_link_wrapper_key AS \"identity_link_wrapper_key: _\",\n                g.group_state_ear_key AS \"group_state_ear_key: _\",\n                pending_diff AS \"pending_diff: _\",\n                room_state AS \"room_state: _\",\n                g.self_updated_at AS \"self_updated_at: _\",\n                pq.self_updated_at AS \"pq_self_updated_at: _\"\n            FROM \"group\" g\n            INNER JOIN chat c ON c.group_id = g.group_id\n            LEFT JOIN pq_group pq ON pq.t_group_id = g.group_id\n            WHERE c.chat_id = ?\n            ",
+  "query": "SELECT\n                g.group_id AS \"group_id: _\",\n                pq.group_id AS \"pq_group_id: _\",\n                identity_link_wrapper_key AS \"identity_link_wrapper_key: _\",\n                g.group_state_ear_key AS \"group_state_ear_key: _\",\n                pending_diff AS \"pending_diff: _\",\n                room_state AS \"room_state: _\",\n                g.self_updated_at AS \"self_updated_at: _\",\n                pq.self_updated_at AS \"pq_self_updated_at: _\",\n                g.pending_commit_failed AS \"pending_commit_failed: _\"\n            FROM \"group\" g\n            LEFT JOIN pq_group pq ON pq.t_group_id = g.group_id\n            WHERE g.group_id = ?\n            ",
   "describe": {
     "columns": [
       {
@@ -42,6 +42,11 @@
         "name": "pq_self_updated_at: _",
         "ordinal": 7,
         "type_info": "Integer"
+      },
+      {
+        "name": "pending_commit_failed: _",
+        "ordinal": 8,
+        "type_info": "Integer"
       }
     ],
     "parameters": {
@@ -55,8 +60,9 @@
       true,
       false,
       true,
+      false,
       false
     ]
   },
-  "hash": "57b7c6a62a2c01be64669932ecfda1ea6ca2ac4cb313e45c3ee3109876ae06df"
+  "hash": "08f2020883a482f12a5821325747a9edbdee86a7f6c4f5ba3aa4f46d391613af"
 }

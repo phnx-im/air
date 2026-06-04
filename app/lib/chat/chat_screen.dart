@@ -153,6 +153,15 @@ class _ChatScreenViewState extends State<ChatScreenView> {
     final bool showBlockedFooter =
         blockedUserId != null && blockedUserDisplayName != null;
 
+    final bool isDeveloper = context.select(
+      (UserSettingsCubit cubit) => cubit.state.isDeveloper,
+    );
+    final pendingCommitFailed = context.select(
+      (ChatDetailsCubit cubit) =>
+          cubit.state.chat?.pendingCommitFailed ?? false,
+    );
+    final bool showPendingCommitBanner = isDeveloper && pendingCommitFailed;
+
     Widget footer = MessageComposer(
       scrollToBottomController: _scrollToBottomController,
       textEditingController: widget.textEditingController,
@@ -178,6 +187,22 @@ class _ChatScreenViewState extends State<ChatScreenView> {
             createMessageCubit: widget.createMessageCubit,
             scrollToBottomController: _scrollToBottomController,
           ),
+          if (showPendingCommitBanner)
+            Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: const EdgeInsets.only(top: kToolbarHeight),
+                  child: _PendingCommitFailedBanner(
+                    onResync: () =>
+                        context.read<ChatDetailsCubit>().requestResync(),
+                  ),
+                ),
+              ),
+            ),
           Positioned.fill(
             top: null,
             child: SafeArea(
@@ -369,6 +394,36 @@ class _RenderMeasureHeight extends RenderProxyBox {
       _lastHeight = h;
       WidgetsBinding.instance.addPostFrameCallback((_) => onChange(h));
     }
+  }
+}
+
+class _PendingCommitFailedBanner extends StatelessWidget {
+  const _PendingCommitFailedBanner({required this.onResync});
+
+  final VoidCallback onResync;
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: CustomColorScheme.of(context).function.warning,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: Spacing.px16,
+          vertical: Spacing.px8,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                'Group out of sync',
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+            TextButton(onPressed: onResync, child: const Text('Resync')),
+          ],
+        ),
+      ),
+    );
   }
 }
 

@@ -836,6 +836,13 @@ impl CoreUser {
         };
         job.execute(&mut context).await
     }
+
+    pub async fn chat_is_pending(
+        &self,
+        group_id: &openmls::prelude::GroupId,
+    ) -> anyhow::Result<bool> {
+        Group::pending_commit_failed(self.db().read().await?, group_id).await
+    }
 }
 
 /// Error which can occur when listening to the queue.
