@@ -128,7 +128,7 @@ url = "2.5.4"
 uuid = "1.16.0"
 webpx = { version = "0.3.4", default-features = false, features = ["encode", "animation", "std"] }
 xshell = "0.2"
-zeroize = "1.8.1"
+zeroize = "1.8.2"
 
 
 [patch.crates-io]
