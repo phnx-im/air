@@ -481,8 +481,8 @@ impl From<u32> for GenerationCollisionDetailTags {
     }
 }
 
-impl Into<u32> for GenerationCollisionDetailTags {
-    fn into(self) -> u32 {
-        self.0.as_u32_truncated()
+impl From<GenerationCollisionDetailTags> for u32 {
+    fn from(tags: GenerationCollisionDetailTags) -> Self {
+        tags.0.as_u32_truncated()
     }
 }
