@@ -27,50 +27,49 @@ pub(super) async fn check_and_insert(
     epoch: i64,
     tags: CollisionTags,
 ) -> Result<(), Status> {
-    let mut colliding_tags = GenerationCollisionDetailTags::default();
-    let mut check_collision =
-        async |tag: Vec<u8>, detail_tag: GenerationCollisionDetailTag| -> Result<(), Status> {
-            let inserted = sqlx::query!(
-                "INSERT INTO ds_collision_tag (group_id, epoch, tag)
-                VALUES ($1, $2, $3)
-                ON CONFLICT DO NOTHING",
-                group_id,
-                epoch,
-                tag
-            )
-            .execute(pool)
-            .await
-            .map_err(|error| {
-                error!(%error, "Failed to check/insert collision tags");
-                Status::internal("storage error")
-            })?;
+    let inserted = sqlx::query_scalar!(
+        "INSERT INTO ds_collision_tag (group_id, epoch, tag)
+        VALUES ($1, $2, $3), ($1, $2, $4)
+        ON CONFLICT DO NOTHING
+        RETURNING tag",
+        group_id,
+        epoch,
+        &tags.tag1,
+        &tags.tag2,
+    )
+    .fetch_all(pool)
+    .await
+    .map_err(|error| {
+        error!(%error, "Failed to check/insert collision tags");
+        Status::internal("storage error")
+    })?;
 
-            if inserted.rows_affected() != 1 {
-                colliding_tags.insert(detail_tag);
-            }
-
-            Ok(())
-        };
-
-    check_collision(tags.tag1, GenerationCollisionDetailTag::Tag1).await?;
-    check_collision(tags.tag2, GenerationCollisionDetailTag::Tag2).await?;
-
-    if colliding_tags.is_empty() {
-        Ok(())
-    } else {
-        Err(Status::with_details(
-            Code::AlreadyExists,
-            "generation collision",
-            StatusDetails {
-                code: StatusDetailsCode::GenerationCollision.into(),
-                detail: Some(Detail::GenerationCollision(GenerationCollisionDetail {
-                    tags: colliding_tags.into(),
-                })),
-            }
-            .encode_to_vec()
-            .into(),
-        ))
+    // Fast and happy path: we inserted both tags
+    if inserted.len() == 2 {
+        return Ok(());
     }
+
+    // Otherwise, check which tags we got returned from the DB (the ones that successfully inserted)
+    let mut colliding_tags = GenerationCollisionDetailTags::default();
+    if !inserted.contains(&tags.tag1) {
+        colliding_tags.insert(GenerationCollisionDetailTag::Tag1);
+    }
+    if !inserted.contains(&tags.tag2) {
+        colliding_tags.insert(GenerationCollisionDetailTag::Tag2);
+    }
+
+    Err(Status::with_details(
+        Code::AlreadyExists,
+        "generation collision",
+        StatusDetails {
+            code: StatusDetailsCode::GenerationCollision.into(),
+            detail: Some(Detail::GenerationCollision(GenerationCollisionDetail {
+                tags: colliding_tags.into(),
+            })),
+        }
+        .encode_to_vec()
+        .into(),
+    ))
 }
 
 /// Delete all collision tags for the given group that belong to epochs older
