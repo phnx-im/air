@@ -4,8 +4,12 @@
 
 use aircommon::{
     credentials::keys::ClientSigningKey,
-    crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
-    identifiers::QualifiedGroupId,
+    crypto::{
+        aead::keys::{EncryptedUserProfileKey, GroupStateEarKey, IdentityLinkWrapperKey},
+        hpke::HpkeEncryptable,
+        indexed_aead::keys::UserProfileKey,
+    },
+    identifiers::{ClientConfig, QsReference, QualifiedGroupId},
     messages::{client_ds::AadPayload, client_ds_out::ExternalCommitInfoIn},
 };
 use anyhow::{Context, Result};
@@ -23,6 +27,7 @@ use crate::{
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{DecryptedProfileInfos, Group, ProfileInfo, handle_group_not_found_on_ds},
     job::{operation::OperationData, profile::FetchUserProfileOperation},
+    key_stores::indexed_keys::StorableIndexedKey,
     outbound_service::{
         OutboundServiceContext,
         error::{OutboundServiceError, classify_ds_error, is_ds_not_found_error},
@@ -84,8 +89,32 @@ impl OutboundServiceContext {
 
             let result = {
                 let mut connection = self.db.write().await?;
+
+                let group = Group::load(&mut connection, &group_id)
+                    .await?
+                    .context("group not found")?;
+                let own_user_profile_key = UserProfileKey::load_own(&mut connection).await?;
+                let own_encrypted_user_profile_key = own_user_profile_key
+                    .encrypt(group.identity_link_wrapper_key(), self.user_id())?;
+
+                let sealed_reference = ClientConfig {
+                    client_id: self.qs_client_id.clone(),
+                    push_token_ear_key: Some(self.push_token_ear_key().clone()),
+                }
+                .encrypt(self.qs_client_id_encryption_key(), &[], &[]);
+                let own_qs_client_reference = QsReference {
+                    client_homeserver_domain: self.user_id().domain().clone(),
+                    sealed_reference,
+                };
+
                 let result = resync
-                    .create_and_send_commit(&mut connection, &self.api_clients, self.signing_key())
+                    .create_and_send_commit(
+                        &mut connection,
+                        &self.api_clients,
+                        self.signing_key(),
+                        own_qs_client_reference,
+                        own_encrypted_user_profile_key,
+                    )
                     .await;
                 if result.is_ok() {
                     info!("Got profiles infos");
@@ -145,6 +174,8 @@ impl Resync {
         mut connection: impl WriteConnection,
         api_clients: &ApiClients,
         signer: &ClientSigningKey,
+        qs_client_reference: QsReference,
+        encrypted_user_profile_key: EncryptedUserProfileKey,
     ) -> Result<DecryptedProfileInfos, OutboundServiceError> {
         // TODO: We should somehow mark the chat as "resyncing" in the DB and
         // reflect that in the UI.
@@ -172,6 +203,8 @@ impl Resync {
             commit,
             group_info,
             original_leaf_index,
+            qs_client_reference,
+            encrypted_user_profile_key,
         )
         .await?;
 
@@ -233,6 +266,8 @@ impl Resync {
         commit: MlsMessageOut,
         group_info: MlsMessageOut,
         original_leaf_index: LeafNodeIndex,
+        qs_client_reference: QsReference,
+        encrypted_user_profile_key: EncryptedUserProfileKey,
     ) -> Result<(), OutboundServiceError> {
         let qgid: QualifiedGroupId = group
             .group_id()
@@ -249,6 +284,8 @@ impl Resync {
                 signer,
                 group.group_state_ear_key(),
                 original_leaf_index,
+                qs_client_reference,
+                encrypted_user_profile_key,
             )
             .await
             .map_err(classify_ds_error)?;

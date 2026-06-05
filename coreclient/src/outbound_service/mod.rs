@@ -10,6 +10,7 @@ use std::{
 
 use aircommon::{
     credentials::keys::ClientSigningKey,
+    crypto::{aead::keys::PushTokenEarKey, hpke::ClientIdEncryptionKey},
     identifiers::{QsClientId, UserId},
 };
 use chrono::Utc;
@@ -269,6 +270,14 @@ impl OutboundServiceContext {
 
     fn user_id(&self) -> &UserId {
         self.signing_key().credential().user_id()
+    }
+
+    fn push_token_ear_key(&self) -> &PushTokenEarKey {
+        &self.key_store.push_token_ear_key
+    }
+
+    fn qs_client_id_encryption_key(&self) -> &ClientIdEncryptionKey {
+        &self.key_store.qs_client_id_encryption_key
     }
 }
 

@@ -278,6 +278,8 @@ message ResyncPayload {
   GroupStateEarKey group_state_ear_key = 1;
   AssistedMessage external_commit = 2;
   LeafNodeIndex sender = 3;
+  QsReference qs_client_reference = 5;
+  EncryptedUserProfileKey encrypted_user_profile_key = 6;
 }
 
 message ResyncResponse {
