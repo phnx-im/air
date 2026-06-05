@@ -2,7 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::time::Duration;
+use aircommon::{credentials::VerifiableClientCredential, time::Duration, utils::removed_clients};
+use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::ProcessedAssistedMessage, messages::SerializedMlsMessage, openmls::prelude::Sender,
     provider_traits::MlsAssistProvider,
@@ -11,6 +12,7 @@ use mls_assist::{
     messages::AssistedMessageIn,
     openmls::prelude::{LeafNodeIndex, ProcessedMessageContent},
 };
+use tracing::error;
 
 use crate::errors::ResyncClientError;
 
@@ -54,19 +56,73 @@ impl DsGroupState {
             return Err(ResyncClientError::InvalidMessage);
         }
 
-        let Some(remove_proposal) = staged_commit_message.remove_proposals().next() else {
-            // This should contain a remove proposal.
+        if !staged_commit_message
+            .remove_proposals()
+            .any(|p| p.remove_proposal().removed() == sender_index)
+        {
+            // There must be a remove proposal for the sender.
+            //
+            // Note: The commit might contain multiple remove proposals.
             return Err(ResyncClientError::InvalidMessage);
-        };
+        }
 
-        if remove_proposal.remove_proposal().removed() != sender_index {
-            // The sender index in the remove proposal should match the sender
-            // index in the params.
-            return Err(ResyncClientError::InvalidMessage);
+        let sender = VerifiableClientCredential::from_basic_credential(
+            self.group
+                .leaf(sender_index)
+                .ok_or_else(|| {
+                    error!(%sender_index, "Leaf node for sender not found");
+                    ResyncClientError::InvalidMessage
+                })?
+                .credential(),
+        )
+        .map_err(|error| {
+            error!(%error, "Credential of sender is invalid");
+            ResyncClientError::InvalidMessage
+        })?;
+
+        // Collect all removed clients except the sender.
+        let mut removed_indices = removed_clients(staged_commit_message);
+        let sender_index_pos = removed_indices
+            .iter()
+            .position(|&index| index == sender_index)
+            .ok_or_else(|| {
+                error!(%sender_index, "Sender not found in removed clients");
+                ResyncClientError::InvalidMessage
+            })?;
+        removed_indices.swap_remove(sender_index_pos);
+
+        // Change room state roles of removed clients to outsider.
+        for &removed_index in &removed_indices {
+            let removed = VerifiableClientCredential::from_basic_credential(
+                self.group()
+                    .leaf(removed_index)
+                    .ok_or_else(|| {
+                        error!(%removed_index, "Leaf node for removed client not found");
+                        ResyncClientError::InvalidMessage
+                    })?
+                    .credential(),
+            )
+            .map_err(|error| {
+                error!(%error, "Credential of removed user is invalid");
+                ResyncClientError::InvalidMessage
+            })?;
+            self.room_state_change_role(sender.user_id(), removed.user_id(), RoleIndex::Outsider)
+                .ok_or_else(|| {
+                    error!(%removed_index, "Failed to change role of removed client");
+                    ResyncClientError::InvalidMessage
+                })?;
         }
 
         // Everything seems to be okay.
         // Now we have to update the group state and distribute.
+
+        let new_sender_index = self
+            .group()
+            .ext_commit_sender_index(staged_commit_message)
+            .map_err(|error| {
+                error!(%error, "Error getting sender index");
+                ResyncClientError::InvalidMessage
+            })?;
 
         // We just accept the message into the group state.
         self.group.accept_processed_message(
@@ -75,10 +131,21 @@ impl DsGroupState {
             Duration::days(USER_EXPIRATION_DAYS),
         )?;
 
-        // No need to update the user profile, since the client was re-added on
-        // the same position.
-        // No need to update the client profile either, since all data (leaf
-        // index, credential, qs client ref, etc.) remains the same.
+        self.remove_profiles(removed_indices);
+
+        // An external commit re-adds the client at the leftmost blank leaf. If it differs from the
+        // original leaf index, we need to re-key the member profile accordingly, so that fan-out
+        // exclusion and QS references stay correct.
+        if new_sender_index != sender_index
+            && let Some(mut profile) = self.member_profiles.remove(&sender_index)
+        {
+            profile.leaf_index = new_sender_index;
+            // The external committer joins at the leftmost blank leaf. At this point all profiles
+            // of clients removed by this commit (including the sender's old entry) have been
+            // removed, so the new index is guaranteed to be vacant.
+            debug_assert!(!self.member_profiles.contains_key(&new_sender_index));
+            self.member_profiles.insert(new_sender_index, profile);
+        }
 
         Ok(processed_assisted_message_plus.serialized_mls_message)
     }

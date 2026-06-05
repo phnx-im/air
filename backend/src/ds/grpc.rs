@@ -746,6 +746,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .try_ref_into()
                     .invalid_tls("room_state")?,
             ),
+            indexed_encrypted_user_profile_keys: group_state
+                .member_profiles
+                .into_iter()
+                .map(|(index, profile)| IndexedEncryptedUserProfileKey {
+                    leaf_index: index.u32(),
+                    encrypted_user_profile_key: Some(profile.encrypted_user_profile_key.into()),
+                })
+                .collect(),
         }))
     }
 
@@ -795,6 +803,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .invalid_tls("room_state")?,
             ),
             proposals: commit_info.proposals.into_iter().map(From::from).collect(),
+            indexed_encrypted_user_profile_keys: group_state
+                .member_profiles
+                .into_iter()
+                .map(|(index, profile)| IndexedEncryptedUserProfileKey {
+                    leaf_index: index.u32(),
+                    encrypted_user_profile_key: Some(profile.encrypted_user_profile_key.into()),
+                })
+                .collect(),
         }))
     }
 
@@ -844,6 +860,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .invalid_tls("room_state")?,
             ),
             proposals: commit_info.proposals.into_iter().map(From::from).collect(),
+            indexed_encrypted_user_profile_keys: group_state
+                .member_profiles
+                .into_iter()
+                .map(|(index, profile)| IndexedEncryptedUserProfileKey {
+                    leaf_index: index.u32(),
+                    encrypted_user_profile_key: Some(profile.encrypted_user_profile_key.into()),
+                })
+                .collect(),
         }))
     }
 

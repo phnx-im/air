@@ -4,10 +4,15 @@
 
 //! Client API for the delivery service (DS)
 
+use std::collections::HashMap;
+
 use aircommon::{
     LibraryError,
     credentials::keys::ClientSigningKey,
-    crypto::{aead::keys::GroupStateEarKey, signatures::signable::Signable},
+    crypto::{
+        aead::keys::{EncryptedUserProfileKey, GroupStateEarKey},
+        signatures::signable::Signable,
+    },
     identifiers::{AttachmentId, QsReference, QualifiedGroupId, UserId},
     messages::{
         client_ds::UserProfileKeyUpdateParams,
@@ -31,9 +36,9 @@ use airprotos::{
         CollisionTags, ConnectionGroupInfoRequest, CreateApqGroupPayload, CreateGroupPayload,
         DeleteGroupPayload, ExternalCommitInfoRequest, GenerationCollisionDetailTag,
         GetAttachmentUrlPayload, GroupOperationPayload, GroupSessionData,
-        JoinConnectionGroupRequest, ProvisionAttachmentPayload, RequestGroupIdRequest,
-        ResyncPayload, SelfRemovePayload, SendMessagePayload, StorageObjectType,
-        TargetedMessagePayload, UpdateProfileKeyPayload, WelcomeInfoPayload,
+        IndexedEncryptedUserProfileKey, JoinConnectionGroupRequest, ProvisionAttachmentPayload,
+        RequestGroupIdRequest, ResyncPayload, SelfRemovePayload, SendMessagePayload,
+        StorageObjectType, TargetedMessagePayload, UpdateProfileKeyPayload, WelcomeInfoPayload,
     },
     validation::MissingFieldExt,
 };
@@ -322,17 +327,17 @@ impl ApiClient {
             .welcome_info(request)
             .await?
             .into_inner();
+        let (encrypted_user_profile_keys, indexed_encrypted_user_profile_keys) =
+            extract_encrypted_user_profile_keys(
+                response.encrypted_user_profile_keys,
+                response.indexed_encrypted_user_profile_keys,
+            )?;
         Ok(WelcomeInfoIn {
             ratchet_tree: response
                 .ratchet_tree
                 .ok_or(DsRequestError::UnexpectedResponse)?
                 .try_ref_into()?,
-            encrypted_user_profile_keys: response
-                .encrypted_user_profile_keys
-                .into_iter()
-                .map(TryFrom::try_from)
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|_| DsRequestError::UnexpectedResponse)?,
+            encrypted_user_profile_keys,
             room_state: VerifiedRoomState::verify(
                 response
                     .room_state
@@ -340,6 +345,7 @@ impl ApiClient {
                     .try_ref_into()?,
             )
             .map_err(|_| DsRequestError::UnexpectedResponse)?,
+            indexed_encrypted_user_profile_keys,
         })
     }
 
@@ -360,6 +366,13 @@ impl ApiClient {
             .external_commit_info(request)
             .await?
             .into_inner();
+
+        let (encrypted_user_profile_keys, indexed_encrypted_user_profile_keys) =
+            extract_encrypted_user_profile_keys(
+                response.encrypted_user_profile_keys,
+                response.indexed_encrypted_user_profile_keys,
+            )?;
+
         Ok(ExternalCommitInfoIn {
             verifiable_group_info: response
                 .group_info
@@ -369,12 +382,7 @@ impl ApiClient {
                 .ratchet_tree
                 .ok_or(DsRequestError::UnexpectedResponse)?
                 .try_ref_into()?,
-            encrypted_user_profile_keys: response
-                .encrypted_user_profile_keys
-                .into_iter()
-                .map(TryFrom::try_from)
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|_| DsRequestError::UnexpectedResponse)?,
+            encrypted_user_profile_keys,
             room_state: VerifiedRoomState::verify(
                 response
                     .room_state
@@ -383,6 +391,7 @@ impl ApiClient {
             )
             .map_err(|_| DsRequestError::UnexpectedResponse)?,
             proposals: response.proposals.into_iter().map(|m| m.tls).collect(),
+            indexed_encrypted_user_profile_keys,
         })
     }
 
@@ -403,6 +412,11 @@ impl ApiClient {
             .connection_group_info(request)
             .await?
             .into_inner();
+        let (encrypted_user_profile_keys, indexed_encrypted_user_profile_keys) =
+            extract_encrypted_user_profile_keys(
+                response.encrypted_user_profile_keys,
+                response.indexed_encrypted_user_profile_keys,
+            )?;
         Ok(ExternalCommitInfoIn {
             verifiable_group_info: response
                 .group_info
@@ -412,12 +426,7 @@ impl ApiClient {
                 .ratchet_tree
                 .ok_or(DsRequestError::UnexpectedResponse)?
                 .try_ref_into()?,
-            encrypted_user_profile_keys: response
-                .encrypted_user_profile_keys
-                .into_iter()
-                .map(TryFrom::try_from)
-                .collect::<Result<Vec<_>, _>>()
-                .map_err(|_| DsRequestError::UnexpectedResponse)?,
+            encrypted_user_profile_keys,
             room_state: VerifiedRoomState::verify(
                 response
                     .room_state
@@ -426,6 +435,7 @@ impl ApiClient {
             )
             .map_err(|_| DsRequestError::UnexpectedResponse)?,
             proposals: response.proposals.into_iter().map(|m| m.tls).collect(),
+            indexed_encrypted_user_profile_keys,
         })
     }
 
@@ -762,4 +772,45 @@ impl ApiClient {
             .into_inner();
         Ok(response.download_url)
     }
+}
+
+fn extract_encrypted_user_profile_keys(
+    encrypted_user_profile_keys: Vec<airprotos::delivery_service::v1::EncryptedUserProfileKey>,
+    indexed_encrypted_user_profile_keys: Vec<IndexedEncryptedUserProfileKey>,
+) -> Result<
+    (
+        Vec<EncryptedUserProfileKey>,
+        HashMap<LeafNodeIndex, EncryptedUserProfileKey>,
+    ),
+    DsRequestError,
+> {
+    let (encrypted_user_profile_keys, indexed_encrypted_user_profile_keys) =
+        if !indexed_encrypted_user_profile_keys.is_empty() {
+            let indexed_encrypted_user_profile_keys = indexed_encrypted_user_profile_keys
+                .into_iter()
+                .filter_map(
+                    |IndexedEncryptedUserProfileKey {
+                         leaf_index,
+                         encrypted_user_profile_key,
+                     }| {
+                        Some((
+                            LeafNodeIndex::new(leaf_index),
+                            encrypted_user_profile_key?.try_into().ok()?,
+                        ))
+                    },
+                )
+                .collect();
+            (Default::default(), indexed_encrypted_user_profile_keys)
+        } else {
+            let encrypted_user_profile_keys = encrypted_user_profile_keys
+                .into_iter()
+                .map(TryFrom::try_from)
+                .collect::<Result<Vec<_>, _>>()
+                .map_err(|_| DsRequestError::UnexpectedResponse)?;
+            (encrypted_user_profile_keys, Default::default())
+        };
+    Ok((
+        encrypted_user_profile_keys,
+        indexed_encrypted_user_profile_keys,
+    ))
 }
