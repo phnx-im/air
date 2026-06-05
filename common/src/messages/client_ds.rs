@@ -8,6 +8,7 @@
 //! module, to allow re-use by the client implementation.
 
 use apqmls::messages::{ApqMlsMessageIn, ApqWelcome};
+use enumset::{EnumSet, EnumSetType};
 use mls_assist::{
     messages::{AssistedMessageIn, AssistedWelcome, SerializedMlsMessage},
     openmls::prelude::{GroupEpoch, GroupId, LeafNodeIndex, MlsMessageIn, RatchetTreeIn},
@@ -449,4 +450,39 @@ pub struct ApqWelcomeBundle {
     pub encrypted_attribution_info: EncryptedWelcomeAttributionInfo,
     // This part is added by the DS later.
     pub encrypted_joiner_info: EncryptedDsJoinerInformation,
+}
+
+#[derive(Debug, EnumSetType)]
+pub enum GenerationCollisionDetailTag {
+    Tag1,
+    Tag2,
+}
+
+#[derive(Debug, Clone, Default)]
+pub struct GenerationCollisionDetailTags(pub(crate) EnumSet<GenerationCollisionDetailTag>);
+
+impl GenerationCollisionDetailTags {
+    pub fn insert(&mut self, tag: GenerationCollisionDetailTag) {
+        self.0.insert(tag);
+    }
+
+    pub fn is_empty(&self) -> bool {
+        self.0.is_empty()
+    }
+
+    pub fn contains(&self, other: GenerationCollisionDetailTag) -> bool {
+        self.0.contains(other)
+    }
+}
+
+impl From<u32> for GenerationCollisionDetailTags {
+    fn from(bits: u32) -> Self {
+        Self(EnumSet::from_u32_truncated(bits))
+    }
+}
+
+impl Into<u32> for GenerationCollisionDetailTags {
+    fn into(self) -> u32 {
+        self.0.as_u32_truncated()
+    }
 }

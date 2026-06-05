@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use aircommon::messages::client_ds::GenerationCollisionDetailTag;
 use aircommon::messages::client_ds_out::{SendMessageCollisionTag, SendMessageCollisionTags};
 use aircoreclient::{ChatId, ChatMessage, MimiContentExt, ReadReceiptsSetting, clients::CoreUser};
-use airprotos::delivery_service::v1::GenerationCollisionDetailTag;
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use mimi_content::{MessageStatus, MimiContent};
 use rand::{Rng, distributions::Alphanumeric, rngs::OsRng};
@@ -976,8 +976,114 @@ async fn delete_message_with_attachment() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Generation collision detection", skip_all)]
-async fn generation_collision() {
+#[tracing::instrument(name = "Generation collision: no collision", skip_all)]
+async fn generation_collision_no_collision() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+
+    alice_user
+        .send_message_with_fixed_collision_tags(
+            chat_id,
+            SendMessageCollisionTags {
+                tag1: SendMessageCollisionTag::new([0xAAu8; 32]),
+                tag2: SendMessageCollisionTag::new([0xBBu8; 32]),
+            },
+        )
+        .await
+        .expect("send with new tags should succeed");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Generation collision: tag1 collides", skip_all)]
+async fn generation_collision_tag1_collides() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+
+    alice_user
+        .send_message_with_fixed_collision_tags(
+            chat_id,
+            SendMessageCollisionTags {
+                tag1: SendMessageCollisionTag::new([0xAAu8; 32]),
+                tag2: SendMessageCollisionTag::new([0xBBu8; 32]),
+            },
+        )
+        .await
+        .expect("first send should succeed");
+
+    let error = alice_user
+        .send_message_with_fixed_collision_tags(
+            chat_id,
+            SendMessageCollisionTags {
+                tag1: SendMessageCollisionTag::new([0xAAu8; 32]),
+                tag2: SendMessageCollisionTag::new([0xCCu8; 32]),
+            },
+        )
+        .await
+        .expect_err("send with colliding tag1 should be rejected");
+
+    assert!(
+        error.is_generation_collision(GenerationCollisionDetailTag::Tag1),
+        "expected Tag1 collision, got: {error:?}"
+    );
+    assert!(
+        !error.is_generation_collision(GenerationCollisionDetailTag::Tag2),
+        "expected no Tag2 collision, got: {error:?}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Generation collision: tag2 collides", skip_all)]
+async fn generation_collision_tag2_collides() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+
+    alice_user
+        .send_message_with_fixed_collision_tags(
+            chat_id,
+            SendMessageCollisionTags {
+                tag1: SendMessageCollisionTag::new([0xAAu8; 32]),
+                tag2: SendMessageCollisionTag::new([0xBBu8; 32]),
+            },
+        )
+        .await
+        .expect("first send should succeed");
+
+    let error = alice_user
+        .send_message_with_fixed_collision_tags(
+            chat_id,
+            SendMessageCollisionTags {
+                tag1: SendMessageCollisionTag::new([0xCCu8; 32]),
+                tag2: SendMessageCollisionTag::new([0xBBu8; 32]),
+            },
+        )
+        .await
+        .expect_err("send with colliding tag2 should be rejected");
+
+    assert!(
+        !error.is_generation_collision(GenerationCollisionDetailTag::Tag1),
+        "expected no Tag1 collision, got: {error:?}"
+    );
+    assert!(
+        error.is_generation_collision(GenerationCollisionDetailTag::Tag2),
+        "expected Tag2 collision, got: {error:?}"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Generation collision: both tags collide", skip_all)]
+async fn generation_collision_both_tags_collide() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
@@ -990,14 +1096,11 @@ async fn generation_collision() {
         tag2: SendMessageCollisionTag::new([0xBBu8; 32]),
     };
 
-    // First send: DS stores the tags and fans out the message.
     alice_user
         .send_message_with_fixed_collision_tags(chat_id, make_tags())
         .await
-        .expect("first send with these tags should succeed");
+        .expect("first send should succeed");
 
-    // Second send with the same tags: simulates a second emulator client
-    // trying to use the same generation. DS must reject it.
     let error = alice_user
         .send_message_with_fixed_collision_tags(chat_id, make_tags())
         .await
@@ -1005,6 +1108,10 @@ async fn generation_collision() {
 
     assert!(
         error.is_generation_collision(GenerationCollisionDetailTag::Tag1),
-        "expected GenerationCollision error, got: {error:?}"
+        "expected Tag1 collision, got: {error:?}"
+    );
+    assert!(
+        error.is_generation_collision(GenerationCollisionDetailTag::Tag2),
+        "expected Tag2 collision, got: {error:?}"
     );
 }

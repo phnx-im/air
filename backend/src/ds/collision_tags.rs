@@ -2,13 +2,12 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use aircommon::messages::client_ds::{GenerationCollisionDetailTag, GenerationCollisionDetailTags};
 use airprotos::{
     common::v1::{
         GenerationCollisionDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
     },
-    delivery_service::v1::{
-        CollisionTags, GenerationCollisionDetailTag, GenerationCollisionDetailTags,
-    },
+    delivery_service::v1::CollisionTags,
 };
 use prost::Message as _;
 use sqlx::{PgExecutor, PgPool};

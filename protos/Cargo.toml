@@ -17,7 +17,6 @@ apqmls.workspace = true
 chrono.workspace = true
 derive_more.workspace = true
 displaydoc.workspace = true
-enumset.workspace = true
 mimi-room-policy.workspace = true
 mimi_content.workspace = true
 mls-assist.workspace = true

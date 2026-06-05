@@ -15,7 +15,7 @@ use aircommon::{
     },
     identifiers::{AttachmentId, QsReference, QualifiedGroupId, UserId},
     messages::{
-        client_ds::UserProfileKeyUpdateParams,
+        client_ds::{GenerationCollisionDetailTag, UserProfileKeyUpdateParams},
         client_ds_out::{
             ApqGroupOperationParamsOut, CreateGroupParamsOut, DeleteGroupParamsOut,
             ExternalCommitInfoIn, GroupOperationParamsOut, SelfRemoveParamsOut,
@@ -34,11 +34,11 @@ use airprotos::{
     delivery_service::v1::{
         AddUsersInfo, ApqAddUsersInfo, ApqAssistedMlsMessage, ApqGroupOperationPayload,
         CollisionTags, ConnectionGroupInfoRequest, CreateApqGroupPayload, CreateGroupPayload,
-        DeleteGroupPayload, ExternalCommitInfoRequest, GenerationCollisionDetailTag,
-        GetAttachmentUrlPayload, GroupOperationPayload, GroupSessionData,
-        IndexedEncryptedUserProfileKey, JoinConnectionGroupRequest, ProvisionAttachmentPayload,
-        RequestGroupIdRequest, ResyncPayload, SelfRemovePayload, SendMessagePayload,
-        StorageObjectType, TargetedMessagePayload, UpdateProfileKeyPayload, WelcomeInfoPayload,
+        DeleteGroupPayload, ExternalCommitInfoRequest, GetAttachmentUrlPayload,
+        GroupOperationPayload, GroupSessionData, IndexedEncryptedUserProfileKey,
+        JoinConnectionGroupRequest, ProvisionAttachmentPayload, RequestGroupIdRequest,
+        ResyncPayload, SelfRemovePayload, SendMessagePayload, StorageObjectType,
+        TargetedMessagePayload, UpdateProfileKeyPayload, WelcomeInfoPayload,
     },
     validation::MissingFieldExt,
 };
