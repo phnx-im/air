@@ -44,7 +44,7 @@ impl CoreUser {
         Ok(AttachmentRecord::status(self.db().read().await?, attachment_id).await?)
     }
 
-    /// Returns the local attachment IDs for the given message IDs.
+    /// Returns the attachment IDs for the given message IDs.
     ///
     /// IDs are ordered by the position in the mimi content.
     pub async fn attachment_ids_for_message(&self, message_id: MessageId) -> Vec<AttachmentId> {
@@ -56,7 +56,7 @@ impl CoreUser {
             .unwrap_or_default()
     }
 
-    /// Returns the local attachment IDs for the given contiguous range of messages.
+    /// Returns the attachment IDs for the given contiguous range of messages.
     ///
     /// The upper bound is inclusive.
     ///
@@ -76,19 +76,18 @@ impl CoreUser {
     }
 }
 
-/// A local attachment ID
+/// An attachment ID
 ///
 /// Uniquely identifies an attachment on this local client. Must *not* be shared outside of this
 /// client.
-///
-/// It can coincide with the shared attachment ID, but it is not required to do so.
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct AttachmentId {
+    // Public for the FRB mirror
     pub uuid: Uuid,
 }
 
 impl AttachmentId {
-    pub fn new(uuid: Uuid) -> Self {
+    pub(crate) fn from_raw(uuid: Uuid) -> Self {
         Self { uuid }
     }
 

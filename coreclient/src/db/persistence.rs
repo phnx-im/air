@@ -95,7 +95,7 @@ impl SqlDbNotification {
                 DbEntityId::Message(MessageId::new(Uuid::from_slice(&entity_id)?))
             }
             DbEntityKind::Attachment => {
-                DbEntityId::Attachment(AttachmentId::new(Uuid::from_slice(&entity_id)?))
+                DbEntityId::Attachment(AttachmentId::from_raw(Uuid::from_slice(&entity_id)?))
             }
         };
         let mut op: EnumSet<DbOperation> = Default::default();
