@@ -4,8 +4,8 @@
 PRAGMA defer_foreign_keys = ON;
 
 CREATE TABLE attachment_new (
-    local_attachment_id BLOB NOT NULL PRIMARY KEY,
-    attachment_id BLOB UNIQUE,
+    attachment_id BLOB NOT NULL PRIMARY KEY,
+    remote_attachment_id BLOB UNIQUE,
     chat_id BLOB NOT NULL,
     message_id BLOB NOT NULL,
     content_type TEXT NOT NULL,
@@ -46,6 +46,10 @@ WHERE
     status = 1;
 
 CREATE INDEX idx_attachment_message_id ON attachment (message_id);
+
+-- The pending attachment is keyed by the server-assigned id
+ALTER TABLE pending_attachment
+RENAME COLUMN attachment_id TO remote_attachment_id;
 
 -- chat message queue does not have to clean up attachments anymore
 ALTER TABLE chat_message_queue
