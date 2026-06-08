@@ -40,7 +40,7 @@ use url::Url;
 
 use crate::{
     AttachmentContent, AttachmentProgressEvent, AttachmentStatus, AttachmentUrl, Chat, ChatId,
-    ChatMessage, MessageId,
+    ChatMessage, LocalAttachmentId, MessageId,
     clients::{
         CoreUser,
         attachment::{
@@ -107,7 +107,7 @@ impl CoreUser {
     ) -> anyhow::Result<
         Result<
             (
-                AttachmentId,
+                LocalAttachmentId,
                 AttachmentProgress,
                 impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
             ),
@@ -140,6 +140,7 @@ impl CoreUser {
         };
 
         // store local attachment message
+        let local_attachment_id = metadata.local_attachment_id;
         let attachment_id = metadata.attachment_id;
         let content_bytes = mem::replace(&mut attachment.content.bytes, Vec::new().into());
         let content_type = attachment.content_type;
@@ -167,7 +168,8 @@ impl CoreUser {
                 // store attachment locally
                 // (must be done after the message is stored locally due to foreign key constraints)
                 let record = AttachmentRecord {
-                    attachment_id,
+                    local_attachment_id,
+                    attachment_id: Some(attachment_id),
                     chat_id,
                     message_id,
                     content_type: content_type.to_owned(),
@@ -182,17 +184,16 @@ impl CoreUser {
 
         // upload the encrypted attachment
         let (progress, task) =
-            self.upload_attachment_task(attachment_id, message, ciphertext, response);
-        Ok(Ok((attachment_id, progress, task)))
+            self.upload_attachment_task(local_attachment_id, message, ciphertext, response);
+        Ok(Ok((local_attachment_id, progress, task)))
     }
 
     pub async fn retry_upload_chat_attachment(
         &self,
-        attachment_id: AttachmentId,
+        local_attachment_id: LocalAttachmentId,
     ) -> anyhow::Result<
         Result<
             (
-                AttachmentId,
                 AttachmentProgress,
                 impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
             ),
@@ -203,12 +204,14 @@ impl CoreUser {
         let (group, mut message, content) = self
             .db()
             .with_read_transaction(async |txn| {
-                let content = match self.load_attachment(attachment_id).await? {
+                let content = match self.load_attachment(local_attachment_id).await? {
                     AttachmentContent::UploadFailed(bytes) => AttachmentBytes::from(bytes),
-                    status => bail!("Unexpected attachment {attachment_id:?} status {status:?}"),
+                    status => {
+                        bail!("Unexpected attachment {local_attachment_id:?} status {status:?}")
+                    }
                 };
 
-                let attachment_record = AttachmentRecord::load(&mut *txn, attachment_id)
+                let attachment_record = AttachmentRecord::load(&mut *txn, local_attachment_id)
                     .await?
                     .context("Attachment not found")?;
                 ensure!(
@@ -276,10 +279,12 @@ impl CoreUser {
             self.db()
                 .with_write_transaction(async |txn| -> anyhow::Result<()> {
                     message.update(&mut *txn).await?;
-                    AttachmentRecord::copy(&mut *txn, attachment_id, metadata.attachment_id, false)
-                        .await?;
-                    AttachmentRecord::delete(txn, attachment_id, false).await?;
-
+                    AttachmentRecord::update_attachment_id(
+                        &mut *txn,
+                        metadata.local_attachment_id,
+                        metadata.attachment_id,
+                    )
+                    .await?;
                     Ok(())
                 })
                 .await?;
@@ -288,14 +293,18 @@ impl CoreUser {
         }
 
         // upload task
-        let (progress, upload_task) =
-            self.upload_attachment_task(metadata.attachment_id, message, ciphertext, response);
-        Ok(Ok((metadata.attachment_id, progress, upload_task)))
+        let (progress, upload_task) = self.upload_attachment_task(
+            metadata.local_attachment_id,
+            message,
+            ciphertext,
+            response,
+        );
+        Ok(Ok((progress, upload_task)))
     }
 
     fn upload_attachment_task(
         &self,
-        attachment_id: AttachmentId,
+        local_attachment_id: LocalAttachmentId,
         message: ChatMessage,
         ciphertext: Vec<u8>,
         provision_response: ProvisionAttachmentResponse,
@@ -322,7 +331,7 @@ impl CoreUser {
                 Ok(()) => {
                     AttachmentRecord::update_status(
                         connection,
-                        attachment_id,
+                        local_attachment_id,
                         AttachmentStatus::Ready,
                     )
                     .await
@@ -331,7 +340,7 @@ impl CoreUser {
                 Err(error) => {
                     AttachmentRecord::update_status(
                         connection,
-                        attachment_id,
+                        local_attachment_id,
                         AttachmentStatus::UploadFailed,
                     )
                     .await
@@ -474,6 +483,7 @@ impl ProcessedAttachment {
 
 /// Metadata of an encrypted and uploaded attachment
 pub struct AttachmentMetadata {
+    local_attachment_id: LocalAttachmentId,
     attachment_id: AttachmentId,
     key: AttachmentEarKey,
     nonce: [u8; 12],
@@ -547,9 +557,11 @@ async fn encrypt_and_provision(
         }
     };
 
+    let local_attachment_id = LocalAttachmentId::random();
     let attachment_id = AttachmentId::new(response.object_id.context("no object id")?.into());
     let attachment = ProvisionedAttachment {
         metadata: AttachmentMetadata {
+            local_attachment_id,
             attachment_id,
             key,
             nonce,

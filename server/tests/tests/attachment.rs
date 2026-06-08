@@ -53,10 +53,9 @@ async fn send_attachment() {
         .await
         .unwrap();
 
-    let attachment_id = match &external_part {
+    match &external_part {
         NestedPart::ExternalPart {
             content_type,
-            url,
             filename,
             size,
             content_hash,
@@ -68,8 +67,6 @@ async fn send_attachment() {
 
             let sha256sum = Sha256::digest(&attachment);
             assert_eq!(sha256sum.as_slice(), content_hash.as_slice());
-
-            url.parse().unwrap()
         }
         _ => panic!("unexpected attachment type"),
     };
@@ -79,9 +76,9 @@ async fn send_attachment() {
 
     let pending_attachments = bob.pending_attachments().await.unwrap();
     assert_eq!(pending_attachments.len(), 1);
-    assert_eq!(pending_attachments[0], attachment_id);
+    let local_attachment_id = pending_attachments[0];
 
-    let (progress, download_task) = bob.download_attachment(attachment_id);
+    let (progress, download_task) = bob.download_attachment(local_attachment_id);
 
     let progress_events = progress.stream().collect::<Vec<_>>();
 
@@ -98,7 +95,7 @@ async fn send_attachment() {
     );
 
     let content = bob
-        .load_attachment(attachment_id)
+        .load_attachment(local_attachment_id)
         .await
         .unwrap()
         .into_bytes()
@@ -143,10 +140,9 @@ async fn send_image_attachment() {
     let alice = setup.get_user(&alice);
     alice.user.outbound_service().run_once().await;
 
-    let attachment_id = match &external_part {
+    match &external_part {
         NestedPart::ExternalPart {
             content_type,
-            url,
             filename,
             size,
             content_hash,
@@ -164,8 +160,6 @@ async fn send_image_attachment() {
                     .unwrap()
                     .as_slice()
             );
-
-            url.parse().unwrap()
         }
         _ => panic!("unexpected attachment type"),
     };
@@ -173,7 +167,11 @@ async fn send_image_attachment() {
     let bob_test_user = setup.get_user(&bob);
     let bob = &bob_test_user.user;
 
-    let (progress, download_task) = bob.download_attachment(attachment_id);
+    let pending_attachments = bob.pending_attachments().await.unwrap();
+    assert_eq!(pending_attachments.len(), 1);
+    let local_attachment_id = pending_attachments[0];
+
+    let (progress, download_task) = bob.download_attachment(local_attachment_id);
 
     let progress_events = progress.stream().collect::<Vec<_>>();
 
@@ -190,7 +188,7 @@ async fn send_image_attachment() {
     );
 
     let content = bob
-        .load_attachment(attachment_id)
+        .load_attachment(local_attachment_id)
         .await
         .unwrap()
         .into_bytes()

@@ -6,18 +6,15 @@
 
 use std::{collections::HashMap, path::PathBuf, time::Duration};
 
-use aircommon::{
-    OpenMlsRand, RustCrypto,
-    identifiers::{AttachmentId, UserId},
-};
+use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId};
 pub use aircoreclient::{
     AcceptContactRequestError, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
     ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqDebugInfo,
     RequiredDebugCapabilities,
 };
 use aircoreclient::{
-    AttachmentProgress, Chat, ChatId, ChatMessage, MessageId, ProvisionAttachmentError,
-    UploadTaskError, clients::CoreUser,
+    AttachmentProgress, Chat, ChatId, ChatMessage, LocalAttachmentId, MessageId,
+    ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
 };
 use airprotos::client::component::AirComponent;
 use anyhow::{Context as _, bail};
@@ -28,7 +25,14 @@ use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
 use tracing::{error, info, warn};
 
-use crate::{StreamSink, api::types::UiInReplyToMessage, mark_as_read::MarkAsReadState};
+use crate::{
+    StreamSink,
+    api::{
+        message_content::UnresolvedMimiContent,
+        types::{UiChatMessage, UiInReplyToMessage},
+    },
+    mark_as_read::MarkAsReadState,
+};
 use crate::{api::types::UiMessageDraft, message_content::MimiContentExt};
 use crate::{
     api::{
@@ -267,7 +271,7 @@ impl ChatDetailsCubitBase {
         path: String,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
         let path = PathBuf::from(path);
-        let (attachment_id, progress, upload_task) = match Box::pin(
+        let (local_attachment_id, progress, upload_task) = match Box::pin(
             self.context
                 .core_user
                 .upload_chat_attachment(self.context.chat_id, &path),
@@ -277,56 +281,57 @@ impl ChatDetailsCubitBase {
             Ok(result) => result,
             Err(error) => return error.into_ui_result(),
         };
-        self.upload_attachment_impl(attachment_id, progress, upload_task)
+        self.upload_attachment_impl(local_attachment_id, progress, upload_task)
             .await?;
         Ok(None)
     }
 
     pub async fn retry_upload_attachment(
         &self,
-        attachment_id: AttachmentId,
+        local_attachment_id: LocalAttachmentId,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
-        let (new_attachment_id, progress, upload_task) = match self
+        let (progress, upload_task) = match self
             .context
             .core_user
-            .retry_upload_chat_attachment(attachment_id)
+            .retry_upload_chat_attachment(local_attachment_id)
             .await?
         {
             Ok(result) => result,
             Err(error) => return error.into_ui_result(),
         };
-        self.upload_attachment_impl(new_attachment_id, progress, upload_task)
+        self.upload_attachment_impl(local_attachment_id, progress, upload_task)
             .await?;
         Ok(None)
     }
 
     async fn upload_attachment_impl(
         &self,
-        attachment_id: AttachmentId,
+        local_attachment_id: LocalAttachmentId,
         progress: AttachmentProgress,
         upload_task: impl Future<Output = Result<ChatMessage, UploadTaskError>> + Send + 'static,
     ) -> anyhow::Result<()> {
         let handle = AttachmentTaskHandle::new(progress);
         let cancel = handle.cancellation_token().clone();
-        self.attachment_in_progress.insert(attachment_id, handle);
+        self.attachment_in_progress
+            .insert(local_attachment_id, handle);
         match cancel.run_until_cancelled_owned(upload_task).await {
             Some(Ok(message)) => {
                 self.context
                     .core_user
                     .outbound_service()
-                    .enqueue_chat_message(message.id(), Some(attachment_id))
+                    .enqueue_chat_message(message.id())
                     .await?;
             }
             Some(Err(UploadTaskError { message_id, error })) => {
-                error!(%error, ?attachment_id, "Failed to upload attachment");
+                error!(%error, ?local_attachment_id, "Failed to upload attachment");
                 self.context
                     .core_user
                     .outbound_service()
-                    .fail_enqueued_chat_message(message_id, Some(attachment_id))
+                    .fail_enqueued_chat_message(message_id)
                     .await?;
             }
             None => {
-                info!(?attachment_id, "Upload was cancelled");
+                info!(?local_attachment_id, "Upload was cancelled");
             }
         }
         Ok(())
@@ -531,7 +536,8 @@ impl ChatDetailsCubitBase {
                 UiInReplyToMessage::Resolved {
                     message_id,
                     sender: sender.into(),
-                    mimi_content: mimi_content.into(),
+                    // Don't resolve attachment IDs
+                    mimi_content: UnresolvedMimiContent::from(mimi_content).resolve(&[]),
                 },
             ));
             draft.is_committed = false;
@@ -756,7 +762,7 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         last_used,
         messages_count,
         unread_messages,
-        last_message: last_message.map(From::from),
+        last_message: last_message.map(UiChatMessage::from_message_without_attachments),
         draft,
         is_apq,
     }

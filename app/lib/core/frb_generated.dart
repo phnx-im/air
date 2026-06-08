@@ -104,19 +104,19 @@ class RustLib extends BaseEntrypoint<RustLibApi, RustLibApiImpl, RustLibWire> {
 abstract class RustLibApi extends BaseApi {
   Future<void> crateApiAttachmentsRepositoryAttachmentsRepositoryCancel({
     required AttachmentsRepository that,
-    required AttachmentId attachmentId,
+    required LocalAttachmentId localAttachmentId,
   });
 
   Future<Uint8List?>
   crateApiAttachmentsRepositoryAttachmentsRepositoryLoadAttachment({
     required AttachmentsRepository that,
-    required AttachmentId attachmentId,
+    required LocalAttachmentId localAttachmentId,
   });
 
   Future<LoadedImageAttachment>
   crateApiAttachmentsRepositoryAttachmentsRepositoryLoadImageAttachment({
     required AttachmentsRepository that,
-    required AttachmentId attachmentId,
+    required LocalAttachmentId localAttachmentId,
     required bool retryDownloadIfFailed,
     required FutureOr<void> Function(BigInt) chunkEventCallback,
   });
@@ -128,14 +128,14 @@ abstract class RustLibApi extends BaseApi {
   Future<void>
   crateApiAttachmentsRepositoryAttachmentsRepositorySaveAttachment({
     required AttachmentsRepository that,
-    required AttachmentId attachmentId,
+    required LocalAttachmentId localAttachmentId,
     required String path,
   });
 
   Stream<UiAttachmentStatus>
   crateApiAttachmentsRepositoryAttachmentsRepositoryStatusStream({
     required AttachmentsRepository that,
-    required AttachmentId attachmentId,
+    required LocalAttachmentId localAttachmentId,
   });
 
   Future<AcceptContactRequestError?>
@@ -210,7 +210,7 @@ abstract class RustLibApi extends BaseApi {
   Future<UploadAttachmentError?>
   crateApiChatDetailsCubitChatDetailsCubitBaseRetryUploadAttachment({
     required ChatDetailsCubitBase that,
-    required AttachmentId attachmentId,
+    required LocalAttachmentId localAttachmentId,
   });
 
   Future<void> crateApiChatDetailsCubitChatDetailsCubitBaseSendMessage({
@@ -1006,7 +1006,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @override
   Future<void> crateApiAttachmentsRepositoryAttachmentsRepositoryCancel({
     required AttachmentsRepository that,
-    required AttachmentId attachmentId,
+    required LocalAttachmentId localAttachmentId,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -1016,7 +1016,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          sse_encode_box_autoadd_attachment_id(attachmentId, serializer);
+          sse_encode_box_autoadd_local_attachment_id(
+            localAttachmentId,
+            serializer,
+          );
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -1030,7 +1033,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ),
         constMeta:
             kCrateApiAttachmentsRepositoryAttachmentsRepositoryCancelConstMeta,
-        argValues: [that, attachmentId],
+        argValues: [that, localAttachmentId],
         apiImpl: this,
       ),
     );
@@ -1040,14 +1043,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiAttachmentsRepositoryAttachmentsRepositoryCancelConstMeta =>
       const TaskConstMeta(
         debugName: "AttachmentsRepository_cancel",
-        argNames: ["that", "attachmentId"],
+        argNames: ["that", "localAttachmentId"],
       );
 
   @override
   Future<Uint8List?>
   crateApiAttachmentsRepositoryAttachmentsRepositoryLoadAttachment({
     required AttachmentsRepository that,
-    required AttachmentId attachmentId,
+    required LocalAttachmentId localAttachmentId,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -1057,7 +1060,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          sse_encode_box_autoadd_attachment_id(attachmentId, serializer);
+          sse_encode_box_autoadd_local_attachment_id(
+            localAttachmentId,
+            serializer,
+          );
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -1071,7 +1077,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ),
         constMeta:
             kCrateApiAttachmentsRepositoryAttachmentsRepositoryLoadAttachmentConstMeta,
-        argValues: [that, attachmentId],
+        argValues: [that, localAttachmentId],
         apiImpl: this,
       ),
     );
@@ -1081,14 +1087,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiAttachmentsRepositoryAttachmentsRepositoryLoadAttachmentConstMeta =>
       const TaskConstMeta(
         debugName: "AttachmentsRepository_load_attachment",
-        argNames: ["that", "attachmentId"],
+        argNames: ["that", "localAttachmentId"],
       );
 
   @override
   Future<LoadedImageAttachment>
   crateApiAttachmentsRepositoryAttachmentsRepositoryLoadImageAttachment({
     required AttachmentsRepository that,
-    required AttachmentId attachmentId,
+    required LocalAttachmentId localAttachmentId,
     required bool retryDownloadIfFailed,
     required FutureOr<void> Function(BigInt) chunkEventCallback,
   }) {
@@ -1100,7 +1106,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          sse_encode_box_autoadd_attachment_id(attachmentId, serializer);
+          sse_encode_box_autoadd_local_attachment_id(
+            localAttachmentId,
+            serializer,
+          );
           sse_encode_bool(retryDownloadIfFailed, serializer);
           sse_encode_DartFn_Inputs_u_64_Output_unit_AnyhowException(
             chunkEventCallback,
@@ -1121,7 +1130,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             kCrateApiAttachmentsRepositoryAttachmentsRepositoryLoadImageAttachmentConstMeta,
         argValues: [
           that,
-          attachmentId,
+          localAttachmentId,
           retryDownloadIfFailed,
           chunkEventCallback,
         ],
@@ -1136,7 +1145,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         debugName: "AttachmentsRepository_load_image_attachment",
         argNames: [
           "that",
-          "attachmentId",
+          "localAttachmentId",
           "retryDownloadIfFailed",
           "chunkEventCallback",
         ],
@@ -1180,7 +1189,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Future<void>
   crateApiAttachmentsRepositoryAttachmentsRepositorySaveAttachment({
     required AttachmentsRepository that,
-    required AttachmentId attachmentId,
+    required LocalAttachmentId localAttachmentId,
     required String path,
   }) {
     return handler.executeNormal(
@@ -1191,7 +1200,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          sse_encode_box_autoadd_attachment_id(attachmentId, serializer);
+          sse_encode_box_autoadd_local_attachment_id(
+            localAttachmentId,
+            serializer,
+          );
           sse_encode_String(path, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
@@ -1206,7 +1218,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ),
         constMeta:
             kCrateApiAttachmentsRepositoryAttachmentsRepositorySaveAttachmentConstMeta,
-        argValues: [that, attachmentId, path],
+        argValues: [that, localAttachmentId, path],
         apiImpl: this,
       ),
     );
@@ -1216,14 +1228,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiAttachmentsRepositoryAttachmentsRepositorySaveAttachmentConstMeta =>
       const TaskConstMeta(
         debugName: "AttachmentsRepository_save_attachment",
-        argNames: ["that", "attachmentId", "path"],
+        argNames: ["that", "localAttachmentId", "path"],
       );
 
   @override
   Stream<UiAttachmentStatus>
   crateApiAttachmentsRepositoryAttachmentsRepositoryStatusStream({
     required AttachmentsRepository that,
-    required AttachmentId attachmentId,
+    required LocalAttachmentId localAttachmentId,
   }) {
     final sink = RustStreamSink<UiAttachmentStatus>();
     unawaited(
@@ -1235,7 +1247,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
               that,
               serializer,
             );
-            sse_encode_box_autoadd_attachment_id(attachmentId, serializer);
+            sse_encode_box_autoadd_local_attachment_id(
+              localAttachmentId,
+              serializer,
+            );
             sse_encode_StreamSink_ui_attachment_status_Sse(sink, serializer);
             pdeCallFfi(
               generalizedFrbRustBinding,
@@ -1250,7 +1265,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           ),
           constMeta:
               kCrateApiAttachmentsRepositoryAttachmentsRepositoryStatusStreamConstMeta,
-          argValues: [that, attachmentId, sink],
+          argValues: [that, localAttachmentId, sink],
           apiImpl: this,
         ),
       ),
@@ -1262,7 +1277,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiAttachmentsRepositoryAttachmentsRepositoryStatusStreamConstMeta =>
       const TaskConstMeta(
         debugName: "AttachmentsRepository_status_stream",
-        argNames: ["that", "attachmentId", "sink"],
+        argNames: ["that", "localAttachmentId", "sink"],
       );
 
   @override
@@ -1837,7 +1852,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   Future<UploadAttachmentError?>
   crateApiChatDetailsCubitChatDetailsCubitBaseRetryUploadAttachment({
     required ChatDetailsCubitBase that,
-    required AttachmentId attachmentId,
+    required LocalAttachmentId localAttachmentId,
   }) {
     return handler.executeNormal(
       NormalTask(
@@ -1847,7 +1862,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
-          sse_encode_box_autoadd_attachment_id(attachmentId, serializer);
+          sse_encode_box_autoadd_local_attachment_id(
+            localAttachmentId,
+            serializer,
+          );
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -1861,7 +1879,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ),
         constMeta:
             kCrateApiChatDetailsCubitChatDetailsCubitBaseRetryUploadAttachmentConstMeta,
-        argValues: [that, attachmentId],
+        argValues: [that, localAttachmentId],
         apiImpl: this,
       ),
     );
@@ -1871,7 +1889,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiChatDetailsCubitChatDetailsCubitBaseRetryUploadAttachmentConstMeta =>
       const TaskConstMeta(
         debugName: "ChatDetailsCubitBase_retry_upload_attachment",
-        argNames: ["that", "attachmentId"],
+        argNames: ["that", "localAttachmentId"],
       );
 
   @override
@@ -8355,15 +8373,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AttachmentId dco_decode_attachment_id(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    final arr = raw as List<dynamic>;
-    if (arr.length != 1)
-      throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
-    return AttachmentId(uuid: dco_decode_Uuid(arr[0]));
-  }
-
-  @protected
   BlockElement dco_decode_block_element(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
@@ -8478,12 +8487,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AttachmentId dco_decode_box_autoadd_attachment_id(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_attachment_id(raw);
-  }
-
-  @protected
   bool dco_decode_box_autoadd_bool(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw as bool;
@@ -8558,6 +8561,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   InviteUsersError dco_decode_box_autoadd_invite_users_error(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return dco_decode_invite_users_error(raw);
+  }
+
+  @protected
+  LocalAttachmentId dco_decode_box_autoadd_local_attachment_id(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_local_attachment_id(raw);
   }
 
   @protected
@@ -9192,6 +9201,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       bytes: dco_decode_list_prim_u_8_strict(arr[0]),
       isAnimated: dco_decode_bool(arr[1]),
     );
+  }
+
+  @protected
+  LocalAttachmentId dco_decode_local_attachment_id(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 1)
+      throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
+    return LocalAttachmentId(uuid: dco_decode_Uuid(arr[0]));
   }
 
   @protected
@@ -9865,7 +9883,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (arr.length != 6)
       throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return UiAttachment(
-      attachmentId: dco_decode_attachment_id(arr[0]),
+      localAttachmentId: dco_decode_local_attachment_id(arr[0]),
       filename: dco_decode_String(arr[1]),
       contentType: dco_decode_String(arr[2]),
       description: dco_decode_opt_String(arr[3]),
@@ -11256,13 +11274,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AttachmentId sse_decode_attachment_id(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_uuid = sse_decode_Uuid(deserializer);
-    return AttachmentId(uuid: var_uuid);
-  }
-
-  @protected
   BlockElement sse_decode_block_element(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -11387,14 +11398,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  AttachmentId sse_decode_box_autoadd_attachment_id(
-    SseDeserializer deserializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_attachment_id(deserializer));
-  }
-
-  @protected
   bool sse_decode_box_autoadd_bool(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_bool(deserializer));
@@ -11483,6 +11486,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     return (sse_decode_invite_users_error(deserializer));
+  }
+
+  @protected
+  LocalAttachmentId sse_decode_box_autoadd_local_attachment_id(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_local_attachment_id(deserializer));
   }
 
   @protected
@@ -12328,6 +12339,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_bytes = sse_decode_list_prim_u_8_strict(deserializer);
     var var_isAnimated = sse_decode_bool(deserializer);
     return LoadedImageAttachment(bytes: var_bytes, isAnimated: var_isAnimated);
+  }
+
+  @protected
+  LocalAttachmentId sse_decode_local_attachment_id(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_uuid = sse_decode_Uuid(deserializer);
+    return LocalAttachmentId(uuid: var_uuid);
   }
 
   @protected
@@ -13231,7 +13251,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   UiAttachment sse_decode_ui_attachment(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_attachmentId = sse_decode_attachment_id(deserializer);
+    var var_localAttachmentId = sse_decode_local_attachment_id(deserializer);
     var var_filename = sse_decode_String(deserializer);
     var var_contentType = sse_decode_String(deserializer);
     var var_description = sse_decode_opt_String(deserializer);
@@ -13240,7 +13260,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       deserializer,
     );
     return UiAttachment(
-      attachmentId: var_attachmentId,
+      localAttachmentId: var_localAttachmentId,
       filename: var_filename,
       contentType: var_contentType,
       description: var_description,
@@ -14901,12 +14921,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_attachment_id(AttachmentId self, SseSerializer serializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_Uuid(self.uuid, serializer);
-  }
-
-  @protected
   void sse_encode_block_element(BlockElement self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     switch (self) {
@@ -15032,15 +15046,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_box_autoadd_attachment_id(
-    AttachmentId self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_attachment_id(self, serializer);
-  }
-
-  @protected
   void sse_encode_box_autoadd_bool(bool self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_bool(self, serializer);
@@ -15137,6 +15142,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_invite_users_error(self, serializer);
+  }
+
+  @protected
+  void sse_encode_box_autoadd_local_attachment_id(
+    LocalAttachmentId self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_local_attachment_id(self, serializer);
   }
 
   @protected
@@ -15934,6 +15948,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_list_prim_u_8_strict(self.bytes, serializer);
     sse_encode_bool(self.isAnimated, serializer);
+  }
+
+  @protected
+  void sse_encode_local_attachment_id(
+    LocalAttachmentId self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_Uuid(self.uuid, serializer);
   }
 
   @protected
@@ -16772,7 +16795,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   void sse_encode_ui_attachment(UiAttachment self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_attachment_id(self.attachmentId, serializer);
+    sse_encode_local_attachment_id(self.localAttachmentId, serializer);
     sse_encode_String(self.filename, serializer);
     sse_encode_String(self.contentType, serializer);
     sse_encode_opt_String(self.description, serializer);
@@ -17245,50 +17268,51 @@ class AttachmentsRepositoryImpl extends RustOpaque
         .rust_arc_decrement_strong_count_AttachmentsRepositoryPtr,
   );
 
-  Future<void> cancel({required AttachmentId attachmentId}) => RustLib
+  Future<void> cancel({required LocalAttachmentId localAttachmentId}) => RustLib
       .instance
       .api
       .crateApiAttachmentsRepositoryAttachmentsRepositoryCancel(
         that: this,
-        attachmentId: attachmentId,
+        localAttachmentId: localAttachmentId,
       );
 
   /// Load attachment's data from database
-  Future<Uint8List?> loadAttachment({required AttachmentId attachmentId}) =>
-      RustLib.instance.api
-          .crateApiAttachmentsRepositoryAttachmentsRepositoryLoadAttachment(
-            that: this,
-            attachmentId: attachmentId,
-          );
+  Future<Uint8List?> loadAttachment({
+    required LocalAttachmentId localAttachmentId,
+  }) => RustLib.instance.api
+      .crateApiAttachmentsRepositoryAttachmentsRepositoryLoadAttachment(
+        that: this,
+        localAttachmentId: localAttachmentId,
+      );
 
   Future<LoadedImageAttachment> loadImageAttachment({
-    required AttachmentId attachmentId,
+    required LocalAttachmentId localAttachmentId,
     required bool retryDownloadIfFailed,
     required FutureOr<void> Function(BigInt) chunkEventCallback,
   }) => RustLib.instance.api
       .crateApiAttachmentsRepositoryAttachmentsRepositoryLoadImageAttachment(
         that: this,
-        attachmentId: attachmentId,
+        localAttachmentId: localAttachmentId,
         retryDownloadIfFailed: retryDownloadIfFailed,
         chunkEventCallback: chunkEventCallback,
       );
 
   Future<void> saveAttachment({
-    required AttachmentId attachmentId,
+    required LocalAttachmentId localAttachmentId,
     required String path,
   }) => RustLib.instance.api
       .crateApiAttachmentsRepositoryAttachmentsRepositorySaveAttachment(
         that: this,
-        attachmentId: attachmentId,
+        localAttachmentId: localAttachmentId,
         path: path,
       );
 
   Stream<UiAttachmentStatus> statusStream({
-    required AttachmentId attachmentId,
+    required LocalAttachmentId localAttachmentId,
   }) => RustLib.instance.api
       .crateApiAttachmentsRepositoryAttachmentsRepositoryStatusStream(
         that: this,
-        attachmentId: attachmentId,
+        localAttachmentId: localAttachmentId,
       );
 }
 
@@ -17389,11 +17413,11 @@ class ChatDetailsCubitBaseImpl extends RustOpaque
       .crateApiChatDetailsCubitChatDetailsCubitBaseResetDraftReply(that: this);
 
   Future<UploadAttachmentError?> retryUploadAttachment({
-    required AttachmentId attachmentId,
+    required LocalAttachmentId localAttachmentId,
   }) => RustLib.instance.api
       .crateApiChatDetailsCubitChatDetailsCubitBaseRetryUploadAttachment(
         that: this,
-        attachmentId: attachmentId,
+        localAttachmentId: localAttachmentId,
       );
 
   /// Sends a message to the chat.

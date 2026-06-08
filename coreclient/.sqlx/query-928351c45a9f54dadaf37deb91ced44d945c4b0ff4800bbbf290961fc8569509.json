@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT local_attachment_id AS \"local_attachment_id: _\"\n            FROM attachment\n            WHERE message_id = ?\n            ORDER BY rowid",
+  "describe": {
+    "columns": [
+      {
+        "name": "local_attachment_id: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "928351c45a9f54dadaf37deb91ced44d945c4b0ff4800bbbf290961fc8569509"
+}

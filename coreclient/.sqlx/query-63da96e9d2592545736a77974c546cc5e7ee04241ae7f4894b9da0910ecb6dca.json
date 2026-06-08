@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                content,\n                status AS \"status: _\"\n            FROM attachment WHERE attachment_id = ?",
+  "query": "SELECT\n                content,\n                status AS \"status: _\"\n            FROM attachment\n            WHERE local_attachment_id = ?",
   "describe": {
     "columns": [
       {
@@ -22,5 +22,5 @@
       false
     ]
   },
-  "hash": "587bb32ec9e3dec3c66f7f13006350dd2746704ec6409b929684028070b2bd0e"
+  "hash": "63da96e9d2592545736a77974c546cc5e7ee04241ae7f4894b9da0910ecb6dca"
 }

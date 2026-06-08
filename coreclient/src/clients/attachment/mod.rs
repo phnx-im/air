@@ -2,9 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{fmt, str::FromStr};
+use std::{collections::HashMap, fmt, str::FromStr};
 
 use aircommon::identifiers::{AttachmentId, AttachmentIdParseError};
+use chrono::{DateTime, Utc};
 pub use content::MimiContentExt;
 pub(crate) use persistence::AttachmentRecord;
 pub use persistence::{AttachmentContent, AttachmentStatus};
@@ -12,8 +13,9 @@ use thiserror::Error;
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
 pub use upload::{ProvisionAttachmentError, UploadTaskError};
 use url::Url;
+use uuid::Uuid;
 
-use crate::{MessageId, clients::CoreUser};
+use crate::{ChatId, MessageId, clients::CoreUser};
 
 mod aead;
 mod content;
@@ -24,29 +26,79 @@ pub(crate) mod progress;
 pub(crate) mod upload;
 
 impl CoreUser {
-    pub async fn pending_attachments(&self) -> anyhow::Result<Vec<AttachmentId>> {
+    pub async fn pending_attachments(&self) -> anyhow::Result<Vec<LocalAttachmentId>> {
         Ok(AttachmentRecord::load_all_pending(self.db().read().await?).await?)
     }
 
     pub async fn load_attachment(
         &self,
-        attachment_id: AttachmentId,
+        local_attachment_id: LocalAttachmentId,
     ) -> anyhow::Result<AttachmentContent> {
-        Ok(AttachmentRecord::load_content(self.db().read().await?, attachment_id).await?)
+        Ok(AttachmentRecord::load_content(self.db().read().await?, local_attachment_id).await?)
     }
 
     pub async fn attachment_status(
         &self,
-        attachment_id: AttachmentId,
+        local_attachment_id: LocalAttachmentId,
     ) -> anyhow::Result<Option<AttachmentStatus>> {
-        Ok(AttachmentRecord::status(self.db().read().await?, attachment_id).await?)
+        Ok(AttachmentRecord::status(self.db().read().await?, local_attachment_id).await?)
     }
 
+    /// Returns the local attachment IDs for the given message IDs.
+    ///
+    /// IDs are ordered by the position in the mimi content.
     pub async fn attachment_ids_for_message(
         &self,
         message_id: MessageId,
-    ) -> anyhow::Result<Vec<AttachmentId>> {
-        Ok(AttachmentRecord::load_ids_by_message_id(self.db().read().await?, message_id).await?)
+    ) -> Vec<LocalAttachmentId> {
+        let Ok(read) = self.db().read().await else {
+            return Default::default();
+        };
+        AttachmentRecord::load_ids_by_message_id(read, message_id)
+            .await
+            .unwrap_or_default()
+    }
+
+    /// Returns the local attachment IDs for the given contiguous range of messages.
+    ///
+    /// The upper bound is inclusive.
+    ///
+    /// IDs are ordered by the position in the mimi content for each message.
+    pub async fn attachment_ids_in_range(
+        &self,
+        chat_id: ChatId,
+        from: (DateTime<Utc>, MessageId),
+        to: (DateTime<Utc>, MessageId),
+    ) -> HashMap<MessageId, Vec<LocalAttachmentId>> {
+        let Ok(read) = self.db().read().await else {
+            return Default::default();
+        };
+        AttachmentRecord::load_ids_by_in_range(read, chat_id, from, to)
+            .await
+            .unwrap_or_default()
+    }
+}
+
+/// A local attachment ID
+///
+/// Uniquely identifies an attachment on this local client. Must *not* be shared outside of this
+/// client.
+///
+/// It can coincide with the shared attachment ID, but it is not required to do so.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct LocalAttachmentId {
+    pub uuid: Uuid,
+}
+
+impl LocalAttachmentId {
+    pub fn new(uuid: Uuid) -> Self {
+        Self { uuid }
+    }
+
+    pub(crate) fn random() -> Self {
+        Self {
+            uuid: Uuid::new_v4(),
+        }
     }
 }
 
@@ -130,7 +182,7 @@ pub enum AttachmentUrlParseError {
 
 impl fmt::Display for AttachmentUrl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "air:///attachment/{}", self.attachment_id.uuid)?;
+        write!(f, "air:///attachment/{}", self.attachment_id.uuid())?;
         if let Some((width, height)) = self.dimensions {
             write!(f, "?width={width}&height={height}")?;
         }
@@ -151,7 +203,7 @@ mod test {
             .parse()
             .unwrap();
         let attachment_id = AttachmentId::from_url(&url).unwrap();
-        assert_eq!(attachment_id.uuid, id);
+        assert_eq!(attachment_id.uuid(), id);
 
         let attachment_url = AttachmentUrl::new(attachment_id, None);
         assert_eq!(attachment_url.to_string(), url.to_string());
@@ -164,7 +216,7 @@ mod test {
             .parse()
             .unwrap();
         let attachment_id = AttachmentId::from_url(&url).unwrap();
-        assert_eq!(attachment_id.uuid, id);
+        assert_eq!(attachment_id.uuid(), id);
 
         let attachment_url = AttachmentUrl::new(attachment_id, Some((1920, 1080)));
         assert_eq!(attachment_url.to_string(), url.to_string());

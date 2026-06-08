@@ -84,7 +84,7 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
   Future<void> resetDraftReply();
 
   Future<UploadAttachmentError?> retryUploadAttachment({
-    required AttachmentId attachmentId,
+    required LocalAttachmentId localAttachmentId,
   });
 
   /// Sends a message to the chat.

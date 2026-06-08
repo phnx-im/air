@@ -4,9 +4,9 @@
 
 use std::{fs, io::Write, sync::Arc};
 
-use aircommon::identifiers::AttachmentId;
 use aircoreclient::{
     AttachmentContent, AttachmentProgress, AttachmentProgressEvent, AttachmentStatus,
+    LocalAttachmentId,
     clients::CoreUser,
     db::notification::{DbEntityId, DbOperation},
     image_is_animated,
@@ -21,7 +21,7 @@ use tracing::{debug, error, info};
 
 use crate::{StreamSink, api::user_cubit::UserCubitBase, util::spawn_from_sync};
 
-pub(crate) type InProgressMap = Arc<DashMap<AttachmentId, AttachmentTaskHandle>>;
+pub(crate) type InProgressMap = Arc<DashMap<LocalAttachmentId, AttachmentTaskHandle>>;
 
 /// Repository managing attachments
 ///
@@ -57,12 +57,12 @@ impl AttachmentsRepository {
 
     pub async fn status_stream(
         &self,
-        attachment_id: AttachmentId,
+        local_attachment_id: LocalAttachmentId,
         sink: StreamSink<UiAttachmentStatus>,
     ) {
         let handle = self
             .in_progress
-            .get(&attachment_id)
+            .get(&local_attachment_id)
             .as_deref()
             .cloned()
             .filter(|handle| !handle.is_cancelled());
@@ -99,7 +99,7 @@ impl AttachmentsRepository {
                 }
             }
         } else if let Ok(Some(AttachmentStatus::Ready)) =
-            self.store.attachment_status(attachment_id).await
+            self.store.attachment_status(local_attachment_id).await
         {
             sink.add(UiAttachmentStatus::Completed).ok();
         } else {
@@ -110,9 +110,9 @@ impl AttachmentsRepository {
     /// Load attachment's data from database
     pub async fn load_attachment(
         &self,
-        attachment_id: AttachmentId,
+        local_attachment_id: LocalAttachmentId,
     ) -> anyhow::Result<Option<Vec<u8>>> {
-        match self.store.load_attachment(attachment_id).await? {
+        match self.store.load_attachment(local_attachment_id).await? {
             AttachmentContent::Ready(data)
             | AttachmentContent::Uploading(data)
             | AttachmentContent::UploadFailed(data) => Ok(Some(data)),
@@ -122,7 +122,7 @@ impl AttachmentsRepository {
 
     pub async fn load_image_attachment(
         &self,
-        attachment_id: AttachmentId,
+        local_attachment_id: LocalAttachmentId,
         retry_download_if_failed: bool,
         chunk_event_callback: impl Fn(u64) -> DartFnFuture<()> + Send + 'static,
     ) -> anyhow::Result<LoadedImageAttachment> {
@@ -135,36 +135,47 @@ impl AttachmentsRepository {
                 &self.cancel,
                 None,
                 &self.in_progress,
-                attachment_id,
+                local_attachment_id,
             );
-            self.track_attachment_download(attachment_id, handle, chunk_event_callback)
+            self.track_attachment_download(local_attachment_id, handle, chunk_event_callback)
                 .await
         };
 
-        let bytes = match self.store.load_attachment(attachment_id).await? {
+        let bytes = match self.store.load_attachment(local_attachment_id).await? {
             AttachmentContent::Ready(bytes)
             | AttachmentContent::Uploading(bytes)
             | AttachmentContent::UploadFailed(bytes) => bytes,
             AttachmentContent::Pending => {
-                debug!(?attachment_id, "Attachment is pending; spawn download task");
+                debug!(
+                    ?local_attachment_id,
+                    "Attachment is pending; spawn download task"
+                );
                 spawn_download(chunk_event_callback).await?
             }
             AttachmentContent::DownloadFailed | AttachmentContent::Downloading
                 if retry_download_if_failed =>
             {
                 debug!(
-                    ?attachment_id,
+                    ?local_attachment_id,
                     "Attachment failed to download but a retry was requested; spawn download task"
                 );
                 spawn_download(chunk_event_callback).await?
             }
             AttachmentContent::Downloading => {
-                let handle = self.in_progress.get(&attachment_id).as_deref().cloned();
+                let handle = self
+                    .in_progress
+                    .get(&local_attachment_id)
+                    .as_deref()
+                    .cloned();
                 if let Some(handle) = handle {
-                    self.track_attachment_download(attachment_id, handle, chunk_event_callback)
-                        .await?
+                    self.track_attachment_download(
+                        local_attachment_id,
+                        handle,
+                        chunk_event_callback,
+                    )
+                    .await?
                 } else {
-                    match self.store.load_attachment(attachment_id).await? {
+                    match self.store.load_attachment(local_attachment_id).await? {
                         AttachmentContent::Ready(bytes) => bytes,
                         _ => bail!("Attachment download failed"),
                     }
@@ -182,19 +193,19 @@ impl AttachmentsRepository {
         Ok(LoadedImageAttachment { bytes, is_animated })
     }
 
-    pub fn cancel(&self, attachment_id: AttachmentId) {
-        if let Some((_, handle)) = self.in_progress.remove(&attachment_id) {
+    pub fn cancel(&self, local_attachment_id: LocalAttachmentId) {
+        if let Some((_, handle)) = self.in_progress.remove(&local_attachment_id) {
             handle.cancel.cancel();
         }
     }
 
     pub async fn save_attachment(
         &self,
-        attachment_id: AttachmentId,
+        local_attachment_id: LocalAttachmentId,
         path: String,
     ) -> anyhow::Result<()> {
         let data = self
-            .load_attachment(attachment_id)
+            .load_attachment(local_attachment_id)
             .await?
             .context("Attachment is not present on the device")?;
         let mut file = fs::File::create(&path)
@@ -205,11 +216,11 @@ impl AttachmentsRepository {
 
     async fn track_attachment_download(
         &self,
-        attachment_id: AttachmentId,
+        local_attachment_id: LocalAttachmentId,
         handle: AttachmentTaskHandle,
         chunk_event_callback: impl Fn(u64) -> DartFnFuture<()> + Send + 'static,
     ) -> anyhow::Result<Vec<u8>> {
-        debug!(?attachment_id, "Tracking attachment download");
+        debug!(?local_attachment_id, "Tracking attachment download");
         let mut events_stream = handle.progress.stream();
         while let Some(event) = events_stream.next().await {
             match event {
@@ -222,7 +233,7 @@ impl AttachmentsRepository {
                 AttachmentProgressEvent::Completed => {
                     return self
                         .store
-                        .load_attachment(attachment_id)
+                        .load_attachment(local_attachment_id)
                         .await?
                         .into_bytes()
                         .context("Attachment download failed");
@@ -282,14 +293,21 @@ async fn attachment_downloads_loop(
         .inspect_err(|error| error!(%error, "failed to load pending attachments"))
         .unwrap_or_default();
 
-    let mut attachment_ids = tokio_stream::iter(pending_attachment_ids).chain(store_notifications);
+    let mut local_attachment_ids =
+        tokio_stream::iter(pending_attachment_ids).chain(store_notifications);
 
     info!("starting attachments download task");
-    while let Some(attachment_id) = attachment_ids.next().await {
+    while let Some(local_attachment_id) = local_attachment_ids.next().await {
         let Ok(permit) = download_tasks_semaphore.clone().acquire_owned().await else {
             return;
         };
-        spawn_download_task(&store, &cancel, Some(permit), &in_progress, attachment_id);
+        spawn_download_task(
+            &store,
+            &cancel,
+            Some(permit),
+            &in_progress,
+            local_attachment_id,
+        );
     }
 }
 
@@ -298,11 +316,11 @@ fn spawn_download_task(
     cancel: &CancellationToken,
     permit: Option<OwnedSemaphorePermit>,
     in_progress: &InProgressMap,
-    attachment_id: AttachmentId,
+    local_attachment_id: LocalAttachmentId,
 ) -> AttachmentTaskHandle {
-    let (task, cancel, handle) = match in_progress.entry(attachment_id) {
+    let (task, cancel, handle) = match in_progress.entry(local_attachment_id) {
         Entry::Occupied(mut entry) if entry.get().is_cancelled() || entry.get().is_failed() => {
-            let (progress, task) = store.download_attachment(attachment_id);
+            let (progress, task) = store.download_attachment(local_attachment_id);
             let cancel = cancel.child_token();
             let handle = AttachmentTaskHandle::with_cancellation(progress, cancel.clone());
             entry.insert(handle.clone());
@@ -312,7 +330,7 @@ fn spawn_download_task(
             return entry.get().clone();
         }
         Entry::Vacant(entry) => {
-            let (progress, task) = store.download_attachment(attachment_id);
+            let (progress, task) = store.download_attachment(local_attachment_id);
             let cancel = cancel.child_token();
             let handle = AttachmentTaskHandle::with_cancellation(progress, cancel.clone());
             entry.insert(handle.clone());

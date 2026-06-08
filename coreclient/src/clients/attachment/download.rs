@@ -16,6 +16,7 @@ use aircommon::{
     identifiers::AttachmentId,
 };
 use airprotos::delivery_service::v1::StorageObjectType;
+use anyhow::Context;
 use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
 use reqwest::StatusCode;
 use sha2::{Digest, Sha256};
@@ -24,7 +25,7 @@ use tracing::{debug, error, info};
 use url::Url;
 
 use crate::{
-    AttachmentProgress,
+    AttachmentProgress, LocalAttachmentId,
     clients::{
         CoreUser,
         attachment::{
@@ -66,7 +67,7 @@ enum AttachmentDownloadError {
 impl CoreUser {
     pub fn download_attachment(
         &self,
-        attachment_id: AttachmentId,
+        local_attachment_id: LocalAttachmentId,
     ) -> (
         AttachmentProgress,
         impl Future<Output = anyhow::Result<()>> + use<>,
@@ -74,45 +75,53 @@ impl CoreUser {
         let (progress_tx, progress) = AttachmentProgress::new();
         let fut = self
             .clone()
-            .download_attachment_impl(attachment_id, progress_tx);
+            .download_attachment_impl(local_attachment_id, progress_tx);
         (progress, fut)
     }
 
     async fn download_attachment_impl(
         self,
-        attachment_id: AttachmentId,
+        local_attachment_id: LocalAttachmentId,
         mut progress_tx: AttachmentProgressSender,
     ) -> anyhow::Result<()> {
-        info!(?attachment_id, "downloading attachment");
+        info!(?local_attachment_id, "downloading attachment");
         progress_tx.report(0);
 
         // Load the pending attachment record and update the status to `Downloading`.
-        let Some((pending_record, group)) = self
+        let Some((pending_record, group, attachment_id)) = self
             .db()
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                let Some(record) = AttachmentRecord::load(&mut *txn, local_attachment_id).await?
+                else {
+                    error!(?local_attachment_id, "Attachment record not found");
+                    return Ok(None);
+                };
+                let attachment_id = record
+                    .attachment_id
+                    .context("Unprovisioned attachment for download")?;
                 let Some(pending_record) =
                     PendingAttachmentRecord::load_pending(&mut *txn, attachment_id).await?
                 else {
                     debug!(
-                        ?attachment_id,
+                        ?local_attachment_id,
                         "Skipping downloading non-pending attachment"
                     );
                     return Ok(None);
                 };
-                let Some(record) = AttachmentRecord::load(&mut *txn, attachment_id).await? else {
-                    error!(?attachment_id, "Attachment record not found");
-                    return Ok(None);
-                };
                 let chat_id = record.chat_id;
                 let Some(group) = Group::load_with_chat_id(&mut *txn, chat_id).await? else {
-                    error!(?attachment_id, "Group not found");
+                    error!(?chat_id, "Group not found");
                     return Ok(None);
                 };
 
-                AttachmentRecord::update_status(txn, attachment_id, AttachmentStatus::Downloading)
-                    .await?;
+                AttachmentRecord::update_status(
+                    txn,
+                    local_attachment_id,
+                    AttachmentStatus::Downloading,
+                )
+                .await?;
 
-                Ok(Some((pending_record, group)))
+                Ok(Some((pending_record, group, attachment_id)))
             })
             .await?
         else {
@@ -128,7 +137,8 @@ impl CoreUser {
                 let bytes = content.bytes.as_slice();
                 self.db()
                     .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                        AttachmentRecord::set_content(&mut *txn, attachment_id, bytes).await?;
+                        AttachmentRecord::set_content(&mut *txn, local_attachment_id, bytes)
+                            .await?;
                         PendingAttachmentRecord::delete(txn, attachment_id).await?;
                         Ok(())
                     })
@@ -147,7 +157,7 @@ impl CoreUser {
                     .with_write_transaction(async |txn| -> anyhow::Result<()> {
                         AttachmentRecord::update_status(
                             &mut *txn,
-                            attachment_id,
+                            local_attachment_id,
                             AttachmentStatus::NotFound,
                         )
                         .await?;
@@ -175,7 +185,7 @@ impl CoreUser {
                 // and we still have the PendingAttachmentRecord, so we can retry
                 AttachmentRecord::update_status(
                     self.db().write().await?,
-                    attachment_id,
+                    local_attachment_id,
                     AttachmentStatus::DownloadFailed,
                 )
                 .await

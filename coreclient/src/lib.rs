@@ -32,7 +32,7 @@ pub use crate::{
         add_contact::AddUsernameContactError,
         attachment::{
             AttachmentContent, AttachmentStatus, AttachmentUrl, AttachmentUrlParseError,
-            MimiContentExt, ProvisionAttachmentError, UploadTaskError,
+            LocalAttachmentId, MimiContentExt, ProvisionAttachmentError, UploadTaskError,
             progress::{AttachmentProgress, AttachmentProgressEvent},
         },
         block_contact::BlockedContactError,

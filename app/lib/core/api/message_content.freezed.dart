@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$UiAttachment {
 
- AttachmentId get attachmentId; String get filename; String get contentType; String? get description; int get size; UiImageMetadata? get imageMetadata;
+ LocalAttachmentId get localAttachmentId; String get filename; String get contentType; String? get description; int get size; UiImageMetadata? get imageMetadata;
 /// Create a copy of UiAttachment
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $UiAttachmentCopyWith<UiAttachment> get copyWith => _$UiAttachmentCopyWithImpl<U
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAttachment&&(identical(other.attachmentId, attachmentId) || other.attachmentId == attachmentId)&&(identical(other.filename, filename) || other.filename == filename)&&(identical(other.contentType, contentType) || other.contentType == contentType)&&(identical(other.description, description) || other.description == description)&&(identical(other.size, size) || other.size == size)&&(identical(other.imageMetadata, imageMetadata) || other.imageMetadata == imageMetadata));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiAttachment&&(identical(other.localAttachmentId, localAttachmentId) || other.localAttachmentId == localAttachmentId)&&(identical(other.filename, filename) || other.filename == filename)&&(identical(other.contentType, contentType) || other.contentType == contentType)&&(identical(other.description, description) || other.description == description)&&(identical(other.size, size) || other.size == size)&&(identical(other.imageMetadata, imageMetadata) || other.imageMetadata == imageMetadata));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,attachmentId,filename,contentType,description,size,imageMetadata);
+int get hashCode => Object.hash(runtimeType,localAttachmentId,filename,contentType,description,size,imageMetadata);
 
 @override
 String toString() {
-  return 'UiAttachment(attachmentId: $attachmentId, filename: $filename, contentType: $contentType, description: $description, size: $size, imageMetadata: $imageMetadata)';
+  return 'UiAttachment(localAttachmentId: $localAttachmentId, filename: $filename, contentType: $contentType, description: $description, size: $size, imageMetadata: $imageMetadata)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $UiAttachmentCopyWith<$Res>  {
   factory $UiAttachmentCopyWith(UiAttachment value, $Res Function(UiAttachment) _then) = _$UiAttachmentCopyWithImpl;
 @useResult
 $Res call({
- AttachmentId attachmentId, String filename, String contentType, String? description, int size, UiImageMetadata? imageMetadata
+ LocalAttachmentId localAttachmentId, String filename, String contentType, String? description, int size, UiImageMetadata? imageMetadata
 });
 
 
@@ -62,10 +62,10 @@ class _$UiAttachmentCopyWithImpl<$Res>
 
 /// Create a copy of UiAttachment
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? attachmentId = null,Object? filename = null,Object? contentType = null,Object? description = freezed,Object? size = null,Object? imageMetadata = freezed,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? localAttachmentId = null,Object? filename = null,Object? contentType = null,Object? description = freezed,Object? size = null,Object? imageMetadata = freezed,}) {
   return _then(_self.copyWith(
-attachmentId: null == attachmentId ? _self.attachmentId : attachmentId // ignore: cast_nullable_to_non_nullable
-as AttachmentId,filename: null == filename ? _self.filename : filename // ignore: cast_nullable_to_non_nullable
+localAttachmentId: null == localAttachmentId ? _self.localAttachmentId : localAttachmentId // ignore: cast_nullable_to_non_nullable
+as LocalAttachmentId,filename: null == filename ? _self.filename : filename // ignore: cast_nullable_to_non_nullable
 as String,contentType: null == contentType ? _self.contentType : contentType // ignore: cast_nullable_to_non_nullable
 as String,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as String?,size: null == size ? _self.size : size // ignore: cast_nullable_to_non_nullable
@@ -94,10 +94,10 @@ $UiImageMetadataCopyWith<$Res>? get imageMetadata {
 
 
 class _UiAttachment implements UiAttachment {
-  const _UiAttachment({required this.attachmentId, required this.filename, required this.contentType, this.description, required this.size, this.imageMetadata});
+  const _UiAttachment({required this.localAttachmentId, required this.filename, required this.contentType, this.description, required this.size, this.imageMetadata});
   
 
-@override final  AttachmentId attachmentId;
+@override final  LocalAttachmentId localAttachmentId;
 @override final  String filename;
 @override final  String contentType;
 @override final  String? description;
@@ -114,16 +114,16 @@ _$UiAttachmentCopyWith<_UiAttachment> get copyWith => __$UiAttachmentCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiAttachment&&(identical(other.attachmentId, attachmentId) || other.attachmentId == attachmentId)&&(identical(other.filename, filename) || other.filename == filename)&&(identical(other.contentType, contentType) || other.contentType == contentType)&&(identical(other.description, description) || other.description == description)&&(identical(other.size, size) || other.size == size)&&(identical(other.imageMetadata, imageMetadata) || other.imageMetadata == imageMetadata));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _UiAttachment&&(identical(other.localAttachmentId, localAttachmentId) || other.localAttachmentId == localAttachmentId)&&(identical(other.filename, filename) || other.filename == filename)&&(identical(other.contentType, contentType) || other.contentType == contentType)&&(identical(other.description, description) || other.description == description)&&(identical(other.size, size) || other.size == size)&&(identical(other.imageMetadata, imageMetadata) || other.imageMetadata == imageMetadata));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,attachmentId,filename,contentType,description,size,imageMetadata);
+int get hashCode => Object.hash(runtimeType,localAttachmentId,filename,contentType,description,size,imageMetadata);
 
 @override
 String toString() {
-  return 'UiAttachment(attachmentId: $attachmentId, filename: $filename, contentType: $contentType, description: $description, size: $size, imageMetadata: $imageMetadata)';
+  return 'UiAttachment(localAttachmentId: $localAttachmentId, filename: $filename, contentType: $contentType, description: $description, size: $size, imageMetadata: $imageMetadata)';
 }
 
 
@@ -134,7 +134,7 @@ abstract mixin class _$UiAttachmentCopyWith<$Res> implements $UiAttachmentCopyWi
   factory _$UiAttachmentCopyWith(_UiAttachment value, $Res Function(_UiAttachment) _then) = __$UiAttachmentCopyWithImpl;
 @override @useResult
 $Res call({
- AttachmentId attachmentId, String filename, String contentType, String? description, int size, UiImageMetadata? imageMetadata
+ LocalAttachmentId localAttachmentId, String filename, String contentType, String? description, int size, UiImageMetadata? imageMetadata
 });
 
 
@@ -151,10 +151,10 @@ class __$UiAttachmentCopyWithImpl<$Res>
 
 /// Create a copy of UiAttachment
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? attachmentId = null,Object? filename = null,Object? contentType = null,Object? description = freezed,Object? size = null,Object? imageMetadata = freezed,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? localAttachmentId = null,Object? filename = null,Object? contentType = null,Object? description = freezed,Object? size = null,Object? imageMetadata = freezed,}) {
   return _then(_UiAttachment(
-attachmentId: null == attachmentId ? _self.attachmentId : attachmentId // ignore: cast_nullable_to_non_nullable
-as AttachmentId,filename: null == filename ? _self.filename : filename // ignore: cast_nullable_to_non_nullable
+localAttachmentId: null == localAttachmentId ? _self.localAttachmentId : localAttachmentId // ignore: cast_nullable_to_non_nullable
+as LocalAttachmentId,filename: null == filename ? _self.filename : filename // ignore: cast_nullable_to_non_nullable
 as String,contentType: null == contentType ? _self.contentType : contentType // ignore: cast_nullable_to_non_nullable
 as String,description: freezed == description ? _self.description : description // ignore: cast_nullable_to_non_nullable
 as String?,size: null == size ? _self.size : size // ignore: cast_nullable_to_non_nullable

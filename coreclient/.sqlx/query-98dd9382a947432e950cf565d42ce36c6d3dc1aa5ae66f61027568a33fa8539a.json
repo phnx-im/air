@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE attachment SET status = ?, content = ? WHERE local_attachment_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "98dd9382a947432e950cf565d42ce36c6d3dc1aa5ae66f61027568a33fa8539a"
+}

@@ -17,13 +17,13 @@ part 'message_content.freezed.dart';
 // These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `hash`, `hash`, `hash`
 
 /// Mirror of the [`AttachmentId`] type
-class AttachmentId {
+class LocalAttachmentId {
   final UuidValue uuid;
 
-  const AttachmentId({required this.uuid});
+  const LocalAttachmentId({required this.uuid});
 
   @override
-  String toString() => 'AttachmentId($uuid)';
+  String toString() => 'LocalAttachmentId($uuid)';
 
   @override
   int get hashCode => uuid.hashCode;
@@ -31,7 +31,7 @@ class AttachmentId {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is AttachmentId &&
+      other is LocalAttachmentId &&
           runtimeType == other.runtimeType &&
           uuid == other.uuid;
 }
@@ -39,7 +39,7 @@ class AttachmentId {
 @freezed
 sealed class UiAttachment with _$UiAttachment {
   const factory UiAttachment({
-    required AttachmentId attachmentId,
+    required LocalAttachmentId localAttachmentId,
     required String filename,
     required String contentType,
     String? description,

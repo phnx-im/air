@@ -13,7 +13,7 @@ use tracing::error;
 use super::{content::MimiContentExt, persistence::PendingAttachmentRecord};
 
 use crate::{
-    ChatMessage,
+    ChatMessage, LocalAttachmentId,
     clients::{
         CoreUser,
         attachment::{AttachmentRecord, persistence::AttachmentStatus},
@@ -75,7 +75,8 @@ impl CoreUser {
             // Note: the encryption data and the hash are moved from the mimi content into
             // pending attachment record.
             let record = AttachmentRecord {
-                attachment_id,
+                local_attachment_id: LocalAttachmentId::random(),
+                attachment_id: Some(attachment_id),
                 chat_id,
                 message_id,
                 content_type: content_type.clone(),

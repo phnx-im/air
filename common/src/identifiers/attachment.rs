@@ -9,9 +9,10 @@ use thiserror::Error;
 use url::Url;
 use uuid::Uuid;
 
+/// Uniquely identifies an attachment on DS
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash)]
 pub struct AttachmentId {
-    pub uuid: Uuid,
+    uuid: Uuid,
 }
 
 impl AttachmentId {

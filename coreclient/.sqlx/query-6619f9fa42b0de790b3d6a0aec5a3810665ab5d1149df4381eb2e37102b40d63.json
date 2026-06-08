@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM attachment WHERE message_id = ?\n            RETURNING local_attachment_id AS \"local_attachment_id: _\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "local_attachment_id: _",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "6619f9fa42b0de790b3d6a0aec5a3810665ab5d1149df4381eb2e37102b40d63"
+}
