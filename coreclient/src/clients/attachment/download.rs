@@ -143,7 +143,7 @@ impl CoreUser {
                 Ok(())
             }
             Err(error @ AttachmentDownloadError::NotFound) => {
-                error!(?remote_attachment_id, "attachment not found (expired?)");
+                error!(?attachment_id, "attachment not found (expired?)");
 
                 // if the attachment wasn't found, we mark it as NotFound but also destroy
                 // the pending attachment, which cannot be recovered from anyways.
@@ -160,7 +160,7 @@ impl CoreUser {
                     })
                     .await
                     .inspect_err(
-                        |e| error!(?remote_attachment_id, %e, "failed to mark download as failed"),
+                        |e| error!(?attachment_id, %e, "failed to mark download as failed"),
                     )
                     .ok();
 
@@ -170,7 +170,7 @@ impl CoreUser {
             }
             Err(error) => {
                 error!(
-                    ?remote_attachment_id,
+                    ?attachment_id,
                     %error,
                     "attachment download error, marking as failed"
                 );
@@ -183,9 +183,7 @@ impl CoreUser {
                     AttachmentStatus::DownloadFailed,
                 )
                 .await
-                .inspect_err(
-                    |e| error!(?remote_attachment_id, %e, "failed to mark download as failed"),
-                )
+                .inspect_err(|e| error!(?attachment_id, %e, "failed to mark download as failed"))
                 .ok();
 
                 Err(error.into())
