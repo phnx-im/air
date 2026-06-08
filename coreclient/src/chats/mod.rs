@@ -194,10 +194,9 @@ impl Chat {
         qgid.owning_domain().clone()
     }
 
-    pub fn is_muted(&self, when: DateTime<Utc>) -> bool {
-        self.muted_until
-            .as_ref()
-            .is_some_and(|cm| cm.is_muted(when))
+    pub fn is_muted(&self) -> bool {
+        let now = Utc::now();
+        self.muted_until.as_ref().is_some_and(|cm| cm.is_muted(now))
     }
 
     pub(crate) async fn set_picture(
