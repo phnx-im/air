@@ -1099,6 +1099,24 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     ..
                 } = verification_data;
 
+                // If specified by the client, we update our internal mapping of leaves to MemberProfile.
+                // This is used to recover groups where the OpenMLS leaves and its representation on the DS drifted.
+                if let Some((qs_client_reference, encrypted_user_profile_key)) = payload
+                    .qs_client_reference
+                    .zip(payload.encrypted_user_profile_key)
+                {
+                    group_state.member_profiles.insert(
+                        sender_index,
+                        MemberProfile {
+                            leaf_index: sender_index,
+                            client_queue_config: qs_client_reference.try_into()?,
+                            activity_time: TimeStamp::now(),
+                            activity_epoch: group_state.group().epoch(),
+                            encrypted_user_profile_key: encrypted_user_profile_key.try_into()?,
+                        },
+                    );
+                }
+
                 let params = GroupOperationParams {
                     commit,
                     add_users_info_option: payload
@@ -1121,24 +1139,6 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 let commit_response = group_state
                     .create_commit_response(sender_index, fan_out_payload.timestamp())?;
                 individual_fan_out_messages.push(commit_response);
-
-                // If specified by the client, we update our internal mapping of leaves to MemberProfile.
-                // This is used to recover groups where the OpenMLS leaves and its representation on the DS drifted.
-                if let Some((qs_client_reference, encrypted_user_profile_key)) = payload
-                    .qs_client_reference
-                    .zip(payload.encrypted_user_profile_key)
-                {
-                    group_state.member_profiles.insert(
-                        sender_index,
-                        MemberProfile {
-                            leaf_index: sender_index,
-                            client_queue_config: qs_client_reference.try_into()?,
-                            activity_time: TimeStamp::now(),
-                            activity_epoch: group_state.group().epoch(),
-                            encrypted_user_profile_key: encrypted_user_profile_key.try_into()?,
-                        },
-                    );
-                }
 
                 Ok((
                     destination_clients,
@@ -1293,6 +1293,24 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             ));
         }
 
+        // If specified by the client, we update our internal mapping of leaves to MemberProfile.
+        // This is used to recover groups where the OpenMLS leaves and its representation on the DS drifted.
+        if let Some((qs_client_reference, encrypted_user_profile_key)) = payload
+            .qs_client_reference
+            .zip(payload.encrypted_user_profile_key)
+        {
+            pq_group_state.member_profiles.insert(
+                pq_sender_index,
+                MemberProfile {
+                    leaf_index: pq_sender_index,
+                    client_queue_config: qs_client_reference.try_into()?,
+                    activity_time: TimeStamp::now(),
+                    activity_epoch: pq_group_state.group().epoch(),
+                    encrypted_user_profile_key: encrypted_user_profile_key.try_into()?,
+                },
+            );
+        }
+
         // Process group operation
         let add_users_info: Option<client_ds::ApqAddUsersInfo> = payload
             .add_users_info
@@ -1350,24 +1368,6 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
         let commit_response = t_group_state.create_commit_response(t_sender_index, timestamp)?;
         individual_fan_out_messages.push(commit_response);
-
-        // If specified by the client, we update our internal mapping of leaves to MemberProfile.
-        // This is used to recover groups where the OpenMLS leaves and its representation on the DS drifted.
-        if let Some((qs_client_reference, encrypted_user_profile_key)) = payload
-            .qs_client_reference
-            .zip(payload.encrypted_user_profile_key)
-        {
-            pq_group_state.member_profiles.insert(
-                pq_sender_index,
-                MemberProfile {
-                    leaf_index: pq_sender_index,
-                    client_queue_config: qs_client_reference.try_into()?,
-                    activity_time: TimeStamp::now(),
-                    activity_epoch: pq_group_state.group().epoch(),
-                    encrypted_user_profile_key: encrypted_user_profile_key.try_into()?,
-                },
-            );
-        }
 
         // Persist and commit the DS state *before* dispatching welcome bundles, so that joiners
         // fetching welcome info always observe the freshly stored past group state.
