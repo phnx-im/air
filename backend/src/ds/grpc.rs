@@ -1251,6 +1251,24 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let payload: ApqGroupOperationPayload =
             request.verify(t_verifying_key).map_err(InvalidSignature)?;
 
+        // If specified by the client, we update our internal mapping of leaves to MemberProfile.
+        // This is used to recover groups where the OpenMLS leaves and its representation on the DS drifted.
+        if let Some((qs_client_reference, encrypted_user_profile_key)) = payload
+            .qs_client_reference
+            .zip(payload.encrypted_user_profile_key)
+        {
+            t_group_state.member_profiles.insert(
+                t_sender_index,
+                MemberProfile {
+                    leaf_index: t_sender_index,
+                    client_queue_config: qs_client_reference.try_into()?,
+                    activity_time: TimeStamp::now(),
+                    activity_epoch: t_group_state.group().epoch(),
+                    encrypted_user_profile_key: encrypted_user_profile_key.try_into()?,
+                },
+            );
+        }
+
         // Load the pq-group state
         let (mut pq_group_state, pq_group_data) = match self
             .load_group_state_for_update(&mut txn, &pq_qgid, &ear_key)
@@ -1291,24 +1309,6 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             return Err(Status::invalid_argument(
                 "t and pq credentials do not match",
             ));
-        }
-
-        // If specified by the client, we update our internal mapping of leaves to MemberProfile.
-        // This is used to recover groups where the OpenMLS leaves and its representation on the DS drifted.
-        if let Some((qs_client_reference, encrypted_user_profile_key)) = payload
-            .qs_client_reference
-            .zip(payload.encrypted_user_profile_key)
-        {
-            pq_group_state.member_profiles.insert(
-                pq_sender_index,
-                MemberProfile {
-                    leaf_index: pq_sender_index,
-                    client_queue_config: qs_client_reference.try_into()?,
-                    activity_time: TimeStamp::now(),
-                    activity_epoch: pq_group_state.group().epoch(),
-                    encrypted_user_profile_key: encrypted_user_profile_key.try_into()?,
-                },
-            );
         }
 
         // Process group operation
