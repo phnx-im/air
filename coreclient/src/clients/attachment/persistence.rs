@@ -4,7 +4,7 @@
 
 use std::collections::HashMap;
 
-use aircommon::identifiers::AttachmentId;
+use aircommon::identifiers::RemoteAttachmentId;
 use chrono::{DateTime, Utc};
 use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
 use sqlx::{
@@ -14,7 +14,7 @@ use sqlx::{
 use uuid::Uuid;
 
 use crate::{
-    ChatId, LocalAttachmentId, MessageId,
+    AttachmentId, ChatId, MessageId,
     db::access::{ReadConnection, WriteConnection},
 };
 
@@ -27,9 +27,9 @@ pub(crate) struct AttachmentRecord {
     // Uniquely identifies the attachment on this local client.
     //
     // For incoming attachments, this is the same as the attachment ID on the server.
-    pub(crate) local_attachment_id: LocalAttachmentId,
+    pub(crate) attachment_id: AttachmentId,
     // Uniquely identifies the attachment on the server.
-    pub(crate) attachment_id: Option<AttachmentId>,
+    pub(crate) remote_attachment_id: Option<RemoteAttachmentId>,
     pub(super) chat_id: ChatId,
     pub(super) message_id: MessageId,
     pub(super) content_type: String,
@@ -124,13 +124,13 @@ impl AttachmentContent {
     }
 }
 
-impl Type<Sqlite> for LocalAttachmentId {
+impl Type<Sqlite> for AttachmentId {
     fn type_info() -> <Sqlite as Database>::TypeInfo {
         <Uuid as Type<Sqlite>>::type_info()
     }
 }
 
-impl<'q> Encode<'q, Sqlite> for LocalAttachmentId {
+impl<'q> Encode<'q, Sqlite> for AttachmentId {
     fn encode_by_ref(
         &self,
         buf: &mut <Sqlite as Database>::ArgumentBuffer<'q>,
@@ -139,7 +139,7 @@ impl<'q> Encode<'q, Sqlite> for LocalAttachmentId {
     }
 }
 
-impl<'r> Decode<'r, Sqlite> for LocalAttachmentId {
+impl<'r> Decode<'r, Sqlite> for AttachmentId {
     fn decode(value: <Sqlite as Database>::ValueRef<'r>) -> Result<Self, BoxDynError> {
         let uuid: Uuid = Decode::<Sqlite>::decode(value)?;
         Ok(Self { uuid })
@@ -180,8 +180,8 @@ impl AttachmentRecord {
     ) -> sqlx::Result<()> {
         query!(
             "INSERT INTO attachment (
-                local_attachment_id,
                 attachment_id,
+                remote_attachment_id,
                 chat_id,
                 message_id,
                 content_type,
@@ -189,8 +189,8 @@ impl AttachmentRecord {
                 status,
                 created_at
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            self.local_attachment_id,
             self.attachment_id,
+            self.remote_attachment_id,
             self.chat_id,
             self.message_id,
             self.content_type,
@@ -200,16 +200,16 @@ impl AttachmentRecord {
         )
         .execute(connection.as_mut())
         .await?;
-        connection.notifier().add(self.local_attachment_id);
+        connection.notifier().add(self.attachment_id);
         Ok(())
     }
 
     pub(crate) async fn load_all_pending(
         mut connection: impl ReadConnection,
-    ) -> sqlx::Result<Vec<LocalAttachmentId>> {
+    ) -> sqlx::Result<Vec<AttachmentId>> {
         query_scalar!(
             r#"SELECT
-                local_attachment_id AS "local_attachment_id: LocalAttachmentId"
+                attachment_id AS "attachment_id: AttachmentId"
             FROM attachment
             WHERE status = ?
             ORDER BY created_at ASC"#,
@@ -221,22 +221,22 @@ impl AttachmentRecord {
 
     pub(crate) async fn load(
         mut connection: impl ReadConnection,
-        local_attachment_id: LocalAttachmentId,
+        attachment_id: AttachmentId,
     ) -> sqlx::Result<Option<Self>> {
         query_as!(
             AttachmentRecord,
             r#"
                 SELECT
-                    local_attachment_id AS "local_attachment_id: _",
                     attachment_id AS "attachment_id: _",
+                    remote_attachment_id AS "remote_attachment_id: _",
                     chat_id AS "chat_id: _",
                     message_id AS "message_id: _",
                     content_type AS "content_type: _",
                     status AS "status: _",
                     created_at AS "created_at: _"
                 FROM attachment
-                WHERE local_attachment_id = ?"#,
-            local_attachment_id
+                WHERE attachment_id = ?"#,
+            attachment_id
         )
         .fetch_optional(connection.as_mut())
         .await
@@ -244,12 +244,12 @@ impl AttachmentRecord {
 
     pub(crate) async fn status(
         mut connection: impl ReadConnection,
-        local_attachment_id: LocalAttachmentId,
+        attachment_id: AttachmentId,
     ) -> sqlx::Result<Option<AttachmentStatus>> {
         query_scalar!(
             r#"SELECT status AS "status: _"
-            FROM attachment WHERE local_attachment_id = ?"#,
-            local_attachment_id,
+            FROM attachment WHERE attachment_id = ?"#,
+            attachment_id,
         )
         .fetch_optional(connection.as_mut())
         .await
@@ -257,13 +257,13 @@ impl AttachmentRecord {
 
     pub(crate) async fn update_status(
         mut connection: impl WriteConnection,
-        local_attachment_id: LocalAttachmentId,
+        attachment_id: AttachmentId,
         status: AttachmentStatus,
     ) -> sqlx::Result<()> {
         query!(
-            "UPDATE attachment SET status = ? WHERE local_attachment_id = ?",
+            "UPDATE attachment SET status = ? WHERE attachment_id = ?",
             status,
-            local_attachment_id,
+            attachment_id,
         )
         .execute(connection.as_mut())
         .await?;
@@ -272,24 +272,24 @@ impl AttachmentRecord {
 
     pub(crate) async fn set_content(
         mut connection: impl WriteConnection,
-        local_attachment_id: LocalAttachmentId,
+        attachment_id: AttachmentId,
         bytes: &[u8],
     ) -> sqlx::Result<()> {
         query!(
-            "UPDATE attachment SET status = ?, content = ? WHERE local_attachment_id = ?",
+            "UPDATE attachment SET status = ?, content = ? WHERE attachment_id = ?",
             AttachmentStatus::Ready,
             bytes,
-            local_attachment_id,
+            attachment_id,
         )
         .execute(connection.as_mut())
         .await?;
-        connection.notifier().update(local_attachment_id);
+        connection.notifier().update(attachment_id);
         Ok(())
     }
 
     pub(crate) async fn load_content(
         mut connection: impl ReadConnection,
-        local_attachment_id: LocalAttachmentId,
+        attachment_id: AttachmentId,
     ) -> sqlx::Result<AttachmentContent> {
         struct SqlParts {
             content: Option<Vec<u8>>,
@@ -301,8 +301,8 @@ impl AttachmentRecord {
                 content,
                 status AS "status: _"
             FROM attachment
-            WHERE local_attachment_id = ?"#,
-            local_attachment_id
+            WHERE attachment_id = ?"#,
+            attachment_id
         )
         .fetch_optional(connection.as_mut())
         .await?;
@@ -312,15 +312,15 @@ impl AttachmentRecord {
         }
     }
 
-    pub(crate) async fn update_attachment_id(
+    pub(crate) async fn update_remote_attachment_id(
         mut connection: impl WriteConnection,
-        local_attachment_id: LocalAttachmentId,
         attachment_id: AttachmentId,
+        remote_attachment_id: RemoteAttachmentId,
     ) -> sqlx::Result<()> {
         query!(
-            "UPDATE attachment SET attachment_id = ? WHERE local_attachment_id = ?",
+            "UPDATE attachment SET remote_attachment_id = ? WHERE attachment_id = ?",
+            remote_attachment_id,
             attachment_id,
-            local_attachment_id,
         )
         .execute(connection.as_mut())
         .await?;
@@ -336,9 +336,9 @@ impl AttachmentRecord {
         message_id: MessageId,
     ) -> sqlx::Result<()> {
         // Load attachment_ids and delete in one query with RETURNING
-        let attachment_ids: Vec<LocalAttachmentId> = query_scalar!(
+        let attachment_ids: Vec<AttachmentId> = query_scalar!(
             r#"DELETE FROM attachment WHERE message_id = ?
-            RETURNING local_attachment_id AS "local_attachment_id: _""#,
+            RETURNING attachment_id AS "attachment_id: _""#,
             message_id
         )
         .fetch_all(connection.as_mut())
@@ -357,9 +357,9 @@ impl AttachmentRecord {
     pub(crate) async fn load_ids_by_message_id(
         mut connection: impl ReadConnection,
         message_id: MessageId,
-    ) -> sqlx::Result<Vec<LocalAttachmentId>> {
+    ) -> sqlx::Result<Vec<AttachmentId>> {
         query_scalar!(
-            r#"SELECT local_attachment_id AS "local_attachment_id: _"
+            r#"SELECT attachment_id AS "attachment_id: _"
             FROM attachment
             WHERE message_id = ?
             ORDER BY rowid"#,
@@ -374,10 +374,10 @@ impl AttachmentRecord {
         chat_id: ChatId,
         mut from: (DateTime<Utc>, MessageId),
         mut to: (DateTime<Utc>, MessageId),
-    ) -> sqlx::Result<HashMap<MessageId, Vec<LocalAttachmentId>>> {
+    ) -> sqlx::Result<HashMap<MessageId, Vec<AttachmentId>>> {
         struct Row {
             message_id: MessageId,
-            local_attachment_id: LocalAttachmentId,
+            attachment_id: AttachmentId,
         }
 
         // Normalize the range
@@ -390,7 +390,7 @@ impl AttachmentRecord {
             r#"
             SELECT
                 a.message_id AS "message_id: _",
-                a.local_attachment_id AS "local_attachment_id: _"
+                a.attachment_id AS "attachment_id: _"
             FROM attachment a
             JOIN message m USING (message_id)
             WHERE m.chat_id = ?
@@ -407,16 +407,16 @@ impl AttachmentRecord {
         .fetch_all(connection.as_mut())
         .await?;
 
-        let mut attachment_ids: HashMap<MessageId, Vec<LocalAttachmentId>> = HashMap::new();
+        let mut attachment_ids: HashMap<MessageId, Vec<AttachmentId>> = HashMap::new();
         for Row {
             message_id,
-            local_attachment_id,
+            attachment_id,
         } in rows
         {
             attachment_ids
                 .entry(message_id)
                 .or_default()
-                .push(local_attachment_id);
+                .push(attachment_id);
         }
 
         Ok(attachment_ids)
@@ -426,7 +426,7 @@ impl AttachmentRecord {
 #[derive(Debug)]
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub(crate) struct PendingAttachmentRecord {
-    pub(super) attachment_id: AttachmentId,
+    pub(super) remote_attachment_id: RemoteAttachmentId,
     pub(super) size: u64,
     pub(super) enc_alg: EncryptionAlgorithm,
     pub(super) enc_key: Vec<u8>,
@@ -440,14 +440,14 @@ impl PendingAttachmentRecord {
     pub(crate) async fn store(
         &self,
         mut connection: impl WriteConnection,
-        local_attachment_id: LocalAttachmentId,
+        attachment_id: AttachmentId,
     ) -> sqlx::Result<()> {
         let size = self.size as i64;
         let enc_alg: u16 = self.enc_alg.into();
         let hash_alg: u8 = self.hash_alg.into();
         query!(
             "INSERT INTO pending_attachment (
-                attachment_id,
+                remote_attachment_id,
                 size,
                 enc_alg,
                 enc_key,
@@ -456,7 +456,7 @@ impl PendingAttachmentRecord {
                 hash_alg,
                 hash
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?)",
-            self.attachment_id,
+            self.remote_attachment_id,
             size,
             enc_alg,
             self.enc_key,
@@ -467,13 +467,13 @@ impl PendingAttachmentRecord {
         )
         .execute(connection.as_mut())
         .await?;
-        connection.notifier().add(local_attachment_id);
+        connection.notifier().add(attachment_id);
         Ok(())
     }
 
     pub(crate) async fn load_pending(
         mut connection: impl ReadConnection,
-        attachment_id: AttachmentId,
+        remote_attachment_id: RemoteAttachmentId,
     ) -> sqlx::Result<Option<Self>> {
         struct SqlPendingAttachmentRecord {
             size: u64,
@@ -499,11 +499,11 @@ impl PendingAttachmentRecord {
                     pa.hash_alg AS "hash_alg: _",
                     pa.hash AS "hash: _"
                 FROM pending_attachment pa
-                INNER JOIN attachment a ON a.attachment_id = pa.attachment_id
-                WHERE pa.attachment_id = ?
+                INNER JOIN attachment a ON a.remote_attachment_id = pa.remote_attachment_id
+                WHERE pa.remote_attachment_id = ?
                     AND (a.status = ? OR a.status = ? OR a.status = ?)
             "#,
-            attachment_id,
+            remote_attachment_id,
             AttachmentStatus::Pending,
             AttachmentStatus::Downloading,
             AttachmentStatus::DownloadFailed,
@@ -521,7 +521,7 @@ impl PendingAttachmentRecord {
                  hash,
              }| {
                 PendingAttachmentRecord {
-                    attachment_id,
+                    remote_attachment_id,
                     size,
                     enc_alg: EncryptionAlgorithm::from(enc_alg),
                     enc_key,
@@ -536,11 +536,11 @@ impl PendingAttachmentRecord {
 
     pub(crate) async fn delete(
         mut connection: impl WriteConnection,
-        attachment_id: AttachmentId,
+        remote_attachment_id: RemoteAttachmentId,
     ) -> sqlx::Result<()> {
         query!(
-            "DELETE FROM pending_attachment WHERE attachment_id = ?",
-            attachment_id
+            "DELETE FROM pending_attachment WHERE remote_attachment_id = ?",
+            remote_attachment_id
         )
         .execute(connection.as_mut())
         .await?;
@@ -566,8 +566,8 @@ pub(crate) mod test {
         message_id: MessageId,
     ) -> AttachmentRecord {
         AttachmentRecord {
-            local_attachment_id: LocalAttachmentId::random(),
-            attachment_id: Some(AttachmentId::new(Uuid::new_v4())),
+            attachment_id: AttachmentId::random(),
+            remote_attachment_id: Some(RemoteAttachmentId::new(Uuid::new_v4())),
             chat_id,
             message_id,
             content_type: "image/png".to_string(),
@@ -590,7 +590,7 @@ pub(crate) mod test {
 
         // Load the record
         let loaded_record =
-            AttachmentRecord::load(pool.read().await?, record.local_attachment_id).await?;
+            AttachmentRecord::load(pool.read().await?, record.attachment_id).await?;
         assert_eq!(loaded_record.as_ref(), Some(&record));
 
         Ok(())
@@ -609,31 +609,30 @@ pub(crate) mod test {
         // 1. Store the record with no content, status should be Pending.
         record.store(pool.write().await?, None).await?;
         let loaded_content =
-            AttachmentRecord::load_content(pool.read().await?, record.local_attachment_id).await?;
+            AttachmentRecord::load_content(pool.read().await?, record.attachment_id).await?;
         assert_eq!(loaded_content, AttachmentContent::Pending);
 
         // 2. Update status to Downloading
         AttachmentRecord::update_status(
             pool.write().await?,
-            record.local_attachment_id,
+            record.attachment_id,
             AttachmentStatus::Downloading,
         )
         .await?;
         let loaded_content =
-            AttachmentRecord::load_content(pool.read().await?, record.local_attachment_id).await?;
+            AttachmentRecord::load_content(pool.read().await?, record.attachment_id).await?;
         assert_eq!(loaded_content, AttachmentContent::Downloading);
 
         // 3. Set the content, which should move the status to Ready
         let content = b"some_image_content".to_vec();
-        AttachmentRecord::set_content(pool.write().await?, record.local_attachment_id, &content)
-            .await?;
+        AttachmentRecord::set_content(pool.write().await?, record.attachment_id, &content).await?;
 
         // Verify content and status
         let loaded_content =
-            AttachmentRecord::load_content(pool.read().await?, record.local_attachment_id).await?;
+            AttachmentRecord::load_content(pool.read().await?, record.attachment_id).await?;
         assert_eq!(loaded_content, AttachmentContent::Ready(content.clone()));
 
-        let loaded_record = AttachmentRecord::load(pool.read().await?, record.local_attachment_id)
+        let loaded_record = AttachmentRecord::load(pool.read().await?, record.attachment_id)
             .await?
             .unwrap();
         assert_eq!(loaded_record.status, AttachmentStatus::Ready);
@@ -641,16 +640,16 @@ pub(crate) mod test {
         // 4. Update status to Failed
         AttachmentRecord::update_status(
             pool.write().await?,
-            record.local_attachment_id,
+            record.attachment_id,
             AttachmentStatus::DownloadFailed,
         )
         .await?;
         let loaded_content =
-            AttachmentRecord::load_content(pool.read().await?, record.local_attachment_id).await?;
+            AttachmentRecord::load_content(pool.read().await?, record.attachment_id).await?;
         assert_eq!(loaded_content, AttachmentContent::DownloadFailed);
 
         // 5. Check loading content for a non-existent attachment
-        let non_existent_id = LocalAttachmentId::random();
+        let non_existent_id = AttachmentId::random();
         let loaded_content =
             AttachmentRecord::load_content(pool.read().await?, non_existent_id).await?;
         assert_eq!(loaded_content, AttachmentContent::None);
@@ -692,8 +691,8 @@ pub(crate) mod test {
         assert_eq!(
             pending_ids,
             vec![
-                pending_record_1.local_attachment_id,
-                pending_record_2.local_attachment_id
+                pending_record_1.attachment_id,
+                pending_record_2.attachment_id
             ]
         );
 
@@ -716,7 +715,7 @@ pub(crate) mod test {
 
         // 2. Create and store the PendingAttachmentRecord
         let pending_record = PendingAttachmentRecord {
-            attachment_id: attachment_record.attachment_id.unwrap(),
+            remote_attachment_id: attachment_record.remote_attachment_id.unwrap(),
             size: 123,
             enc_alg: EncryptionAlgorithm::Aes256Gcm,
             enc_key: b"key".to_vec(),
@@ -726,13 +725,13 @@ pub(crate) mod test {
             hash: b"hash".to_vec(),
         };
         pending_record
-            .store(pool.write().await?, attachment_record.local_attachment_id)
+            .store(pool.write().await?, attachment_record.attachment_id)
             .await?;
 
         // 3. Load the pending record and verify it's correct
         let loaded_pending = PendingAttachmentRecord::load_pending(
             pool.read().await?,
-            attachment_record.attachment_id.unwrap(),
+            attachment_record.remote_attachment_id.unwrap(),
         )
         .await?;
         assert_eq!(loaded_pending, Some(pending_record));
@@ -740,14 +739,14 @@ pub(crate) mod test {
         // 4. Delete the pending record
         PendingAttachmentRecord::delete(
             pool.write().await?,
-            attachment_record.attachment_id.unwrap(),
+            attachment_record.remote_attachment_id.unwrap(),
         )
         .await?;
 
         // 5. Try to load it again and assert it's gone
         let loaded_pending_after_delete = PendingAttachmentRecord::load_pending(
             pool.read().await?,
-            attachment_record.attachment_id.unwrap(),
+            attachment_record.remote_attachment_id.unwrap(),
         )
         .await?;
         assert_eq!(loaded_pending_after_delete, None);
@@ -768,7 +767,7 @@ pub(crate) mod test {
         attachment_record.store(pool.write().await?, None).await?;
 
         let pending_record = PendingAttachmentRecord {
-            attachment_id: attachment_record.attachment_id.unwrap(),
+            remote_attachment_id: attachment_record.remote_attachment_id.unwrap(),
             size: 123,
             enc_alg: EncryptionAlgorithm::Aes256Gcm,
             enc_key: b"key".to_vec(),
@@ -778,13 +777,13 @@ pub(crate) mod test {
             hash: b"hash".to_vec(),
         };
         pending_record
-            .store(pool.write().await?, attachment_record.local_attachment_id)
+            .store(pool.write().await?, attachment_record.attachment_id)
             .await?;
 
         // 2. Update the status of the base attachment to something other than Pending
         AttachmentRecord::update_status(
             pool.write().await?,
-            attachment_record.local_attachment_id,
+            attachment_record.attachment_id,
             AttachmentStatus::NotFound,
         )
         .await?;
@@ -792,7 +791,7 @@ pub(crate) mod test {
         // 3. Try to load the pending record. It should fail because the join on status=1 fails.
         let loaded_pending = PendingAttachmentRecord::load_pending(
             pool.read().await?,
-            attachment_record.attachment_id.unwrap(),
+            attachment_record.remote_attachment_id.unwrap(),
         )
         .await?;
         assert!(loaded_pending.is_none());
@@ -809,13 +808,13 @@ pub(crate) mod test {
         let message = test_chat_message(chat.id());
         message.store(pool.write().await?).await?;
 
-        let local_attachment_id = LocalAttachmentId::random();
-        let attachment_id = AttachmentId::new(Uuid::new_v4());
+        let attachment_id = AttachmentId::random();
+        let remote_attachment_id = RemoteAttachmentId::new(Uuid::new_v4());
         let created_at = Utc::now().round_subsecs(6);
 
         let record = AttachmentRecord {
-            local_attachment_id,
-            attachment_id: Some(attachment_id),
+            attachment_id,
+            remote_attachment_id: Some(remote_attachment_id),
             chat_id: chat.id(),
             message_id: message.id(),
             content_type: "image/png".to_string(),
@@ -826,19 +825,19 @@ pub(crate) mod test {
         let content = b"some_image_content".to_vec();
 
         record.store(pool.write().await?, Some(&content)).await?;
-        let loaded_record = AttachmentRecord::load(pool.read().await?, local_attachment_id).await?;
+        let loaded_record = AttachmentRecord::load(pool.read().await?, attachment_id).await?;
         assert_eq!(loaded_record.unwrap(), record);
         let loaded_content =
-            AttachmentRecord::load_content(pool.read().await?, local_attachment_id).await?;
+            AttachmentRecord::load_content(pool.read().await?, attachment_id).await?;
         assert_eq!(loaded_content, AttachmentContent::Pending);
 
         AttachmentRecord::update_status(
             pool.write().await?,
-            local_attachment_id,
+            attachment_id,
             AttachmentStatus::Ready,
         )
         .await?;
-        let loaded_record = AttachmentRecord::load(pool.read().await?, local_attachment_id).await?;
+        let loaded_record = AttachmentRecord::load(pool.read().await?, attachment_id).await?;
         assert_eq!(
             loaded_record.unwrap(),
             AttachmentRecord {
@@ -847,7 +846,7 @@ pub(crate) mod test {
             }
         );
         let loaded_content =
-            AttachmentRecord::load_content(pool.read().await?, local_attachment_id).await?;
+            AttachmentRecord::load_content(pool.read().await?, attachment_id).await?;
         assert_eq!(loaded_content, AttachmentContent::Ready(content));
 
         Ok(())
@@ -870,7 +869,7 @@ pub(crate) mod test {
 
         // Verify attachment exists
         let loaded_record =
-            AttachmentRecord::load(pool.read().await?, record.local_attachment_id).await?;
+            AttachmentRecord::load(pool.read().await?, record.attachment_id).await?;
         assert!(loaded_record.is_some());
 
         // Delete the message - FK cascade should delete the attachment
@@ -878,7 +877,7 @@ pub(crate) mod test {
 
         // Verify the attachment is gone (FK cascade)
         let loaded_record =
-            AttachmentRecord::load(pool.read().await?, record.local_attachment_id).await?;
+            AttachmentRecord::load(pool.read().await?, record.attachment_id).await?;
         assert!(
             loaded_record.is_none(),
             "Attachment should be deleted by FK cascade when message is deleted"
@@ -904,10 +903,8 @@ pub(crate) mod test {
         record2.store(pool.write().await?, None).await?;
 
         // Verify both attachments exist
-        let loaded1 =
-            AttachmentRecord::load(pool.read().await?, record1.local_attachment_id).await?;
-        let loaded2 =
-            AttachmentRecord::load(pool.read().await?, record2.local_attachment_id).await?;
+        let loaded1 = AttachmentRecord::load(pool.read().await?, record1.attachment_id).await?;
+        let loaded2 = AttachmentRecord::load(pool.read().await?, record2.attachment_id).await?;
         assert!(loaded1.is_some());
         assert!(loaded2.is_some());
 
@@ -915,17 +912,15 @@ pub(crate) mod test {
         let ids =
             AttachmentRecord::load_ids_by_message_id(pool.read().await?, message.id()).await?;
         assert_eq!(ids.len(), 2);
-        assert!(ids.contains(&record1.local_attachment_id));
-        assert!(ids.contains(&record2.local_attachment_id));
+        assert!(ids.contains(&record1.attachment_id));
+        assert!(ids.contains(&record2.attachment_id));
 
         // Delete attachments by message_id
         AttachmentRecord::delete_by_message_id(pool.write().await?, message.id()).await?;
 
         // Verify both attachments are gone
-        let loaded1 =
-            AttachmentRecord::load(pool.read().await?, record1.local_attachment_id).await?;
-        let loaded2 =
-            AttachmentRecord::load(pool.read().await?, record2.local_attachment_id).await?;
+        let loaded1 = AttachmentRecord::load(pool.read().await?, record1.attachment_id).await?;
+        let loaded2 = AttachmentRecord::load(pool.read().await?, record2.attachment_id).await?;
         assert!(
             loaded1.is_none(),
             "First attachment should be deleted by delete_by_message_id"

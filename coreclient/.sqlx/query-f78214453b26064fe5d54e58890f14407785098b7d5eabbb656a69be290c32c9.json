@@ -1,15 +1,15 @@
 {
   "db_name": "SQLite",
-  "query": "\n                SELECT\n                    local_attachment_id AS \"local_attachment_id: _\",\n                    attachment_id AS \"attachment_id: _\",\n                    chat_id AS \"chat_id: _\",\n                    message_id AS \"message_id: _\",\n                    content_type AS \"content_type: _\",\n                    status AS \"status: _\",\n                    created_at AS \"created_at: _\"\n                FROM attachment\n                WHERE local_attachment_id = ?",
+  "query": "\n                SELECT\n                    attachment_id AS \"attachment_id: _\",\n                    remote_attachment_id AS \"remote_attachment_id: _\",\n                    chat_id AS \"chat_id: _\",\n                    message_id AS \"message_id: _\",\n                    content_type AS \"content_type: _\",\n                    status AS \"status: _\",\n                    created_at AS \"created_at: _\"\n                FROM attachment\n                WHERE attachment_id = ?",
   "describe": {
     "columns": [
       {
-        "name": "local_attachment_id: _",
+        "name": "attachment_id: _",
         "ordinal": 0,
         "type_info": "Blob"
       },
       {
-        "name": "attachment_id: _",
+        "name": "remote_attachment_id: _",
         "ordinal": 1,
         "type_info": "Blob"
       },
@@ -52,5 +52,5 @@
       false
     ]
   },
-  "hash": "531e6f97c96b43b80e1bdb00ab79658d1f9e910e964812a6240af985b0dfd383"
+  "hash": "f78214453b26064fe5d54e58890f14407785098b7d5eabbb656a69be290c32c9"
 }

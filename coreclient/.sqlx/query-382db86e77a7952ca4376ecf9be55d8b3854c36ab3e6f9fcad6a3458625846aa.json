@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                attachment_id AS \"attachment_id: AttachmentId\"\n            FROM attachment\n            WHERE status = ?\n            ORDER BY created_at ASC",
+  "describe": {
+    "columns": [
+      {
+        "name": "attachment_id: AttachmentId",
+        "ordinal": 0,
+        "type_info": "Blob"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "382db86e77a7952ca4376ecf9be55d8b3854c36ab3e6f9fcad6a3458625846aa"
+}

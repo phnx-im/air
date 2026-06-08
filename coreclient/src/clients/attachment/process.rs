@@ -6,14 +6,14 @@
 
 use std::mem;
 
-use aircommon::identifiers::AttachmentId;
+use aircommon::identifiers::RemoteAttachmentId;
 use mimi_content::{Disposition, content_container::NestedPart};
 use tracing::error;
 
 use super::{content::MimiContentExt, persistence::PendingAttachmentRecord};
 
 use crate::{
-    ChatMessage, LocalAttachmentId,
+    AttachmentId, ChatMessage,
     clients::{
         CoreUser,
         attachment::{AttachmentRecord, persistence::AttachmentStatus},
@@ -57,7 +57,7 @@ impl CoreUser {
                 return Ok(());
             };
 
-            let attachment_id: AttachmentId = match url.parse() {
+            let remote_attachment_id: RemoteAttachmentId = match url.parse() {
                 Ok(id) => id,
                 Err(error) => {
                     error!(%url, %error, "invalid attachment url; dropping attachment");
@@ -75,8 +75,8 @@ impl CoreUser {
             // Note: the encryption data and the hash are moved from the mimi content into
             // pending attachment record.
             let record = AttachmentRecord {
-                local_attachment_id: LocalAttachmentId::random(),
-                attachment_id: Some(attachment_id),
+                attachment_id: AttachmentId::random(),
+                remote_attachment_id: Some(remote_attachment_id),
                 chat_id,
                 message_id,
                 content_type: content_type.clone(),
@@ -84,7 +84,7 @@ impl CoreUser {
                 created_at,
             };
             let pending_record = PendingAttachmentRecord {
-                attachment_id,
+                remote_attachment_id,
                 size: *size,
                 enc_alg: *enc_alg,
                 enc_key: mem::take(key),

@@ -869,8 +869,8 @@ async fn delete_message_with_attachment() {
             .await;
 
         // Download each attachment
-        for attachment_id in &bob_attachment_ids {
-            let (_, download_future) = bob_user.download_attachment(*attachment_id);
+        for remote_attachment_id in &bob_attachment_ids {
+            let (_, download_future) = bob_user.download_attachment(*remote_attachment_id);
             download_future.await.unwrap();
         }
 

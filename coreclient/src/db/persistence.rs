@@ -12,7 +12,7 @@ use tokio_stream::StreamExt;
 use tracing::error;
 use uuid::Uuid;
 
-use crate::{ChatId, LocalAttachmentId, MessageId, db::access::WriteConnection};
+use crate::{AttachmentId, ChatId, MessageId, db::access::WriteConnection};
 
 use super::notification::{DbEntityId, DbEntityKind, DbNotification, DbOperation};
 
@@ -39,8 +39,8 @@ impl<'q> Encode<'q, Sqlite> for DbEntityId {
             DbEntityId::Message(message_id) => {
                 Encode::<Sqlite>::encode_by_ref(&message_id.uuid, buf)
             }
-            DbEntityId::Attachment(local_attachment_id) => {
-                Encode::<Sqlite>::encode_by_ref(&local_attachment_id.uuid, buf)
+            DbEntityId::Attachment(attachment_id) => {
+                Encode::<Sqlite>::encode_by_ref(&attachment_id.uuid, buf)
             }
         }
     }
@@ -95,7 +95,7 @@ impl SqlDbNotification {
                 DbEntityId::Message(MessageId::new(Uuid::from_slice(&entity_id)?))
             }
             DbEntityKind::Attachment => {
-                DbEntityId::Attachment(LocalAttachmentId::new(Uuid::from_slice(&entity_id)?))
+                DbEntityId::Attachment(AttachmentId::new(Uuid::from_slice(&entity_id)?))
             }
         };
         let mut op: EnumSet<DbOperation> = Default::default();

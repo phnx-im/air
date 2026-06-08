@@ -13,7 +13,7 @@ pub use aircoreclient::{
     RequiredDebugCapabilities,
 };
 use aircoreclient::{
-    AttachmentProgress, Chat, ChatId, ChatMessage, LocalAttachmentId, MessageId,
+    AttachmentId, AttachmentProgress, Chat, ChatId, ChatMessage, MessageId,
     ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
 };
 use airprotos::client::component::AirComponent;
@@ -271,7 +271,7 @@ impl ChatDetailsCubitBase {
         path: String,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
         let path = PathBuf::from(path);
-        let (local_attachment_id, progress, upload_task) = match Box::pin(
+        let (attachment_id, progress, upload_task) = match Box::pin(
             self.context
                 .core_user
                 .upload_chat_attachment(self.context.chat_id, &path),
@@ -281,39 +281,38 @@ impl ChatDetailsCubitBase {
             Ok(result) => result,
             Err(error) => return error.into_ui_result(),
         };
-        self.upload_attachment_impl(local_attachment_id, progress, upload_task)
+        self.upload_attachment_impl(attachment_id, progress, upload_task)
             .await?;
         Ok(None)
     }
 
     pub async fn retry_upload_attachment(
         &self,
-        local_attachment_id: LocalAttachmentId,
+        attachment_id: AttachmentId,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
         let (progress, upload_task) = match self
             .context
             .core_user
-            .retry_upload_chat_attachment(local_attachment_id)
+            .retry_upload_chat_attachment(attachment_id)
             .await?
         {
             Ok(result) => result,
             Err(error) => return error.into_ui_result(),
         };
-        self.upload_attachment_impl(local_attachment_id, progress, upload_task)
+        self.upload_attachment_impl(attachment_id, progress, upload_task)
             .await?;
         Ok(None)
     }
 
     async fn upload_attachment_impl(
         &self,
-        local_attachment_id: LocalAttachmentId,
+        attachment_id: AttachmentId,
         progress: AttachmentProgress,
         upload_task: impl Future<Output = Result<ChatMessage, UploadTaskError>> + Send + 'static,
     ) -> anyhow::Result<()> {
         let handle = AttachmentTaskHandle::new(progress);
         let cancel = handle.cancellation_token().clone();
-        self.attachment_in_progress
-            .insert(local_attachment_id, handle);
+        self.attachment_in_progress.insert(attachment_id, handle);
         match cancel.run_until_cancelled_owned(upload_task).await {
             Some(Ok(message)) => {
                 self.context
@@ -323,7 +322,7 @@ impl ChatDetailsCubitBase {
                     .await?;
             }
             Some(Err(UploadTaskError { message_id, error })) => {
-                error!(%error, ?local_attachment_id, "Failed to upload attachment");
+                error!(%error, ?attachment_id, "Failed to upload attachment");
                 self.context
                     .core_user
                     .outbound_service()
@@ -331,7 +330,7 @@ impl ChatDetailsCubitBase {
                     .await?;
             }
             None => {
-                info!(?local_attachment_id, "Upload was cancelled");
+                info!(?attachment_id, "Upload was cancelled");
             }
         }
         Ok(())

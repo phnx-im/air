@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::MimiId;
-pub(crate) use aircoreclient::LocalAttachmentId;
+pub(crate) use aircoreclient::AttachmentId;
 use flutter_rust_bridge::frb;
 use uuid::Uuid;
 
@@ -32,14 +32,14 @@ impl From<UiMimiId> for Vec<u8> {
     }
 }
 
-/// Mirror of the [`LocalAttachmentId`] type
+/// Mirror of the [`AttachmentId`] type
 #[doc(hidden)]
-#[frb(mirror(LocalAttachmentId))]
+#[frb(mirror(AttachmentId))]
 #[frb(dart_code = "
     @override
-    String toString() => 'LocalAttachmentId($uuid)';
+    String toString() => 'AttachmentId($uuid)';
 ")]
-pub struct _LocalAttachmentId {
+pub struct _AttachmentId {
     pub uuid: Uuid,
 }
 
@@ -82,7 +82,7 @@ pub(crate) struct UnresolvedAttachment {
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[frb(dart_metadata = ("freezed"), type_64bit_int)]
 pub struct UiAttachment {
-    pub local_attachment_id: LocalAttachmentId,
+    pub attachment_id: AttachmentId,
     pub filename: String,
     pub content_type: String,
     pub description: Option<String>,
@@ -99,13 +99,13 @@ pub struct UiImageMetadata {
 }
 
 impl UnresolvedMimiContent {
-    pub(crate) fn resolve(self, local_attachment_ids: &[LocalAttachmentId]) -> UiMimiContent {
+    pub(crate) fn resolve(self, local_attachment_ids: &[AttachmentId]) -> UiMimiContent {
         let attachments: Vec<UiAttachment> = self
             .attachments
             .into_iter()
             .zip(local_attachment_ids.iter().copied())
-            .map(|(attachment, local_attachment_id)| UiAttachment {
-                local_attachment_id,
+            .map(|(attachment, attachment_id)| UiAttachment {
+                attachment_id,
                 filename: attachment.filename,
                 content_type: attachment.content_type,
                 description: attachment.description,

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n                SELECT\n                    pa.size AS \"size: _\",\n                    pa.enc_alg AS \"enc_alg: _\",\n                    pa.enc_key AS \"enc_key: _\",\n                    pa.nonce AS \"nonce: _\",\n                    pa.aad AS \"aad: _\",\n                    pa.hash_alg AS \"hash_alg: _\",\n                    pa.hash AS \"hash: _\"\n                FROM pending_attachment pa\n                INNER JOIN attachment a ON a.attachment_id = pa.attachment_id\n                WHERE pa.attachment_id = ?\n                    AND (a.status = ? OR a.status = ? OR a.status = ?)\n            ",
+  "query": "\n                SELECT\n                    pa.size AS \"size: _\",\n                    pa.enc_alg AS \"enc_alg: _\",\n                    pa.enc_key AS \"enc_key: _\",\n                    pa.nonce AS \"nonce: _\",\n                    pa.aad AS \"aad: _\",\n                    pa.hash_alg AS \"hash_alg: _\",\n                    pa.hash AS \"hash: _\"\n                FROM pending_attachment pa\n                INNER JOIN attachment a ON a.remote_attachment_id = pa.remote_attachment_id\n                WHERE pa.remote_attachment_id = ?\n                    AND (a.status = ? OR a.status = ? OR a.status = ?)\n            ",
   "describe": {
     "columns": [
       {
@@ -52,5 +52,5 @@
       false
     ]
   },
-  "hash": "116e5590dad3653d75c03050fc6ac80897a7c98ab94b946c01964fbd76c9d2af"
+  "hash": "bb7fce8665b6165621652c9ab8d26651e1d8348a34667c2c0295b3bf040c6575"
 }

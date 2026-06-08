@@ -76,9 +76,9 @@ async fn send_attachment() {
 
     let pending_attachments = bob.pending_attachments().await.unwrap();
     assert_eq!(pending_attachments.len(), 1);
-    let local_attachment_id = pending_attachments[0];
+    let attachment_id = pending_attachments[0];
 
-    let (progress, download_task) = bob.download_attachment(local_attachment_id);
+    let (progress, download_task) = bob.download_attachment(attachment_id);
 
     let progress_events = progress.stream().collect::<Vec<_>>();
 
@@ -95,7 +95,7 @@ async fn send_attachment() {
     );
 
     let content = bob
-        .load_attachment(local_attachment_id)
+        .load_attachment(attachment_id)
         .await
         .unwrap()
         .into_bytes()
@@ -169,9 +169,9 @@ async fn send_image_attachment() {
 
     let pending_attachments = bob.pending_attachments().await.unwrap();
     assert_eq!(pending_attachments.len(), 1);
-    let local_attachment_id = pending_attachments[0];
+    let attachment_id = pending_attachments[0];
 
-    let (progress, download_task) = bob.download_attachment(local_attachment_id);
+    let (progress, download_task) = bob.download_attachment(attachment_id);
 
     let progress_events = progress.stream().collect::<Vec<_>>();
 
@@ -188,7 +188,7 @@ async fn send_image_attachment() {
     );
 
     let content = bob
-        .load_attachment(local_attachment_id)
+        .load_attachment(attachment_id)
         .await
         .unwrap()
         .into_bytes()

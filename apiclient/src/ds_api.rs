@@ -13,7 +13,7 @@ use aircommon::{
         aead::keys::{EncryptedUserProfileKey, GroupStateEarKey},
         signatures::signable::Signable,
     },
-    identifiers::{AttachmentId, QsReference, QualifiedGroupId, UserId},
+    identifiers::{QsReference, QualifiedGroupId, RemoteAttachmentId, UserId},
     messages::{
         client_ds::UserProfileKeyUpdateParams,
         client_ds_out::{
@@ -715,7 +715,7 @@ impl ApiClient {
         object_type: StorageObjectType,
         signing_key: &ClientSigningKey,
         target: DsAttachmentTarget<'_>,
-        attachment_id: AttachmentId,
+        remote_attachment_id: RemoteAttachmentId,
     ) -> Result<String, DsRequestError> {
         let payload = match target {
             DsAttachmentTarget::Group {
@@ -730,7 +730,7 @@ impl ApiClient {
                     group_id: Some(qgid.ref_into()),
                     sender: Some(sender_index.into()),
                     user_id: None,
-                    object_id: Some(attachment_id.uuid().into()),
+                    object_id: Some(remote_attachment_id.uuid().into()),
                     object_type: object_type.into(),
                 }
             }
@@ -740,7 +740,7 @@ impl ApiClient {
                 group_id: None,
                 sender: None,
                 user_id: Some(user_id.clone().into()),
-                object_id: Some(attachment_id.uuid().into()),
+                object_id: Some(remote_attachment_id.uuid().into()),
                 object_type: object_type.into(),
             },
         };

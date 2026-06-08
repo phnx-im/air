@@ -16,8 +16,8 @@ pub(crate) use airprotos::client::component::{AirComponent, AirFeatures};
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{
-    Asset, ChatAttributes, ChatMessage, ChatStatus, ChatType, Contact, ContentMessage, DisplayName,
-    ErrorMessage, EventMessage, InactiveChat, LocalAttachmentId, Message, MessageDraft,
+    Asset, AttachmentId, ChatAttributes, ChatMessage, ChatStatus, ChatType, Contact,
+    ContentMessage, DisplayName, ErrorMessage, EventMessage, InactiveChat, Message, MessageDraft,
     SystemMessage, TargetedMessageContact, UserProfile, clients::CoreUser,
 };
 use chrono::{DateTime, Duration, Local, Utc};
@@ -348,7 +348,7 @@ pub enum UiMessageStatus {
 impl UiChatMessage {
     pub(crate) fn from_message(
         mut chat_message: ChatMessage,
-        local_attachment_ids: &[LocalAttachmentId],
+        local_attachment_ids: &[AttachmentId],
     ) -> Self {
         let status = match chat_message.status() {
             MessageStatus::Error => UiMessageStatus::Error,
@@ -409,7 +409,7 @@ pub enum UiMessage {
 }
 
 impl UiMessage {
-    fn from_message(message: Message, local_attachment_ids: &[LocalAttachmentId]) -> Self {
+    fn from_message(message: Message, local_attachment_ids: &[AttachmentId]) -> Self {
         match message {
             Message::Content(content_message) => UiMessage::Content(Box::new(
                 UiContentMessage::from_message(*content_message, local_attachment_ids),
@@ -434,7 +434,7 @@ pub struct UiContentMessage {
 impl UiContentMessage {
     fn from_message(
         content_message: ContentMessage,
-        local_attachment_ids: &[LocalAttachmentId],
+        local_attachment_ids: &[AttachmentId],
     ) -> Self {
         let sent = content_message.was_sent();
         let edited = content_message.edited_at().is_some();

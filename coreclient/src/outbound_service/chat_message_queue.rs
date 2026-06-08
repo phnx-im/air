@@ -155,8 +155,8 @@ mod persistence {
                     SELECT message_id FROM chat_message_queue
                 );
                 DELETE FROM pending_attachment
-                WHERE attachment_id IN (
-                    SELECT attachment_id FROM chat_message_queue
+                WHERE remote_attachment_id IN (
+                    SELECT remote_attachment_id FROM chat_message_queue
                 );
 
                 DELETE FROM chat_message_queue

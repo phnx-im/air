@@ -10,7 +10,7 @@ use std::{
 };
 
 use aircoreclient::{
-    ChatId, ChatMessage, ChatType, LocalAttachmentId, MessageId,
+    AttachmentId, ChatId, ChatMessage, ChatType, MessageId,
     clients::CoreUser,
     db::notification::{DbEntityId, DbNotification, DbOperation},
 };
@@ -225,7 +225,7 @@ impl MessageListData {
         &mut self,
         state: &mut MessageListState,
         new_messages: Vec<ChatMessage>,
-        local_attachment_ids: HashMap<MessageId, Vec<LocalAttachmentId>>,
+        local_attachment_ids: HashMap<MessageId, Vec<AttachmentId>>,
         is_connection_chat: Option<bool>,
         direction: LoadDirection,
     ) -> MessageListTransition {
@@ -453,7 +453,7 @@ impl MessageListData {
         &mut self,
         state: &mut MessageListState,
         message: ChatMessage,
-        local_attachment_ids: &[LocalAttachmentId],
+        local_attachment_ids: &[AttachmentId],
     ) -> Option<MessageListTransition> {
         let idx = self.message_ids_index.get(&message.id()).copied()?;
         let updated = UiChatMessage::from_message(message, local_attachment_ids);
@@ -1118,7 +1118,7 @@ impl MessageListContext {
     fn update_message_in_place(
         &mut self,
         message: ChatMessage,
-        local_attachment_ids: &[LocalAttachmentId],
+        local_attachment_ids: &[AttachmentId],
     ) {
         let mut state = self.state_tx.borrow().clone();
         if let Some(transition) =

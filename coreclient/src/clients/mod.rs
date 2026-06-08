@@ -729,10 +729,7 @@ impl CoreUser {
                     error!(%error, "Failed to store attachment");
                     continue;
                 }
-                if let Err(error) = pending_record
-                    .store(&mut *txn, record.local_attachment_id)
-                    .await
-                {
+                if let Err(error) = pending_record.store(&mut *txn, record.attachment_id).await {
                     error!(%error, "Failed to store pending attachment");
                 }
             }

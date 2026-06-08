@@ -11,7 +11,7 @@ use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};
 use tokio_stream::{Stream, StreamExt};
 use tracing::{debug, error, warn};
 
-use crate::{ChatId, LocalAttachmentId, MessageId};
+use crate::{AttachmentId, ChatId, MessageId};
 
 // 1024 * size_of::<Arc<DbNotification>>() = 1024 * 8 = 8 KiB
 const NOTIFICATION_CHANNEL_SIZE: usize = 1024;
@@ -211,7 +211,7 @@ pub enum DbEntityId {
     User(UserId),
     Chat(ChatId),
     Message(MessageId),
-    Attachment(LocalAttachmentId),
+    Attachment(AttachmentId),
 }
 
 impl DbEntityId {
