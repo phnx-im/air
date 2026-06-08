@@ -14,16 +14,18 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'package:uuid/uuid.dart';
 part 'message_content.freezed.dart';
 
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `hash`, `hash`, `hash`
+// These functions are ignored because they are not marked as `pub`: `resolve`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `UnresolvedAttachment`, `UnresolvedMimiContent`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `hash`, `hash`, `hash`
 
 /// Mirror of the [`AttachmentId`] type
-class LocalAttachmentId {
+class AttachmentId {
   final UuidValue uuid;
 
-  const LocalAttachmentId({required this.uuid});
+  const AttachmentId({required this.uuid});
 
   @override
-  String toString() => 'LocalAttachmentId($uuid)';
+  String toString() => 'AttachmentId($uuid)';
 
   @override
   int get hashCode => uuid.hashCode;
@@ -31,7 +33,7 @@ class LocalAttachmentId {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is LocalAttachmentId &&
+      other is AttachmentId &&
           runtimeType == other.runtimeType &&
           uuid == other.uuid;
 }
@@ -39,7 +41,7 @@ class LocalAttachmentId {
 @freezed
 sealed class UiAttachment with _$UiAttachment {
   const factory UiAttachment({
-    required LocalAttachmentId localAttachmentId,
+    required AttachmentId attachmentId,
     required String filename,
     required String contentType,
     String? description,
@@ -61,10 +63,10 @@ sealed class UiImageMetadata with _$UiImageMetadata {
 @freezed
 sealed class UiMimiContent with _$UiMimiContent {
   const factory UiMimiContent({
+    String? plainBody,
     Uint8List? replaces,
     required Uint8List topicId,
     Uint8List? inReplyTo,
-    String? plainBody,
     MessageContent? content,
     required List<UiAttachment> attachments,
   }) = _UiMimiContent;

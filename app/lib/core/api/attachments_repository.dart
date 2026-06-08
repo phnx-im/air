@@ -20,15 +20,13 @@ part 'attachments_repository.freezed.dart';
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentsRepository>>
 abstract class AttachmentsRepository implements RustOpaqueInterface {
-  Future<void> cancel({required LocalAttachmentId localAttachmentId});
+  Future<void> cancel({required AttachmentId attachmentId});
 
   /// Load attachment's data from database
-  Future<Uint8List?> loadAttachment({
-    required LocalAttachmentId localAttachmentId,
-  });
+  Future<Uint8List?> loadAttachment({required AttachmentId attachmentId});
 
   Future<LoadedImageAttachment> loadImageAttachment({
-    required LocalAttachmentId localAttachmentId,
+    required AttachmentId attachmentId,
     required bool retryDownloadIfFailed,
     required FutureOr<void> Function(BigInt) chunkEventCallback,
   });
@@ -41,13 +39,11 @@ abstract class AttachmentsRepository implements RustOpaqueInterface {
       );
 
   Future<void> saveAttachment({
-    required LocalAttachmentId localAttachmentId,
+    required AttachmentId attachmentId,
     required String path,
   });
 
-  Stream<UiAttachmentStatus> statusStream({
-    required LocalAttachmentId localAttachmentId,
-  });
+  Stream<UiAttachmentStatus> statusStream({required AttachmentId attachmentId});
 }
 
 /// Bytes of an image attachment and an animation classification.

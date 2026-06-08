@@ -86,7 +86,7 @@ fn wire__crate__api__attachments_repository__AttachmentsRepository_cancel_impl(
             let api_that = <RustOpaqueMoi<
                 flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentsRepository>,
             >>::sse_decode(&mut deserializer);
-            let api_local_attachment_id =
+            let api_attachment_id =
                 <crate::api::message_content::AttachmentId>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| {
@@ -108,7 +108,7 @@ fn wire__crate__api__attachments_repository__AttachmentsRepository_cancel_impl(
                     let output_ok = Result::<_, ()>::Ok({
                         crate::api::attachments_repository::AttachmentsRepository::cancel(
                             &*api_that_guard,
-                            api_local_attachment_id,
+                            api_attachment_id,
                         );
                     })?;
                     Ok(output_ok)
@@ -127,7 +127,7 @@ fn wire__crate__api__attachments_repository__AttachmentsRepository_load_attachme
             let message = unsafe { flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(ptr_, rust_vec_len_, data_len_) };
             let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentsRepository>>>::sse_decode(&mut deserializer);
-let api_local_attachment_id = <crate::api::message_content::AttachmentId>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
+let api_attachment_id = <crate::api::message_content::AttachmentId>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
                     transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
                         let mut api_that_guard = None;
 let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
@@ -138,7 +138,7 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
             }
         }
         let api_that_guard = api_that_guard.unwrap();
- let output_ok = crate::api::attachments_repository::AttachmentsRepository::load_attachment(&*api_that_guard, api_local_attachment_id).await?;   Ok(output_ok)
+ let output_ok = crate::api::attachments_repository::AttachmentsRepository::load_attachment(&*api_that_guard, api_attachment_id).await?;   Ok(output_ok)
                     })().await)
                 } })
 }
@@ -152,7 +152,7 @@ fn wire__crate__api__attachments_repository__AttachmentsRepository_load_image_at
             let message = unsafe { flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(ptr_, rust_vec_len_, data_len_) };
             let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentsRepository>>>::sse_decode(&mut deserializer);
-let api_local_attachment_id = <crate::api::message_content::AttachmentId>::sse_decode(&mut deserializer);
+let api_attachment_id = <crate::api::message_content::AttachmentId>::sse_decode(&mut deserializer);
 let api_retry_download_if_failed = <bool>::sse_decode(&mut deserializer);
 let api_chunk_event_callback = decode_DartFn_Inputs_u_64_Output_unit_AnyhowException(<flutter_rust_bridge::DartOpaque>::sse_decode(&mut deserializer));deserializer.end(); move |context| async move {
                     transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
@@ -165,7 +165,7 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
             }
         }
         let api_that_guard = api_that_guard.unwrap();
- let output_ok = crate::api::attachments_repository::AttachmentsRepository::load_image_attachment(&*api_that_guard, api_local_attachment_id, api_retry_download_if_failed, api_chunk_event_callback).await?;   Ok(output_ok)
+ let output_ok = crate::api::attachments_repository::AttachmentsRepository::load_image_attachment(&*api_that_guard, api_attachment_id, api_retry_download_if_failed, api_chunk_event_callback).await?;   Ok(output_ok)
                     })().await)
                 } })
 }
@@ -231,7 +231,7 @@ fn wire__crate__api__attachments_repository__AttachmentsRepository_save_attachme
             let message = unsafe { flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(ptr_, rust_vec_len_, data_len_) };
             let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentsRepository>>>::sse_decode(&mut deserializer);
-let api_local_attachment_id = <crate::api::message_content::AttachmentId>::sse_decode(&mut deserializer);
+let api_attachment_id = <crate::api::message_content::AttachmentId>::sse_decode(&mut deserializer);
 let api_path = <String>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
                     transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
                         let mut api_that_guard = None;
@@ -243,7 +243,7 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
             }
         }
         let api_that_guard = api_that_guard.unwrap();
- let output_ok = crate::api::attachments_repository::AttachmentsRepository::save_attachment(&*api_that_guard, api_local_attachment_id, api_path).await?;   Ok(output_ok)
+ let output_ok = crate::api::attachments_repository::AttachmentsRepository::save_attachment(&*api_that_guard, api_attachment_id, api_path).await?;   Ok(output_ok)
                     })().await)
                 } })
 }
@@ -257,7 +257,7 @@ fn wire__crate__api__attachments_repository__AttachmentsRepository_status_stream
             let message = unsafe { flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(ptr_, rust_vec_len_, data_len_) };
             let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<AttachmentsRepository>>>::sse_decode(&mut deserializer);
-let api_local_attachment_id = <crate::api::message_content::AttachmentId>::sse_decode(&mut deserializer);
+let api_attachment_id = <crate::api::message_content::AttachmentId>::sse_decode(&mut deserializer);
 let api_sink = <StreamSink<crate::api::attachments_repository::UiAttachmentStatus,flutter_rust_bridge::for_generated::SseCodec>>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
                     transform_result_sse::<_, ()>((move || async move {
                         let mut api_that_guard = None;
@@ -269,7 +269,7 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
             }
         }
         let api_that_guard = api_that_guard.unwrap();
- let output_ok = Result::<_,()>::Ok({ crate::api::attachments_repository::AttachmentsRepository::status_stream(&*api_that_guard, api_local_attachment_id, api_sink).await; })?;   Ok(output_ok)
+ let output_ok = Result::<_,()>::Ok({ crate::api::attachments_repository::AttachmentsRepository::status_stream(&*api_that_guard, api_attachment_id, api_sink).await; })?;   Ok(output_ok)
                     })().await)
                 } })
 }
@@ -1047,7 +1047,7 @@ fn wire__crate__api__chat_details_cubit__ChatDetailsCubitBase_retry_upload_attac
             let message = unsafe { flutter_rust_bridge::for_generated::Dart2RustMessageSse::from_wire(ptr_, rust_vec_len_, data_len_) };
             let mut deserializer = flutter_rust_bridge::for_generated::SseDeserializer::new(message);
             let api_that = <RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<ChatDetailsCubitBase>>>::sse_decode(&mut deserializer);
-let api_local_attachment_id = <crate::api::message_content::AttachmentId>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
+let api_attachment_id = <crate::api::message_content::AttachmentId>::sse_decode(&mut deserializer);deserializer.end(); move |context| async move {
                     transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>((move || async move {
                         let mut api_that_guard = None;
 let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decode_order(vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(&api_that, 0, false)]);
@@ -1058,7 +1058,7 @@ let decode_indices_ = flutter_rust_bridge::for_generated::lockable_compute_decod
             }
         }
         let api_that_guard = api_that_guard.unwrap();
- let output_ok = crate::api::chat_details_cubit::ChatDetailsCubitBase::retry_upload_attachment(&*api_that_guard, api_local_attachment_id).await?;   Ok(output_ok)
+ let output_ok = crate::api::chat_details_cubit::ChatDetailsCubitBase::retry_upload_attachment(&*api_that_guard, api_attachment_id).await?;   Ok(output_ok)
                     })().await)
                 } })
 }
@@ -8511,6 +8511,10 @@ const _: fn() = || {
         let _: Option<crate::api::types::AirComponent> = AppDataDebugInfo.air_component;
     }
     {
+        let AttachmentId = None::<crate::api::message_content::AttachmentId>.unwrap();
+        let _: uuid::Uuid = AttachmentId.uuid;
+    }
+    {
         let ChatId = None::<crate::api::types::ChatId>.unwrap();
         let _: uuid::Uuid = ChatId.uuid;
     }
@@ -8582,10 +8586,6 @@ const _: fn() = || {
         crate::api::user_cubit::InviteUsersError::IncompatibleClient { reason } => {
             let _: String = reason;
         }
-    }
-    {
-        let AttachmentId = None::<crate::api::message_content::AttachmentId>.unwrap();
-        let _: uuid::Uuid = AttachmentId.uuid;
     }
     {
         let MessageId = None::<crate::api::types::MessageId>.unwrap();
@@ -9526,6 +9526,14 @@ impl SseDecode for crate::api::user_cubit::AppState {
     }
 }
 
+impl SseDecode for crate::api::message_content::AttachmentId {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_uuid = <uuid::Uuid>::sse_decode(deserializer);
+        return crate::api::message_content::AttachmentId { uuid: var_uuid };
+    }
+}
+
 impl SseDecode for crate::api::markdown::BlockElement {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -10290,14 +10298,6 @@ impl SseDecode for crate::api::attachments_repository::LoadedImageAttachment {
             bytes: var_bytes,
             is_animated: var_isAnimated,
         };
-    }
-}
-
-impl SseDecode for crate::api::message_content::AttachmentId {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_uuid = <uuid::Uuid>::sse_decode(deserializer);
-        return crate::api::message_content::AttachmentId { uuid: var_uuid };
     }
 }
 
@@ -11227,7 +11227,7 @@ impl SseDecode for [u8; 32] {
 impl SseDecode for crate::api::message_content::UiAttachment {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_localRemoteAttachmentId =
+        let mut var_attachmentId =
             <crate::api::message_content::AttachmentId>::sse_decode(deserializer);
         let mut var_filename = <String>::sse_decode(deserializer);
         let mut var_contentType = <String>::sse_decode(deserializer);
@@ -11236,7 +11236,7 @@ impl SseDecode for crate::api::message_content::UiAttachment {
         let mut var_imageMetadata =
             <Option<crate::api::message_content::UiImageMetadata>>::sse_decode(deserializer);
         return crate::api::message_content::UiAttachment {
-            attachment_id: var_localRemoteAttachmentId,
+            attachment_id: var_attachmentId,
             filename: var_filename,
             content_type: var_contentType,
             description: var_description,
@@ -11618,19 +11618,19 @@ impl SseDecode for crate::api::types::UiMessageStatus {
 impl SseDecode for crate::api::message_content::UiMimiContent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_plainBody = <Option<String>>::sse_decode(deserializer);
         let mut var_replaces = <Option<Vec<u8>>>::sse_decode(deserializer);
         let mut var_topicId = <Vec<u8>>::sse_decode(deserializer);
         let mut var_inReplyTo = <Option<Vec<u8>>>::sse_decode(deserializer);
-        let mut var_plainBody = <Option<String>>::sse_decode(deserializer);
         let mut var_content =
             <Option<crate::api::markdown::MessageContent>>::sse_decode(deserializer);
         let mut var_attachments =
             <Vec<crate::api::message_content::UiAttachment>>::sse_decode(deserializer);
         return crate::api::message_content::UiMimiContent {
+            plain_body: var_plainBody,
             replaces: var_replaces,
             topic_id: var_topicId,
             in_reply_to: var_inReplyTo,
-            plain_body: var_plainBody,
             content: var_content,
             attachments: var_attachments,
         };
@@ -12646,6 +12646,23 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::user_cubit::AppState>
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::message_content::AttachmentId> {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [self.0.uuid.into_into_dart().into_dart()].into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::message_content::AttachmentId>
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::message_content::AttachmentId>>
+    for crate::api::message_content::AttachmentId
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::message_content::AttachmentId> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for crate::api::markdown::BlockElement {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
@@ -13175,23 +13192,6 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::attachments_repository::Loade
 {
     fn into_into_dart(self) -> crate::api::attachments_repository::LoadedImageAttachment {
         self
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::message_content::AttachmentId> {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [self.0.uuid.into_into_dart().into_dart()].into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
-    for FrbWrapper<crate::api::message_content::AttachmentId>
-{
-}
-impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::message_content::AttachmentId>>
-    for crate::api::message_content::AttachmentId
-{
-    fn into_into_dart(self) -> FrbWrapper<crate::api::message_content::AttachmentId> {
-        self.into()
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -14258,10 +14258,10 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiMessageStatus>
 impl flutter_rust_bridge::IntoDart for crate::api::message_content::UiMimiContent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
+            self.plain_body.into_into_dart().into_dart(),
             self.replaces.into_into_dart().into_dart(),
             self.topic_id.into_into_dart().into_dart(),
             self.in_reply_to.into_into_dart().into_dart(),
-            self.plain_body.into_into_dart().into_dart(),
             self.content.into_into_dart().into_dart(),
             self.attachments.into_into_dart().into_dart(),
         ]
@@ -15211,6 +15211,13 @@ impl SseEncode for crate::api::user_cubit::AppState {
     }
 }
 
+impl SseEncode for crate::api::message_content::AttachmentId {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <uuid::Uuid>::sse_encode(self.uuid, serializer);
+    }
+}
+
 impl SseEncode for crate::api::markdown::BlockElement {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -15820,13 +15827,6 @@ impl SseEncode for crate::api::attachments_repository::LoadedImageAttachment {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <Vec<u8>>::sse_encode(self.bytes, serializer);
         <bool>::sse_encode(self.is_animated, serializer);
-    }
-}
-
-impl SseEncode for crate::api::message_content::AttachmentId {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <uuid::Uuid>::sse_encode(self.uuid, serializer);
     }
 }
 
@@ -16907,10 +16907,10 @@ impl SseEncode for crate::api::types::UiMessageStatus {
 impl SseEncode for crate::api::message_content::UiMimiContent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<String>>::sse_encode(self.plain_body, serializer);
         <Option<Vec<u8>>>::sse_encode(self.replaces, serializer);
         <Vec<u8>>::sse_encode(self.topic_id, serializer);
         <Option<Vec<u8>>>::sse_encode(self.in_reply_to, serializer);
-        <Option<String>>::sse_encode(self.plain_body, serializer);
         <Option<crate::api::markdown::MessageContent>>::sse_encode(self.content, serializer);
         <Vec<crate::api::message_content::UiAttachment>>::sse_encode(self.attachments, serializer);
     }

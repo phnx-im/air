@@ -591,6 +591,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AppState dco_decode_app_state(dynamic raw);
 
   @protected
+  AttachmentId dco_decode_attachment_id(dynamic raw);
+
+  @protected
   BlockElement dco_decode_block_element(dynamic raw);
 
   @protected
@@ -634,6 +637,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AppDataDebugInfo dco_decode_box_autoadd_app_data_debug_info(dynamic raw);
 
   @protected
+  AttachmentId dco_decode_box_autoadd_attachment_id(dynamic raw);
+
+  @protected
   bool dco_decode_box_autoadd_bool(dynamic raw);
 
   @protected
@@ -671,9 +677,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   InviteUsersError dco_decode_box_autoadd_invite_users_error(dynamic raw);
-
-  @protected
-  LocalAttachmentId dco_decode_box_autoadd_local_attachment_id(dynamic raw);
 
   @protected
   MessageContent dco_decode_box_autoadd_message_content(dynamic raw);
@@ -915,9 +918,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   LoadedImageAttachment dco_decode_loaded_image_attachment(dynamic raw);
-
-  @protected
-  LocalAttachmentId dco_decode_local_attachment_id(dynamic raw);
 
   @protected
   LogEntry dco_decode_log_entry(dynamic raw);
@@ -1720,6 +1720,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   AppState sse_decode_app_state(SseDeserializer deserializer);
 
   @protected
+  AttachmentId sse_decode_attachment_id(SseDeserializer deserializer);
+
+  @protected
   BlockElement sse_decode_block_element(SseDeserializer deserializer);
 
   @protected
@@ -1763,6 +1766,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   AppDataDebugInfo sse_decode_box_autoadd_app_data_debug_info(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  AttachmentId sse_decode_box_autoadd_attachment_id(
     SseDeserializer deserializer,
   );
 
@@ -1818,11 +1826,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   InviteUsersError sse_decode_box_autoadd_invite_users_error(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  LocalAttachmentId sse_decode_box_autoadd_local_attachment_id(
     SseDeserializer deserializer,
   );
 
@@ -2136,11 +2139,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   LoadedImageAttachment sse_decode_loaded_image_attachment(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  LocalAttachmentId sse_decode_local_attachment_id(
     SseDeserializer deserializer,
   );
 
@@ -3125,6 +3123,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_app_state(AppState self, SseSerializer serializer);
 
   @protected
+  void sse_encode_attachment_id(AttachmentId self, SseSerializer serializer);
+
+  @protected
   void sse_encode_block_element(BlockElement self, SseSerializer serializer);
 
   @protected
@@ -3178,6 +3179,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_app_data_debug_info(
     AppDataDebugInfo self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_attachment_id(
+    AttachmentId self,
     SseSerializer serializer,
   );
 
@@ -3241,12 +3248,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_invite_users_error(
     InviteUsersError self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_box_autoadd_local_attachment_id(
-    LocalAttachmentId self,
     SseSerializer serializer,
   );
 
@@ -3649,12 +3650,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_loaded_image_attachment(
     LoadedImageAttachment self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void sse_encode_local_attachment_id(
-    LocalAttachmentId self,
     SseSerializer serializer,
   );
 
