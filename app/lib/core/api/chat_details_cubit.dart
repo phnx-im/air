@@ -57,7 +57,7 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
 
   /// Mute notifications for this chat until the given datetime.
   /// Pass `None` to mute indefinitely.
-  Future<void> muteChat({DateTime? mutedUntil});
+  Future<void> muteChat({UiChatMuted? mutedUntil});
 
   /// Creates a new cubit for the given chat.
   ///
@@ -112,8 +112,6 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
   });
 
   Stream<ChatDetailsState> stream();
-
-  Future<void> unmuteChat();
 
   Future<UploadAttachmentError?> uploadAttachment({required String path});
 }

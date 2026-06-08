@@ -43,6 +43,8 @@ use crate::{
     notifications::NotificationService,
     util::{Cubit, CubitCore, spawn_from_sync},
 };
+// Re-export for FRB reasons
+pub use crate::api::types::UiChatMuted;
 
 use super::{types::UiChatDetails, user_cubit::UserCubitBase};
 
@@ -572,26 +574,11 @@ impl ChatDetailsCubitBase {
 
     /// Mute notifications for this chat until the given datetime.
     /// Pass `None` to mute indefinitely.
-    pub async fn mute_chat(&self, muted_until: Option<DateTime<Utc>>) -> anyhow::Result<()> {
-        let chat_id = self.context.chat_id;
-        // Use year 9999 as the sentinel for "muted indefinitely".
-        let until = muted_until.unwrap_or_else(|| {
-            chrono::NaiveDate::from_ymd_opt(9999, 1, 1)
-                .expect("valid date")
-                .and_time(chrono::NaiveTime::MIN)
-                .and_utc()
-        });
-        self.context
-            .core_user
-            .set_chat_muted_until(chat_id, Some(until))
-            .await
-    }
-
-    pub async fn unmute_chat(&self) -> anyhow::Result<()> {
+    pub async fn mute_chat(&self, muted_until: Option<UiChatMuted>) -> anyhow::Result<()> {
         let chat_id = self.context.chat_id;
         self.context
             .core_user
-            .set_chat_muted_until(chat_id, None)
+            .set_chat_muted_until(chat_id, muted_until.map(Into::into))
             .await
     }
 
@@ -784,7 +771,7 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         last_message: last_message.map(From::from),
         draft,
         is_apq,
-        muted_until: chat.muted_until,
+        muted_until: chat.muted_until.map(Into::into),
     }
 }
 

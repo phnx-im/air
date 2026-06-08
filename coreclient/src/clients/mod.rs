@@ -47,7 +47,7 @@ use tracing::{error, info, warn};
 use url::Url;
 
 use crate::{
-    Asset, PartialContact, UsernameRecord,
+    Asset, ChatMuted, PartialContact, UsernameRecord,
     clients::event_loop::{EventLoop, EventLoopSender},
     contacts::{TargetedMessageContact, UsernameContact},
     db::access::{DbAccess, WriteDbTransaction},
@@ -715,7 +715,7 @@ impl CoreUser {
     pub async fn set_chat_muted_until(
         &self,
         chat_id: ChatId,
-        muted_until: Option<DateTime<Utc>>,
+        muted_until: Option<ChatMuted>,
     ) -> anyhow::Result<()> {
         self.db()
             .with_write_transaction(async |txn| {

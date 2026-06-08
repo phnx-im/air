@@ -128,7 +128,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get chatDetailsScreen_unknownChat => 'Unknown chat';
 
   @override
-  String get muteDurationSheet_title => 'Mute notifications';
+  String get muteDurationSheet_title => 'Mute chat?';
+
+  @override
+  String get muteDurationSheet_body => 'Choose how long to mute the chat for.';
 
   @override
   String get muteDurationSheet_1hour => '1 hour';

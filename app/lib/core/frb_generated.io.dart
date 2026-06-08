@@ -618,9 +618,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  DateTime dco_decode_box_autoadd_Chrono_Utc(dynamic raw);
-
-  @protected
   AcceptContactRequestError dco_decode_box_autoadd_accept_contact_request_error(
     dynamic raw,
   );
@@ -723,6 +720,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiChatMessage dco_decode_box_autoadd_ui_chat_message(dynamic raw);
+
+  @protected
+  UiChatMuted dco_decode_box_autoadd_ui_chat_muted(dynamic raw);
 
   @protected
   UiContact dco_decode_box_autoadd_ui_contact(dynamic raw);
@@ -994,9 +994,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  DateTime? dco_decode_opt_box_autoadd_Chrono_Utc(dynamic raw);
-
-  @protected
   AcceptContactRequestError?
   dco_decode_opt_box_autoadd_accept_contact_request_error(dynamic raw);
 
@@ -1083,6 +1080,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiChatMessage? dco_decode_opt_box_autoadd_ui_chat_message(dynamic raw);
+
+  @protected
+  UiChatMuted? dco_decode_opt_box_autoadd_ui_chat_muted(dynamic raw);
 
   @protected
   UiContact? dco_decode_opt_box_autoadd_ui_contact(dynamic raw);
@@ -1184,6 +1184,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiChatMessage dco_decode_ui_chat_message(dynamic raw);
+
+  @protected
+  UiChatMuted dco_decode_ui_chat_muted(dynamic raw);
 
   @protected
   UiChatStatus dco_decode_ui_chat_status(dynamic raw);
@@ -1753,9 +1756,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  DateTime sse_decode_box_autoadd_Chrono_Utc(SseDeserializer deserializer);
-
-  @protected
   AcceptContactRequestError sse_decode_box_autoadd_accept_contact_request_error(
     SseDeserializer deserializer,
   );
@@ -1898,6 +1898,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiChatMessage sse_decode_box_autoadd_ui_chat_message(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiChatMuted sse_decode_box_autoadd_ui_chat_muted(
     SseDeserializer deserializer,
   );
 
@@ -2235,9 +2240,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  DateTime? sse_decode_opt_box_autoadd_Chrono_Utc(SseDeserializer deserializer);
-
-  @protected
   AcceptContactRequestError?
   sse_decode_opt_box_autoadd_accept_contact_request_error(
     SseDeserializer deserializer,
@@ -2356,6 +2358,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiChatMessage? sse_decode_opt_box_autoadd_ui_chat_message(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UiChatMuted? sse_decode_opt_box_autoadd_ui_chat_muted(
     SseDeserializer deserializer,
   );
 
@@ -2481,6 +2488,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiChatMessage sse_decode_ui_chat_message(SseDeserializer deserializer);
+
+  @protected
+  UiChatMuted sse_decode_ui_chat_muted(SseDeserializer deserializer);
 
   @protected
   UiChatStatus sse_decode_ui_chat_status(SseDeserializer deserializer);
@@ -3165,12 +3175,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_box_autoadd_Chrono_Utc(
-    DateTime self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_box_autoadd_accept_contact_request_error(
     AcceptContactRequestError self,
     SseSerializer serializer,
@@ -3341,6 +3345,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_ui_chat_message(
     UiChatMessage self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_ui_chat_muted(
+    UiChatMuted self,
     SseSerializer serializer,
   );
 
@@ -3780,12 +3790,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_opt_box_autoadd_Chrono_Utc(
-    DateTime? self,
-    SseSerializer serializer,
-  );
-
-  @protected
   void sse_encode_opt_box_autoadd_accept_contact_request_error(
     AcceptContactRequestError? self,
     SseSerializer serializer,
@@ -3920,6 +3924,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_ui_chat_message(
     UiChatMessage? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_ui_chat_muted(
+    UiChatMuted? self,
     SseSerializer serializer,
   );
 
@@ -4072,6 +4082,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_ui_chat_message(UiChatMessage self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ui_chat_muted(UiChatMuted self, SseSerializer serializer);
 
   @protected
   void sse_encode_ui_chat_status(UiChatStatus self, SseSerializer serializer);

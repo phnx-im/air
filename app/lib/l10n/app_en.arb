@@ -45,7 +45,8 @@
 
   "chatDetailsScreen_unknownChat": "Unknown chat",
 
-  "muteDurationSheet_title": "Mute notifications",
+  "muteDurationSheet_title": "Mute chat?",
+  "muteDurationSheet_body": "Choose how long to mute the chat for.",
   "muteDurationSheet_1hour": "1 hour",
   "muteDurationSheet_8hours": "8 hours",
   "muteDurationSheet_untilTomorrow": "Until tomorrow",

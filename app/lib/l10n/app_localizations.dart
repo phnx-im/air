@@ -321,8 +321,14 @@ abstract class AppLocalizations {
   /// No description provided for @muteDurationSheet_title.
   ///
   /// In en, this message translates to:
-  /// **'Mute notifications'**
+  /// **'Mute chat?'**
   String get muteDurationSheet_title;
+
+  /// No description provided for @muteDurationSheet_body.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose how long to mute the chat for.'**
+  String get muteDurationSheet_body;
 
   /// No description provided for @muteDurationSheet_1hour.
   ///

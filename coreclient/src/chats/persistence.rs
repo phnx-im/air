@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatStatus, ChatType, MessageId,
+    chats::ChatMuted,
     db::access::{
         ReadConnection, ReadTransaction, WriteConnection, WriteDbTransaction, WriteTransaction,
     },
@@ -83,6 +84,8 @@ impl SqlChat {
                 past_members.into_iter().map(From::from).collect(),
             )),
         };
+
+        let muted_until = muted_until.map(ChatMuted::from);
 
         Some(Chat {
             id: chat_id,
@@ -615,8 +618,9 @@ impl Chat {
     pub(crate) async fn set_muted_until(
         mut connection: impl WriteConnection,
         chat_id: ChatId,
-        muted_until: Option<DateTime<Utc>>,
+        muted_until: Option<ChatMuted>,
     ) -> sqlx::Result<()> {
+        let muted_until = muted_until.map(ChatMuted::into_date_time);
         query!(
             "UPDATE chat SET muted_until = ?1 WHERE chat_id = ?2",
             muted_until,

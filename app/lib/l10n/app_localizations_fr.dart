@@ -132,6 +132,9 @@ class AppLocalizationsFr extends AppLocalizations {
   String get muteDurationSheet_title => 'Mettre en sourdine';
 
   @override
+  String get muteDurationSheet_body => 'Choose how long to mute the chat for.';
+
+  @override
   String get muteDurationSheet_1hour => '1 heure';
 
   @override

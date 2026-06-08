@@ -63,7 +63,15 @@ extension UiChatDetailsExtension on UiChatDetails {
     UiChatType_PendingConnection() => false,
   };
 
-  bool get isMuted => mutedUntil?.isAfter(DateTime.now()) ?? false;
+  bool get isMuted => mutedUntil.isMuted;
+}
+
+extension UiChatMutedExtension on UiChatMuted? {
+  bool get isMuted => switch (this) {
+    UiChatMuted_Until(:final field0) => field0.isAfter(DateTime.now()),
+    UiChatMuted_Forever() => true,
+    null => false,
+  };
 }
 
 extension UiChatTypeExtension on UiChatType {
