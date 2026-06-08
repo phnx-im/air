@@ -1122,6 +1122,20 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .create_commit_response(sender_index, fan_out_payload.timestamp())?;
                 individual_fan_out_messages.push(commit_response);
 
+                // If specified by the client, we update our internal mapping of leaves to MemberProfile.
+                // This is used to recover groups where the OpenMLS leaves and its representation on the DS drifted.
+                if let Some((qs_client_reference, encrypted_user_profile_key)) = payload
+                    .qs_client_reference
+                    .zip(payload.encrypted_user_profile_key)
+                {
+                    group_state.upsert_member_profile(
+                        sender_index,
+                        qs_client_reference.try_into()?,
+                        encrypted_user_profile_key.try_into()?,
+                        group_state.group().epoch(),
+                    );
+                }
+
                 Ok((
                     destination_clients,
                     fan_out_payload,
@@ -1332,6 +1346,20 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
         let commit_response = t_group_state.create_commit_response(t_sender_index, timestamp)?;
         individual_fan_out_messages.push(commit_response);
+
+        // If specified by the client, we update our internal mapping of leaves to MemberProfile.
+        // This is used to recover groups where the OpenMLS leaves and its representation on the DS drifted.
+        if let Some((qs_client_reference, encrypted_user_profile_key)) = payload
+            .qs_client_reference
+            .zip(payload.encrypted_user_profile_key)
+        {
+            pq_group_state.upsert_member_profile(
+                pq_sender_index,
+                qs_client_reference.try_into()?,
+                encrypted_user_profile_key.try_into()?,
+                pq_group_state.group().epoch(),
+            );
+        }
 
         // Persist and commit the DS state *before* dispatching welcome bundles, so that joiners
         // fetching welcome info always observe the freshly stored past group state.
