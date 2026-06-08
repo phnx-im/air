@@ -36,6 +36,7 @@
   "chatDetailsScreen_unknownChat": "Unbekannter Chat",
 
   "muteDurationSheet_title": "Benachrichtigungen stummschalten",
+  "muteDurationSheet_body": "Wähle aus, wie lange du den Chat stummschalten möchtest.",
   "muteDurationSheet_1hour": "1 Stunde",
   "muteDurationSheet_8hours": "8 Stunden",
   "muteDurationSheet_untilTomorrow": "Bis morgen",

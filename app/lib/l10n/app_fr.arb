@@ -36,6 +36,7 @@
   "chatDetailsScreen_unknownChat": "Discussion inconnue",
 
   "muteDurationSheet_title": "Mettre en sourdine",
+  "muteDurationSheet_body": "Choisissez la durée de la mise en sourdine.",
   "muteDurationSheet_1hour": "1 heure",
   "muteDurationSheet_8hours": "8 heures",
   "muteDurationSheet_untilTomorrow": "Jusqu'à demain",

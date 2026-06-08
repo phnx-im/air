@@ -36,6 +36,7 @@
   "chatDetailsScreen_unknownChat": "Okänd chatt",
 
   "muteDurationSheet_title": "Tysta notifikationer",
+  "muteDurationSheet_body": "Välj hur länge du vill tysta chatten.",
   "muteDurationSheet_1hour": "1 timme",
   "muteDurationSheet_8hours": "8 timmar",
   "muteDurationSheet_untilTomorrow": "Till imorgon",
