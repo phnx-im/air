@@ -45,7 +45,7 @@ use tracing::{error, warn};
 
 use crate::{
     auth_service::AsConnector,
-    ds::{attachments::ProvisionObjectError, process::Provider},
+    ds::{attachments::ProvisionObjectError, group_state::MemberProfile, process::Provider},
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload},
     qs::QsConnector,
     rate_limiter::{RateLimiter, RlConfig, RlKey, provider::RlPostgresStorage},
@@ -1128,11 +1128,15 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .qs_client_reference
                     .zip(payload.encrypted_user_profile_key)
                 {
-                    group_state.upsert_member_profile(
+                    group_state.member_profiles.insert(
                         sender_index,
-                        qs_client_reference.try_into()?,
-                        encrypted_user_profile_key.try_into()?,
-                        group_state.group().epoch(),
+                        MemberProfile {
+                            leaf_index: sender_index,
+                            client_queue_config: qs_client_reference.try_into()?,
+                            activity_time: TimeStamp::now(),
+                            activity_epoch: group_state.group().epoch(),
+                            encrypted_user_profile_key: encrypted_user_profile_key.try_into()?,
+                        },
                     );
                 }
 
@@ -1353,11 +1357,15 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .qs_client_reference
             .zip(payload.encrypted_user_profile_key)
         {
-            pq_group_state.upsert_member_profile(
+            pq_group_state.member_profiles.insert(
                 pq_sender_index,
-                qs_client_reference.try_into()?,
-                encrypted_user_profile_key.try_into()?,
-                pq_group_state.group().epoch(),
+                MemberProfile {
+                    leaf_index: pq_sender_index,
+                    client_queue_config: qs_client_reference.try_into()?,
+                    activity_time: TimeStamp::now(),
+                    activity_epoch: pq_group_state.group().epoch(),
+                    encrypted_user_profile_key: encrypted_user_profile_key.try_into()?,
+                },
             );
         }
 

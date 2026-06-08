@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::collections::{BTreeMap, btree_map::Entry};
+use std::collections::BTreeMap;
 
 use aircommon::{
     codec::PersistenceCodec,
@@ -205,37 +205,6 @@ impl DsGroupState {
         self.member_profiles
             .get(&member_index)
             .map(|cp| cp.client_queue_config.clone())
-    }
-
-    pub(crate) fn upsert_member_profile(
-        &mut self,
-        leaf_index: LeafNodeIndex,
-        qs_reference: QsReference,
-        encrypted_user_profile_key: EncryptedUserProfileKey,
-        activity_epoch: GroupEpoch,
-    ) {
-        match self.member_profiles.entry(leaf_index) {
-            Entry::Occupied(mut entry) => {
-                if entry.get().encrypted_user_profile_key != encrypted_user_profile_key {
-                    entry.insert(MemberProfile {
-                        leaf_index,
-                        client_queue_config: qs_reference,
-                        activity_time: TimeStamp::now(),
-                        activity_epoch,
-                        encrypted_user_profile_key,
-                    });
-                }
-            }
-            Entry::Vacant(vacant) => {
-                vacant.insert(MemberProfile {
-                    leaf_index,
-                    client_queue_config: qs_reference,
-                    activity_time: TimeStamp::now(),
-                    activity_epoch,
-                    encrypted_user_profile_key,
-                });
-            }
-        }
     }
 }
 
