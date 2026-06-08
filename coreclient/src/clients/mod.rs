@@ -818,6 +818,7 @@ impl CoreUser {
             db: JobContextDb::Db(self.inner.db.clone()),
             key_store: &self.inner.key_store,
             now: Utc::now(),
+            qs_client_id: &self.inner.qs_client_id,
         };
         job.execute(&mut context).await
     }
