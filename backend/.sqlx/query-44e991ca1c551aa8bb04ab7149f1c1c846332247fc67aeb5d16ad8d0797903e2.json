@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE qs_client_record\n                SET ratchet = $1\n                WHERE client_id = $2\n                AND deleted_at IS NULL",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Bytea",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "44e991ca1c551aa8bb04ab7149f1c1c846332247fc67aeb5d16ad8d0797903e2"
+}

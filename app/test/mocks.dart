@@ -172,6 +172,32 @@ class MockMessageListCubit implements MessageListCubit {
     }
   }
 
+  /// Splices a batch of strictly-newer messages onto the newest end of the
+  /// window (index 0), mirroring a `NewerPageLoaded` pagination transition,
+  /// then emits an updated state. Unlike [setState] this does not reload, so
+  /// the AnchoredList sees an insert diff rather than a full reset.
+  void appendNewer(List<UiChatMessage> newer, {bool hasNewer = false}) {
+    messageData.insertAll(0, newer.reversed.toList());
+    final prev = _state.state;
+    final rustState = MessageListState(
+      isConnectionChat: prev.isConnectionChat ?? false,
+      hasOlder: prev.hasOlder,
+      hasNewer: hasNewer,
+      isAtBottom: prev.isAtBottom,
+      // Appending at the newest end leaves oldest-first indices unchanged.
+      firstUnreadIndex: prev.firstUnreadIndex,
+      revision: prev.revision + 1,
+    );
+    _state = MessageListStateWrapper.test(
+      state: rustState,
+      messageData: messageData,
+      loadedMessages: messageData.items.map((m) => m.id).toSet(),
+    );
+    if (!_controller.isClosed) {
+      _controller.add(_state);
+    }
+  }
+
   void emitCommand(MessageListCommand command) {
     if (!_commands.isClosed) {
       _commands.add(command);

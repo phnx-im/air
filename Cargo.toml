@@ -128,7 +128,7 @@ url = "2.5.4"
 uuid = "1.16.0"
 webpx = { version = "0.3.4", default-features = false, features = ["encode", "animation", "std"] }
 xshell = "0.2"
-zeroize = "1.8.1"
+zeroize = "1.8.2"
 
 
 [patch.crates-io]
@@ -157,6 +157,10 @@ hpke-rs-rust-crypto = { git = "https://github.com/cryspen/hpke-rs", rev = "42f9b
 # hpke-rs = { path = "../hpke-rs" }
 # hpke-rs-crypto = { path = "../hpke-rs/traits/" }
 # hpke-rs-rust-crypto = { path = "../hpke-rs/rust_crypto_provider/" }
+
+# v0.10.0-rc.18 with additional unreleased commit using `signature@0.3` instead of `3.0.0-rc.10`
+# This patch is needed to be compatible with dsa 0.1 which uses `signature@0.3`.
+rsa = { git = "https://github.com/RustCrypto/RSA", rev = "99f80888cdc838da78a48ad14f6e1f5c01be5c30" }
 
 # [patch."https://github.com/phnx-im/apqmls"]
 # apqmls = { path = "../apqmls" }

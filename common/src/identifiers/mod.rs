@@ -278,6 +278,9 @@ impl UserId {
     }
 }
 
+/// Sealed reference to a QS client
+///
+/// Seales the [`ClientConfig`]. Stored in the leaf node of a QS client's [`ClientConfig`].
 #[derive(
     Clone,
     Debug,
@@ -327,7 +330,10 @@ impl AsRef<HpkeCiphertext> for SealedClientReference {
 }
 
 /// Info describing the queue configuration for a member of a given group.
-#[derive(TlsSerialize, TlsDeserializeBytes, TlsSize, Serialize, Deserialize, Clone)]
+///
+/// Uniquely identifies a QS user. For historical reasons, it only stored a [`QsClientId`] instead
+/// of a [`QsUserId`].
+#[derive(TlsSerialize, TlsDeserializeBytes, TlsSize)]
 pub struct ClientConfig {
     pub client_id: QsClientId,
     // Some clients might not use push tokens.
@@ -337,7 +343,9 @@ pub struct ClientConfig {
 impl HpkeEncryptable<ClientIdKeyType, SealedClientReference> for ClientConfig {}
 impl HpkeDecryptable<ClientIdKeyType, SealedClientReference> for ClientConfig {}
 
-/// This is the pseudonymous client id used on the QS.
+/// Pseudonymous unique identifier of a emulator client in the queue service
+///
+/// Multiple client ids are bundled under a single [`QsUserId`] into a single virtual client.
 #[derive(
     Serialize,
     Deserialize,
@@ -354,6 +362,13 @@ impl HpkeDecryptable<ClientIdKeyType, SealedClientReference> for ClientConfig {}
 )]
 #[sqlx(transparent)]
 pub struct QsClientId(TlsUuid);
+
+impl fmt::Display for QsClientId {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        let uuid = *self.0;
+        write!(f, "{uuid}")
+    }
+}
 
 impl QsClientId {
     pub fn random(rng: &mut (impl CryptoRng + Rng)) -> Self {
@@ -372,6 +387,9 @@ impl From<Uuid> for QsClientId {
     }
 }
 
+/// Pseudonymous unique identifier of a virtual client in the queue service
+///
+/// This is the shared identity of a set of emulator clients [`QsClientId`].
 #[derive(
     Clone,
     Copy,
@@ -407,6 +425,10 @@ impl QsUserId {
 
 #[cfg(test)]
 mod tests {
+    use uuid::uuid;
+
+    use crate::codec::PersistenceCodec;
+
     use super::*;
 
     #[test]
@@ -433,5 +455,35 @@ mod tests {
         let fqdn_str = "192.168.0.1";
         let result = Fqdn::from_str(fqdn_str);
         assert!(matches!(result, Err(FqdnError::NotADomainName)));
+    }
+
+    #[test]
+    fn client_id_serde_stability() {
+        let user_id = UserId::new(
+            uuid!("00000000-0000-0000-0000-000000000001"),
+            Fqdn::from_str("example.com").unwrap(),
+        );
+        let bytes = PersistenceCodec::to_vec(&user_id).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    #[test]
+    fn user_id_serde_stability() {
+        let client_id = QsClientId(TlsUuid(uuid!("00000000-0000-0000-0000-000000000001")));
+        let bytes = PersistenceCodec::to_vec(&client_id).unwrap();
+        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
+        insta::assert_snapshot!(diag);
+    }
+
+    #[test]
+    fn client_config_tls_stability() {
+        let client_id = QsClientId(TlsUuid(uuid!("00000000-0000-0000-0000-000000000001")));
+        let client_config = ClientConfig {
+            client_id,
+            push_token_ear_key: Some(PushTokenEarKey::from_bytes([0x42; 32])),
+        };
+        let serialized = client_config.tls_serialize_detached().unwrap();
+        insta::assert_binary_snapshot!("client_config.tls", serialized);
     }
 }

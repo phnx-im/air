@@ -5,7 +5,7 @@
 use std::sync::Arc;
 
 use aircoreclient::clients::{
-    QueueEvent,
+    ListenResponse,
     process::process_qs::{ProcessedQsMessages, QsProcessEventResult},
 };
 use flutter_rust_bridge::frb;
@@ -50,8 +50,10 @@ impl CubitContext {
     }
 }
 
-impl BackgroundStreamContext<QueueEvent> for QueueContext {
-    async fn create_stream(&mut self) -> anyhow::Result<impl Stream<Item = QueueEvent> + 'static> {
+impl BackgroundStreamContext<ListenResponse> for QueueContext {
+    async fn create_stream(
+        &mut self,
+    ) -> anyhow::Result<impl Stream<Item = ListenResponse> + 'static> {
         let (stream, responder) = match self.cubit_context.core_user.listen_queue().await {
             Ok(stream) => {
                 self.cubit_context.state_tx.send_if_modified(|state| {
@@ -84,7 +86,7 @@ impl BackgroundStreamContext<QueueEvent> for QueueContext {
         Ok(stream)
     }
 
-    async fn handle_event(&mut self, event: QueueEvent) -> bool {
+    async fn handle_event(&mut self, event: ListenResponse) -> bool {
         let result = match self.cubit_context.core_user.process_qs_event(event).await {
             Ok(result) => result,
             Err(error) => {
@@ -142,7 +144,7 @@ impl QueueContext {
     pub(super) fn into_task(
         self,
         cancel: CancellationToken,
-    ) -> BackgroundStreamTask<Self, QueueEvent> {
+    ) -> BackgroundStreamTask<Self, ListenResponse> {
         BackgroundStreamTask::new("qs", self, cancel)
     }
 }

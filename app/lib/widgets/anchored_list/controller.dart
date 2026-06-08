@@ -13,12 +13,14 @@ import 'package:flutter/widgets.dart';
 /// - [firstUnread]: landing on the first unread message
 enum JumpIntent { quotedMessage, firstUnread }
 
-/// Emitted on [AnchoredListController.jumpedToId] when a jump-to-id
-/// scroll completes successfully.
+/// Emitted on [AnchoredListController.jumpedToId] when a jump-to-id scroll
+/// settles. [reached] is true when the target was aligned, false when the jump
+/// was aborted.
 class JumpedToEvent {
-  const JumpedToEvent(this.id, this.intent);
+  const JumpedToEvent(this.id, this.intent, {this.reached = true});
   final Object id;
   final JumpIntent intent;
+  final bool reached;
 }
 
 /// Command types the controller queues for the widget to execute.
@@ -123,9 +125,13 @@ class AnchoredListController extends ChangeNotifier {
   /// Fires after a jump-to-id scroll has completed.
   Stream<JumpedToEvent> get jumpedToId => _jumpedToIdController.stream;
 
-  /// Called by the widget when a jump-to-id scroll completes.
-  void notifyJumpedToId(Object id, {required JumpIntent intent}) =>
-      _jumpedToIdController.add(JumpedToEvent(id, intent));
+  /// Called by the widget when a jump-to-id scroll settles. [reached]
+  /// distinguishes a successful landing from an aborted one.
+  void notifyJumpedToId(
+    Object id, {
+    required JumpIntent intent,
+    bool reached = true,
+  }) => _jumpedToIdController.add(JumpedToEvent(id, intent, reached: reached));
 
   @override
   void dispose() {

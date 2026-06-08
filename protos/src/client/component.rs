@@ -54,11 +54,7 @@ impl AirComponent {
     /// supported features of the current version of the client.
     pub fn default_leaf_or_key_package_component() -> Self {
         Self {
-            features: AirFeatures {
-                encrypted_group_profiles: true,
-                empty_connection_group_attributes: true,
-                pq_groups: true,
-            },
+            features: AirFeatures::default_leaf_or_key_package_features(),
         }
     }
 
@@ -68,6 +64,20 @@ impl AirComponent {
 
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, codec::Error> {
         PersistenceCodec::from_slice(bytes)
+    }
+}
+
+impl AirFeatures {
+    /// The features that are supported by the current version of the client.
+    ///
+    /// Note: This is *not* the default implementation of `AirFeatures::default`. It contains all
+    /// supported features of the current version of the client.
+    pub fn default_leaf_or_key_package_features() -> Self {
+        Self {
+            encrypted_group_profiles: true,
+            empty_connection_group_attributes: true,
+            pq_groups: true,
+        }
     }
 }
 

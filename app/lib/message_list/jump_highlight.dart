@@ -100,7 +100,9 @@ class _JumpHighlightState extends State<JumpHighlight>
     _subscription = stream
         ?.where(
           (event) =>
-              event.id == widget.id && event.intent == JumpIntent.quotedMessage,
+              event.reached &&
+              event.id == widget.id &&
+              event.intent == JumpIntent.quotedMessage,
         )
         .listen((_) {
           _controller.forward(from: 0.0);

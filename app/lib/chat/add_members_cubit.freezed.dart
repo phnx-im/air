@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$AddMembersState {
 
- List<UiContact> get contacts; Set<UiUserId> get selectedContacts;
+ List<UiContact> get contacts; Set<UiUserId> get selectedContacts; bool get isApq;
 /// Create a copy of AddMembersState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $AddMembersStateCopyWith<AddMembersState> get copyWith => _$AddMembersStateCopyW
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AddMembersState&&const DeepCollectionEquality().equals(other.contacts, contacts)&&const DeepCollectionEquality().equals(other.selectedContacts, selectedContacts));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AddMembersState&&const DeepCollectionEquality().equals(other.contacts, contacts)&&const DeepCollectionEquality().equals(other.selectedContacts, selectedContacts)&&(identical(other.isApq, isApq) || other.isApq == isApq));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(contacts),const DeepCollectionEquality().hash(selectedContacts));
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(contacts),const DeepCollectionEquality().hash(selectedContacts),isApq);
 
 @override
 String toString() {
-  return 'AddMembersState(contacts: $contacts, selectedContacts: $selectedContacts)';
+  return 'AddMembersState(contacts: $contacts, selectedContacts: $selectedContacts, isApq: $isApq)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $AddMembersStateCopyWith<$Res>  {
   factory $AddMembersStateCopyWith(AddMembersState value, $Res Function(AddMembersState) _then) = _$AddMembersStateCopyWithImpl;
 @useResult
 $Res call({
- List<UiContact> contacts, Set<UiUserId> selectedContacts
+ List<UiContact> contacts, Set<UiUserId> selectedContacts, bool isApq
 });
 
 
@@ -62,11 +62,12 @@ class _$AddMembersStateCopyWithImpl<$Res>
 
 /// Create a copy of AddMembersState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? contacts = null,Object? selectedContacts = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? contacts = null,Object? selectedContacts = null,Object? isApq = null,}) {
   return _then(_self.copyWith(
 contacts: null == contacts ? _self.contacts : contacts // ignore: cast_nullable_to_non_nullable
 as List<UiContact>,selectedContacts: null == selectedContacts ? _self.selectedContacts : selectedContacts // ignore: cast_nullable_to_non_nullable
-as Set<UiUserId>,
+as Set<UiUserId>,isApq: null == isApq ? _self.isApq : isApq // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 
@@ -78,7 +79,7 @@ as Set<UiUserId>,
 
 
 class _AddMembersState implements AddMembersState {
-  const _AddMembersState({required final  List<UiContact> contacts, required final  Set<UiUserId> selectedContacts}): _contacts = contacts,_selectedContacts = selectedContacts;
+  const _AddMembersState({required final  List<UiContact> contacts, required final  Set<UiUserId> selectedContacts, required this.isApq}): _contacts = contacts,_selectedContacts = selectedContacts;
   
 
  final  List<UiContact> _contacts;
@@ -95,6 +96,7 @@ class _AddMembersState implements AddMembersState {
   return EqualUnmodifiableSetView(_selectedContacts);
 }
 
+@override final  bool isApq;
 
 /// Create a copy of AddMembersState
 /// with the given fields replaced by the non-null parameter values.
@@ -106,16 +108,16 @@ _$AddMembersStateCopyWith<_AddMembersState> get copyWith => __$AddMembersStateCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AddMembersState&&const DeepCollectionEquality().equals(other._contacts, _contacts)&&const DeepCollectionEquality().equals(other._selectedContacts, _selectedContacts));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AddMembersState&&const DeepCollectionEquality().equals(other._contacts, _contacts)&&const DeepCollectionEquality().equals(other._selectedContacts, _selectedContacts)&&(identical(other.isApq, isApq) || other.isApq == isApq));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_contacts),const DeepCollectionEquality().hash(_selectedContacts));
+int get hashCode => Object.hash(runtimeType,const DeepCollectionEquality().hash(_contacts),const DeepCollectionEquality().hash(_selectedContacts),isApq);
 
 @override
 String toString() {
-  return 'AddMembersState(contacts: $contacts, selectedContacts: $selectedContacts)';
+  return 'AddMembersState(contacts: $contacts, selectedContacts: $selectedContacts, isApq: $isApq)';
 }
 
 
@@ -126,7 +128,7 @@ abstract mixin class _$AddMembersStateCopyWith<$Res> implements $AddMembersState
   factory _$AddMembersStateCopyWith(_AddMembersState value, $Res Function(_AddMembersState) _then) = __$AddMembersStateCopyWithImpl;
 @override @useResult
 $Res call({
- List<UiContact> contacts, Set<UiUserId> selectedContacts
+ List<UiContact> contacts, Set<UiUserId> selectedContacts, bool isApq
 });
 
 
@@ -143,11 +145,12 @@ class __$AddMembersStateCopyWithImpl<$Res>
 
 /// Create a copy of AddMembersState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? contacts = null,Object? selectedContacts = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? contacts = null,Object? selectedContacts = null,Object? isApq = null,}) {
   return _then(_AddMembersState(
 contacts: null == contacts ? _self._contacts : contacts // ignore: cast_nullable_to_non_nullable
 as List<UiContact>,selectedContacts: null == selectedContacts ? _self._selectedContacts : selectedContacts // ignore: cast_nullable_to_non_nullable
-as Set<UiUserId>,
+as Set<UiUserId>,isApq: null == isApq ? _self.isApq : isApq // ignore: cast_nullable_to_non_nullable
+as bool,
   ));
 }
 
