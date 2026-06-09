@@ -7,14 +7,14 @@ use airbackend::{
     auth_service::AuthService,
     ds::{Ds, storage::Storage},
     qs::Qs,
+    relay_service::Rs,
 };
 use aircommon::identifiers::Fqdn;
 use airserver::{
     ServerRunParams, as_connector::SimpleAsConnector, code_command::run_code_command,
-    configurations::*, enqueue_provider::SimpleEnqueueProvider, logging::init_logging,
-    network_provider::MockNetworkProvider,
-    push_notification_provider::ProductionPushNotificationProvider, run,
-    username_command::run_username_command,
+    configurations::*, logging::init_logging, network_provider::MockNetworkProvider,
+    push_notification_provider::ProductionPushNotificationProvider,
+    qs_connector::SimpleEnqueueProvider, run, username_command::run_username_command,
 };
 use anyhow::{Context, bail};
 use clap::Parser;
@@ -120,6 +120,8 @@ async fn main() -> anyhow::Result<()> {
     .await
     .expect("Failed to connect to database.");
 
+    let rs = Rs::new(shutdown.clone());
+
     // New database name for the AS provider
     configuration.database.name = format!("{base_db_name}_as");
     let mut auth_service = AuthService::new(
@@ -156,6 +158,7 @@ async fn main() -> anyhow::Result<()> {
             as_connector,
             qs,
             qs_connector,
+            rs,
             rate_limits: configuration.ratelimits,
             shutdown,
         },

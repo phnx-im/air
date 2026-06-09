@@ -81,6 +81,7 @@ minicbor-serde = { version = "0.6", features = ["std"] }
 mockall = "0.13.1"
 mockito = "1.7.0"
 openmls = { version = "0.8.1", features = ["extensions-draft-08", "draft-ietf-mls-pq-ciphersuites"] }
+openmls_basic_credential = { version = "0.5.0" }
 openmls_memory_storage = { version = "0.5.0", features = ["extensions-draft-08", "draft-ietf-mls-pq-ciphersuites"] }
 openmls_rust_crypto = { version = "0.5.1", features = ["draft-ietf-mls-pq-ciphersuites"] }
 openmls_traits = { version = "0.5.0", features = ["draft-ietf-mls-pq-ciphersuites"] }
