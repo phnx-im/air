@@ -11,6 +11,7 @@ use airprotos::{
     auth_service::v1::auth_service_client::AuthServiceClient, common::v1::ClientMetadata,
     delivery_service::v1::delivery_service_client::DeliveryServiceClient,
     queue_service::v1::queue_service_client::QueueServiceClient,
+    relay_service::v1::relay_service_client::RelayServiceClient,
 };
 use thiserror::Error;
 use tonic::transport::{Channel, ClientTlsConfig, Endpoint, Uri};
@@ -21,6 +22,7 @@ pub mod as_api;
 pub mod ds_api;
 mod metadata;
 pub mod qs_api;
+pub mod rs_api;
 
 /// The port used for localhost connections.
 ///
@@ -52,6 +54,7 @@ struct ApiClientInner {
     as_grpc_client: AuthServiceClient<Channel>,
     qs_grpc_client: QueueServiceClient<Channel>,
     ds_grpc_client: DeliveryServiceClient<Channel>,
+    rs_grpc_client: RelayServiceClient<Channel>,
 }
 
 impl ApiClient {
@@ -67,13 +70,15 @@ impl ApiClient {
             .connect_lazy();
         let as_grpc_client = AuthServiceClient::new(channel.clone());
         let ds_grpc_client = DeliveryServiceClient::new(channel.clone());
-        let qs_grpc_client = QueueServiceClient::new(channel);
+        let qs_grpc_client = QueueServiceClient::new(channel.clone());
+        let rs_grpc_client = RelayServiceClient::new(channel);
 
         Ok(Self {
             inner: Arc::new(ApiClientInner {
                 as_grpc_client,
                 qs_grpc_client,
                 ds_grpc_client,
+                rs_grpc_client,
             }),
         })
     }
@@ -106,6 +111,10 @@ impl ApiClient {
 
     pub(crate) fn ds_grpc_client(&self) -> DeliveryServiceClient<Channel> {
         self.inner.ds_grpc_client.clone()
+    }
+
+    pub(crate) fn rs_grpc_client(&self) -> RelayServiceClient<Channel> {
+        self.inner.rs_grpc_client.clone()
     }
 
     pub(crate) fn metadata(&self) -> &ClientMetadata {

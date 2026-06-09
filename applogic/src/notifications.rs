@@ -17,6 +17,9 @@ impl User {
     ) {
         for message in messages {
             if let Some(chat) = self.user.chat(&message.chat_id()).await {
+                if chat.is_muted() {
+                    continue;
+                }
                 let title = match chat.chat_type() {
                     ChatType::TargetedMessageConnection(user_id)
                     | ChatType::PendingConnection(user_id)
@@ -54,6 +57,9 @@ impl User {
     ) {
         for chat_id in chat_ids {
             if let Some(chat) = self.user.chat(chat_id).await {
+                if chat.is_muted() {
+                    continue;
+                }
                 let title = format!(
                     "You were added to {}",
                     chat.attributes().map(|a| a.title()).unwrap_or("a group"),

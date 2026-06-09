@@ -9,6 +9,7 @@ use airbackend::{
         network_provider::NetworkProvider,
     },
 };
+use aircommon::{crypto::signatures::keys::QsUserVerifyingKey, identifiers::QsUserId};
 
 #[derive(Debug, Clone)]
 pub struct SimpleEnqueueProvider<N: NetworkProvider, P: PushNotificationProvider> {
@@ -38,6 +39,21 @@ where
                     message,
                 )
                 .await
+        }
+    }
+
+    fn user_verifying_key(
+        &self,
+        qs_user_id: QsUserId,
+    ) -> impl Future<Output = Result<Option<QsUserVerifyingKey>, Self::EnqueueError>> + Send + 'static
+    {
+        let provider = self.clone();
+        async move {
+            provider
+                .qs
+                .load_user_verifying_key(&qs_user_id)
+                .await
+                .map_err(|_| QsEnqueueError::StorageError)
         }
     }
 }
