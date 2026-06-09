@@ -3,17 +3,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    crypto::hpke::HpkeDecryptable, identifiers::ClientConfig, messages::AirProtocolVersion,
+    crypto::hpke::HpkeDecryptable,
+    identifiers::{ClientConfig, QsClientId},
+    messages::AirProtocolVersion,
 };
+use thiserror::Error;
 use tls_codec::Serialize;
 use tracing::error;
 
 use crate::{
     messages::{
-        intra_backend::DsFanOutMessage,
+        intra_backend::{DsFanOutMessage, VirtualClientAction},
         qs_qs::{QsToQsMessage, QsToQsPayload},
     },
-    qs::errors::EnqueueError,
+    qs::{errors::EnqueueError, staged_key_package::StagedKeyPackages},
 };
 
 use super::{
@@ -39,6 +42,7 @@ impl Qs {
     ) -> Result<(), QsEnqueueError<N>> {
         let own_domain = self.domain.clone();
         if message.client_reference.client_homeserver_domain != own_domain {
+            // Federated message
             let qs_to_qs_message = QsToQsMessage {
                 protocol_version: AirProtocolVersion::Alpha,
                 sender: own_domain.clone(),
@@ -63,6 +67,7 @@ impl Qs {
                     }
                 })?
         } else {
+            // Local message
             let decryption_key = StorableClientIdDecryptionKey::load(&self.db_pool)
                 .await
                 .map_err(|_| QsEnqueueError::StorageError)?
@@ -112,9 +117,57 @@ impl Qs {
                     }
                 }
             }
+
+            if let Some(VirtualClientAction::PromoteStagedKeyPackages { epoch_id, random }) =
+                message.virtual_client_action
+            {
+                self.promote_staged_key_packages(
+                    &client_config.client_id,
+                    epoch_id.as_slice(),
+                    random.as_slice(),
+                )
+                .await
+            }
         }
         Ok(())
     }
+
+    async fn promote_staged_key_packages(
+        &self,
+        client_id: &QsClientId,
+        epoch_id: &[u8],
+        random: &[u8],
+    ) {
+        if let Err(error) = self
+            .try_promote_staged_key_packages(client_id, epoch_id, random)
+            .await
+        {
+            error!(%error, "Failed to promote staged key packages");
+        }
+    }
+
+    async fn try_promote_staged_key_packages(
+        &self,
+        client_id: &QsClientId,
+        epoch_id: &[u8],
+        random: &[u8],
+    ) -> Result<(), PromoteStagedKeyPackagesError> {
+        let mut txn = self.db_pool.begin().await?;
+        let user_id = QsClientRecord::load_user_id(&mut *txn, client_id)
+            .await?
+            .ok_or(PromoteStagedKeyPackagesError::ClientNotFound)?;
+        StagedKeyPackages::promote(&mut txn, &user_id, epoch_id, random).await?;
+        txn.commit().await?;
+        Ok(())
+    }
+}
+
+#[derive(Debug, Error)]
+enum PromoteStagedKeyPackagesError {
+    #[error(transparent)]
+    Sqlx(#[from] sqlx::Error),
+    #[error("Client not found")]
+    ClientNotFound,
 }
 
 #[cfg(test)]

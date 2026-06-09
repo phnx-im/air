@@ -150,6 +150,115 @@ impl StagedKeyPackages {
         .await?;
         Ok(())
     }
+
+    pub(crate) async fn promote(
+        txn: &mut PgTransaction<'_>,
+        user_id: &QsUserId,
+        epoch_id: &[u8],
+        random: &[u8],
+    ) -> sqlx::Result<()> {
+        // Get the batch ID and lock it for update.
+        let Some(batch_id) = query_scalar!(
+            "SELECT id FROM qs_staged_key_package_batch
+            where user_id = $1 and epoch_id = $2 and random = $3
+            FOR UPDATE",
+            user_id as _,
+            epoch_id,
+            random
+        )
+        .fetch_optional(txn.as_mut())
+        .await?
+        else {
+            // No batch found, nothing to promote => replay defense
+            return Ok(());
+        };
+
+        // Delete all T key packages for all clients of this user; last resort packages are deleted
+        // if the batch contains at least one T last resort key package.
+        query!(
+            "WITH lr AS (
+                SELECT
+                    coalesce(bool_or(is_last_resort)
+                        FILTER (WHERE is_apq = false), false) AS has
+                FROM qs_staged_key_package
+                WHERE batch_id = $1
+            )
+            DELETE FROM key_package
+            WHERE client_id IN (
+                SELECT client_id FROM qs_client_record
+                    WHERE user_id = $2 AND deleted_at IS NULL
+                )
+                AND (NOT is_last_resort OR (SELECT has FROM lr))
+            ",
+            batch_id,
+            user_id as _,
+        )
+        .execute(txn.as_mut())
+        .await?;
+
+        // Delete all APQ key packages for all clients of this user; last resort packages are
+        // deleted if the batch contains at least one APQ last resort key package.
+        query!(
+            "WITH lr AS (
+                SELECT
+                    coalesce(bool_or(is_last_resort)
+                        FILTER (WHERE is_apq = true), false) AS has
+                FROM qs_staged_key_package
+                WHERE batch_id = $1
+            )
+            DELETE FROM apq_key_package
+            WHERE client_id IN (
+                SELECT client_id FROM qs_client_record
+                    WHERE user_id = $2 AND deleted_at IS NULL
+                )
+                AND (NOT is_last_resort OR (SELECT has FROM lr))
+            ",
+            batch_id,
+            user_id as _,
+        )
+        .execute(txn.as_mut())
+        .await?;
+
+        // Copy all T key packages for all clients of this user from the staged table to the
+        // T key package table.
+        query!(
+            "INSERT INTO key_package (client_id, key_package, is_last_resort)
+            SELECT c.client_id, s.key_package, s.is_last_resort
+            FROM qs_staged_key_package s
+            JOIN qs_client_record c ON c.user_id = $1 AND c.deleted_at IS NULL
+            WHERE s.batch_id = $2 AND s.is_apq = false
+            ",
+            user_id as _,
+            batch_id,
+        )
+        .execute(txn.as_mut())
+        .await?;
+
+        // Copy all APQ key packages for all clients of this user from the staged table to the
+        // APQ key package table.
+        query!(
+            "INSERT INTO apq_key_package (client_id, key_package, is_last_resort)
+            SELECT c.client_id, s.key_package, s.is_last_resort
+            FROM qs_staged_key_package s
+            JOIN qs_client_record c ON c.user_id = $1 AND c.deleted_at IS NULL
+            WHERE s.batch_id = $2 AND s.is_apq = true
+            ",
+            user_id as _,
+            batch_id,
+        )
+        .execute(txn.as_mut())
+        .await?;
+
+        // Delete the staged key packages batch.
+        query!(
+            "DELETE FROM qs_staged_key_package_batch WHERE id = $1",
+            batch_id,
+        )
+        .execute(txn.as_mut())
+        .await?;
+
+        Ok(())
+    }
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -173,7 +282,10 @@ mod tests {
     use sqlx::PgPool;
     use tls_codec::Serialize;
 
-    use crate::qs::user_record::persistence::tests::store_random_user_record;
+    use crate::qs::{
+        client_record::persistence::tests::store_random_client_record,
+        user_record::persistence::tests::store_random_user_record,
+    };
 
     use super::*;
 
@@ -369,6 +481,143 @@ mod tests {
 
         // Only the fresh batch and its single entry remain; old entries cascaded away.
         assert_eq!(counts(&pool).await?, (1, 1));
+        Ok(())
+    }
+
+    /// Returns `(key_package_count, apq_key_package_count)` in the live tables.
+    async fn live_counts(pool: &PgPool) -> anyhow::Result<(i64, i64)> {
+        let plain = sqlx::query_scalar!("SELECT count(*) FROM key_package")
+            .fetch_one(pool)
+            .await?
+            .unwrap_or(0);
+        let apq = sqlx::query_scalar!("SELECT count(*) FROM apq_key_package")
+            .fetch_one(pool)
+            .await?
+            .unwrap_or(0);
+        Ok((plain, apq))
+    }
+
+    /// TLS bytes of all live (plain) last-resort key packages.
+    async fn live_last_resort(pool: &PgPool) -> anyhow::Result<Vec<Vec<u8>>> {
+        Ok(
+            sqlx::query_scalar!("SELECT key_package FROM key_package WHERE is_last_resort = true")
+                .fetch_all(pool)
+                .await?,
+        )
+    }
+
+    async fn stage_and_promote(pool: &PgPool, batch: &StagedKeyPackages) -> anyhow::Result<()> {
+        let mut txn = pool.begin().await?;
+        batch.stage(&mut txn).await?;
+        txn.commit().await?;
+
+        let mut txn = pool.begin().await?;
+        StagedKeyPackages::promote(&mut txn, &batch.user_id, &batch.epoch_id, &batch.random)
+            .await?;
+        txn.commit().await?;
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn promote_populates_live_for_all_clients(pool: PgPool) -> anyhow::Result<()> {
+        let user = store_random_user_record(&pool).await?;
+        store_random_client_record(&pool, user.user_id).await?;
+        store_random_client_record(&pool, user.user_id).await?;
+
+        let batch = staged(
+            user.user_id,
+            b"r1",
+            vec![build_key_package(false)],
+            vec![build_apq_key_package(false)],
+        );
+        stage_and_promote(&pool, &batch).await?;
+
+        // One plain + one APQ KP, hosted under each of the two clients.
+        assert_eq!(live_counts(&pool).await?, (2, 2));
+        // Staging consumed.
+        assert_eq!(counts(&pool).await?, (0, 0));
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn promote_replaces_non_last_resort(pool: PgPool) -> anyhow::Result<()> {
+        let user = store_random_user_record(&pool).await?;
+        store_random_client_record(&pool, user.user_id).await?;
+
+        let first = staged(
+            user.user_id,
+            b"r1",
+            vec![build_key_package(false), build_key_package(false)],
+            vec![],
+        );
+        stage_and_promote(&pool, &first).await?;
+        assert_eq!(live_counts(&pool).await?, (2, 0));
+
+        let second = staged(user.user_id, b"r2", vec![build_key_package(false)], vec![]);
+        stage_and_promote(&pool, &second).await?;
+
+        // The two from `first` were replaced by the single one from `second`.
+        assert_eq!(live_counts(&pool).await?, (1, 0));
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn promote_keeps_last_resort_when_batch_has_none(pool: PgPool) -> anyhow::Result<()> {
+        let user = store_random_user_record(&pool).await?;
+        store_random_client_record(&pool, user.user_id).await?;
+
+        // Batch 1 brings a non-last-resort and a last-resort.
+        let lr = build_key_package(true);
+        let lr_tls = lr.tls_serialize_detached()?;
+        let first = staged(
+            user.user_id,
+            b"r1",
+            vec![build_key_package(false), lr],
+            vec![],
+        );
+        stage_and_promote(&pool, &first).await?;
+        assert_eq!(live_counts(&pool).await?, (2, 0));
+
+        // Batch 2 has no last-resort: it replaces the non-last-resort but keeps the last-resort.
+        let second = staged(user.user_id, b"r2", vec![build_key_package(false)], vec![]);
+        stage_and_promote(&pool, &second).await?;
+
+        // One fresh non-last-resort + the surviving last-resort from batch 1.
+        assert_eq!(live_counts(&pool).await?, (2, 0));
+        assert_eq!(live_last_resort(&pool).await?, vec![lr_tls]);
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn promote_replaces_last_resort_when_batch_has_one(pool: PgPool) -> anyhow::Result<()> {
+        let user = store_random_user_record(&pool).await?;
+        store_random_client_record(&pool, user.user_id).await?;
+
+        let first = staged(user.user_id, b"r1", vec![build_key_package(true)], vec![]);
+        stage_and_promote(&pool, &first).await?;
+
+        let new_lr = build_key_package(true);
+        let new_lr_tls = new_lr.tls_serialize_detached()?;
+        let second = staged(user.user_id, b"r2", vec![new_lr], vec![]);
+        stage_and_promote(&pool, &second).await?;
+
+        // Exactly one last-resort remains, and it's the one from batch 2.
+        assert_eq!(live_counts(&pool).await?, (1, 0));
+        assert_eq!(live_last_resort(&pool).await?, vec![new_lr_tls]);
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn promote_missing_batch_is_noop(pool: PgPool) -> anyhow::Result<()> {
+        let user = store_random_user_record(&pool).await?;
+        store_random_client_record(&pool, user.user_id).await?;
+
+        // No batch staged for this (epoch, random): replayed/stale hint => no-op.
+        let mut txn = pool.begin().await?;
+        StagedKeyPackages::promote(&mut txn, &user.user_id, b"epoch-1", b"nope").await?;
+        txn.commit().await?;
+
+        assert_eq!(live_counts(&pool).await?, (0, 0));
         Ok(())
     }
 }
