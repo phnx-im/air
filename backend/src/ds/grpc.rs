@@ -45,7 +45,10 @@ use tracing::{error, warn};
 
 use crate::{
     auth_service::AsConnector,
-    ds::{attachments::ProvisionObjectError, process::Provider},
+    ds::{
+        attachments::ProvisionObjectError, group_operation::ProcessedApqGroupOperation,
+        process::Provider,
+    },
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload},
     qs::QsConnector,
     rate_limiter::{RateLimiter, RlConfig, RlKey, provider::RlPostgresStorage},
@@ -1112,15 +1115,17 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .other_destination_clients(sender_index)
                     .collect();
 
-                let (group_message, mut individual_fan_out_messages) =
+                let (group_message, mut individual_fan_out_messages, virtual_client_action) =
                     group_state.group_operation(params, ear_key).await?;
 
                 group_state.proposals.clear();
 
                 let fan_out_payload: DsFanOutPayload = group_message.into();
 
-                let commit_response = group_state
+                let mut commit_response = group_state
                     .create_commit_response(sender_index, fan_out_payload.timestamp())?;
+                commit_response.virtual_client_action = virtual_client_action;
+
                 individual_fan_out_messages.push(commit_response);
 
                 Ok((
@@ -1289,22 +1294,26 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .other_destination_clients(t_sender_index)
             .collect();
 
-        let (serialized_apq_message, t_add_users_state, pq_welcome) =
-            DsGroupState::process_apq_group_operation(
-                &mut t_group_state,
-                &mut pq_group_state,
-                t_message,
-                pq_message,
-                t_add_users_info,
-                pq_add_users_info,
-            )?;
+        let ProcessedApqGroupOperation {
+            serialized_message,
+            t_add_users_state,
+            pq_welcome,
+            virtual_client_action,
+        } = DsGroupState::process_apq_group_operation(
+            &mut t_group_state,
+            &mut pq_group_state,
+            t_message,
+            pq_message,
+            t_add_users_info,
+            pq_add_users_info,
+        )?;
 
         // Fan out the commit message to the destination clients
         let timestamp = TimeStamp::now();
         let apq_payload = QsQueueMessagePayload {
             timestamp,
             message_type: QsQueueMessageType::ApqMlsMessage,
-            payload: serialized_apq_message.0,
+            payload: serialized_message.0,
         };
 
         // Generate welcome bundles for new members
@@ -1331,7 +1340,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         t_group_state.proposals.clear();
         pq_group_state.proposals.clear();
 
-        let commit_response = t_group_state.create_commit_response(t_sender_index, timestamp)?;
+        let mut commit_response =
+            t_group_state.create_commit_response(t_sender_index, timestamp)?;
+        commit_response.virtual_client_action = virtual_client_action;
         individual_fan_out_messages.push(commit_response);
 
         // Persist and commit the DS state *before* dispatching welcome bundles, so that joiners
