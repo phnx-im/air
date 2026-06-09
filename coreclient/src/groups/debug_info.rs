@@ -60,11 +60,11 @@ pub struct GroupDebugInfo {
     pub members: HashMap<u32, DebugCapabilities>,
     pub group_data: Option<GroupDataDebugInfo>,
     pub size_bytes: u64,
-    pub pq: Option<PqDebugInfo>,
+    pub pq: Option<PqGroupDebugInfo>,
 }
 
 #[derive(Debug, Clone)]
-pub struct PqDebugInfo {
+pub struct PqGroupDebugInfo {
     pub group_id: String,
     pub epoch: u64,
     pub ciphersuite: String,
@@ -181,7 +181,7 @@ impl GroupDebugInfo {
             let pq_group_id = QualifiedGroupId::try_from(pq.mls_group.group_id())?.to_string();
             let pq_size_bytes =
                 group_data_size_bytes(&mut connection, pq.mls_group.group_id()).await?;
-            Some(PqDebugInfo {
+            Some(PqGroupDebugInfo {
                 group_id: pq_group_id,
                 epoch: pq.mls_group.epoch().as_u64(),
                 ciphersuite: pq.mls_group.ciphersuite().to_string(),

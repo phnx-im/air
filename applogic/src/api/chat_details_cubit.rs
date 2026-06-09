@@ -12,7 +12,7 @@ use aircommon::{
 };
 pub use aircoreclient::{
     AcceptContactRequestError, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
-    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqDebugInfo,
+    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqGroupDebugInfo,
     RequiredDebugCapabilities,
 };
 use aircoreclient::{
@@ -830,11 +830,11 @@ pub struct _GroupDebugInfo {
     pub members: HashMap<u32, DebugCapabilities>,
     pub group_data: Option<GroupDataDebugInfo>,
     pub size_bytes: u64,
-    pub pq: Option<PqDebugInfo>,
+    pub pq: Option<PqGroupDebugInfo>,
 }
 
-#[frb(mirror(PqDebugInfo))]
-pub struct _PqDebugInfo {
+#[frb(mirror(PqGroupDebugInfo))]
+pub struct _PqGroupDebugInfo {
     pub group_id: String,
     pub epoch: u64,
     pub ciphersuite: String,

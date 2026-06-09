@@ -15,6 +15,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:air/ds/components/button/button.dart';
+
 import 'chat_debug_info_view.dart';
 import 'chat_details_cubit.dart';
 import 'delete_contact_button.dart';
@@ -188,18 +190,15 @@ class _ChatScreenViewState extends State<ChatScreenView> {
             scrollToBottomController: _scrollToBottomController,
           ),
           if (showPendingCommitBanner)
-            Positioned(
+            const Positioned(
               top: 0,
               left: 0,
               right: 0,
               child: SafeArea(
                 bottom: false,
                 child: Padding(
-                  padding: const EdgeInsets.only(top: kToolbarHeight),
-                  child: _PendingCommitFailedBanner(
-                    onResync: () =>
-                        context.read<ChatDetailsCubit>().requestResync(),
-                  ),
+                  padding: EdgeInsets.only(top: kToolbarHeight),
+                  child: _PendingCommitFailedBanner(),
                 ),
               ),
             ),
@@ -398,9 +397,7 @@ class _RenderMeasureHeight extends RenderProxyBox {
 }
 
 class _PendingCommitFailedBanner extends StatelessWidget {
-  const _PendingCommitFailedBanner({required this.onResync});
-
-  final VoidCallback onResync;
+  const _PendingCommitFailedBanner();
 
   @override
   Widget build(BuildContext context) {
@@ -419,7 +416,13 @@ class _PendingCommitFailedBanner extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
-            TextButton(onPressed: onResync, child: const Text('Resync')),
+            AppButton(
+              size: AppButtonSize.small,
+              type: AppButtonType.primary,
+              tone: AppButtonTone.danger,
+              onPressed: () => context.read<ChatDetailsCubit>().requestResync(),
+              label: 'Resync',
+            ),
           ],
         ),
       ),

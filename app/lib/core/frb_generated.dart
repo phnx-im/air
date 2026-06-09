@@ -8687,9 +8687,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  PqDebugInfo dco_decode_box_autoadd_pq_debug_info(dynamic raw) {
+  PqGroupDebugInfo dco_decode_box_autoadd_pq_group_debug_info(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return dco_decode_pq_debug_info(raw);
+    return dco_decode_pq_group_debug_info(raw);
   }
 
   @protected
@@ -8977,7 +8977,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       members: dco_decode_Map_u_32_debug_capabilities_None(arr[9]),
       groupData: dco_decode_opt_box_autoadd_group_data_debug_info(arr[10]),
       sizeBytes: dco_decode_u_64(arr[11]),
-      pq: dco_decode_opt_box_autoadd_pq_debug_info(arr[12]),
+      pq: dco_decode_opt_box_autoadd_pq_group_debug_info(arr[12]),
     );
   }
 
@@ -9675,9 +9675,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  PqDebugInfo? dco_decode_opt_box_autoadd_pq_debug_info(dynamic raw) {
+  PqGroupDebugInfo? dco_decode_opt_box_autoadd_pq_group_debug_info(
+    dynamic raw,
+  ) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
-    return raw == null ? null : dco_decode_box_autoadd_pq_debug_info(raw);
+    return raw == null ? null : dco_decode_box_autoadd_pq_group_debug_info(raw);
   }
 
   @protected
@@ -9813,12 +9815,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  PqDebugInfo dco_decode_pq_debug_info(dynamic raw) {
+  PqGroupDebugInfo dco_decode_pq_group_debug_info(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
     if (arr.length != 7)
       throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
-    return PqDebugInfo(
+    return PqGroupDebugInfo(
       groupId: dco_decode_String(arr[0]),
       epoch: dco_decode_u_64(arr[1]),
       ciphersuite: dco_decode_String(arr[2]),
@@ -11648,11 +11650,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  PqDebugInfo sse_decode_box_autoadd_pq_debug_info(
+  PqGroupDebugInfo sse_decode_box_autoadd_pq_group_debug_info(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    return (sse_decode_pq_debug_info(deserializer));
+    return (sse_decode_pq_group_debug_info(deserializer));
   }
 
   @protected
@@ -11981,7 +11983,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       deserializer,
     );
     var var_sizeBytes = sse_decode_u_64(deserializer);
-    var var_pq = sse_decode_opt_box_autoadd_pq_debug_info(deserializer);
+    var var_pq = sse_decode_opt_box_autoadd_pq_group_debug_info(deserializer);
     return GroupDebugInfo(
       groupId: var_groupId,
       epoch: var_epoch,
@@ -12978,13 +12980,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  PqDebugInfo? sse_decode_opt_box_autoadd_pq_debug_info(
+  PqGroupDebugInfo? sse_decode_opt_box_autoadd_pq_group_debug_info(
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     if (sse_decode_bool(deserializer)) {
-      return (sse_decode_box_autoadd_pq_debug_info(deserializer));
+      return (sse_decode_box_autoadd_pq_group_debug_info(deserializer));
     } else {
       return null;
     }
@@ -13221,7 +13223,9 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  PqDebugInfo sse_decode_pq_debug_info(SseDeserializer deserializer) {
+  PqGroupDebugInfo sse_decode_pq_group_debug_info(
+    SseDeserializer deserializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_groupId = sse_decode_String(deserializer);
     var var_epoch = sse_decode_u_64(deserializer);
@@ -13230,7 +13234,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_pendingProposals = sse_decode_usize(deserializer);
     var var_hasPendingCommit = sse_decode_bool(deserializer);
     var var_sizeBytes = sse_decode_u_64(deserializer);
-    return PqDebugInfo(
+    return PqGroupDebugInfo(
       groupId: var_groupId,
       epoch: var_epoch,
       ciphersuite: var_ciphersuite,
@@ -15352,12 +15356,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_box_autoadd_pq_debug_info(
-    PqDebugInfo self,
+  void sse_encode_box_autoadd_pq_group_debug_info(
+    PqGroupDebugInfo self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_pq_debug_info(self, serializer);
+    sse_encode_pq_group_debug_info(self, serializer);
   }
 
   @protected
@@ -15693,7 +15697,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       serializer,
     );
     sse_encode_u_64(self.sizeBytes, serializer);
-    sse_encode_opt_box_autoadd_pq_debug_info(self.pq, serializer);
+    sse_encode_opt_box_autoadd_pq_group_debug_info(self.pq, serializer);
   }
 
   @protected
@@ -16592,15 +16596,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_opt_box_autoadd_pq_debug_info(
-    PqDebugInfo? self,
+  void sse_encode_opt_box_autoadd_pq_group_debug_info(
+    PqGroupDebugInfo? self,
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
     sse_encode_bool(self != null, serializer);
     if (self != null) {
-      sse_encode_box_autoadd_pq_debug_info(self, serializer);
+      sse_encode_box_autoadd_pq_group_debug_info(self, serializer);
     }
   }
 
@@ -16832,7 +16836,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
-  void sse_encode_pq_debug_info(PqDebugInfo self, SseSerializer serializer) {
+  void sse_encode_pq_group_debug_info(
+    PqGroupDebugInfo self,
+    SseSerializer serializer,
+  ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.groupId, serializer);
     sse_encode_u_64(self.epoch, serializer);
