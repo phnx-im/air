@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import 'package:air/chat/chat_details_cubit.dart';
 import 'package:air/chat/mute_chat_sheet.dart';
 import 'package:air/core/core_extension.dart';
