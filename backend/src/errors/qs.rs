@@ -6,7 +6,7 @@ use thiserror::Error;
 use tonic::Status;
 use tracing::error;
 
-use crate::errors::StorageError;
+use crate::{errors::StorageError, qs::staged_key_package::StageKeyPackageError};
 
 // === Client ===
 
@@ -109,6 +109,41 @@ impl From<QsPublishKeyPackagesError> for Status {
         match e {
             QsPublishKeyPackagesError::StorageError => Status::internal(msg),
             QsPublishKeyPackagesError::InvalidKeyPackage => Status::invalid_argument(msg),
+        }
+    }
+}
+
+#[derive(Debug, Error)]
+pub(crate) enum QsStageKeyPackagesError {
+    #[error("Empty batch")]
+    EmptyBatch,
+    #[error("Invalid KeyPackage TLS")]
+    InvalidKeyPackageTls,
+    #[error("Invalid KeyPackage")]
+    InvalidKeyPackage,
+    #[error("Unknown client")]
+    UnknownClient,
+    #[error(transparent)]
+    Sqlx(#[from] sqlx::Error),
+    #[error(transparent)]
+    Stage(#[from] StageKeyPackageError),
+}
+
+impl From<QsStageKeyPackagesError> for Status {
+    fn from(error: QsStageKeyPackagesError) -> Self {
+        match error {
+            QsStageKeyPackagesError::EmptyBatch
+            | QsStageKeyPackagesError::InvalidKeyPackageTls
+            | QsStageKeyPackagesError::InvalidKeyPackage
+            | QsStageKeyPackagesError::UnknownClient
+            | QsStageKeyPackagesError::Stage(
+                StageKeyPackageError::MissingKeyPackage | StageKeyPackageError::KeyPackageMismatch,
+            ) => Status::invalid_argument(error.to_string()),
+            QsStageKeyPackagesError::Sqlx(error)
+            | QsStageKeyPackagesError::Stage(StageKeyPackageError::Sqlx(error)) => {
+                error!(%error, "Failed to stage key packages");
+                Status::internal("Storage error")
+            }
         }
     }
 }

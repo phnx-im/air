@@ -89,7 +89,7 @@ mod key_package;
 pub mod network_provider;
 pub mod qs_api;
 mod queue;
-mod staged_key_package;
+pub(crate) mod staged_key_package;
 mod user_record;
 
 #[derive(Debug, Clone)]

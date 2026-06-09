@@ -7,7 +7,6 @@ use apqmls::messages::ApqKeyPackage;
 use chrono::{DateTime, Utc};
 use mls_assist::openmls::key_packages::KeyPackage;
 use sqlx::{PgExecutor, PgTransaction, query, query_as, query_scalar};
-use tls_codec::Serialize;
 use tokio_stream::StreamExt;
 
 /// A batch of key packages to be staged.
@@ -15,8 +14,10 @@ pub(super) struct StagedKeyPackages {
     pub user_id: QsUserId,
     pub epoch_id: Vec<u8>,
     pub random: Vec<u8>,
-    pub key_packages: Vec<KeyPackage>,
-    pub apq_key_packages: Vec<ApqKeyPackage>,
+    /// Traditional key packages incl. their TLS bytes
+    pub key_packages: Vec<(KeyPackage, Vec<u8>)>,
+    /// APQ key packages incl. their TLS bytes
+    pub apq_key_packages: Vec<(ApqKeyPackage, Vec<u8>)>,
 }
 
 impl StagedKeyPackages {
@@ -43,11 +44,7 @@ impl StagedKeyPackages {
 
         if let Some(batch_id) = batch_id {
             // Fresh batch
-            let mut buffer = Vec::new();
-
-            for key_package in &self.key_packages {
-                buffer.clear();
-                key_package.tls_serialize(&mut buffer)?;
+            for (key_package, tls) in &self.key_packages {
                 let is_last_resort = key_package.last_resort();
                 query!(
                     "INSERT INTO qs_staged_key_package (
@@ -55,19 +52,14 @@ impl StagedKeyPackages {
                     )
                     VALUES ($1, $2, $3, false)",
                     batch_id,
-                    buffer,
+                    tls,
                     is_last_resort,
                 )
                 .execute(txn.as_mut())
                 .await?;
             }
 
-            for apq_key_package in &self.apq_key_packages {
-                buffer.clear();
-                apq_key_package.t_key_package().tls_serialize(&mut buffer)?;
-                apq_key_package
-                    .pq_key_package()
-                    .tls_serialize(&mut buffer)?;
+            for (apq_key_package, tls) in &self.apq_key_packages {
                 let is_last_resort = apq_key_package.t_key_package().last_resort()
                     && apq_key_package.pq_key_package().last_resort();
                 query!(
@@ -76,7 +68,7 @@ impl StagedKeyPackages {
                     )
                     VALUES ($1, $2, $3, true)",
                     batch_id,
-                    buffer,
+                    tls,
                     is_last_resort,
                 )
                 .execute(txn.as_mut())
@@ -110,34 +102,29 @@ impl StagedKeyPackages {
             )
             .fetch(txn.as_mut());
 
-            let mut buffer = Vec::new();
             let mut num_t = 0;
             let mut num_apq = 0;
 
             while let Some(row) = rows.next().await {
                 let row = row?;
-                let is_last_resort = if !row.is_apq {
-                    buffer.clear();
-                    let key_package = self
+                let (tls, is_last_resort) = if !row.is_apq {
+                    let (key_package, tls) = self
                         .key_packages
                         .get(num_t)
                         .ok_or(StageKeyPackageError::MissingKeyPackage)?;
-                    key_package.tls_serialize(&mut buffer)?;
                     num_t += 1;
-                    key_package.last_resort()
+                    (tls, key_package.last_resort())
                 } else {
-                    buffer.clear();
-                    let key_package = self
+                    let (key_package, tls) = self
                         .apq_key_packages
                         .get(num_apq)
                         .ok_or(StageKeyPackageError::MissingKeyPackage)?;
-                    key_package.t_key_package().tls_serialize(&mut buffer)?;
-                    key_package.pq_key_package().tls_serialize(&mut buffer)?;
                     num_apq += 1;
-                    key_package.t_key_package().last_resort()
-                        && key_package.pq_key_package().last_resort()
+                    let is_last_resort = key_package.t_key_package().last_resort()
+                        && key_package.pq_key_package().last_resort();
+                    (tls, is_last_resort)
                 };
-                if row.key_package != buffer || row.is_last_resort != is_last_resort {
+                if row.is_last_resort != is_last_resort || &row.key_package != tls {
                     return Err(StageKeyPackageError::KeyPackageMismatch);
                 }
             }
@@ -166,9 +153,7 @@ impl StagedKeyPackages {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub(super) enum StageKeyPackageError {
-    #[error(transparent)]
-    Tls(#[from] tls_codec::Error),
+pub(crate) enum StageKeyPackageError {
     #[error(transparent)]
     Sqlx(#[from] sqlx::Error),
     #[error("missing key package")]
@@ -186,6 +171,7 @@ mod tests {
     use chrono::Duration;
     use mls_assist::openmls_rust_crypto::OpenMlsRustCrypto;
     use sqlx::PgPool;
+    use tls_codec::Serialize;
 
     use crate::qs::user_record::persistence::tests::store_random_user_record;
 
@@ -222,8 +208,30 @@ mod tests {
             user_id,
             epoch_id: b"epoch-1".to_vec(),
             random: random.to_vec(),
-            key_packages,
-            apq_key_packages,
+            key_packages: key_packages
+                .into_iter()
+                .map(|key_package| {
+                    let tls = key_package.tls_serialize_detached().unwrap();
+                    (key_package, tls)
+                })
+                .collect(),
+            apq_key_packages: apq_key_packages
+                .into_iter()
+                .map(|key_package| {
+                    let tls = [
+                        key_package
+                            .t_key_package()
+                            .tls_serialize_detached()
+                            .unwrap(),
+                        key_package
+                            .pq_key_package()
+                            .tls_serialize_detached()
+                            .unwrap(),
+                    ]
+                    .concat();
+                    (key_package, tls)
+                })
+                .collect(),
         }
     }
 
