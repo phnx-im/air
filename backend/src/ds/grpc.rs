@@ -175,6 +175,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
                 payload: fan_out_payload.clone(),
                 client_reference,
                 suppress_notifications: suppress_notifications.into(),
+                virtual_client_action: None,
             }));
         }
 
@@ -1624,6 +1625,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 .into(),
             client_reference: destination_client,
             suppress_notifications: suppress_notifications.into(),
+            virtual_client_action: None,
         };
 
         let timestamp = fan_out_message.payload.timestamp();

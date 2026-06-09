@@ -202,6 +202,7 @@ mod tests {
                 sealed_reference,
             },
             suppress_notifications: false.into(),
+            virtual_client_action: None,
         };
 
         qs.enqueue_message(

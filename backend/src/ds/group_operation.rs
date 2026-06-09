@@ -587,6 +587,7 @@ impl DsGroupState {
                 ),
                 client_reference: client_queue_config,
                 suppress_notifications: false.into(),
+                virtual_client_action: None,
             };
             fan_out_messages.push(fan_out_message);
         }
@@ -640,6 +641,7 @@ impl DsGroupState {
                 ),
                 client_reference: client_queue_config,
                 suppress_notifications: false.into(),
+                virtual_client_action: None,
             };
             fan_out_messages.push(fan_out_message);
         }
@@ -680,6 +682,7 @@ impl DsGroupState {
             payload,
             client_reference: sender_client_reference,
             suppress_notifications: true.into(),
+            virtual_client_action: None,
         };
         Ok(response)
     }
