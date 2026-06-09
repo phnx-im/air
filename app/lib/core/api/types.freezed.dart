@@ -480,6 +480,135 @@ $UiInReplyToMessageCopyWith<$Res>? get inReplyToMessage {
 }
 
 /// @nodoc
+mixin _$UiChatMuted {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatMuted);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UiChatMuted()';
+}
+
+
+}
+
+/// @nodoc
+class $UiChatMutedCopyWith<$Res>  {
+$UiChatMutedCopyWith(UiChatMuted _, $Res Function(UiChatMuted) __);
+}
+
+
+
+/// @nodoc
+
+
+class UiChatMuted_Until extends UiChatMuted {
+  const UiChatMuted_Until(this.field0): super._();
+  
+
+ final  DateTime field0;
+
+/// Create a copy of UiChatMuted
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$UiChatMuted_UntilCopyWith<UiChatMuted_Until> get copyWith => _$UiChatMuted_UntilCopyWithImpl<UiChatMuted_Until>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatMuted_Until&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'UiChatMuted.until(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $UiChatMuted_UntilCopyWith<$Res> implements $UiChatMutedCopyWith<$Res> {
+  factory $UiChatMuted_UntilCopyWith(UiChatMuted_Until value, $Res Function(UiChatMuted_Until) _then) = _$UiChatMuted_UntilCopyWithImpl;
+@useResult
+$Res call({
+ DateTime field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$UiChatMuted_UntilCopyWithImpl<$Res>
+    implements $UiChatMuted_UntilCopyWith<$Res> {
+  _$UiChatMuted_UntilCopyWithImpl(this._self, this._then);
+
+  final UiChatMuted_Until _self;
+  final $Res Function(UiChatMuted_Until) _then;
+
+/// Create a copy of UiChatMuted
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(UiChatMuted_Until(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as DateTime,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class UiChatMuted_Forever extends UiChatMuted {
+  const UiChatMuted_Forever(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatMuted_Forever);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UiChatMuted.forever()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
 mixin _$UiChatStatus {
 
 

@@ -26,6 +26,7 @@ import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'change_group_title_dialog.dart';
 import 'chat_debug_info_view.dart';
 import 'chat_details_cubit.dart';
+import 'mute_chat_sheet.dart';
 
 /// Details of a group chat
 class GroupDetailsScreen extends StatelessWidget {
@@ -106,6 +107,33 @@ class GroupDetailsScreen extends StatelessWidget {
                   ),
                 ),
               ),
+              Center(
+                child: OutlinedButton(
+                  onPressed: () => chat.isMuted
+                      ? context.read<ChatDetailsCubit>().unmuteChat()
+                      : showMuteChatSheet(context),
+                  style: const ButtonStyle(
+                    visualDensity: VisualDensity.compact,
+                    minimumSize: WidgetStatePropertyAll(Size(82, 32)),
+                  ),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      chat.isMuted
+                          ? const AppIcon.bell(size: 16)
+                          : const AppIcon.bellOff(size: 16),
+                      const SizedBox(width: Spacing.px8),
+                      Text(
+                        chat.isMuted
+                            ? loc.contactDetailsScreen_unmute
+                            : loc.contactDetailsScreen_mute,
+                        style: TextStyle(fontSize: LabelFontSize.base.size),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(height: Spacing.px16),
               Row(
                 children: [
                   Expanded(

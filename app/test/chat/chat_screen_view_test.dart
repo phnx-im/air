@@ -60,6 +60,7 @@ UiChatDetails _chatWithDraft(UiMessageDraft draft) => UiChatDetails(
   lastMessage: _chat.lastMessage,
   draft: draft,
   isApq: _chat.isApq,
+  mutedUntil: _chat.mutedUntil,
 );
 
 void main() {

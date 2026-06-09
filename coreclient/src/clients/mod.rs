@@ -47,7 +47,7 @@ use tracing::{error, info, warn};
 use url::Url;
 
 use crate::{
-    Asset, PartialContact, UsernameRecord,
+    Asset, ChatMuted, PartialContact, UsernameRecord,
     clients::event_loop::{EventLoop, EventLoopSender},
     contacts::{TargetedMessageContact, UsernameContact},
     db::access::{DbAccess, WriteDbTransaction},
@@ -696,6 +696,19 @@ impl CoreUser {
 
     pub(crate) async fn try_messages_count(&self, chat_id: ChatId) -> sqlx::Result<usize> {
         Chat::messages_count(self.db().read().await?, chat_id).await
+    }
+
+    pub async fn set_chat_muted_until(
+        &self,
+        chat_id: ChatId,
+        muted_until: Option<ChatMuted>,
+    ) -> anyhow::Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| {
+                Chat::set_muted_until(txn, chat_id, muted_until).await?;
+                Ok(())
+            })
+            .await
     }
 
     /// Schedules the client's push token update on the QS.

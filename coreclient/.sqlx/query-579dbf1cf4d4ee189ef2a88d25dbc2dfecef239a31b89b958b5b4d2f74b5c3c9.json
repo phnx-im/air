@@ -1,0 +1,20 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                COUNT(m.chat_id) AS \"count: i64\"\n            FROM\n                chat c\n            LEFT JOIN\n                message m\n            ON\n                c.chat_id = m.chat_id\n                AND m.sender_user_uuid IS NOT NULL\n                AND m.sender_user_domain IS NOT NULL\n                AND m.timestamp > c.last_read\n                AND m.status != ?1\n            WHERE\n                c.muted_until IS NULL OR c.muted_until <= ?2",
+  "describe": {
+    "columns": [
+      {
+        "name": "count: i64",
+        "ordinal": 0,
+        "type_info": "Integer"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "579dbf1cf4d4ee189ef2a88d25dbc2dfecef239a31b89b958b5b4d2f74b5c3c9"
+}

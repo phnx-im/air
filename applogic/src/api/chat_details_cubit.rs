@@ -44,6 +44,9 @@ use crate::{
     util::{Cubit, CubitCore, spawn_from_sync},
 };
 
+// Re-export for FRB reasons
+pub(crate) use crate::api::types::UiChatMuted;
+
 use super::{types::UiChatDetails, user_cubit::UserCubitBase};
 
 /// The state of a single chat
@@ -570,6 +573,16 @@ impl ChatDetailsCubitBase {
             .err())
     }
 
+    /// Mute notifications for this chat until the given datetime.
+    /// Pass `None` to unmute.
+    pub async fn mute_chat(&self, muted_until: Option<UiChatMuted>) -> anyhow::Result<()> {
+        let chat_id = self.context.chat_id;
+        self.context
+            .core_user
+            .set_chat_muted_until(chat_id, muted_until.map(Into::into))
+            .await
+    }
+
     pub async fn chat_debug_info(&self) -> anyhow::Result<GroupDebugInfo> {
         let chat_id = self.context.chat_id;
         self.context.core_user.chat_debug_info(chat_id).await
@@ -759,6 +772,7 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         last_message: last_message.map(From::from),
         draft,
         is_apq,
+        muted_until: chat.muted_until.map(Into::into),
     }
 }
 

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE chat SET muted_until = ?1 WHERE chat_id = ?2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "e90a0873daef23739d6756844f42d5311b3ad36cb0f119c6ed99fe5441681517"
+}
