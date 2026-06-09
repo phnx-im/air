@@ -5,7 +5,7 @@
 use std::{borrow::Cow, collections::HashSet};
 
 use airapiclient::ds_api::DsAttachmentTarget;
-use aircommon::identifiers::UserId;
+use aircommon::{crypto::errors::EncryptionError, identifiers::UserId};
 use airprotos::{
     client::group::{EncryptedGroupTitle, GroupData, GroupProfile},
     delivery_service::v1::StorageObjectType,
@@ -41,6 +41,8 @@ pub(crate) struct ChatOperation {
 pub(crate) enum ChatOperationError {
     #[error(transparent)]
     LeafNodeValidation(#[from] LeafNodeValidationError),
+    #[error("failed to encrypt user profile key")]
+    UserProfileKeyEncryptionError(EncryptionError),
 }
 
 impl Job for ChatOperation {

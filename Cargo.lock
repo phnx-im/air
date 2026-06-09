@@ -259,6 +259,7 @@ dependencies = [
  "mimi_content",
  "mls-assist",
  "openmls",
+ "openmls_basic_credential",
  "openmls_rust_crypto",
  "openmls_traits",
  "pin-project",

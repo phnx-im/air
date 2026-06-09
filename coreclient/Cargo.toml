@@ -32,6 +32,7 @@ mimi-room-policy.workspace = true
 mimi_content.workspace = true
 mls-assist.workspace = true
 openmls.workspace = true
+openmls_basic_credential.workspace = true
 openmls_rust_crypto.workspace = true
 openmls_traits.workspace = true
 pin-project.workspace = true

@@ -92,6 +92,7 @@ mod event_loop;
 pub(crate) mod invitation_code;
 pub(crate) mod invite_users;
 mod message;
+pub mod multi_device;
 pub(crate) mod own_client_info;
 mod persistence;
 pub mod process;
@@ -831,6 +832,7 @@ impl CoreUser {
             db: JobContextDb::Db(self.inner.db.clone()),
             key_store: &self.inner.key_store,
             now: Utc::now(),
+            qs_client_id: &self.inner.qs_client_id,
         };
         job.execute(&mut context).await
     }

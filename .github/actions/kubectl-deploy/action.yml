@@ -1,0 +1,37 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: Deploy to Kubernetes
+description: Updates the container image of the airserver deployment to Kubernetes
+inputs:
+  kubeconfig:
+    description: "Kubeconfig to use for deployment"
+    required: true
+  namespace:
+    description: "Kubernetes namespace to operate in"
+    required: true
+  container_image:
+    description: "Container image to deploy"
+    required: true
+
+runs:
+  using: composite
+  steps:
+    - name: Set up kubectl
+      uses: azure/setup-kubectl@f295d40337e8d881362a99e58b39f1b266517068 # v5.1.0
+      
+    - name: Configure kubectl
+      shell: bash
+      env:
+        KUBECONFIG: ${{ inputs.kubeconfig }}
+      run: |
+        mkdir -p $HOME/.kube
+        echo "${KUBECONFIG}" > $HOME/.kube/config
+        chmod 600 $HOME/.kube/config
+
+    - name: Update container image in Kubernetes
+      shell: bash
+      run: |
+        kubectl -n ${{ inputs.namespace }} set image deployment/airserver airserver=${{ inputs.container_image }}
+        kubectl -n ${{ inputs.namespace }} rollout status deployment/airserver --timeout=5m
