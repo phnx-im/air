@@ -11,7 +11,10 @@ inputs:
   namespace:
     description: "Kubernetes namespace to operate in"
     required: true
-  container_image:
+  deployment-name:
+    description: "Kubernetes deployment name to use/target"
+    required: true
+  container-image:
     description: "Container image to deploy"
     required: true
 
@@ -33,5 +36,5 @@ runs:
     - name: Update container image in Kubernetes
       shell: bash
       run: |
-        kubectl -n ${{ inputs.namespace }} set image deployment/airserver airserver=${{ inputs.container_image }}
-        kubectl -n ${{ inputs.namespace }} rollout status deployment/airserver --timeout=5m
+        kubectl -n ${{ inputs.namespace }} set image deployment/${{ inputs.deployment-name }} airserver=${{ inputs.container-image }}
+        kubectl -n ${{ inputs.namespace }} rollout status deployment/${{ inputs.deployment-name }} --timeout=5m
