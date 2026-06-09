@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/chat/widgets/member_list_item.dart';
+import 'package:air/chat/widgets/mute_button.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
@@ -26,7 +27,6 @@ import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'change_group_title_dialog.dart';
 import 'chat_debug_info_view.dart';
 import 'chat_details_cubit.dart';
-import 'mute_chat_sheet.dart';
 
 /// Details of a group chat
 class GroupDetailsScreen extends StatelessWidget {
@@ -101,34 +101,10 @@ class GroupDetailsScreen extends StatelessWidget {
                           color: colors.text.secondary,
                         ),
                       ),
+                      const SizedBox(height: Spacing.px8),
+                      const Center(child: MuteButton()),
                       const SizedBox(height: Spacing.px32),
                       _PeoplePreview(memberIds: members),
-                    ],
-                  ),
-                ),
-              ),
-              Center(
-                child: OutlinedButton(
-                  onPressed: () => chat.isMuted
-                      ? context.read<ChatDetailsCubit>().unmuteChat()
-                      : showMuteChatSheet(context),
-                  style: const ButtonStyle(
-                    visualDensity: VisualDensity.compact,
-                    minimumSize: WidgetStatePropertyAll(Size(82, 32)),
-                  ),
-                  child: Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      chat.isMuted
-                          ? const AppIcon.bell(size: 16)
-                          : const AppIcon.bellOff(size: 16),
-                      const SizedBox(width: Spacing.px8),
-                      Text(
-                        chat.isMuted
-                            ? loc.contactDetailsScreen_unmute
-                            : loc.contactDetailsScreen_mute,
-                        style: TextStyle(fontSize: LabelFontSize.base.size),
-                      ),
                     ],
                   ),
                 ),

@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/chat/safety_code_screen.dart';
+import 'package:air/chat/widgets/mute_button.dart';
 import 'package:air/chat/widgets/remove_member_button.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
@@ -140,7 +141,7 @@ class ContactDetailsView extends StatelessWidget {
 
           if (relationship is ContactRelationship) ...[
             const SizedBox(height: Spacing.px16),
-            _MuteButton(loc: loc),
+            const MuteButton(),
           ],
 
           const Spacer(),
@@ -347,42 +348,5 @@ class _AddContactDialog extends HookWidget {
     } finally {
       inProgress.value = false;
     }
-  }
-}
-
-class _MuteButton extends StatelessWidget {
-  const _MuteButton({required this.loc});
-
-  final AppLocalizations loc;
-
-  @override
-  Widget build(BuildContext context) {
-    final isMuted = context.select(
-      (ChatDetailsCubit cubit) => cubit.state.chat?.isMuted ?? false,
-    );
-    return OutlinedButton(
-      onPressed: () => isMuted
-          ? context.read<ChatDetailsCubit>().unmuteChat()
-          : showMuteChatSheet(context),
-      style: const ButtonStyle(
-        visualDensity: VisualDensity.compact,
-        minimumSize: WidgetStatePropertyAll(Size(82, 32)),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          isMuted
-              ? const AppIcon.bell(size: 16)
-              : const AppIcon.bellOff(size: 16),
-          const SizedBox(width: Spacing.px8),
-          Text(
-            isMuted
-                ? loc.contactDetailsScreen_unmute
-                : loc.contactDetailsScreen_mute,
-            style: TextStyle(fontSize: LabelFontSize.base.size),
-          ),
-        ],
-      ),
-    );
   }
 }
