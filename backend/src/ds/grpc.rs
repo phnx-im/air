@@ -1246,7 +1246,8 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let t_sender = t_group_state
             .group()
             .leaf(t_sender_index)
-            .ok_or(Status::invalid_argument("unknown sender"))?;
+            .ok_or(Status::invalid_argument("unknown sender"))?
+            .clone();
         let t_verifying_key: LeafVerifyingKeyRef = t_sender.signature_key().into();
         let payload: ApqGroupOperationPayload =
             request.verify(t_verifying_key).map_err(InvalidSignature)?;
