@@ -17,6 +17,7 @@ void main() {
     double viewportHeight = 800,
     Map<int, double> itemHeights = const {},
     double topPadding = 0.0,
+    double bottomPadding = 0.0,
   }) {
     return MaterialApp(
       home: Scaffold(
@@ -33,6 +34,7 @@ void main() {
               paginationThreshold: 100,
               onLoadNewer: onLoadNewer,
               topPadding: topPadding,
+              bottomPadding: bottomPadding,
               itemBuilder: (context, item, index) => KeyedSubtree(
                 key: ValueKey('item-$item'),
                 child: SizedBox(
@@ -181,6 +183,44 @@ void main() {
       await tester.pump();
 
       expect(find.byKey(const ValueKey('item-0')), findsNothing);
+      expect(controller.currentNewestVisibleId, 1);
+    });
+
+    testWidgets('excludes items hidden behind the bottom inset', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(400, 300);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      // Viewport 300 with a 100px bottom inset (e.g. an overlaid composer).
+      // The unobscured area is [0, 200]; the bottom [200, 300] is covered.
+      final data = AnchoredListData<int>([0, 1, 2, 3, 4, 5]);
+      final controller = AnchoredListController();
+
+      await tester.pumpWidget(
+        buildSubject(
+          data: data,
+          controller: controller,
+          canLoadNewer: false,
+          onLoadNewer: () {},
+          viewportHeight: 300,
+          bottomPadding: 100,
+        ),
+      );
+      await tester.pump();
+
+      // Scroll up so item 0 sits entirely behind the bottom inset and item 1
+      // straddles its top edge.
+      controller.position!.jumpTo(150);
+      await tester.pump();
+
+      // item 0 is laid out but fully obscured, so the newest *visible* item is
+      // item 1, not item 0.
+      expect(find.byKey(const ValueKey('item-0')), findsOneWidget);
       expect(controller.currentNewestVisibleId, 1);
     });
   });

@@ -1,0 +1,22 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT other.client_id AS \"client_id?: QsClientId\"\n                FROM qs_client_record c\n                LEFT JOIN qs_client_record AS other ON\n                    other.user_id = c.user_id\n                    AND other.deleted_at IS NULL\n                WHERE c.client_id = $1",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "client_id?: QsClientId",
+        "type_info": "Uuid"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "12e73dfab2f24c6d3204022520754563003236eccf2da727813507f7da2002e5"
+}

@@ -1,0 +1,6 @@
+---
+source: common/src/identifiers/mod.rs
+expression: diag
+---
+50                                  # bytes(16)
+   00000000000000000000000000000001 #   "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01"

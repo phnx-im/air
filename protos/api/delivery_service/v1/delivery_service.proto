@@ -89,6 +89,11 @@ message RoomState {
   bytes tls = 1;
 }
 
+message IndexedEncryptedUserProfileKey {
+  uint32 leaf_index = 1;
+  EncryptedUserProfileKey encrypted_user_profile_key = 2;
+}
+
 // request group id
 
 message RequestGroupIdRequest {
@@ -205,6 +210,7 @@ message WelcomeInfoResponse {
   RatchetTree ratchet_tree = 1;
   repeated EncryptedUserProfileKey encrypted_user_profile_keys = 3;
   RoomState room_state = 4;
+  repeated IndexedEncryptedUserProfileKey indexed_encrypted_user_profile_keys = 5;
 }
 
 // external commit info
@@ -221,6 +227,7 @@ message ExternalCommitInfoResponse {
   repeated EncryptedUserProfileKey encrypted_user_profile_keys = 4;
   RoomState room_state = 5;
   repeated MlsMessage proposals = 6;
+  repeated IndexedEncryptedUserProfileKey indexed_encrypted_user_profile_keys = 7;
 }
 
 message GroupInfo {
@@ -241,6 +248,7 @@ message ConnectionGroupInfoResponse {
   repeated EncryptedUserProfileKey encrypted_user_profile_keys = 4;
   RoomState room_state = 5;
   repeated MlsMessage proposals = 6;
+  repeated IndexedEncryptedUserProfileKey indexed_encrypted_user_profile_keys = 7;
 }
 
 // join connection group
@@ -435,7 +443,7 @@ message ProvisionAttachmentPayload {
 
   // or for a user
   common.v1.UserId user_id = 8;
-  
+
   bool use_post_policy = 4;
   int64 content_length = 5;
   StorageObjectType object_type = 7;

@@ -30,13 +30,14 @@ use aircommon::{
 use airprotos::{
     auth_service::v1::{
         AckListenUsernameRequest, AsCredentialsRequest, CheckInvitationCodeRequest,
-        CheckUsernameExistsRequest, ConnectRequest, ConnectResponse, CreateUsernamePayload,
-        DeleteUserPayload, DeleteUsernamePayload, EnqueueConnectionOfferStep,
-        FetchConnectionPackageStep, GetInvitationCodesRequest, GetUserProfileRequest,
-        InitListenUsernamePayload, InvitationCode, IssueTokensPayload, ListenUsernameRequest,
-        MergeUserProfilePayload, OperationType, PublishConnectionPackagesPayload,
-        RefreshUsernamePayload, RegisterUserRequest, ReportSpamPayload, StageUserProfilePayload,
-        UsernameQueueMessage, connect_request, connect_response, listen_username_request,
+        CheckUsernameExistsRequest, ConnectUsernameRequest, ConnectUsernameResponse,
+        CreateUsernamePayload, DeleteUserPayload, DeleteUsernamePayload,
+        EnqueueConnectionOfferStep, FetchConnectionPackageStep, GetInvitationCodesRequest,
+        GetUserProfileRequest, InitListenUsernamePayload, InvitationCode, IssueTokensPayload,
+        ListenUsernameRequest, MergeUserProfilePayload, OperationType,
+        PublishConnectionPackagesPayload, RefreshUsernamePayload, RegisterUserRequest,
+        ReportSpamPayload, StageUserProfilePayload, UsernameQueueMessage, connect_username_request,
+        connect_username_response, listen_username_request,
     },
     common::v1::{StatusDetails, StatusDetailsCode, TokenQuotaExceededDetail, status_details},
 };
@@ -318,11 +319,13 @@ impl ApiClient {
         hash: UsernameHash,
     ) -> Result<(VersionedConnectionPackageIn, AsConnectionOfferResponder), AsRequestError> {
         // Step 1: Fetch connection package
-        let fetch_request = ConnectRequest {
-            step: Some(connect_request::Step::Fetch(FetchConnectionPackageStep {
-                client_metadata: Some(self.metadata().clone()),
-                hash: Some(hash.into()),
-            })),
+        let fetch_request = ConnectUsernameRequest {
+            step: Some(connect_username_request::Step::Fetch(
+                FetchConnectionPackageStep {
+                    client_metadata: Some(self.metadata().clone()),
+                    hash: Some(hash.into()),
+                },
+            )),
         };
 
         // Step 2: Enqueue connection offer
@@ -330,10 +333,12 @@ impl ApiClient {
             oneshot::channel::<ConnectionOfferMessage>();
         let connection_offer_fut = async move {
             let connection_offer = connection_offer_rx.await.ok()?;
-            Some(ConnectRequest {
-                step: Some(connect_request::Step::Enqueue(EnqueueConnectionOfferStep {
-                    connection_offer: Some(connection_offer.into()),
-                })),
+            Some(ConnectUsernameRequest {
+                step: Some(connect_username_request::Step::Enqueue(
+                    EnqueueConnectionOfferStep {
+                        connection_offer: Some(connection_offer.into()),
+                    },
+                )),
             })
         };
 
@@ -342,7 +347,7 @@ impl ApiClient {
             .filter_map(identity);
         let mut responses = self
             .as_grpc_client()
-            .connect_handle(requests)
+            .connect_username(requests)
             .await?
             .into_inner();
 
@@ -352,8 +357,8 @@ impl ApiClient {
         })??;
 
         let connection_package: VersionedConnectionPackageIn = match response {
-            ConnectResponse {
-                step: Some(connect_response::Step::FetchResponse(fetch)),
+            ConnectUsernameResponse {
+                step: Some(connect_username_response::Step::FetchResponse(fetch)),
             } => fetch
                 .connection_package
                 .ok_or_else(|| {
@@ -377,8 +382,8 @@ impl ApiClient {
                 AsRequestError::UnexpectedResponse
             })??;
             match response {
-                ConnectResponse {
-                    step: Some(connect_response::Step::EnqueueResponse(_)),
+                ConnectUsernameResponse {
+                    step: Some(connect_username_response::Step::EnqueueResponse(_)),
                 } => Ok(()),
                 _ => {
                     error!("protocol violation: expected connection offer response");
@@ -427,7 +432,7 @@ impl ApiClient {
 
         let responses = self
             .as_grpc_client()
-            .listen_handle(requests)
+            .listen_username(requests)
             .await?
             .into_inner();
 
@@ -513,7 +518,7 @@ impl ApiClient {
         };
         let response = self
             .as_grpc_client()
-            .check_handle_exists(request)
+            .check_username_exists(request)
             .await?
             .into_inner();
         Ok(response.exists)
@@ -534,7 +539,7 @@ impl ApiClient {
             token: Some(token.into_bytes()),
         };
         let request = payload.sign(signing_key)?;
-        match self.as_grpc_client().create_handle(request).await {
+        match self.as_grpc_client().create_username(request).await {
             Ok(_) => Ok(true),
             Err(e) if e.code() == Code::AlreadyExists => Ok(false),
             Err(e) => Err(e.into()),
@@ -553,7 +558,7 @@ impl ApiClient {
             token: Some(token.into_bytes()),
         };
         let request = payload.sign(signing_key)?;
-        self.as_grpc_client().refresh_handle(request).await?;
+        self.as_grpc_client().refresh_username(request).await?;
         Ok(())
     }
 
@@ -569,7 +574,7 @@ impl ApiClient {
             token_request: Some(token_request.into_bytes()),
         };
         let request = payload.sign(signing_key)?;
-        let res = self.as_grpc_client().delete_handle(request).await;
+        let res = self.as_grpc_client().delete_username(request).await;
         match res {
             Ok(response) => {
                 let token_response = response

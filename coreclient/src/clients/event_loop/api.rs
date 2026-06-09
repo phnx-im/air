@@ -8,7 +8,7 @@
 
 use airapiclient::qs_api::QsListenResponder;
 use aircommon::identifiers::Username;
-use airprotos::{auth_service::v1::UsernameQueueMessage, queue_service::v1::QueueEvent};
+use airprotos::{auth_service::v1::UsernameQueueMessage, queue_service::v1::ListenResponse};
 
 use crate::{
     ChatId,
@@ -42,7 +42,7 @@ impl CoreUser {
     /// fully processed or partially processed, ignored or accumulated.
     pub async fn process_qs_event(
         &self,
-        event: QueueEvent,
+        event: ListenResponse,
     ) -> anyhow::Result<QsProcessEventResult> {
         let (event, response) = RemoteQueueEvent::qs_event(event);
         let _ = self
