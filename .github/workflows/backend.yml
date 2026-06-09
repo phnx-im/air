@@ -92,7 +92,8 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: ./.github/actions/kubectl-deploy
+      - name: Update K8s resources
+        uses: ./.github/actions/kubectl-deploy
         with:
           kubeconfig: ${{ secrets.KUBECONFIG }}
           namespace: default
