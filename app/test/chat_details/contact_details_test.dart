@@ -26,10 +26,7 @@ void main() {
       chatDetailsCubit = MockChatDetailsCubit();
     });
 
-    Widget buildSubject(
-      Relationship relationship, {
-      UiChatMuted? mutedUntil,
-    }) {
+    Widget buildSubject(Relationship relationship, {UiChatMuted? mutedUntil}) {
       when(() => chatDetailsCubit.state).thenReturn(
         ChatDetailsState(
           chat: UiChatDetails(
