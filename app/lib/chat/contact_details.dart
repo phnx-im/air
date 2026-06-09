@@ -14,7 +14,6 @@ import 'package:air/ds/components/modal/app_dialog.dart';
 import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/user/user.dart';
-import 'package:air/chat/mute_chat_sheet.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
@@ -24,7 +23,6 @@ import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
 import 'block_contact_button.dart';
-import 'chat_details_cubit.dart';
 import 'delete_contact_button.dart';
 import 'report_spam_button.dart';
 import 'unblock_contact_button.dart';
