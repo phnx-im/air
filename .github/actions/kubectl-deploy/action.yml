@@ -2,7 +2,7 @@
 #
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
-name: Deploy to Kubernetess
+name: Deploy to Kubernetes
 description: Updates the container image of the airserver deployment to Kubernetes
 inputs:
   kubeconfig:
@@ -28,9 +28,10 @@ runs:
       run: |
         mkdir -p $HOME/.kube
         echo "${KUBECONFIG}" > $HOME/.kube/config
+        chmod 600 $HOME/.kube/config
 
     - name: Update container image in Kubernetes
       shell: bash
-      run: -|
-        kubectl -n staging set image deployment/airserver airserver=${{ inputs.container_image }}
-        kubectl rollout status deployment/airserver --timeout=5m
+      run: |
+        kubectl -n ${{ inputs.namespace }} set image deployment/airserver airserver=${{ inputs.container_image }}
+        kubectl -n ${{ inputs.namespace }} rollout status deployment/airserver --timeout=5m
