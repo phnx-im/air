@@ -444,7 +444,7 @@ pub enum ChatMuted {
 impl ChatMuted {
     pub fn is_muted(&self, when: DateTime<Utc>) -> bool {
         match self {
-            ChatMuted::Until(until) => *until > when,
+            ChatMuted::Until(until) => when < *until,
             ChatMuted::Forever => true,
         }
     }

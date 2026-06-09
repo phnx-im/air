@@ -68,7 +68,7 @@ extension UiChatDetailsExtension on UiChatDetails {
 
 extension UiChatMutedExtension on UiChatMuted? {
   bool get isMuted => switch (this) {
-    UiChatMuted_Until(:final field0) => field0.isAfter(DateTime.now()),
+    UiChatMuted_Until(:final field0) => DateTime.now().isBefore(field0),
     UiChatMuted_Forever() => true,
     null => false,
   };

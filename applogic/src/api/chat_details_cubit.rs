@@ -43,8 +43,9 @@ use crate::{
     notifications::NotificationService,
     util::{Cubit, CubitCore, spawn_from_sync},
 };
+
 // Re-export for FRB reasons
-pub use crate::api::types::UiChatMuted;
+pub(crate) use crate::api::types::UiChatMuted;
 
 use super::{types::UiChatDetails, user_cubit::UserCubitBase};
 
@@ -573,7 +574,7 @@ impl ChatDetailsCubitBase {
     }
 
     /// Mute notifications for this chat until the given datetime.
-    /// Pass `None` to mute indefinitely.
+    /// Pass `None` to unmute.
     pub async fn mute_chat(&self, muted_until: Option<UiChatMuted>) -> anyhow::Result<()> {
         let chat_id = self.context.chat_id;
         self.context

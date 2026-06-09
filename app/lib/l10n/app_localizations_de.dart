@@ -131,7 +131,8 @@ class AppLocalizationsDe extends AppLocalizations {
   String get muteDurationSheet_title => 'Benachrichtigungen stummschalten';
 
   @override
-  String get muteDurationSheet_body => 'Choose how long to mute the chat for.';
+  String get muteDurationSheet_body =>
+      'Wähle aus, wie lange du den Chat stummschalten möchtest.';
 
   @override
   String get muteDurationSheet_1hour => '1 Stunde';

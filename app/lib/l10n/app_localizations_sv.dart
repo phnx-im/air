@@ -130,7 +130,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get muteDurationSheet_title => 'Tysta notifikationer';
 
   @override
-  String get muteDurationSheet_body => 'Choose how long to mute the chat for.';
+  String get muteDurationSheet_body => 'Välj hur länge du vill tysta chatten.';
 
   @override
   String get muteDurationSheet_1hour => '1 timme';

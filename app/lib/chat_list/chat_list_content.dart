@@ -178,90 +178,85 @@ class _ListTileState extends State<_ListTile> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+
     final currentChatId = context.select(
       (NavigationCubit cubit) => cubit.state.openChatId,
     );
+    final isChatMuted = context.select(
+      (ChatDetailsCubit cubit) => cubit.state.chat?.isMuted ?? false,
+    );
     final isSelected = currentChatId == widget.chatId;
-    final loc = AppLocalizations.of(context);
 
-    return Builder(
-      builder: (context) {
-        final isMuted = context.select(
-          (ChatDetailsCubit cubit) => cubit.state.chat?.isMuted ?? false,
-        );
-
-        return ContextMenu(
-          direction: ContextMenuDirection.right,
-          controller: _contextMenuController,
-          menuItems: [
-            ContextMenuItem(
-              label: isMuted
-                  ? loc.chatList_contextMenu_unmute
-                  : loc.chatList_contextMenu_mute,
-              leading: isMuted
-                  ? const AppIcon.bell(size: 16)
-                  : const AppIcon.bellOff(size: 16),
-              onPressed: () {
-                if (isMuted) {
-                  context.read<ChatDetailsCubit>().unmuteChat();
-                } else {
-                  showMuteChatSheet(context);
-                }
-              },
-            ),
-          ],
-          child: GestureDetector(
-            onTap: () =>
-                context.read<NavigationCubit>().openChat(widget.chatId),
-            onLongPress: _contextMenuController.show,
-            onSecondaryTap: _contextMenuController.show,
-            behavior: HitTestBehavior.opaque,
-            child: Container(
-              padding: const EdgeInsets.fromLTRB(
-                Spacing.px16,
-                Spacing.px16,
-                Spacing.px16,
-                Spacing.px12,
-              ),
-              decoration: BoxDecoration(
-                color: isSelected
-                    ? CustomColorScheme.of(context).backgroundElevated.primary
-                    : null,
-              ),
-              child: Builder(
-                builder: (context) {
-                  final chat = context.select(
-                    (ChatDetailsCubit cubit) => cubit.state.chat,
-                  );
-                  if (chat == null) {
-                    return const SizedBox.shrink();
-                  }
-                  return Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    crossAxisAlignment: .start,
-                    spacing: Spacing.px12,
-                    children: [
-                      ChatAvatar(chatId: chat.id, size: 48),
-                      Expanded(
-                        child: Column(
-                          mainAxisSize: .min,
-                          crossAxisAlignment: CrossAxisAlignment.center,
-                          mainAxisAlignment: MainAxisAlignment.start,
-                          spacing: 0,
-                          children: [
-                            _ListTileTop(chat: chat),
-                            _ListTileBottom(chat: chat),
-                          ],
-                        ),
-                      ),
-                    ],
-                  );
-                },
-              ),
-            ),
+    return ContextMenu(
+      direction: ContextMenuDirection.right,
+      controller: _contextMenuController,
+      menuItems: [
+        ContextMenuItem(
+          label: isChatMuted
+              ? loc.chatList_contextMenu_unmute
+              : loc.chatList_contextMenu_mute,
+          leading: isChatMuted
+              ? const AppIcon.bell(size: 16)
+              : const AppIcon.bellOff(size: 16),
+          onPressed: () {
+            if (isChatMuted) {
+              context.read<ChatDetailsCubit>().unmuteChat();
+            } else {
+              showMuteChatSheet(context);
+            }
+          },
+        ),
+      ],
+      child: GestureDetector(
+        onTap: () => context.read<NavigationCubit>().openChat(widget.chatId),
+        onLongPress: _contextMenuController.show,
+        onSecondaryTap: _contextMenuController.show,
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(
+            Spacing.px16,
+            Spacing.px16,
+            Spacing.px16,
+            Spacing.px12,
           ),
-        );
-      },
+          decoration: BoxDecoration(
+            color: isSelected
+                ? CustomColorScheme.of(context).backgroundElevated.primary
+                : null,
+          ),
+          child: Builder(
+            builder: (context) {
+              final chat = context.select(
+                (ChatDetailsCubit cubit) => cubit.state.chat,
+              );
+              if (chat == null) {
+                return const SizedBox.shrink();
+              }
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: .start,
+                spacing: Spacing.px12,
+                children: [
+                  ChatAvatar(chatId: chat.id, size: 48),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: .min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      spacing: 0,
+                      children: [
+                        _ListTileTop(chat: chat),
+                        _ListTileBottom(chat: chat),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
+        ),
+      ),
     );
   }
 }
