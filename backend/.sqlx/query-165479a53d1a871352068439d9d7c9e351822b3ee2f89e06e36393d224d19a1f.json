@@ -1,0 +1,16 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO qs_staged_key_package (\n                        batch_id, key_package, is_last_resort, is_apq\n                    )\n                    VALUES ($1, $2, $3, false)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Bytea",
+        "Bool"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "165479a53d1a871352068439d9d7c9e351822b3ee2f89e06e36393d224d19a1f"
+}

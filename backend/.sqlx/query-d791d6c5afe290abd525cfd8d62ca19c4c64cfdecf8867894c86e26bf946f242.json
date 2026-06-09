@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO qs_staged_key_package_batch (user_id, epoch_id, random)\n            VALUES ($1, $2, $3)\n            ON CONFLICT (user_id, epoch_id, random) DO NOTHING\n            RETURNING id",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "d791d6c5afe290abd525cfd8d62ca19c4c64cfdecf8867894c86e26bf946f242"
+}

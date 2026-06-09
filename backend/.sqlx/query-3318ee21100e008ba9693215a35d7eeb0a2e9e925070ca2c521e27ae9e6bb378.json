@@ -1,0 +1,24 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id FROM qs_staged_key_package_batch\n                WHERE user_id = $1 AND epoch_id = $2 AND random = $3",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4"
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea",
+        "Bytea"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "3318ee21100e008ba9693215a35d7eeb0a2e9e925070ca2c521e27ae9e6bb378"
+}
