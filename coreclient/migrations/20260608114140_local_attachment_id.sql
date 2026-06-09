@@ -48,8 +48,29 @@ WHERE
 CREATE INDEX idx_attachment_message_id ON attachment (message_id);
 
 -- The pending attachment is keyed by the server-assigned id
-ALTER TABLE pending_attachment
-RENAME COLUMN attachment_id TO remote_attachment_id;
+CREATE TABLE pending_attachment_new (
+    remote_attachment_id BLOB NOT NULL PRIMARY KEY,
+    size INTEGER NOT NULL,
+    enc_alg INTEGER NOT NULL,
+    enc_key BLOB NOT NULL,
+    nonce BLOB NOT NULL,
+    aad BLOB NOT NULL,
+    hash_alg INTEGER NOT NULL,
+    hash BLOB NOT NULL,
+    FOREIGN KEY (remote_attachment_id) REFERENCES attachment (remote_attachment_id) ON DELETE CASCADE
+);
+
+INSERT INTO
+    pending_attachment_new
+SELECT
+    *
+FROM
+    pending_attachment;
+
+DROP TABLE pending_attachment;
+
+ALTER TABLE pending_attachment_new
+RENAME TO pending_attachment;
 
 -- chat message queue does not have to clean up attachments anymore
 ALTER TABLE chat_message_queue
