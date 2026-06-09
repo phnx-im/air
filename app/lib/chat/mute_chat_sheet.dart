@@ -31,10 +31,8 @@ Future<void> showMuteChatSheet(BuildContext context) {
 
   return showBottomSheetModal(
     context: context,
-    builder: (sheetContext) => BlocProvider.value(
-      value: cubit,
-      child: const _MuteDurationContent(),
-    ),
+    builder: (sheetContext) =>
+        BlocProvider.value(value: cubit, child: const _MuteDurationContent()),
   );
 }
 
