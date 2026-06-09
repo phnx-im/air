@@ -3,6 +3,9 @@
 # SPDX-License-Identifier: AGPL-3.0-or-later
 
 name: Backend
+concurrency:
+  group: deploy-backend
+  cancel-in-progress: false # let the in-flight deployment finish first
 
 # Configures this workflow to run every time a release is published.
 on:
@@ -65,6 +68,8 @@ jobs:
 
   deploy-staging:
     name: Update staging deployment
+    environment: staging-backend
+
     needs: build-and-publish
     runs-on: ubuntu-latest
 
@@ -77,6 +82,8 @@ jobs:
 
   deploy-production:
     name: Update production deployment
+    environment: production-backend
+
     needs: [build-and-publish, deploy-staging] # only if staging deployment succeeded
     runs-on: ubuntu-latest
 
