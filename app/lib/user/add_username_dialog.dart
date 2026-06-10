@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
+import 'package:air/ds/components/button/button.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/foundations/themes.dart';
@@ -99,11 +100,13 @@ class AddUsernameDialog extends HookWidget {
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
+                  child: AppButton(
+                    label: loc.usernameScreen_cancel,
+                    size: .small,
+                    type: .secondary,
                     onPressed: () {
                       Navigator.of(context).pop(false);
                     },
-                    child: Text(loc.usernameScreen_cancel),
                   ),
                 ),
                 const SizedBox(width: Spacing.px12),

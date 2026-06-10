@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ds/components/button/button.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/foundations/themes.dart';
@@ -211,34 +212,21 @@ class _EmailForm extends HookWidget {
             // Submit Button
             Opacity(
               opacity: isUploadingLogs.value ? 0.4 : 1.0,
-              child: OutlinedButton(
-                style: const ButtonStyle(
-                  shape: WidgetStatePropertyAll(
-                    RoundedRectangleBorder(
-                      borderRadius: BorderRadius.all(
-                        Radius.circular(Spacing.px12),
-                      ),
-                    ),
-                  ),
-                ),
-                onPressed: isUploadingLogs.value
-                    ? null
-                    : () {
-                        final formState = _formKey.currentState;
-                        if (formState != null && formState.validate()) {
-                          formState.save();
-                          _launchEmail(
-                            context,
-                            selectedSubject.value,
-                            body.value,
-                            debugLogsUrl.value,
-                          );
-                        }
-                      },
-                child: Text(
-                  loc.contactUsScreen_composeEmail,
-                  style: TextStyle(fontSize: LabelFontSize.base.size),
-                ),
+              child: AppButton(
+                label: loc.contactUsScreen_composeEmail,
+                state: isUploadingLogs.value ? .pending : .active,
+                onPressed: () {
+                  final formState = _formKey.currentState;
+                  if (formState != null && formState.validate()) {
+                    formState.save();
+                    _launchEmail(
+                      context,
+                      selectedSubject.value,
+                      body.value,
+                      debugLogsUrl.value,
+                    );
+                  }
+                },
               ),
             ),
           ],
