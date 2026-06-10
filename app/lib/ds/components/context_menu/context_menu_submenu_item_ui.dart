@@ -122,8 +122,7 @@ class _ContextMenuSubmenuItemWidgetState
             foregroundColor: colors.text.primary,
             padding: const EdgeInsets.symmetric(vertical: Spacing.px4),
             alignment: Alignment.centerLeft,
-            splashFactory:
-                !Platform.isAndroid ? NoSplash.splashFactory : null,
+            splashFactory: !Platform.isAndroid ? NoSplash.splashFactory : null,
             overlayColor: Colors.transparent,
           ),
           child: Row(
@@ -150,7 +149,7 @@ class _ContextMenuSubmenuItemWidgetState
                 ),
               ),
               const SizedBox(width: Spacing.px8),
-              AppIcon.arrowRight(
+              AppIcon.chevronRight(
                 size: ContextMenuSubmenuItem.chevronSize,
                 color: colors.text.secondary,
               ),
@@ -164,33 +163,37 @@ class _ContextMenuSubmenuItemWidgetState
   Widget _buildSubmenu(BuildContext overlayContext) {
     final item = widget.item;
     final overlayState = Overlay.of(overlayContext);
-    final overlayBox =
-        overlayState.context.findRenderObject() as RenderBox?;
-    final overlaySize =
-        overlayBox?.size ?? MediaQuery.of(overlayContext).size;
+    final overlayBox = overlayState.context.findRenderObject() as RenderBox?;
+    final overlaySize = overlayBox?.size ?? MediaQuery.of(overlayContext).size;
 
-    final submenuWidth =
-        _measureSubmenuWidth(overlayContext, overlaySize.width);
+    final submenuWidth = _measureSubmenuWidth(
+      overlayContext,
+      overlaySize.width,
+    );
 
     double dx = 0;
     double dy = 0;
     if (overlayBox != null) {
       final targetBox =
           _targetKey.currentContext?.findRenderObject() as RenderBox?;
-      final parentMenuBox = item.parentMenuKey?.currentContext
-          ?.findRenderObject() as RenderBox?;
+      final parentMenuBox =
+          item.parentMenuKey?.currentContext?.findRenderObject() as RenderBox?;
 
       if (targetBox != null) {
-        final itemOffset =
-            targetBox.localToGlobal(Offset.zero, ancestor: overlayBox);
+        final itemOffset = targetBox.localToGlobal(
+          Offset.zero,
+          ancestor: overlayBox,
+        );
         final itemRect = itemOffset & targetBox.size;
 
         // X: use the parent menu container's edge + gap, falling back to the
         // trigger item edge if the parent key isn't available yet.
         final Rect anchorRect;
         if (parentMenuBox != null) {
-          final parentOffset =
-              parentMenuBox.localToGlobal(Offset.zero, ancestor: overlayBox);
+          final parentOffset = parentMenuBox.localToGlobal(
+            Offset.zero,
+            ancestor: overlayBox,
+          );
           anchorRect = parentOffset & parentMenuBox.size;
         } else {
           anchorRect = itemRect;
@@ -200,23 +203,15 @@ class _ContextMenuSubmenuItemWidgetState
         dx = rightSpace >= submenuWidth + gap
             ? anchorRect.right + gap
             : anchorRect.left - submenuWidth - gap;
-        dx = dx.clamp(
-          0.0,
-          math.max(0.0, overlaySize.width - submenuWidth),
-        );
+        dx = dx.clamp(0.0, math.max(0.0, overlaySize.width - submenuWidth));
 
         // Y: align with the parent menu container top, falling back to the
         // trigger item top if the parent key isn't available yet.
         final rawDy = parentMenuBox != null
-            ? parentMenuBox
-                .localToGlobal(Offset.zero, ancestor: overlayBox)
-                .dy
+            ? parentMenuBox.localToGlobal(Offset.zero, ancestor: overlayBox).dy
             : itemRect.top;
         final menuH = _submenuSize?.height ?? 0.0;
-        dy = rawDy.clamp(
-          0.0,
-          math.max(0.0, overlaySize.height - menuH),
-        );
+        dy = rawDy.clamp(0.0, math.max(0.0, overlaySize.height - menuH));
       }
     }
 

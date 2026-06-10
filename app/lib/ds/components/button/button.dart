@@ -56,14 +56,14 @@ class AppButton extends StatelessWidget {
       (.secondary, .inactive, _) => colors.function.toggleBlack.withValues(
         alpha: 0.5,
       ),
+      (.secondary, _, .normal) => colors.function.toggleBlack,
       (.secondary, _, .danger) => colors.function.danger,
-      (.secondary, _, _) => colors.function.toggleBlack,
     };
 
     final backgroundColor = switch ((type, tone)) {
       (.primary, .danger) => colors.function.danger,
       (.primary, .normal) => colors.accent.primary,
-      (.secondary, _) => colors.accent.tertiary,
+      (.secondary, _) => colors.fill.tertiary,
     };
 
     const Border? border = null;
@@ -74,8 +74,8 @@ class AppButton extends StatelessWidget {
     };
 
     final verticalPadding = switch (size) {
-      AppButtonSize.small => Spacing.px8,
-      AppButtonSize.large => Spacing.px12,
+      AppButtonSize.small => Spacing.px16,
+      AppButtonSize.large => Spacing.px24,
     };
 
     final iconSize = switch (size) {
@@ -97,7 +97,12 @@ class AppButton extends StatelessWidget {
       onPressed: state == AppButtonState.active ? onPressed : null,
       style: ButtonStyle(
         visualDensity: .compact,
-        padding: const WidgetStatePropertyAll(EdgeInsets.zero),
+        padding: WidgetStatePropertyAll(
+          EdgeInsets.symmetric(
+            horizontal: Spacing.px16,
+            vertical: verticalPadding,
+          ),
+        ),
         backgroundColor: WidgetStatePropertyAll(backgroundColor),
         overlayColor: WidgetStatePropertyAll(backgroundColor),
         shape: WidgetStatePropertyAll(
@@ -112,45 +117,37 @@ class AppButton extends StatelessWidget {
             ? WidgetStatePropertyAll(BorderSide(color: border.top.color))
             : null,
       ),
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          vertical: verticalPadding,
-          horizontal: 12,
-        ),
-        child: Row(
-          mainAxisAlignment: .center,
-          crossAxisAlignment: .center,
-          children: [
-            if (state == .pending)
-              SizedBox(
-                width: iconSize.width,
-                height: iconSize.height,
-                child: CircularProgressIndicator(
-                  color: foregroundColor,
-                  strokeWidth: 2,
-                ),
+      child: Row(
+        mainAxisSize: size == .large ? .max : .min,
+        mainAxisAlignment: .center,
+        crossAxisAlignment: .center,
+        children: [
+          if (state == .pending)
+            SizedBox(
+              width: iconSize.width,
+              height: iconSize.height,
+              child: CircularProgressIndicator(
+                color: foregroundColor,
+                strokeWidth: 2,
               ),
+            ),
 
-            if (state != .pending && icon != null) ...[
-              icon?.call(iconSize, iconColor),
-              const SizedBox(width: 8),
-            ],
-
-            if (state != .pending)
-              SizedBox(
-                height: iconSize.height,
-                child: Center(
-                  child: Text(
-                    label,
-                    style: TextStyle(
-                      color: foregroundColor,
-                      fontSize: labelSize,
-                    ),
-                  ),
-                ),
-              ),
+          if (state != .pending && icon != null) ...[
+            icon?.call(iconSize, iconColor),
+            const SizedBox(width: 8),
           ],
-        ),
+
+          if (state != .pending)
+            SizedBox(
+              height: iconSize.height,
+              child: Center(
+                child: Text(
+                  label,
+                  style: TextStyle(color: foregroundColor, fontSize: labelSize),
+                ),
+              ),
+            ),
+        ],
       ),
     );
   }

@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
+import 'package:air/ds/components/button/button.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/theme/theme.dart' show ResponsiveScreen;
 import 'package:air/ds/foundations/themes.dart';
@@ -24,22 +25,10 @@ class ReportSpamButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final isDesktop = ResponsiveScreen.isDesktop(context);
-
-    return OutlinedButton(
+    return AppButton(
       onPressed: () => _onPressed(context),
-      style: ButtonStyle(
-        minimumSize: WidgetStatePropertyAll(
-          Size(isDesktop ? 320 : double.infinity, 0),
-        ),
-      ),
-      child: Text(
-        loc.reportSpamButton_text,
-        style: TextStyle(
-          fontSize: LabelFontSize.base.size,
-          color: CustomColorScheme.of(context).text.primary,
-        ),
-      ),
+      label: loc.reportSpamButton_text,
+      type: AppButtonType.secondary,
     );
   }
 

@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
+import 'package:air/ds/components/button/button.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/foundations/themes.dart';
@@ -25,31 +26,10 @@ class BlockContactButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-
-    final colors = CustomColorScheme.of(context);
-
-    final isDesktop = ResponsiveScreen.isDesktop(context);
-
-    return OutlinedButton(
+    return AppButton(
       onPressed: () => _block(context),
-      style: ButtonStyle(
-        minimumSize: WidgetStatePropertyAll(
-          Size(isDesktop ? 320 : double.infinity, 0),
-        ),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        spacing: Spacing.px12,
-        children: [
-          Text(
-            loc.blockContactButton_text,
-            style: TextStyle(
-              fontSize: LabelFontSize.base.size,
-              color: colors.text.primary,
-            ),
-          ),
-        ],
-      ),
+      label: loc.blockContactButton_text,
+      type: AppButtonType.secondary,
     );
   }
 

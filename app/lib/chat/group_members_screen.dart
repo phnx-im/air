@@ -195,7 +195,7 @@ class _GroupMemberTile extends StatelessWidget {
               chatId: chatId,
               memberId: memberId,
               displayName: profile.displayName,
-              compact: true,
+              size: .small,
               enabled: canKick,
             ),
     );

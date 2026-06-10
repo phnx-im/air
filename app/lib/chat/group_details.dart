@@ -110,22 +110,19 @@ class GroupDetailsScreen extends StatelessWidget {
                 ),
               ),
               const SizedBox(height: Spacing.px16),
-              Row(
+              Column(
+                spacing: Spacing.px12,
                 children: [
-                  Expanded(
-                    child: AppButton(
-                      onPressed: () => _leave(context, chat),
-                      type: .secondary,
-                      label: loc.groupDetails_leaveChat,
-                    ),
+                  AppButton(
+                    onPressed: () => _leave(context, chat),
+                    type: .secondary,
+                    label: loc.groupDetails_leaveChat,
                   ),
-                  const SizedBox(width: Spacing.px12),
-                  Expanded(
-                    child: AppButton(
-                      onPressed: () => _delete(context, chat),
-                      tone: .danger,
-                      label: loc.groupDetails_deleteChat,
-                    ),
+                  AppButton(
+                    onPressed: () => _delete(context, chat),
+                    type: .secondary,
+                    tone: .danger,
+                    label: loc.groupDetails_deleteChat,
                   ),
                 ],
               ),
@@ -232,7 +229,7 @@ class _PeoplePreview extends HookWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.all(Spacing.px12),
+          padding: const EdgeInsets.all(Spacing.px16),
           child: Text(
             loc.groupDetails_memberCount(memberIds.length),
             style: TextStyle(

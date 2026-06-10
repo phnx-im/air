@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
+import 'package:air/ds/components/button/button.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/foundations/themes.dart';
@@ -26,24 +27,10 @@ class UnblockContactButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final isDesktop = ResponsiveScreen.isDesktop(context);
-
-    final colors = CustomColorScheme.of(context);
-
-    return OutlinedButton(
+    return AppButton(
       onPressed: () => _unblock(context),
-      style: ButtonStyle(
-        minimumSize: WidgetStatePropertyAll(
-          Size(isDesktop ? 320 : double.infinity, 0),
-        ),
-      ),
-      child: Text(
-        loc.unblockContactButton_text,
-        style: TextStyle(
-          fontSize: LabelFontSize.base.size,
-          color: colors.text.primary,
-        ),
-      ),
+      type: AppButtonType.secondary,
+      label: loc.unblockContactButton_text,
     );
   }
 

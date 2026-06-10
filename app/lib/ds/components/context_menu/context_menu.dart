@@ -10,7 +10,6 @@ import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
 import 'package:air/ds/foundations/spacing.dart';
 import 'package:air/ds/components/context_menu/context_menu_item_ui.dart';
-import 'package:air/ds/components/context_menu/context_menu_submenu_item_ui.dart';
 import 'package:air/ds/components/context_menu/context_menu_ui.dart';
 import 'package:air/ds/foundations/font_size.dart';
 
@@ -128,7 +127,6 @@ class _CursorMenuLayoutDelegate extends SingleChildLayoutDelegate {
 class _ContextMenuState extends State<ContextMenu> {
   final LayerLink _layerLink = LayerLink();
   final GlobalKey _targetKey = GlobalKey();
-  final GlobalKey _menuKey = GlobalKey();
   ValueListenable<Offset?>? _attachedCursorPosition;
   VoidCallback? _cursorPositionListener;
   Size? _menuSize;
@@ -287,16 +285,6 @@ class _ContextMenuState extends State<ContextMenu> {
             },
           ),
         );
-      } else if (entry is ContextMenuSubmenuItem) {
-        updatedMenuItems.add(
-          entry.copyWith(
-            onSubItemSelected: () {
-              widget.controller.hide();
-              _ContextMenuCoordinator.release(widget.controller);
-            },
-            parentMenuKey: _menuKey,
-          ),
-        );
       } else {
         updatedMenuItems.add(entry);
       }
@@ -434,7 +422,6 @@ class _ContextMenuState extends State<ContextMenu> {
         final menuWidth = _measureMenuWidth(context, maxMenuWidth);
 
         final menuUi = SizedBox(
-          key: _menuKey,
           width: menuWidth,
           child: _MeasureSize(
             onChange: _handleMenuSize,
@@ -517,27 +504,20 @@ class _ContextMenuState extends State<ContextMenu> {
     final textScaler = MediaQuery.textScalerOf(context);
     final textDirection = Directionality.of(context);
     final trailingIconSize = IconTheme.of(context).size ?? 24.0;
-    final contextMenuItems =
-        widget.menuItems.whereType<ContextMenuItem>().toList();
-    final submenuItems =
-        widget.menuItems.whereType<ContextMenuSubmenuItem>().toList();
-    if (contextMenuItems.isEmpty && submenuItems.isEmpty) {
+    final items = widget.menuItems.whereType<ContextMenuItem>().toList();
+    if (items.isEmpty) {
       return 0.0;
     }
     // Reserve a leading column for all items if any item needs alignment.
-    final hasAnyLeading =
-        contextMenuItems.any(
-          (item) => item.hasLeading || item.reserveLeadingSpace,
-        ) ||
-        submenuItems.any(
-          (item) => item.hasLeading || item.reserveLeadingSpace,
-        );
+    final hasAnyLeading = items.any(
+      (item) => item.hasLeading || item.reserveLeadingSpace,
+    );
     final leadingWidth = hasAnyLeading
         ? ContextMenuItem.defaultLeadingWidth + Spacing.px8
         : 0.0;
     var widestItem = 0.0;
 
-    for (final item in contextMenuItems) {
+    for (final item in items) {
       final textPainter = TextPainter(
         text: TextSpan(text: item.label, style: textStyle),
         maxLines: 1,
@@ -548,22 +528,10 @@ class _ContextMenuState extends State<ContextMenu> {
       if (item.trailingIcon != null) {
         itemWidth += trailingIconSize + Spacing.px8;
       }
-      if (itemWidth > widestItem) widestItem = itemWidth;
-    }
 
-    for (final item in submenuItems) {
-      final textPainter = TextPainter(
-        text: TextSpan(text: item.label, style: textStyle),
-        maxLines: 1,
-        textScaler: textScaler,
-        textDirection: textDirection,
-      )..layout();
-      // Account for the fixed chevron trailing icon.
-      final itemWidth = textPainter.width +
-          leadingWidth +
-          ContextMenuSubmenuItem.chevronSize +
-          Spacing.px8;
-      if (itemWidth > widestItem) widestItem = itemWidth;
+      if (itemWidth > widestItem) {
+        widestItem = itemWidth;
+      }
     }
 
     final paddedWidth = widestItem + Spacing.px16 * 2;
