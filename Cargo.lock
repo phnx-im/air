@@ -1804,7 +1804,7 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -5050,7 +5050,7 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 [[package]]
 name = "openmls"
 version = "0.8.1"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#bd5760e0080beb8c9c73213a19febe3a9482c26c"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#ac45b95dde09c024bbf3876e4b71d754bf49368c"
 dependencies = [
  "log",
  "openmls_basic_credential",
@@ -5070,7 +5070,7 @@ dependencies = [
 [[package]]
 name = "openmls_basic_credential"
 version = "0.5.0"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#bd5760e0080beb8c9c73213a19febe3a9482c26c"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#ac45b95dde09c024bbf3876e4b71d754bf49368c"
 dependencies = [
  "ed25519-dalek",
  "ml-dsa",
@@ -5086,7 +5086,7 @@ dependencies = [
 [[package]]
 name = "openmls_libcrux_crypto"
 version = "0.3.1"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#bd5760e0080beb8c9c73213a19febe3a9482c26c"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#ac45b95dde09c024bbf3876e4b71d754bf49368c"
 dependencies = [
  "hpke-rs",
  "hpke-rs-crypto",
@@ -5107,7 +5107,7 @@ dependencies = [
 [[package]]
 name = "openmls_memory_storage"
 version = "0.5.0"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#bd5760e0080beb8c9c73213a19febe3a9482c26c"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#ac45b95dde09c024bbf3876e4b71d754bf49368c"
 dependencies = [
  "hex",
  "log",
@@ -5120,7 +5120,7 @@ dependencies = [
 [[package]]
 name = "openmls_rust_crypto"
 version = "0.5.1"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#bd5760e0080beb8c9c73213a19febe3a9482c26c"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#ac45b95dde09c024bbf3876e4b71d754bf49368c"
 dependencies = [
  "aes-gcm",
  "chacha20poly1305",
@@ -5147,7 +5147,7 @@ dependencies = [
 [[package]]
 name = "openmls_sqlite_storage"
 version = "0.2.0"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#bd5760e0080beb8c9c73213a19febe3a9482c26c"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#ac45b95dde09c024bbf3876e4b71d754bf49368c"
 dependencies = [
  "log",
  "openmls_traits",
@@ -5160,7 +5160,7 @@ dependencies = [
 [[package]]
 name = "openmls_traits"
 version = "0.5.0"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#bd5760e0080beb8c9c73213a19febe3a9482c26c"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#ac45b95dde09c024bbf3876e4b71d754bf49368c"
 dependencies = [
  "serde",
  "tls_codec",
@@ -8278,7 +8278,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.48.0",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

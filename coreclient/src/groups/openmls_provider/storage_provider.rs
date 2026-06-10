@@ -17,7 +17,10 @@ use sqlx::{
 };
 use tokio_stream::StreamExt;
 
-use crate::groups::openmls_provider::encryption_key_pairs::StorableEncryptionKeyPairRef;
+use crate::groups::openmls_provider::{
+    StorableVcEpochIdRef, StorableVcSecretRef, StorableVcSecretType,
+    encryption_key_pairs::StorableEncryptionKeyPairRef,
+};
 
 use super::{
     EntityRefWrapper, EntitySliceWrapper, EntityVecWrapper, EntityWrapper, KeyRefWrapper,
@@ -779,6 +782,96 @@ impl StorageProvider<CURRENT_VERSION> for SqliteStorageProvider<'_> {
             storable.delete_group_data(&mut **connection, GroupDataType::ApplicationExportTree);
         block_async_in_place(task)
     }
+
+    fn write_vc_emulation_epoch_state<
+        EpochId: traits::VcEpochId<CURRENT_VERSION>,
+        VcEmulationEpochState: traits::VcEmulationEpochState<CURRENT_VERSION>,
+    >(
+        &self,
+        epoch_id: &EpochId,
+        vc_emulation_epoch_state: &VcEmulationEpochState,
+    ) -> Result<(), Self::Error> {
+        let storable = StorableVcSecretRef(vc_emulation_epoch_state);
+        let mut connection = self.connection.borrow_mut();
+        let task = storable.store_vc_emulation_group_secret(
+            &mut **connection,
+            epoch_id,
+            StorableVcSecretType::EmulationEpochState,
+        );
+        block_async_in_place(task)
+    }
+
+    fn write_vc_pprf<
+        EpochId: traits::VcEpochId<CURRENT_VERSION>,
+        VcPprf: traits::VcPprf<CURRENT_VERSION>,
+    >(
+        &self,
+        epoch_id: &EpochId,
+        vc_pprf: &VcPprf,
+    ) -> Result<(), Self::Error> {
+        let storable = StorableVcSecretRef(vc_pprf);
+        let mut connection = self.connection.borrow_mut();
+        let task = storable.store_vc_emulation_group_secret(
+            &mut **connection,
+            epoch_id,
+            StorableVcSecretType::Pprf,
+        );
+        block_async_in_place(task)
+    }
+
+    fn vc_emulation_epoch_state<
+        EpochId: traits::VcEpochId<CURRENT_VERSION>,
+        VcEmulationEpochState: traits::VcEmulationEpochState<CURRENT_VERSION>,
+    >(
+        &self,
+        epoch_id: &EpochId,
+    ) -> Result<Option<VcEmulationEpochState>, Self::Error> {
+        let storable = StorableVcEpochIdRef(epoch_id);
+        let mut connection = self.connection.borrow_mut();
+        let task = storable.load_vc_emulation_group_secret(
+            &mut **connection,
+            StorableVcSecretType::EmulationEpochState,
+        );
+        block_async_in_place(task)
+    }
+
+    fn vc_pprf<
+        EpochId: traits::VcEpochId<CURRENT_VERSION>,
+        VcPprf: traits::VcPprf<CURRENT_VERSION>,
+    >(
+        &self,
+        epoch_id: &EpochId,
+    ) -> Result<Option<VcPprf>, Self::Error> {
+        let storable = StorableVcEpochIdRef(epoch_id);
+        let mut connection = self.connection.borrow_mut();
+        let task =
+            storable.load_vc_emulation_group_secret(&mut **connection, StorableVcSecretType::Pprf);
+        block_async_in_place(task)
+    }
+
+    fn delete_vc_emulation_epoch_state<EpochId: traits::VcEpochId<CURRENT_VERSION>>(
+        &self,
+        epoch_id: &EpochId,
+    ) -> Result<(), Self::Error> {
+        let storable = StorableVcEpochIdRef(epoch_id);
+        let mut connection = self.connection.borrow_mut();
+        let task = storable.delete_vc_emulation_group_secret(
+            &mut **connection,
+            StorableVcSecretType::EmulationEpochState,
+        );
+        block_async_in_place(task)
+    }
+
+    fn delete_vc_pprf<EpochId: traits::VcEpochId<CURRENT_VERSION>>(
+        &self,
+        epoch_id: &EpochId,
+    ) -> Result<(), Self::Error> {
+        let storable = StorableVcEpochIdRef(epoch_id);
+        let mut connection = self.connection.borrow_mut();
+        let task = storable
+            .delete_vc_emulation_group_secret(&mut **connection, StorableVcSecretType::Pprf);
+        block_async_in_place(task)
+    }
 }
 
 impl<T: Key<CURRENT_VERSION>> Type<Sqlite> for KeyRefWrapper<'_, T> {
@@ -1311,6 +1404,78 @@ impl<PskId: Key<CURRENT_VERSION>> StorablePskIdRef<'_, PskId> {
         query!("DELETE FROM psk WHERE psk_id = ?1", psks_id)
             .execute(executor)
             .await?;
+        Ok(())
+    }
+}
+
+impl<VcSecret: Entity<CURRENT_VERSION>> StorableVcSecretRef<'_, VcSecret> {
+    pub(super) async fn store_vc_emulation_group_secret<EpochId: Key<CURRENT_VERSION>>(
+        &self,
+        executor: impl SqliteExecutor<'_>,
+        epoch_id: &EpochId,
+        secret_type: StorableVcSecretType,
+    ) -> sqlx::Result<()> {
+        let epoch_id = KeyRefWrapper(epoch_id);
+        let vc_secret = EntityRefWrapper(self.0);
+        query!(
+            "INSERT INTO vc_emulation_group_secrets
+                (epoch_id, secret_type, vc_secret)
+            VALUES (?1, ?2, ?3)
+            ON CONFLICT(epoch_id, secret_type) DO UPDATE SET
+                vc_secret = excluded.vc_secret",
+            epoch_id,
+            secret_type,
+            vc_secret,
+        )
+        .execute(executor)
+        .await?;
+
+        Ok(())
+    }
+}
+
+impl<VcEpochId: Key<CURRENT_VERSION>> StorableVcEpochIdRef<'_, VcEpochId> {
+    pub(super) async fn load_vc_emulation_group_secret<VcSecret: Entity<CURRENT_VERSION>>(
+        &self,
+        executor: impl SqliteExecutor<'_>,
+        secret_type: StorableVcSecretType,
+    ) -> sqlx::Result<Option<VcSecret>> {
+        let epoch_id = KeyRefWrapper(self.0);
+        sqlx::query(
+            "SELECT vc_secret
+                FROM vc_emulation_group_secrets
+                WHERE epoch_id = ?1
+                    AND secret_type = ?2
+            ",
+        )
+        .bind(epoch_id)
+        .bind(secret_type)
+        .fetch_optional(executor)
+        .await?
+        .map(|row| {
+            let EntityWrapper(secret) = row.try_get(0)?;
+            Ok(secret)
+        })
+        .transpose()
+    }
+
+    pub(super) async fn delete_vc_emulation_group_secret(
+        &self,
+        executor: impl SqliteExecutor<'_>,
+        secret_type: StorableVcSecretType,
+    ) -> sqlx::Result<()> {
+        let epoch_id = KeyRefWrapper(self.0);
+        query!(
+            "DELETE FROM vc_emulation_group_secrets
+                WHERE epoch_id = ?1
+                AND secret_type = ?2
+            ",
+            epoch_id,
+            secret_type,
+        )
+        .execute(executor)
+        .await?;
+
         Ok(())
     }
 }

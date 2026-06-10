@@ -1406,7 +1406,7 @@ impl Group {
     /// Send an application message to the group.
     pub(super) fn create_message(
         &mut self,
-        provider: &impl OpenMlsProvider,
+        provider: &AirOpenMlsProvider<'_>,
         signer: &ClientSigningKey,
         content: MimiContent,
     ) -> Result<SendMessageParamsOut, GroupOperationError> {
@@ -1430,7 +1430,7 @@ impl Group {
     /// Send an application message to the group.
     pub(super) fn create_targeted_application_message(
         &mut self,
-        provider: &impl OpenMlsProvider,
+        provider: &AirOpenMlsProvider<'_>,
         signer: &ClientSigningKey,
         recipient: UserId,
         content: TargetedMessageContent,
