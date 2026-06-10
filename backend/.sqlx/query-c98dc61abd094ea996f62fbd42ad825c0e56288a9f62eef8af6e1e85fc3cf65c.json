@@ -6,17 +6,35 @@
       {
         "ordinal": 0,
         "name": "key_package",
-        "type_info": "Bytea"
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "qs_staged_key_package",
+            "name": "key_package"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "is_last_resort",
-        "type_info": "Bool"
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "qs_staged_key_package",
+            "name": "is_last_resort"
+          }
+        }
       },
       {
         "ordinal": 2,
         "name": "is_apq",
-        "type_info": "Bool"
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "qs_staged_key_package",
+            "name": "is_apq"
+          }
+        }
       }
     ],
     "parameters": {
