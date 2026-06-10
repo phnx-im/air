@@ -24,7 +24,7 @@ where
 {
     fn encode_by_ref(
         &self,
-        buf: &mut <DB as Database>::ArgumentBuffer<'q>,
+        buf: &mut <DB as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         <Vec<u8> as Encode<'q, DB>>::encode_by_ref(&self.key, buf)
     }
@@ -100,7 +100,7 @@ impl<KT> Type<Sqlite> for DecryptionKey<KT> {
 impl<KT> Encode<'_, Sqlite> for DecryptionKey<KT> {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as Database>::ArgumentBuffer<'_>,
+        buf: &mut <Sqlite as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         let bytes = PersistenceCodec::to_vec(self).map_err(BoxDynError::from)?;
         Encode::<Sqlite>::encode(bytes, buf)

@@ -6,14 +6,15 @@
       {
         "name": "is_blocked!: bool",
         "ordinal": 0,
-        "type_info": "Null"
+        "type_info": "Integer",
+        "origin": "Expression"
       }
     ],
     "parameters": {
       "Right": 1
     },
     "nullable": [
-      null
+      false
     ]
   },
   "hash": "3b23264f89b2179dfaf587032d88f0670a7beafdc9887413210aa85aa18f0639"

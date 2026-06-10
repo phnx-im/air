@@ -7,8 +7,7 @@
 use std::{future::Future, ops::AsyncFnOnce};
 
 use sqlx::{
-    Connection, Sqlite, SqliteConnection, SqlitePool, SqliteTransaction, TransactionManager,
-    pool::PoolConnection, sqlite::SqliteTransactionManager,
+    Connection, Sqlite, SqliteConnection, SqlitePool, SqliteTransaction, pool::PoolConnection,
 };
 use tracing::debug;
 
@@ -361,7 +360,7 @@ impl WriteConnection for WriteDbTransaction<'_> {
 }
 
 async fn begin_write_txn(connection: &mut SqliteConnection) -> sqlx::Result<SqliteTransaction<'_>> {
-    if SqliteTransactionManager::get_transaction_depth(connection) == 0 {
+    if !connection.is_in_transaction() {
         connection.begin_with("BEGIN IMMEDIATE").await
     } else {
         debug!("Nested transaction detected; making a savepoint inside");

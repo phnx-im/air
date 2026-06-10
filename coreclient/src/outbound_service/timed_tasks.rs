@@ -738,7 +738,7 @@ fn legacy_group_data_migration(
 
 mod persistence {
     use openmls::prelude::KeyPackageRef;
-    use sqlx::QueryBuilder;
+    use sqlx::{AssertSqlSafe, QueryBuilder};
 
     use crate::{db::access::WriteDbTransaction, groups::openmls_provider::KeyRefWrapper};
 
@@ -761,23 +761,23 @@ mod persistence {
         key_package_refs: impl IntoIterator<Item = &KeyPackageRef>,
     ) -> anyhow::Result<()> {
         // Delete all key packages that are not marked as live
-        sqlx::query(&format!(
+        sqlx::query(AssertSqlSafe(format!(
             "DELETE FROM key_package
             WHERE key_package_ref IN (
               SELECT key_package_ref
               FROM {refs_table}
               WHERE is_live = 0
             )"
-        ))
+        )))
         .execute(txn.as_mut())
         .await?;
 
         // Mark all key packages as stale
-        sqlx::query(&format!(
+        sqlx::query(AssertSqlSafe(format!(
             "UPDATE {refs_table}
             SET is_live = 0
             WHERE is_live = 1",
-        ))
+        )))
         .execute(txn.as_mut())
         .await?;
 

@@ -11,7 +11,7 @@ use aircommon::{
     messages::FriendshipToken,
 };
 use sqlx::{
-    Arguments, Connection, PgConnection, PgTransaction, Postgres, encode::IsNull,
+    Arguments, AssertSqlSafe, Connection, PgConnection, PgTransaction, Postgres, encode::IsNull,
     error::BoxDynError, postgres::PgArguments, query,
 };
 use tls_codec::Serialize as _;
@@ -59,10 +59,10 @@ pub(super) trait StorableKeyPackage<'q>: Sized + Send + Sync + Unpin {
             return Ok(());
         }
 
-        query(&format!(
+        query(AssertSqlSafe(format!(
             "DELETE FROM {table_name} WHERE client_id = $1 AND is_last_resort = $2",
             table_name = Self::TABLE_NAME
-        ))
+        )))
         .bind(client_id)
         .bind(is_last_resort)
         .execute(txn.as_mut())
@@ -97,7 +97,7 @@ pub(super) trait StorableKeyPackage<'q>: Sized + Send + Sync + Unpin {
         query_string.push(';');
 
         // Execute the query
-        sqlx::query_with(&query_string, query_args)
+        sqlx::query_with(AssertSqlSafe(query_string), query_args)
             .execute(txn.as_mut())
             .await?;
 
@@ -110,7 +110,7 @@ pub(super) trait StorableKeyPackage<'q>: Sized + Send + Sync + Unpin {
     ) -> Result<Self, StorageError> {
         let mut transaction = connection.begin().await?;
 
-        let key_package = sqlx::query_scalar(&format!(
+        let key_package = sqlx::query_scalar(AssertSqlSafe(format!(
             r#"WITH user_info AS (
                     -- Step 1: Fetch the user_id based on the friendship token.
                         SELECT user_id FROM qs_user_record WHERE friendship_token = $1
@@ -152,7 +152,7 @@ pub(super) trait StorableKeyPackage<'q>: Sized + Send + Sync + Unpin {
                 SELECT key_package as "key_package: Self::BlobDecoded"
                 FROM selected_key_packages"#,
             table_name = Self::TABLE_NAME
-        ))
+        )))
         .bind(friendship_token)
         .fetch_one(&mut *transaction)
         .await
@@ -213,7 +213,7 @@ impl sqlx::Type<Postgres> for StorableApqKeyPackage<'_> {
 impl sqlx::Encode<'_, Postgres> for StorableApqKeyPackage<'_> {
     fn encode_by_ref(
         &self,
-        buf: &mut <Postgres as sqlx::Database>::ArgumentBuffer<'_>,
+        buf: &mut <Postgres as sqlx::Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         let buf: &mut Vec<u8> = &mut *buf;
         self.0.t_key_package().tls_serialize(buf)?;
