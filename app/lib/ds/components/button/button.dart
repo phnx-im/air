@@ -74,8 +74,8 @@ class AppButton extends StatelessWidget {
     };
 
     final verticalPadding = switch (size) {
-      AppButtonSize.small => Spacing.px16,
-      AppButtonSize.large => Spacing.px24,
+      AppButtonSize.small => Spacing.px8,
+      AppButtonSize.large => Spacing.px12,
     };
 
     final iconSize = switch (size) {
@@ -97,12 +97,7 @@ class AppButton extends StatelessWidget {
       onPressed: state == AppButtonState.active ? onPressed : null,
       style: ButtonStyle(
         visualDensity: .compact,
-        padding: WidgetStatePropertyAll(
-          EdgeInsets.symmetric(
-            horizontal: Spacing.px16,
-            vertical: verticalPadding,
-          ),
-        ),
+        padding: const WidgetStatePropertyAll(EdgeInsets.zero),
         backgroundColor: WidgetStatePropertyAll(backgroundColor),
         overlayColor: WidgetStatePropertyAll(backgroundColor),
         shape: WidgetStatePropertyAll(
@@ -117,37 +112,46 @@ class AppButton extends StatelessWidget {
             ? WidgetStatePropertyAll(BorderSide(color: border.top.color))
             : null,
       ),
-      child: Row(
-        mainAxisSize: size == .large ? .max : .min,
-        mainAxisAlignment: .center,
-        crossAxisAlignment: .center,
-        children: [
-          if (state == .pending)
-            SizedBox(
-              width: iconSize.width,
-              height: iconSize.height,
-              child: CircularProgressIndicator(
-                color: foregroundColor,
-                strokeWidth: 2,
-              ),
-            ),
-
-          if (state != .pending && icon != null) ...[
-            icon?.call(iconSize, iconColor),
-            const SizedBox(width: 8),
-          ],
-
-          if (state != .pending)
-            SizedBox(
-              height: iconSize.height,
-              child: Center(
-                child: Text(
-                  label,
-                  style: TextStyle(color: foregroundColor, fontSize: labelSize),
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          vertical: verticalPadding,
+          horizontal: Spacing.px12,
+        ),
+        child: Row(
+          mainAxisSize: size == .large ? .max : .min,
+          mainAxisAlignment: .center,
+          crossAxisAlignment: .center,
+          children: [
+            if (state == .pending)
+              SizedBox(
+                width: iconSize.width,
+                height: iconSize.height,
+                child: CircularProgressIndicator(
+                  color: foregroundColor,
+                  strokeWidth: 2,
                 ),
               ),
-            ),
-        ],
+
+            if (state != .pending && icon != null) ...[
+              icon?.call(iconSize, iconColor),
+              const SizedBox(width: 8),
+            ],
+
+            if (state != .pending)
+              SizedBox(
+                height: iconSize.height,
+                child: Center(
+                  child: Text(
+                    label,
+                    style: TextStyle(
+                      color: foregroundColor,
+                      fontSize: labelSize,
+                    ),
+                  ),
+                ),
+              ),
+          ],
+        ),
       ),
     );
   }
