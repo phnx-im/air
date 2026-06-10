@@ -23,10 +23,15 @@ class _ContextMenuCoordinator {
     if (_activeController == controller) {
       return;
     }
-    if (_activeController?.isShowing ?? false) {
-      _activeController!.hide();
-    }
+    final previous = _activeController;
     _activeController = controller;
+    // Defer hide() so it never fires during a build or layout phase, which
+    // OverlayPortalController forbids (assertion in persistentCallbacks).
+    if (previous?.isShowing ?? false) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (previous!.isShowing) previous.hide();
+      });
+    }
   }
 
   static void release(OverlayPortalController controller) {
