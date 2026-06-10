@@ -54,7 +54,7 @@ use crate::{
     contacts::{PartialContact, PartialContactType},
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
-        Group, ProfileInfo, VerifiedGroup, client_auth_info::StorableClientCredential,
+        DecryptedProfileInfos, Group, VerifiedGroup, client_auth_info::StorableClientCredential,
         process::ProcessMessageResult,
     },
     job::{JobContext, JobContextDb, pending_chat_operation::PendingChatOperation},
@@ -305,7 +305,7 @@ impl CoreUser {
         ds_timestamp: TimeStamp,
         group: Group,
         sender_user_id: UserId,
-        member_profile_info: Vec<ProfileInfo>,
+        member_profile_info: DecryptedProfileInfos,
     ) -> anyhow::Result<ProcessQsMessageResult> {
         let group_id = group.group_id().clone();
 
@@ -314,20 +314,9 @@ impl CoreUser {
 
         // TODO: This can fail in some cases. If it does, we should fetch and
         // process messages and then try again.
-        let mut own_profile_key_in_group = None;
-        for profile_info in member_profile_info {
-            // TODO: Don't fetch while holding a transaction!
-            if profile_info.client_credential.user_id() == self.user_id() {
-                // We already have our own profile info.
-                own_profile_key_in_group = Some(profile_info.user_profile_key);
-                continue;
-            }
+        for profile_info in member_profile_info.members {
             Self::schedule_fetch_user_profile(&mut *txn, profile_info).await?;
         }
-
-        let Some(own_profile_key_in_group) = own_profile_key_in_group else {
-            bail!("No profile info for our user found");
-        };
 
         // WelcomeBundle Phase 3: Store the user profiles of the group
         // members if they don't exist yet and store the group and the
@@ -377,7 +366,7 @@ impl CoreUser {
 
         // WelcomeBundle Phase 4: Check whether our user profile key is up to
         // date and if not, update it.
-        if own_profile_key_in_group != own_profile_key {
+        if member_profile_info.own_profile_key.as_ref() != Some(&own_profile_key) {
             let qualified_group_id = QualifiedGroupId::try_from(group.group_id().clone())?;
             let api_client = self
                 .inner
@@ -471,6 +460,7 @@ impl CoreUser {
             db: JobContextDb::Transaction(txn),
             key_store: &self.inner.key_store,
             now: Utc::now(),
+            qs_client_id: &self.inner.qs_client_id,
         };
 
         let chat_id =

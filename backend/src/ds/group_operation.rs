@@ -647,7 +647,7 @@ impl DsGroupState {
     }
 
     /// Removes user and client profiles based on the list of removed clients.
-    fn remove_profiles(&mut self, removed_clients: Vec<LeafNodeIndex>) {
+    pub(crate) fn remove_profiles(&mut self, removed_clients: Vec<LeafNodeIndex>) {
         for client_index in removed_clients {
             let removed_client_profile_option = self.member_profiles.remove(&client_index);
             debug_assert!(removed_client_profile_option.is_some());

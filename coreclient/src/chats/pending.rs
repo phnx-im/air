@@ -164,11 +164,12 @@ impl CoreUser {
 
                 // There should be only one user profile
                 let contact_profile_info = member_profile_info
+                    .members
                     .pop()
                     .context("No user profile returned when joining connection group")?;
 
                 debug_assert!(
-                    member_profile_info.is_empty(),
+                    member_profile_info.members.is_empty(),
                     "More than one user profile returned when joining connection group"
                 );
 

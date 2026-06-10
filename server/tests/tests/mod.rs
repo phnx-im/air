@@ -7,6 +7,7 @@ mod connection;
 mod group;
 mod jobs;
 mod message;
+mod multi_device;
 mod process;
 mod server;
 mod user;

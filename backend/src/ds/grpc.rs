@@ -45,7 +45,7 @@ use tracing::{error, warn};
 
 use crate::{
     auth_service::AsConnector,
-    ds::{attachments::ProvisionObjectError, process::Provider},
+    ds::{attachments::ProvisionObjectError, group_state::MemberProfile, process::Provider},
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload},
     qs::QsConnector,
     rate_limiter::{RateLimiter, RlConfig, RlKey, provider::RlPostgresStorage},
@@ -716,6 +716,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .try_ref_into()
                     .invalid_tls("room_state")?,
             ),
+            indexed_encrypted_user_profile_keys: group_state
+                .member_profiles
+                .into_iter()
+                .map(|(index, profile)| IndexedEncryptedUserProfileKey {
+                    leaf_index: index.u32(),
+                    encrypted_user_profile_key: Some(profile.encrypted_user_profile_key.into()),
+                })
+                .collect(),
         }))
     }
 
@@ -765,6 +773,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .invalid_tls("room_state")?,
             ),
             proposals: commit_info.proposals.into_iter().map(From::from).collect(),
+            indexed_encrypted_user_profile_keys: group_state
+                .member_profiles
+                .into_iter()
+                .map(|(index, profile)| IndexedEncryptedUserProfileKey {
+                    leaf_index: index.u32(),
+                    encrypted_user_profile_key: Some(profile.encrypted_user_profile_key.into()),
+                })
+                .collect(),
         }))
     }
 
@@ -814,6 +830,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .invalid_tls("room_state")?,
             ),
             proposals: commit_info.proposals.into_iter().map(From::from).collect(),
+            indexed_encrypted_user_profile_keys: group_state
+                .member_profiles
+                .into_iter()
+                .map(|(index, profile)| IndexedEncryptedUserProfileKey {
+                    leaf_index: index.u32(),
+                    encrypted_user_profile_key: Some(profile.encrypted_user_profile_key.into()),
+                })
+                .collect(),
         }))
     }
 
@@ -1075,6 +1099,24 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     ..
                 } = verification_data;
 
+                // If specified by the client, we update our internal mapping of leaves to MemberProfile.
+                // This is used to recover groups where the OpenMLS leaves and its representation on the DS drifted.
+                if let Some((qs_client_reference, encrypted_user_profile_key)) = payload
+                    .qs_client_reference
+                    .zip(payload.encrypted_user_profile_key)
+                {
+                    group_state.member_profiles.insert(
+                        sender_index,
+                        MemberProfile {
+                            leaf_index: sender_index,
+                            client_queue_config: qs_client_reference.try_into()?,
+                            activity_time: TimeStamp::now(),
+                            activity_epoch: group_state.group().epoch(),
+                            encrypted_user_profile_key: encrypted_user_profile_key.try_into()?,
+                        },
+                    );
+                }
+
                 let params = GroupOperationParams {
                     commit,
                     add_users_info_option: payload
@@ -1204,10 +1246,29 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let t_sender = t_group_state
             .group()
             .leaf(t_sender_index)
-            .ok_or(Status::invalid_argument("unknown sender"))?;
+            .ok_or(Status::invalid_argument("unknown sender"))?
+            .clone();
         let t_verifying_key: LeafVerifyingKeyRef = t_sender.signature_key().into();
         let payload: ApqGroupOperationPayload =
             request.verify(t_verifying_key).map_err(InvalidSignature)?;
+
+        // If specified by the client, we update our internal mapping of leaves to MemberProfile.
+        // This is used to recover groups where the OpenMLS leaves and its representation on the DS drifted.
+        if let Some((qs_client_reference, encrypted_user_profile_key)) = payload
+            .qs_client_reference
+            .zip(payload.encrypted_user_profile_key)
+        {
+            t_group_state.member_profiles.insert(
+                t_sender_index,
+                MemberProfile {
+                    leaf_index: t_sender_index,
+                    client_queue_config: qs_client_reference.try_into()?,
+                    activity_time: TimeStamp::now(),
+                    activity_epoch: t_group_state.group().epoch(),
+                    encrypted_user_profile_key: encrypted_user_profile_key.try_into()?,
+                },
+            );
+        }
 
         // Load the pq-group state
         let (mut pq_group_state, pq_group_data) = match self

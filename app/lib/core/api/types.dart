@@ -16,7 +16,7 @@ import 'package:uuid/uuid.dart';
 part 'types.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `calculate`, `connection_user_id`, `empty`, `flight_break_condition`, `from_asset`, `from_bytes`, `from_profile`, `from_user_id`, `load_from_chat_type`, `timestamp`, `to_draft_without_content`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `partial_cmp`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `assert_receiver_is_total_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `cmp`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `from`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `hash`, `partial_cmp`
 
 /// Mirror of the [`AddUsernameContactError`] type
 enum AddUsernameContactError { usernameNotFound, duplicateRequest, ownUsername }
@@ -145,6 +145,7 @@ class UiChatDetails {
   final UiChatMessage? lastMessage;
   final UiMessageDraft? draft;
   final bool isApq;
+  final UiChatMuted? mutedUntil;
 
   const UiChatDetails({
     required this.id,
@@ -156,6 +157,7 @@ class UiChatDetails {
     this.lastMessage,
     this.draft,
     required this.isApq,
+    this.mutedUntil,
   });
 
   @override
@@ -168,7 +170,8 @@ class UiChatDetails {
       unreadMessages.hashCode ^
       lastMessage.hashCode ^
       draft.hashCode ^
-      isApq.hashCode;
+      isApq.hashCode ^
+      mutedUntil.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -183,7 +186,8 @@ class UiChatDetails {
           unreadMessages == other.unreadMessages &&
           lastMessage == other.lastMessage &&
           draft == other.draft &&
-          isApq == other.isApq;
+          isApq == other.isApq &&
+          mutedUntil == other.mutedUntil;
 }
 
 /// A message in a chat
@@ -198,6 +202,14 @@ sealed class UiChatMessage with _$UiChatMessage {
     required UiFlightPosition position,
     required UiMessageStatus status,
   }) = _UiChatMessage;
+}
+
+@freezed
+sealed class UiChatMuted with _$UiChatMuted {
+  const UiChatMuted._();
+
+  const factory UiChatMuted.until(DateTime field0) = UiChatMuted_Until;
+  const factory UiChatMuted.forever() = UiChatMuted_Forever;
 }
 
 @freezed

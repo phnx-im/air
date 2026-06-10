@@ -89,6 +89,11 @@ message RoomState {
   bytes tls = 1;
 }
 
+message IndexedEncryptedUserProfileKey {
+  uint32 leaf_index = 1;
+  EncryptedUserProfileKey encrypted_user_profile_key = 2;
+}
+
 // request group id
 
 message RequestGroupIdRequest {
@@ -205,6 +210,7 @@ message WelcomeInfoResponse {
   RatchetTree ratchet_tree = 1;
   repeated EncryptedUserProfileKey encrypted_user_profile_keys = 3;
   RoomState room_state = 4;
+  repeated IndexedEncryptedUserProfileKey indexed_encrypted_user_profile_keys = 5;
 }
 
 // external commit info
@@ -221,6 +227,7 @@ message ExternalCommitInfoResponse {
   repeated EncryptedUserProfileKey encrypted_user_profile_keys = 4;
   RoomState room_state = 5;
   repeated MlsMessage proposals = 6;
+  repeated IndexedEncryptedUserProfileKey indexed_encrypted_user_profile_keys = 7;
 }
 
 message GroupInfo {
@@ -241,6 +248,7 @@ message ConnectionGroupInfoResponse {
   repeated EncryptedUserProfileKey encrypted_user_profile_keys = 4;
   RoomState room_state = 5;
   repeated MlsMessage proposals = 6;
+  repeated IndexedEncryptedUserProfileKey indexed_encrypted_user_profile_keys = 7;
 }
 
 // join connection group
@@ -341,6 +349,8 @@ message GroupOperationPayload {
   GroupStateEarKey group_state_ear_key = 1;
   AssistedMessage commit = 2;
   optional AddUsersInfo add_users_info = 3;
+  optional QsReference qs_client_reference = 5;
+  optional EncryptedUserProfileKey encrypted_user_profile_key = 6;
 }
 
 message AddUsersInfo {
@@ -368,6 +378,8 @@ message ApqGroupOperationPayload {
   GroupStateEarKey group_state_ear_key = 2;
   ApqAssistedMlsMessage commit = 3;
   optional ApqAddUsersInfo add_users_info = 4;
+  optional QsReference qs_client_reference = 5;
+  optional EncryptedUserProfileKey encrypted_user_profile_key = 6;
 }
 
 message ApqGroupOperationResponse {

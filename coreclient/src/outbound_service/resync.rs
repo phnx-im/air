@@ -21,7 +21,7 @@ use crate::{
     ChatId,
     clients::{CoreUser, api_clients::ApiClients},
     db::access::{WriteConnection, WriteDbTransaction},
-    groups::{Group, ProfileInfo, handle_group_not_found_on_ds},
+    groups::{DecryptedProfileInfos, Group, ProfileInfo, handle_group_not_found_on_ds},
     job::{operation::OperationData, profile::FetchUserProfileOperation},
     outbound_service::{
         OutboundServiceContext,
@@ -84,6 +84,7 @@ impl OutboundServiceContext {
 
             let result = {
                 let mut connection = self.db.write().await?;
+
                 let result = resync
                     .create_and_send_commit(&mut connection, &self.api_clients, self.signing_key())
                     .await;
@@ -123,7 +124,7 @@ impl OutboundServiceContext {
             for ProfileInfo {
                 client_credential,
                 user_profile_key,
-            } in profile_infos
+            } in profile_infos.members
             {
                 if let Err(error) =
                     FetchUserProfileOperation::new(client_credential, user_profile_key)
@@ -145,7 +146,7 @@ impl Resync {
         mut connection: impl WriteConnection,
         api_clients: &ApiClients,
         signer: &ClientSigningKey,
-    ) -> Result<Vec<ProfileInfo>, OutboundServiceError> {
+    ) -> Result<DecryptedProfileInfos, OutboundServiceError> {
         // TODO: We should somehow mark the chat as "resyncing" in the DB and
         // reflect that in the UI.
 
@@ -205,7 +206,7 @@ impl Resync {
         api_clients: &ApiClients,
         signer: &ClientSigningKey,
         external_commit_info: ExternalCommitInfoIn,
-    ) -> Result<(Group, MlsMessageOut, MlsMessageOut, Vec<ProfileInfo>)> {
+    ) -> Result<(Group, MlsMessageOut, MlsMessageOut, DecryptedProfileInfos)> {
         // TODO: We should somehow mark the chat as "resyncing" in the DB and
         // reflect that in the UI.
 
@@ -213,7 +214,7 @@ impl Resync {
         Group::delete_from_db(txn, &self.group_id).await?;
 
         let aad = AadPayload::Resync.into();
-        let (new_group, commit, group_info, member_profile_info) = Group::join_group_externally(
+        Ok(Group::join_group_externally(
             txn,
             api_clients,
             external_commit_info,
@@ -223,9 +224,7 @@ impl Resync {
             aad,
             None, // This is not in response to a connection offer.
         )
-        .await??;
-
-        Ok((new_group, commit, group_info, member_profile_info))
+        .await??)
     }
 
     async fn send_commit(

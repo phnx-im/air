@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+pub(crate) mod apq_group;
 pub(crate) mod client_auth_info;
+pub(crate) mod debug_info;
 // TODO: Allowing dead code here for now. We'll need diffs when we start
 // rotating keys.
-pub(crate) mod apq_group;
-pub(crate) mod debug_info;
 #[allow(dead_code)]
 pub(crate) mod diff;
 pub(crate) mod error;
@@ -16,6 +16,8 @@ pub(crate) mod process;
 
 pub(crate) use error::*;
 pub(crate) use persistence::VerifiedGroup;
+
+use std::collections::{HashMap, HashSet};
 
 use aircommon::{
     credentials::{
@@ -70,7 +72,7 @@ use openmls_provider::AirOpenMlsProvider;
 use openmls_traits::storage::StorageProvider;
 use serde::Serialize;
 use tls_codec::DeserializeBytes;
-use tracing::{Level, debug, enabled, error};
+use tracing::{Level, debug, enabled, error, warn};
 
 use crate::{
     SystemMessage,
@@ -86,7 +88,6 @@ use crate::{
     key_stores::as_credentials::AsCredentials,
     outbound_service::resync::Resync,
 };
-use std::collections::HashSet;
 
 use openmls::{
     component::ComponentType,
@@ -144,6 +145,14 @@ impl PartialCreateGroupParams {
             pq,
         }
     }
+}
+
+#[derive(Debug)]
+pub(super) struct DecryptedProfileInfos {
+    /// Profile infos of *other* members
+    pub(super) members: Vec<ProfileInfo>,
+    /// None = DS entry missing or undecryptable
+    pub(super) own_profile_key: Option<UserProfileKey>,
 }
 
 #[derive(Debug)]
@@ -389,7 +398,7 @@ impl Group {
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         signer: &ClientSigningKey,
-    ) -> Result<(Self, UserId, Vec<ProfileInfo>)> {
+    ) -> Result<(Self, UserId, DecryptedProfileInfos)> {
         let serialized_welcome = welcome_bundle.welcome.tls_serialize_detached()?;
 
         let mls_group_config = default_mls_group_join_config();
@@ -463,6 +472,7 @@ impl Group {
             ratchet_tree,
             encrypted_user_profile_keys,
             room_state,
+            indexed_encrypted_user_profile_keys,
         } = welcome_info;
 
         let (mls_group, joiner_info, welcome_attribution_info, sender_user_id) = {
@@ -525,21 +535,22 @@ impl Group {
         }
 
         // Phase 8: Decrypt profile keys
-        let member_profile_info = encrypted_user_profile_keys
-            .into_iter()
-            .zip(credentials)
-            .map(|(eupk, ci)| {
-                UserProfileKey::decrypt(
-                    welcome_attribution_info.identity_link_wrapper_key(),
-                    &eupk,
-                    ci.user_id(),
-                )
-                .map(|user_profile_key| ProfileInfo {
-                    user_profile_key,
-                    client_credential: ci.into(),
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let encrypted_user_profile_keys_fallback = if indexed_encrypted_user_profile_keys.is_empty()
+        {
+            credentials
+                .iter()
+                .map(|c| c.user_id().clone())
+                .zip(encrypted_user_profile_keys)
+                .collect()
+        } else {
+            Default::default()
+        };
+        let member_profile_info = group.decrypt_member_profile_keys(
+            credentials,
+            indexed_encrypted_user_profile_keys,
+            encrypted_user_profile_keys_fallback,
+            signer.credential().user_id(),
+        );
 
         Ok((group, sender_user_id, member_profile_info))
     }
@@ -553,7 +564,7 @@ impl Group {
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         signer: &ClientSigningKey,
-    ) -> Result<(Self, UserId, Vec<ProfileInfo>)> {
+    ) -> Result<(Self, UserId, DecryptedProfileInfos)> {
         // Phase 1: Serialize welcome and split
         let serialized_welcome = welcome_bundle.welcome.tls_serialize_detached()?;
         let (t_welcome, pq_welcome) = welcome_bundle.welcome.split();
@@ -596,6 +607,7 @@ impl Group {
             ratchet_tree: pq_ratchet_tree,
             encrypted_user_profile_keys: _,
             room_state: _,
+            indexed_encrypted_user_profile_keys: _,
         } = api_client
             .ds_welcome_info(
                 pq_group_id.clone(),
@@ -648,6 +660,7 @@ impl Group {
             ratchet_tree: t_ratchet_tree,
             encrypted_user_profile_keys,
             room_state,
+            indexed_encrypted_user_profile_keys,
         } = api_client
             .ds_welcome_info(
                 t_group_id.clone(),
@@ -703,23 +716,88 @@ impl Group {
         }
 
         // Phase 7: Decrypt profile keys
-        let member_profile_info = encrypted_user_profile_keys
-            .into_iter()
-            .zip(credentials)
-            .map(|(eupk, ci)| {
-                UserProfileKey::decrypt(
-                    welcome_attribution_info.identity_link_wrapper_key(),
-                    &eupk,
-                    ci.user_id(),
-                )
-                .map(|user_profile_key| ProfileInfo {
-                    user_profile_key,
-                    client_credential: ci.into(),
-                })
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let encrypted_user_profiles_keys_fallback =
+            if indexed_encrypted_user_profile_keys.is_empty() {
+                credentials
+                    .iter()
+                    .map(|c| c.user_id().clone())
+                    .zip(encrypted_user_profile_keys)
+                    .collect()
+            } else {
+                Default::default()
+            };
+        let member_profile_info = group.decrypt_member_profile_keys(
+            credentials,
+            indexed_encrypted_user_profile_keys,
+            encrypted_user_profiles_keys_fallback,
+            signer.credential().user_id(),
+        );
 
         Ok((group, sender_user_id, member_profile_info))
+    }
+
+    /// Pair the encrypted user profile keys with the group members and decrypt them.
+    ///
+    /// Keys that are missing or fail to decrypt are skipped with a warning: a stale DS entry must
+    /// not fail the join/resync.
+    fn decrypt_member_profile_keys(
+        &self,
+        credentials: Vec<StorableClientCredential>,
+        indexed_keys: HashMap<LeafNodeIndex, EncryptedUserProfileKey>,
+        // Positional fallback for servers that don't send indexed keys yet
+        fallback_keys: HashMap<UserId, EncryptedUserProfileKey>,
+        own_user_id: &UserId,
+    ) -> DecryptedProfileInfos {
+        let indices = self.mls_group().members().map(|m| m.index);
+
+        let mut members = Vec::with_capacity(credentials.len());
+        let mut own_profile_key = None;
+
+        for (index, credential) in indices.zip(credentials) {
+            let eupk = if !indexed_keys.is_empty() {
+                indexed_keys.get(&index)
+            } else {
+                fallback_keys.get(credential.user_id())
+            };
+            let Some(eupk) = eupk else {
+                if credential.user_id() != own_user_id {
+                    // Own key is sometimes expected to be missing
+                    warn!(
+                        user_id =? credential.user_id(),
+                        "No user profile key for member; skipping"
+                    );
+                }
+                continue;
+            };
+            match UserProfileKey::decrypt(
+                &self.identity_link_wrapper_key,
+                eupk,
+                credential.user_id(),
+            ) {
+                Ok(user_profile_key) => {
+                    if credential.user_id() == own_user_id {
+                        own_profile_key = Some(user_profile_key);
+                    } else {
+                        members.push(ProfileInfo {
+                            user_profile_key,
+                            client_credential: credential.into(),
+                        });
+                    }
+                }
+                Err(error) => {
+                    warn!(
+                        %error,
+                        user_id =? credential.user_id(),
+                        "Failed to decrypt user profile key; skipping"
+                    );
+                    continue;
+                }
+            }
+        }
+        DecryptedProfileInfos {
+            members,
+            own_profile_key,
+        }
     }
 
     /// Join a group using an external commit.
@@ -735,7 +813,10 @@ impl Group {
         // Should be Some if this join is in response to a connection offer.
         connection_offer_hash: Option<ConnectionOfferHash>,
     ) -> anyhow::Result<
-        Result<(Self, MlsMessageOut, MlsMessageOut, Vec<ProfileInfo>), LeafNodeValidationError>,
+        Result<
+            (Self, MlsMessageOut, MlsMessageOut, DecryptedProfileInfos),
+            LeafNodeValidationError,
+        >,
     > {
         let mls_group_config = default_mls_group_join_config();
         let credential_with_key = CredentialWithKey {
@@ -746,6 +827,7 @@ impl Group {
             verifiable_group_info,
             ratchet_tree_in,
             encrypted_user_profile_keys,
+            indexed_encrypted_user_profile_keys,
             room_state,
             proposals,
         } = external_commit_info;
@@ -761,20 +843,9 @@ impl Group {
             })
             .collect();
 
-        // Figure out who was removed so we can filter out the encrypted profile keys later.
-        let removed_members: Vec<_> = proposals
-            .iter()
-            .filter_map(|pm| {
-                let Sender::Member(sender) = pm.sender() else {
-                    return None;
-                };
-                Some(*sender)
-            })
-            .collect();
-
         // Let's create the group first so that we can access the GroupId.
         // Phase 1: Create and store the group
-        let (mls_group, commit, group_info) = {
+        let (mls_group, commit, group_info, encrypted_profile_keys_fallback) = {
             let provider = AirOpenMlsProvider::new(txn.as_mut());
             // Prepare PSK proposal if we have a connection offer hash.
             let psk_proposal = match connection_offer_hash {
@@ -795,6 +866,24 @@ impl Group {
                 .with_capabilities(default_leaf_node_capabilities())
                 .with_extensions(default_leaf_node_extensions::<AirComponent>())
                 .build();
+
+            let encrypted_profile_keys_fallback = if indexed_encrypted_user_profile_keys.is_empty()
+            {
+                ratchet_tree_in
+                    .leaves()
+                    .zip(encrypted_user_profile_keys)
+                    .filter_map(|(leaf_node, profile_key)| {
+                        let cred = VerifiableClientCredential::from_basic_credential(
+                            leaf_node.credential(),
+                        )
+                        .ok()?;
+                        // Credentials will be verified below
+                        Some((cred.user_id().clone(), profile_key))
+                    })
+                    .collect()
+            } else {
+                Default::default()
+            };
 
             let mut builder = ExternalCommitBuilder::new()
                 .with_proposals(proposals)
@@ -825,6 +914,7 @@ impl Group {
                 mls_group,
                 commit,
                 group_info.context("No group info found")?,
+                encrypted_profile_keys_fallback,
             )
         };
 
@@ -845,32 +935,17 @@ impl Group {
         // If the group previously existed, delete it first.
         Group::delete_from_db(txn, group.group_id()).await?;
         group.store(&mut *txn).await?;
+
         for credential in &credentials {
             credential.store(&mut *txn).await?;
         }
-        // Also store own credential
-        let own_credential = signer.credential().clone();
-        StorableClientCredential::from(own_credential)
-            .store(&mut *txn)
-            .await?;
 
-        // Compile a list of user profile keys for the members.
-        let member_profile_info = encrypted_user_profile_keys
-            .into_iter()
-            .enumerate()
-            .filter_map(|(index, eupk)| {
-                (!removed_members.contains(&LeafNodeIndex::new(index as u32))).then_some(eupk)
-            })
-            .zip(credentials)
-            .map(|(eupk, ci)| {
-                UserProfileKey::decrypt(&group.identity_link_wrapper_key, &eupk, ci.user_id()).map(
-                    |user_profile_key| ProfileInfo {
-                        user_profile_key,
-                        client_credential: ci.into(),
-                    },
-                )
-            })
-            .collect::<Result<Vec<_>, _>>()?;
+        let member_profile_info = group.decrypt_member_profile_keys(
+            credentials,
+            indexed_encrypted_user_profile_keys,
+            encrypted_profile_keys_fallback,
+            signer.credential().user_id(),
+        );
 
         Ok(Ok((group, commit, group_info.into(), member_profile_info)))
     }

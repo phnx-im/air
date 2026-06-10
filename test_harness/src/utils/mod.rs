@@ -14,14 +14,15 @@ use airbackend::{
     auth_service::AuthService,
     ds::{Ds, storage::Storage},
     qs::Qs,
+    relay_service::Rs,
     settings::{DatabaseSettings, RateLimitsSettings},
 };
 use aircommon::identifiers::Fqdn;
 use airserver::{
     Addressed as _, ServerRunParams, as_connector::SimpleAsConnector,
-    configurations::get_configuration_from_str, enqueue_provider::SimpleEnqueueProvider,
-    network_provider::MockNetworkProvider,
-    push_notification_provider::ProductionPushNotificationProvider, run,
+    configurations::get_configuration_from_str, network_provider::MockNetworkProvider,
+    push_notification_provider::ProductionPushNotificationProvider,
+    qs_connector::SimpleEnqueueProvider, run,
 };
 use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
 use tokio::{
@@ -237,6 +238,8 @@ pub(crate) async fn spawn_app(
         network: network_provider.clone(),
     };
 
+    let rs = Rs::new(stop.clone());
+
     // Start the server
     let server = run(
         ServerRunParams {
@@ -247,6 +250,7 @@ pub(crate) async fn spawn_app(
             as_connector,
             qs,
             qs_connector,
+            rs,
             rate_limits: rate_limits.unwrap_or(TEST_RATE_LIMITS),
             shutdown: stop.clone(),
         },

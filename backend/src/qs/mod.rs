@@ -62,7 +62,8 @@
 //! messages.
 
 use aircommon::{
-    identifiers::{Fqdn, QsClientId},
+    crypto::signatures::keys::QsUserVerifyingKey,
+    identifiers::{Fqdn, QsClientId, QsUserId},
     messages::{QueueMessage, client_ds::DsEventMessage, push_token::PushToken},
 };
 use client_id_decryption_key::StorableClientIdDecryptionKey;
@@ -74,8 +75,9 @@ use tokio_util::sync::CancellationToken;
 
 use crate::{
     air_service::{BackendService, ServiceCreationError},
+    errors::StorageError,
     messages::intra_backend::DsFanOutMessage,
-    qs::queue::Queues,
+    qs::{queue::Queues, user_record::UserRecord},
 };
 
 mod auth;
@@ -160,6 +162,13 @@ impl Qs {
     pub(crate) fn queues(&self) -> &Queues {
         &self.queues
     }
+
+    pub async fn load_user_verifying_key(
+        &self,
+        qs_user_id: &QsUserId,
+    ) -> Result<Option<QsUserVerifyingKey>, StorageError> {
+        UserRecord::load_verifying_key(&self.db_pool, qs_user_id).await
+    }
 }
 
 pub enum Notification {
@@ -218,4 +227,9 @@ pub trait QsConnector: Sync + Send + std::fmt::Debug + 'static {
         &self,
         message: DsFanOutMessage,
     ) -> impl Future<Output = Result<(), Self::EnqueueError>> + Send + 'static;
+
+    fn user_verifying_key(
+        &self,
+        qs_user_id: QsUserId,
+    ) -> impl Future<Output = Result<Option<QsUserVerifyingKey>, Self::EnqueueError>> + Send + 'static;
 }

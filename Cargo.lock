@@ -259,6 +259,7 @@ dependencies = [
  "mimi_content",
  "mls-assist",
  "openmls",
+ "openmls_basic_credential",
  "openmls_rust_crypto",
  "openmls_traits",
  "pin-project",
@@ -3279,9 +3280,9 @@ dependencies = [
 
 [[package]]
 name = "hashlink"
-version = "0.11.0"
+version = "0.11.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "ea0b22561a9c04a7cb1a302c013e0259cd3b4bb619f145b32f72b8b4bcbed230"
+checksum = "824e001ac4f3012dd16a264bec811403a67ca9deb6c102fc5049b32c4574b35f"
 dependencies = [
  "hashbrown 0.16.1",
 ]
@@ -5058,7 +5059,7 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 [[package]]
 name = "openmls"
 version = "0.8.1"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#6ca897d6c635cfe4e7e07adf836d15118fcd21de"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#bd5760e0080beb8c9c73213a19febe3a9482c26c"
 dependencies = [
  "log",
  "openmls_basic_credential",
@@ -5078,7 +5079,7 @@ dependencies = [
 [[package]]
 name = "openmls_basic_credential"
 version = "0.5.0"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#6ca897d6c635cfe4e7e07adf836d15118fcd21de"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#bd5760e0080beb8c9c73213a19febe3a9482c26c"
 dependencies = [
  "ed25519-dalek",
  "ml-dsa",
@@ -5094,7 +5095,7 @@ dependencies = [
 [[package]]
 name = "openmls_libcrux_crypto"
 version = "0.3.1"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#6ca897d6c635cfe4e7e07adf836d15118fcd21de"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#bd5760e0080beb8c9c73213a19febe3a9482c26c"
 dependencies = [
  "hpke-rs",
  "hpke-rs-crypto",
@@ -5115,7 +5116,7 @@ dependencies = [
 [[package]]
 name = "openmls_memory_storage"
 version = "0.5.0"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#6ca897d6c635cfe4e7e07adf836d15118fcd21de"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#bd5760e0080beb8c9c73213a19febe3a9482c26c"
 dependencies = [
  "hex",
  "log",
@@ -5128,7 +5129,7 @@ dependencies = [
 [[package]]
 name = "openmls_rust_crypto"
 version = "0.5.1"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#6ca897d6c635cfe4e7e07adf836d15118fcd21de"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#bd5760e0080beb8c9c73213a19febe3a9482c26c"
 dependencies = [
  "aes-gcm",
  "chacha20poly1305",
@@ -5155,7 +5156,7 @@ dependencies = [
 [[package]]
 name = "openmls_sqlite_storage"
 version = "0.2.0"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#6ca897d6c635cfe4e7e07adf836d15118fcd21de"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#bd5760e0080beb8c9c73213a19febe3a9482c26c"
 dependencies = [
  "log",
  "openmls_traits",
@@ -5168,7 +5169,7 @@ dependencies = [
 [[package]]
 name = "openmls_traits"
 version = "0.5.0"
-source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#6ca897d6c635cfe4e7e07adf836d15118fcd21de"
+source = "git+https://github.com/boxdot/openmls?branch=dima%2Fpost-quantum-support#bd5760e0080beb8c9c73213a19febe3a9482c26c"
 dependencies = [
  "serde",
  "tls_codec",
@@ -6901,7 +6902,7 @@ dependencies = [
  "futures-io",
  "futures-util",
  "hashbrown 0.16.1",
- "hashlink 0.11.0",
+ "hashlink 0.11.1",
  "indexmap",
  "log",
  "memchr",
