@@ -74,11 +74,16 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: ./.github/actions/kubectl-deploy
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Update K8s resources
+        uses: ./.github/actions/kubectl-deploy
         with:
           kubeconfig: ${{ secrets.KUBECONFIG }}
           namespace: staging
-          container_image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build-and-publish.outputs.digest }}
+          deployment-name: airserver-stg
+          container-image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build-and-publish.outputs.digest }}
 
   deploy-production:
     name: Update production deployment
@@ -88,8 +93,13 @@ jobs:
     runs-on: ubuntu-latest
 
     steps:
-      - uses: ./.github/actions/kubectl-deploy
+      - name: Checkout repository
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+
+      - name: Update K8s resources
+        uses: ./.github/actions/kubectl-deploy
         with:
           kubeconfig: ${{ secrets.KUBECONFIG }}
           namespace: default
-          container_image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build-and-publish.outputs.digest }}
+          deployment-name: airserver
+          container-image: ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}@${{ needs.build-and-publish.outputs.digest }}
