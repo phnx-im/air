@@ -478,10 +478,6 @@ impl PendingChatOperation {
         error: DsRequestError,
     ) -> Result<JobError<ChatOperationError>, JobError<ChatOperationError>> {
         debug!(?error, "DS request failed");
-        self.group
-            .group_mut()
-            .mark_commit_failed(&mut connection)
-            .await?;
         const MAX_RETRIES: u32 = 5;
         if error.is_not_found() {
             // The group no longer exists on the DS. There is no point
