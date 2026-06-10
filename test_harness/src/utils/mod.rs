@@ -24,7 +24,7 @@ use airserver::{
     push_notification_provider::ProductionPushNotificationProvider,
     qs_connector::SimpleEnqueueProvider, run,
 };
-use sqlx::{Connection, PgConnection, Row};
+use sqlx::{AssertSqlSafe, Connection, PgConnection, Row};
 use tokio::{
     runtime::Handle,
     task::{JoinHandle, block_in_place},
@@ -87,16 +87,16 @@ impl SpawnedApp {
                     .await
                     .unwrap();
 
-            let db_size: String = sqlx::query(&format!(
+            let db_size: String = sqlx::query(AssertSqlSafe(format!(
                 r#"SELECT pg_size_pretty( pg_database_size('{db_name}'))"#
-            ))
+            )))
             .fetch_one(&mut connection)
             .await
             .unwrap()
             .try_get(0)
             .unwrap();
 
-            sqlx::query(&format!(r#"DROP DATABASE "{db_name}""#))
+            sqlx::query(AssertSqlSafe(format!(r#"DROP DATABASE "{db_name}""#)))
                 .execute(&mut connection)
                 .await
                 .unwrap();

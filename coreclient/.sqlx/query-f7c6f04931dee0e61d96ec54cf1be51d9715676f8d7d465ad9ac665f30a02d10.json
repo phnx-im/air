@@ -6,12 +6,24 @@
       {
         "name": "id",
         "ordinal": 0,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_token",
+            "name": "id"
+          }
+        }
       },
       {
         "name": "created_at: DateTime<Utc>",
         "ordinal": 1,
-        "type_info": "Datetime"
+        "type_info": "Datetime",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_token",
+            "name": "created_at"
+          }
+        }
       }
     ],
     "parameters": {

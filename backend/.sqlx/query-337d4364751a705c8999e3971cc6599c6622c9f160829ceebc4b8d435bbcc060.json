@@ -6,12 +6,24 @@
       {
         "ordinal": 0,
         "name": "remaining",
-        "type_info": "Int2"
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "as_token_allowance",
+            "name": "remaining"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "valid_until",
-        "type_info": "Timestamptz"
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "as_token_allowance",
+            "name": "valid_until"
+          }
+        }
       }
     ],
     "parameters": {

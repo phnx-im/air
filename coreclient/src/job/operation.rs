@@ -338,7 +338,7 @@ mod persistence {
     impl Encode<'_, Sqlite> for OperationKind {
         fn encode_by_ref(
             &self,
-            buf: &mut <Sqlite as Database>::ArgumentBuffer<'_>,
+            buf: &mut <Sqlite as Database>::ArgumentBuffer,
         ) -> Result<IsNull, BoxDynError> {
             let s = self.as_str();
             Encode::<Sqlite>::encode(s, buf)

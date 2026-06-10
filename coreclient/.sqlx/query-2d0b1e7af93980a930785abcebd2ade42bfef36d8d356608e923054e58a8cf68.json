@@ -6,7 +6,13 @@
       {
         "name": "token",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "privacy_pass_token",
+            "name": "token"
+          }
+        }
       }
     ],
     "parameters": {

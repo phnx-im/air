@@ -784,9 +784,12 @@ impl CoreUser {
                 let mut result = Vec::new();
 
                 for table in tables {
-                    for row in sqlx::query(&format!("SELECT * FROM '{}'", table.name.unwrap()))
-                        .fetch_all(txn.as_mut())
-                        .await?
+                    for row in sqlx::query(sqlx::AssertSqlSafe(format!(
+                        "SELECT * FROM '{}'",
+                        table.name.unwrap()
+                    )))
+                    .fetch_all(txn.as_mut())
+                    .await?
                     {
                         for i in 0..row.len() {
                             let string = if let Ok(column) = row.try_get::<String, _>(i) {
