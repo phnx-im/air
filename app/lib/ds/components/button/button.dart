@@ -93,6 +93,8 @@ class AppButton extends StatelessWidget {
       AppButtonSize.large => Spacing.px12,
     };
 
+    final isDesktop = ResponsiveScreen.isDesktop(context);
+
     return OutlinedButton(
       onPressed: state == AppButtonState.active ? onPressed : null,
       style: ButtonStyle(
@@ -111,6 +113,9 @@ class AppButton extends StatelessWidget {
         side: border != null
             ? WidgetStatePropertyAll(BorderSide(color: border.top.color))
             : null,
+        minimumSize: (size == .large && isDesktop)
+            ? WidgetStatePropertyAll(Size(isDesktop ? 320 : double.infinity, 0))
+            : null,
       ),
       child: Padding(
         padding: EdgeInsets.symmetric(
@@ -118,7 +123,7 @@ class AppButton extends StatelessWidget {
           horizontal: Spacing.px12,
         ),
         child: Row(
-          mainAxisSize: size == .large ? .max : .min,
+          mainAxisSize: (size == .large && !isDesktop) ? .max : .min,
           mainAxisAlignment: .center,
           crossAxisAlignment: .center,
           children: [
