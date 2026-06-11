@@ -527,8 +527,8 @@ impl ApiClient {
             sender: Some(params.sender.into()),
             suppress_notifications: Some(params.suppress_notifications),
             collision_tags: params.collision_tags.map(|tags| CollisionTags {
-                tag1: tags.tag1.to_vec(),
-                tag2: tags.tag2.to_vec(),
+                seq: tags.seq.into_inner(),
+                aux: tags.aux.into_iter().map(|t| t.into_inner()).collect(),
             }),
         };
         let request = payload.sign(signing_key)?;

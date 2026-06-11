@@ -3,8 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    crypto::aead::keys::GroupStateEarKey, identifiers::MimiId,
-    messages::client_ds_out::SendMessageParamsOut, time::TimeStamp,
+    crypto::aead::keys::GroupStateEarKey,
+    identifiers::MimiId,
+    messages::client_ds_out::{SendMessageAuxiliaryCollisionTag, SendMessageParamsOut},
+    time::TimeStamp,
 };
 use anyhow::Context;
 use mimi_content::{
@@ -150,9 +152,8 @@ impl OutboundServiceContext {
         }
 
         // load group and create MLS message
-        let tag2_value = Some(unsent_receipt.collision_tag_value());
         let (group_state_ear_key, params) = self
-            .new_mls_message(&chat, unsent_receipt.content, tag2_value)
+            .new_mls_message(&chat, unsent_receipt.content, Some(unsent_receipt.report))
             .await
             .map_err(OutboundServiceError::fatal)?;
 
@@ -196,7 +197,7 @@ impl OutboundServiceContext {
         &self,
         chat: &Chat,
         mimi_content: MimiContent,
-        tag2_value: Option<Vec<u8>>,
+        message_status_report: Option<MessageStatusReport>,
     ) -> anyhow::Result<(GroupStateEarKey, SendMessageParamsOut)> {
         self.db
             .with_write_transaction(async |txn| {
@@ -209,7 +210,7 @@ impl OutboundServiceContext {
                     &provider,
                     self.signing_key(),
                     mimi_content,
-                    tag2_value.as_deref(),
+                    message_status_report,
                 )?;
                 Ok((group.group_state_ear_key().clone(), params))
             })
@@ -264,7 +265,7 @@ impl UnsentReceipt {
     /// Derived from the sorted set of message IDs being receipted, so two
     /// emulator clients sending a receipt for the same messages produce the
     /// same value and the DS can detect the duplicate.
-    fn collision_tag_value(&self) -> Vec<u8> {
+    fn auxiliary_collision_tags(&self) -> Vec<SendMessageAuxiliaryCollisionTag> {
         let mut ids: Vec<&[u8]> = self
             .report
             .statuses

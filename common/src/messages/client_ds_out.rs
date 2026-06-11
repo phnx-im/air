@@ -85,22 +85,47 @@ pub struct SelfRemoveParamsOut {
 }
 
 #[derive(Debug)]
-pub struct SendMessageCollisionTag([u8; 32]);
+pub struct SendMessageCollisionTag(u64);
 
 impl SendMessageCollisionTag {
-    pub fn new(bytes: [u8; 32]) -> Self {
-        Self(bytes)
+    pub fn truncate(bytes: [u8; 32]) -> Self {
+        Self(u64::from_le_bytes(
+            bytes[..8].try_into().unwrap_or_default(),
+        ))
     }
 
-    pub fn to_vec(&self) -> Vec<u8> {
-        self.0.to_vec()
+    pub fn into_inner(&self) -> u64 {
+        self.0
     }
 }
 
 #[derive(Debug)]
 pub struct SendMessageCollisionTags {
-    pub tag1: SendMessageCollisionTag,
-    pub tag2: SendMessageCollisionTag,
+    pub seq: SendMessageCollisionTag,
+    pub aux: Vec<SendMessageAuxiliaryCollisionTag>,
+}
+
+#[derive(Debug)]
+pub enum SendMessageAuxiliaryCollisionTag {
+    Delivery(SendMessageCollisionTag),
+    Read(SendMessageCollisionTag),
+}
+
+impl SendMessageAuxiliaryCollisionTag {
+    pub fn truncated_delivery_tag(bytes: [u8; 32]) -> Self {
+        Self::Delivery(SendMessageCollisionTag::truncate(bytes))
+    }
+
+    pub fn truncate_receipt_tag(bytes: [u8; 32]) -> Self {
+        Self::Read(SendMessageCollisionTag::truncate(bytes))
+    }
+
+    pub fn into_inner(&self) -> u64 {
+        match self {
+            SendMessageAuxiliaryCollisionTag::Delivery(t) => t.into_inner(),
+            SendMessageAuxiliaryCollisionTag::Read(t) => t.into_inner(),
+        }
+    }
 }
 
 #[derive(Debug)]

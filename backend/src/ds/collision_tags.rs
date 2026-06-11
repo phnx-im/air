@@ -2,18 +2,44 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::messages::client_ds::{GenerationCollisionDetailTag, GenerationCollisionDetailTags};
-use airprotos::{
-    common::v1::{
-        GenerationCollisionDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
-    },
-    delivery_service::v1::CollisionTags,
+use airprotos::common::v1::{
+    GenerationCollisionDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
 };
-use prost::Message as _;
+use bytemuck::PodCastError;
+use prost::Message;
 use sqlx::{PgExecutor, PgPool};
-use tonic::{Code, Status};
-use tracing::error;
+use tonic::Code;
 use uuid::Uuid;
+
+#[derive(Debug, thiserror::Error)]
+pub enum CollisionTagError {
+    #[error(transparent)]
+    Database(#[from] sqlx::Error),
+    #[error("one or more tag(s) collided")]
+    Collision { tags: Vec<u64> },
+    #[error("duplicate tag in input {0:x}")]
+    DuplicateTag(i64),
+    #[error("type error: {0}")]
+    CastSlice(PodCastError),
+}
+
+impl From<CollisionTagError> for tonic::Status {
+    fn from(_value: CollisionTagError) -> Self {
+        Self::with_details(
+            Code::AlreadyExists,
+            "generation collision",
+            StatusDetails {
+                code: StatusDetailsCode::GenerationCollision.into(),
+                detail: Some(Detail::GenerationCollision(GenerationCollisionDetail {
+                    // tags: colliding_tags.into(),
+                    tags: 0,
+                })),
+            }
+            .encode_to_vec()
+            .into(),
+        )
+    }
+}
 
 /// Check collision tags against the DB and insert them if they are new.
 ///
@@ -24,51 +50,58 @@ pub(super) async fn check_and_insert(
     pool: &PgPool,
     group_id: Uuid,
     epoch: i64,
-    tags: CollisionTags,
-) -> Result<(), Status> {
-    let inserted = sqlx::query_scalar!(
-        "INSERT INTO ds_collision_tag (group_id, epoch, tag)
-        VALUES ($1, $2, $3), ($1, $2, $4)
-        ON CONFLICT DO NOTHING
-        RETURNING tag",
+    mut tags: Vec<i64>,
+) -> Result<(), CollisionTagError> {
+    tags.sort_unstable();
+    if let Some(w) = tags.windows(2).find(|w| w[0] == w[1]) {
+        return Err(CollisionTagError::DuplicateTag(w[0]));
+    }
+
+    let input: &[i64] = bytemuck::try_cast_slice(&tags).map_err(CollisionTagError::CastSlice)?;
+
+    let mut tx = pool.begin().await?;
+    let collisions: Vec<i64> = sqlx::query_scalar!(
+        r#"
+          WITH ins AS (
+              INSERT INTO ds_collision_tag (group_id, epoch, tag)
+              SELECT $1, $2, unnest($3::bigint[])
+              ON CONFLICT (group_id, epoch, tag) DO NOTHING
+              RETURNING tag
+          )
+          SELECT u.tag AS "tag!"
+          FROM unnest($3::bigint[]) AS u(tag)
+          EXCEPT
+          SELECT tag FROM ins
+          "#,
         group_id,
         epoch,
-        &tags.tag1,
-        &tags.tag2,
+        tags,
     )
-    .fetch_all(pool)
-    .await
-    .map_err(|error| {
-        error!(%error, "Failed to check/insert collision tags");
-        Status::internal("storage error")
-    })?;
+    .fetch_all(&mut *tx)
+    .await?;
 
-    // Fast and happy path: we inserted both tags
-    if inserted.len() == 2 {
-        return Ok(());
+    if collisions.is_empty() {
+        tx.commit().await?;
+        Ok(())
+    } else {
+        tx.rollback().await?;
+        Err(CollisionTagError::Collision {
+            tags: collisions.into_iter().map(|h| h as u64).collect(),
+        })
     }
 
-    // Otherwise, check which tags we got returned from the DB (the ones that successfully inserted)
-    let mut colliding_tags = GenerationCollisionDetailTags::default();
-    if !inserted.contains(&tags.tag1) {
-        colliding_tags.insert(GenerationCollisionDetailTag::Tag1);
-    }
-    if !inserted.contains(&tags.tag2) {
-        colliding_tags.insert(GenerationCollisionDetailTag::Tag2);
-    }
-
-    Err(Status::with_details(
-        Code::AlreadyExists,
-        "generation collision",
-        StatusDetails {
-            code: StatusDetailsCode::GenerationCollision.into(),
-            detail: Some(Detail::GenerationCollision(GenerationCollisionDetail {
-                tags: colliding_tags.into(),
-            })),
-        }
-        .encode_to_vec()
-        .into(),
-    ))
+    // Status::with_details(
+    //     Code::AlreadyExists,
+    //     "generation collision",
+    //     StatusDetails {
+    //         code: StatusDetailsCode::GenerationCollision.into(),
+    //         detail: Some(Detail::GenerationCollision(GenerationCollisionDetail {
+    //             tags: colliding_tags.into(),
+    //         })),
+    //     }
+    //     .encode_to_vec()
+    //     .into(),
+    // )
 }
 
 /// Delete all collision tags for the given group that belong to epochs older

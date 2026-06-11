@@ -21,6 +21,7 @@ aws-config.workspace = true
 aws-sdk-s3.workspace = true
 aws-sigv4.workspace = true
 base64.workspace = true
+bytemuck = "1.25.0"
 chrono.workspace = true
 dashmap.workspace = true
 displaydoc.workspace = true

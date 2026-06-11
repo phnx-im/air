@@ -45,9 +45,9 @@ use aircommon::{
         client_ds_out::{
             AddUsersInfoOut, ApqGroupOperationParamsOut, CreateGroupParamsOut,
             CreatePqGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn,
-            GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageCollisionTag,
-            SendMessageCollisionTags, SendMessageParamsOut, TargetedMessageParamsOut,
-            TargetedMessageType, WelcomeInfoIn,
+            GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageAuxiliaryCollisionTag,
+            SendMessageCollisionTag, SendMessageCollisionTags, SendMessageParamsOut,
+            TargetedMessageParamsOut, TargetedMessageType, WelcomeInfoIn,
         },
         welcome_attribution_info::{
             WelcomeAttributionInfo, WelcomeAttributionInfoPayload, WelcomeAttributionInfoTbs,
@@ -67,7 +67,7 @@ use airprotos::client::component::{
 };
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use hkdf::Hkdf;
-use mimi_content::MimiContent;
+use mimi_content::{MessageStatusReport, MimiContent};
 use mimi_room_policy::{MimiProposal, RoleIndex, RoomPolicy, VerifiedRoomState};
 use mls_assist::{components::ComponentsList, messages::AssistedMessageOut};
 use openmls_provider::AirOpenMlsProvider;
@@ -256,22 +256,7 @@ impl SendMessageCollisionKey {
         self.kdf
             .expand(info.as_slice(), &mut tag)
             .expect("32 bytes is a valid HKDF-Expand output length");
-        SendMessageCollisionTag::new(tag)
-    }
-
-    /// Compute the two sorted collision-detection tags for a given epoch key and generation.
-    ///
-    /// `tag2_value` is extra data for the second tag (e.g. receipt message IDs); if `None`,
-    /// the same generation bytes are used as input for both tags (with different salts).
-    pub fn compute_collision_tags(
-        &self,
-        generation: u32,
-        tag2_value: Option<&[u8]>,
-    ) -> SendMessageCollisionTags {
-        let generation_bytes = generation.to_be_bytes();
-        let tag1 = self.compute_collision_tag("seq", &generation_bytes);
-        let tag2 = self.compute_collision_tag("aux", tag2_value.unwrap_or(&generation_bytes));
-        SendMessageCollisionTags { tag1, tag2 }
+        SendMessageCollisionTag::truncate(tag)
     }
 }
 
@@ -1504,7 +1489,7 @@ impl Group {
         provider: &AirOpenMlsProvider<'_>,
         signer: &ClientSigningKey,
         content: MimiContent,
-        tag2_value: Option<&[u8]>,
+        message_status_report: Option<MessageStatusReport>,
     ) -> Result<SendMessageParamsOut, GroupOperationError> {
         let generation = self.mls_group.own_application_message_generation();
         let mls_message = self
@@ -1515,10 +1500,29 @@ impl Group {
         let suppress_notifications = suppress_notifications(&content);
 
         self.ensure_collision_key(provider);
-        let collision_tags = self
-            .send_message_collision_key
-            .as_ref()
-            .map(|k| k.compute_collision_tags(generation, tag2_value));
+        let collision_tags = self.send_message_collision_key.as_ref().map(|k| {
+            let generation_bytes = generation.to_be_bytes();
+            let seq = k.compute_collision_tag("seq", &generation_bytes);
+            let mut aux = message_status_report
+                .into_iter()
+                .flat_map(|msr| msr.statuses)
+                .filter_map(|pms| match pms.status {
+                    mimi_content::MessageStatus::Delivered => {
+                        Some(SendMessageAuxiliaryCollisionTag::Delivery(
+                            k.compute_collision_tag("aux_delivery", &pms.mimi_id),
+                        ))
+                    }
+                    mimi_content::MessageStatus::Read => {
+                        Some(SendMessageAuxiliaryCollisionTag::Read(
+                            k.compute_collision_tag("aux_read", &pms.mimi_id),
+                        ))
+                    }
+                    _ => None,
+                })
+                .collect();
+
+            SendMessageCollisionTags { seq, aux }
+        });
 
         let send_message_params = SendMessageParamsOut {
             sender: self.mls_group.own_leaf_index(),

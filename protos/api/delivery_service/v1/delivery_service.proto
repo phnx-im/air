@@ -318,8 +318,8 @@ message SendMessagePayload {
 }
 
 message CollisionTags {
-  bytes tag1 = 1;
-  bytes tag2 = 2;
+  fixed64 seq = 1;
+  repeated fixed64 aux = 2; // truncated first 8-bytes of a hash
 }
 
 message SendMessageResponse {

@@ -989,8 +989,8 @@ async fn generation_collision_no_collision() {
         .send_message_with_fixed_collision_tags(
             chat_id,
             SendMessageCollisionTags {
-                tag1: SendMessageCollisionTag::new([0xAAu8; 32]),
-                tag2: SendMessageCollisionTag::new([0xBBu8; 32]),
+                seq: SendMessageCollisionTag::truncate([0xAAu8; 32]),
+                aux: SendMessageCollisionTag::truncate([0xBBu8; 32]),
             },
         )
         .await
@@ -1011,8 +1011,8 @@ async fn generation_collision_tag1_collides() {
         .send_message_with_fixed_collision_tags(
             chat_id,
             SendMessageCollisionTags {
-                tag1: SendMessageCollisionTag::new([0xAAu8; 32]),
-                tag2: SendMessageCollisionTag::new([0xBBu8; 32]),
+                seq: SendMessageCollisionTag::truncate([0xAAu8; 32]),
+                aux: SendMessageCollisionTag::truncate([0xBBu8; 32]),
             },
         )
         .await
@@ -1022,8 +1022,8 @@ async fn generation_collision_tag1_collides() {
         .send_message_with_fixed_collision_tags(
             chat_id,
             SendMessageCollisionTags {
-                tag1: SendMessageCollisionTag::new([0xAAu8; 32]),
-                tag2: SendMessageCollisionTag::new([0xCCu8; 32]),
+                seq: SendMessageCollisionTag::truncate([0xAAu8; 32]),
+                aux: SendMessageCollisionTag::truncate([0xCCu8; 32]),
             },
         )
         .await
@@ -1053,8 +1053,8 @@ async fn generation_collision_tag2_collides() {
         .send_message_with_fixed_collision_tags(
             chat_id,
             SendMessageCollisionTags {
-                tag1: SendMessageCollisionTag::new([0xAAu8; 32]),
-                tag2: SendMessageCollisionTag::new([0xBBu8; 32]),
+                seq: SendMessageCollisionTag::truncate([0xAAu8; 32]),
+                aux: SendMessageCollisionTag::truncate([0xBBu8; 32]),
             },
         )
         .await
@@ -1064,8 +1064,8 @@ async fn generation_collision_tag2_collides() {
         .send_message_with_fixed_collision_tags(
             chat_id,
             SendMessageCollisionTags {
-                tag1: SendMessageCollisionTag::new([0xCCu8; 32]),
-                tag2: SendMessageCollisionTag::new([0xBBu8; 32]),
+                seq: SendMessageCollisionTag::truncate([0xCCu8; 32]),
+                aux: SendMessageCollisionTag::truncate([0xBBu8; 32]),
             },
         )
         .await
@@ -1092,8 +1092,8 @@ async fn generation_collision_both_tags_collide() {
     let alice_user = &setup.get_user(&alice).user;
 
     let make_tags = || SendMessageCollisionTags {
-        tag1: SendMessageCollisionTag::new([0xAAu8; 32]),
-        tag2: SendMessageCollisionTag::new([0xBBu8; 32]),
+        seq: SendMessageCollisionTag::truncate([0xAAu8; 32]),
+        aux: SendMessageCollisionTag::truncate([0xBBu8; 32]),
     };
 
     alice_user
