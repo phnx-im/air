@@ -10,6 +10,8 @@ use sqlx::{PgExecutor, PgPool};
 use tonic::Code;
 use uuid::Uuid;
 
+const MAX_COLLISION_TAGS_PER_REQUEST: usize = 30;
+
 #[derive(Debug, thiserror::Error)]
 pub enum CollisionTagError {
     #[error(transparent)]
@@ -18,6 +20,8 @@ pub enum CollisionTagError {
     Collision { collisions: Vec<i64> },
     #[error("duplicate tag in input {0:x}")]
     DuplicateTag(i64),
+    #[error("too many tags requested")]
+    TooManyTags,
 }
 
 impl From<CollisionTagError> for tonic::Status {
@@ -40,6 +44,7 @@ impl From<CollisionTagError> for tonic::Status {
                 .into(),
             ),
             CollisionTagError::DuplicateTag(_) => Self::invalid_argument("duplicate tag in input"),
+            CollisionTagError::TooManyTags => Self::invalid_argument("too many tags in input"),
         }
     }
 }
@@ -58,6 +63,12 @@ pub(super) async fn check_and_insert(
     tags.sort_unstable();
     if let Some(w) = tags.windows(2).find(|w| w[0] == w[1]) {
         return Err(CollisionTagError::DuplicateTag(w[0]));
+    }
+
+    if tags.is_empty() {
+        return Ok(());
+    } else if tags.len() > MAX_COLLISION_TAGS_PER_REQUEST {
+        return Err(CollisionTagError::TooManyTags);
     }
 
     let mut tx = pool.begin().await?;

@@ -2,10 +2,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::time::Duration;
+
 use aircommon::identifiers::AttachmentId;
 use anyhow::anyhow;
 use anyhow::{Context, ensure};
 use mimi_content::MessageStatus;
+use rand::Rng;
+use tokio::time::sleep;
 use tokio_util::sync::CancellationToken;
 use tracing::debug;
 use tracing::warn;
@@ -21,6 +25,11 @@ use crate::{
 };
 
 use super::{OutboundService, OutboundServiceContext};
+
+/// How often sending a message is retried when its collision tags collide on
+/// the DS. Every attempt re-encrypts at a fresh generation, so a retry only
+/// collides again if a competing sibling client keeps racing us.
+const MAX_COLLISION_RETRIES: usize = 3;
 
 impl OutboundService {
     /// Enqueue a chat message to be sent by the outbound service.
@@ -194,28 +203,51 @@ impl OutboundServiceContext {
             ));
         };
 
-        // load group and create MLS message
-        let (group_state_ear_key, params) = self
-            .new_mls_message(&chat, content.content().clone(), None)
-            .await?;
+        let api_client = self.api_clients.get(&chat.owner_domain())?;
+        let mut attempts = 0;
+        let ds_timestamp = loop {
+            attempts += 1;
 
-        // send MLS message to DS
-        let ds_timestamp = match self
-            .api_clients
-            .get(&chat.owner_domain())?
-            .ds_send_message(params, self.signing_key(), &group_state_ear_key)
-            .await
-        {
-            Ok(ts) => ts,
-            Err(ds_error) => {
-                if ds_error.is_not_found() {
-                    self.db
-                        .with_write_transaction(async |txn| {
-                            handle_group_not_found_on_ds(txn, chat.group_id()).await
-                        })
-                        .await?;
+            // load group and create MLS message
+            let (group_state_ear_key, params) = self
+                .new_mls_message(&chat, content.content().clone(), None)
+                .await?;
+            let sent_tags = params.collision_tags.clone();
+
+            // send MLS message to DS
+            match api_client
+                .ds_send_message(params, self.signing_key(), &group_state_ear_key)
+                .await
+            {
+                Ok(ts) => break ts,
+                Err(ds_error) => {
+                    if ds_error.is_not_found() {
+                        self.db
+                            .with_write_transaction(async |txn| {
+                                handle_group_not_found_on_ds(txn, chat.group_id()).await
+                            })
+                            .await?;
+                        return Err(ds_error.into());
+                    }
+
+                    // A collision here means a competing sibling client already sent a
+                    // different message at this generation. Our message was rejected,
+                    // so re-encrypt it at a fresh generation and send it again.
+                    if attempts < MAX_COLLISION_RETRIES
+                        && !ds_error.process_tag_collisions(&sent_tags).is_empty()
+                    {
+                        debug!(
+                            ?message_id,
+                            attempts, "Message collided; retrying at a fresh generation"
+                        );
+                        // Jitter to desynchronize competing sibling clients, growing
+                        // with each attempt.
+                        let jitter_ms = rand::thread_rng().gen_range(50..250) * attempts as u64;
+                        sleep(Duration::from_millis(jitter_ms)).await;
+                        continue;
+                    }
+                    return Err(ds_error.into());
                 }
-                return Err(ds_error.into());
             }
         };
 

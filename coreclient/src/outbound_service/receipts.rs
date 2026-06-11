@@ -158,6 +158,7 @@ impl OutboundServiceContext {
             )
             .await
             .map_err(OutboundServiceError::fatal)?;
+        let sent_tags = params.collision_tags.clone();
 
         // send MLS message to DS
         if let Err(ds_error) = self
@@ -174,8 +175,16 @@ impl OutboundServiceContext {
                     })
                     .await
                     .map_err(OutboundServiceError::fatal)?;
+                return Err(classify_ds_error(ds_error));
             }
-            return Err(classify_ds_error(ds_error));
+
+            // A collision means this receipt was already delivered: by a competing
+            // sibling client, or by an earlier send of ours whose response was lost.
+            // Receipts are sent at most once, so record the report as sent below.
+            if ds_error.process_tag_collisions(&sent_tags).is_empty() {
+                return Err(classify_ds_error(ds_error));
+            }
+            debug!(%chat_id, "Receipt already delivered (collision); treating as sent");
         }
 
         // store delivery receipt report
