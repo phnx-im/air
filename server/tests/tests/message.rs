@@ -1128,13 +1128,15 @@ async fn send_message_collision_tags_from_different_users_never_collide() {
         SendMessageCollisionTag::ReadReceipt(0xCCi64),
     ];
 
+    let content = MimiContent::simple_markdown_message("collision-test".into(), [0u8; 16]);
+
     alice_user
-        .send_message_with_fixed_collision_tags(chat_id, tags.clone())
+        .send_message(chat_id, content.clone(), None)
         .await
         .expect("send from alice should succeed");
 
     bob_user
-        .send_message_with_fixed_collision_tags(chat_id, tags.clone())
+        .send_message(chat_id, content.clone(), None)
         .await
         .expect("send from bob should succeed");
 }

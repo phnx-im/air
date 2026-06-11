@@ -222,7 +222,7 @@ impl SendMessageCollisionKey {
         group: &mut Group,
         provider: &AirOpenMlsProvider,
     ) -> Result<Self, ExportSecretError> {
-        let salt = dbg!(group.own_index().u32()).to_le_bytes();
+        let salt = group.own_index().u32().to_le_bytes();
         let epoch = group.mls_group.epoch();
         let epoch_secret = group.mls_group.export_secret(
             provider.crypto(),
@@ -230,7 +230,6 @@ impl SendMessageCollisionKey {
             &salt,
             32,
         )?;
-        dbg!(hex::encode(&epoch_secret));
 
         let kdf = Hkdf::from_prk(&epoch_secret).expect("input is 32 bytes, a valid HKDF PRK");
         Ok(Self { epoch, kdf })
