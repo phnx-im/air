@@ -4,7 +4,7 @@
 
 use aircommon::crypto::errors::DecryptionError;
 use openmls::group::{
-    CreateMessageError, MlsGroupStateError, ProcessMessageError, SafeExportSecretError,
+    CreateMessageError, ExportSecretError, MlsGroupStateError, ProcessMessageError,
 };
 use thiserror::Error;
 
@@ -27,8 +27,8 @@ pub enum GroupOperationError {
     MimiContentError(#[from] mimi_content::Error),
     #[error(transparent)]
     TargetedMessageError(#[from] TargetedMessageError),
-    #[error(transparent)]
-    CollisionKeyError(SafeExportSecretError<sqlx::Error>),
+    #[error("failed to generate collision key: {0}")]
+    CollisionKeyError(#[from] ExportSecretError),
 }
 
 #[derive(Error, Debug)]

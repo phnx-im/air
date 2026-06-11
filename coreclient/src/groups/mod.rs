@@ -94,8 +94,8 @@ use crate::{
 use openmls::{
     component::ComponentType,
     group::{
-        CreateCommitError, ExternalCommitBuilder, GroupEpoch, JoinBuilder, ProcessedWelcome,
-        ProposalValidationError, SafeExportSecretError,
+        CreateCommitError, ExportSecretError, ExternalCommitBuilder, GroupEpoch, JoinBuilder,
+        ProcessedWelcome, ProposalValidationError,
     },
     key_packages::KeyPackageBundle,
     prelude::{
@@ -221,21 +221,18 @@ impl SendMessageCollisionKey {
     pub fn try_from_group(
         group: &mut Group,
         provider: &AirOpenMlsProvider,
-    ) -> Result<Self, SafeExportSecretError<sqlx::Error>> {
-        let salt = group.own_index().u32().to_le_bytes(); // TODO: possibly change this
+    ) -> Result<Self, ExportSecretError> {
+        let salt = dbg!(group.own_index().u32()).to_le_bytes();
         let epoch = group.mls_group.epoch();
-        let epoch_secret = group.mls_group.safe_export_secret(
+        let epoch_secret = group.mls_group.export_secret(
             provider.crypto(),
-            provider.storage(),
-            // when virtual-client-drafts are enabled, use components::vc_derivation_info::VC_COMPONENT_ID instead.
-            0x000D,
+            "virtual-client-collision-detection-v1",
+            &salt,
+            32,
         )?;
+        dbg!(hex::encode(&epoch_secret));
 
-        let mut k = [0u8; 32];
-        Hkdf::<Sha256>::new(Some(&salt), &epoch_secret)
-            .expand(b"virtual-client-collision-detection-v1", &mut k)
-            .expect("32-bytes is a valid HKDF output length");
-        let kdf = Hkdf::from_prk(&k).expect("input is 32 bytes, a valid HKDF PRK");
+        let kdf = Hkdf::from_prk(&epoch_secret).expect("input is 32 bytes, a valid HKDF PRK");
         Ok(Self { epoch, kdf })
     }
 
@@ -254,9 +251,9 @@ trait GenerateCollisionKey {
     fn collision_tag(&self, key: &SendMessageCollisionKey) -> SendMessageCollisionTag;
 }
 
-impl GenerateCollisionKey for MlsGroup {
+impl GenerateCollisionKey for u32 {
     fn collision_tag(&self, key: &SendMessageCollisionKey) -> SendMessageCollisionTag {
-        let generation = self.own_application_message_generation().to_le_bytes();
+        let generation = self.to_le_bytes();
         let tag = key.derive_collision_tag("seq", &generation);
         SendMessageCollisionTag::Sequence(tag)
     }
@@ -1485,7 +1482,7 @@ impl Group {
     pub(crate) fn ensure_collision_key(
         &mut self,
         provider: &AirOpenMlsProvider,
-    ) -> Result<(), SafeExportSecretError<sqlx::Error>> {
+    ) -> Result<(), ExportSecretError> {
         if let Some(key) = self.send_message_collision_key.as_ref()
             && key.epoch == self.mls_group.epoch()
         {
@@ -1508,20 +1505,19 @@ impl Group {
         content: MimiContent,
         message_status_report: Option<MessageStatusReport>,
     ) -> Result<SendMessageParamsOut, GroupOperationError> {
+        let generation = self.mls_group.own_application_message_generation();
         let mls_message = self
             .mls_group
             .create_message(provider, signer, &content.serialize()?)?;
 
-        // XXX: do this conditionally on emulator clients only?
-        self.ensure_collision_key(provider)
-            .map_err(GroupOperationError::CollisionKeyError)?;
+        self.ensure_collision_key(provider)?;
 
         let collision_tags = self
             .send_message_collision_key
             .as_ref()
             .map(|key| {
                 let mut tags = Vec::new();
-                tags.push(self.mls_group.collision_tag(key));
+                tags.push(generation.collision_tag(key));
                 if let Some(message_status_report) = message_status_report {
                     for pms in message_status_report.statuses {
                         tags.push(pms.collision_tag(key));
