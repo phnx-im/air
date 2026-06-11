@@ -75,7 +75,7 @@ use tls_codec::DeserializeBytes;
 use tracing::{Level, debug, enabled, error, warn};
 
 use crate::{
-    SystemMessage,
+    ChatId, SystemMessage,
     chats::messages::TimestampedMessage,
     clients::{
         api_clients::ApiClients,
@@ -243,26 +243,38 @@ impl Group {
         self.pq.as_ref()
     }
 
-    #[allow(unused)]
-    pub fn is_out_of_sync(&self) -> bool {
-        self.pending_commit_failed
-    }
-
     pub(crate) async fn mark_commit_failed(
         &mut self,
-        connection: impl WriteConnection,
-    ) -> anyhow::Result<()> {
-        self.pending_commit_failed = true;
-        self.store_pending_commit_failed(connection).await?;
+        mut connection: impl WriteConnection,
+    ) -> sqlx::Result<()> {
+        if !self.pending_commit_failed {
+            self.pending_commit_failed = true;
+            self.store_pending_commit_failed(&mut connection).await?;
+
+            if let Some(chat_id) =
+                ChatId::load_from_group_id(&mut connection, self.group_id()).await?
+            {
+                connection.notifier().update(chat_id);
+            }
+        }
+
         Ok(())
     }
 
     pub(crate) async fn clear_commit_failed(
         &mut self,
-        connection: impl WriteConnection,
-    ) -> anyhow::Result<()> {
-        self.pending_commit_failed = false;
-        self.store_pending_commit_failed(connection).await?;
+        mut connection: impl WriteConnection,
+    ) -> sqlx::Result<()> {
+        if self.pending_commit_failed {
+            self.pending_commit_failed = false;
+            self.store_pending_commit_failed(&mut connection).await?;
+
+            if let Some(chat_id) =
+                ChatId::load_from_group_id(&mut connection, self.group_id()).await?
+            {
+                connection.notifier().update(chat_id);
+            }
+        }
         Ok(())
     }
 

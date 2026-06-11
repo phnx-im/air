@@ -550,12 +550,12 @@ impl Group {
         group_id: &GroupId,
     ) -> anyhow::Result<bool> {
         let group_id = GroupIdRefWrapper::from(group_id);
-        let pending_commit_failed: bool = query_scalar!(
+        let pending_commit_failed = query_scalar!(
             r#"SELECT pending_commit_failed as 'p: _' FROM "group" WHERE group_id = ?"#,
             group_id,
         )
-        .fetch_one(connection.as_mut())
+        .fetch_optional(connection.as_mut())
         .await?;
-        Ok(pending_commit_failed)
+        Ok(pending_commit_failed.unwrap_or_default())
     }
 }

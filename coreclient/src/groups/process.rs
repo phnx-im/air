@@ -498,7 +498,6 @@ impl Group {
         staged_commit: &StagedCommit,
     ) -> Result<()> {
         self.discard_pending_commit(&mut *txn).await?;
-        self.clear_commit_failed(&mut *txn).await?;
         if let Some(pending_chat_operation) =
             PendingChatOperation::load_by_group_id(&mut *txn, group_id).await?
         {

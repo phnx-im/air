@@ -412,7 +412,7 @@ class _PendingCommitFailedBanner extends StatelessWidget {
           children: [
             Expanded(
               child: Text(
-                'Group out of sync',
+                "Pending commit stuck/failed",
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),

@@ -125,6 +125,21 @@ impl From<SqlPastMember> for UserId {
     }
 }
 
+impl ChatId {
+    pub(crate) async fn load_from_group_id(
+        mut connection: impl ReadConnection,
+        group_id: &GroupId,
+    ) -> sqlx::Result<Option<ChatId>> {
+        let group_id = group_id.as_slice();
+        query_scalar!(
+            r#"SELECT chat_id AS "chat_id: _" FROM chat WHERE group_id = ?"#,
+            group_id,
+        )
+        .fetch_optional(connection.as_mut())
+        .await
+    }
+}
+
 impl Chat {
     /// Creates a new chat with the given id.
     ///

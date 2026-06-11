@@ -491,7 +491,7 @@ impl PendingChatOperation {
                 .await?;
             self.group
                 .group_mut()
-                .mark_commit_failed(connection)
+                .mark_commit_failed(&mut connection)
                 .await?;
 
             Err(JobError::Blocked)
