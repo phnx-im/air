@@ -32,7 +32,7 @@ mls-assist = { path = "mls-assist" }
 
 aes-gcm = "0.10"
 anyhow = { version = "1.0.98", features = ["backtrace"] }
-apqmls = { git = "https://github.com/phnx-im/apqmls", rev = "021ba62bbe2d319f614c5be2888993fb1055d0a0" }
+apqmls = { git = "https://github.com/phnx-im/apqmls", rev = "56c0734455b5f98af7f768f38067166ffca017d3" }
 arboard = "3"
 argon2 = "0.5.3"
 async-trait = "0.1.53"
