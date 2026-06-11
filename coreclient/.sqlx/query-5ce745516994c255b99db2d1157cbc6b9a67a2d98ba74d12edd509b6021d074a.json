@@ -6,12 +6,24 @@
       {
         "name": "token_key_id",
         "ordinal": 0,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "batched_token_key",
+            "name": "token_key_id"
+          }
+        }
       },
       {
         "name": "public_key",
         "ordinal": 1,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "batched_token_key",
+            "name": "public_key"
+          }
+        }
       }
     ],
     "parameters": {

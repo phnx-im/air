@@ -6,17 +6,35 @@
       {
         "ordinal": 0,
         "name": "token_key_id",
-        "type_info": "Int2"
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "as_batched_key",
+            "name": "token_key_id"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "operation_type",
-        "type_info": "Int2"
+        "type_info": "Int2",
+        "origin": {
+          "Table": {
+            "table": "as_batched_key",
+            "name": "operation_type"
+          }
+        }
       },
       {
         "ordinal": 2,
         "name": "voprf_server: BlobDecoded<VoprfServer<Ristretto255>>",
-        "type_info": "Bytea"
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "as_batched_key",
+            "name": "voprf_server"
+          }
+        }
       }
     ],
     "parameters": {

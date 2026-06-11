@@ -6,47 +6,101 @@
       {
         "name": "group_id: _",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "group",
+            "name": "group_id"
+          }
+        }
       },
       {
         "name": "pq_group_id: _",
         "ordinal": 1,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pq_group",
+            "name": "group_id"
+          }
+        }
       },
       {
         "name": "identity_link_wrapper_key: _",
         "ordinal": 2,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "group",
+            "name": "identity_link_wrapper_key"
+          }
+        }
       },
       {
         "name": "group_state_ear_key: _",
         "ordinal": 3,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "group",
+            "name": "group_state_ear_key"
+          }
+        }
       },
       {
         "name": "pending_diff: _",
         "ordinal": 4,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "group",
+            "name": "pending_diff"
+          }
+        }
       },
       {
         "name": "room_state: _",
         "ordinal": 5,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "group",
+            "name": "room_state"
+          }
+        }
       },
       {
         "name": "self_updated_at: _",
         "ordinal": 6,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "group",
+            "name": "self_updated_at"
+          }
+        }
       },
       {
         "name": "pq_self_updated_at: _",
         "ordinal": 7,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "pq_group",
+            "name": "self_updated_at"
+          }
+        }
       },
       {
         "name": "pending_commit_failed: _",
         "ordinal": 8,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "group",
+            "name": "pending_commit_failed"
+          }
+        }
       }
     ],
     "parameters": {
@@ -54,13 +108,13 @@
     },
     "nullable": [
       false,
-      false,
+      true,
       false,
       false,
       true,
       false,
       true,
-      false,
+      true,
       false
     ]
   },

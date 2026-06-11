@@ -6,12 +6,24 @@
       {
         "name": "content",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "content"
+          }
+        }
       },
       {
         "name": "status: _",
         "ordinal": 1,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "status"
+          }
+        }
       }
     ],
     "parameters": {

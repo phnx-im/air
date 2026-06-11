@@ -6,7 +6,13 @@
       {
         "name": "uuid: _",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "chat_id"
+          }
+        }
       }
     ],
     "parameters": {

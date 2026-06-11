@@ -157,7 +157,7 @@ mod trait_impls {
     {
         fn encode_by_ref(
             &self,
-            buf: &mut <DB as Database>::ArgumentBuffer<'a>,
+            buf: &mut <DB as Database>::ArgumentBuffer,
         ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
             let bytes = self.as_bytes().to_vec();
             Encode::<DB>::encode(&bytes, buf)

@@ -45,7 +45,7 @@ impl Type<Sqlite> for UserCreationState {
 impl<'q> Encode<'q, Sqlite> for UserCreationState {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as Database>::ArgumentBuffer<'q>,
+        buf: &mut <Sqlite as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         let state = StorableUserCreationStateRef::CurrentVersion(self);
         let bytes = PersistenceCodec::to_vec(&state)?;
@@ -107,7 +107,7 @@ impl Type<Sqlite> for ClientRecordState {
 impl<'q> Encode<'q, Sqlite> for ClientRecordState {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as Database>::ArgumentBuffer<'q>,
+        buf: &mut <Sqlite as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         Encode::<Sqlite>::encode(self.as_str(), buf)
     }

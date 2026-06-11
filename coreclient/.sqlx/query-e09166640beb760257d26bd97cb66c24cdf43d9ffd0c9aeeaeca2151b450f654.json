@@ -6,7 +6,13 @@
       {
         "name": "p: _",
         "ordinal": 0,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "group",
+            "name": "pending_commit_failed"
+          }
+        }
       }
     ],
     "parameters": {

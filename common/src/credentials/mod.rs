@@ -87,7 +87,7 @@ impl Type<Sqlite> for AsCredentialBody {
 impl Encode<'_, Sqlite> for AsCredentialBody {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as Database>::ArgumentBuffer<'_>,
+        buf: &mut <Sqlite as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         let bytes = PersistenceCodec::to_vec(self)?;
         Encode::<Sqlite>::encode(bytes, buf)
@@ -247,7 +247,7 @@ impl Type<Sqlite> for AsIntermediateCredentialBody {
 impl Encode<'_, Sqlite> for AsIntermediateCredentialBody {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as Database>::ArgumentBuffer<'_>,
+        buf: &mut <Sqlite as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         let bytes = PersistenceCodec::to_vec(self)?;
         Encode::<Sqlite>::encode(bytes, buf)
@@ -561,7 +561,7 @@ impl Type<Sqlite> for ClientCredential {
 impl<'q> Encode<'q, Sqlite> for ClientCredential {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as Database>::ArgumentBuffer<'q>,
+        buf: &mut <Sqlite as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         let versioned = VersionedClientCredentialRef::CurrentVersion(self);
         let bytes = PersistenceCodec::to_vec(&versioned)?;
