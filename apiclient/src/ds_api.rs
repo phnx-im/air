@@ -110,7 +110,7 @@ impl DsRequestError {
             && let StatusDetailsCode::GenerationCollision = details.code()
             && let Some(status_details::Detail::GenerationCollision(detail)) = details.detail
         {
-            tags.retain(|tag| detail.tags.contains(&tag));
+            tags.retain(|tag| detail.tags.contains(tag));
         }
     }
 
