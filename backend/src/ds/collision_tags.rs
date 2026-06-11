@@ -39,9 +39,7 @@ impl From<CollisionTagError> for tonic::Status {
                 .encode_to_vec()
                 .into(),
             ),
-            CollisionTagError::DuplicateTag(tag) => {
-                Self::invalid_argument("duplicate tag in input")
-            }
+            CollisionTagError::DuplicateTag(_) => Self::invalid_argument("duplicate tag in input"),
         }
     }
 }

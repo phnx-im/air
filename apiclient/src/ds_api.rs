@@ -88,18 +88,29 @@ impl DsRequestError {
         }
     }
 
-    pub fn is_generation_collision(&self, tag: SendMessageCollisionTag) -> bool {
+    pub fn is_tag_collision(&self, tag: SendMessageCollisionTag) -> bool {
         if let Self::Tonic(status) = self
             && status.code() == tonic::Code::AlreadyExists
             && let Some(details) = StatusDetails::from_status(status)
             && let StatusDetailsCode::GenerationCollision = details.code()
             && let Some(status_details::Detail::GenerationCollision(generation_collision_detail)) =
                 details.detail
-            && generation_collision_detail.tags.contains(&tag.into_inner())
+            && generation_collision_detail.tags.contains(&tag)
         {
             true
         } else {
             false
+        }
+    }
+
+    pub fn process_tag_collisions(&self, tags: &mut Vec<SendMessageCollisionTag>) {
+        if let Self::Tonic(status) = self
+            && status.code() == tonic::Code::AlreadyExists
+            && let Some(details) = StatusDetails::from_status(status)
+            && let StatusDetailsCode::GenerationCollision = details.code()
+            && let Some(status_details::Detail::GenerationCollision(detail)) = details.detail
+        {
+            tags.retain(|tag| detail.tags.contains(&tag));
         }
     }
 
@@ -535,11 +546,7 @@ impl ApiClient {
             sender: Some(params.sender.into()),
             suppress_notifications: Some(params.suppress_notifications),
             collision_tags: Some(CollisionTags {
-                tags: params
-                    .collision_tags
-                    .into_iter()
-                    .map(|t| t.into_inner())
-                    .collect(),
+                tags: params.collision_tags.into_iter().map(|t| *t).collect(),
             }),
         };
         let request = payload.sign(signing_key)?;

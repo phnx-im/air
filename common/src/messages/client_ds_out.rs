@@ -7,7 +7,7 @@
 //! TODO: We should eventually factor this module out, together with the crypto
 //! module, to allow re-use by the client implementation.
 
-use std::collections::HashMap;
+use std::{collections::HashMap, ops::Deref};
 
 use apqmls::commit_builder::ApqCommitMessageBundle;
 use mimi_room_policy::VerifiedRoomState;
@@ -84,7 +84,7 @@ pub struct SelfRemoveParamsOut {
     pub remove_proposal: AssistedMessageOut,
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub enum SendMessageCollisionTag {
     Sequence(i64),
     DeliveryReceipt(i64),
@@ -92,8 +92,10 @@ pub enum SendMessageCollisionTag {
     Other(i64),
 }
 
-impl SendMessageCollisionTag {
-    pub fn into_inner(self) -> i64 {
+impl Deref for SendMessageCollisionTag {
+    type Target = i64;
+
+    fn deref(&self) -> &Self::Target {
         match self {
             SendMessageCollisionTag::Sequence(t) => t,
             SendMessageCollisionTag::DeliveryReceipt(t) => t,

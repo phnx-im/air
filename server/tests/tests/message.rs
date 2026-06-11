@@ -975,8 +975,8 @@ async fn delete_message_with_attachment() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Generation collision: no collision", skip_all)]
-async fn generation_collision_no_collision() {
+#[tracing::instrument(name = "Send message collision tags: no collision", skip_all)]
+async fn send_message_collision_tags_no_collision() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
@@ -997,8 +997,8 @@ async fn generation_collision_no_collision() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Generation collision: tag1 collides", skip_all)]
-async fn generation_collision_tag1_collides() {
+#[tracing::instrument(name = "Send message collision tags: first tag collides", skip_all)]
+async fn send_message_collision_tags_first_collides() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
@@ -1029,18 +1029,18 @@ async fn generation_collision_tag1_collides() {
         .expect_err("send with colliding tag1 should be rejected");
 
     assert!(
-        error.is_generation_collision(SendMessageCollisionTag::Sequence(0xAAi64)),
+        error.is_tag_collision(SendMessageCollisionTag::Sequence(0xAAi64)),
         "expected Tag1 collision, got: {error:?}"
     );
     assert!(
-        !error.is_generation_collision(SendMessageCollisionTag::DeliveryReceipt(0xBBi64)),
+        !error.is_tag_collision(SendMessageCollisionTag::DeliveryReceipt(0xBBi64)),
         "expected no Tag2 collision, got: {error:?}"
     );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Generation collision: tag2 collides", skip_all)]
-async fn generation_collision_tag2_collides() {
+#[tracing::instrument(name = "Send message collision tags: second tag collides", skip_all)]
+async fn send_message_collision_tags_second_collides() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
@@ -1071,18 +1071,18 @@ async fn generation_collision_tag2_collides() {
         .expect_err("send with colliding tag2 should be rejected");
 
     assert!(
-        !error.is_generation_collision(SendMessageCollisionTag::Sequence(0xAAi64)),
+        !error.is_tag_collision(SendMessageCollisionTag::Sequence(0xAAi64)),
         "expected no Tag1 collision, got: {error:?}"
     );
     assert!(
-        error.is_generation_collision(SendMessageCollisionTag::DeliveryReceipt(0xBBi64)),
+        error.is_tag_collision(SendMessageCollisionTag::DeliveryReceipt(0xBBi64)),
         "expected Tag2 collision, got: {error:?}"
     );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Generation collision: both tags collide", skip_all)]
-async fn generation_collision_both_tags_collide() {
+#[tracing::instrument(name = "Send message collision tags: all tags collide", skip_all)]
+async fn send_message_collision_tags_all_collide() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
@@ -1090,34 +1090,26 @@ async fn generation_collision_both_tags_collide() {
 
     let alice_user = &setup.get_user(&alice).user;
 
+    let make_tags = || {
+        vec![
+            SendMessageCollisionTag::Sequence(0xAAi64),
+            SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
+            SendMessageCollisionTag::ReadReceipt(0xCCi64),
+        ]
+    };
+
     alice_user
-        .send_message_with_fixed_collision_tags(
-            chat_id,
-            vec![
-                SendMessageCollisionTag::Sequence(0xAAi64),
-                SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
-            ],
-        )
+        .send_message_with_fixed_collision_tags(chat_id, make_tags())
         .await
         .expect("first send should succeed");
 
     let error = alice_user
-        .send_message_with_fixed_collision_tags(
-            chat_id,
-            vec![
-                SendMessageCollisionTag::Sequence(0xAAi64),
-                SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
-            ],
-        )
+        .send_message_with_fixed_collision_tags(chat_id, make_tags())
         .await
         .expect_err("second send with identical tags should be rejected");
 
-    assert!(
-        error.is_generation_collision(SendMessageCollisionTag::Sequence(0xAAi64)),
-        "expected Tag1 collision, got: {error:?}"
-    );
-    assert!(
-        error.is_generation_collision(SendMessageCollisionTag::DeliveryReceipt(0xBBi64)),
-        "expected Tag2 collision, got: {error:?}"
-    );
+    let mut colliding_tags = make_tags();
+    error.process_tag_collisions(&mut colliding_tags);
+
+    assert_eq!(make_tags(), colliding_tags, "expected all tags to collide");
 }
