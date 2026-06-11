@@ -1,8 +1,9 @@
-#[cfg(any(test, feature = "test_utils"))]
-use aircommon::messages::client_ds_out::SendMessageCollisionTag;
 // SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
+
+#[cfg(any(test, feature = "test_utils"))]
+use aircommon::messages::client_ds_out::SendMessageCollisionTag;
 use openmls::group::Member;
 
 use aircommon::{codec::PersistenceCodec, identifiers::QualifiedGroupId};
@@ -225,7 +226,7 @@ impl CoreUser {
                     .await?
                     .context("group not found")?;
                 let provider = AirOpenMlsProvider::new(txn.as_mut());
-                group.ensure_collision_key(&provider);
+                group.ensure_collision_key(&provider)?;
                 let mut params =
                     group.create_message(&provider, self.signing_key(), content, None)?;
                 params.collision_tags = collision_tags;

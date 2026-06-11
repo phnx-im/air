@@ -88,19 +88,6 @@ pub(super) async fn check_and_insert(
         tx.rollback().await?;
         Err(CollisionTagError::Collision { collisions })
     }
-
-    // Status::with_details(
-    //     Code::AlreadyExists,
-    //     "generation collision",
-    //     StatusDetails {
-    //         code: StatusDetailsCode::GenerationCollision.into(),
-    //         detail: Some(Detail::GenerationCollision(GenerationCollisionDetail {
-    //             tags: colliding_tags.into(),
-    //         })),
-    //     }
-    //     .encode_to_vec()
-    //     .into(),
-    // )
 }
 
 /// Delete all collision tags for the given group that belong to epochs older

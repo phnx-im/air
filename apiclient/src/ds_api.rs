@@ -88,29 +88,22 @@ impl DsRequestError {
         }
     }
 
-    pub fn is_tag_collision(&self, tag: SendMessageCollisionTag) -> bool {
-        if let Self::Tonic(status) = self
-            && status.code() == tonic::Code::AlreadyExists
-            && let Some(details) = StatusDetails::from_status(status)
-            && let StatusDetailsCode::GenerationCollision = details.code()
-            && let Some(status_details::Detail::GenerationCollision(generation_collision_detail)) =
-                details.detail
-            && generation_collision_detail.tags.contains(&tag)
-        {
-            true
-        } else {
-            false
-        }
-    }
-
-    pub fn process_tag_collisions(&self, tags: &mut Vec<SendMessageCollisionTag>) {
+    pub fn process_tag_collisions(
+        &self,
+        tags: &[SendMessageCollisionTag],
+    ) -> Vec<SendMessageCollisionTag> {
         if let Self::Tonic(status) = self
             && status.code() == tonic::Code::AlreadyExists
             && let Some(details) = StatusDetails::from_status(status)
             && let StatusDetailsCode::GenerationCollision = details.code()
             && let Some(status_details::Detail::GenerationCollision(detail)) = details.detail
         {
-            tags.retain(|tag| detail.tags.contains(tag));
+            tags.iter()
+                .cloned()
+                .filter(|tag| detail.tags.contains(tag))
+                .collect()
+        } else {
+            Vec::new()
         }
     }
 

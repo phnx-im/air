@@ -218,34 +218,25 @@ struct SendMessageCollisionKey {
 }
 
 impl SendMessageCollisionKey {
-    pub fn from_group(group: &mut Group, provider: &impl OpenMlsProvider) -> Option<Self> {
+    pub fn from_group(group: &mut Group, provider: &impl OpenMlsProvider) -> anyhow::Result<Self> {
+        let salt = group.own_index().u32().to_le_bytes(); // TODO: possibly change this
         let epoch = group.mls_group.epoch();
-        let epoch_secret = match group.mls_group.safe_export_secret(
-            provider.crypto(),
-            provider.storage(),
-            // when virtual-client-drafts are enabled, use components::vc_derivation_info::VC_COMPONENT_ID instead.
-            0x000D,
-        ) {
-            Ok(epoch_secret) => epoch_secret,
-            Err(error) => {
-                error!(%error, "failed to call safe_export_secret on MLS group");
-                return None;
-            }
-        };
+        let epoch_secret = group
+            .mls_group
+            .safe_export_secret(
+                provider.crypto(),
+                provider.storage(),
+                // when virtual-client-drafts are enabled, use components::vc_derivation_info::VC_COMPONENT_ID instead.
+                0x000D,
+            )
+            .map_err(|_| anyhow!("failed to export OpenMLS secret"))?;
 
         let mut k = [0u8; 32];
-        match Hkdf::<Sha256>::new(None, &epoch_secret)
+        Hkdf::<Sha256>::new(Some(&salt), &epoch_secret)
             .expand(b"virtual-client-collision-detection-v1", &mut k)
-        {
-            Ok(()) => {
-                let kdf = Hkdf::from_prk(&k).expect("input is 32 bytes, a valid HKDF PRK");
-                Some(Self { epoch, kdf })
-            }
-            Err(error) => {
-                error!(%error, "failed to expand HKDF");
-                None
-            }
-        }
+            .map_err(|_| anyhow!("failed to expand HKDF"))?;
+        let kdf = Hkdf::from_prk(&k).expect("input is 32 bytes, a valid HKDF PRK");
+        Ok(Self { epoch, kdf })
     }
 
     fn derive_collision_tag(&self, salt: &'static str, info: &[u8]) -> i64 {
@@ -275,10 +266,10 @@ impl GenerateCollisionKey for PerMessageStatus {
     fn collision_tag(&self, key: &SendMessageCollisionKey) -> SendMessageCollisionTag {
         match self.status {
             MessageStatus::Delivered => SendMessageCollisionTag::DeliveryReceipt(
-                key.derive_collision_tag("aux_read", &self.mimi_id),
+                key.derive_collision_tag("delivered", &self.mimi_id),
             ),
             MessageStatus::Read => SendMessageCollisionTag::ReadReceipt(
-                key.derive_collision_tag("aux_delivery", &self.mimi_id),
+                key.derive_collision_tag("read", &self.mimi_id),
             ),
             _ => SendMessageCollisionTag::Other(key.derive_collision_tag("aux", &self.mimi_id)),
         }
@@ -1491,21 +1482,22 @@ impl Group {
     }
 
     /// Derive and register the collision-detection key for the current epoch if not already set
-    pub(crate) fn ensure_collision_key(&mut self, provider: &impl OpenMlsProvider) {
+    pub(crate) fn ensure_collision_key(
+        &mut self,
+        provider: &impl OpenMlsProvider,
+    ) -> anyhow::Result<()> {
         if let Some(key) = self.send_message_collision_key.as_ref()
             && key.epoch == self.mls_group.epoch()
         {
-            return;
+            return Ok(());
         }
 
-        self.send_message_collision_key = SendMessageCollisionKey::from_group(self, provider);
+        self.send_message_collision_key =
+            Some(SendMessageCollisionKey::from_group(self, provider)?);
+        Ok(())
     }
 
     /// Send an application message to the group.
-    ///
-    /// `tag2_value` controls the `aux` collision-detection tag:
-    /// - `None`: the tag uses the current generation (regular messages)
-    /// - `Some(bytes)`: the tag uses the supplied bytes (receipts, keyed by message ID)
     ///
     /// Collision tags are only included when a collision key has been registered via
     /// `ensure_collision_key` (i.e. the group is acting as a virtual client).
@@ -1520,7 +1512,8 @@ impl Group {
             .mls_group
             .create_message(provider, signer, &content.serialize()?)?;
 
-        self.ensure_collision_key(provider);
+        // XXX: do this conditionally on emulator clients only?
+        self.ensure_collision_key(provider)?;
 
         let collision_tags = self
             .send_message_collision_key

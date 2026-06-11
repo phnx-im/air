@@ -460,9 +460,3 @@ impl TryFromRef<'_, aircommon::messages::client_ds_out::TargetedMessageType>
         }
     }
 }
-
-#[derive(thiserror::Error, Debug)]
-pub enum GenerationCollisionDetailTagsConvertError {
-    #[error("unknown bits in enum set: {0:#066b}")]
-    UnknownBits(u32),
-}

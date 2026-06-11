@@ -205,7 +205,6 @@ dependencies = [
  "criterion",
  "displaydoc",
  "ed25519",
- "enumset",
  "futures-util",
  "hex",
  "hkdf 0.12.4",

@@ -1006,14 +1006,13 @@ async fn send_message_collision_tags_first_collides() {
 
     let alice_user = &setup.get_user(&alice).user;
 
+    let first_message_tags = vec![
+        SendMessageCollisionTag::Sequence(0xAAi64),
+        SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
+    ];
+
     alice_user
-        .send_message_with_fixed_collision_tags(
-            chat_id,
-            vec![
-                SendMessageCollisionTag::Sequence(0xAAi64),
-                SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
-            ],
-        )
+        .send_message_with_fixed_collision_tags(chat_id, first_message_tags.clone())
         .await
         .expect("first send should succeed");
 
@@ -1028,13 +1027,12 @@ async fn send_message_collision_tags_first_collides() {
         .await
         .expect_err("send with colliding tag1 should be rejected");
 
-    assert!(
-        error.is_tag_collision(SendMessageCollisionTag::Sequence(0xAAi64)),
-        "expected Tag1 collision, got: {error:?}"
-    );
-    assert!(
-        !error.is_tag_collision(SendMessageCollisionTag::DeliveryReceipt(0xBBi64)),
-        "expected no Tag2 collision, got: {error:?}"
+    let colliding_tags = error.process_tag_collisions(&first_message_tags);
+
+    assert_eq!(
+        colliding_tags,
+        vec![SendMessageCollisionTag::Sequence(0xAAi64),],
+        "sequence collision tag collides"
     );
 }
 
@@ -1059,24 +1057,22 @@ async fn send_message_collision_tags_second_collides() {
         .await
         .expect("first send should succeed");
 
+    let second_message_tags = vec![
+        SendMessageCollisionTag::Sequence(0xCCi64),
+        SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
+    ];
+
     let error = alice_user
-        .send_message_with_fixed_collision_tags(
-            chat_id,
-            vec![
-                SendMessageCollisionTag::Sequence(0xCCi64),
-                SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
-            ],
-        )
+        .send_message_with_fixed_collision_tags(chat_id, second_message_tags.clone())
         .await
         .expect_err("send with colliding tag2 should be rejected");
 
-    assert!(
-        !error.is_tag_collision(SendMessageCollisionTag::Sequence(0xAAi64)),
-        "expected no Tag1 collision, got: {error:?}"
-    );
-    assert!(
-        error.is_tag_collision(SendMessageCollisionTag::DeliveryReceipt(0xBBi64)),
-        "expected Tag2 collision, got: {error:?}"
+    let colliding_tags = error.process_tag_collisions(&second_message_tags);
+
+    assert_eq!(
+        colliding_tags,
+        vec![SendMessageCollisionTag::DeliveryReceipt(0xBBi64),],
+        "the delivery receipt collides"
     );
 }
 
@@ -1090,26 +1086,55 @@ async fn send_message_collision_tags_all_collide() {
 
     let alice_user = &setup.get_user(&alice).user;
 
-    let make_tags = || {
-        vec![
-            SendMessageCollisionTag::Sequence(0xAAi64),
-            SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
-            SendMessageCollisionTag::ReadReceipt(0xCCi64),
-        ]
-    };
+    let tags = vec![
+        SendMessageCollisionTag::Sequence(0xAAi64),
+        SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
+        SendMessageCollisionTag::ReadReceipt(0xCCi64),
+    ];
 
     alice_user
-        .send_message_with_fixed_collision_tags(chat_id, make_tags())
+        .send_message_with_fixed_collision_tags(chat_id, tags.clone())
         .await
         .expect("first send should succeed");
 
     let error = alice_user
-        .send_message_with_fixed_collision_tags(chat_id, make_tags())
+        .send_message_with_fixed_collision_tags(chat_id, tags.clone())
         .await
         .expect_err("second send with identical tags should be rejected");
 
-    let mut colliding_tags = make_tags();
-    error.process_tag_collisions(&mut colliding_tags);
+    let colliding_tags = error.process_tag_collisions(&tags);
 
-    assert_eq!(make_tags(), colliding_tags, "expected all tags to collide");
+    assert_eq!(
+        colliding_tags.clone(),
+        colliding_tags,
+        "expected all tags to collide"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Send message collision tags: from different users", skip_all)]
+async fn send_message_collision_tags_from_different_users_never_collide() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+    let bob_user = &setup.get_user(&bob).user;
+
+    let tags = vec![
+        SendMessageCollisionTag::Sequence(0xAAi64),
+        SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
+        SendMessageCollisionTag::ReadReceipt(0xCCi64),
+    ];
+
+    alice_user
+        .send_message_with_fixed_collision_tags(chat_id, tags.clone())
+        .await
+        .expect("send from alice should succeed");
+
+    bob_user
+        .send_message_with_fixed_collision_tags(chat_id, tags.clone())
+        .await
+        .expect("send from bob should succeed");
 }
