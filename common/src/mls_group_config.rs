@@ -246,7 +246,7 @@ mod test {
         assert!(dictionary.contains(&safe_aad_id));
 
         // ...and its value parses as a `ComponentsList` carrying the given ids
-        // (`safe_aad_required_components()` errors on unparseable values).
+        // (`safe_aad_required_components()` errors on unparsable values).
         let value = dictionary.get(&safe_aad_id).unwrap();
         let list: ComponentsList = tls_codec::Deserialize::tls_deserialize_exact(value).unwrap();
         assert_eq!(list.component_ids, vec![TEST_COMPONENT_ID]);
