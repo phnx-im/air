@@ -15,26 +15,34 @@ pub enum CollisionTagError {
     #[error(transparent)]
     Database(#[from] sqlx::Error),
     #[error("one or more tag(s) collided")]
-    Collision { tags: Vec<u64> },
+    Collision { collisions: Vec<i64> },
     #[error("duplicate tag in input {0:x}")]
     DuplicateTag(i64),
 }
 
 impl From<CollisionTagError> for tonic::Status {
-    fn from(_value: CollisionTagError) -> Self {
-        Self::with_details(
-            Code::AlreadyExists,
-            "generation collision",
-            StatusDetails {
-                code: StatusDetailsCode::GenerationCollision.into(),
-                detail: Some(Detail::GenerationCollision(GenerationCollisionDetail {
-                    // tags: colliding_tags.into(),
-                    tags: 0,
-                })),
+    fn from(error: CollisionTagError) -> Self {
+        match error {
+            CollisionTagError::Database(error) => {
+                tracing::error!(%error, "failed to insert collision tag");
+                Self::internal("database error")
             }
-            .encode_to_vec()
-            .into(),
-        )
+            CollisionTagError::Collision { collisions: tags } => Self::with_details(
+                Code::AlreadyExists,
+                "generation collision",
+                StatusDetails {
+                    code: StatusDetailsCode::GenerationCollision.into(),
+                    detail: Some(Detail::GenerationCollision(GenerationCollisionDetail {
+                        tags,
+                    })),
+                }
+                .encode_to_vec()
+                .into(),
+            ),
+            CollisionTagError::DuplicateTag(tag) => {
+                Self::invalid_argument("duplicate tag in input")
+            }
+        }
     }
 }
 
@@ -80,9 +88,7 @@ pub(super) async fn check_and_insert(
         Ok(())
     } else {
         tx.rollback().await?;
-        Err(CollisionTagError::Collision {
-            tags: collisions.into_iter().map(|h| h as u64).collect(),
-        })
+        Err(CollisionTagError::Collision { collisions })
     }
 
     // Status::with_details(

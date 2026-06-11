@@ -2,8 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::messages::client_ds::GenerationCollisionDetailTag;
-use aircommon::messages::client_ds_out::{SendMessageCollisionTag, SendMessageCollisionTags};
+use aircommon::messages::client_ds_out::SendMessageCollisionTag;
 use aircoreclient::{ChatId, ChatMessage, MimiContentExt, ReadReceiptsSetting, clients::CoreUser};
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use mimi_content::{MessageStatus, MimiContent};
@@ -988,10 +987,10 @@ async fn generation_collision_no_collision() {
     alice_user
         .send_message_with_fixed_collision_tags(
             chat_id,
-            SendMessageCollisionTags {
-                seq: SendMessageCollisionTag::truncate([0xAAu8; 32]),
-                aux: SendMessageCollisionTag::truncate([0xBBu8; 32]),
-            },
+            vec![
+                SendMessageCollisionTag::Sequence(0xAAi64),
+                SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
+            ],
         )
         .await
         .expect("send with new tags should succeed");
@@ -1010,10 +1009,10 @@ async fn generation_collision_tag1_collides() {
     alice_user
         .send_message_with_fixed_collision_tags(
             chat_id,
-            SendMessageCollisionTags {
-                seq: SendMessageCollisionTag::truncate([0xAAu8; 32]),
-                aux: SendMessageCollisionTag::truncate([0xBBu8; 32]),
-            },
+            vec![
+                SendMessageCollisionTag::Sequence(0xAAi64),
+                SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
+            ],
         )
         .await
         .expect("first send should succeed");
@@ -1021,20 +1020,20 @@ async fn generation_collision_tag1_collides() {
     let error = alice_user
         .send_message_with_fixed_collision_tags(
             chat_id,
-            SendMessageCollisionTags {
-                seq: SendMessageCollisionTag::truncate([0xAAu8; 32]),
-                aux: SendMessageCollisionTag::truncate([0xCCu8; 32]),
-            },
+            vec![
+                SendMessageCollisionTag::Sequence(0xAAi64),
+                SendMessageCollisionTag::DeliveryReceipt(0xCCi64),
+            ],
         )
         .await
         .expect_err("send with colliding tag1 should be rejected");
 
     assert!(
-        error.is_generation_collision(GenerationCollisionDetailTag::Tag1),
+        error.is_generation_collision(SendMessageCollisionTag::Sequence(0xAAi64)),
         "expected Tag1 collision, got: {error:?}"
     );
     assert!(
-        !error.is_generation_collision(GenerationCollisionDetailTag::Tag2),
+        !error.is_generation_collision(SendMessageCollisionTag::DeliveryReceipt(0xBBi64)),
         "expected no Tag2 collision, got: {error:?}"
     );
 }
@@ -1052,10 +1051,10 @@ async fn generation_collision_tag2_collides() {
     alice_user
         .send_message_with_fixed_collision_tags(
             chat_id,
-            SendMessageCollisionTags {
-                seq: SendMessageCollisionTag::truncate([0xAAu8; 32]),
-                aux: SendMessageCollisionTag::truncate([0xBBu8; 32]),
-            },
+            vec![
+                SendMessageCollisionTag::Sequence(0xAAi64),
+                SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
+            ],
         )
         .await
         .expect("first send should succeed");
@@ -1063,20 +1062,20 @@ async fn generation_collision_tag2_collides() {
     let error = alice_user
         .send_message_with_fixed_collision_tags(
             chat_id,
-            SendMessageCollisionTags {
-                seq: SendMessageCollisionTag::truncate([0xCCu8; 32]),
-                aux: SendMessageCollisionTag::truncate([0xBBu8; 32]),
-            },
+            vec![
+                SendMessageCollisionTag::Sequence(0xCCi64),
+                SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
+            ],
         )
         .await
         .expect_err("send with colliding tag2 should be rejected");
 
     assert!(
-        !error.is_generation_collision(GenerationCollisionDetailTag::Tag1),
+        !error.is_generation_collision(SendMessageCollisionTag::Sequence(0xAAi64)),
         "expected no Tag1 collision, got: {error:?}"
     );
     assert!(
-        error.is_generation_collision(GenerationCollisionDetailTag::Tag2),
+        error.is_generation_collision(SendMessageCollisionTag::DeliveryReceipt(0xBBi64)),
         "expected Tag2 collision, got: {error:?}"
     );
 }
@@ -1091,27 +1090,34 @@ async fn generation_collision_both_tags_collide() {
 
     let alice_user = &setup.get_user(&alice).user;
 
-    let make_tags = || SendMessageCollisionTags {
-        seq: SendMessageCollisionTag::truncate([0xAAu8; 32]),
-        aux: SendMessageCollisionTag::truncate([0xBBu8; 32]),
-    };
-
     alice_user
-        .send_message_with_fixed_collision_tags(chat_id, make_tags())
+        .send_message_with_fixed_collision_tags(
+            chat_id,
+            vec![
+                SendMessageCollisionTag::Sequence(0xAAi64),
+                SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
+            ],
+        )
         .await
         .expect("first send should succeed");
 
     let error = alice_user
-        .send_message_with_fixed_collision_tags(chat_id, make_tags())
+        .send_message_with_fixed_collision_tags(
+            chat_id,
+            vec![
+                SendMessageCollisionTag::Sequence(0xAAi64),
+                SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
+            ],
+        )
         .await
         .expect_err("second send with identical tags should be rejected");
 
     assert!(
-        error.is_generation_collision(GenerationCollisionDetailTag::Tag1),
+        error.is_generation_collision(SendMessageCollisionTag::Sequence(0xAAi64)),
         "expected Tag1 collision, got: {error:?}"
     );
     assert!(
-        error.is_generation_collision(GenerationCollisionDetailTag::Tag2),
+        error.is_generation_collision(SendMessageCollisionTag::DeliveryReceipt(0xBBi64)),
         "expected Tag2 collision, got: {error:?}"
     );
 }

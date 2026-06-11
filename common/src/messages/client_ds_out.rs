@@ -84,7 +84,7 @@ pub struct SelfRemoveParamsOut {
     pub remove_proposal: AssistedMessageOut,
 }
 
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum SendMessageCollisionTag {
     Sequence(i64),
     DeliveryReceipt(i64),

@@ -126,6 +126,5 @@ message TokenQuotaExceededDetail {
 message WrongEpochDetail {}
 
 message GenerationCollisionDetail {
-  /// Bit-packed (i.e. enumset) representation of which tags collided
-  uint32 tags = 1;
+  repeated sfixed64 tags = 1;
 }

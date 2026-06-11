@@ -224,7 +224,7 @@ impl SendMessageCollisionKey {
             provider.crypto(),
             provider.storage(),
             // when virtual-client-drafts are enabled, use components::vc_derivation_info::VC_COMPONENT_ID instead.
-            0xC0F3,
+            0x000D,
         ) {
             Ok(epoch_secret) => epoch_secret,
             Err(error) => {
@@ -1516,9 +1516,12 @@ impl Group {
         content: MimiContent,
         message_status_report: Option<MessageStatusReport>,
     ) -> Result<SendMessageParamsOut, GroupOperationError> {
+        let mls_message = self
+            .mls_group
+            .create_message(provider, signer, &content.serialize()?)?;
+
         self.ensure_collision_key(provider);
 
-        // Generate collision tags before creating the MLS message because we rely on the *current* ratchet generation
         let collision_tags = self
             .send_message_collision_key
             .as_ref()
@@ -1533,10 +1536,6 @@ impl Group {
                 tags
             })
             .unwrap_or_default();
-
-        let mls_message = self
-            .mls_group
-            .create_message(provider, signer, &content.serialize()?)?;
 
         let message = AssistedMessageOut::new(mls_message, None);
         let suppress_notifications = suppress_notifications(&content);

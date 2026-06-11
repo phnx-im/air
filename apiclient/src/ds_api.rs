@@ -15,11 +15,11 @@ use aircommon::{
     },
     identifiers::{AttachmentId, QsReference, QualifiedGroupId, UserId},
     messages::{
-        client_ds::{GenerationCollisionDetailTag, UserProfileKeyUpdateParams},
+        client_ds::UserProfileKeyUpdateParams,
         client_ds_out::{
             ApqGroupOperationParamsOut, CreateGroupParamsOut, DeleteGroupParamsOut,
             ExternalCommitInfoIn, GroupOperationParamsOut, SelfRemoveParamsOut,
-            SendMessageParamsOut, TargetedMessageParamsOut, WelcomeInfoIn,
+            SendMessageCollisionTag, SendMessageParamsOut, TargetedMessageParamsOut, WelcomeInfoIn,
         },
     },
     time::TimeStamp,
@@ -88,14 +88,14 @@ impl DsRequestError {
         }
     }
 
-    pub fn is_generation_collision(&self, tag: GenerationCollisionDetailTag) -> bool {
+    pub fn is_generation_collision(&self, tag: SendMessageCollisionTag) -> bool {
         if let Self::Tonic(status) = self
             && status.code() == tonic::Code::AlreadyExists
             && let Some(details) = StatusDetails::from_status(status)
             && let StatusDetailsCode::GenerationCollision = details.code()
             && let Some(status_details::Detail::GenerationCollision(generation_collision_detail)) =
                 details.detail
-            && generation_collision_detail.tags().contains(tag)
+            && generation_collision_detail.tags.contains(&tag.into_inner())
         {
             true
         } else {
