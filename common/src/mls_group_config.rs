@@ -143,10 +143,39 @@ where
         .expect("invalid extensions")
 }
 
-/// # Panics
+/// Extension which contains the default app data dictionary for the group context.
 ///
-/// Since we are building a static list of components here, we can assume that this function never
-/// panics. Panic-safety is additionally tested in the unit tests.
+/// If `safe_aad_required` is true, the app data dictionary sets the `SafeAad` component as a
+/// required component.
+pub fn default_group_context_app_data_dictionary_extension(
+    safe_aad_components: Option<Vec<ComponentId>>,
+) -> Extension {
+    let component_ids = if safe_aad_components.is_some() {
+        vec![ComponentType::SafeAad.into()]
+    } else {
+        Vec::new()
+    };
+
+    let mut app_data_dictionary = AppDataDictionary::new();
+    app_data_dictionary.insert(
+        ComponentType::AppComponents.into(),
+        ComponentsList { component_ids }
+            .tls_serialize_detached()
+            .expect("invalid component list"),
+    );
+    if let Some(component_ids) = safe_aad_components {
+        app_data_dictionary.insert(
+            ComponentType::SafeAad.into(),
+            ComponentsList { component_ids }
+                .tls_serialize_detached()
+                .expect("invalid component list"),
+        );
+    }
+
+    Extension::AppDataDictionary(AppDataDictionaryExtension::new(app_data_dictionary))
+}
+
+/// Extension which contains the default app data dictionary for the leaf node/key package.
 pub fn default_app_data_dictionary_extension<C: AppComponent>() -> Extension {
     let mut app_data_dictionary = AppDataDictionary::new();
 
@@ -193,5 +222,52 @@ mod test {
         for capability in group_extensions {
             assert!(leaf_node_extensions.contains(capability));
         }
+    }
+
+    fn dictionary_of(extension: Extension) -> AppDataDictionary {
+        let Extension::AppDataDictionary(extension) = extension else {
+            panic!("not an app data dictionary extension");
+        };
+        extension.dictionary().clone()
+    }
+
+    /// `safe_aad_required()` on the group context checks for a dictionary entry whose *key* is the
+    /// SafeAad component id. This pins that the helper puts the marker in the right place: a wrong
+    /// placement compiles and runs, but silently disables the entire SafeAAD pipeline.
+    #[test]
+    fn group_context_dictionary_with_safe_aad() {
+        const TEST_COMPONENT_ID: ComponentId = 0x8042;
+        let dictionary = dictionary_of(default_group_context_app_data_dictionary_extension(Some(
+            vec![TEST_COMPONENT_ID],
+        )));
+
+        // The SafeAad entry is present as a dictionary key...
+        let safe_aad_id = ComponentId::from(ComponentType::SafeAad);
+        assert!(dictionary.contains(&safe_aad_id));
+
+        // ...and its value parses as a `ComponentsList` carrying the given ids
+        // (`safe_aad_required_components()` errors on unparseable values).
+        let value = dictionary.get(&safe_aad_id).unwrap();
+        let list: ComponentsList = tls_codec::Deserialize::tls_deserialize_exact(value).unwrap();
+        assert_eq!(list.component_ids, vec![TEST_COMPONENT_ID]);
+
+        // The AppComponents entry is present and parseable, too.
+        let value = dictionary
+            .get(&ComponentId::from(ComponentType::AppComponents))
+            .unwrap();
+        let _: ComponentsList = tls_codec::Deserialize::tls_deserialize_exact(value).unwrap();
+    }
+
+    #[test]
+    fn group_context_dictionary_without_safe_aad() {
+        let dictionary = dictionary_of(default_group_context_app_data_dictionary_extension(None));
+
+        assert!(!dictionary.contains(&ComponentId::from(ComponentType::SafeAad)));
+
+        let value = dictionary
+            .get(&ComponentId::from(ComponentType::AppComponents))
+            .unwrap();
+        let list: ComponentsList = tls_codec::Deserialize::tls_deserialize_exact(value).unwrap();
+        assert!(list.component_ids.is_empty());
     }
 }

@@ -8,7 +8,7 @@ use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
 /// The component ID of the virtual client key package upload component
 ///
 /// Private-use range
-pub const VIRTUAL_CLIENT_KP_UPLOAD_COMPONENT_ID: ComponentId = 0x8001;
+pub const VIRTUAL_CLIENT_KP_UPLOAD_COMPONENT_ID: ComponentId = 0x8002;
 
 #[derive(Clone, TlsSerialize, TlsDeserializeBytes, TlsSize)]
 pub struct VirtualClientKeyPackageUpload {

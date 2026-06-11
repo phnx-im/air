@@ -216,6 +216,7 @@ impl CoreUser {
             qs_user_id: *final_state.qs_user_id(),
             qs_client_id: *final_state.qs_client_id(),
             user_id: final_state.user_id().clone(),
+            self_group_id: None, // Created lazily on first use
         }
         .store(client_db.write().await?)
         .await?;

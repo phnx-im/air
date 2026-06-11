@@ -7,14 +7,15 @@ use aircommon::{
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     mls_group_config::{
         APQ_CIPHERSUITE, GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS,
-        default_group_required_extensions, default_leaf_node_capabilities,
-        default_sender_ratchet_configuration,
+        default_group_context_app_data_dictionary_extension, default_group_required_extensions,
+        default_leaf_node_capabilities, default_sender_ratchet_configuration,
     },
     time::TimeStamp,
 };
 use apqmls::{ApqMlsGroup, authentication::ApqCredentialWithKey};
 use mimi_room_policy::{RoomPolicy, VerifiedRoomState};
 use openmls::{
+    component::ComponentId,
     group::{GroupId, MlsGroup, PURE_PLAINTEXT_WIRE_FORMAT_POLICY},
     prelude::{
         Credential, CredentialType, CredentialWithKey, Extension, Extensions, UnknownExtension,
@@ -54,6 +55,7 @@ impl Group {
         t_group_id: GroupId,
         pq_group_id: GroupId,
         group_data_bytes: GroupDataBytes,
+        safe_aad_components: Option<Vec<ComponentId>>,
     ) -> anyhow::Result<(Self, PartialCreateGroupParams)> {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
 
@@ -66,8 +68,13 @@ impl Group {
             GROUP_DATA_EXTENSION_TYPE,
             UnknownExtension(group_data_bytes.bytes),
         );
-        let gc_extensions =
-            Extensions::from_vec(vec![group_data_extension, required_capabilities])?;
+        let gc_extensions = Extensions::from_vec(vec![
+            group_data_extension,
+            required_capabilities,
+            // APQ groups automatically add an app data dictionary extension (to required
+            // capabilities), so we can safely add it here for all APQ groups.
+            default_group_context_app_data_dictionary_extension(safe_aad_components),
+        ])?;
 
         let t_credential = CredentialWithKey {
             credential: signer.credential().try_into()?,

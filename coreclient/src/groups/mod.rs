@@ -13,6 +13,7 @@ pub(crate) mod error;
 pub(crate) mod openmls_provider;
 pub(crate) mod persistence;
 pub(crate) mod process;
+pub(crate) mod self_group;
 
 pub(crate) use error::*;
 pub(crate) use persistence::VerifiedGroup;
