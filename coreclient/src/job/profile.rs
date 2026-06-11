@@ -79,12 +79,14 @@ impl CoreUser {
         sender_id: UserId,
         uploaded_at: TimeStamp,
         external_group_profile: ExternalGroupProfile,
+        is_initial_fetch: bool,
     ) -> sqlx::Result<()> {
         FetchGroupProfileOperation {
             group_id,
             sender_id,
             uploaded_at,
             external_group_profile,
+            is_initial_fetch,
         }
         .into_operation()
         .enqueue(connection)
@@ -189,6 +191,12 @@ pub(crate) struct FetchGroupProfileOperation {
     sender_id: UserId,
     uploaded_at: TimeStamp,
     external_group_profile: ExternalGroupProfile,
+    /// Set when the operation is enqueued from the welcome flow.
+    ///
+    /// When set the fetch represents the initial download of the group profile and must not produce
+    /// "title changed" / "picture changed" system messages.
+    #[serde(default)]
+    is_initial_fetch: bool,
 }
 
 impl OperationData for FetchGroupProfileOperation {
@@ -218,6 +226,7 @@ impl Job for FetchGroupProfileOperation {
             sender_id,
             uploaded_at,
             external_group_profile,
+            is_initial_fetch,
         } = self;
 
         info!(
@@ -293,23 +302,26 @@ impl Job for FetchGroupProfileOperation {
             .write()
             .await?
             .with_transaction(async |txn| -> anyhow::Result<()> {
-                let mut messages = Vec::new();
+                let new_picture = group_profile.picture.map(|p| p.into());
 
-                let chat_attributes = ChatAttributes::new(
-                    group_profile.title,
-                    group_profile.picture.map(|p| p.into()),
-                );
-                update_chat_attributes(
-                    &mut *txn,
-                    &mut chat,
-                    &sender_id,
-                    chat_attributes,
-                    uploaded_at,
-                    &mut messages,
-                )
-                .await?;
-
-                CoreUser::store_new_messages(txn, chat.id(), messages).await?;
+                if is_initial_fetch {
+                    // => no system messages
+                    chat.set_title(&mut *txn, group_profile.title).await?;
+                    chat.set_picture(&mut *txn, new_picture).await?;
+                } else {
+                    let mut messages = Vec::new();
+                    let chat_attributes = ChatAttributes::new(group_profile.title, new_picture);
+                    update_chat_attributes(
+                        &mut *txn,
+                        &mut chat,
+                        &sender_id,
+                        chat_attributes,
+                        uploaded_at,
+                        &mut messages,
+                    )
+                    .await?;
+                    CoreUser::store_new_messages(txn, chat.id(), messages).await?;
+                }
 
                 debug!(?group_id, chat_id = %chat.id(), "Updated chat attributes");
 

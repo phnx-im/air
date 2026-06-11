@@ -340,6 +340,7 @@ impl CoreUser {
                     sender_user_id.clone(),
                     ds_timestamp,
                     external_group_profile,
+                    true,
                 )
                 .await?;
             }
@@ -912,6 +913,7 @@ impl CoreUser {
                         sender_client_credential.user_id().clone(),
                         ds_timestamp,
                         external_group_profile,
+                        false,
                     )
                     .await?;
                     None
