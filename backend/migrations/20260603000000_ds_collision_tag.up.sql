@@ -5,6 +5,6 @@
 CREATE TABLE ds_collision_tag (
     group_id UUID    NOT NULL REFERENCES encrypted_group (group_id) ON DELETE CASCADE,
     epoch    BIGINT  NOT NULL,
-    tag      BIGINT   NOT NULL,
+    tag      BIGINT  NOT NULL,
     PRIMARY KEY (group_id, epoch, tag)
 );

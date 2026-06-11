@@ -235,10 +235,10 @@ impl SendMessageCollisionKey {
         Ok(Self { epoch, kdf })
     }
 
-    fn derive_collision_tag(&self, salt: &'static str, info: &[u8]) -> i64 {
+    fn derive_collision_tag(&self, prefix: &'static str, info: &[u8]) -> i64 {
         // our KDF is using SHA-256 but you can request less bytes, it is just truncated internally.
         let mut tag: [u8; 8] = [0u8; 8];
-        let info = &[salt.as_bytes(), info].concat();
+        let info = &[prefix.as_bytes(), info].concat();
         self.kdf
             .expand(info.as_slice(), &mut tag)
             .expect("8 bytes is a valid HKDF-Expand SHA-256 truncated output length");

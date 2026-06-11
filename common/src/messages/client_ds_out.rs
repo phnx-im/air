@@ -7,7 +7,7 @@
 //! TODO: We should eventually factor this module out, together with the crypto
 //! module, to allow re-use by the client implementation.
 
-use std::{collections::HashMap, ops::Deref};
+use std::collections::HashMap;
 
 use apqmls::commit_builder::ApqCommitMessageBundle;
 use mimi_room_policy::VerifiedRoomState;
@@ -92,15 +92,13 @@ pub enum SendMessageCollisionTag {
     Other(i64),
 }
 
-impl Deref for SendMessageCollisionTag {
-    type Target = i64;
-
-    fn deref(&self) -> &Self::Target {
+impl SendMessageCollisionTag {
+    pub fn value(&self) -> i64 {
         match self {
-            SendMessageCollisionTag::Sequence(t) => t,
-            SendMessageCollisionTag::DeliveryReceipt(t) => t,
-            SendMessageCollisionTag::ReadReceipt(t) => t,
-            SendMessageCollisionTag::Other(t) => t,
+            SendMessageCollisionTag::Sequence(t) => *t,
+            SendMessageCollisionTag::DeliveryReceipt(t) => *t,
+            SendMessageCollisionTag::ReadReceipt(t) => *t,
+            SendMessageCollisionTag::Other(t) => *t,
         }
     }
 }

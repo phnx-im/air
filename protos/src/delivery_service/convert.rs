@@ -6,11 +6,7 @@ use aircommon::{
     credentials::keys,
     crypto::{aead, secrets},
     identifiers,
-    messages::{
-        client_ds::{self},
-        client_ds_out::AddUsersInfoOut,
-        welcome_attribution_info,
-    },
+    messages::{client_ds, client_ds_out::AddUsersInfoOut, welcome_attribution_info},
 };
 use apqmls::messages::{ApqMlsMessageIn, ApqMlsMessageOut};
 use mls_assist::messages::AssistedWelcome;

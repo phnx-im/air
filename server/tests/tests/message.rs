@@ -1104,11 +1104,7 @@ async fn send_message_collision_tags_all_collide() {
 
     let colliding_tags = error.process_tag_collisions(&tags);
 
-    assert_eq!(
-        colliding_tags.clone(),
-        colliding_tags,
-        "expected all tags to collide"
-    );
+    assert_eq!(tags, colliding_tags, "expected all tags to collide");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -1121,12 +1117,6 @@ async fn send_message_collision_tags_from_different_users_never_collide() {
 
     let alice_user = &setup.get_user(&alice).user;
     let bob_user = &setup.get_user(&bob).user;
-
-    let tags = vec![
-        SendMessageCollisionTag::Sequence(0xAAi64),
-        SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
-        SendMessageCollisionTag::ReadReceipt(0xCCi64),
-    ];
 
     let content = MimiContent::simple_markdown_message("collision-test".into(), [0u8; 16]);
 

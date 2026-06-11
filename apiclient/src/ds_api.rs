@@ -33,12 +33,12 @@ use airprotos::{
     convert::{RefInto, TryRefInto},
     delivery_service::v1::{
         AddUsersInfo, ApqAddUsersInfo, ApqAssistedMlsMessage, ApqGroupOperationPayload,
-        CollisionTags, ConnectionGroupInfoRequest, CreateApqGroupPayload, CreateGroupPayload,
-        DeleteGroupPayload, ExternalCommitInfoRequest, GetAttachmentUrlPayload,
-        GroupOperationPayload, GroupSessionData, IndexedEncryptedUserProfileKey,
-        JoinConnectionGroupRequest, ProvisionAttachmentPayload, RequestGroupIdRequest,
-        ResyncPayload, SelfRemovePayload, SendMessagePayload, StorageObjectType,
-        TargetedMessagePayload, UpdateProfileKeyPayload, WelcomeInfoPayload,
+        ConnectionGroupInfoRequest, CreateApqGroupPayload, CreateGroupPayload, DeleteGroupPayload,
+        ExternalCommitInfoRequest, GetAttachmentUrlPayload, GroupOperationPayload,
+        GroupSessionData, IndexedEncryptedUserProfileKey, JoinConnectionGroupRequest,
+        ProvisionAttachmentPayload, RequestGroupIdRequest, ResyncPayload, SelfRemovePayload,
+        SendMessageCollisionTags, SendMessagePayload, StorageObjectType, TargetedMessagePayload,
+        UpdateProfileKeyPayload, WelcomeInfoPayload,
     },
     validation::MissingFieldExt,
 };
@@ -100,7 +100,7 @@ impl DsRequestError {
         {
             tags.iter()
                 .cloned()
-                .filter(|tag| detail.tags.contains(tag))
+                .filter(|tag| detail.tags.contains(&tag.value()))
                 .collect()
         } else {
             Vec::new()
@@ -538,8 +538,12 @@ impl ApiClient {
             message: Some(params.message.try_ref_into()?),
             sender: Some(params.sender.into()),
             suppress_notifications: Some(params.suppress_notifications),
-            collision_tags: Some(CollisionTags {
-                tags: params.collision_tags.into_iter().map(|t| *t).collect(),
+            collision_tags: Some(SendMessageCollisionTags {
+                tags: params
+                    .collision_tags
+                    .into_iter()
+                    .map(|t| t.value())
+                    .collect(),
             }),
         };
         let request = payload.sign(signing_key)?;

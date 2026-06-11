@@ -1043,12 +1043,16 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let payload: SendMessagePayload =
             request.verify(verifying_key).map_err(InvalidSignature)?;
 
-        if let Some(CollisionTags { tags }) = payload.collision_tags {
-            let epoch = group_state.group().epoch().as_u64() as i64;
+        if let Some(SendMessageCollisionTags { tags }) = payload.collision_tags {
+            let current = group_state.group().epoch().as_u64();
+            let msg_epoch = message.epoch().as_u64();
+            if msg_epoch > current || msg_epoch + MAX_PAST_EPOCHS as u64 <= current {
+                return Err(Status::invalid_argument("message epoch out of range"));
+            }
             super::collision_tags::check_and_insert(
                 &self.ds.db_pool,
                 qgid.group_uuid(),
-                epoch,
+                msg_epoch as i64,
                 tags,
             )
             .await?;

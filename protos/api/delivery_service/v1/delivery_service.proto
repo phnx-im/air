@@ -314,10 +314,10 @@ message SendMessagePayload {
   AssistedMessage message = 2;
   LeafNodeIndex sender = 3;
   optional bool suppress_notifications = 4;
-  CollisionTags collision_tags = 6;
+  SendMessageCollisionTags collision_tags = 6;
 }
 
-message CollisionTags {
+message SendMessageCollisionTags {
   repeated sfixed64 tags = 1; // truncated first 8-bytes of a hash
 }
 
