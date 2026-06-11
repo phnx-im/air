@@ -19,6 +19,7 @@ enum AppIconType {
   checkCheckFill,
   checkCheck,
   check,
+  chevronRight,
   chevronsDown,
   circleAlert,
   circleDashed,
@@ -85,6 +86,9 @@ final Map<AppIconType, _InlineBytesLoader> _compiledSvgLoaders = {
   ),
   AppIconType.check: const _InlineBytesLoader(
     'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAADAAAAAAEBBgAAAAAAAAAAoEEAAMBAAAAQQQAAiEEAAIBAAABAQTAeAAAAAP//',
+  ),
+  AppIconType.chevronRight: const _InlineBytesLoader(
+    'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAABAAAD//xsAAAADAAAAAAEBBgAAAAAAAAAAEEEAAJBBAABwQQAAQEEAABBBAADAQDAeAAAAAP//',
   ),
   AppIconType.chevronsDown: const _InlineBytesLoader(
     'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAADAAAAAAEBBgAAAAAAAAAA4EAAAMBAAABAQQAAMEEAAIhBAADAQBsAAQADAAAAAAEBBgAAAAAAAOBAAABQQQAAQEEAAJBBAACIQQAAUEEwHgAAAAD//x4BAAAA//8=',
@@ -249,6 +253,11 @@ class AppIcon extends StatelessWidget {
 
   const AppIcon.check({super.key, this.size, this.color})
     : type = AppIconType.check,
+      fit = BoxFit.contain,
+      alignment = Alignment.center;
+
+  const AppIcon.chevronRight({super.key, this.size, this.color})
+    : type = AppIconType.chevronRight,
       fit = BoxFit.contain,
       alignment = Alignment.center;
 
