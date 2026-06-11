@@ -16,16 +16,16 @@ pub(crate) use airprotos::client::component::{AirComponent, AirFeatures};
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{
-    Asset, ChatAttributes, ChatMessage, ChatMuted, ChatStatus, ChatType, Contact, ContentMessage,
-    DisplayName, ErrorMessage, EventMessage, InactiveChat, Message, MessageDraft, SystemMessage,
-    TargetedMessageContact, UserProfile, clients::CoreUser,
+    Asset, AttachmentId, ChatAttributes, ChatMessage, ChatMuted, ChatStatus, ChatType, Contact,
+    ContentMessage, DisplayName, ErrorMessage, EventMessage, InactiveChat, Message, MessageDraft,
+    SystemMessage, TargetedMessageContact, UserProfile, clients::CoreUser,
 };
 use chrono::{DateTime, Duration, Local, Utc};
 use flutter_rust_bridge::frb;
 use mimi_content::MessageStatus;
 use uuid::Uuid;
 
-use crate::api::message_content::{UiMimiContent, UiMimiId};
+use crate::api::message_content::{UiMimiContent, UiMimiId, UnresolvedMimiContent};
 
 /// Mode for deleting a message
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -169,12 +169,11 @@ impl From<MessageDraft> for UiMessageDraft {
                     match irt {
                         Some(in_reply_to) => UiInReplyToMessage::Resolved {
                             message_id: in_reply_to.message_id,
-                            sender: in_reply_to.sender.clone().into(),
-                            mimi_content: in_reply_to
-                                .mimi_content
-                                .clone()
-                                .unwrap_or_default()
-                                .into(),
+                            sender: in_reply_to.sender.into(),
+                            mimi_content: UnresolvedMimiContent::from(
+                                in_reply_to.mimi_content.unwrap_or_default(),
+                            )
+                            .resolve(&[]), // No local attachment IDs for drafts
                         },
                         None => UiInReplyToMessage::NotFound,
                     },
@@ -372,41 +371,54 @@ pub enum UiMessageStatus {
     Error,
 }
 
-impl From<ChatMessage> for UiChatMessage {
-    fn from(message: ChatMessage) -> Self {
-        let status = match message.status() {
+impl UiChatMessage {
+    pub(crate) fn from_message(
+        mut chat_message: ChatMessage,
+        local_attachment_ids: &[AttachmentId],
+    ) -> Self {
+        let status = match chat_message.status() {
             MessageStatus::Error => UiMessageStatus::Error,
             MessageStatus::Read => UiMessageStatus::Read,
             MessageStatus::Delivered => UiMessageStatus::Delivered,
             MessageStatus::Hidden => UiMessageStatus::Hidden,
-            _ if !message.is_sent() => UiMessageStatus::Sending,
+            _ if !chat_message.is_sent() => UiMessageStatus::Sending,
             _ => UiMessageStatus::Sent,
         };
 
-        let in_reply_to = message.in_reply_to().map(|irt| match irt {
+        let in_reply_to_message = chat_message.take_in_reply_to().map(|irt| match irt {
             (_, Some(in_reply_to)) => UiInReplyToMessage::Resolved {
                 message_id: in_reply_to.message_id,
-                sender: in_reply_to.sender.clone().into(),
-                mimi_content: in_reply_to.mimi_content.clone().unwrap_or_default().into(),
+                sender: in_reply_to.sender.into(),
+                mimi_content: UnresolvedMimiContent::from(
+                    in_reply_to.mimi_content.unwrap_or_default(),
+                )
+                .resolve(&[]), // No local attachment IDs for replies
             },
             // this means we have a reference but couldn't load the contents
             // (i.e. deleted for me, or in past history after joining).
             (_, None) => UiInReplyToMessage::NotFound,
         });
 
+        let chat_id = chat_message.chat_id();
+        let id = chat_message.id();
+        let timestamp = chat_message.timestamp().with_timezone(&Local);
+        let message = chat_message.into_message();
+
         Self {
-            chat_id: message.chat_id(),
-            id: message.id(),
-            timestamp: message.timestamp().with_timezone(&Local),
-            message: UiMessage::from(message.message().clone()),
-            in_reply_to_message: in_reply_to,
+            chat_id,
+            id,
+            timestamp,
+            message: UiMessage::from_message(message, local_attachment_ids),
+            in_reply_to_message,
             position: UiFlightPosition::Single,
             status,
         }
     }
-}
 
-impl UiChatMessage {
+    pub(crate) fn from_message_without_attachments(message: ChatMessage) -> Self {
+        Self::from_message(message, &[])
+    }
+
     pub(crate) fn timestamp(&self) -> DateTime<Utc> {
         self.timestamp.with_timezone(&Utc)
     }
@@ -422,12 +434,12 @@ pub enum UiMessage {
     Display(UiEventMessage),
 }
 
-impl From<Message> for UiMessage {
-    fn from(message: Message) -> Self {
+impl UiMessage {
+    fn from_message(message: Message, local_attachment_ids: &[AttachmentId]) -> Self {
         match message {
-            Message::Content(content_message) => {
-                UiMessage::Content(Box::new(UiContentMessage::from(*content_message)))
-            }
+            Message::Content(content_message) => UiMessage::Content(Box::new(
+                UiContentMessage::from_message(*content_message, local_attachment_ids),
+            )),
             Message::Event(display_message) => {
                 UiMessage::Display(UiEventMessage::from(display_message))
             }
@@ -445,8 +457,11 @@ pub struct UiContentMessage {
     pub edited: bool,
 }
 
-impl From<ContentMessage> for UiContentMessage {
-    fn from(content_message: ContentMessage) -> Self {
+impl UiContentMessage {
+    fn from_message(
+        content_message: ContentMessage,
+        local_attachment_ids: &[AttachmentId],
+    ) -> Self {
         let sent = content_message.was_sent();
         let edited = content_message.edited_at().is_some();
         let (sender, content) = content_message.into_sender_and_content();
@@ -454,7 +469,7 @@ impl From<ContentMessage> for UiContentMessage {
             sender: sender.into(),
             sent,
             edited,
-            content: UiMimiContent::from(content),
+            content: UnresolvedMimiContent::from(content).resolve(local_attachment_ids),
         }
     }
 }

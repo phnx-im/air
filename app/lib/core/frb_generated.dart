@@ -10233,10 +10233,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (arr.length != 6)
       throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
     return UiMimiContent(
-      replaces: dco_decode_opt_list_prim_u_8_strict(arr[0]),
-      topicId: dco_decode_list_prim_u_8_strict(arr[1]),
-      inReplyTo: dco_decode_opt_list_prim_u_8_strict(arr[2]),
-      plainBody: dco_decode_opt_String(arr[3]),
+      plainBody: dco_decode_opt_String(arr[0]),
+      replaces: dco_decode_opt_list_prim_u_8_strict(arr[1]),
+      topicId: dco_decode_list_prim_u_8_strict(arr[2]),
+      inReplyTo: dco_decode_opt_list_prim_u_8_strict(arr[3]),
       content: dco_decode_opt_box_autoadd_message_content(arr[4]),
       attachments: dco_decode_list_ui_attachment(arr[5]),
     );
@@ -13672,17 +13672,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @protected
   UiMimiContent sse_decode_ui_mimi_content(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_plainBody = sse_decode_opt_String(deserializer);
     var var_replaces = sse_decode_opt_list_prim_u_8_strict(deserializer);
     var var_topicId = sse_decode_list_prim_u_8_strict(deserializer);
     var var_inReplyTo = sse_decode_opt_list_prim_u_8_strict(deserializer);
-    var var_plainBody = sse_decode_opt_String(deserializer);
     var var_content = sse_decode_opt_box_autoadd_message_content(deserializer);
     var var_attachments = sse_decode_list_ui_attachment(deserializer);
     return UiMimiContent(
+      plainBody: var_plainBody,
       replaces: var_replaces,
       topicId: var_topicId,
       inReplyTo: var_inReplyTo,
-      plainBody: var_plainBody,
       content: var_content,
       attachments: var_attachments,
     );
@@ -17197,10 +17197,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_opt_String(self.plainBody, serializer);
     sse_encode_opt_list_prim_u_8_strict(self.replaces, serializer);
     sse_encode_list_prim_u_8_strict(self.topicId, serializer);
     sse_encode_opt_list_prim_u_8_strict(self.inReplyTo, serializer);
-    sse_encode_opt_String(self.plainBody, serializer);
     sse_encode_opt_box_autoadd_message_content(self.content, serializer);
     sse_encode_list_ui_attachment(self.attachments, serializer);
   }
@@ -17517,7 +17517,7 @@ class ChatDetailsCubitBaseImpl extends RustOpaque
       );
 
   /// Mute notifications for this chat until the given datetime.
-  /// Pass `None` to mute indefinitely.
+  /// Pass `None` to unmute.
   Future<void> muteChat({UiChatMuted? mutedUntil}) =>
       RustLib.instance.api.crateApiChatDetailsCubitChatDetailsCubitBaseMuteChat(
         that: this,

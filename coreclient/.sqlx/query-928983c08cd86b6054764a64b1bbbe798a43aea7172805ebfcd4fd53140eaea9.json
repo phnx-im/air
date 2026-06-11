@@ -1,10 +1,10 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT attachment_id AS \"attachment_id: AttachmentId\"\n            FROM attachment\n            WHERE message_id = ?",
+  "query": "DELETE FROM attachment WHERE message_id = ?\n            RETURNING attachment_id AS \"attachment_id: _\"",
   "describe": {
     "columns": [
       {
-        "name": "attachment_id: AttachmentId",
+        "name": "attachment_id: _",
         "ordinal": 0,
         "type_info": "Blob",
         "origin": {
@@ -22,5 +22,5 @@
       false
     ]
   },
-  "hash": "cc563cae38b29b638ebc6e393131cb95ad0c95c205235d0f96e3c995d2018768"
+  "hash": "928983c08cd86b6054764a64b1bbbe798a43aea7172805ebfcd4fd53140eaea9"
 }

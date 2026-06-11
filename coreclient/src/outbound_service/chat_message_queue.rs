@@ -2,26 +2,18 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::AttachmentId;
-
 use crate::{ChatId, MessageId};
 
 pub(crate) struct ChatMessageQueue {
     chat_id: ChatId,
     message_id: MessageId,
-    attachment_id: Option<AttachmentId>,
 }
 
 impl ChatMessageQueue {
-    pub(crate) fn new(
-        chat_id: ChatId,
-        message_id: MessageId,
-        attachment_id: Option<AttachmentId>,
-    ) -> Self {
+    pub(crate) fn new(chat_id: ChatId, message_id: MessageId) -> Self {
         Self {
             chat_id,
             message_id,
-            attachment_id,
         }
     }
 }
@@ -33,10 +25,7 @@ mod persistence {
     use tracing::debug;
     use uuid::Uuid;
 
-    use crate::{
-        clients::attachment::persistence::PendingAttachmentRecord,
-        db::access::{WriteConnection, WriteDbTransaction},
-    };
+    use crate::db::access::{WriteConnection, WriteDbTransaction};
 
     use super::*;
 
@@ -53,12 +42,11 @@ mod persistence {
 
             query!(
                 "INSERT INTO chat_message_queue
-                    (chat_id, message_id, attachment_id, created_at)
-                VALUES (?1, ?2, ?3, ?4)
+                    (chat_id, message_id, created_at)
+                VALUES (?1, ?2, ?3)
                 ON CONFLICT DO NOTHING",
                 self.chat_id,
                 self.message_id,
-                self.attachment_id,
                 now,
             )
             .execute(connection.as_mut())
@@ -119,20 +107,12 @@ mod persistence {
             txn: &mut WriteDbTransaction<'_>,
             message_id: MessageId,
         ) -> sqlx::Result<()> {
-            let attachment_id = query_scalar!(
-                r#"DELETE FROM chat_message_queue
-                WHERE message_id = ?
-                RETURNING attachment_id AS "uuid: _"
-                "#,
+            query!(
+                "DELETE FROM chat_message_queue WHERE message_id = ?",
                 message_id
             )
-            .fetch_one(txn.as_mut())
+            .execute(txn.as_mut())
             .await?;
-
-            if let Some(attachment_id) = attachment_id {
-                PendingAttachmentRecord::delete(txn, attachment_id).await?;
-            }
-
             Ok(())
         }
 
@@ -148,14 +128,6 @@ mod persistence {
             )
             .execute(txn.as_mut())
             .await?;
-            if let Some(attachment_id) = self.attachment_id {
-                query!(
-                    "DELETE FROM pending_attachment WHERE attachment_id = ?",
-                    attachment_id
-                )
-                .execute(txn.as_mut())
-                .await?;
-            }
             query!(
                 "DELETE FROM chat_message_queue WHERE message_id = ?",
                 self.message_id,
@@ -183,8 +155,8 @@ mod persistence {
                     SELECT message_id FROM chat_message_queue
                 );
                 DELETE FROM pending_attachment
-                WHERE attachment_id IN (
-                    SELECT attachment_id FROM chat_message_queue
+                WHERE remote_attachment_id IN (
+                    SELECT remote_attachment_id FROM chat_message_queue
                 );
 
                 DELETE FROM chat_message_queue

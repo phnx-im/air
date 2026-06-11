@@ -10,7 +10,7 @@ use airapiclient::ds_api::DsAttachmentTarget;
 use aircommon::{
     credentials::ClientCredential,
     crypto::indexed_aead::{ciphertexts::IndexDecryptable, keys::UserProfileKey},
-    identifiers::{AttachmentId, UserId},
+    identifiers::{RemoteAttachmentId, UserId},
     messages::client_as_out::GetUserProfileResponse,
     time::TimeStamp,
 };
@@ -260,7 +260,7 @@ impl Job for FetchGroupProfileOperation {
 
         // Fetch group profile from the object storage
         let api_client = context.api_clients.get(&chat.owner_domain())?;
-        let attachment_id = AttachmentId::new(external_group_profile.object_id);
+        let remote_attachment_id = RemoteAttachmentId::new(external_group_profile.object_id);
         let url = api_client
             .ds_get_attachment_url(
                 StorageObjectType::GroupProfile,
@@ -270,7 +270,7 @@ impl Job for FetchGroupProfileOperation {
                     group_id: group.group_id(),
                     sender_index: group.own_index(),
                 },
-                attachment_id,
+                remote_attachment_id,
             )
             .await?;
         let bytes = context

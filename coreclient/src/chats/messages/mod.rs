@@ -262,6 +262,10 @@ impl ChatMessage {
         &self.timestamped_message.message
     }
 
+    pub fn into_message(self) -> Message {
+        self.timestamped_message.message
+    }
+
     pub fn set_content_message(&mut self, message: ContentMessage) {
         self.timestamped_message.message = Message::Content(Box::new(message));
     }
@@ -272,6 +276,10 @@ impl ChatMessage {
 
     pub fn in_reply_to(&self) -> Option<&(MimiId, Option<InReplyToMessage>)> {
         self.in_reply_to.as_ref()
+    }
+
+    pub fn take_in_reply_to(&mut self) -> Option<(MimiId, Option<InReplyToMessage>)> {
+        self.in_reply_to.take()
     }
 }
 

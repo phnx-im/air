@@ -116,11 +116,15 @@ impl MessageContext {
 
     async fn load_and_emit_state(&self) {
         let message = self.core_user.message(self.message_id).await;
+        let local_attachment_ids = self
+            .core_user
+            .attachment_ids_for_message(self.message_id)
+            .await;
 
         debug!(?message, "load_and_emit_state");
         match message {
             Ok(Some(message)) => {
-                let mut message = UiChatMessage::from(message);
+                let mut message = UiChatMessage::from_message(message, &local_attachment_ids);
                 message.position = calculate_flight_position(&self.core_user, &message)
                     .await
                     .inspect_err(|error| error!(?error, "Failed to calculate flight position"))
@@ -173,11 +177,11 @@ async fn calculate_flight_position(
     let prev_message = core_user
         .prev_message(message.chat_id, message.id)
         .await?
-        .map(From::from);
+        .map(UiChatMessage::from_message_without_attachments);
     let next_message = core_user
         .next_message(message.chat_id, message.id)
         .await?
-        .map(From::from);
+        .map(UiChatMessage::from_message_without_attachments);
     Ok(UiFlightPosition::calculate(
         message,
         prev_message.as_ref(),

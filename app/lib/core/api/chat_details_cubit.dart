@@ -56,7 +56,7 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
   });
 
   /// Mute notifications for this chat until the given datetime.
-  /// Pass `None` to mute indefinitely.
+  /// Pass `None` to unmute.
   Future<void> muteChat({UiChatMuted? mutedUntil});
 
   /// Creates a new cubit for the given chat.

@@ -16,7 +16,7 @@ use airapiclient::{
 use aircommon::{
     credentials::keys::ClientSigningKey,
     crypto::aead::{AeadCiphertext, AeadEncryptable, keys::AttachmentEarKey},
-    identifiers::{AttachmentId, UserId},
+    identifiers::{RemoteAttachmentId, UserId},
 };
 use airprotos::{
     common::v1::AttachmentTooLargeDetail,
@@ -39,8 +39,8 @@ use tokio_util::io::ReaderStream;
 use url::Url;
 
 use crate::{
-    AttachmentContent, AttachmentProgressEvent, AttachmentStatus, AttachmentUrl, Chat, ChatId,
-    ChatMessage, MessageId,
+    AttachmentContent, AttachmentId, AttachmentProgressEvent, AttachmentStatus, AttachmentUrl,
+    Chat, ChatId, ChatMessage, MessageId,
     clients::{
         CoreUser,
         attachment::{
@@ -79,8 +79,9 @@ impl CoreUser {
                 ciphertext,
                 response,
             }) => {
-                let attachment_id =
-                    AttachmentId::new(response.object_id.ok_or_missing_field("object_id")?.into());
+                let remote_attachment_id = RemoteAttachmentId::new(
+                    response.object_id.ok_or_missing_field("object_id")?.into(),
+                );
                 let (progress_tx, _progress) = AttachmentProgress::new();
                 upload_encrypted_attachment(&http_client, response, progress_tx, ciphertext)
                     .await?;
@@ -89,7 +90,7 @@ impl CoreUser {
                     .get_attachment_url(
                         object_type,
                         DsAttachmentTarget::User { user_id: &user_id },
-                        attachment_id,
+                        remote_attachment_id,
                     )
                     .await?;
 
@@ -141,6 +142,7 @@ impl CoreUser {
 
         // store local attachment message
         let attachment_id = metadata.attachment_id;
+        let remote_attachment_id = metadata.remote_attachment_id;
         let content_bytes = mem::replace(&mut attachment.content.bytes, Vec::new().into());
         let content_type = attachment.content_type;
 
@@ -168,6 +170,7 @@ impl CoreUser {
                 // (must be done after the message is stored locally due to foreign key constraints)
                 let record = AttachmentRecord {
                     attachment_id,
+                    remote_attachment_id: Some(remote_attachment_id),
                     chat_id,
                     message_id,
                     content_type: content_type.to_owned(),
@@ -192,7 +195,6 @@ impl CoreUser {
     ) -> anyhow::Result<
         Result<
             (
-                AttachmentId,
                 AttachmentProgress,
                 impl Future<Output = Result<ChatMessage, UploadTaskError>> + use<>,
             ),
@@ -205,7 +207,9 @@ impl CoreUser {
             .with_read_transaction(async |txn| {
                 let content = match self.load_attachment(attachment_id).await? {
                     AttachmentContent::UploadFailed(bytes) => AttachmentBytes::from(bytes),
-                    status => bail!("Unexpected attachment {attachment_id:?} status {status:?}"),
+                    status => {
+                        bail!("Unexpected attachment {attachment_id:?} status {status:?}")
+                    }
                 };
 
                 let attachment_record = AttachmentRecord::load(&mut *txn, attachment_id)
@@ -268,18 +272,20 @@ impl CoreUser {
             } = attachment_part
             && let Ok(attachment_url) = AttachmentUrl::from_url(&url.parse()?)
         {
-            *url =
-                AttachmentUrl::new(metadata.attachment_id, attachment_url.dimensions).to_string();
+            *url = AttachmentUrl::new(metadata.remote_attachment_id, attachment_url.dimensions)
+                .to_string();
             *key = metadata.key.into_bytes().to_vec();
             *nonce = metadata.nonce.to_vec();
 
             self.db()
                 .with_write_transaction(async |txn| -> anyhow::Result<()> {
                     message.update(&mut *txn).await?;
-                    AttachmentRecord::copy(&mut *txn, attachment_id, metadata.attachment_id, false)
-                        .await?;
-                    AttachmentRecord::delete(txn, attachment_id, false).await?;
-
+                    AttachmentRecord::update_remote_attachment_id(
+                        &mut *txn,
+                        metadata.attachment_id,
+                        metadata.remote_attachment_id,
+                    )
+                    .await?;
                     Ok(())
                 })
                 .await?;
@@ -290,7 +296,7 @@ impl CoreUser {
         // upload task
         let (progress, upload_task) =
             self.upload_attachment_task(metadata.attachment_id, message, ciphertext, response);
-        Ok(Ok((metadata.attachment_id, progress, upload_task)))
+        Ok(Ok((progress, upload_task)))
     }
 
     fn upload_attachment_task(
@@ -438,7 +444,7 @@ impl ProcessedAttachment {
 
     fn into_nested_parts(self, metadata: AttachmentMetadata) -> anyhow::Result<Vec<NestedPart>> {
         let url = AttachmentUrl::new(
-            metadata.attachment_id,
+            metadata.remote_attachment_id,
             self.image_data
                 .as_ref()
                 .map(|data| (data.width, data.height)),
@@ -475,6 +481,7 @@ impl ProcessedAttachment {
 /// Metadata of an encrypted and uploaded attachment
 pub struct AttachmentMetadata {
     attachment_id: AttachmentId,
+    remote_attachment_id: RemoteAttachmentId,
     key: AttachmentEarKey,
     nonce: [u8; 12],
 }
@@ -547,10 +554,13 @@ async fn encrypt_and_provision(
         }
     };
 
-    let attachment_id = AttachmentId::new(response.object_id.context("no object id")?.into());
+    let attachment_id = AttachmentId::random();
+    let remote_attachment_id =
+        RemoteAttachmentId::new(response.object_id.context("no object id")?.into());
     let attachment = ProvisionedAttachment {
         metadata: AttachmentMetadata {
             attachment_id,
+            remote_attachment_id,
             key,
             nonce,
         },

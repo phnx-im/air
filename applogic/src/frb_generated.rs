@@ -11712,19 +11712,19 @@ impl SseDecode for crate::api::types::UiMessageStatus {
 impl SseDecode for crate::api::message_content::UiMimiContent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_plainBody = <Option<String>>::sse_decode(deserializer);
         let mut var_replaces = <Option<Vec<u8>>>::sse_decode(deserializer);
         let mut var_topicId = <Vec<u8>>::sse_decode(deserializer);
         let mut var_inReplyTo = <Option<Vec<u8>>>::sse_decode(deserializer);
-        let mut var_plainBody = <Option<String>>::sse_decode(deserializer);
         let mut var_content =
             <Option<crate::api::markdown::MessageContent>>::sse_decode(deserializer);
         let mut var_attachments =
             <Vec<crate::api::message_content::UiAttachment>>::sse_decode(deserializer);
         return crate::api::message_content::UiMimiContent {
+            plain_body: var_plainBody,
             replaces: var_replaces,
             topic_id: var_topicId,
             in_reply_to: var_inReplyTo,
-            plain_body: var_plainBody,
             content: var_content,
             attachments: var_attachments,
         };
@@ -14379,10 +14379,10 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiMessageStatus>
 impl flutter_rust_bridge::IntoDart for crate::api::message_content::UiMimiContent {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         [
+            self.plain_body.into_into_dart().into_dart(),
             self.replaces.into_into_dart().into_dart(),
             self.topic_id.into_into_dart().into_dart(),
             self.in_reply_to.into_into_dart().into_dart(),
-            self.plain_body.into_into_dart().into_dart(),
             self.content.into_into_dart().into_dart(),
             self.attachments.into_into_dart().into_dart(),
         ]
@@ -17057,10 +17057,10 @@ impl SseEncode for crate::api::types::UiMessageStatus {
 impl SseEncode for crate::api::message_content::UiMimiContent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <Option<String>>::sse_encode(self.plain_body, serializer);
         <Option<Vec<u8>>>::sse_encode(self.replaces, serializer);
         <Vec<u8>>::sse_encode(self.topic_id, serializer);
         <Option<Vec<u8>>>::sse_encode(self.in_reply_to, serializer);
-        <Option<String>>::sse_encode(self.plain_body, serializer);
         <Option<crate::api::markdown::MessageContent>>::sse_encode(self.content, serializer);
         <Vec<crate::api::message_content::UiAttachment>>::sse_encode(self.attachments, serializer);
     }

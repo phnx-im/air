@@ -4,9 +4,8 @@
 
 use std::{fs, io::Write, sync::Arc};
 
-use aircommon::identifiers::AttachmentId;
 use aircoreclient::{
-    AttachmentContent, AttachmentProgress, AttachmentProgressEvent, AttachmentStatus,
+    AttachmentContent, AttachmentId, AttachmentProgress, AttachmentProgressEvent, AttachmentStatus,
     clients::CoreUser,
     db::notification::{DbEntityId, DbOperation},
     image_is_animated,
@@ -267,8 +266,10 @@ async fn attachment_downloads_loop(
                 .clone()
                 .into_iter()
                 .filter_map(|(id, ops)| match id {
-                    DbEntityId::Attachment(attachment_id) if ops.contains(DbOperation::Add) => {
-                        Some(attachment_id)
+                    DbEntityId::Attachment(remote_attachment_id)
+                        if ops.contains(DbOperation::Add) =>
+                    {
+                        Some(remote_attachment_id)
                     }
                     _ => None,
                 });
@@ -282,10 +283,11 @@ async fn attachment_downloads_loop(
         .inspect_err(|error| error!(%error, "failed to load pending attachments"))
         .unwrap_or_default();
 
-    let mut attachment_ids = tokio_stream::iter(pending_attachment_ids).chain(store_notifications);
+    let mut local_attachment_ids =
+        tokio_stream::iter(pending_attachment_ids).chain(store_notifications);
 
     info!("starting attachments download task");
-    while let Some(attachment_id) = attachment_ids.next().await {
+    while let Some(attachment_id) = local_attachment_ids.next().await {
         let Ok(permit) = download_tasks_semaphore.clone().acquire_owned().await else {
             return;
         };

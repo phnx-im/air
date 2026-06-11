@@ -4,14 +4,14 @@
 
 use std::{collections::BTreeMap, mem, sync::Arc};
 
-use aircommon::identifiers::{AttachmentId, UserId};
+use aircommon::identifiers::UserId;
 use enumset::{EnumSet, EnumSetType};
 use tokio::sync::broadcast;
 use tokio_stream::wrappers::{BroadcastStream, errors::BroadcastStreamRecvError};
 use tokio_stream::{Stream, StreamExt};
 use tracing::{debug, error, warn};
 
-use crate::{ChatId, MessageId};
+use crate::{AttachmentId, ChatId, MessageId};
 
 // 1024 * size_of::<Arc<DbNotification>>() = 1024 * 8 = 8 KiB
 const NOTIFICATION_CHANNEL_SIZE: usize = 1024;

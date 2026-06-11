@@ -6,18 +6,15 @@
 
 use std::{collections::HashMap, path::PathBuf, time::Duration};
 
-use aircommon::{
-    OpenMlsRand, RustCrypto,
-    identifiers::{AttachmentId, UserId},
-};
+use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId};
 pub use aircoreclient::{
     AcceptContactRequestError, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
     ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqDebugInfo,
     RequiredDebugCapabilities,
 };
 use aircoreclient::{
-    AttachmentProgress, Chat, ChatId, ChatMessage, MessageId, ProvisionAttachmentError,
-    UploadTaskError, clients::CoreUser,
+    AttachmentId, AttachmentProgress, Chat, ChatId, ChatMessage, MessageId,
+    ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
 };
 use airprotos::client::component::AirComponent;
 use anyhow::{Context as _, bail};
@@ -28,7 +25,14 @@ use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
 use tracing::{error, info, warn};
 
-use crate::{StreamSink, api::types::UiInReplyToMessage, mark_as_read::MarkAsReadState};
+use crate::{
+    StreamSink,
+    api::{
+        message_content::UnresolvedMimiContent,
+        types::{UiChatMessage, UiInReplyToMessage},
+    },
+    mark_as_read::MarkAsReadState,
+};
 use crate::{api::types::UiMessageDraft, message_content::MimiContentExt};
 use crate::{
     api::{
@@ -289,7 +293,7 @@ impl ChatDetailsCubitBase {
         &self,
         attachment_id: AttachmentId,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
-        let (new_attachment_id, progress, upload_task) = match self
+        let (progress, upload_task) = match self
             .context
             .core_user
             .retry_upload_chat_attachment(attachment_id)
@@ -298,7 +302,7 @@ impl ChatDetailsCubitBase {
             Ok(result) => result,
             Err(error) => return error.into_ui_result(),
         };
-        self.upload_attachment_impl(new_attachment_id, progress, upload_task)
+        self.upload_attachment_impl(attachment_id, progress, upload_task)
             .await?;
         Ok(None)
     }
@@ -317,7 +321,7 @@ impl ChatDetailsCubitBase {
                 self.context
                     .core_user
                     .outbound_service()
-                    .enqueue_chat_message(message.id(), Some(attachment_id))
+                    .enqueue_chat_message(message.id())
                     .await?;
             }
             Some(Err(UploadTaskError { message_id, error })) => {
@@ -325,7 +329,7 @@ impl ChatDetailsCubitBase {
                 self.context
                     .core_user
                     .outbound_service()
-                    .fail_enqueued_chat_message(message_id, Some(attachment_id))
+                    .fail_enqueued_chat_message(message_id)
                     .await?;
             }
             None => {
@@ -534,7 +538,8 @@ impl ChatDetailsCubitBase {
                 UiInReplyToMessage::Resolved {
                     message_id,
                     sender: sender.into(),
-                    mimi_content: mimi_content.into(),
+                    // Don't resolve attachment IDs
+                    mimi_content: UnresolvedMimiContent::from(mimi_content).resolve(&[]),
                 },
             ));
             draft.is_committed = false;
@@ -769,7 +774,7 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         last_used,
         messages_count,
         unread_messages,
-        last_message: last_message.map(From::from),
+        last_message: last_message.map(UiChatMessage::from_message_without_attachments),
         draft,
         is_apq,
         muted_until: chat.muted_until.map(Into::into),
