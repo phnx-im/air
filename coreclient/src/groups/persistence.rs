@@ -544,7 +544,7 @@ impl Group {
             .unwrap_or(false))
     }
 
-    /// Returns true if the last pending commit was mark as failed
+    /// Returns true if the last pending commit was marked as failed
     pub(crate) async fn pending_commit_failed(
         mut connection: impl ReadConnection,
         group_id: &GroupId,
