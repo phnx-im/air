@@ -522,10 +522,12 @@ class _ContextMenuState extends State<ContextMenu> {
     final textScaler = MediaQuery.textScalerOf(context);
     final textDirection = Directionality.of(context);
     final trailingIconSize = IconTheme.of(context).size ?? 24.0;
-    final contextMenuItems =
-        widget.menuItems.whereType<ContextMenuItem>().toList();
-    final submenuItems =
-        widget.menuItems.whereType<ContextMenuSubmenuItem>().toList();
+    final contextMenuItems = widget.menuItems
+        .whereType<ContextMenuItem>()
+        .toList();
+    final submenuItems = widget.menuItems
+        .whereType<ContextMenuSubmenuItem>()
+        .toList();
     if (contextMenuItems.isEmpty && submenuItems.isEmpty) {
       return 0.0;
     }
@@ -534,9 +536,7 @@ class _ContextMenuState extends State<ContextMenu> {
         contextMenuItems.any(
           (item) => item.hasLeading || item.reserveLeadingSpace,
         ) ||
-        submenuItems.any(
-          (item) => item.hasLeading || item.reserveLeadingSpace,
-        );
+        submenuItems.any((item) => item.hasLeading || item.reserveLeadingSpace);
     final leadingWidth = hasAnyLeading
         ? ContextMenuItem.defaultLeadingWidth + Spacing.px8
         : 0.0;
@@ -564,7 +564,8 @@ class _ContextMenuState extends State<ContextMenu> {
         textDirection: textDirection,
       )..layout();
       // Account for the fixed chevron trailing icon.
-      final itemWidth = textPainter.width +
+      final itemWidth =
+          textPainter.width +
           leadingWidth +
           ContextMenuSubmenuItem.chevronSize +
           Spacing.px8;

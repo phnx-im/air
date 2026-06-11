@@ -103,7 +103,6 @@ class _MuteDurationContent extends StatelessWidget {
       ],
     );
   }
-
 }
 
 class _DurationOption extends StatelessWidget {
