@@ -5,7 +5,7 @@
 use std::slice;
 
 use aircoreclient::{
-    DisplayName, UserProfile,
+    DisplayName, EventMessage, Message, SystemMessage, UserProfile,
     clients::{
         listen_response,
         process::process_qs::{QsProcessEventResult, QsStreamProcessor},
@@ -449,8 +449,13 @@ async fn fetch_group_profile_on_invite() {
 
     let chat_id = setup.create_group(&alice).await;
 
-    // Record Alice's group attributes (title and resized picture set during create_group)
     let alice_user = &setup.get_user(&alice).user;
+    alice_user
+        .set_chat_picture(chat_id, Some(test_picture_bytes()))
+        .await
+        .unwrap();
+
+    // Record Alice's group attributes (title and resized picture)
     let alice_chat = alice_user.chat(&chat_id).await.unwrap();
     let attributes = alice_chat.attributes().unwrap().clone();
     let expected_title = attributes.title;
@@ -485,6 +490,24 @@ async fn fetch_group_profile_on_invite() {
     let bob_chat = bob_user.chat(&chat_id).await.unwrap();
     assert_eq!(bob_chat.attributes().unwrap().title(), &expected_title);
     assert_eq!(bob_chat.attributes().unwrap().picture, expected_picture);
+
+    // Regression: joining the group should not surface spurious "title changed" or "picture
+    // changed" system messages: the title is unchanged and the picture is just the initial
+    // download.
+    let mut bob_messages = bob_user.messages(chat_id, 1024).await.unwrap();
+    // Only keep system messages about the title or picture change
+    bob_messages.retain(|message| {
+        matches!(
+            message.message(),
+            Message::Event(EventMessage::System(
+                SystemMessage::ChangeTitle { .. } | SystemMessage::ChangePicture(_),
+            ))
+        )
+    });
+    assert!(
+        bob_messages.is_empty(),
+        "unexpected system messages on initial join: {bob_messages:#?}"
+    );
 }
 
 /// Tests that after a group title and picture update, other members fetch the new encrypted group
