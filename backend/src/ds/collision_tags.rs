@@ -5,7 +5,6 @@
 use airprotos::common::v1::{
     GenerationCollisionDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
 };
-use bytemuck::PodCastError;
 use prost::Message;
 use sqlx::{PgExecutor, PgPool};
 use tonic::Code;
@@ -19,8 +18,6 @@ pub enum CollisionTagError {
     Collision { tags: Vec<u64> },
     #[error("duplicate tag in input {0:x}")]
     DuplicateTag(i64),
-    #[error("type error: {0}")]
-    CastSlice(PodCastError),
 }
 
 impl From<CollisionTagError> for tonic::Status {
@@ -57,8 +54,6 @@ pub(super) async fn check_and_insert(
         return Err(CollisionTagError::DuplicateTag(w[0]));
     }
 
-    let input: &[i64] = bytemuck::try_cast_slice(&tags).map_err(CollisionTagError::CastSlice)?;
-
     let mut tx = pool.begin().await?;
     let collisions: Vec<i64> = sqlx::query_scalar!(
         r#"
@@ -75,7 +70,7 @@ pub(super) async fn check_and_insert(
           "#,
         group_id,
         epoch,
-        tags,
+        &tags,
     )
     .fetch_all(&mut *tx)
     .await?;

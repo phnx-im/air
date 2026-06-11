@@ -12,7 +12,7 @@ pub enum GroupOperationError {
     #[error(transparent)]
     MlsGroupStateError(#[from] MlsGroupStateError),
     #[error(transparent)]
-    CreateMessageError(#[from] CreateMessageError<sqlx::Error>),
+    CreateMessageError(#[from] CreateMessageError),
     #[error(transparent)]
     ProcessMessageError(#[from] ProcessMessageError<sqlx::Error>),
     #[error("Missing key package in key store")]

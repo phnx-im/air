@@ -534,9 +534,12 @@ impl ApiClient {
             message: Some(params.message.try_ref_into()?),
             sender: Some(params.sender.into()),
             suppress_notifications: Some(params.suppress_notifications),
-            collision_tags: params.collision_tags.map(|tags| CollisionTags {
-                seq: tags.seq.into_inner(),
-                aux: tags.aux.into_iter().map(|t| t.into_inner()).collect(),
+            collision_tags: Some(CollisionTags {
+                tags: params
+                    .collision_tags
+                    .into_iter()
+                    .map(|t| t.into_inner())
+                    .collect(),
             }),
         };
         let request = payload.sign(signing_key)?;

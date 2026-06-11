@@ -1043,7 +1043,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let payload: SendMessagePayload =
             request.verify(verifying_key).map_err(InvalidSignature)?;
 
-        if let Some(tags) = payload.collision_tags {
+        if let Some(CollisionTags { tags }) = payload.collision_tags {
             let epoch = group_state.group().epoch().as_u64() as i64;
             super::collision_tags::check_and_insert(
                 &self.ds.db_pool,

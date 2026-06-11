@@ -1,3 +1,5 @@
+#[cfg(any(test, feature = "test_utils"))]
+use aircommon::messages::client_ds_out::SendMessageCollisionTag;
 // SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
@@ -199,7 +201,7 @@ impl CoreUser {
     pub async fn send_message_with_fixed_collision_tags(
         &self,
         chat_id: ChatId,
-        collision_tags: aircommon::messages::client_ds_out::SendMessageCollisionTags,
+        collision_tags: Vec<SendMessageCollisionTag>,
     ) -> Result<(), airapiclient::ds_api::DsRequestError> {
         use anyhow::Context as _;
         use mimi_content::MimiContent;
@@ -226,7 +228,7 @@ impl CoreUser {
                 group.ensure_collision_key(&provider);
                 let mut params =
                     group.create_message(&provider, self.signing_key(), content, None)?;
-                params.collision_tags = Some(collision_tags);
+                params.collision_tags = collision_tags;
                 Ok((group.group_state_ear_key().clone(), params))
             })
             .await

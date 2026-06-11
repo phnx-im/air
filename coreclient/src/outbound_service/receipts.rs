@@ -3,10 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    crypto::aead::keys::GroupStateEarKey,
-    identifiers::MimiId,
-    messages::client_ds_out::{SendMessageAuxiliaryCollisionTag, SendMessageParamsOut},
-    time::TimeStamp,
+    crypto::aead::keys::GroupStateEarKey, identifiers::MimiId,
+    messages::client_ds_out::SendMessageParamsOut, time::TimeStamp,
 };
 use anyhow::Context;
 use mimi_content::{
@@ -153,7 +151,11 @@ impl OutboundServiceContext {
 
         // load group and create MLS message
         let (group_state_ear_key, params) = self
-            .new_mls_message(&chat, unsent_receipt.content, Some(unsent_receipt.report))
+            .new_mls_message(
+                &chat,
+                unsent_receipt.content,
+                Some(unsent_receipt.report.clone()),
+            )
             .await
             .map_err(OutboundServiceError::fatal)?;
 
@@ -258,26 +260,5 @@ impl UnsentReceipt {
         };
 
         Ok(Some(Self { report, content }))
-    }
-
-    /// Bytes used as the `aux` collision-detection tag for this receipt.
-    ///
-    /// Derived from the sorted set of message IDs being receipted, so two
-    /// emulator clients sending a receipt for the same messages produce the
-    /// same value and the DS can detect the duplicate.
-    fn auxiliary_collision_tags(&self) -> Vec<SendMessageAuxiliaryCollisionTag> {
-        let mut ids: Vec<&[u8]> = self
-            .report
-            .statuses
-            .iter()
-            .map(|s| s.mimi_id.as_slice())
-            .collect();
-        ids.sort_unstable();
-        let mut value = b"receipt:".to_vec();
-        for id in ids {
-            value.extend_from_slice(&(id.len() as u32).to_be_bytes());
-            value.extend_from_slice(id);
-        }
-        value
     }
 }
