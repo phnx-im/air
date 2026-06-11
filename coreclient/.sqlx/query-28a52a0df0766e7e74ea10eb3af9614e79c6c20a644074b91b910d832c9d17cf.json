@@ -6,27 +6,57 @@
       {
         "name": "chat_id: _",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "chat_id"
+          }
+        }
       },
       {
         "name": "group_id: _",
         "ordinal": 1,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "group_id"
+          }
+        }
       },
       {
         "name": "group_state_ear_key: _",
         "ordinal": 2,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "group_state_ear_key"
+          }
+        }
       },
       {
         "name": "identity_link_wrapper_key: _",
         "ordinal": 3,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "identity_link_wrapper_key"
+          }
+        }
       },
       {
         "name": "original_leaf_index: _",
         "ordinal": 4,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "original_leaf_index"
+          }
+        }
       }
     ],
     "parameters": {

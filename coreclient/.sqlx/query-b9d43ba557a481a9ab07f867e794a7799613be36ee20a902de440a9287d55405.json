@@ -6,7 +6,13 @@
       {
         "name": "last_read",
         "ordinal": 0,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "last_read"
+          }
+        }
       }
     ],
     "parameters": {

@@ -355,6 +355,8 @@ message GroupOperationPayload {
   GroupStateEarKey group_state_ear_key = 1;
   AssistedMessage commit = 2;
   optional AddUsersInfo add_users_info = 3;
+  optional QsReference qs_client_reference = 5;
+  optional EncryptedUserProfileKey encrypted_user_profile_key = 6;
 }
 
 message AddUsersInfo {
@@ -382,6 +384,8 @@ message ApqGroupOperationPayload {
   GroupStateEarKey group_state_ear_key = 2;
   ApqAssistedMlsMessage commit = 3;
   optional ApqAddUsersInfo add_users_info = 4;
+  optional QsReference qs_client_reference = 5;
+  optional EncryptedUserProfileKey encrypted_user_profile_key = 6;
 }
 
 message ApqGroupOperationResponse {

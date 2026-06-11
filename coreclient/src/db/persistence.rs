@@ -31,7 +31,7 @@ impl Type<Sqlite> for DbEntityId {
 impl<'q> Encode<'q, Sqlite> for DbEntityId {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as sqlx::Database>::ArgumentBuffer<'q>,
+        buf: &mut <Sqlite as sqlx::Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         match self {
             DbEntityId::User(user_id) => {
@@ -58,7 +58,7 @@ impl Type<Sqlite> for DbEntityKind {
 impl<'q> Encode<'q, Sqlite> for DbEntityKind {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as sqlx::Database>::ArgumentBuffer<'q>,
+        buf: &mut <Sqlite as sqlx::Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         Encode::<Sqlite>::encode(*self as i64, buf)
     }

@@ -6,7 +6,13 @@
       {
         "name": "status: _",
         "ordinal": 0,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "status"
+          }
+        }
       }
     ],
     "parameters": {

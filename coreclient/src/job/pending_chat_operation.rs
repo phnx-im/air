@@ -5,6 +5,7 @@
 use airapiclient::ds_api::DsRequestError;
 use aircommon::{
     credentials::{ClientCredential, keys::ClientSigningKey},
+    crypto::indexed_aead::keys::UserProfileKey,
     identifiers::{QualifiedGroupId, UserId},
     messages::client_ds_out::{
         ApqGroupOperationParamsOut, DeleteGroupParamsOut, GroupOperationParamsOut,
@@ -30,7 +31,10 @@ use crate::{
         Group, GroupDataBytes, PreparedInvitee, VerifiedGroup,
         client_auth_info::StorableClientCredential, handle_group_not_found_on_ds,
     },
-    job::{Job, JobContext, JobError, chat_operation::ChatOperationError},
+    job::{
+        Job, JobContext, JobContextReadConnection, JobError, chat_operation::ChatOperationError,
+    },
+    key_stores::indexed_keys::StorableIndexedKey,
 };
 
 // Having separate retry intervals for test and non-test is a hack until we can
@@ -238,6 +242,7 @@ impl PendingChatOperation {
             db,
             key_store,
             now,
+            qs_client_id,
             ..
         } = context;
         let signer = &key_store.signing_key;
@@ -267,6 +272,18 @@ impl PendingChatOperation {
                 .stage_leave_group(db.write().await?, signer)?;
         }
 
+        let encrypt_user_profile_key =
+            async |connection: JobContextReadConnection| -> Result<_, JobError<ChatOperationError>> {
+                let own_user_id = key_store.signing_key.credential().user_id();
+                let own_user_profile_key = UserProfileKey::load_own(connection).await?;
+                let own_encrypted_user_profile_key = own_user_profile_key
+                    .encrypt(self.group.identity_link_wrapper_key(), own_user_id)
+                    .map_err(|e| {
+                        JobError::domain(ChatOperationError::UserProfileKeyEncryptionError(e))
+                    })?;
+                Ok(own_encrypted_user_profile_key)
+            };
+
         let mut new_chat_picture = None;
         // TODO: Can we avoid cloning here?
         let res = match self.operation.clone() {
@@ -285,8 +302,18 @@ impl PendingChatOperation {
                 new_chat_picture: chat_picture,
             } => {
                 new_chat_picture = chat_picture;
+                let own_qs_client_reference = key_store.create_own_client_reference(qs_client_id);
+                let own_encrypted_user_profile_key =
+                    encrypt_user_profile_key(db.read().await?).await?;
+
                 api_client
-                    .ds_group_operation(*params, signer, self.group.group_state_ear_key())
+                    .ds_group_operation(
+                        *params,
+                        signer,
+                        self.group.group_state_ear_key(),
+                        own_qs_client_reference,
+                        own_encrypted_user_profile_key,
+                    )
                     .await
             }
             OperationType::ApqOther {
@@ -294,8 +321,19 @@ impl PendingChatOperation {
                 new_chat_picture: chat_picture,
             } => {
                 new_chat_picture = chat_picture;
+
+                let own_qs_client_reference = key_store.create_own_client_reference(qs_client_id);
+                let own_encrypted_user_profile_key =
+                    encrypt_user_profile_key(db.read().await?).await?;
+
                 api_client
-                    .ds_apq_group_operation(*params, signer, self.group.group_state_ear_key())
+                    .ds_apq_group_operation(
+                        *params,
+                        signer,
+                        self.group.group_state_ear_key(),
+                        own_qs_client_reference,
+                        own_encrypted_user_profile_key,
+                    )
                     .await
             }
         };
@@ -741,7 +779,7 @@ mod persistence {
     impl sqlx::Encode<'_, sqlx::Sqlite> for OperationType {
         fn encode_by_ref(
             &self,
-            buf: &mut <sqlx::Sqlite as sqlx::Database>::ArgumentBuffer<'_>,
+            buf: &mut <sqlx::Sqlite as sqlx::Database>::ArgumentBuffer,
         ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
             let s = self.to_string();
             <String as sqlx::Encode<sqlx::Sqlite>>::encode_by_ref(&s, buf)
@@ -788,7 +826,7 @@ mod persistence {
     impl sqlx::Encode<'_, sqlx::Sqlite> for PendingChatOperationStatus {
         fn encode_by_ref(
             &self,
-            buf: &mut <sqlx::Sqlite as sqlx::Database>::ArgumentBuffer<'_>,
+            buf: &mut <sqlx::Sqlite as sqlx::Database>::ArgumentBuffer,
         ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
             let s = self.to_string();
             <String as sqlx::Encode<sqlx::Sqlite>>::encode_by_ref(&s, buf)

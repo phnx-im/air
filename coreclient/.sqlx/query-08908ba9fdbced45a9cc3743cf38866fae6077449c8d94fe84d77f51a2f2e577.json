@@ -6,27 +6,57 @@
       {
         "name": "entity_id",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "store_notification",
+            "name": "entity_id"
+          }
+        }
       },
       {
         "name": "kind: _",
         "ordinal": 1,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "store_notification",
+            "name": "kind"
+          }
+        }
       },
       {
         "name": "added",
         "ordinal": 2,
-        "type_info": "Bool"
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "store_notification",
+            "name": "added"
+          }
+        }
       },
       {
         "name": "updated",
         "ordinal": 3,
-        "type_info": "Bool"
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "store_notification",
+            "name": "updated"
+          }
+        }
       },
       {
         "name": "removed",
         "ordinal": 4,
-        "type_info": "Bool"
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "store_notification",
+            "name": "removed"
+          }
+        }
       }
     ],
     "parameters": {

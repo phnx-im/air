@@ -15,7 +15,7 @@ use super::{BaseSecret, Index, IndexedAeadKey, IndexedKeyType, Key, KeyTypeInsta
 impl<'q, KT: IndexedKeyType> Encode<'q, Sqlite> for KeyTypeInstance<KT> {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as Database>::ArgumentBuffer<'q>,
+        buf: &mut <Sqlite as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         <&str as Encode<Sqlite>>::encode_by_ref(&KT::LABEL, buf)
     }
@@ -61,7 +61,7 @@ where
 {
     fn encode_by_ref(
         &self,
-        buf: &mut <DB as Database>::ArgumentBuffer<'q>,
+        buf: &mut <DB as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         self.secret.encode_by_ref(buf)
     }

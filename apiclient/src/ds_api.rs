@@ -218,6 +218,8 @@ impl ApiClient {
         payload: GroupOperationParamsOut,
         signing_key: &ClientSigningKey,
         group_state_ear_key: &GroupStateEarKey,
+        qs_client_reference: QsReference,
+        encrypted_user_profile_key: EncryptedUserProfileKey,
     ) -> Result<TimeStamp, DsRequestError> {
         let add_users_info = payload
             .add_users_info_option
@@ -237,6 +239,8 @@ impl ApiClient {
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
             commit: Some(payload.commit.try_ref_into()?),
             add_users_info,
+            qs_client_reference: Some(qs_client_reference.into()),
+            encrypted_user_profile_key: Some(encrypted_user_profile_key.into()),
         };
         let request = payload.sign(signing_key)?;
         let response = self
@@ -256,6 +260,8 @@ impl ApiClient {
         params: ApqGroupOperationParamsOut,
         signing_key: &ClientSigningKey,
         group_state_ear_key: &GroupStateEarKey,
+        qs_client_reference: QsReference,
+        encrypted_user_profile_key: EncryptedUserProfileKey,
     ) -> Result<TimeStamp, DsRequestError> {
         let ApqGroupOperationParamsOut {
             bundle:
@@ -292,6 +298,8 @@ impl ApiClient {
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
             commit: Some(commit),
             add_users_info,
+            qs_client_reference: Some(qs_client_reference.into()),
+            encrypted_user_profile_key: Some(encrypted_user_profile_key.into()),
         };
         let request = payload.sign(signing_key)?;
         let response = self

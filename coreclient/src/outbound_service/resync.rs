@@ -84,6 +84,7 @@ impl OutboundServiceContext {
 
             let result = {
                 let mut connection = self.db.write().await?;
+
                 let result = resync
                     .create_and_send_commit(&mut connection, &self.api_clients, self.signing_key())
                     .await;
