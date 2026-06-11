@@ -3,6 +3,7 @@
 -- SPDX-License-Identifier: AGPL-3.0-or-later
 PRAGMA defer_foreign_keys = ON;
 
+-- Decouple the attachment id from the server-assigned id
 CREATE TABLE attachment_new (
     attachment_id BLOB NOT NULL PRIMARY KEY,
     remote_attachment_id BLOB UNIQUE,
@@ -30,13 +31,11 @@ SELECT
 FROM
     attachment;
 
--- for the range/IN query + FK cascade + load_ids_by_message_id
 DROP TABLE attachment;
 
 ALTER TABLE attachment_new
 RENAME TO attachment;
 
--- Recreate the indexes
 CREATE INDEX idx_attachment_chat_id ON attachment (chat_id);
 
 CREATE INDEX idx_attachment_created_at ON attachment (created_at);
@@ -48,6 +47,7 @@ WHERE
 CREATE INDEX idx_attachment_message_id ON attachment (message_id);
 
 -- The pending attachment is keyed by the server-assigned id
+-- The table must be recreated to move the foreign key constraint
 CREATE TABLE pending_attachment_new (
     remote_attachment_id BLOB NOT NULL PRIMARY KEY,
     size INTEGER NOT NULL,
