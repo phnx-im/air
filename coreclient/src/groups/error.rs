@@ -3,7 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::crypto::errors::DecryptionError;
-use openmls::group::{CreateMessageError, MlsGroupStateError, ProcessMessageError};
+use openmls::group::{
+    CreateMessageError, MlsGroupStateError, ProcessMessageError, SafeExportSecretError,
+};
 use thiserror::Error;
 
 #[derive(Error, Debug)]
@@ -25,6 +27,8 @@ pub enum GroupOperationError {
     MimiContentError(#[from] mimi_content::Error),
     #[error(transparent)]
     TargetedMessageError(#[from] TargetedMessageError),
+    #[error(transparent)]
+    CollisionKeyError(SafeExportSecretError<sqlx::Error>),
 }
 
 #[derive(Error, Debug)]

@@ -95,7 +95,7 @@ use openmls::{
     component::ComponentType,
     group::{
         CreateCommitError, ExternalCommitBuilder, GroupEpoch, JoinBuilder, ProcessedWelcome,
-        ProposalValidationError,
+        ProposalValidationError, SafeExportSecretError,
     },
     key_packages::KeyPackageBundle,
     prelude::{
@@ -218,23 +218,23 @@ struct SendMessageCollisionKey {
 }
 
 impl SendMessageCollisionKey {
-    pub fn from_group(group: &mut Group, provider: &impl OpenMlsProvider) -> anyhow::Result<Self> {
+    pub fn try_from_group(
+        group: &mut Group,
+        provider: &AirOpenMlsProvider,
+    ) -> Result<Self, SafeExportSecretError<sqlx::Error>> {
         let salt = group.own_index().u32().to_le_bytes(); // TODO: possibly change this
         let epoch = group.mls_group.epoch();
-        let epoch_secret = group
-            .mls_group
-            .safe_export_secret(
-                provider.crypto(),
-                provider.storage(),
-                // when virtual-client-drafts are enabled, use components::vc_derivation_info::VC_COMPONENT_ID instead.
-                0x000D,
-            )
-            .map_err(|_| anyhow!("failed to export OpenMLS secret"))?;
+        let epoch_secret = group.mls_group.safe_export_secret(
+            provider.crypto(),
+            provider.storage(),
+            // when virtual-client-drafts are enabled, use components::vc_derivation_info::VC_COMPONENT_ID instead.
+            0x000D,
+        )?;
 
         let mut k = [0u8; 32];
         Hkdf::<Sha256>::new(Some(&salt), &epoch_secret)
             .expand(b"virtual-client-collision-detection-v1", &mut k)
-            .map_err(|_| anyhow!("failed to expand HKDF"))?;
+            .expect("32-bytes is a valid HKDF output length");
         let kdf = Hkdf::from_prk(&k).expect("input is 32 bytes, a valid HKDF PRK");
         Ok(Self { epoch, kdf })
     }
@@ -1484,8 +1484,8 @@ impl Group {
     /// Derive and register the collision-detection key for the current epoch if not already set
     pub(crate) fn ensure_collision_key(
         &mut self,
-        provider: &impl OpenMlsProvider,
-    ) -> anyhow::Result<()> {
+        provider: &AirOpenMlsProvider,
+    ) -> Result<(), SafeExportSecretError<sqlx::Error>> {
         if let Some(key) = self.send_message_collision_key.as_ref()
             && key.epoch == self.mls_group.epoch()
         {
@@ -1493,7 +1493,7 @@ impl Group {
         }
 
         self.send_message_collision_key =
-            Some(SendMessageCollisionKey::from_group(self, provider)?);
+            Some(SendMessageCollisionKey::try_from_group(self, provider)?);
         Ok(())
     }
 
@@ -1513,7 +1513,8 @@ impl Group {
             .create_message(provider, signer, &content.serialize()?)?;
 
         // XXX: do this conditionally on emulator clients only?
-        self.ensure_collision_key(provider)?;
+        self.ensure_collision_key(provider)
+            .map_err(GroupOperationError::CollisionKeyError)?;
 
         let collision_tags = self
             .send_message_collision_key
