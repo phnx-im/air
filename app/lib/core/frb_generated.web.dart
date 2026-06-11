@@ -696,7 +696,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformPushToken dco_decode_box_autoadd_platform_push_token(dynamic raw);
 
   @protected
-  PqDebugInfo dco_decode_box_autoadd_pq_debug_info(dynamic raw);
+  PqGroupDebugInfo dco_decode_box_autoadd_pq_group_debug_info(dynamic raw);
 
   @protected
   (UiMimiId, UiInReplyToMessage)
@@ -1061,7 +1061,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  PqDebugInfo? dco_decode_opt_box_autoadd_pq_debug_info(dynamic raw);
+  PqGroupDebugInfo? dco_decode_opt_box_autoadd_pq_group_debug_info(dynamic raw);
 
   @protected
   (UiMimiId, UiInReplyToMessage)?
@@ -1126,7 +1126,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformPushToken dco_decode_platform_push_token(dynamic raw);
 
   @protected
-  PqDebugInfo dco_decode_pq_debug_info(dynamic raw);
+  PqGroupDebugInfo dco_decode_pq_group_debug_info(dynamic raw);
 
   @protected
   RangedBlockElement dco_decode_ranged_block_element(dynamic raw);
@@ -1864,7 +1864,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  PqDebugInfo sse_decode_box_autoadd_pq_debug_info(
+  PqGroupDebugInfo sse_decode_box_autoadd_pq_group_debug_info(
     SseDeserializer deserializer,
   );
 
@@ -2331,7 +2331,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  PqDebugInfo? sse_decode_opt_box_autoadd_pq_debug_info(
+  PqGroupDebugInfo? sse_decode_opt_box_autoadd_pq_group_debug_info(
     SseDeserializer deserializer,
   );
 
@@ -2418,7 +2418,7 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  PqDebugInfo sse_decode_pq_debug_info(SseDeserializer deserializer);
+  PqGroupDebugInfo sse_decode_pq_group_debug_info(SseDeserializer deserializer);
 
   @protected
   RangedBlockElement sse_decode_ranged_block_element(
@@ -3306,8 +3306,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_box_autoadd_pq_debug_info(
-    PqDebugInfo self,
+  void sse_encode_box_autoadd_pq_group_debug_info(
+    PqGroupDebugInfo self,
     SseSerializer serializer,
   );
 
@@ -3894,8 +3894,8 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_opt_box_autoadd_pq_debug_info(
-    PqDebugInfo? self,
+  void sse_encode_opt_box_autoadd_pq_group_debug_info(
+    PqGroupDebugInfo? self,
     SseSerializer serializer,
   );
 
@@ -3999,7 +3999,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  void sse_encode_pq_debug_info(PqDebugInfo self, SseSerializer serializer);
+  void sse_encode_pq_group_debug_info(
+    PqGroupDebugInfo self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_ranged_block_element(

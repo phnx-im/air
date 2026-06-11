@@ -313,7 +313,7 @@ class GroupDebugInfo {
   final Map<int, DebugCapabilities> members;
   final GroupDataDebugInfo? groupData;
   final BigInt sizeBytes;
-  final PqDebugInfo? pq;
+  final PqGroupDebugInfo? pq;
 
   const GroupDebugInfo({
     required this.groupId,
@@ -367,7 +367,7 @@ class GroupDebugInfo {
           pq == other.pq;
 }
 
-class PqDebugInfo {
+class PqGroupDebugInfo {
   final String groupId;
   final BigInt epoch;
   final String ciphersuite;
@@ -376,7 +376,7 @@ class PqDebugInfo {
   final bool hasPendingCommit;
   final BigInt sizeBytes;
 
-  const PqDebugInfo({
+  const PqGroupDebugInfo({
     required this.groupId,
     required this.epoch,
     required this.ciphersuite,
@@ -399,7 +399,7 @@ class PqDebugInfo {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is PqDebugInfo &&
+      other is PqGroupDebugInfo &&
           runtimeType == other.runtimeType &&
           groupId == other.groupId &&
           epoch == other.epoch &&

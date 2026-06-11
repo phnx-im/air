@@ -102,6 +102,7 @@ pub struct UiChatDetails {
     pub draft: Option<UiMessageDraft>,
     pub is_apq: bool,
     pub muted_until: Option<UiChatMuted>,
+    pub pending_commit_failed: bool,
 }
 
 impl UiChatDetails {

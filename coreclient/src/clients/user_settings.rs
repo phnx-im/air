@@ -70,6 +70,23 @@ impl UserSetting for ReadReceiptsSetting {
     }
 }
 
+pub struct IsDeveloperSetting(pub bool);
+
+impl UserSetting for IsDeveloperSetting {
+    const KEY: &'static str = "is_developer";
+
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        Ok(vec![self.0 as u8])
+    }
+
+    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
+        match bytes.as_slice() {
+            [byte] => Ok(Self(*byte != 0)),
+            _ => bail!("invalid is_developer bytes"),
+        }
+    }
+}
+
 pub(crate) struct UserSettingRecord {}
 
 mod persistence {

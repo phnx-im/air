@@ -9,7 +9,7 @@ use std::{collections::HashMap, path::PathBuf, time::Duration};
 use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId};
 pub use aircoreclient::{
     AcceptContactRequestError, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
-    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqDebugInfo,
+    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqGroupDebugInfo,
     RequiredDebugCapabilities,
 };
 use aircoreclient::{
@@ -757,6 +757,7 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         .unwrap_or_default() // default is UNIX_EPOCH
         .with_timezone(&Local);
 
+    let group_id = chat.group_id;
     let chat_type = UiChatType::load_from_chat_type(core_user, chat.chat_type).await;
 
     let draft = core_user
@@ -766,6 +767,8 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         .map(Into::into);
 
     let is_apq = core_user.chat_is_apq(chat.id).await.unwrap_or(false);
+
+    let pending_commit_failed = core_user.chat_is_pending(&group_id).await.unwrap_or(false);
 
     UiChatDetails {
         id: chat.id,
@@ -778,6 +781,7 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         draft,
         is_apq,
         muted_until: chat.muted_until.map(Into::into),
+        pending_commit_failed,
     }
 }
 
@@ -831,11 +835,11 @@ pub struct _GroupDebugInfo {
     pub members: HashMap<u32, DebugCapabilities>,
     pub group_data: Option<GroupDataDebugInfo>,
     pub size_bytes: u64,
-    pub pq: Option<PqDebugInfo>,
+    pub pq: Option<PqGroupDebugInfo>,
 }
 
-#[frb(mirror(PqDebugInfo))]
-pub struct _PqDebugInfo {
+#[frb(mirror(PqGroupDebugInfo))]
+pub struct _PqGroupDebugInfo {
     pub group_id: String,
     pub epoch: u64,
     pub ciphersuite: String,

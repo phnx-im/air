@@ -125,6 +125,21 @@ impl From<SqlPastMember> for UserId {
     }
 }
 
+impl ChatId {
+    pub(crate) async fn load_from_group_id(
+        mut connection: impl ReadConnection,
+        group_id: &GroupId,
+    ) -> sqlx::Result<Option<ChatId>> {
+        let group_id = group_id.as_slice();
+        query_scalar!(
+            r#"SELECT chat_id AS "chat_id: _" FROM chat WHERE group_id = ?"#,
+            group_id,
+        )
+        .fetch_optional(connection.as_mut())
+        .await
+    }
+}
+
 impl Chat {
     /// Creates a new chat with the given id.
     ///
@@ -317,7 +332,7 @@ impl Chat {
                 c.chat_id AS "chat_id: _"
             FROM chat c
             INNER JOIN "group" g ON g.group_id = c.group_id
-            WHERE (g.self_updated_at IS NULL OR g.self_updated_at < ?1)
+            WHERE (g.self_updated_at IS NULL OR g.self_updated_at < ?1 OR g.pending_commit_failed IS TRUE)
                 AND c.is_active = TRUE
             ORDER BY g.self_updated_at ASC"#,
             until_due_at as _,

@@ -58,4 +58,9 @@ class UserSettingsCubit implements StateStreamableSource<UserSettings> {
     required UserCubit userCubit,
     required bool value,
   }) => _impl.setReadReceipts(userCubit: userCubit.impl, value: value);
+
+  Future<void> setIsDeveloper({
+    required UserCubit userCubit,
+    required bool value,
+  }) => _impl.setIsDeveloper(userCubit: userCubit.impl, value: value);
 }

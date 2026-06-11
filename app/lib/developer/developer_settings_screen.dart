@@ -99,6 +99,10 @@ class DeveloperSettingsScreenView extends StatelessWidget {
           )
         : null;
 
+    final isDeveloper = context.select(
+      (UserSettingsCubit cubit) => cubit.state.isDeveloper,
+    );
+
     return Scaffold(
       appBar: AppBar(
         clipBehavior: Clip.none,
@@ -118,6 +122,17 @@ class DeveloperSettingsScreenView extends StatelessWidget {
               ),
               child: ListView(
                 children: [
+                  const _SectionHeader("Developer mode"),
+                  SwitchListTile(
+                    title: const Text("Enable experimental features"),
+                    value: isDeveloper,
+                    onChanged: (value) {
+                      context.read<UserSettingsCubit>().setIsDeveloper(
+                        userCubit: context.read(),
+                        value: value,
+                      );
+                    },
+                  ),
                   if (isMobile) ...[
                     const _SectionHeader("Mobile Device"),
                     ListTile(

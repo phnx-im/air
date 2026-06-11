@@ -405,12 +405,24 @@ class _TrailingIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (unreadMessages, lastMessage) = context.select((
+    final bool isDeveloper = context.select(
+      (UserSettingsCubit cubit) => cubit.state.isDeveloper,
+    );
+
+    final (unreadMessages, lastMessage, pendingCommitFailed) = context.select((
       ChatDetailsCubit cubit,
     ) {
       final chat = cubit.state.chat;
-      return (chat?.unreadMessages, chat?.lastMessage);
+      return (
+        chat?.unreadMessages,
+        chat?.lastMessage,
+        chat?.pendingCommitFailed ?? false,
+      );
     });
+
+    if (isDeveloper && pendingCommitFailed) {
+      return const _PendingCommitFailedIndicator();
+    }
 
     if (unreadMessages != null && unreadMessages > 0) {
       return _UnreadBadge(count: unreadMessages);
@@ -427,6 +439,18 @@ class _TrailingIndicator extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(right: Spacing.px8),
       child: MessageStatusIndicator(status: lastMessage.status),
+    );
+  }
+}
+
+class _PendingCommitFailedIndicator extends StatelessWidget {
+  const _PendingCommitFailedIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppIcon.circleAlert(
+      size: 16,
+      color: CustomColorScheme.of(context).function.warning,
     );
   }
 }
