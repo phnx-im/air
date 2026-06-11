@@ -369,7 +369,7 @@ impl AttachmentRecord {
         .await
     }
 
-    pub(crate) async fn load_ids_by_in_range(
+    pub(crate) async fn load_ids_by_in_range_inclusive(
         mut connection: impl ReadConnection,
         chat_id: ChatId,
         mut from: (DateTime<Utc>, MessageId),

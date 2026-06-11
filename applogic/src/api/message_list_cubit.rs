@@ -741,7 +741,7 @@ impl MessageListContext {
             let local_attachment_ids =
                 if let Some((from, to)) = messages.first().zip(messages.last()) {
                     self.core_user
-                        .attachment_ids_in_range(
+                        .attachment_ids_in_range_inclusive(
                             self.chat_id,
                             (from.timestamp(), from.id()),
                             (to.timestamp(), to.id()),
@@ -793,7 +793,7 @@ impl MessageListContext {
 
         let local_attachment_ids = if let Some((from, to)) = messages.first().zip(messages.last()) {
             self.core_user
-                .attachment_ids_in_range(
+                .attachment_ids_in_range_inclusive(
                     self.chat_id,
                     (from.timestamp(), from.id()),
                     (to.timestamp(), to.id()),
@@ -893,7 +893,7 @@ impl MessageListContext {
             let local_attachment_ids =
                 if let Some((from, to)) = messages.first().zip(messages.last()) {
                     self.core_user
-                        .attachment_ids_in_range(
+                        .attachment_ids_in_range_inclusive(
                             self.chat_id,
                             (from.timestamp(), from.id()),
                             (to.timestamp(), to.id()),
@@ -947,7 +947,7 @@ impl MessageListContext {
             let local_attachment_ids =
                 if let Some((from, to)) = messages.first().zip(messages.last()) {
                     self.core_user
-                        .attachment_ids_in_range(
+                        .attachment_ids_in_range_inclusive(
                             self.chat_id,
                             (from.timestamp(), from.id()),
                             (to.timestamp(), to.id()),
@@ -1015,7 +1015,7 @@ impl MessageListContext {
 
         let local_attachment_ids = if let Some((from, to)) = messages.first().zip(messages.last()) {
             self.core_user
-                .attachment_ids_in_range(
+                .attachment_ids_in_range_inclusive(
                     self.chat_id,
                     (from.timestamp(), from.id()),
                     (to.timestamp(), to.id()),

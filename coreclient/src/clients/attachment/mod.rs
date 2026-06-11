@@ -61,7 +61,7 @@ impl CoreUser {
     /// The upper bound is inclusive.
     ///
     /// IDs are ordered by the position in the mimi content for each message.
-    pub async fn attachment_ids_in_range(
+    pub async fn attachment_ids_in_range_inclusive(
         &self,
         chat_id: ChatId,
         from: (DateTime<Utc>, MessageId),
@@ -70,7 +70,7 @@ impl CoreUser {
         let Ok(read) = self.db().read().await else {
             return Default::default();
         };
-        AttachmentRecord::load_ids_by_in_range(read, chat_id, from, to)
+        AttachmentRecord::load_ids_by_in_range_inclusive(read, chat_id, from, to)
             .await
             .unwrap_or_default()
     }
