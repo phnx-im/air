@@ -21,7 +21,7 @@ mod utils;
 
 pub use crate::{
     chats::{
-        Chat, ChatAttributes, ChatId, ChatStatus, ChatType, InactiveChat, MessageDraft,
+        Chat, ChatAttributes, ChatId, ChatMuted, ChatStatus, ChatType, InactiveChat, MessageDraft,
         messages::{
             ChatMessage, ContentMessage, ErrorMessage, EventMessage, InReplyToMessage, Message,
             MessageId, SystemMessage,

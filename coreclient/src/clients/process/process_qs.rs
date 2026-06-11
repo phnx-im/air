@@ -460,6 +460,7 @@ impl CoreUser {
             db: JobContextDb::Transaction(txn),
             key_store: &self.inner.key_store,
             now: Utc::now(),
+            qs_client_id: &self.inner.qs_client_id,
         };
 
         let chat_id =

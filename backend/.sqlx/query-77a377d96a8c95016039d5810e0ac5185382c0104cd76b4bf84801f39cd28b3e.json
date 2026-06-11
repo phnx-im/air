@@ -22,6 +22,12 @@
               ]
             }
           }
+        },
+        "origin": {
+          "Table": {
+            "table": "as_user_handle",
+            "name": "expiration_data"
+          }
         }
       }
     ],

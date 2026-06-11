@@ -13,14 +13,17 @@ import 'package:air/ds/components/modal/app_dialog.dart';
 import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/user/user.dart';
+import 'package:air/chat/mute_chat_sheet.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 
 import 'block_contact_button.dart';
+import 'chat_details_cubit.dart';
 import 'delete_contact_button.dart';
 import 'report_spam_button.dart';
 import 'unblock_contact_button.dart';
@@ -134,6 +137,11 @@ class ContactDetailsView extends StatelessWidget {
               ],
             ),
           ),
+
+          if (relationship is ContactRelationship) ...[
+            const SizedBox(height: Spacing.px16),
+            _MuteButton(loc: loc),
+          ],
 
           const Spacer(),
 
@@ -339,5 +347,42 @@ class _AddContactDialog extends HookWidget {
     } finally {
       inProgress.value = false;
     }
+  }
+}
+
+class _MuteButton extends StatelessWidget {
+  const _MuteButton({required this.loc});
+
+  final AppLocalizations loc;
+
+  @override
+  Widget build(BuildContext context) {
+    final isMuted = context.select(
+      (ChatDetailsCubit cubit) => cubit.state.chat?.isMuted ?? false,
+    );
+    return OutlinedButton(
+      onPressed: () => isMuted
+          ? context.read<ChatDetailsCubit>().unmuteChat()
+          : showMuteChatSheet(context),
+      style: const ButtonStyle(
+        visualDensity: VisualDensity.compact,
+        minimumSize: WidgetStatePropertyAll(Size(82, 32)),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          isMuted
+              ? const AppIcon.bell(size: 16)
+              : const AppIcon.bellOff(size: 16),
+          const SizedBox(width: Spacing.px8),
+          Text(
+            isMuted
+                ? loc.contactDetailsScreen_unmute
+                : loc.contactDetailsScreen_mute,
+            style: TextStyle(fontSize: LabelFontSize.base.size),
+          ),
+        ],
+      ),
+    );
   }
 }

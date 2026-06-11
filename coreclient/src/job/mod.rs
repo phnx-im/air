@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use airapiclient::{ApiClientInitError, as_api::AsRequestError, ds_api::DsRequestError};
-use aircommon::codec;
+use aircommon::{codec, identifiers::QsClientId};
 use chrono::{DateTime, Utc};
 use sqlx::SqliteConnection;
 use thiserror::Error;
@@ -33,6 +33,7 @@ pub(crate) struct JobContext<'a, 'c> {
     pub db: JobContextDb<'a, 'c>,
     pub key_store: &'a MemoryUserKeyStore,
     pub now: DateTime<Utc>,
+    pub qs_client_id: &'a QsClientId,
 }
 
 pub(crate) enum JobContextDb<'a, 'c> {

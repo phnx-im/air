@@ -13,6 +13,7 @@ use uuid::Uuid;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatStatus, ChatType, MessageId,
+    chats::ChatMuted,
     db::access::{
         ReadConnection, ReadTransaction, WriteConnection, WriteDbTransaction, WriteTransaction,
     },
@@ -35,6 +36,7 @@ struct SqlChat {
     is_active: bool,
     is_blocked: bool,
     is_incoming: bool,
+    muted_until: Option<DateTime<Utc>>,
 }
 
 impl SqlChat {
@@ -53,6 +55,7 @@ impl SqlChat {
             is_active,
             is_blocked,
             is_incoming,
+            muted_until,
         } = self;
 
         let chat_type = match (
@@ -82,6 +85,8 @@ impl SqlChat {
             )),
         };
 
+        let muted_until = muted_until.map(ChatMuted::from);
+
         Some(Chat {
             id: chat_id,
             group_id,
@@ -89,6 +94,7 @@ impl SqlChat {
             last_message_at,
             status,
             chat_type,
+            muted_until,
         })
     }
 
@@ -253,7 +259,8 @@ impl Chat {
                 is_confirmed_connection,
                 is_active,
                 is_incoming,
-                blocked_contact.user_uuid IS NOT NULL AS "is_blocked!: _"
+                blocked_contact.user_uuid IS NOT NULL AS "is_blocked!: _",
+                muted_until AS "muted_until: _"
             FROM chat
             LEFT JOIN blocked_contact ON blocked_contact.user_uuid = chat.connection_user_uuid
                 AND blocked_contact.user_domain = chat.connection_user_domain
@@ -343,7 +350,8 @@ impl Chat {
                 is_confirmed_connection,
                 is_active,
                 is_incoming,
-                blocked_contact.user_uuid IS NOT NULL AS "is_blocked!: _"
+                blocked_contact.user_uuid IS NOT NULL AS "is_blocked!: _",
+                muted_until AS "muted_until: _"
             FROM chat
                 LEFT JOIN blocked_contact
                 ON blocked_contact.user_uuid = chat.connection_user_uuid
@@ -581,11 +589,12 @@ impl Chat {
     pub(crate) async fn global_unread_message_count(
         mut connection: impl ReadConnection,
     ) -> sqlx::Result<usize> {
-        // We exclude deleted messages from the unread count.
+        // We exclude deleted messages and messages from muted chats.
         let excluded_status: u8 = MessageStatus::Deleted.into();
+        let now = Utc::now();
         query_scalar!(
             r#"SELECT
-                COUNT(m.chat_id) AS "count: _"
+                COUNT(m.chat_id) AS "count: i64"
             FROM
                 chat c
             LEFT JOIN
@@ -595,12 +604,32 @@ impl Chat {
                 AND m.sender_user_uuid IS NOT NULL
                 AND m.sender_user_domain IS NOT NULL
                 AND m.timestamp > c.last_read
-                AND m.status != ?1"#,
-            excluded_status
+                AND m.status != ?1
+            WHERE
+                c.muted_until IS NULL OR c.muted_until <= ?2"#,
+            excluded_status,
+            now,
         )
         .fetch_one(connection.as_mut())
         .await
-        .map(|n: u32| n.try_into().expect("usize overflow"))
+        .map(|n: i64| usize::try_from(n).expect("usize overflow"))
+    }
+
+    pub(crate) async fn set_muted_until(
+        mut connection: impl WriteConnection,
+        chat_id: ChatId,
+        muted_until: Option<ChatMuted>,
+    ) -> sqlx::Result<()> {
+        let muted_until = muted_until.map(ChatMuted::into_date_time);
+        query!(
+            "UPDATE chat SET muted_until = ?1 WHERE chat_id = ?2",
+            muted_until,
+            chat_id,
+        )
+        .execute(connection.as_mut())
+        .await?;
+        connection.notifier().update(chat_id);
+        Ok(())
     }
 
     pub(crate) async fn messages_count(
@@ -919,6 +948,7 @@ pub mod tests {
                 title: "Test chat".to_string(),
                 picture: None,
             }),
+            muted_until: None,
         }
     }
 

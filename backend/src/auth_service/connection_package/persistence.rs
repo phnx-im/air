@@ -7,7 +7,7 @@ use aircommon::{
     identifiers::UsernameHash,
     messages::connection_package::VersionedConnectionPackage,
 };
-use sqlx::{Arguments, PgExecutor, postgres::PgArguments};
+use sqlx::{Arguments, AssertSqlSafe, PgExecutor, postgres::PgArguments};
 
 use crate::errors::StorageError;
 
@@ -50,7 +50,7 @@ impl StorableConnectionPackage {
         query_string.push(';');
 
         // Execute the query
-        sqlx::query_with(&query_string, query_args)
+        sqlx::query_with(AssertSqlSafe(query_string), query_args)
             .execute(connection)
             .await?;
 

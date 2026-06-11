@@ -13,13 +13,11 @@ use aircommon::identifiers::UserId;
 use anyhow::bail;
 use openmls::group::GroupId;
 use sqlx::{
-    Database, Encode, Sqlite, SqlitePool, TransactionManager, Type,
+    Connection, Database, Encode, Sqlite, SqlitePool, Type,
     encode::IsNull,
     error::BoxDynError,
     migrate,
-    sqlite::{
-        SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions, SqliteTransactionManager,
-    },
+    sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
 };
 use tracing::{error, info};
 
@@ -41,11 +39,11 @@ pub(crate) async fn open_air_db(db_path: &str) -> sqlx::Result<DbAccess> {
 
     // Delete the old migration table if it exists
     const FIRST_MIGRATION: i64 = 20250115104336;
-    if let Ok(Some(_)) = sqlx::query_scalar::<_, i64>(&format!(
-        "SELECT 1 FROM _sqlx_migrations WHERE version = {FIRST_MIGRATION}"
-    ))
-    .fetch_optional(&write_pool)
-    .await
+    if let Ok(Some(_)) =
+        sqlx::query_scalar::<_, i64>("SELECT 1 FROM _sqlx_migrations WHERE version = ?")
+            .bind(FIRST_MIGRATION)
+            .fetch_optional(&write_pool)
+            .await
     {
         // The database is based on old migration
         sqlx::query("DROP TABLE IF EXISTS _sqlx_migrations")
@@ -104,7 +102,7 @@ async fn write_pool(opts: SqliteConnectOptions) -> sqlx::Result<SqlitePool> {
             // worker to crash internally (it tries to send an error back via a rendezvous channel but
             // the receiver is gone). Discarding such connections prevents permanently-stuck
             // `transaction_depth > 0` errors on subsequent use.
-            let return_to_pool = SqliteTransactionManager::get_transaction_depth(conn) == 0;
+            let return_to_pool = !conn.is_in_transaction();
             Box::pin(ready(Ok(return_to_pool)))
         })
         .connect_with(write_opts)
@@ -123,7 +121,7 @@ async fn read_pool(opts: SqliteConnectOptions) -> sqlx::Result<SqlitePool> {
             // worker to crash internally (it tries to send an error back via a rendezvous channel but
             // the receiver is gone). Discarding such connections prevents permanently-stuck
             // `transaction_depth > 0` errors on subsequent use.
-            let return_to_pool = SqliteTransactionManager::get_transaction_depth(conn) == 0;
+            let return_to_pool = !conn.is_in_transaction();
             Box::pin(ready(Ok(return_to_pool)))
         })
         .connect_with(read_opts)
@@ -235,7 +233,7 @@ impl Type<Sqlite> for GroupIdRefWrapper<'_> {
 impl<'q> Encode<'q, Sqlite> for GroupIdRefWrapper<'q> {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as Database>::ArgumentBuffer<'q>,
+        buf: &mut <Sqlite as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         Encode::<Sqlite>::encode_by_ref(&self.0.as_slice(), buf)
     }

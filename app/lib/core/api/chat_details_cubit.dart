@@ -55,6 +55,10 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
     required DateTime untilTimestamp,
   });
 
+  /// Mute notifications for this chat until the given datetime.
+  /// Pass `None` to unmute.
+  Future<void> muteChat({UiChatMuted? mutedUntil});
+
   /// Creates a new cubit for the given chat.
   ///
   /// The cubit will fetch the chat details and the list of members. It will also listen to the

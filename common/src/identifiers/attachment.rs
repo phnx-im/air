@@ -73,7 +73,7 @@ mod sqlx_impls {
     impl<'q> Encode<'q, Sqlite> for RemoteAttachmentId {
         fn encode_by_ref(
             &self,
-            buf: &mut <Sqlite as Database>::ArgumentBuffer<'q>,
+            buf: &mut <Sqlite as Database>::ArgumentBuffer,
         ) -> Result<IsNull, BoxDynError> {
             Encode::<Sqlite>::encode_by_ref(&self.uuid, buf)
         }

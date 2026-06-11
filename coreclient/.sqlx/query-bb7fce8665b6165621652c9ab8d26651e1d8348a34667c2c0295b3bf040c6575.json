@@ -6,37 +6,79 @@
       {
         "name": "size: _",
         "ordinal": 0,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "pending_attachment",
+            "name": "size"
+          }
+        }
       },
       {
         "name": "enc_alg: _",
         "ordinal": 1,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "pending_attachment",
+            "name": "enc_alg"
+          }
+        }
       },
       {
         "name": "enc_key: _",
         "ordinal": 2,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_attachment",
+            "name": "enc_key"
+          }
+        }
       },
       {
         "name": "nonce: _",
         "ordinal": 3,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_attachment",
+            "name": "nonce"
+          }
+        }
       },
       {
         "name": "aad: _",
         "ordinal": 4,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_attachment",
+            "name": "aad"
+          }
+        }
       },
       {
         "name": "hash_alg: _",
         "ordinal": 5,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "pending_attachment",
+            "name": "hash_alg"
+          }
+        }
       },
       {
         "name": "hash: _",
         "ordinal": 6,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_attachment",
+            "name": "hash"
+          }
+        }
       }
     ],
     "parameters": {

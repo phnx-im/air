@@ -4,7 +4,7 @@
 
 use aircommon::identifiers::Fqdn;
 use semver::VersionReq;
-use sqlx::{Connection, Executor, PgConnection, PgPool};
+use sqlx::{AssertSqlSafe, Connection, Executor, PgConnection, PgPool};
 use thiserror::Error;
 use tokio_util::sync::CancellationToken;
 use tracing::info;
@@ -54,7 +54,7 @@ pub trait BackendService: Sized {
 
         if !db_exists.exists.unwrap_or(false) {
             connection
-                .execute(format!(r#"CREATE DATABASE "{db_name}";"#).as_str())
+                .execute(AssertSqlSafe(format!(r#"CREATE DATABASE "{db_name}";"#)))
                 .await?;
         }
 

@@ -6,12 +6,24 @@
       {
         "name": "message_id: _",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "message_id"
+          }
+        }
       },
       {
         "name": "attachment_id: _",
         "ordinal": 1,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "attachment",
+            "name": "attachment_id"
+          }
+        }
       }
     ],
     "parameters": {

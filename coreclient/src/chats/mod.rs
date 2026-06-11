@@ -11,7 +11,7 @@ use aircommon::{
 };
 use airprotos::client::group::{ExternalGroupProfile, GroupData};
 use anyhow::bail;
-use chrono::{DateTime, Utc};
+use chrono::{DateTime, Datelike, Utc};
 use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
 use tracing::error;
@@ -92,6 +92,7 @@ pub struct Chat {
     pub last_message_at: Option<DateTime<Utc>>,
     pub status: ChatStatus,
     pub chat_type: ChatType,
+    pub muted_until: Option<ChatMuted>,
 }
 
 impl Chat {
@@ -104,6 +105,7 @@ impl Chat {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::HandleConnection(username),
+            muted_until: None,
         }
     }
 
@@ -116,6 +118,7 @@ impl Chat {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::TargetedMessageConnection(user_id),
+            muted_until: None,
         }
     }
 
@@ -128,6 +131,7 @@ impl Chat {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::Group(attributes),
+            muted_until: None,
         }
     }
 
@@ -139,6 +143,7 @@ impl Chat {
             last_message_at: None,
             status: ChatStatus::Active,
             chat_type: ChatType::PendingConnection(user_id),
+            muted_until: None,
         }
     }
 
@@ -187,6 +192,11 @@ impl Chat {
     pub(crate) fn owner_domain(&self) -> Fqdn {
         let qgid = QualifiedGroupId::try_from(self.group_id.clone()).unwrap();
         qgid.owning_domain().clone()
+    }
+
+    pub fn is_muted(&self) -> bool {
+        let now = Utc::now();
+        self.muted_until.as_ref().is_some_and(|cm| cm.is_muted(now))
     }
 
     pub(crate) async fn set_picture(
@@ -422,5 +432,41 @@ impl GroupDataExt for GroupData {
             .or_else(|| legacy_picture.map(GroupDataProfilePart::LegacyPicture));
 
         (title, profile)
+    }
+}
+
+#[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
+pub enum ChatMuted {
+    Until(DateTime<Utc>),
+    Forever,
+}
+
+impl ChatMuted {
+    pub fn is_muted(&self, when: DateTime<Utc>) -> bool {
+        match self {
+            ChatMuted::Until(until) => when < *until,
+            ChatMuted::Forever => true,
+        }
+    }
+
+    pub fn into_date_time(self) -> DateTime<Utc> {
+        match self {
+            ChatMuted::Until(dt) => dt,
+            ChatMuted::Forever => chrono::NaiveDate::from_ymd_opt(9999, 1, 1)
+                .expect("valid date")
+                .and_time(chrono::NaiveTime::MIN)
+                .and_utc(),
+        }
+    }
+}
+
+impl From<DateTime<Utc>> for ChatMuted {
+    fn from(dt: DateTime<Utc>) -> Self {
+        // anything that's far enough in the future
+        if dt.year() > 9999 {
+            Self::Forever
+        } else {
+            Self::Until(dt)
+        }
     }
 }

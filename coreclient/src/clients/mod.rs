@@ -47,7 +47,7 @@ use tracing::{error, info, warn};
 use url::Url;
 
 use crate::{
-    Asset, PartialContact, UsernameRecord,
+    Asset, ChatMuted, PartialContact, UsernameRecord,
     clients::event_loop::{EventLoop, EventLoopSender},
     contacts::{TargetedMessageContact, UsernameContact},
     db::access::{DbAccess, WriteDbTransaction},
@@ -92,6 +92,7 @@ mod event_loop;
 pub(crate) mod invitation_code;
 pub(crate) mod invite_users;
 mod message;
+pub mod multi_device;
 pub(crate) mod own_client_info;
 mod persistence;
 pub mod process;
@@ -697,6 +698,19 @@ impl CoreUser {
         Chat::messages_count(self.db().read().await?, chat_id).await
     }
 
+    pub async fn set_chat_muted_until(
+        &self,
+        chat_id: ChatId,
+        muted_until: Option<ChatMuted>,
+    ) -> anyhow::Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| {
+                Chat::set_muted_until(txn, chat_id, muted_until).await?;
+                Ok(())
+            })
+            .await
+    }
+
     /// Schedules the client's push token update on the QS.
     pub async fn update_push_token(&self, push_token: Option<PushToken>) -> Result<()> {
         let should_notify =
@@ -770,9 +784,12 @@ impl CoreUser {
                 let mut result = Vec::new();
 
                 for table in tables {
-                    for row in sqlx::query(&format!("SELECT * FROM '{}'", table.name.unwrap()))
-                        .fetch_all(txn.as_mut())
-                        .await?
+                    for row in sqlx::query(sqlx::AssertSqlSafe(format!(
+                        "SELECT * FROM '{}'",
+                        table.name.unwrap()
+                    )))
+                    .fetch_all(txn.as_mut())
+                    .await?
                     {
                         for i in 0..row.len() {
                             let string = if let Ok(column) = row.try_get::<String, _>(i) {
@@ -818,6 +835,7 @@ impl CoreUser {
             db: JobContextDb::Db(self.inner.db.clone()),
             key_store: &self.inner.key_store,
             now: Utc::now(),
+            qs_client_id: &self.inner.qs_client_id,
         };
         job.execute(&mut context).await
     }

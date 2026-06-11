@@ -16,7 +16,7 @@ pub(crate) use airprotos::client::component::{AirComponent, AirFeatures};
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{
-    Asset, AttachmentId, ChatAttributes, ChatMessage, ChatStatus, ChatType, Contact,
+    Asset, AttachmentId, ChatAttributes, ChatMessage, ChatMuted, ChatStatus, ChatType, Contact,
     ContentMessage, DisplayName, ErrorMessage, EventMessage, InactiveChat, Message, MessageDraft,
     SystemMessage, TargetedMessageContact, UserProfile, clients::CoreUser,
 };
@@ -101,6 +101,7 @@ pub struct UiChatDetails {
     pub last_message: Option<UiChatMessage>,
     pub draft: Option<UiMessageDraft>,
     pub is_apq: bool,
+    pub muted_until: Option<UiChatMuted>,
 }
 
 impl UiChatDetails {
@@ -302,6 +303,31 @@ impl From<ChatAttributes> for UiChatAttributes {
         Self {
             title,
             picture: picture.map(ImageData::from_bytes),
+        }
+    }
+}
+
+#[derive(Debug, Clone, Hash, Eq, PartialEq)]
+#[frb(dart_metadata = ("freezed"))]
+pub enum UiChatMuted {
+    Until(DateTime<Utc>),
+    Forever,
+}
+
+impl From<ChatMuted> for UiChatMuted {
+    fn from(m: ChatMuted) -> Self {
+        match m {
+            ChatMuted::Until(dt) => Self::Until(dt),
+            ChatMuted::Forever => Self::Forever,
+        }
+    }
+}
+
+impl From<UiChatMuted> for ChatMuted {
+    fn from(m: UiChatMuted) -> Self {
+        match m {
+            UiChatMuted::Until(dt) => Self::Until(dt),
+            UiChatMuted::Forever => Self::Forever,
         }
     }
 }
