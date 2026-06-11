@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
+import 'package:air/ds/components/button/button.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/ds/theme/theme.dart';
@@ -28,26 +29,11 @@ class DeleteContactButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final colors = CustomColorScheme.of(context);
-
-    final isDesktop = ResponsiveScreen.isDesktop(context);
-
-    return OutlinedButton(
+    return AppButton(
       onPressed: () => _delete(context),
-      style: ButtonStyle(
-        minimumSize: WidgetStatePropertyAll(
-          Size(isDesktop ? 320 : double.infinity, 0),
-        ),
-        backgroundColor: WidgetStatePropertyAll(colors.function.danger),
-        overlayColor: WidgetStatePropertyAll(colors.function.danger),
-      ),
-      child: Text(
-        loc.deleteContactButton_text,
-        style: TextStyle(
-          fontSize: LabelFontSize.base.size,
-          color: colors.function.white,
-        ),
-      ),
+      label: loc.deleteContactButton_text,
+      type: .secondary,
+      tone: .danger,
     );
   }
 

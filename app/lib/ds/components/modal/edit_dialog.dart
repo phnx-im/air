@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/foundations/themes.dart';
 import 'package:air/ds/components/modal/app_dialog.dart';
@@ -95,41 +96,25 @@ class EditDialog extends HookWidget {
           Row(
             children: [
               Expanded(
-                child: OutlinedButton(
+                child: AppButton(
+                  label: cancel,
+                  size: .small,
+                  type: .secondary,
                   onPressed: () {
                     Navigator.of(context).pop(false);
                   },
-                  style: ButtonStyle(
-                    backgroundColor: WidgetStatePropertyAll(
-                      colors.accent.quaternary,
-                    ),
-                    overlayColor: WidgetStatePropertyAll(
-                      colors.accent.quaternary,
-                    ),
-                  ),
-                  child: Text(cancel),
                 ),
               ),
 
               const SizedBox(width: Spacing.px12),
 
               Expanded(
-                child: OutlinedButton(
-                  onPressed: isValid.value
-                      ? () => onSubmit(controller.text)
-                      : null,
-                  style: ButtonStyle(
-                    backgroundColor: WidgetStatePropertyAll(
-                      colors.accent.primary,
-                    ),
-                    overlayColor: WidgetStatePropertyAll(colors.accent.primary),
-                    foregroundColor: WidgetStateProperty.resolveWith(
-                      (states) => states.contains(WidgetState.disabled)
-                          ? colors.function.toggleWhite.withValues(alpha: 0.5)
-                          : colors.function.toggleWhite,
-                    ),
-                  ),
-                  child: Text(confirm),
+                child: AppButton(
+                  label: confirm,
+                  size: .small,
+                  type: .primary,
+                  state: isValid.value ? .active : .inactive,
+                  onPressed: () => onSubmit(controller.text),
                 ),
               ),
             ],

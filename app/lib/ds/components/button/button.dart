@@ -56,14 +56,14 @@ class AppButton extends StatelessWidget {
       (.secondary, .inactive, _) => colors.function.toggleBlack.withValues(
         alpha: 0.5,
       ),
+      (.secondary, _, .normal) => colors.function.toggleBlack,
       (.secondary, _, .danger) => colors.function.danger,
-      (.secondary, _, _) => colors.function.toggleBlack,
     };
 
     final backgroundColor = switch ((type, tone)) {
       (.primary, .danger) => colors.function.danger,
       (.primary, .normal) => colors.accent.primary,
-      (.secondary, _) => colors.accent.tertiary,
+      (.secondary, _) => colors.fill.tertiary,
     };
 
     const Border? border = null;
@@ -93,6 +93,8 @@ class AppButton extends StatelessWidget {
       AppButtonSize.large => Spacing.px12,
     };
 
+    final isDesktop = ResponsiveScreen.isDesktop(context);
+
     return OutlinedButton(
       onPressed: state == AppButtonState.active ? onPressed : null,
       style: ButtonStyle(
@@ -111,13 +113,17 @@ class AppButton extends StatelessWidget {
         side: border != null
             ? WidgetStatePropertyAll(BorderSide(color: border.top.color))
             : null,
+        minimumSize: (size == .large && isDesktop)
+            ? WidgetStatePropertyAll(Size(isDesktop ? 320 : double.infinity, 0))
+            : null,
       ),
       child: Padding(
         padding: EdgeInsets.symmetric(
           vertical: verticalPadding,
-          horizontal: 12,
+          horizontal: Spacing.px12,
         ),
         child: Row(
+          mainAxisSize: (size == .large && !isDesktop) ? .max : .min,
           mainAxisAlignment: .center,
           crossAxisAlignment: .center,
           children: [
