@@ -418,8 +418,6 @@ impl CoreUser {
             .process_message(&mut *txn, &self.inner.api_clients, protocol_message)
             .await?
         else {
-            // TODO: Once we have a UX for resyncs, we should schedule one
-            // here and re-enable the resync test in integration.rs
             let _resync = Resync {
                 chat_id: chat.id(),
                 group_id: group.group_id().clone(),
@@ -427,6 +425,7 @@ impl CoreUser {
                 identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
                 original_leaf_index: group.own_index(),
             };
+            group.group_mut().mark_commit_failed(&mut *txn).await?;
             return Ok(ProcessQsMessageResult::None);
         };
 
@@ -507,8 +506,6 @@ impl CoreUser {
             .process_message(&mut *txn, &self.inner.api_clients, protocol_message)
             .await?
         else {
-            // TODO: Once we have a UX for resyncs, we should schedule one
-            // here and re-enable the resync test in integration.rs
             let _resync = Resync {
                 chat_id,
                 group_id: group.group_id().clone(),
@@ -516,7 +513,7 @@ impl CoreUser {
                 identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
                 original_leaf_index: group.own_index(),
             };
-
+            group.group_mut().mark_commit_failed(&mut *txn).await?;
             return Ok(ProcessQsMessageResult::None);
         };
 
@@ -560,8 +557,6 @@ impl CoreUser {
             .process_apq_message(txn, self.api_clients(), protocol_message)
             .await?
         else {
-            // TODO: Once we have a UX for resyncs, we should schedule one
-            // here and re-enable the resync test in integration.rs
             let _resync = Resync {
                 chat_id,
                 group_id: group.group_id().clone(),
@@ -569,7 +564,7 @@ impl CoreUser {
                 identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
                 original_leaf_index: group.own_index(),
             };
-
+            group.group_mut().mark_commit_failed(&mut *txn).await?;
             return Ok(ProcessQsMessageResult::None);
         };
 
