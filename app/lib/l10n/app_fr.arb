@@ -338,5 +338,5 @@
   "memberSelectionList_client_not_supported": "Ce contact a une application obsolète qui doit être mise à jour.",
   "homeTab_chats": "Discussions",
   "homeTab_profile": "Profil",
-  "messageList_unreadMessages": "{count, plural, one {{count} message non lu} other {{count} messages non lus}}"
+  "messageList_newMessages": "{count, plural, one {{count} nouveau message} other {{count} nouveaux messages}}"
 }

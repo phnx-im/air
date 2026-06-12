@@ -1923,11 +1923,11 @@ abstract class AppLocalizations {
   /// **'You'**
   String get homeTab_profile;
 
-  /// No description provided for @messageList_unreadMessages.
+  /// No description provided for @messageList_newMessages.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, one {{count} unread message} other {{count} unread messages}}'**
-  String messageList_unreadMessages(int count);
+  /// **'{count, plural, one {{count} new message} other {{count} new messages}}'**
+  String messageList_newMessages(int count);
 }
 
 class _AppLocalizationsDelegate

@@ -10519,6 +10519,7 @@ impl SseDecode for crate::api::message_list_cubit::MessageListState {
         let mut var_hasNewer = <bool>::sse_decode(deserializer);
         let mut var_isAtBottom = <bool>::sse_decode(deserializer);
         let mut var_firstUnreadIndex = <Option<usize>>::sse_decode(deserializer);
+        let mut var_unreadCount = <usize>::sse_decode(deserializer);
         let mut var_revision = <usize>::sse_decode(deserializer);
         return crate::api::message_list_cubit::MessageListState {
             is_connection_chat: var_isConnectionChat,
@@ -10526,6 +10527,7 @@ impl SseDecode for crate::api::message_list_cubit::MessageListState {
             has_newer: var_hasNewer,
             is_at_bottom: var_isAtBottom,
             first_unread_index: var_firstUnreadIndex,
+            unread_count: var_unreadCount,
             revision: var_revision,
         };
     }
@@ -13495,6 +13497,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::message_list_cubit::MessageLi
             self.has_newer.into_into_dart().into_dart(),
             self.is_at_bottom.into_into_dart().into_dart(),
             self.first_unread_index.into_into_dart().into_dart(),
+            self.unread_count.into_into_dart().into_dart(),
             self.revision.into_into_dart().into_dart(),
         ]
         .into_dart()
@@ -16095,6 +16098,7 @@ impl SseEncode for crate::api::message_list_cubit::MessageListState {
         <bool>::sse_encode(self.has_newer, serializer);
         <bool>::sse_encode(self.is_at_bottom, serializer);
         <Option<usize>>::sse_encode(self.first_unread_index, serializer);
+        <usize>::sse_encode(self.unread_count, serializer);
         <usize>::sse_encode(self.revision, serializer);
     }
 }

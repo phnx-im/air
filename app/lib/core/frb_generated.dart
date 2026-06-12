@@ -9393,15 +9393,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   MessageListState dco_decode_message_list_state(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 6)
-      throw Exception('unexpected arr length: expect 6 but see ${arr.length}');
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return MessageListState(
       isConnectionChat: dco_decode_opt_box_autoadd_bool(arr[0]),
       hasOlder: dco_decode_bool(arr[1]),
       hasNewer: dco_decode_bool(arr[2]),
       isAtBottom: dco_decode_bool(arr[3]),
       firstUnreadIndex: dco_decode_opt_CastedPrimitive_usize(arr[4]),
-      revision: dco_decode_CastedPrimitive_usize(arr[5]),
+      unreadCount: dco_decode_CastedPrimitive_usize(arr[5]),
+      revision: dco_decode_CastedPrimitive_usize(arr[6]),
     );
   }
 
@@ -12569,6 +12570,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_firstUnreadIndex = sse_decode_opt_CastedPrimitive_usize(
       deserializer,
     );
+    var var_unreadCount = sse_decode_CastedPrimitive_usize(deserializer);
     var var_revision = sse_decode_CastedPrimitive_usize(deserializer);
     return MessageListState(
       isConnectionChat: var_isConnectionChat,
@@ -12576,6 +12578,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       hasNewer: var_hasNewer,
       isAtBottom: var_isAtBottom,
       firstUnreadIndex: var_firstUnreadIndex,
+      unreadCount: var_unreadCount,
       revision: var_revision,
     );
   }
@@ -16213,6 +16216,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self.hasNewer, serializer);
     sse_encode_bool(self.isAtBottom, serializer);
     sse_encode_opt_CastedPrimitive_usize(self.firstUnreadIndex, serializer);
+    sse_encode_CastedPrimitive_usize(self.unreadCount, serializer);
     sse_encode_CastedPrimitive_usize(self.revision, serializer);
   }
 

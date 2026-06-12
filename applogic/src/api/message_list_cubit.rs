@@ -30,7 +30,7 @@ use super::{
     user_cubit::UserCubitBase,
 };
 
-const PAGE_SIZE: usize = 50;
+const PAGE_SIZE: usize = 64;
 /// Maximum number of messages kept in the loaded window.
 /// When a prepend/append would exceed this, messages are dropped from the far
 /// end. With anchored rendering we can retain a larger buffer to make long
@@ -51,6 +51,8 @@ pub struct MessageListState {
     pub is_at_bottom: bool,
     /// Index of the first unread message (set on initial load only)
     pub first_unread_index: Option<usize>,
+    /// Number of unread messages shown in the unread divider.
+    pub unread_count: usize,
     /// Monotonic revision incremented for every emitted transition.
     pub revision: usize,
 }
@@ -115,6 +117,7 @@ enum LoadDirection {
         has_newer: bool,
         is_at_bottom: bool,
         first_unread_index: Option<usize>,
+        unread_count: usize,
         command: Option<MessageListCommand>,
     },
     /// Prepend older messages before the current window
@@ -239,6 +242,7 @@ impl MessageListData {
                 has_newer,
                 is_at_bottom,
                 first_unread_index,
+                unread_count,
                 command: next_command,
             } => {
                 let mut messages: Vec<UiChatMessage> = new_messages
@@ -261,6 +265,7 @@ impl MessageListData {
                 state.has_newer = has_newer;
                 state.is_at_bottom = is_at_bottom;
                 state.first_unread_index = first_unread_index;
+                state.unread_count = unread_count;
 
                 changes.push(MessageListChange::Reload {
                     messages: newest_first(&self.messages),
@@ -436,6 +441,7 @@ impl MessageListData {
         let end = (unread_idx + 1).min(self.messages.len());
         recompute_flight_positions_range(&mut self.messages, start, end, None);
         state.first_unread_index = None;
+        state.unread_count = 0;
 
         let mut changes = Vec::new();
         push_patch_changes(&mut changes, &self.messages, start..end);
@@ -752,6 +758,7 @@ impl MessageListContext {
                 };
 
             let first_unread_index = messages.iter().position(|m| m.id() == unread_id);
+            let unread_count = self.core_user.unread_messages_count(self.chat_id).await;
 
             let mut state = self.state_tx.borrow().clone();
             let transition = self.data.apply_messages(
@@ -764,6 +771,7 @@ impl MessageListContext {
                     has_newer,
                     is_at_bottom: !has_newer,
                     first_unread_index,
+                    unread_count,
                     command: None,
                 },
             );
@@ -814,6 +822,7 @@ impl MessageListContext {
                 has_newer: false,
                 is_at_bottom: true,
                 first_unread_index: None,
+                unread_count: 0,
                 command: scroll_to_bottom.then_some(MessageListCommand::ScrollToBottom),
             },
         );
@@ -1038,6 +1047,7 @@ impl MessageListContext {
                 has_newer,
                 is_at_bottom: !has_newer,
                 first_unread_index: None,
+                unread_count: 0,
                 command: Some(MessageListCommand::ScrollToId { message_id }),
             },
         );
@@ -1208,6 +1218,7 @@ mod tests {
                 has_newer: false,
                 is_at_bottom: true,
                 first_unread_index: None,
+                unread_count: 0,
                 command: None,
             },
         );
@@ -1249,6 +1260,7 @@ mod tests {
                 has_newer: false,
                 is_at_bottom: true,
                 first_unread_index: Some(2),
+                unread_count: 2,
                 command: None,
             },
         );
@@ -1276,6 +1288,7 @@ mod tests {
                 has_newer: false,
                 is_at_bottom: true,
                 first_unread_index: None,
+                unread_count: 0,
                 command: Some(MessageListCommand::ScrollToBottom),
             },
         );
@@ -1315,6 +1328,7 @@ mod tests {
                 has_newer: false,
                 is_at_bottom: true,
                 first_unread_index: None,
+                unread_count: 0,
                 command: None,
             },
         );
@@ -1381,6 +1395,7 @@ mod tests {
                 has_newer: false,
                 is_at_bottom: true,
                 first_unread_index: None,
+                unread_count: 0,
                 command: None,
             },
         );
@@ -1447,6 +1462,7 @@ mod tests {
                 has_newer: false,
                 is_at_bottom: true,
                 first_unread_index: None,
+                unread_count: 0,
                 command: None,
             },
         );
