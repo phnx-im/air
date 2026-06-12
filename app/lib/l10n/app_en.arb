@@ -402,8 +402,8 @@
   "homeTab_chats": "Chats",
   "homeTab_profile": "You",
 
-  "messageList_unreadMessages": "{count, plural, one {{count} unread message} other {{count} unread messages}}",
-  "@messageList_unreadMessages": {
+  "messageList_newMessages": "{count, plural, one {{count} new message} other {{count} new messages}}",
+  "@messageList_newMessages": {
     "placeholders": {
       "count": {
         "type": "int"

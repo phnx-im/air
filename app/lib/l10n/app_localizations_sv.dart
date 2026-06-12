@@ -1091,12 +1091,12 @@ class AppLocalizationsSv extends AppLocalizations {
   String get homeTab_profile => 'Du';
 
   @override
-  String messageList_unreadMessages(int count) {
+  String messageList_newMessages(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count olästa meddelanden',
-      one: '$count oläst meddelande',
+      other: '$count nya meddelanden',
+      one: '$count nytt meddelande',
     );
     return '$_temp0';
   }
