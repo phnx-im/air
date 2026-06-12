@@ -427,6 +427,7 @@ impl CoreUser {
                 identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
                 original_leaf_index: group.own_index(),
             };
+            group.group_mut().mark_commit_failed(&mut *txn).await?;
             return Ok(ProcessQsMessageResult::None);
         };
 
@@ -516,7 +517,7 @@ impl CoreUser {
                 identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
                 original_leaf_index: group.own_index(),
             };
-
+            group.group_mut().mark_commit_failed(&mut *txn).await?;
             return Ok(ProcessQsMessageResult::None);
         };
 
@@ -569,7 +570,7 @@ impl CoreUser {
                 identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
                 original_leaf_index: group.own_index(),
             };
-
+            group.group_mut().mark_commit_failed(&mut *txn).await?;
             return Ok(ProcessQsMessageResult::None);
         };
 

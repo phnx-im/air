@@ -81,6 +81,7 @@ impl OutboundServiceContext {
             info!(?resync.chat_id, "Performing chat resync");
 
             let group_id = resync.group_id.clone();
+            let chat_id = resync.chat_id;
 
             let result = {
                 let mut connection = self.db.write().await?;
@@ -91,6 +92,7 @@ impl OutboundServiceContext {
                 if result.is_ok() {
                     info!("Got profiles infos");
                     Resync::remove(&mut connection, &group_id).await?;
+                    connection.notifier().update(chat_id);
                     // TODO: Schedule a job here that deals with fetching profile
                     // infos in the background.
                 }

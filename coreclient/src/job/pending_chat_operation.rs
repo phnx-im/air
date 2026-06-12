@@ -232,6 +232,12 @@ impl PendingChatOperation {
                 "Failed to execute PendingChatOperation for group because
                 it is still waiting for a queue response",
             );
+            // Re-assert the flag derived from the persisted job state, in case
+            // the original write was lost
+            self.group
+                .group_mut()
+                .mark_commit_failed(context.db.write().await?)
+                .await?;
             return Err(JobError::Blocked);
         }
 
