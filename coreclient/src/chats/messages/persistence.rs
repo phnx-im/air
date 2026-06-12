@@ -963,7 +963,7 @@ impl From<SqlInReplyToMessage> for Option<InReplyToMessage> {
             message_id,
             sender: UserId::new(sender_user_uuid?, sender_user_domain?),
             mimi_content: content.and_then(|BlobDecoded(c)| c.to_mimi_content().ok()),
-            local_attachment_ids: Vec::new(),
+            attachment_ids: Vec::new(),
         })
     }
 }
@@ -1067,7 +1067,7 @@ impl InReplyToMessage {
             return Ok(None);
         };
 
-        in_reply_to_message.local_attachment_ids =
+        in_reply_to_message.attachment_ids =
             AttachmentRecord::load_ids_by_message_id(connection, in_reply_to_message.message_id)
                 .await?;
 
@@ -1143,7 +1143,7 @@ pub(crate) mod tests {
     }
 
     #[sqlx::test]
-    async fn in_reply_to_carries_local_attachment_ids(pool: SqlitePool) -> anyhow::Result<()> {
+    async fn in_reply_to_carries_attachment_ids(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
 
         let chat = test_chat();
@@ -1162,7 +1162,7 @@ pub(crate) mod tests {
             .unwrap();
 
         assert_eq!(in_reply_to.message_id, original.id());
-        assert_eq!(in_reply_to.local_attachment_ids, [record.attachment_id]);
+        assert_eq!(in_reply_to.attachment_ids, [record.attachment_id]);
 
         Ok(())
     }

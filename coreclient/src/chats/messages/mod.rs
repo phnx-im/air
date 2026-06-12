@@ -291,8 +291,8 @@ pub struct InReplyToMessage {
     pub message_id: MessageId,
     pub sender: UserId,
     pub mimi_content: Option<MimiContent>,
-    /// Local attachment IDs of the replied-to message, ordered by position in the mimi content.
-    pub local_attachment_ids: Vec<AttachmentId>,
+    /// Attachment IDs of the replied-to message, ordered by position in the mimi content.
+    pub attachment_ids: Vec<AttachmentId>,
 }
 
 // WARNING: If this type is changed, a new `VersionedMessage` variant must be

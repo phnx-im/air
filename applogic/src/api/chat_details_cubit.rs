@@ -513,7 +513,7 @@ impl ChatDetailsCubitBase {
             return Ok(());
         };
 
-        let local_attachment_ids = self
+        let attachment_ids = self
             .context
             .core_user
             .attachment_ids_for_message(message_id)
@@ -545,7 +545,7 @@ impl ChatDetailsCubitBase {
                     message_id,
                     sender: sender.into(),
                     mimi_content: UnresolvedMimiContent::from(mimi_content)
-                        .resolve(&local_attachment_ids),
+                        .resolve(&attachment_ids),
                 },
             ));
             draft.is_committed = false;
