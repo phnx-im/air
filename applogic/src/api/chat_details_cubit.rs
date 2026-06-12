@@ -513,6 +513,12 @@ impl ChatDetailsCubitBase {
             return Ok(());
         };
 
+        let local_attachment_ids = self
+            .context
+            .core_user
+            .attachment_ids_for_message(message_id)
+            .await;
+
         // Update draft in state
         let changed = self.core.state_tx().send_if_modified(|state| {
             let Some(chat) = state.chat.as_mut() else {
@@ -538,8 +544,8 @@ impl ChatDetailsCubitBase {
                 UiInReplyToMessage::Resolved {
                     message_id,
                     sender: sender.into(),
-                    // Don't resolve attachment IDs
-                    mimi_content: UnresolvedMimiContent::from(mimi_content).resolve(&[]),
+                    mimi_content: UnresolvedMimiContent::from(mimi_content)
+                        .resolve(&local_attachment_ids),
                 },
             ));
             draft.is_committed = false;

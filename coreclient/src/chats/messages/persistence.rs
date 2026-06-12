@@ -12,7 +12,7 @@ use aircommon::{
 use anyhow::bail;
 use mimi_content::{MessageStatus, MimiContent};
 use serde::{Deserialize, Serialize};
-use sqlx::{SqliteConnection, query, query_as, query_scalar};
+use sqlx::{query, query_as, query_scalar};
 use tokio_stream::StreamExt;
 use tracing::{error, warn};
 use uuid::Uuid;
@@ -20,6 +20,7 @@ use uuid::Uuid;
 use crate::{
     ChatId, ChatMessage, ContentMessage, Message,
     chats::messages::InReplyToMessage,
+    clients::attachment::AttachmentRecord,
     db::access::{ReadConnection, WriteConnection},
 };
 
@@ -205,7 +206,7 @@ impl ChatMessage {
         .fetch_optional(connection.as_mut())
         .await?
         .map(ChatMessage::from)
-        .with_loaded_in_reply_to(connection.as_mut())
+        .with_loaded_in_reply_to(&mut connection)
         .await
     }
 
@@ -238,7 +239,7 @@ impl ChatMessage {
         .fetch_optional(connection.as_mut())
         .await?
         .map(ChatMessage::from)
-        .with_loaded_in_reply_to(connection.as_mut())
+        .with_loaded_in_reply_to(&mut connection)
         .await
     }
 
@@ -297,9 +298,7 @@ impl ChatMessage {
         .await?;
 
         messages.reverse();
-        let messages = messages
-            .with_loaded_in_reply_to(connection.as_mut())
-            .await?;
+        let messages = messages.with_loaded_in_reply_to(&mut connection).await?;
         Ok(messages)
     }
 
@@ -351,9 +350,7 @@ impl ChatMessage {
         .await?;
 
         let has_older = Self::trim_sentinel(&mut messages, limit, true);
-        let messages = messages
-            .with_loaded_in_reply_to(connection.as_mut())
-            .await?;
+        let messages = messages.with_loaded_in_reply_to(&mut connection).await?;
         Ok((messages, has_older))
     }
 
@@ -405,9 +402,7 @@ impl ChatMessage {
         .await?;
 
         let has_newer = Self::trim_sentinel(&mut messages, limit, false);
-        let messages = messages
-            .with_loaded_in_reply_to(connection.as_mut())
-            .await?;
+        let messages = messages.with_loaded_in_reply_to(&mut connection).await?;
         Ok((messages, has_newer))
     }
 
@@ -458,9 +453,7 @@ impl ChatMessage {
         .await?;
 
         let has_newer = Self::trim_sentinel(&mut messages, limit, false);
-        let messages = messages
-            .with_loaded_in_reply_to(connection.as_mut())
-            .await?;
+        let messages = messages.with_loaded_in_reply_to(&mut connection).await?;
         Ok((messages, has_newer))
     }
 
@@ -550,9 +543,7 @@ impl ChatMessage {
         let has_newer = Self::trim_sentinel(&mut forward, half_limit, false);
 
         backward.append(&mut forward);
-        let messages = backward
-            .with_loaded_in_reply_to(connection.as_mut())
-            .await?;
+        let messages = backward.with_loaded_in_reply_to(&mut connection).await?;
         Ok((messages, has_older, has_newer))
     }
 
@@ -593,12 +584,12 @@ impl ChatMessage {
         .fetch_optional(connection.as_mut())
         .await?
         .map(ChatMessage::from)
-        .with_loaded_in_reply_to(connection.as_mut())
+        .with_loaded_in_reply_to(&mut connection)
         .await
     }
 
     /// Augments a chat message when it is a reply with the data from the referenced message
-    async fn augment_in_reply_to(&mut self, connection: &mut SqliteConnection) -> sqlx::Result<()> {
+    async fn augment_in_reply_to(&mut self, connection: impl ReadConnection) -> sqlx::Result<()> {
         if let Some((mimi_id, message)) = self.in_reply_to.as_mut() {
             *message = InReplyToMessage::load(connection, mimi_id).await?;
         }
@@ -790,7 +781,7 @@ impl ChatMessage {
         .fetch_optional(connection.as_mut())
         .await?
         .map(ChatMessage::from)
-        .with_loaded_in_reply_to(connection.as_mut())
+        .with_loaded_in_reply_to(&mut connection)
         .await
     }
 
@@ -831,7 +822,7 @@ impl ChatMessage {
         .fetch_optional(connection.as_mut())
         .await?
         .map(ChatMessage::from)
-        .with_loaded_in_reply_to(connection.as_mut())
+        .with_loaded_in_reply_to(&mut connection)
         .await
     }
 
@@ -869,7 +860,7 @@ impl ChatMessage {
         .fetch_optional(connection.as_mut())
         .await?
         .map(ChatMessage::from)
-        .with_loaded_in_reply_to(connection.as_mut())
+        .with_loaded_in_reply_to(&mut connection)
         .await
     }
 
@@ -907,7 +898,7 @@ impl ChatMessage {
         .fetch_optional(connection.as_mut())
         .await?
         .map(ChatMessage::from)
-        .with_loaded_in_reply_to(connection.as_mut())
+        .with_loaded_in_reply_to(&mut connection)
         .await
     }
 
@@ -972,6 +963,7 @@ impl From<SqlInReplyToMessage> for Option<InReplyToMessage> {
             message_id,
             sender: UserId::new(sender_user_uuid?, sender_user_domain?),
             mimi_content: content.and_then(|BlobDecoded(c)| c.to_mimi_content().ok()),
+            local_attachment_ids: Vec::new(),
         })
     }
 }
@@ -981,14 +973,11 @@ trait SqlChatMessageExt
 where
     Self: Sized,
 {
-    async fn with_loaded_in_reply_to(self, c: &mut SqliteConnection) -> sqlx::Result<Self>;
+    async fn with_loaded_in_reply_to(self, c: impl ReadConnection) -> sqlx::Result<Self>;
 }
 
 impl SqlChatMessageExt for &mut ChatMessage {
-    async fn with_loaded_in_reply_to(
-        self,
-        connection: &mut SqliteConnection,
-    ) -> sqlx::Result<Self> {
+    async fn with_loaded_in_reply_to(self, connection: impl ReadConnection) -> sqlx::Result<Self> {
         if let Some((in_reply_to_mimi_id, in_reply_to_message)) = self.in_reply_to.as_mut() {
             *in_reply_to_message = InReplyToMessage::load(connection, in_reply_to_mimi_id).await?;
         }
@@ -1000,10 +989,10 @@ impl SqlChatMessageExt for &mut ChatMessage {
 impl SqlChatMessageExt for Vec<ChatMessage> {
     async fn with_loaded_in_reply_to(
         mut self,
-        connection: &mut SqliteConnection,
+        mut connection: impl ReadConnection,
     ) -> sqlx::Result<Self> {
         for message in &mut self {
-            if let Err(error) = message.augment_in_reply_to(connection).await {
+            if let Err(error) = message.augment_in_reply_to(&mut connection).await {
                 error!(%error, "failed to load reply for message");
             }
         }
@@ -1014,7 +1003,7 @@ impl SqlChatMessageExt for Vec<ChatMessage> {
 impl SqlChatMessageExt for Option<ChatMessage> {
     async fn with_loaded_in_reply_to(
         mut self,
-        connection: &mut SqliteConnection,
+        connection: impl ReadConnection,
     ) -> sqlx::Result<Self> {
         if let Some(chat_message) = self.as_mut() {
             chat_message.augment_in_reply_to(connection).await?;
@@ -1026,15 +1015,16 @@ impl SqlChatMessageExt for Option<ChatMessage> {
 
 impl InReplyToMessage {
     pub(crate) async fn load(
-        connection: &mut SqliteConnection,
+        mut connection: impl ReadConnection,
         mimi_id: &MimiId,
     ) -> sqlx::Result<Option<Self>> {
         let mimi_id = mimi_id.as_slice();
 
         // Try to load the message that was replied to
-        let in_reply_to_message = if let Some(in_reply_to_message) = query_as!(
-            SqlInReplyToMessage,
-            r#"
+        let in_reply_to_message: Option<InReplyToMessage> = if let Some(in_reply_to_message) =
+            query_as!(
+                SqlInReplyToMessage,
+                r#"
             SELECT
                 message_id AS "message_id: _",
                 sender_user_uuid AS "sender_user_uuid: _",
@@ -1043,10 +1033,10 @@ impl InReplyToMessage {
             FROM message
             WHERE mimi_id = ?
             "#,
-            mimi_id,
-        )
-        .fetch_optional(&mut *connection)
-        .await?
+                mimi_id,
+            )
+            .fetch_optional(connection.as_mut())
+            .await?
         {
             in_reply_to_message.into()
         }
@@ -1065,7 +1055,7 @@ impl InReplyToMessage {
             "#,
             mimi_id,
         )
-        .fetch_optional(&mut *connection)
+        .fetch_optional(connection.as_mut())
         .await?
         {
             in_reply_to_message.into()
@@ -1073,7 +1063,15 @@ impl InReplyToMessage {
             None
         };
 
-        Ok(in_reply_to_message)
+        let Some(mut in_reply_to_message) = in_reply_to_message else {
+            return Ok(None);
+        };
+
+        in_reply_to_message.local_attachment_ids =
+            AttachmentRecord::load_ids_by_message_id(connection, in_reply_to_message.message_id)
+                .await?;
+
+        Ok(Some(in_reply_to_message))
     }
 }
 
@@ -1089,7 +1087,7 @@ pub(crate) mod tests {
 
     use crate::{
         ContentMessage, Message, MessageId, chats::persistence::tests::test_chat,
-        db::access::DbAccess,
+        clients::attachment::persistence::test::test_attachment_record, db::access::DbAccess,
     };
 
     use super::*;
@@ -1140,6 +1138,31 @@ pub(crate) mod tests {
         let loaded = ChatMessage::load(&mut txn, message.id()).await?.unwrap();
 
         assert_eq!(loaded, message);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn in_reply_to_carries_local_attachment_ids(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        let chat = test_chat();
+        chat.store(pool.write().await?).await?;
+
+        let original = test_chat_message(chat.id());
+        original.store(pool.write().await?).await?;
+
+        let record = test_attachment_record(chat.id(), original.id());
+        record.store(pool.write().await?, None).await?;
+
+        let mimi_id = *original.message().mimi_id().unwrap();
+
+        let in_reply_to = InReplyToMessage::load(pool.read().await?, &mimi_id)
+            .await?
+            .unwrap();
+
+        assert_eq!(in_reply_to.message_id, original.id());
+        assert_eq!(in_reply_to.local_attachment_ids, [record.attachment_id]);
 
         Ok(())
     }
