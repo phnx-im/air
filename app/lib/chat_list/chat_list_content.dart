@@ -6,6 +6,7 @@ import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:air/chat/chat_details.dart';
+import 'package:air/chat/mute_chat_sheet.dart';
 import 'package:air/chat_list/chat_list_view.dart';
 import 'package:air/ds/components/context_menu/context_menu.dart';
 import 'package:air/ds/components/context_menu/context_menu_item_ui.dart';
@@ -194,6 +195,7 @@ class _ListTileState extends State<_ListTile> {
       (ChatDetailsCubit cubit) => cubit.state.chat?.isMuted ?? false,
     );
     final isSelected = currentChatId == widget.chatId;
+    final isDesktop = ResponsiveScreen.isDesktop(context);
 
     return ContextMenu(
       direction: ContextMenuDirection.right,
@@ -206,7 +208,7 @@ class _ListTileState extends State<_ListTile> {
             leading: const AppIcon.bell(size: 16),
             onPressed: () => context.read<ChatDetailsCubit>().unmuteChat(),
           )
-        else
+        else if (isDesktop)
           ContextMenuSubmenuItem(
             label: loc.chatList_contextMenu_mute,
             leading: const AppIcon.bellOff(size: 16),
@@ -242,6 +244,12 @@ class _ListTileState extends State<_ListTile> {
                 ),
               ),
             ],
+          )
+        else
+          ContextMenuItem(
+            label: loc.chatList_contextMenu_mute,
+            leading: const AppIcon.bellOff(size: 16),
+            onPressed: () => showMuteChatSheet(context),
           ),
       ],
       child: GestureDetector(
