@@ -116,7 +116,7 @@ mod persistence {
             };
 
             if let Some((mimi_id, message)) = message_draft.in_reply_to.as_mut() {
-                *message = InReplyToMessage::load(connection.as_mut(), mimi_id).await?;
+                *message = InReplyToMessage::load(&mut connection, mimi_id).await?;
             }
 
             Ok(Some(message_draft))

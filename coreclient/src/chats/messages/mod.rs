@@ -9,7 +9,10 @@ use mimi_content::{
 };
 use tracing::{error, warn};
 
-use crate::{clients::CoreUser, groups::Group};
+use crate::{
+    clients::{CoreUser, attachment::AttachmentId},
+    groups::Group,
+};
 
 use super::*;
 
@@ -288,6 +291,8 @@ pub struct InReplyToMessage {
     pub message_id: MessageId,
     pub sender: UserId,
     pub mimi_content: Option<MimiContent>,
+    /// Attachment IDs of the replied-to message, ordered by position in the mimi content.
+    pub attachment_ids: Vec<AttachmentId>,
 }
 
 // WARNING: If this type is changed, a new `VersionedMessage` variant must be

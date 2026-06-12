@@ -1080,8 +1080,10 @@ class InReplyToBubble extends StatelessWidget {
             : context.select(
                 (UsersCubit cubit) => cubit.state.displayName(userId: sender),
               ),
-        mimiContent.plaintextPreview(loc) ??
-            loc.composer_reply_deleted_message_placeholder,
+        mimiContent.isDeleted
+            ? loc.composer_reply_deleted_message_placeholder
+            : mimiContent.plaintextPreview(loc) ??
+                  loc.composer_reply_noaccess_message_placeholder,
       ),
     };
     // Show the jump arrow only in message bubbles when the original message

@@ -353,7 +353,7 @@ impl AttachmentRecord {
 
     /// Load all attachment IDs for a given message.
     ///
-    /// This is primarily used for test verification.
+    /// IDs are ordered by the position in the mimi content.
     pub(crate) async fn load_ids_by_message_id(
         mut connection: impl ReadConnection,
         message_id: MessageId,

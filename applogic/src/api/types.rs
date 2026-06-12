@@ -174,7 +174,7 @@ impl From<MessageDraft> for UiMessageDraft {
                             mimi_content: UnresolvedMimiContent::from(
                                 in_reply_to.mimi_content.unwrap_or_default(),
                             )
-                            .resolve(&[]), // No local attachment IDs for drafts
+                            .resolve(&in_reply_to.attachment_ids),
                         },
                         None => UiInReplyToMessage::NotFound,
                     },
@@ -393,7 +393,7 @@ impl UiChatMessage {
                 mimi_content: UnresolvedMimiContent::from(
                     in_reply_to.mimi_content.unwrap_or_default(),
                 )
-                .resolve(&[]), // No local attachment IDs for replies
+                .resolve(&in_reply_to.attachment_ids),
             },
             // this means we have a reference but couldn't load the contents
             // (i.e. deleted for me, or in past history after joining).
