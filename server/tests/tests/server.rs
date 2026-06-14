@@ -639,6 +639,12 @@ async fn resync_group_not_found_cleans_up_local_state() {
 async fn resync_valid_group_succeeds() {
     let mut setup = TestBackend::single().await;
 
+    // Skip resyncs for APQ groups.
+    if setup.apq_groups {
+        warn!("Skipping test: resync is not supported for APQ groups");
+        return;
+    }
+
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
@@ -709,6 +715,12 @@ async fn resync_refused_for_apq_group() {
 #[tracing::instrument(name = "Resync with blank leaf", skip_all)]
 async fn resync_with_blank_leaf_succeeds() {
     let mut setup = TestBackend::single().await;
+
+    // Skip resyncs for APQ groups.
+    if setup.apq_groups {
+        warn!("Skipping test: resync is not supported for APQ groups");
+        return;
+    }
 
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
