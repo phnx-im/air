@@ -119,6 +119,7 @@ impl SqlGroup {
             self_updated_at,
             pq,
             pending_commit_failed,
+            send_message_collision_key: None,
         }
     }
 }

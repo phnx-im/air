@@ -2,11 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use mimi_content::{MessageStatus, MimiContent};
-use rand::{Rng, distributions::Alphanumeric, rngs::OsRng};
-
+use aircommon::messages::client_ds_out::SendMessageCollisionTag;
 use aircoreclient::{ChatId, ChatMessage, MimiContentExt, ReadReceiptsSetting, clients::CoreUser};
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
+use mimi_content::{MessageStatus, MimiContent};
+use rand::{Rng, distributions::Alphanumeric, rngs::OsRng};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Edit message", skip_all)]
@@ -962,4 +962,161 @@ async fn delete_message_with_attachment() {
             "Bob's attachment should be deleted after message deletion"
         );
     }
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Send message collision tags: no collision", skip_all)]
+async fn send_message_collision_tags_no_collision() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+
+    alice_user
+        .send_message_with_fixed_collision_tags(
+            chat_id,
+            vec![
+                SendMessageCollisionTag::generation(0xAAi64),
+                SendMessageCollisionTag::delivery_receipt(0xBBi64),
+            ],
+        )
+        .await
+        .expect("send with new tags should succeed");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Send message collision tags: first tag collides", skip_all)]
+async fn send_message_collision_tags_first_collides() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+
+    let first_message_tags = vec![
+        SendMessageCollisionTag::generation(0xAAi64),
+        SendMessageCollisionTag::delivery_receipt(0xBBi64),
+    ];
+
+    alice_user
+        .send_message_with_fixed_collision_tags(chat_id, first_message_tags.clone())
+        .await
+        .expect("first send should succeed");
+
+    let error = alice_user
+        .send_message_with_fixed_collision_tags(
+            chat_id,
+            vec![
+                SendMessageCollisionTag::generation(0xAAi64),
+                SendMessageCollisionTag::delivery_receipt(0xCCi64),
+            ],
+        )
+        .await
+        .expect_err("send with colliding tag1 should be rejected");
+
+    let colliding_tags = error.process_tag_collisions(&first_message_tags);
+
+    assert_eq!(
+        colliding_tags,
+        vec![SendMessageCollisionTag::generation(0xAAi64),],
+        "sequence collision tag collides"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Send message collision tags: second tag collides", skip_all)]
+async fn send_message_collision_tags_second_collides() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+
+    alice_user
+        .send_message_with_fixed_collision_tags(
+            chat_id,
+            vec![
+                SendMessageCollisionTag::generation(0xAAi64),
+                SendMessageCollisionTag::delivery_receipt(0xBBi64),
+            ],
+        )
+        .await
+        .expect("first send should succeed");
+
+    let second_message_tags = vec![
+        SendMessageCollisionTag::generation(0xCCi64),
+        SendMessageCollisionTag::delivery_receipt(0xBBi64),
+    ];
+
+    let error = alice_user
+        .send_message_with_fixed_collision_tags(chat_id, second_message_tags.clone())
+        .await
+        .expect_err("send with colliding tag2 should be rejected");
+
+    let colliding_tags = error.process_tag_collisions(&second_message_tags);
+
+    assert_eq!(
+        colliding_tags,
+        vec![SendMessageCollisionTag::delivery_receipt(0xBBi64),],
+        "the delivery receipt collides"
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Send message collision tags: all tags collide", skip_all)]
+async fn send_message_collision_tags_all_collide() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+
+    let tags = vec![
+        SendMessageCollisionTag::generation(0xAAi64),
+        SendMessageCollisionTag::delivery_receipt(0xBBi64),
+        SendMessageCollisionTag::read_receipt(0xCCi64),
+    ];
+
+    alice_user
+        .send_message_with_fixed_collision_tags(chat_id, tags.clone())
+        .await
+        .expect("first send should succeed");
+
+    let error = alice_user
+        .send_message_with_fixed_collision_tags(chat_id, tags.clone())
+        .await
+        .expect_err("second send with identical tags should be rejected");
+
+    let colliding_tags = error.process_tag_collisions(&tags);
+
+    assert_eq!(tags, colliding_tags, "expected all tags to collide");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Send message collision tags: from different users", skip_all)]
+async fn send_message_collision_tags_from_different_users_never_collide() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+    let bob_user = &setup.get_user(&bob).user;
+
+    let content = MimiContent::simple_markdown_message("collision-test".into(), [0u8; 16]);
+
+    alice_user
+        .send_message(chat_id, content.clone(), None)
+        .await
+        .expect("send from alice should succeed");
+
+    bob_user
+        .send_message(chat_id, content.clone(), None)
+        .await
+        .expect("send from bob should succeed");
 }

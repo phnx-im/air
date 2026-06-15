@@ -21,6 +21,16 @@ use crate::{
 
 use super::{OutboundService, OutboundServiceContext};
 
+/// The outcome of attempting to send a single queued chat message.
+enum SendOutcome {
+    /// The message was sent (or no longer needs sending) and can be removed
+    /// from the queue.
+    Sent,
+    /// The message collided with a sibling client on the DS. It is left in the
+    /// queue and retried at a fresh generation by a later run.
+    Collided,
+}
+
 impl OutboundService {
     /// Enqueue a chat message to be sent by the outbound service.
     pub async fn enqueue_chat_message(&self, message_id: MessageId) -> anyhow::Result<()> {
@@ -116,30 +126,43 @@ impl OutboundServiceContext {
                 continue;
             }
 
-            if let Err(e) = self.send_chat_message(message_id).await {
-                warn!(%e, ?message_id, "Failed to send chat message");
-                // If the message fails, we mark it and all other queued
-                // messages as "failed" and delete them from the queue.
-                self.db
-                    .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                        Ok(ChatMessageQueue::remove_all_and_and_mark_as_failed(txn).await?)
-                    })
-                    .await?;
-                return Ok(());
-            };
-
-            // Always delete the message from the queue. We don't want to automatically
-            // retry here.
-            self.db
-                .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                    ChatMessageQueue::remove(txn, message_id).await?;
-                    Ok(())
-                })
-                .await?;
+            match self.send_chat_message(message_id).await {
+                Ok(SendOutcome::Sent) => {
+                    // Always delete the message from the queue. We don't want
+                    // to automatically retry here.
+                    self.db
+                        .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                            ChatMessageQueue::remove(txn, message_id).await?;
+                            Ok(())
+                        })
+                        .await?;
+                }
+                Ok(SendOutcome::Collided) => {
+                    // Leave the message in the queue so a later run retries it
+                    // at a fresh generation instead of looping here. It stays
+                    // locked by this task instance until then.
+                    debug!(
+                        ?message_id,
+                        ?chat_id,
+                        "Message collided, re-enqueuing for a later run"
+                    );
+                }
+                Err(e) => {
+                    warn!(%e, ?message_id, "Failed to send chat message");
+                    // If the message fails, we mark it and all other queued
+                    // messages as "failed" and delete them from the queue.
+                    self.db
+                        .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                            Ok(ChatMessageQueue::remove_all_and_and_mark_as_failed(txn).await?)
+                        })
+                        .await?;
+                    return Ok(());
+                }
+            }
         }
     }
 
-    async fn send_chat_message(&self, message_id: MessageId) -> anyhow::Result<()> {
+    async fn send_chat_message(&self, message_id: MessageId) -> anyhow::Result<SendOutcome> {
         debug!(?message_id, "sending message");
 
         // load chat and message
@@ -171,7 +194,7 @@ impl OutboundServiceContext {
             })
             .await?
         else {
-            return Ok(());
+            return Ok(SendOutcome::Sent);
         };
 
         let Message::Content(content) = message.message() else {
@@ -180,15 +203,16 @@ impl OutboundServiceContext {
             ));
         };
 
+        let api_client = self.api_clients.get(&chat.owner_domain())?;
+
         // load group and create MLS message
         let (group_state_ear_key, params) = self
-            .new_mls_message(&chat, content.content().clone())
+            .new_mls_message(&chat, content.content().clone(), None)
             .await?;
+        let sent_tags = params.collision_tags.clone();
 
         // send MLS message to DS
-        let ds_timestamp = match self
-            .api_clients
-            .get(&chat.owner_domain())?
+        let ds_timestamp = match api_client
             .ds_send_message(params, self.signing_key(), &group_state_ear_key)
             .await
         {
@@ -200,6 +224,15 @@ impl OutboundServiceContext {
                             handle_group_not_found_on_ds(txn, chat.group_id()).await
                         })
                         .await?;
+                    return Err(ds_error.into());
+                }
+
+                // A collision here means a competing sibling client already sent
+                // a different message at this generation. Our message was
+                // rejected, so leave it in the queue to be re-encrypted at a
+                // fresh generation and retried by a later run.
+                if !ds_error.process_tag_collisions(&sent_tags).is_empty() {
+                    return Ok(SendOutcome::Collided);
                 }
                 return Err(ds_error.into());
             }
@@ -234,6 +267,6 @@ impl OutboundServiceContext {
             })
             .await?;
 
-        Ok(())
+        Ok(SendOutcome::Sent)
     }
 }

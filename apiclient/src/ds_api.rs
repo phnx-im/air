@@ -19,7 +19,7 @@ use aircommon::{
         client_ds_out::{
             ApqGroupOperationParamsOut, CreateGroupParamsOut, DeleteGroupParamsOut,
             ExternalCommitInfoIn, GroupOperationParamsOut, SelfRemoveParamsOut,
-            SendMessageParamsOut, TargetedMessageParamsOut, WelcomeInfoIn,
+            SendMessageCollisionTag, SendMessageParamsOut, TargetedMessageParamsOut, WelcomeInfoIn,
         },
     },
     time::TimeStamp,
@@ -27,7 +27,8 @@ use aircommon::{
 pub use airprotos::delivery_service::v1::ProvisionAttachmentResponse;
 use airprotos::{
     common::v1::{
-        AttachmentTooLargeDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
+        AttachmentTooLargeDetail, StatusDetails, StatusDetailsCode,
+        status_details::{self, Detail},
     },
     convert::{RefInto, TryRefInto},
     delivery_service::v1::{
@@ -36,8 +37,8 @@ use airprotos::{
         ExternalCommitInfoRequest, GetAttachmentUrlPayload, GroupOperationPayload,
         GroupSessionData, IndexedEncryptedUserProfileKey, JoinConnectionGroupRequest,
         ProvisionAttachmentPayload, RequestGroupIdRequest, ResyncPayload, SelfRemovePayload,
-        SendMessagePayload, StorageObjectType, TargetedMessagePayload, UpdateProfileKeyPayload,
-        WelcomeInfoPayload,
+        SendMessageCollisionTags, SendMessagePayload, StorageObjectType, TargetedMessagePayload,
+        UpdateProfileKeyPayload, WelcomeInfoPayload,
     },
     validation::MissingFieldExt,
 };
@@ -84,6 +85,25 @@ impl DsRequestError {
             }
         } else {
             None
+        }
+    }
+
+    pub fn process_tag_collisions(
+        &self,
+        tags: &[SendMessageCollisionTag],
+    ) -> Vec<SendMessageCollisionTag> {
+        if let Self::Tonic(status) = self
+            && status.code() == tonic::Code::AlreadyExists
+            && let Some(details) = StatusDetails::from_status(status)
+            && let StatusDetailsCode::GenerationCollision = details.code()
+            && let Some(status_details::Detail::GenerationCollision(detail)) = details.detail
+        {
+            tags.iter()
+                .cloned()
+                .filter(|tag| detail.tags.contains(&tag.value()))
+                .collect()
+        } else {
+            Vec::new()
         }
     }
 
@@ -518,6 +538,13 @@ impl ApiClient {
             message: Some(params.message.try_ref_into()?),
             sender: Some(params.sender.into()),
             suppress_notifications: Some(params.suppress_notifications),
+            collision_tags: Some(SendMessageCollisionTags {
+                tags: params
+                    .collision_tags
+                    .into_iter()
+                    .map(|t| t.value())
+                    .collect(),
+            }),
         };
         let request = payload.sign(signing_key)?;
         let response = self

@@ -84,11 +84,56 @@ pub struct SelfRemoveParamsOut {
     pub remove_proposal: AssistedMessageOut,
 }
 
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CollisionTag(i64);
+
+impl CollisionTag {
+    pub fn new(tag: i64) -> Self {
+        Self(tag)
+    }
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum SendMessageCollisionTag {
+    Generation(CollisionTag),
+    DeliveryReceipt(CollisionTag),
+    ReadReceipt(CollisionTag),
+    Other(CollisionTag),
+}
+
+impl SendMessageCollisionTag {
+    pub fn generation(tag: i64) -> Self {
+        Self::Generation(CollisionTag::new(tag))
+    }
+
+    pub fn delivery_receipt(tag: i64) -> Self {
+        Self::DeliveryReceipt(CollisionTag::new(tag))
+    }
+
+    pub fn read_receipt(tag: i64) -> Self {
+        Self::ReadReceipt(CollisionTag::new(tag))
+    }
+
+    pub fn other(tag: i64) -> Self {
+        Self::Other(CollisionTag::new(tag))
+    }
+
+    pub fn value(&self) -> i64 {
+        match self {
+            SendMessageCollisionTag::Generation(t) => t.0,
+            SendMessageCollisionTag::DeliveryReceipt(t) => t.0,
+            SendMessageCollisionTag::ReadReceipt(t) => t.0,
+            SendMessageCollisionTag::Other(t) => t.0,
+        }
+    }
+}
+
 #[derive(Debug)]
 pub struct SendMessageParamsOut {
     pub message: AssistedMessageOut,
     pub sender: LeafNodeIndex,
     pub suppress_notifications: bool,
+    pub collision_tags: Vec<SendMessageCollisionTag>,
 }
 
 #[derive(Debug)]

@@ -93,6 +93,10 @@ impl AssistedMessageIn {
         self.serialized_mls_message
     }
 
+    pub fn epoch(&self) -> GroupEpoch {
+        self.mls_message.epoch()
+    }
+
     pub fn group_id(&self) -> &GroupId {
         self.mls_message.group_id()
     }

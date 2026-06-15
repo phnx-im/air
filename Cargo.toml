@@ -138,11 +138,11 @@ zeroize = "1.8.2"
 # <https://github.com/openmls/openmls/commit/b73621ba14ead6b32636a4e910f2cbfabb0d1ee9>
 #
 # Also, use the post-quantum-support branch of openmls.
-openmls = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
-openmls_rust_crypto = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
-openmls_traits = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
-openmls_memory_storage = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
-openmls_basic_credential = { git = "https://github.com/boxdot/openmls", branch = "dima/post-quantum-support" }
+openmls = { git = "https://github.com/boxdot/openmls", rev = "afcfc4554777c4ab2055ddc5db2b9294e59db57d" }
+openmls_rust_crypto = { git = "https://github.com/boxdot/openmls", rev = "afcfc4554777c4ab2055ddc5db2b9294e59db57d" }
+openmls_traits = { git = "https://github.com/boxdot/openmls", rev = "afcfc4554777c4ab2055ddc5db2b9294e59db57d" }
+openmls_memory_storage = { git = "https://github.com/boxdot/openmls", rev = "afcfc4554777c4ab2055ddc5db2b9294e59db57d" }
+openmls_basic_credential = { git = "https://github.com/boxdot/openmls", rev = "afcfc4554777c4ab2055ddc5db2b9294e59db57d" }
 # openmls = { path = "../openmls/openmls" }
 # openmls_rust_crypto = { path = "../openmls/openmls_rust_crypto" }
 # openmls_traits = { path = "../openmls/traits" }

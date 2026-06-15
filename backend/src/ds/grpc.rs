@@ -17,6 +17,7 @@ use aircommon::{
         self, GroupOperationParams, JoinConnectionGroupParams, QsQueueMessagePayload,
         QsQueueMessageType, UserProfileKeyUpdateParams, WelcomeInfoParams,
     },
+    mls_group_config::MAX_PAST_EPOCHS,
     time::TimeStamp,
 };
 use airprotos::{
@@ -251,12 +252,28 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         };
 
         let value = f(&mut group_state, &mut group_data).await?;
+        let new_epoch = group_state.group().epoch().as_u64();
         self.encrypt_and_persist(&mut txn, group_data, group_state, ear_key)
             .await?;
+
         txn.commit().await.map_err(|error| {
             error!(%error, "Failed to commit transaction");
             Status::internal("Failed to commit transaction")
         })?;
+
+        // Best-effort cleanup: the transaction is already committed, so failures here are non-fatal.
+        super::collision_tags::delete_old(
+            &self.ds.db_pool,
+            qgid.group_uuid(),
+            new_epoch,
+            MAX_PAST_EPOCHS as u64,
+        )
+        .await
+        .inspect_err(|error| {
+            warn!(%error, "Failed to clean up old collision tags");
+        })
+        .ok();
+
         Ok(value)
     }
 
@@ -319,6 +336,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
 
         let value = f(verification_data).await?;
 
+        let new_epoch = group_state.group().epoch().as_u64();
         self.encrypt_and_persist(&mut txn, group_data, group_state, &ear_key)
             .await?;
 
@@ -326,6 +344,18 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             error!(%error, "Failed to commit transaction");
             Status::internal("Failed to commit transaction")
         })?;
+
+        // Best-effort cleanup: the transaction is already committed, so failures here are non-fatal.
+        super::collision_tags::delete_old(
+            &self.ds.db_pool,
+            qgid.group_uuid(),
+            new_epoch,
+            MAX_PAST_EPOCHS as u64,
+        )
+        .await
+        .inspect_err(|error| warn!(%error, "Failed to clean up old collision tags"))
+        .ok();
+
         Ok(value)
     }
 
@@ -1012,6 +1042,17 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .into();
         let payload: SendMessagePayload =
             request.verify(verifying_key).map_err(InvalidSignature)?;
+
+        if let Some(tags) = payload.collision_tags {
+            let msg_epoch = message.epoch().as_u64();
+            super::collision_tags::check_and_insert(
+                &self.ds.db_pool,
+                qgid.group_uuid(),
+                msg_epoch as i64,
+                tags,
+            )
+            .await?;
+        }
 
         let destination_clients = group_state.other_destination_clients(sender_index);
 

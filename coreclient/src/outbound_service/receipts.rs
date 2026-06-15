@@ -151,9 +151,14 @@ impl OutboundServiceContext {
 
         // load group and create MLS message
         let (group_state_ear_key, params) = self
-            .new_mls_message(&chat, unsent_receipt.content)
+            .new_mls_message(
+                &chat,
+                unsent_receipt.content,
+                Some(unsent_receipt.report.clone()),
+            )
             .await
             .map_err(OutboundServiceError::fatal)?;
+        let sent_tags = params.collision_tags.clone();
 
         // send MLS message to DS
         if let Err(ds_error) = self
@@ -170,8 +175,16 @@ impl OutboundServiceContext {
                     })
                     .await
                     .map_err(OutboundServiceError::fatal)?;
+                return Err(classify_ds_error(ds_error));
             }
-            return Err(classify_ds_error(ds_error));
+
+            // A collision means this receipt was already delivered: by a competing
+            // sibling client, or by an earlier send of ours whose response was lost.
+            // Receipts are sent at most once, so record the report as sent below.
+            if ds_error.process_tag_collisions(&sent_tags).is_empty() {
+                return Err(classify_ds_error(ds_error));
+            }
+            debug!(%chat_id, "Receipt already delivered (collision); treating as sent");
         }
 
         // store delivery receipt report
@@ -187,10 +200,12 @@ impl OutboundServiceContext {
         Ok(())
     }
 
+    /// Creates a new MLS message for the given chat.
     pub(super) async fn new_mls_message(
         &self,
         chat: &Chat,
         mimi_content: MimiContent,
+        message_status_report: Option<MessageStatusReport>,
     ) -> anyhow::Result<(GroupStateEarKey, SendMessageParamsOut)> {
         self.db
             .with_write_transaction(async |txn| {
@@ -198,10 +213,12 @@ impl OutboundServiceContext {
                 let mut group = Group::load_clean(&mut *txn, group_id)
                     .await?
                     .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+                let provider = AirOpenMlsProvider::new(txn.as_mut());
                 let params = group.create_message(
-                    &AirOpenMlsProvider::new(txn.as_mut()),
+                    &provider,
                     self.signing_key(),
                     mimi_content,
+                    message_status_report,
                 )?;
                 Ok((group.group_state_ear_key().clone(), params))
             })

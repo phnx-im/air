@@ -43,10 +43,10 @@ use aircommon::{
             WelcomeBundle,
         },
         client_ds_out::{
-            AddUsersInfoOut, ApqGroupOperationParamsOut, CreateGroupParamsOut,
+            AddUsersInfoOut, ApqGroupOperationParamsOut, CollisionTag, CreateGroupParamsOut,
             CreatePqGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn,
-            GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageParamsOut,
-            TargetedMessageParamsOut, TargetedMessageType, WelcomeInfoIn,
+            GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageCollisionTag,
+            SendMessageParamsOut, TargetedMessageParamsOut, TargetedMessageType, WelcomeInfoIn,
         },
         welcome_attribution_info::{
             WelcomeAttributionInfo, WelcomeAttributionInfoPayload, WelcomeAttributionInfoTbs,
@@ -65,12 +65,14 @@ use airprotos::client::component::{
     AIR_COMPONENT_ID, AirComponent, AirFeatures, SUPPORTED_COMPONENTS,
 };
 use anyhow::{Context, Result, anyhow, bail, ensure};
-use mimi_content::MimiContent;
+use hkdf::Hkdf;
+use mimi_content::{MessageStatus, MessageStatusReport, MimiContent, PerMessageStatus};
 use mimi_room_policy::{MimiProposal, RoleIndex, RoomPolicy, VerifiedRoomState};
 use mls_assist::{components::ComponentsList, messages::AssistedMessageOut};
 use openmls_provider::AirOpenMlsProvider;
 use openmls_traits::storage::StorageProvider;
 use serde::Serialize;
+use sha2::Sha256;
 use tls_codec::DeserializeBytes;
 use tracing::{Level, debug, enabled, error, warn};
 
@@ -92,8 +94,8 @@ use crate::{
 use openmls::{
     component::ComponentType,
     group::{
-        CreateCommitError, ExternalCommitBuilder, JoinBuilder, ProcessedWelcome,
-        ProposalValidationError,
+        CreateCommitError, ExportSecretError, ExternalCommitBuilder, GroupEpoch, JoinBuilder,
+        ProcessedWelcome, ProposalValidationError,
     },
     key_packages::KeyPackageBundle,
     prelude::{
@@ -207,6 +209,69 @@ impl From<Vec<u8>> for GroupDataBytes {
     }
 }
 
+#[derive(Debug)]
+struct SendMessageCollisionKey {
+    // The group epoch this secret key was exported from.
+    epoch: GroupEpoch,
+    // The HKDF instance used to derive the collision tag.
+    kdf: Hkdf<Sha256>,
+}
+
+impl SendMessageCollisionKey {
+    pub fn try_from_group(
+        group: &mut Group,
+        provider: &AirOpenMlsProvider,
+    ) -> Result<Self, ExportSecretError> {
+        let salt = group.own_index().u32().to_le_bytes();
+        let epoch = group.mls_group.epoch();
+        let epoch_secret = group.mls_group.export_secret(
+            provider.crypto(),
+            "virtual-client-collision-detection-v1",
+            &salt,
+            32,
+        )?;
+
+        let kdf = Hkdf::from_prk(&epoch_secret).expect("input is 32 bytes, a valid HKDF PRK");
+        Ok(Self { epoch, kdf })
+    }
+
+    fn derive_collision_tag(&self, prefix: &'static str, info: &[u8]) -> CollisionTag {
+        // our KDF is using SHA-256 but you can request less bytes, it is just truncated internally.
+        let mut tag: [u8; 8] = [0u8; 8];
+        let info = &[prefix.as_bytes(), info].concat();
+        self.kdf
+            .expand(info.as_slice(), &mut tag)
+            .expect("8 bytes is a valid HKDF-Expand SHA-256 truncated output length");
+        CollisionTag::new(i64::from_le_bytes(tag))
+    }
+}
+
+trait GenerateCollisionTag {
+    fn collision_tag(&self, key: &SendMessageCollisionKey) -> SendMessageCollisionTag;
+}
+
+impl GenerateCollisionTag for u32 {
+    fn collision_tag(&self, key: &SendMessageCollisionKey) -> SendMessageCollisionTag {
+        let generation = self.to_le_bytes();
+        let tag = key.derive_collision_tag("seq", &generation);
+        SendMessageCollisionTag::Generation(tag)
+    }
+}
+
+impl GenerateCollisionTag for PerMessageStatus {
+    fn collision_tag(&self, key: &SendMessageCollisionKey) -> SendMessageCollisionTag {
+        match self.status {
+            MessageStatus::Delivered => SendMessageCollisionTag::DeliveryReceipt(
+                key.derive_collision_tag("delivered", &self.mimi_id),
+            ),
+            MessageStatus::Read => SendMessageCollisionTag::ReadReceipt(
+                key.derive_collision_tag("read", &self.mimi_id),
+            ),
+            _ => SendMessageCollisionTag::Other(key.derive_collision_tag("aux", &self.mimi_id)),
+        }
+    }
+}
+
 /// A chat group as seen by this client.
 ///
 /// `Group` bundles MLS state (`mls_group` and, for APQ groups, `pq`) with the
@@ -228,6 +293,10 @@ pub(crate) struct Group {
     pq: Option<PqGroup>,
     /// Set when a commit send fails non-transiently. Cleared on merge or discard.
     pending_commit_failed: bool,
+    /// Symmetric key used as the PRK for collision-detection tag derivation.
+    ///
+    /// Set by the application on every group epoch change.
+    send_message_collision_key: Option<SendMessageCollisionKey>,
 }
 
 impl Group {
@@ -419,6 +488,7 @@ impl Group {
             self_updated_at: Some(TimeStamp::now()),
             pq: None,
             pending_commit_failed: false,
+            send_message_collision_key: None,
         };
 
         Ok((group, params))
@@ -566,6 +636,7 @@ impl Group {
             self_updated_at: Some(TimeStamp::now()),
             pq: None,
             pending_commit_failed: false,
+            send_message_collision_key: None,
         };
 
         // Phase 7: Store the group and client credentials.
@@ -750,6 +821,7 @@ impl Group {
                 self_updated_at: Some(self_updated_at),
             }),
             pending_commit_failed: false,
+            send_message_collision_key: None,
         };
         group.store(&mut *txn).await?;
         for credential in &credentials {
@@ -971,6 +1043,7 @@ impl Group {
             self_updated_at: Some(TimeStamp::now()),
             pq: None,
             pending_commit_failed: false,
+            send_message_collision_key: None,
         };
 
         // Phase 4: Store the group and client auth info.
@@ -1386,6 +1459,7 @@ impl Group {
         ds_timestamp: TimeStamp,
     ) -> Result<(Vec<TimestampedMessage>, Option<GroupDataBytes>)> {
         let staged_commit_option: Option<StagedCommit> = staged_commit_option.into();
+        let provider = AirOpenMlsProvider::new(txn.as_mut());
 
         self.apply_staged_operations_to_room_state(staged_commit_option.as_ref())?;
 
@@ -1401,7 +1475,6 @@ impl Group {
 
             let group_data = GroupDataBytes::from_staged_commit(&staged_commit);
 
-            let provider = AirOpenMlsProvider::new(txn.as_mut());
             self.mls_group
                 .merge_staged_commit(&provider, staged_commit)?;
             if let Some(pq) = &mut self.pq
@@ -1427,7 +1500,7 @@ impl Group {
                 } else {
                     (vec![], None)
                 };
-            let provider = AirOpenMlsProvider::new(txn.as_mut());
+
             self.mls_group.merge_pending_commit(&provider)?;
             if let Some(pq) = &mut self.pq
                 && pq.mls_group.pending_commit().is_some()
@@ -1448,29 +1521,68 @@ impl Group {
         }
 
         self.pending_diff = None;
+        self.send_message_collision_key = None;
         self.clear_commit_failed(&mut *txn).await?;
         Ok((event_messages, group_data))
     }
 
+    /// Derive and register the collision-detection key for the current epoch if not already set
+    pub(crate) fn ensure_collision_key(
+        &mut self,
+        provider: &AirOpenMlsProvider,
+    ) -> Result<(), ExportSecretError> {
+        if let Some(key) = self.send_message_collision_key.as_ref()
+            && key.epoch == self.mls_group.epoch()
+        {
+            return Ok(());
+        }
+
+        self.send_message_collision_key =
+            Some(SendMessageCollisionKey::try_from_group(self, provider)?);
+        Ok(())
+    }
+
     /// Send an application message to the group.
+    ///
+    /// Collision tags are only included when a collision key has been registered via
+    /// `ensure_collision_key` (i.e. the group is acting as a virtual client).
     pub(super) fn create_message(
         &mut self,
-        provider: &impl OpenMlsProvider,
+        provider: &AirOpenMlsProvider<'_>,
         signer: &ClientSigningKey,
         content: MimiContent,
+        message_status_report: Option<MessageStatusReport>,
     ) -> Result<SendMessageParamsOut, GroupOperationError> {
+        let generation = self.mls_group.own_application_message_generation();
         let mls_message = self
             .mls_group
             .create_message(provider, signer, &content.serialize()?)?;
 
-        let message = AssistedMessageOut::new(mls_message, None);
+        self.ensure_collision_key(provider)?;
 
+        let collision_tags = self
+            .send_message_collision_key
+            .as_ref()
+            .map(|key| {
+                let mut tags = Vec::new();
+                tags.push(generation.collision_tag(key));
+                if let Some(message_status_report) = message_status_report {
+                    for pms in message_status_report.statuses {
+                        tags.push(pms.collision_tag(key));
+                    }
+                }
+                tags
+            })
+            .unwrap_or_default();
+
+        let message = AssistedMessageOut::new(mls_message, None);
         let suppress_notifications = suppress_notifications(&content);
 
         let send_message_params = SendMessageParamsOut {
             sender: self.mls_group.own_leaf_index(),
             message,
             suppress_notifications,
+            collision_tags,
         };
 
         Ok(send_message_params)
@@ -1479,7 +1591,7 @@ impl Group {
     /// Send an application message to the group.
     pub(super) fn create_targeted_application_message(
         &mut self,
-        provider: &impl OpenMlsProvider,
+        provider: &AirOpenMlsProvider<'_>,
         signer: &ClientSigningKey,
         recipient: UserId,
         content: TargetedMessageContent,

@@ -125,6 +125,7 @@ impl Group {
                 self_updated_at: Some(now),
             }),
             pending_commit_failed: false,
+            send_message_collision_key: None,
         };
 
         Ok((group, params))
