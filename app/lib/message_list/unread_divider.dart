@@ -14,9 +14,7 @@ class UnreadDivider extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final label = AppLocalizations.of(
-      context,
-    ).messageList_unreadMessages(count);
+    final label = AppLocalizations.of(context).messageList_newMessages(count);
     return Padding(
       padding: const EdgeInsets.symmetric(
         horizontal: Spacing.px24,

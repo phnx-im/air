@@ -40,6 +40,7 @@ void main() {
             draft: chat.draft,
             isApq: chat.isApq,
             mutedUntil: mutedUntil,
+            pendingCommitFailed: false,
           ),
           members: const [],
         ),

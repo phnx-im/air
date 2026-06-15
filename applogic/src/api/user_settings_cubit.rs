@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircoreclient::{ReadReceiptsSetting, UserSetting};
+use aircoreclient::{IsDeveloperSetting, ReadReceiptsSetting, UserSetting};
 use anyhow::{anyhow, bail};
 use flutter_rust_bridge::frb;
 use tokio::sync::watch;
@@ -24,6 +24,8 @@ pub struct UserSettings {
     pub send_on_enter: bool,
     #[frb(default = true)]
     pub read_receipts: bool,
+    #[frb(default = false)]
+    pub is_developer: bool,
 }
 
 impl Default for UserSettings {
@@ -35,6 +37,7 @@ impl Default for UserSettings {
             sidebar_width: 300.0,
             send_on_enter: false,
             read_receipts: true,
+            is_developer: false,
         }
     }
 }
@@ -87,6 +90,7 @@ impl UserSettingsCubitBase {
         let sidebar_width = core_user.user_setting().await;
         let send_on_enter = core_user.user_setting().await;
         let read_receipts = core_user.user_setting().await;
+        let is_developer = core_user.user_setting().await;
         self.core.state_tx().send_modify(|state| {
             state.locale = locale.map(|LocaleSetting(value)| value);
             state.interface_scale = interface_scale.map(|InterfaceScaleSetting(value)| value);
@@ -98,6 +102,9 @@ impl UserSettingsCubitBase {
             }
             if let Some(ReadReceiptsSetting(value)) = read_receipts {
                 state.read_receipts = value;
+            }
+            if let Some(IsDeveloperSetting(value)) = is_developer {
+                state.is_developer = value;
             }
         });
     }
@@ -184,6 +191,24 @@ impl UserSettingsCubitBase {
         self.core
             .state_tx()
             .send_modify(|state| state.read_receipts = value);
+        Ok(())
+    }
+
+    pub async fn set_is_developer(
+        &self,
+        user_cubit: &UserCubitBase,
+        value: bool,
+    ) -> anyhow::Result<()> {
+        if self.core.state_tx().borrow().is_developer == value {
+            return Ok(());
+        }
+        user_cubit
+            .core_user()
+            .set_user_setting(&IsDeveloperSetting(value))
+            .await?;
+        self.core
+            .state_tx()
+            .send_modify(|state| state.is_developer = value);
         Ok(())
     }
 

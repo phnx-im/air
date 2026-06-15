@@ -954,7 +954,11 @@ void main() {
           },
       ];
 
-      messageListCubit.setState(unreadMessages, firstUnreadIndex: 2);
+      messageListCubit.setState(
+        unreadMessages,
+        firstUnreadIndex: 2,
+        unreadCount: 4,
+      );
 
       await tester.pumpWidget(buildSubject());
 

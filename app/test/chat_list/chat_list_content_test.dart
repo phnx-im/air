@@ -58,6 +58,7 @@ final chats = [
       status: UiMessageStatus.sent,
     ),
     mutedUntil: null,
+    pendingCommitFailed: false,
   ),
   // Connection request
   UiChatDetails(
@@ -94,6 +95,7 @@ final chats = [
       status: UiMessageStatus.sent,
     ),
     mutedUntil: null,
+    pendingCommitFailed: false,
   ),
   // Group chat
   UiChatDetails(
@@ -127,6 +129,7 @@ final chats = [
       status: UiMessageStatus.sent,
     ),
     mutedUntil: null,
+    pendingCommitFailed: false,
   ),
   // Group chat with a draft
   UiChatDetails(
@@ -166,6 +169,7 @@ final chats = [
       isCommitted: true,
     ),
     mutedUntil: null,
+    pendingCommitFailed: false,
   ),
   // A blocked contact
   UiChatDetails(
@@ -178,6 +182,7 @@ final chats = [
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: null,
     mutedUntil: null,
+    pendingCommitFailed: false,
   ),
   // A muted contact
   UiChatDetails(
@@ -209,6 +214,7 @@ final chats = [
       status: UiMessageStatus.sent,
     ),
     mutedUntil: const UiChatMuted.forever(),
+    pendingCommitFailed: false,
   ),
 ];
 
@@ -272,6 +278,9 @@ void main() {
       when(
         () => usersCubit.state,
       ).thenReturn(MockUsersState(profiles: userProfiles));
+      when(
+        () => userSettingsCubit.state,
+      ).thenReturn(const UserSettings(isDeveloper: false));
     });
 
     Widget buildSubject({

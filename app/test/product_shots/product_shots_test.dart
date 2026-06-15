@@ -87,6 +87,9 @@ void main() {
       when(
         () => chatListCubit.state,
       ).thenReturn(ChatListState(chatIds: chatIds));
+      when(
+        () => userSettingsCubit.state,
+      ).thenReturn(const UserSettings(isDeveloper: false));
     });
 
     Widget buildSubject(

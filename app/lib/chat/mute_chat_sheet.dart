@@ -69,22 +69,22 @@ class _MuteDurationContent extends StatelessWidget {
         const SizedBox(height: Spacing.px24),
         _DurationOption(
           label: loc.muteDurationSheet_1hour,
-          mutedUntil: _inOneHour,
+          mutedUntil: UiChatMutedExtension.inOneHour,
         ),
         const SizedBox(height: Spacing.px8),
         _DurationOption(
           label: loc.muteDurationSheet_8hours,
-          mutedUntil: _inEightHours,
+          mutedUntil: UiChatMutedExtension.inEightHours,
         ),
         const SizedBox(height: Spacing.px8),
         _DurationOption(
           label: loc.muteDurationSheet_untilTomorrow,
-          mutedUntil: _untilTomorrow,
+          mutedUntil: UiChatMutedExtension.untilTomorrow,
         ),
         const SizedBox(height: Spacing.px8),
         _DurationOption(
           label: loc.muteDurationSheet_untilNextMonday,
-          mutedUntil: _untilNextMonday,
+          mutedUntil: UiChatMutedExtension.untilNextMonday,
         ),
         const SizedBox(height: Spacing.px8),
         _DurationOption(
@@ -101,30 +101,6 @@ class _MuteDurationContent extends StatelessWidget {
           ),
         ],
       ],
-    );
-  }
-
-  static UiChatMuted? _inOneHour() {
-    return UiChatMuted.until(DateTime.now().add(const Duration(hours: 1)));
-  }
-
-  static UiChatMuted? _inEightHours() {
-    return UiChatMuted.until(DateTime.now().add(const Duration(hours: 8)));
-  }
-
-  static UiChatMuted _untilTomorrow() {
-    final now = DateTime.now();
-    return UiChatMuted.until(
-      DateTime(now.year, now.month, now.day + 1).toUtc(),
-    );
-  }
-
-  static UiChatMuted _untilNextMonday() {
-    final now = DateTime.now();
-    final daysUntilMonday = (DateTime.monday - now.weekday + 7) % 7;
-    final days = daysUntilMonday == 0 ? 7 : daysUntilMonday;
-    return UiChatMuted.until(
-      DateTime(now.year, now.month, now.day + days).toUtc(),
     );
   }
 }

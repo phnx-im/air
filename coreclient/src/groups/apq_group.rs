@@ -124,6 +124,7 @@ impl Group {
                 mls_group: pq_group,
                 self_updated_at: Some(now),
             }),
+            pending_commit_failed: false,
             send_message_collision_key: None,
         };
 

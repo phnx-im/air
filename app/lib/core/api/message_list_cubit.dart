@@ -97,6 +97,7 @@ sealed class MessageListState with _$MessageListState {
     required bool hasNewer,
     required bool isAtBottom,
     int? firstUnreadIndex,
+    required int unreadCount,
     required int revision,
   }) = _MessageListState;
   static Future<MessageListState> default_() =>

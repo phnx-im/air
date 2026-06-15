@@ -639,6 +639,12 @@ async fn resync_group_not_found_cleans_up_local_state() {
 async fn resync_valid_group_succeeds() {
     let mut setup = TestBackend::single().await;
 
+    // Skip resyncs for APQ groups.
+    if setup.apq_groups {
+        warn!("Skipping test: resync is not supported for APQ groups");
+        return;
+    }
+
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
@@ -675,6 +681,30 @@ async fn resync_valid_group_succeeds() {
     setup.send_message(chat_id, &bob, vec![&alice], None).await;
 }
 
+// Make sure that resync is refused for APQ groups for now.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Resync is refused for APQ groups", skip_all)]
+async fn resync_refused_for_apq_group() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+
+    let chat_id = setup.create_apq_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let bob_user = &setup.get_user(&bob).user;
+    bob_user
+        .enqueue_group_resync(chat_id)
+        .await
+        .expect_err("resync must be refused for APQ groups");
+    assert!(
+        !bob_user.is_resync_pending(chat_id).await.unwrap(),
+        "no resync should be queued for an APQ group"
+    );
+}
+
 /// Resync with holes in the leaf nodes: Alice creates a group with Bob,
 /// Charlie and Dave (leaf indices 0, 1, 2, 3), and then removes Bob. This
 /// blanks Bob's leaf, leaving a hole in the leaf nodes, so that leaf indices
@@ -685,6 +715,12 @@ async fn resync_valid_group_succeeds() {
 #[tracing::instrument(name = "Resync with blank leaf", skip_all)]
 async fn resync_with_blank_leaf_succeeds() {
     let mut setup = TestBackend::single().await;
+
+    // Skip resyncs for APQ groups.
+    if setup.apq_groups {
+        warn!("Skipping test: resync is not supported for APQ groups");
+        return;
+    }
 
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;

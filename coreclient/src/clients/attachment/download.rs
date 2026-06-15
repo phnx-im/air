@@ -13,9 +13,10 @@ use aircommon::{
         aead::{AeadCiphertext, AeadDecryptable, keys::AttachmentEarKey},
         errors::DecryptionError,
     },
-    identifiers::AttachmentId,
+    identifiers::RemoteAttachmentId,
 };
 use airprotos::delivery_service::v1::StorageObjectType;
+use anyhow::Context;
 use mimi_content::content_container::{EncryptionAlgorithm, HashAlgorithm};
 use reqwest::StatusCode;
 use sha2::{Digest, Sha256};
@@ -24,7 +25,7 @@ use tracing::{debug, error, info};
 use url::Url;
 
 use crate::{
-    AttachmentProgress,
+    AttachmentId, AttachmentProgress,
     clients::{
         CoreUser,
         attachment::{
@@ -87,11 +88,18 @@ impl CoreUser {
         progress_tx.report(0);
 
         // Load the pending attachment record and update the status to `Downloading`.
-        let Some((pending_record, group)) = self
+        let Some((pending_record, group, remote_attachment_id)) = self
             .db()
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
+                let Some(record) = AttachmentRecord::load(&mut *txn, attachment_id).await? else {
+                    error!(?attachment_id, "Attachment record not found");
+                    return Ok(None);
+                };
+                let remote_attachment_id = record
+                    .remote_attachment_id
+                    .context("Unprovisioned attachment for download")?;
                 let Some(pending_record) =
-                    PendingAttachmentRecord::load_pending(&mut *txn, attachment_id).await?
+                    PendingAttachmentRecord::load_pending(&mut *txn, remote_attachment_id).await?
                 else {
                     debug!(
                         ?attachment_id,
@@ -99,20 +107,16 @@ impl CoreUser {
                     );
                     return Ok(None);
                 };
-                let Some(record) = AttachmentRecord::load(&mut *txn, attachment_id).await? else {
-                    error!(?attachment_id, "Attachment record not found");
-                    return Ok(None);
-                };
                 let chat_id = record.chat_id;
                 let Some(group) = Group::load_with_chat_id(&mut *txn, chat_id).await? else {
-                    error!(?attachment_id, "Group not found");
+                    error!(?chat_id, "Group not found");
                     return Ok(None);
                 };
 
                 AttachmentRecord::update_status(txn, attachment_id, AttachmentStatus::Downloading)
                     .await?;
 
-                Ok(Some((pending_record, group)))
+                Ok(Some((pending_record, group, remote_attachment_id)))
             })
             .await?
         else {
@@ -129,7 +133,7 @@ impl CoreUser {
                 self.db()
                     .with_write_transaction(async |txn| -> anyhow::Result<()> {
                         AttachmentRecord::set_content(&mut *txn, attachment_id, bytes).await?;
-                        PendingAttachmentRecord::delete(txn, attachment_id).await?;
+                        PendingAttachmentRecord::delete(txn, remote_attachment_id).await?;
                         Ok(())
                     })
                     .await?;
@@ -151,7 +155,7 @@ impl CoreUser {
                             AttachmentStatus::NotFound,
                         )
                         .await?;
-                        PendingAttachmentRecord::delete(txn, attachment_id).await?;
+                        PendingAttachmentRecord::delete(txn, remote_attachment_id).await?;
                         Ok(())
                     })
                     .await
@@ -191,11 +195,16 @@ impl CoreUser {
         &self,
         object_type: StorageObjectType,
         target: DsAttachmentTarget<'_>,
-        attachment_id: AttachmentId,
+        remote_attachment_id: RemoteAttachmentId,
     ) -> anyhow::Result<Url> {
         let api_client = self.api_clients().default_client()?;
         let download_url = api_client
-            .ds_get_attachment_url(object_type, self.signing_key(), target, attachment_id)
+            .ds_get_attachment_url(
+                object_type,
+                self.signing_key(),
+                target,
+                remote_attachment_id,
+            )
             .await?
             .parse()?;
         Ok(download_url)
@@ -205,7 +214,7 @@ impl CoreUser {
         &self,
         PendingAttachmentRecord {
             aad: _,
-            attachment_id,
+            remote_attachment_id,
             enc_alg,
             enc_key,
             hash,
@@ -217,7 +226,7 @@ impl CoreUser {
         progress_tx: &AttachmentProgressSender,
     ) -> Result<AttachmentBytes, AttachmentDownloadError> {
         // Check encryption parameters
-        debug!(?attachment_id, "Checking encryption parameters");
+        debug!(?remote_attachment_id, "Checking encryption parameters");
         if enc_alg != AIR_ATTACHMENT_ENCRYPTION_ALG
             // Older clients (<= v0.9.0) specified Aes256Gcm12 as encryption algorithm, however
             // they were actually using Aes256Gcm. To be forward compatible, we also accept the the
@@ -253,13 +262,13 @@ impl CoreUser {
                     group_id: group.group_id(),
                     sender_index: group.own_index(),
                 },
-                attachment_id,
+                remote_attachment_id,
             )
             .await?;
-        debug!(?attachment_id, %download_url, "Got download URL from DS");
+        debug!(?remote_attachment_id, %download_url, "Got download URL from DS");
 
         // Download the attachment
-        debug!(?attachment_id, "Downloading attachment");
+        debug!(?remote_attachment_id, "Downloading attachment");
         let http_response = self
             .http_client()
             .get(download_url)
@@ -285,13 +294,13 @@ impl CoreUser {
         }
 
         // Decrypt the attachment
-        debug!(?attachment_id, "Decrypting attachment");
+        debug!(?remote_attachment_id, "Decrypting attachment");
 
         let ciphertext = EncryptedAttachment::from(AeadCiphertext::new(bytes, nonce));
         let content: AttachmentBytes = AttachmentBytes::decrypt(&key, &ciphertext)?;
 
         // Verify hash
-        debug!(?attachment_id, "Verifying hash");
+        debug!(?remote_attachment_id, "Verifying hash");
         let recalculated_content_hash = Sha256::digest(&content.bytes);
         if recalculated_content_hash.as_slice() != hash {
             return Err(AttachmentDownloadError::HashMismatch);

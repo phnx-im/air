@@ -139,7 +139,7 @@ impl CoreUser {
                 .await?;
 
                 self.outbound_service()
-                    .enqueue_chat_message_in_transaction(txn, unsent_message.message.id(), None)
+                    .enqueue_chat_message_in_transaction(txn, unsent_message.message.id())
                     .await?;
 
                 Ok(unsent_message)

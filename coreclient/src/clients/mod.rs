@@ -743,7 +743,7 @@ impl CoreUser {
                     error!(%error, "Failed to store attachment");
                     continue;
                 }
-                if let Err(error) = pending_record.store(&mut *txn).await {
+                if let Err(error) = pending_record.store(&mut *txn, record.attachment_id).await {
                     error!(%error, "Failed to store pending attachment");
                 }
             }
@@ -838,6 +838,13 @@ impl CoreUser {
             qs_client_id: &self.inner.qs_client_id,
         };
         job.execute(&mut context).await
+    }
+
+    pub async fn chat_is_pending(
+        &self,
+        group_id: &openmls::prelude::GroupId,
+    ) -> anyhow::Result<bool> {
+        Group::pending_commit_failed(self.db().read().await?, group_id).await
     }
 }
 

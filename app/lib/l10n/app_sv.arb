@@ -337,5 +337,5 @@
   "memberSelectionList_client_not_supported": "Den här kontakten har en föråldrad app som behöver uppdateras.",
   "homeTab_chats": "Chattar",
   "homeTab_profile": "Du",
-  "messageList_unreadMessages": "{count, plural, one {{count} oläst meddelande} other {{count} olästa meddelanden}}"
+  "messageList_newMessages": "{count, plural, one {{count} nytt meddelande} other {{count} nya meddelanden}}"
 }

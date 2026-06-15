@@ -39,6 +39,7 @@ struct SqlGroup {
     room_state: Vec<u8>,
     self_updated_at: Option<TimeStamp>,
     pq_self_updated_at: Option<TimeStamp>,
+    pending_commit_failed: bool,
 }
 
 impl SqlGroup {
@@ -76,6 +77,7 @@ impl SqlGroup {
             room_state,
             self_updated_at,
             pq_self_updated_at,
+            pending_commit_failed,
         } = self;
 
         let room_state = if let Some(state) = PersistenceCodec::from_slice::<RoomState>(&room_state)
@@ -116,6 +118,7 @@ impl SqlGroup {
             room_state,
             self_updated_at,
             pq,
+            pending_commit_failed,
             send_message_collision_key: None,
         }
     }
@@ -201,15 +204,17 @@ impl Group {
                 group_state_ear_key,
                 pending_diff,
                 room_state,
-                self_updated_at
+                self_updated_at,
+                pending_commit_failed
             )
-            VALUES (?, ?, ?, ?, ?, ?)"#,
+            VALUES (?, ?, ?, ?, ?, ?, ?)"#,
             group_id,
             self.identity_link_wrapper_key,
             self.group_state_ear_key,
             pending_diff,
             room_state,
             self.self_updated_at,
+            self.pending_commit_failed,
         )
         .execute(connection.as_mut())
         .await?;
@@ -305,7 +310,8 @@ impl Group {
                 pending_diff AS "pending_diff: _",
                 room_state AS "room_state: _",
                 g.self_updated_at AS "self_updated_at: _",
-                pq.self_updated_at AS "pq_self_updated_at: _"
+                pq.self_updated_at AS "pq_self_updated_at: _",
+                g.pending_commit_failed AS "pending_commit_failed: _"
             FROM "group" g
             LEFT JOIN pq_group pq ON pq.t_group_id = g.group_id
             WHERE g.group_id = ?
@@ -335,7 +341,8 @@ impl Group {
                 pending_diff AS "pending_diff: _",
                 room_state AS "room_state: _",
                 g.self_updated_at AS "self_updated_at: _",
-                pq.self_updated_at AS "pq_self_updated_at: _"
+                pq.self_updated_at AS "pq_self_updated_at: _",
+                g.pending_commit_failed AS "pending_commit_failed: _"
             FROM "group" g
             INNER JOIN chat c ON c.group_id = g.group_id
             LEFT JOIN pq_group pq ON pq.t_group_id = g.group_id
@@ -368,7 +375,8 @@ impl Group {
                 g.pending_diff AS "pending_diff: _",
                 g.room_state AS "room_state: _",
                 g.self_updated_at AS "self_updated_at: _",
-                pq.self_updated_at AS "pq_self_updated_at: _"
+                pq.self_updated_at AS "pq_self_updated_at: _",
+                g.pending_commit_failed AS "pending_commit_failed: _"
             FROM "group" g
             INNER JOIN chat c ON c.group_id = g.group_id
             LEFT JOIN pq_group pq ON pq.t_group_id = g.group_id
@@ -404,13 +412,15 @@ impl Group {
                 group_state_ear_key = ?,
                 pending_diff = ?,
                 room_state = ?,
-                self_updated_at = COALESCE(?, self_updated_at)
+                self_updated_at = COALESCE(?, self_updated_at),
+                pending_commit_failed = ?
             WHERE group_id = ?"#,
             self.identity_link_wrapper_key,
             self.group_state_ear_key,
             pending_diff,
             room_state,
             self_updated_at,
+            self.pending_commit_failed,
             group_id,
         )
         .execute(connection.as_mut())
@@ -434,6 +444,21 @@ impl Group {
                 pq.self_updated_at = Some(self_updated_at);
             }
         }
+        Ok(())
+    }
+
+    pub(crate) async fn store_pending_commit_failed(
+        &self,
+        mut connection: impl WriteConnection,
+    ) -> sqlx::Result<()> {
+        let group_id = GroupIdRefWrapper::from(self.group_id());
+        query!(
+            r#"UPDATE "group" SET pending_commit_failed = ? WHERE group_id = ?"#,
+            self.pending_commit_failed,
+            group_id,
+        )
+        .execute(connection.as_mut())
+        .await?;
         Ok(())
     }
 
@@ -506,10 +531,10 @@ impl Group {
 
     /// Returns true if the group with the given ID is active.
     pub(super) fn is_active(
-        connection: &mut sqlx::SqliteConnection,
+        mut connection: impl ReadConnection,
         group_id: &GroupId,
     ) -> sqlx::Result<bool> {
-        let provider = AirOpenMlsProvider::new(connection);
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
         let state: Option<MlsGroupState> = provider.storage().group_state(group_id)?;
         Ok(state
             .map(|state| match state {
@@ -518,5 +543,20 @@ impl Group {
                 MlsGroupState::PendingCommit(_) => true,
             })
             .unwrap_or(false))
+    }
+
+    /// Returns true if the last pending commit was marked as failed
+    pub(crate) async fn pending_commit_failed(
+        mut connection: impl ReadConnection,
+        group_id: &GroupId,
+    ) -> anyhow::Result<bool> {
+        let group_id = GroupIdRefWrapper::from(group_id);
+        let pending_commit_failed = query_scalar!(
+            r#"SELECT pending_commit_failed as 'p: _' FROM "group" WHERE group_id = ?"#,
+            group_id,
+        )
+        .fetch_optional(connection.as_mut())
+        .await?;
+        Ok(pending_commit_failed.unwrap_or_default())
     }
 }

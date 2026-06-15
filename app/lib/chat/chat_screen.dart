@@ -15,6 +15,8 @@ import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
+import 'package:air/ds/components/button/button.dart';
+
 import 'chat_debug_info_view.dart';
 import 'chat_details_cubit.dart';
 import 'delete_contact_button.dart';
@@ -153,6 +155,15 @@ class _ChatScreenViewState extends State<ChatScreenView> {
     final bool showBlockedFooter =
         blockedUserId != null && blockedUserDisplayName != null;
 
+    final bool isDeveloper = context.select(
+      (UserSettingsCubit cubit) => cubit.state.isDeveloper,
+    );
+    final pendingCommitFailed = context.select(
+      (ChatDetailsCubit cubit) =>
+          cubit.state.chat?.pendingCommitFailed ?? false,
+    );
+    final bool showPendingCommitBanner = isDeveloper && pendingCommitFailed;
+
     Widget footer = MessageComposer(
       scrollToBottomController: _scrollToBottomController,
       textEditingController: widget.textEditingController,
@@ -178,6 +189,19 @@ class _ChatScreenViewState extends State<ChatScreenView> {
             createMessageCubit: widget.createMessageCubit,
             scrollToBottomController: _scrollToBottomController,
           ),
+          if (showPendingCommitBanner)
+            const Positioned(
+              top: 0,
+              left: 0,
+              right: 0,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  padding: EdgeInsets.only(top: kToolbarHeight),
+                  child: _PendingCommitFailedBanner(),
+                ),
+              ),
+            ),
           Positioned.fill(
             top: null,
             child: SafeArea(
@@ -369,6 +393,40 @@ class _RenderMeasureHeight extends RenderProxyBox {
       _lastHeight = h;
       WidgetsBinding.instance.addPostFrameCallback((_) => onChange(h));
     }
+  }
+}
+
+class _PendingCommitFailedBanner extends StatelessWidget {
+  const _PendingCommitFailedBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    return Material(
+      color: CustomColorScheme.of(context).function.warning,
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: Spacing.px16,
+          vertical: Spacing.px8,
+        ),
+        child: Row(
+          children: [
+            Expanded(
+              child: Text(
+                "Pending commit stuck/failed",
+                style: Theme.of(context).textTheme.bodySmall,
+              ),
+            ),
+            AppButton(
+              size: AppButtonSize.small,
+              type: AppButtonType.primary,
+              tone: AppButtonTone.danger,
+              onPressed: () => context.read<ChatDetailsCubit>().requestResync(),
+              label: 'Resync',
+            ),
+          ],
+        ),
+      ),
+    );
   }
 }
 

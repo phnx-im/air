@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::AttachmentId;
 use anyhow::anyhow;
 use anyhow::{Context, ensure};
 use mimi_content::MessageStatus;
@@ -34,18 +33,11 @@ enum SendOutcome {
 
 impl OutboundService {
     /// Enqueue a chat message to be sent by the outbound service.
-    ///
-    /// If an attachment ID is provided, the corresponding pending attachment
-    /// record will be deleted if the message fails to send.
-    pub async fn enqueue_chat_message(
-        &self,
-        message_id: MessageId,
-        attachment_id: Option<AttachmentId>,
-    ) -> anyhow::Result<()> {
+    pub async fn enqueue_chat_message(&self, message_id: MessageId) -> anyhow::Result<()> {
         self.context
             .db
             .with_write_transaction(async |txn| {
-                self.enqueue_chat_message_in_transaction(txn, message_id, attachment_id)
+                self.enqueue_chat_message_in_transaction(txn, message_id)
                     .await
             })
             .await
@@ -55,7 +47,6 @@ impl OutboundService {
         &self,
         txn: &mut WriteDbTransaction<'_>,
         message_id: MessageId,
-        attachment_id: Option<AttachmentId>,
     ) -> anyhow::Result<()> {
         // Load message to make sure it exists and get chat id
         let message = ChatMessage::load(&mut *txn, message_id)
@@ -68,7 +59,7 @@ impl OutboundService {
             return Ok(());
         }
 
-        let message_queue = ChatMessageQueue::new(chat_id, message_id, attachment_id);
+        let message_queue = ChatMessageQueue::new(chat_id, message_id);
         message_queue.enqueue(txn).await?;
 
         self.notify_work();
@@ -76,11 +67,7 @@ impl OutboundService {
         Ok(())
     }
 
-    pub async fn fail_enqueued_chat_message(
-        &self,
-        message_id: MessageId,
-        attachment_id: Option<AttachmentId>,
-    ) -> anyhow::Result<()> {
+    pub async fn fail_enqueued_chat_message(&self, message_id: MessageId) -> anyhow::Result<()> {
         self.context
             .db
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
@@ -95,8 +82,7 @@ impl OutboundService {
                     return Ok(());
                 }
 
-                let message_queue =
-                    ChatMessageQueue::new(message.chat_id(), message_id, attachment_id);
+                let message_queue = ChatMessageQueue::new(message.chat_id(), message_id);
 
                 message_queue.remove_and_mark_as_failed(txn).await?;
                 Ok(())

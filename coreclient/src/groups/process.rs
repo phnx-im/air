@@ -642,6 +642,9 @@ impl Group {
         api_clients: &ApiClients,
         message: impl Into<ApqProtocolMessage>,
     ) -> Result<Option<ProcessMessageResult>> {
+        let message: ApqProtocolMessage = message.into();
+        let message_t_epoch = message.t_epoch();
+        let current_t_epoch = self.mls_group.epoch();
         let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
 
         let ApqProcessedMessage {
@@ -656,8 +659,18 @@ impl Group {
             Err(ApqProcessMessageError::Processing(ProcessMessageError::ValidationError(
                 ValidationError::WrongEpoch,
             ))) => {
-                // TODO: We need to handle epoch in the future gracefully and indicate a resync.
-                bail!("Wrong epoch");
+                // A past-epoch message is one we already moved past, so we
+                // ignore it.
+                if current_t_epoch > message_t_epoch {
+                    bail!(
+                        "Message epoch is in the past: message t-epoch {} < current t-epoch {}",
+                        message_t_epoch,
+                        current_t_epoch
+                    );
+                }
+                // A future-epoch message means we are behind and the caller
+                // must trigger a resync.
+                return Ok(None);
             }
             Err(e) => {
                 return Err(e).context("Failed to process APQ message");

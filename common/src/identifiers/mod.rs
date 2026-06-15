@@ -17,7 +17,7 @@ use crate::crypto::{
     hpke::{ClientIdKeyType, HpkeDecryptable, HpkeEncryptable},
 };
 
-pub use attachment::{AttachmentId, AttachmentIdParseError};
+pub use attachment::{RemoteAttachmentId, RemoteAttachmentIdParseError};
 pub use mimi_id::{MimiId, MimiIdCalculationError};
 pub use tls_codec_impls::{TlsStr, TlsString};
 pub use username::{

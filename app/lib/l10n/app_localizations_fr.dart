@@ -1109,12 +1109,12 @@ class AppLocalizationsFr extends AppLocalizations {
   String get homeTab_profile => 'Profil';
 
   @override
-  String messageList_unreadMessages(int count) {
+  String messageList_newMessages(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count messages non lus',
-      one: '$count message non lu',
+      other: '$count nouveaux messages',
+      one: '$count nouveau message',
     );
     return '$_temp0';
   }

@@ -9,27 +9,28 @@ use thiserror::Error;
 use url::Url;
 use uuid::Uuid;
 
+/// Uniquely identifies an attachment on DS
 #[derive(Debug, Clone, Copy, Eq, PartialEq, PartialOrd, Ord, Hash)]
-pub struct AttachmentId {
-    pub uuid: Uuid,
+pub struct RemoteAttachmentId {
+    uuid: Uuid,
 }
 
-impl AttachmentId {
+impl RemoteAttachmentId {
     pub fn new(uuid: Uuid) -> Self {
         Self { uuid }
     }
 
-    pub fn from_url(url: &Url) -> Result<Self, AttachmentIdParseError> {
+    pub fn from_url(url: &Url) -> Result<Self, RemoteAttachmentIdParseError> {
         if url.scheme() != "air" {
-            return Err(AttachmentIdParseError::InvalidScheme);
+            return Err(RemoteAttachmentIdParseError::InvalidScheme);
         }
         let suffix = url
             .path()
             .strip_prefix("/attachment/")
-            .ok_or(AttachmentIdParseError::InvalidPrefix)?;
+            .ok_or(RemoteAttachmentIdParseError::InvalidPrefix)?;
         let uuid = suffix
             .parse()
-            .map_err(|_| AttachmentIdParseError::InvalidUuid)?;
+            .map_err(|_| RemoteAttachmentIdParseError::InvalidUuid)?;
         Ok(Self { uuid })
     }
 
@@ -38,8 +39,8 @@ impl AttachmentId {
     }
 }
 
-impl FromStr for AttachmentId {
-    type Err = AttachmentIdParseError;
+impl FromStr for RemoteAttachmentId {
+    type Err = RemoteAttachmentIdParseError;
 
     fn from_str(s: &str) -> Result<Self, Self::Err> {
         Self::from_url(&s.parse()?)
@@ -47,7 +48,7 @@ impl FromStr for AttachmentId {
 }
 
 #[derive(Debug, Display, Error)]
-pub enum AttachmentIdParseError {
+pub enum RemoteAttachmentIdParseError {
     /// {0}
     Url(#[from] url::ParseError),
     /// The UUID is invalid
@@ -63,13 +64,13 @@ mod sqlx_impls {
 
     use super::*;
 
-    impl Type<Sqlite> for AttachmentId {
+    impl Type<Sqlite> for RemoteAttachmentId {
         fn type_info() -> <Sqlite as Database>::TypeInfo {
             <Uuid as Type<Sqlite>>::type_info()
         }
     }
 
-    impl<'q> Encode<'q, Sqlite> for AttachmentId {
+    impl<'q> Encode<'q, Sqlite> for RemoteAttachmentId {
         fn encode_by_ref(
             &self,
             buf: &mut <Sqlite as Database>::ArgumentBuffer,
@@ -78,7 +79,7 @@ mod sqlx_impls {
         }
     }
 
-    impl<'r> Decode<'r, Sqlite> for AttachmentId {
+    impl<'r> Decode<'r, Sqlite> for RemoteAttachmentId {
         fn decode(value: <Sqlite as Database>::ValueRef<'r>) -> Result<Self, BoxDynError> {
             let id: Uuid = Decode::<Sqlite>::decode(value)?;
             Ok(Self::new(id))
@@ -95,9 +96,9 @@ mod test {
         let url = "air:///attachment/b6a42a7a-62fa-4c10-acfb-6124d80aae09?width=1920&height=1080"
             .parse()
             .unwrap();
-        let attachment_id = super::AttachmentId::from_url(&url).unwrap();
+        let remote_attachment_id = super::RemoteAttachmentId::from_url(&url).unwrap();
         assert_eq!(
-            attachment_id.uuid,
+            remote_attachment_id.uuid,
             Uuid::parse_str("b6a42a7a-62fa-4c10-acfb-6124d80aae09").unwrap()
         );
     }

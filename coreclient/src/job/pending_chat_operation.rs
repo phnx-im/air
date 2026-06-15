@@ -186,10 +186,8 @@ impl Job for PendingChatOperation {
                     .write()
                     .await?
                     .with_transaction(async |txn| -> anyhow::Result<()> {
-                        self.group
-                            .group_mut()
-                            .discard_pending_commit(&mut *txn)
-                            .await?;
+                        let group = self.group.group_mut();
+                        group.discard_pending_commit(&mut *txn).await?;
                         Self::delete(txn, self.group.group_id()).await?;
                         Ok(())
                     })
@@ -234,6 +232,12 @@ impl PendingChatOperation {
                 "Failed to execute PendingChatOperation for group because
                 it is still waiting for a queue response",
             );
+            // Re-assert the flag derived from the persisted job state, in case
+            // the original write was lost
+            self.group
+                .group_mut()
+                .mark_commit_failed(context.db.write().await?)
+                .await?;
             return Err(JobError::Blocked);
         }
 
@@ -476,7 +480,7 @@ impl PendingChatOperation {
 
     async fn handle_error(
         &mut self,
-        connection: impl WriteConnection,
+        mut connection: impl WriteConnection,
         error: DsRequestError,
     ) -> Result<JobError<ChatOperationError>, JobError<ChatOperationError>> {
         debug!(?error, "DS request failed");
@@ -489,7 +493,12 @@ impl PendingChatOperation {
             // If we get a WrongEpochError, we know the commit was
             // either accepted on a previous try, or the DS rejected
             // it because another one got there first.
-            self.mark_as_waiting_for_queue_response(connection).await?;
+            self.mark_as_waiting_for_queue_response(&mut connection)
+                .await?;
+            self.group
+                .group_mut()
+                .mark_commit_failed(&mut connection)
+                .await?;
 
             Err(JobError::Blocked)
         } else if error.is_network_error() && self.number_of_attempts < MAX_RETRIES {
