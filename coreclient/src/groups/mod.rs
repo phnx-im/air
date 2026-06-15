@@ -43,7 +43,7 @@ use aircommon::{
             WelcomeBundle,
         },
         client_ds_out::{
-            AddUsersInfoOut, ApqGroupOperationParamsOut, CreateGroupParamsOut,
+            AddUsersInfoOut, ApqGroupOperationParamsOut, CollisionTag, CreateGroupParamsOut,
             CreatePqGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn,
             GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageCollisionTag,
             SendMessageParamsOut, TargetedMessageParamsOut, TargetedMessageType, WelcomeInfoIn,
@@ -235,30 +235,30 @@ impl SendMessageCollisionKey {
         Ok(Self { epoch, kdf })
     }
 
-    fn derive_collision_tag(&self, prefix: &'static str, info: &[u8]) -> i64 {
+    fn derive_collision_tag(&self, prefix: &'static str, info: &[u8]) -> CollisionTag {
         // our KDF is using SHA-256 but you can request less bytes, it is just truncated internally.
         let mut tag: [u8; 8] = [0u8; 8];
         let info = &[prefix.as_bytes(), info].concat();
         self.kdf
             .expand(info.as_slice(), &mut tag)
             .expect("8 bytes is a valid HKDF-Expand SHA-256 truncated output length");
-        i64::from_le_bytes(tag)
+        CollisionTag::new(i64::from_le_bytes(tag))
     }
 }
 
-trait GenerateCollisionKey {
+trait GenerateCollisionTag {
     fn collision_tag(&self, key: &SendMessageCollisionKey) -> SendMessageCollisionTag;
 }
 
-impl GenerateCollisionKey for u32 {
+impl GenerateCollisionTag for u32 {
     fn collision_tag(&self, key: &SendMessageCollisionKey) -> SendMessageCollisionTag {
         let generation = self.to_le_bytes();
         let tag = key.derive_collision_tag("seq", &generation);
-        SendMessageCollisionTag::Sequence(tag)
+        SendMessageCollisionTag::Generation(tag)
     }
 }
 
-impl GenerateCollisionKey for PerMessageStatus {
+impl GenerateCollisionTag for PerMessageStatus {
     fn collision_tag(&self, key: &SendMessageCollisionKey) -> SendMessageCollisionTag {
         match self.status {
             MessageStatus::Delivered => SendMessageCollisionTag::DeliveryReceipt(

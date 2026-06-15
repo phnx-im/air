@@ -2,8 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airprotos::common::v1::{
-    GenerationCollisionDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
+use airprotos::{
+    common::v1::{
+        GenerationCollisionDetail, StatusDetails, StatusDetailsCode, status_details::Detail,
+    },
+    delivery_service::v1::SendMessageCollisionTags,
 };
 use prost::Message;
 use sqlx::{PgExecutor, PgPool};
@@ -11,6 +14,28 @@ use tonic::Code;
 use uuid::Uuid;
 
 const MAX_COLLISION_TAGS_PER_REQUEST: usize = 30;
+
+pub(super) struct CollisionTags(Vec<i64>);
+
+impl TryInto<CollisionTags> for SendMessageCollisionTags {
+    type Error = CollisionTagError;
+
+    fn try_into(self) -> Result<CollisionTags, Self::Error> {
+        let Self { mut tags } = self;
+        tags.sort_unstable();
+        if let Some(w) = tags.windows(2).find(|w| w[0] == w[1]) {
+            return Err(CollisionTagError::DuplicateTag(w[0]));
+        }
+
+        if tags.is_empty() {
+            Err(CollisionTagError::NoTags)
+        } else if tags.len() > MAX_COLLISION_TAGS_PER_REQUEST {
+            Err(CollisionTagError::TooManyTags)
+        } else {
+            Ok(CollisionTags(tags))
+        }
+    }
+}
 
 #[derive(Debug, thiserror::Error)]
 pub enum CollisionTagError {
@@ -22,6 +47,8 @@ pub enum CollisionTagError {
     DuplicateTag(i64),
     #[error("too many tags requested")]
     TooManyTags,
+    #[error("no tags supplied in message")]
+    NoTags,
 }
 
 impl From<CollisionTagError> for tonic::Status {
@@ -43,8 +70,13 @@ impl From<CollisionTagError> for tonic::Status {
                 .encode_to_vec()
                 .into(),
             ),
-            CollisionTagError::DuplicateTag(_) => Self::invalid_argument("duplicate tag in input"),
-            CollisionTagError::TooManyTags => Self::invalid_argument("too many tags in input"),
+            CollisionTagError::DuplicateTag(_) => {
+                Self::invalid_argument("duplicate collision tag in request")
+            }
+            CollisionTagError::TooManyTags => {
+                Self::invalid_argument("too many collision tags in request")
+            }
+            CollisionTagError::NoTags => Self::invalid_argument("no collision tags in request"),
         }
     }
 }
@@ -58,19 +90,9 @@ pub(super) async fn check_and_insert(
     pool: &PgPool,
     group_id: Uuid,
     epoch: i64,
-    mut tags: Vec<i64>,
+    tags: impl TryInto<CollisionTags, Error = CollisionTagError>,
 ) -> Result<(), CollisionTagError> {
-    tags.sort_unstable();
-    if let Some(w) = tags.windows(2).find(|w| w[0] == w[1]) {
-        return Err(CollisionTagError::DuplicateTag(w[0]));
-    }
-
-    if tags.is_empty() {
-        return Ok(());
-    } else if tags.len() > MAX_COLLISION_TAGS_PER_REQUEST {
-        return Err(CollisionTagError::TooManyTags);
-    }
-
+    let tags = tags.try_into()?;
     let mut tx = pool.begin().await?;
     let collisions: Vec<i64> = sqlx::query_scalar!(
         r#"
@@ -87,7 +109,7 @@ pub(super) async fn check_and_insert(
           "#,
         group_id,
         epoch,
-        &tags,
+        &tags.0,
     )
     .fetch_all(&mut *tx)
     .await?;

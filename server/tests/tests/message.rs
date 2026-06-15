@@ -988,8 +988,8 @@ async fn send_message_collision_tags_no_collision() {
         .send_message_with_fixed_collision_tags(
             chat_id,
             vec![
-                SendMessageCollisionTag::Sequence(0xAAi64),
-                SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
+                SendMessageCollisionTag::generation(0xAAi64),
+                SendMessageCollisionTag::delivery_receipt(0xBBi64),
             ],
         )
         .await
@@ -1007,8 +1007,8 @@ async fn send_message_collision_tags_first_collides() {
     let alice_user = &setup.get_user(&alice).user;
 
     let first_message_tags = vec![
-        SendMessageCollisionTag::Sequence(0xAAi64),
-        SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
+        SendMessageCollisionTag::generation(0xAAi64),
+        SendMessageCollisionTag::delivery_receipt(0xBBi64),
     ];
 
     alice_user
@@ -1020,8 +1020,8 @@ async fn send_message_collision_tags_first_collides() {
         .send_message_with_fixed_collision_tags(
             chat_id,
             vec![
-                SendMessageCollisionTag::Sequence(0xAAi64),
-                SendMessageCollisionTag::DeliveryReceipt(0xCCi64),
+                SendMessageCollisionTag::generation(0xAAi64),
+                SendMessageCollisionTag::delivery_receipt(0xCCi64),
             ],
         )
         .await
@@ -1031,7 +1031,7 @@ async fn send_message_collision_tags_first_collides() {
 
     assert_eq!(
         colliding_tags,
-        vec![SendMessageCollisionTag::Sequence(0xAAi64),],
+        vec![SendMessageCollisionTag::generation(0xAAi64),],
         "sequence collision tag collides"
     );
 }
@@ -1050,16 +1050,16 @@ async fn send_message_collision_tags_second_collides() {
         .send_message_with_fixed_collision_tags(
             chat_id,
             vec![
-                SendMessageCollisionTag::Sequence(0xAAi64),
-                SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
+                SendMessageCollisionTag::generation(0xAAi64),
+                SendMessageCollisionTag::delivery_receipt(0xBBi64),
             ],
         )
         .await
         .expect("first send should succeed");
 
     let second_message_tags = vec![
-        SendMessageCollisionTag::Sequence(0xCCi64),
-        SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
+        SendMessageCollisionTag::generation(0xCCi64),
+        SendMessageCollisionTag::delivery_receipt(0xBBi64),
     ];
 
     let error = alice_user
@@ -1071,7 +1071,7 @@ async fn send_message_collision_tags_second_collides() {
 
     assert_eq!(
         colliding_tags,
-        vec![SendMessageCollisionTag::DeliveryReceipt(0xBBi64),],
+        vec![SendMessageCollisionTag::delivery_receipt(0xBBi64),],
         "the delivery receipt collides"
     );
 }
@@ -1087,9 +1087,9 @@ async fn send_message_collision_tags_all_collide() {
     let alice_user = &setup.get_user(&alice).user;
 
     let tags = vec![
-        SendMessageCollisionTag::Sequence(0xAAi64),
-        SendMessageCollisionTag::DeliveryReceipt(0xBBi64),
-        SendMessageCollisionTag::ReadReceipt(0xCCi64),
+        SendMessageCollisionTag::generation(0xAAi64),
+        SendMessageCollisionTag::delivery_receipt(0xBBi64),
+        SendMessageCollisionTag::read_receipt(0xCCi64),
     ];
 
     alice_user
