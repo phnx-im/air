@@ -10,6 +10,7 @@ use apqmls::{messages::ApqGroupInfo, processing::ApqProcessedMessage};
 use chrono::Duration;
 use errors::StorageError;
 use openmls::{
+    error::LibraryError,
     framing::PrivateMessageIn,
     group::{GroupId, MergeCommitError},
     prelude::{
@@ -192,6 +193,13 @@ impl Group {
 
     pub fn members(&self) -> impl Iterator<Item = Member> + '_ {
         self.public_group.members()
+    }
+
+    pub fn ext_commit_sender_index(
+        &self,
+        staged_commit: &StagedCommit,
+    ) -> Result<LeafNodeIndex, LibraryError> {
+        self.public_group.ext_commit_sender_index(staged_commit)
     }
 }
 

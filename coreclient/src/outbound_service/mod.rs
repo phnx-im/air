@@ -254,6 +254,7 @@ impl OutboundServiceContext {
             db: JobContextDb::Db(self.db.clone()),
             key_store: &self.key_store,
             now: Utc::now(),
+            qs_client_id: &self.qs_client_id,
         };
         let value = job.execute(&mut context).await?;
         Ok(value)

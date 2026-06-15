@@ -105,6 +105,12 @@ class AppLocalizationsFr extends AppLocalizations {
   String get contactDetailsScreen_viewSafetyCode => 'Voir le code de sécurité';
 
   @override
+  String get contactDetailsScreen_mute => 'Mettre en sourdine';
+
+  @override
+  String get contactDetailsScreen_unmute => 'Désactiver la sourdine';
+
+  @override
   String get safetyCodeScreen_title => 'Code de sécurité';
 
   @override
@@ -121,6 +127,29 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get chatDetailsScreen_unknownChat => 'Discussion inconnue';
+
+  @override
+  String get muteDurationSheet_title => 'Mettre en sourdine';
+
+  @override
+  String get muteDurationSheet_body =>
+      'Choisissez la durée de la mise en sourdine.';
+
+  @override
+  String get muteDurationSheet_1hour => '1 heure';
+
+  @override
+  String get muteDurationSheet_8hours => '8 heures';
+
+  @override
+  String get muteDurationSheet_untilTomorrow => 'Jusqu\'à demain';
+
+  @override
+  String get muteDurationSheet_untilNextMonday => 'Jusqu\'au prochain lundi';
+
+  @override
+  String get muteDurationSheet_always =>
+      'Toujours (jusqu\'à ce que je change d\'avis)';
 
   @override
   String blockedChatFooter_message(Object displayName) {
@@ -602,6 +631,15 @@ class AppLocalizationsFr extends AppLocalizations {
   String get chatList_blocked => 'Bloqué';
 
   @override
+  String get chatList_muted => 'En sourdine';
+
+  @override
+  String get chatList_contextMenu_mute => 'Mettre en sourdine';
+
+  @override
+  String get chatList_contextMenu_unmute => 'Désactiver la sourdine';
+
+  @override
   String newChatDialog_error(Object chatName) {
     return 'Impossible d\'ajouter une discussion avec le nom $chatName';
   }
@@ -1071,12 +1109,12 @@ class AppLocalizationsFr extends AppLocalizations {
   String get homeTab_profile => 'Profil';
 
   @override
-  String messageList_unreadMessages(int count) {
+  String messageList_newMessages(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count messages non lus',
-      one: '$count message non lu',
+      other: '$count nouveaux messages',
+      one: '$count nouveau message',
     );
     return '$_temp0';
   }

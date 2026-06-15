@@ -14,6 +14,7 @@ import 'package:air/navigation/navigation.dart';
 import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/foundations/themes.dart';
 import 'package:air/ds/foundations/icons/app_icons.dart';
+import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/avatar.dart';
@@ -58,7 +59,6 @@ class _CreateGroupFlow extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final showDetails = useState(false);
-    final isApq = useState(false);
 
     return PopScope(
       canPop: !showDetails.value,
@@ -70,14 +70,8 @@ class _CreateGroupFlow extends HookWidget {
       child: IndexedStack(
         index: showDetails.value ? 1 : 0,
         children: [
-          _MemberSelectionStep(
-            isApq: isApq.value,
-            onNext: () => showDetails.value = true,
-          ),
-          _CreateGroupDetailsStep(
-            isApq: isApq,
-            onBack: () => showDetails.value = false,
-          ),
+          _MemberSelectionStep(onNext: () => showDetails.value = true),
+          _CreateGroupDetailsStep(onBack: () => showDetails.value = false),
         ],
       ),
     );
@@ -85,19 +79,21 @@ class _CreateGroupFlow extends HookWidget {
 }
 
 class _MemberSelectionStep extends HookWidget {
-  const _MemberSelectionStep({required this.onNext, required this.isApq});
+  const _MemberSelectionStep({required this.onNext});
 
   final VoidCallback onNext;
-  final bool isApq;
 
   @override
   Widget build(BuildContext context) {
     final searchController = useTextEditingController();
     final query = useState('');
 
-    final (contacts, selectedContacts) = context.select(
-      (AddMembersCubit cubit) =>
-          (cubit.state.contacts, cubit.state.selectedContacts),
+    final (contacts, selectedContacts, isApq) = context.select(
+      (AddMembersCubit cubit) => (
+        cubit.state.contacts,
+        cubit.state.selectedContacts,
+        cubit.state.isApq,
+      ),
     );
     final loc = AppLocalizations.of(context);
 
@@ -156,15 +152,15 @@ class _MemberSelectionStep extends HookWidget {
 }
 
 class _CreateGroupDetailsStep extends HookWidget {
-  const _CreateGroupDetailsStep({required this.onBack, required this.isApq});
+  const _CreateGroupDetailsStep({required this.onBack});
 
   final VoidCallback onBack;
-  final ValueNotifier<bool> isApq;
 
   @override
   Widget build(BuildContext context) {
-    final selectedIds = context.select(
-      (AddMembersCubit cubit) => cubit.state.selectedContacts,
+    final (selectedIds, isApq) = context.select(
+      (AddMembersCubit cubit) =>
+          (cubit.state.selectedContacts, cubit.state.isApq),
     );
 
     final selectedProfiles = context.select(
@@ -194,7 +190,6 @@ class _CreateGroupDetailsStep extends HookWidget {
     final isCreating = useState(false);
     final nameFocusNode = useFocusNode();
     final showHiddenSettings = useState(false);
-    final isApq = useState(false);
 
     final isGroupNameValid = groupName.value.trim().isNotEmpty;
     final showHelperText = nameFocusNode.hasFocus && !isGroupNameValid;
@@ -220,7 +215,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                     groupName.value.trim(),
                     isCreating,
                     picture.value,
-                    isApq.value,
+                    isApq,
                   )
                 : null,
 
@@ -304,9 +299,9 @@ class _CreateGroupDetailsStep extends HookWidget {
                     ],
                     if (showHiddenSettings.value) ...[
                       const SizedBox(height: Spacing.px32),
-                      SwitchField(
-                        onSubmit: (value) {
-                          isApq.value = value;
+                      _SwitchField(
+                        onChanged: (value) {
+                          context.read<AddMembersCubit>().enableApq(value);
                         },
                         value: isApq,
                         label: "Post-Quantum Encryption",
@@ -325,8 +320,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                           }
                           final features = selectedFeatures[userId];
                           final isSupported =
-                              features?.isSupported(isApq: isApq.value) ??
-                              false;
+                              features?.isSupported(isApq: isApq) ?? false;
                           return Opacity(
                             opacity: isSupported ? 1.0 : 0.5,
                             child: _SelectedParticipant(
@@ -602,6 +596,53 @@ class _CircularBackButton extends StatelessWidget {
             color: colors.backgroundBase.secondary,
           ),
           child: const Center(child: AppIcon.arrowLeft(size: 16)),
+        ),
+      ),
+    );
+  }
+}
+
+/// A switch field that reflects [value] and reports toggles via [onChanged].
+class _SwitchField extends StatelessWidget {
+  const _SwitchField({
+    required this.onChanged,
+    required this.value,
+    required this.label,
+  });
+
+  final ValueChanged<bool> onChanged;
+  final bool value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final colors = CustomColorScheme.of(context);
+
+    return InkWell(
+      onTap: () => onChanged(!value),
+      child: Container(
+        decoration: BoxDecoration(
+          color: colors.backgroundBase.secondary,
+          borderRadius: BorderRadius.circular(Spacing.px16),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: Spacing.px12),
+        height: 42,
+        child: Row(
+          children: [
+            Text(
+              label,
+              style: TextStyle(
+                color: colors.text.primary,
+                fontSize: BodyFontSize.base.size,
+              ),
+            ),
+            const Spacer(),
+            Switch(
+              value: value,
+              padding: const EdgeInsets.symmetric(horizontal: 0),
+              onChanged: (_) => onChanged(!value),
+            ),
+          ],
         ),
       ),
     );

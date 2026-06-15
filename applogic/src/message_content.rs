@@ -11,7 +11,7 @@ use tracing::warn;
 
 use crate::api::{
     markdown::MessageContent,
-    message_content::{UiAttachment, UiImageMetadata, UiMimiContent},
+    message_content::{UiImageMetadata, UnresolvedAttachment, UnresolvedMimiContent},
 };
 
 pub(crate) trait MimiContentExt {
@@ -33,7 +33,7 @@ impl MimiContentExt for MimiContent {
     }
 }
 
-impl UiMimiContent {
+impl UnresolvedMimiContent {
     fn error_message(mut self, message: impl Into<String>) -> Self {
         let message = message.into();
         self.plain_body = Some(message.clone());
@@ -42,7 +42,7 @@ impl UiMimiContent {
     }
 }
 
-impl From<MimiContent> for UiMimiContent {
+impl From<MimiContent> for UnresolvedMimiContent {
     fn from(mut mimi_content: MimiContent) -> Self {
         let mut res = Self {
             plain_body: None,
@@ -92,8 +92,8 @@ impl From<MimiContent> for UiMimiContent {
     }
 }
 
-fn convert_attachment(parts: Vec<NestedPart>) -> Option<UiAttachment> {
-    let mut attachment: Option<UiAttachment> = None;
+fn convert_attachment(parts: Vec<NestedPart>) -> Option<UnresolvedAttachment> {
+    let mut attachment: Option<UnresolvedAttachment> = None;
     let mut blurhash: Option<String> = None;
     let mut dimensions: Option<(u32, u32)> = None;
 
@@ -124,8 +124,7 @@ fn convert_attachment(parts: Vec<NestedPart>) -> Option<UiAttachment> {
 
                 dimensions = attachment_url.dimensions();
 
-                attachment = Some(UiAttachment {
-                    attachment_id: attachment_url.attachment_id(),
+                attachment = Some(UnresolvedAttachment {
                     filename,
                     content_type,
                     description: Some(description).filter(|d| !d.is_empty()),

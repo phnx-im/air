@@ -13,10 +13,13 @@ enum AppIconType {
   arrowRight,
   arrowUp,
   ban,
+  bellOff,
+  bell,
   camera,
   checkCheckFill,
   checkCheck,
   check,
+  chevronRight,
   chevronsDown,
   circleAlert,
   circleDashed,
@@ -66,6 +69,12 @@ final Map<AppIconType, _InlineBytesLoader> _compiledSvgLoaders = {
   AppIconType.ban: const _InlineBytesLoader(
     'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAACAAAAAAEEAAAAXrqdQF66nUBcj5hBaJGYQRsAAQAGAAAAAAICAgIDGgAAAAAAAABAQQAAAEA4J4xBAAAAQAAAsEEfY89AAACwQQAAQEEAALBBOCeMQTgnjEEAALBBAABAQQAAsEEfY89AAACwQQAAAEA4J4xBAAAAQAAAQEEAAABAH2PPQB9jz0AAAABAAABAQQAAAEAwHgAAAAD//x4BAAAA//8=',
   ),
+  AppIconType.bellOff: const _InlineBytesLoader(
+    'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAABAAAD//xsAAAADAAAAAAICDgAAAAAAABSuW0EAAKhBivRVQTfvrEG7aEtBvvivQQAAQEG++K9BRZc0Qb74r0F2CypBN++sQexRJEEAAKhBGwABAAIAAAAAAggAAAAAAD0KlUEAAFBBJXuRQUrxNUHCyI9BOgIbQQAAkEEAAABBGwACAAQAAAAAAgIBEAAAAOxRyEDsUchAscLCQAdb2kCh9L9AiCDtQAEAwEABAABBAADAQAAAcEEAAEBAAACIQQAAQEAAAIhBAACIQQAAiEEbAAMAAwAAAAACAg4AAAAAAACQQQAAAEG7BpBBuCC5QDRKhkEc7G9AkFhtQQr4LEC5HE5B8AfUP5IyKEHIqeI/UrgKQQAAQEAbAAQAAgAAAAABBAAAAAAAAAAAQAAAAEAAALBBAACwQTAeAAAAAP//HgEAAAD//x4CAAAA//8eAwAAAP//HgQAAAD//w==',
+  ),
+  AppIconType.bell: const _InlineBytesLoader(
+    'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAABAAAD//xsAAAAGAAAAAAICAgECHAAAAAAAwEAAAABBAQDAQBr2lUAN+wpBAQAAQAAAQEEBAABA9AR1QQEAAEAAAJBBGvaVQAAAkEEAAABBAACQQQAAcEEAAKhBAACIQQAAqEEAAIhBAABAQAAAiEEAAEBAAACIQQAAwEAAAHBBAADAQAAAAEEbAAEAAwAAAAACAg4AAAAAzcwkQQAAqEEwQSpB5fWsQaWtNEHsCrBBAABAQewKsEFaUktB7AqwQdC+VUHl9axBMzNbQQAAqEEwHgAAAAD//x4BAAAA//8=',
+  ),
   AppIconType.camera: const _InlineBytesLoader(
     'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAARAAAAAAIBAgECAQIBAgECAQIBAgNAAAAAALbzX0EAAIBAcbZrQdT/f0CThnZBzeaMQKwcfEGamaFAqvGBQWZmvkC2vIRBMxnTQMckikEWAOBAJQaQQQAA4EAAAKBBAADgQCnWqEEAAOBAAACwQV6n/EAAALBBAAAQQQAAsEEAAJBBAACwQSnWmEEp1qhBAACgQQAAoEEAAKBBAACAQAAAoEG8TjlAAACgQQAAAEAp1phBAAAAQAAAkEEAAABAAAAQQQAAAEBep/xAvE45QAAA4EAAAIBAAADgQG3nv0AAAOBAcWbXQFQA4EABAu1AqiDTQCcx+EDJdr5AhesDQTeJoUAYgwlBVt+MQOBQFEFX/39AYhAgQQAAgEAbAAEABgAAAAACAgICAxoAAAAAAAAAQEEAACBB731aQQAAIEEAAHBBEYI1QQAAcEEAAFBBAABwQe99akHvfVpBAACAQQAAQEEAAIBBEYIlQQAAgEEAABBB731qQQAAEEEAAFBBAAAQQRGCNUERgiVBAAAgQQAAQEEAACBBMB4AAAAA//8eAQAAAP//',
   ),
@@ -77,6 +86,9 @@ final Map<AppIconType, _InlineBytesLoader> _compiledSvgLoaders = {
   ),
   AppIconType.check: const _InlineBytesLoader(
     'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAADAAAAAAEBBgAAAAAAAAAAoEEAAMBAAAAQQQAAiEEAAIBAAABAQTAeAAAAAP//',
+  ),
+  AppIconType.chevronRight: const _InlineBytesLoader(
+    'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAABAAAD//xsAAAADAAAAAAEBBgAAAAAAAAAAEEEAAJBBAABwQQAAQEEAABBBAADAQDAeAAAAAP//',
   ),
   AppIconType.chevronsDown: const _InlineBytesLoader(
     'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAADAAAAAAEBBgAAAAAAAAAA4EAAAMBAAABAQQAAMEEAAIhBAADAQBsAAQADAAAAAAEBBgAAAAAAAOBAAABQQQAAQEEAAJBBAACIQQAAUEEwHgAAAAD//x4BAAAA//8=',
@@ -214,6 +226,16 @@ class AppIcon extends StatelessWidget {
       fit = BoxFit.contain,
       alignment = Alignment.center;
 
+  const AppIcon.bellOff({super.key, this.size, this.color})
+    : type = AppIconType.bellOff,
+      fit = BoxFit.contain,
+      alignment = Alignment.center;
+
+  const AppIcon.bell({super.key, this.size, this.color})
+    : type = AppIconType.bell,
+      fit = BoxFit.contain,
+      alignment = Alignment.center;
+
   const AppIcon.camera({super.key, this.size, this.color})
     : type = AppIconType.camera,
       fit = BoxFit.contain,
@@ -231,6 +253,11 @@ class AppIcon extends StatelessWidget {
 
   const AppIcon.check({super.key, this.size, this.color})
     : type = AppIconType.check,
+      fit = BoxFit.contain,
+      alignment = Alignment.center;
+
+  const AppIcon.chevronRight({super.key, this.size, this.color})
+    : type = AppIconType.chevronRight,
       fit = BoxFit.contain,
       alignment = Alignment.center;
 

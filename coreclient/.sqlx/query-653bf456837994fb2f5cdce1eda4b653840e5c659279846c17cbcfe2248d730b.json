@@ -6,7 +6,13 @@
       {
         "name": "operation_id",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "operation",
+            "name": "operation_id"
+          }
+        }
       }
     ],
     "parameters": {

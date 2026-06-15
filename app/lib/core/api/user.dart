@@ -69,6 +69,9 @@ abstract class User implements RustOpaqueInterface {
   /// persisted new store notifications.
   void signalPendingStoreNotifications();
 
+  /// Force a timed task to run as soon as possible.
+  Future<void> triggerTimedTask(List<int> id);
+
   /// Update the push token.
   Future<void> updatePushToken(PlatformPushToken? pushToken);
 
@@ -89,19 +92,25 @@ sealed class PlatformPushToken with _$PlatformPushToken {
 }
 
 class TimedTaskDebugInfo {
+  final Uint8List id;
   final String name;
   final DateTime scheduledAt;
 
-  const TimedTaskDebugInfo({required this.name, required this.scheduledAt});
+  const TimedTaskDebugInfo({
+    required this.id,
+    required this.name,
+    required this.scheduledAt,
+  });
 
   @override
-  int get hashCode => name.hashCode ^ scheduledAt.hashCode;
+  int get hashCode => id.hashCode ^ name.hashCode ^ scheduledAt.hashCode;
 
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
       other is TimedTaskDebugInfo &&
           runtimeType == other.runtimeType &&
+          id == other.id &&
           name == other.name &&
           scheduledAt == other.scheduledAt;
 }

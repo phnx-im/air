@@ -1,0 +1,14 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH deleted_client_record AS (\n                    DELETE FROM qs_client_record\n                    WHERE client_id = $1\n                    RETURNING client_id, user_id\n                )\n                INSERT INTO qs_client_record (\n                    client_id,\n                    user_id,\n                    deleted_at,\n                    activity_time,\n                    encrypted_push_token,\n                    owner_public_key,\n                    owner_signature_key,\n                    ratchet\n                )\n                SELECT\n                    client_id,\n                    user_id,\n                    NOW(),\n                    NOW(),\n                    NULL,\n                    '\\x',\n                    '\\x',\n                    '\\x'\n                FROM deleted_client_record;\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "68b19a10252faeb16e55f4e320353158e9639772028f6ed3cf7741f5dd9f8737"
+}

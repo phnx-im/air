@@ -156,6 +156,7 @@ class MockMessageListCubit implements MessageListCubit {
     bool hasNewer = false,
     bool isAtBottom = false,
     int? firstUnreadIndex,
+    int unreadCount = 0,
     int revision = 0,
   }) {
     _syncMessageData(
@@ -165,7 +166,35 @@ class MockMessageListCubit implements MessageListCubit {
       hasNewer: hasNewer,
       isAtBottom: isAtBottom,
       firstUnreadIndex: firstUnreadIndex,
+      unreadCount: unreadCount,
       revision: revision,
+    );
+    if (!_controller.isClosed) {
+      _controller.add(_state);
+    }
+  }
+
+  /// Splices a batch of strictly-newer messages onto the newest end of the
+  /// window (index 0), mirroring a `NewerPageLoaded` pagination transition,
+  /// then emits an updated state. Unlike [setState] this does not reload, so
+  /// the AnchoredList sees an insert diff rather than a full reset.
+  void appendNewer(List<UiChatMessage> newer, {bool hasNewer = false}) {
+    messageData.insertAll(0, newer.reversed.toList());
+    final prev = _state.state;
+    final rustState = MessageListState(
+      isConnectionChat: prev.isConnectionChat ?? false,
+      hasOlder: prev.hasOlder,
+      hasNewer: hasNewer,
+      isAtBottom: prev.isAtBottom,
+      // Appending at the newest end leaves oldest-first indices unchanged.
+      firstUnreadIndex: prev.firstUnreadIndex,
+      unreadCount: prev.unreadCount,
+      revision: prev.revision + 1,
+    );
+    _state = MessageListStateWrapper.test(
+      state: rustState,
+      messageData: messageData,
+      loadedMessages: messageData.items.map((m) => m.id).toSet(),
     );
     if (!_controller.isClosed) {
       _controller.add(_state);
@@ -185,6 +214,7 @@ class MockMessageListCubit implements MessageListCubit {
     bool hasNewer = false,
     bool isAtBottom = false,
     int? firstUnreadIndex,
+    int unreadCount = 0,
     int revision = 0,
   }) {
     // AnchoredListData: index 0 = newest; messages is oldest-first
@@ -196,6 +226,7 @@ class MockMessageListCubit implements MessageListCubit {
       hasNewer: hasNewer,
       isAtBottom: isAtBottom,
       firstUnreadIndex: firstUnreadIndex,
+      unreadCount: unreadCount,
       revision: revision,
     );
     _state = MessageListStateWrapper.test(

@@ -101,6 +101,9 @@ pub(crate) async fn update_chat_title(
 ) -> anyhow::Result<()> {
     match &chat.chat_type {
         ChatType::Group(attrs) => {
+            if attrs.title == new_title {
+                return Ok(());
+            }
             let old_title = attrs.title.clone();
             chat.set_title(connection, new_title.clone()).await?;
             let system_message = SystemMessage::ChangeTitle {

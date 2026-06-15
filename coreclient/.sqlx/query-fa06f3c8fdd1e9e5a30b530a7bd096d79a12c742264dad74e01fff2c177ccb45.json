@@ -6,7 +6,13 @@
       {
         "name": "decryption_key: _",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "connection_package",
+            "name": "decryption_key"
+          }
+        }
       }
     ],
     "parameters": {

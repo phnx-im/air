@@ -17,6 +17,9 @@ impl User {
     ) {
         for message in messages {
             if let Some(chat) = self.user.chat(&message.chat_id()).await {
+                if chat.is_muted() {
+                    continue;
+                }
                 let title = match chat.chat_type() {
                     ChatType::TargetedMessageConnection(user_id)
                     | ChatType::PendingConnection(user_id)
@@ -54,6 +57,9 @@ impl User {
     ) {
         for chat_id in chat_ids {
             if let Some(chat) = self.user.chat(chat_id).await {
+                if chat.is_muted() {
+                    continue;
+                }
                 let title = format!(
                     "You were added to {}",
                     chat.attributes().map(|a| a.title()).unwrap_or("a group"),
@@ -137,6 +143,8 @@ pub struct NotificationHandle {
 pub(crate) struct NotificationService {
     #[cfg(any(target_os = "ios", target_os = "android", target_os = "macos"))]
     dart_service: DartNotificationService,
+    #[cfg(target_os = "linux")]
+    zbus_connection: Option<zbus::blocking::Connection>,
 }
 
 impl NotificationService {
@@ -145,13 +153,17 @@ impl NotificationService {
         Self {
             #[cfg(any(target_os = "ios", target_os = "android", target_os = "macos"))]
             dart_service,
+            #[cfg(target_os = "linux")]
+            zbus_connection: zbus::blocking::Connection::session()
+                .inspect_err(|error| tracing::error!(%error, "failed to connect to D-Bus"))
+                .ok(),
         }
     }
 
     pub(crate) async fn show_notification(&self, notification: NotificationContent) {
         #[cfg(any(target_os = "ios", target_os = "android", target_os = "macos"))]
         self.dart_service.send_notification(notification).await;
-        #[cfg(any(target_os = "linux", target_os = "windows"))]
+        #[cfg(target_os = "windows")]
         {
             if let Err(error) = notify_rust::Notification::new()
                 .summary(notification.title.as_str())
@@ -161,6 +173,62 @@ impl NotificationService {
                 tracing::error!(%error, "Failed to send desktop notification");
             }
         }
+        #[cfg(target_os = "linux")]
+        if let Err(error) = self.send_xdg_portal_notification(notification) {
+            tracing::error!(%error, "Failed to send desktop notification");
+        }
+    }
+
+    // Version 4.x of `notify-rust` does not set the `sender-pid` hint, which is required for GNOME 46+ compatibility.
+    // Doing it manually also lets us enable notifications grouping per chat.
+    //
+    // The future is to use the XDG Portal API instead, but it is only supported (= not buggy) on GNOME 46+
+    // and does not support notifications grouping. It also currently has sparse support on
+    // other Desktop Environments.
+    #[cfg(target_os = "linux")]
+    pub(crate) fn send_xdg_portal_notification(
+        &self,
+        NotificationContent {
+            chat_id,
+            title,
+            body,
+            ..
+        }: NotificationContent,
+    ) -> anyhow::Result<()> {
+        use std::collections::HashMap;
+
+        use zbus::{blocking::Proxy, zvariant::Value};
+
+        let Some(zbus_connection) = self.zbus_connection.as_ref() else {
+            return Ok(());
+        };
+        let proxy = Proxy::new(
+            zbus_connection,
+            "org.freedesktop.Notifications",
+            "/org/freedesktop/Notifications",
+            "org.freedesktop.Notifications",
+        )?;
+
+        let mut hints: HashMap<&str, Value> = HashMap::new();
+        // for GNOME 46+ compatibility
+        hints.insert("sender-pid", std::process::id().into());
+        hints.insert("x-gnome-stack-group", format!("air-chat-{chat_id}").into());
+
+        proxy.call_method(
+            "Notify",
+            &(
+                "Air",              // app_name
+                0u32,               // replaces_id
+                "ms.air",           // icon
+                title,              // summary
+                body,               // body
+                Vec::<&str>::new(), // actions
+                hints,
+                -1i32, // timeout (-1 = default)
+            ),
+        )?;
+
+        Ok(())
     }
 
     pub(crate) async fn get_active_notifications(&self) -> Vec<NotificationHandle> {

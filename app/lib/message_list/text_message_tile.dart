@@ -274,7 +274,7 @@ class _MessageView extends HookWidget {
     final cursorPositionNotifier = useMemoized<ValueNotifier<Offset?>>(
       () => ValueNotifier<Offset?>(null),
     );
-    final messageContainerKey = useMemoized(() => GlobalKey());
+    final messageBubbleKey = useMemoized(() => GlobalKey());
     final isDetached = useState(false);
     useEffect(() {
       return cursorPositionNotifier.dispose;
@@ -413,7 +413,10 @@ class _MessageView extends HookWidget {
       required bool detached,
       required bool includeMetadata,
     }) {
-      Widget bubble = buildMessageBubble(enableSelection: enableSelection);
+      Widget bubble = KeyedSubtree(
+        key: messageKey,
+        child: buildMessageBubble(enableSelection: enableSelection),
+      );
       if (!enableSelection && isReplyable) {
         bubble = SwipeToReplyBubble(
           icon: AppIcon.cornerLeft(size: 16, color: colors.text.secondary),
@@ -422,7 +425,6 @@ class _MessageView extends HookWidget {
       }
 
       return Container(
-        key: messageKey,
         padding: EdgeInsets.only(
           top: flightPosition.isFirst ? Spacing.px4 : 0,
           bottom: includeMetadata && flightPosition.isLast ? 5 : 0,
@@ -460,7 +462,11 @@ class _MessageView extends HookWidget {
                     // gesture arena as usual.
                     child: GestureDetector(
                       behavior: HitTestBehavior.deferToChild,
-                      onTap: () => isRevealed.value = true,
+                      onTap:
+                          (status == UiMessageStatus.hidden &&
+                              !isRevealed.value)
+                          ? () => isRevealed.value = true
+                          : null,
                       onLongPress: onLongPress,
                       child: bubble,
                     ),
@@ -481,7 +487,7 @@ class _MessageView extends HookWidget {
           onLongPress: actions.isEmpty
               ? null
               : () {
-                  final shellContext = messageContainerKey.currentContext;
+                  final shellContext = messageBubbleKey.currentContext;
                   if (shellContext == null) return;
                   final renderObject = shellContext.findRenderObject();
                   if (renderObject is! RenderBox || !renderObject.hasSize) {
@@ -509,7 +515,7 @@ class _MessageView extends HookWidget {
                 },
           onSecondaryTapDown: null,
           enableSelection: false,
-          messageKey: messageContainerKey,
+          messageKey: messageBubbleKey,
           detached: isDetached.value,
           includeMetadata: showMetadata,
         ),
@@ -550,7 +556,7 @@ class _MessageView extends HookWidget {
                   contextMenuController.show();
                 },
           enableSelection: isDesktopPlatform,
-          messageKey: messageContainerKey,
+          messageKey: messageBubbleKey,
           detached: false,
           includeMetadata: showMetadata,
         ),

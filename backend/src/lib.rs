@@ -14,6 +14,7 @@ pub mod messages;
 pub(crate) mod pg_listen;
 pub mod qs;
 pub mod rate_limiter;
+pub mod relay_service;
 pub mod settings;
 pub(crate) mod util;
 pub(crate) mod version;

@@ -34,6 +34,9 @@ pub type GroupStateEarKey = Key<GroupStateEarKeyType>;
 #[derive(Debug)]
 pub struct PushTokenEarKeyType;
 
+#[cfg(any(test, feature = "test_utils"))]
+impl RawKey for PushTokenEarKeyType {}
+
 pub type PushTokenEarKey = Key<PushTokenEarKeyType>;
 
 impl RandomlyGeneratable for PushTokenEarKeyType {}
@@ -111,3 +114,14 @@ pub type AttachmentEarKey = Key<AttachmentEarKeyType>;
 impl RandomlyGeneratable for AttachmentEarKeyType {}
 
 impl AeadKey for AttachmentEarKey {}
+
+#[derive(Debug)]
+pub struct MultiDeviceLinkingKeyType;
+
+impl RawKey for MultiDeviceLinkingKeyType {}
+
+pub type MultiDeviceLinkingKey = Key<MultiDeviceLinkingKeyType>;
+
+impl RandomlyGeneratable for MultiDeviceLinkingKeyType {}
+
+impl AeadKey for MultiDeviceLinkingKey {}

@@ -954,7 +954,11 @@ void main() {
           },
       ];
 
-      messageListCubit.setState(unreadMessages, firstUnreadIndex: 2);
+      messageListCubit.setState(
+        unreadMessages,
+        firstUnreadIndex: 2,
+        unreadCount: 4,
+      );
 
       await tester.pumpWidget(buildSubject());
 
@@ -1103,6 +1107,140 @@ void main() {
         ),
       ).called(1);
     });
+
+    testWidgets(
+      'lands on the first unread message and marks only what is visible with '
+      'a large unread count',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        UiChatMessage mk(int i) => UiChatMessage(
+          id: (1000 + i).messageId(),
+          chatId: chatId,
+          timestamp: DateTime(2023, 1, 1, 0, i),
+          message: UiMessage_Content(
+            UiContentMessage(
+              sender: 2.userId(),
+              sent: true,
+              edited: false,
+              content: UiMimiContent(
+                plainBody: 'M$i',
+                topicId: Uint8List(0),
+                content: simpleMessage('M$i'),
+                attachments: [],
+              ),
+            ),
+          ),
+          position: UiFlightPosition.single,
+          status: UiMessageStatus.sent,
+        );
+
+        final all = List.generate(80, mk);
+        int indexOf(MessageId id) => all.indexWhere((m) => m.id == id);
+
+        final initialWindow = all.sublist(0, 50);
+        messageListCubit = MockMessageListCubit(
+          onLoadNewer: () async =>
+              messageListCubit.appendNewer(all.sublist(50), hasNewer: false),
+        );
+
+        final marked = <MessageId>[];
+        when(
+          () => chatDetailsCubit.markAsRead(
+            untilMessageId: any(named: 'untilMessageId'),
+            untilTimestamp: any(named: 'untilTimestamp'),
+          ),
+        ).thenAnswer((inv) {
+          marked.add(inv.namedArguments[#untilMessageId] as MessageId);
+          return Future.value();
+        });
+
+        await tester.pumpWidget(buildSubject());
+        messageListCubit.setState(
+          initialWindow,
+          firstUnreadIndex: 10,
+          hasNewer: true,
+          revision: 1,
+        );
+        // Let the jump run and settle.
+        for (var i = 0; i < 20; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+
+        expect(find.text('M10'), findsOneWidget);
+
+        expect(marked, isNotEmpty);
+        for (final id in marked) {
+          expect(
+            indexOf(id),
+            allOf(greaterThanOrEqualTo(10), lessThan(25)),
+            reason:
+                'marked $id (index ${indexOf(id)}) outside the visible '
+                'first-unread region',
+          );
+        }
+      },
+    );
+
+    testWidgets(
+      'does not mark unseen newer messages as read when opening an unread chat',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final manyMessages = List.generate(30, (i) {
+          return UiChatMessage(
+            id: (500 + i).messageId(),
+            chatId: chatId,
+            timestamp: DateTime(2023, 1, 1, 0, i),
+            message: UiMessage_Content(
+              UiContentMessage(
+                sender: 2.userId(),
+                sent: true,
+                edited: false,
+                content: UiMimiContent(
+                  plainBody: 'Unread open message $i',
+                  topicId: Uint8List(0),
+                  content: simpleMessage('Unread open message $i'),
+                  attachments: [],
+                ),
+              ),
+            ),
+            position: UiFlightPosition.single,
+            status: UiMessageStatus.sent,
+          );
+        });
+
+        messageListCubit.setState(manyMessages, firstUnreadIndex: 15);
+
+        await tester.pumpWidget(buildSubject());
+        for (var i = 0; i < 15; i++) {
+          await tester.pump(const Duration(milliseconds: 50));
+        }
+
+        verifyNever(
+          () => chatDetailsCubit.markAsRead(
+            untilMessageId: manyMessages.last.id,
+            untilTimestamp: any(named: 'untilTimestamp'),
+          ),
+        );
+        verify(
+          () => chatDetailsCubit.markAsRead(
+            untilMessageId: any(named: 'untilMessageId'),
+            untilTimestamp: any(named: 'untilTimestamp'),
+          ),
+        ).called(greaterThanOrEqualTo(1));
+      },
+    );
 
     testWidgets('renders correctly with replies of various sizes', (
       tester,

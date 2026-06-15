@@ -27,11 +27,21 @@
   "addMembersScreen_error_noActiveChat": "en aktiv chatt krävs",
   "contactDetailsScreen_chat": "Chatt",
   "contactDetailsScreen_viewSafetyCode": "Visa säkerhetskod",
+  "contactDetailsScreen_mute": "Tysta",
+  "contactDetailsScreen_unmute": "Sluta tysta",
   "safetyCodeScreen_title": "Säkerhetskod",
   "safetyCodeScreen_tapToCopy": "Tryck för att kopiera",
   "safetyCodeScreen_copiedToClipboard": "Kopierat till urklipp",
   "safetyCodeScreen_safetyCodeExplanation": "Jämför säkerhetskoden du ser med den {displayName} ser. Om koderna matchar vet du att du skickar och tar emot ände-till-ände-krypterade meddelanden med rätt person.",
   "chatDetailsScreen_unknownChat": "Okänd chatt",
+
+  "muteDurationSheet_title": "Tysta notifikationer",
+  "muteDurationSheet_body": "Välj hur länge du vill tysta chatten.",
+  "muteDurationSheet_1hour": "1 timme",
+  "muteDurationSheet_8hours": "8 timmar",
+  "muteDurationSheet_untilTomorrow": "Till imorgon",
+  "muteDurationSheet_untilNextMonday": "Till nästa måndag",
+  "muteDurationSheet_always": "Alltid (tills jag ändrar det)",
   "blockedChatFooter_message": "Du får inga meddelanden från {displayName} förrän du avblockerar {displayName}.",
   "inactiveChatFooter_message": "Du är inte längre medlem i den här chatten.",
   "chatScreen_emptyChat": "Välj en chatt för att börja skicka meddelanden",
@@ -163,6 +173,9 @@
   "chatList_imageEmoji": "🖼️",
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blockerad",
+  "chatList_muted": "Tystad",
+  "chatList_contextMenu_mute": "Tysta",
+  "chatList_contextMenu_unmute": "Sluta tysta",
   "newChatDialog_error": "Kunde inte skapa en ny gruppchatt med namnet {chatName}",
   "newChatDialog_error_incompatibleClient": "Kunde inte skapa en ny gruppchatt med namnet {chatName} eftersom en av kontakterna har en inkompatibel klient.",
   "newConnectionDialog_newConnectionTitle": "Lägg till Air-kontakt",
@@ -324,5 +337,5 @@
   "memberSelectionList_client_not_supported": "Den här kontakten har en föråldrad app som behöver uppdateras.",
   "homeTab_chats": "Chattar",
   "homeTab_profile": "Du",
-  "messageList_unreadMessages": "{count, plural, one {{count} oläst meddelande} other {{count} olästa meddelanden}}"
+  "messageList_newMessages": "{count, plural, one {{count} nytt meddelande} other {{count} nya meddelanden}}"
 }

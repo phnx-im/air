@@ -14,6 +14,7 @@ import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/themes.dart';
 import 'package:air/user/user.dart';
+import 'package:air/util/platform.dart';
 import 'package:air/widgets/anchored_list/anchored_list.dart';
 import 'package:air/widgets/anchored_list/controller.dart';
 import 'package:air/widgets/widgets.dart';
@@ -71,7 +72,13 @@ class _MessageListViewState extends State<MessageListView>
   MessageListCubit? _commandsCubit;
   StreamSubscription<MessageListCommand>? _commandSubscription;
   StreamSubscription<Set<MessageId>>? _incomingMessagesSubscription;
+  StreamSubscription<JumpedToEvent>? _jumpedToIdSubscription;
   bool _initialUnreadScrollHandled = false;
+
+  /// When there are unread messages, we automatically scroll to the first
+  /// unread message. During that automatic scroll, we should not mark messages
+  /// as read.
+  bool _awaitingInitialUnreadScroll = false;
 
   /// Whether the user is currently scrolling (or has scrolled within the
   /// last [_floatingHeaderHideDelay]). Drives the floating date header's
@@ -82,6 +89,11 @@ class _MessageListViewState extends State<MessageListView>
   /// only rebuilds the header itself, not the surrounding tree.
   final ValueNotifier<bool> _scrollActive = ValueNotifier<bool>(false);
   Timer? _floatingHeaderHideTimer;
+
+  /// Number of pixels we dragged down the message list since the beginning of
+  /// the drag.
+  double _downwardDragSinceStart = 0;
+  bool _keyboardDismissedThisDrag = false;
 
   @override
   void initState() {
@@ -94,6 +106,11 @@ class _MessageListViewState extends State<MessageListView>
     _listController.newestVisibleId.addListener(
       _markCurrentVisibleMessageAsRead,
     );
+    // We listen to events to know when the initial scroll to the first unread
+    // message is complete.
+    _jumpedToIdSubscription = _listController.jumpedToId
+        .where((event) => event.intent == JumpIntent.firstUnread)
+        .listen((_) => _onInitialUnreadScrollSettled());
   }
 
   @override
@@ -116,6 +133,7 @@ class _MessageListViewState extends State<MessageListView>
     widget.scrollToBottomController?.onScrollToBottom = null;
     _commandSubscription?.cancel();
     _incomingMessagesSubscription?.cancel();
+    _jumpedToIdSubscription?.cancel();
     _listController.isAtBottom.removeListener(_updateShowButton);
     _listController.newestVisibleId.removeListener(
       _markCurrentVisibleMessageAsRead,
@@ -179,6 +197,9 @@ class _MessageListViewState extends State<MessageListView>
   /// and exposes the newest visible ID via its controller, so this avoids the
   /// old fixed-height approximation based on scroll offset alone.
   void _markCurrentVisibleMessageAsRead() {
+    // We skip marking messages as read during the automatic initial scroll.
+    if (_awaitingInitialUnreadScroll) return;
+
     // AnchoredList tracks the newest item currently visible in the viewport
     // and exposes its ID via the controller. Use that directly instead of
     // approximating visibility from scroll offset and guessed item heights.
@@ -203,12 +224,30 @@ class _MessageListViewState extends State<MessageListView>
     );
   }
 
+  /// We lift the mark-as-read suppression once the initial scroll to the first
+  /// unread message.
+  void _onInitialUnreadScrollSettled() {
+    if (!_awaitingInitialUnreadScroll || !mounted) return;
+    setState(() {
+      _awaitingInitialUnreadScroll = false;
+    });
+    _markCurrentVisibleMessageAsRead();
+  }
+
   /// Shows the floating header during active scroll and hides it again
   /// after [_floatingHeaderHideDelay] of inactivity.
   bool _handleScrollNotification(ScrollNotification notification) {
-    if (notification is ScrollUpdateNotification) {
+    if (notification is ScrollStartNotification) {
+      _downwardDragSinceStart = 0;
+      _keyboardDismissedThisDrag = false;
+      // This is a user-initiated scroll.
+      if (notification.dragDetails != null) {
+        _onInitialUnreadScrollSettled();
+      }
+    } else if (notification is ScrollUpdateNotification) {
       _floatingHeaderHideTimer?.cancel();
       _scrollActive.value = true;
+      _maybeDismissKeyboardOnDrag(notification);
     } else if (notification is ScrollEndNotification) {
       _floatingHeaderHideTimer?.cancel();
       _floatingHeaderHideTimer = Timer(_floatingHeaderHideDelay, () {
@@ -217,6 +256,18 @@ class _MessageListViewState extends State<MessageListView>
       });
     }
     return false;
+  }
+
+  /// Dismisses the keyboard once a drag has pulled down past
+  /// [_keyboardDismissDragThreshold].
+  void _maybeDismissKeyboardOnDrag(ScrollUpdateNotification notification) {
+    if (!PlatformExtension.isMobile || _keyboardDismissedThisDrag) return;
+    final drag = notification.dragDetails;
+    if (drag == null) return;
+    _downwardDragSinceStart = max(0, _downwardDragSinceStart + drag.delta.dy);
+    if (_downwardDragSinceStart < _keyboardDismissDragThreshold) return;
+    _keyboardDismissedThisDrag = true;
+    FocusScope.of(context).unfocus();
   }
 
   /// Resolves the timestamp of the message with [id], for the floating
@@ -245,6 +296,7 @@ class _MessageListViewState extends State<MessageListView>
     if (message == null) return;
 
     _initialUnreadScrollHandled = true;
+    _awaitingInitialUnreadScroll = true;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted) {
         _listController.goToId(message.id, intent: JumpIntent.firstUnread);
@@ -307,7 +359,7 @@ class _MessageListViewState extends State<MessageListView>
     final bgColor = CustomColorScheme.of(context).backgroundBase.primary;
 
     Widget buildAnchoredList({double bottomPadding = 0.0}) {
-      return NotificationListener<ScrollNotification>(
+      Widget list = NotificationListener<ScrollNotification>(
         onNotification: _handleScrollNotification,
         child: AnchoredList<UiChatMessage>(
           data: context.read<MessageListCubit>().messageData,
@@ -317,7 +369,9 @@ class _MessageListViewState extends State<MessageListView>
           bottomPadding: bottomPadding,
           oldestVisibleTopThreshold: swapTopThreshold,
           canLoadOlder: state.hasOlder,
-          canLoadNewer: state.hasNewer,
+          // We should not load newer messages when we scroll to the first
+          // unread message.
+          canLoadNewer: state.hasNewer && !_awaitingInitialUnreadScroll,
           onLoadOlder: () {
             context.read<MessageListCubit>().loadOlder();
           },
@@ -336,6 +390,17 @@ class _MessageListViewState extends State<MessageListView>
           },
         ),
       );
+
+      // On mobile, we want to dismiss the keyboard by tapping anywhere in the
+      // list, except when tapping interactive elements like e.g. links.
+      if (PlatformExtension.isMobile) {
+        list = GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: list,
+        );
+      }
+      return list;
     }
 
     final floatingHeader = Positioned(
@@ -477,9 +542,7 @@ class _MessageListViewState extends State<MessageListView>
 
     if (!showDateDivider && !isFirstUnread) return tile;
 
-    final unreadCount = isFirstUnread
-        ? state.messageData.length - state.firstUnreadIndex!
-        : 0;
+    final unreadCount = isFirstUnread ? state.unreadCount : 0;
     // The inline [DateDivider] is hidden (but keeps its layout space) only
     // once its pill has actually risen to the floating pill's slot — i.e.
     // when this message is the oldest visible *and* the controller reports
@@ -541,6 +604,9 @@ bool _isSameLocalDay(DateTime a, DateTime b) {
 }
 
 const double _bottomGap = Spacing.px16;
+
+/// Downward drag distance to dismiss the keyboard.
+const double _keyboardDismissDragThreshold = Spacing.px64;
 
 /// How long an incoming message id stays eligible for the entrance animation.
 /// Chosen comfortably larger than the animation duration so the tile always

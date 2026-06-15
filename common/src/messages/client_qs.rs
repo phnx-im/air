@@ -21,11 +21,6 @@ use crate::{
 
 use super::{FriendshipToken, push_token::EncryptedPushToken};
 
-#[derive(serde::Serialize, serde::Deserialize)]
-pub struct QsOpenWsParams {
-    pub queue_id: QsClientId,
-}
-
 // === User ===
 
 #[derive(Debug)]

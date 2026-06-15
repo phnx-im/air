@@ -12,7 +12,16 @@ on:
   pull_request:
     branches: ["main"]
   push:
-    branches: ["main"]
+    branches:
+      - main
+    paths:
+      - "coreclient/**"
+      - "apiclient/**"
+      - "applogic/**"
+      - "common/**"
+      - "app/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
   merge_group:
 
 env:
@@ -49,7 +58,7 @@ jobs:
         run: flutter build linux -v --build-number=${{ steps.setup-buildenv.outputs.build-number }}
 
       - name: Upload app bundle
-        uses: actions/upload-artifact@v6
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
         with:
           name: linux-x64-app
           path: app/build/linux/x64/release/bundle
@@ -85,10 +94,10 @@ jobs:
           path: app/build/linux/x64/release/bundle
 
       - name: Install just
-        uses: extractions/setup-just@v3
+        uses: extractions/setup-just@f8a3cce218d9f83db3a2ecd90e41ac3de6cdfd9b # v3
 
       - name: Install awscli
-        uses: unfor19/install-aws-cli-action@v1
+        uses: unfor19/install-aws-cli-action@f5b46b7f32cf5e7ebd652656c5036bf83dd1e60c # v1
 
       - name: Install dependencies
         run: |

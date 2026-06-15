@@ -211,6 +211,102 @@ async fn wrong_epoch_marks_pending_waiting_and_commit_clears_it() {
     alice_user.update_key(chat_id).await.unwrap();
 }
 
+async fn setup_apq_group_with_charlie_member() -> (TestBackend, UserId, UserId, UserId, ChatId) {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+
+    let chat_id = setup.create_apq_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, vec![&charlie]).await;
+
+    (setup, alice, bob, charlie, chat_id)
+}
+
+// Make sure that the rosters of T and PQ groups in an APQ group remain
+// identical in the context of pending commits.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn apq_wrong_epoch_recovery_keeps_t_and_pq_rosters_consistent() {
+    let (setup, alice, bob, charlie, chat_id) = setup_apq_group_with_charlie_member().await;
+    let alice_user = &setup.get_user(&alice).user;
+    let bob_user = &setup.get_user(&bob).user;
+
+    setup.listener_control_handle().set_drop_next_request();
+    let _ = alice_user
+        .remove_users(chat_id, vec![charlie.clone()])
+        .await
+        .expect_err("expected remove to fail due to network error");
+
+    // Bob commits first so Alice's pending commit is out of date.
+    bob_user.update_key(chat_id).await.unwrap();
+
+    let _ = alice_user
+        .update_key(chat_id)
+        .await
+        .expect_err("expected wrong epoch when retrying pending commit");
+
+    let pending = alice_user
+        .pending_chat_operation_info(chat_id)
+        .await
+        .unwrap()
+        .expect("pending operation should exist");
+    assert_eq!(pending.request_status, "waiting_for_queue_response");
+
+    // Alice processes Bob's winning commit, which must discard her stale pending
+    // commit on both the T and the PQ group.
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    let result = alice_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "processing incoming commit should succeed"
+    );
+
+    let pending_after = alice_user
+        .pending_chat_operation_info(chat_id)
+        .await
+        .unwrap();
+    assert!(
+        pending_after.is_none(),
+        "pending operation should be deleted"
+    );
+
+    // The discard must clear the pending commit on both groups, including the
+    // PQ group whose pending commit otherwise leaks.
+    let debug_info = alice_user.chat_debug_info(chat_id).await.unwrap();
+    let pq = debug_info
+        .pq
+        .clone()
+        .expect("APQ group must have a PQ group");
+    assert!(
+        !debug_info.has_pending_commit,
+        "T pending commit not cleared"
+    );
+    assert!(!pq.has_pending_commit, "PQ pending commit not cleared");
+    // Bob's winning commit was a T-only update, so it advances the T epoch but
+    // not the PQ epoch.
+    assert!(
+        pq.epoch < debug_info.epoch,
+        "PQ epoch must stay behind T after a T-only update, got T={} PQ={}",
+        debug_info.epoch,
+        pq.epoch
+    );
+
+    // Charlie is still a member, so removing him must succeed.
+    let participants = alice_user.chat_participants(chat_id).await.unwrap();
+    assert!(
+        participants.contains(&charlie),
+        "Charlie should still be a member"
+    );
+    alice_user
+        .remove_users(chat_id, vec![charlie.clone()])
+        .await
+        .expect("follow-up joint APQ remove should succeed");
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn network_errors_eventually_delete_pending_operation() {
     let (setup, alice, bob, _charlie, chat_id) = setup_group_with_contacts().await;

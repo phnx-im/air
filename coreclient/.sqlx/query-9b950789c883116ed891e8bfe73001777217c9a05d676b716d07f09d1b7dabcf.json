@@ -6,7 +6,13 @@
       {
         "name": "chat_id: _",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "receipt_queue",
+            "name": "chat_id"
+          }
+        }
       }
     ],
     "parameters": {

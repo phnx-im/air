@@ -6,22 +6,46 @@
       {
         "ordinal": 0,
         "name": "group_id",
-        "type_info": "Uuid"
+        "type_info": "Uuid",
+        "origin": {
+          "Table": {
+            "table": "encrypted_group",
+            "name": "group_id"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "ciphertext: BlobDecoded<EncryptedDsGroupState>",
-        "type_info": "Bytea"
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "encrypted_group",
+            "name": "ciphertext"
+          }
+        }
       },
       {
         "ordinal": 2,
         "name": "last_used",
-        "type_info": "Timestamptz"
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "encrypted_group",
+            "name": "last_used"
+          }
+        }
       },
       {
         "ordinal": 3,
         "name": "deleted_queues: BlobDecoded<Vec<SealedClientReference>>",
-        "type_info": "Bytea"
+        "type_info": "Bytea",
+        "origin": {
+          "Table": {
+            "table": "encrypted_group",
+            "name": "deleted_queues"
+          }
+        }
       }
     ],
     "parameters": {

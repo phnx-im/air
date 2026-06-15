@@ -105,6 +105,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get contactDetailsScreen_viewSafetyCode => 'Sicherheitscode anzeigen';
 
   @override
+  String get contactDetailsScreen_mute => 'Stummschalten';
+
+  @override
+  String get contactDetailsScreen_unmute => 'Stummschaltung aufheben';
+
+  @override
   String get safetyCodeScreen_title => 'Sicherheitscode';
 
   @override
@@ -120,6 +126,28 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get chatDetailsScreen_unknownChat => 'Unbekannter Chat';
+
+  @override
+  String get muteDurationSheet_title => 'Benachrichtigungen stummschalten';
+
+  @override
+  String get muteDurationSheet_body =>
+      'Wähle aus, wie lange du den Chat stummschalten möchtest.';
+
+  @override
+  String get muteDurationSheet_1hour => '1 Stunde';
+
+  @override
+  String get muteDurationSheet_8hours => '8 Stunden';
+
+  @override
+  String get muteDurationSheet_untilTomorrow => 'Bis morgen';
+
+  @override
+  String get muteDurationSheet_untilNextMonday => 'Bis nächsten Montag';
+
+  @override
+  String get muteDurationSheet_always => 'Immer (bis ich es ändere)';
 
   @override
   String blockedChatFooter_message(Object displayName) {
@@ -597,6 +625,15 @@ class AppLocalizationsDe extends AppLocalizations {
   String get chatList_blocked => 'Blockiert';
 
   @override
+  String get chatList_muted => 'Stummgeschaltet';
+
+  @override
+  String get chatList_contextMenu_mute => 'Stummschalten';
+
+  @override
+  String get chatList_contextMenu_unmute => 'Stummschaltung aufheben';
+
+  @override
   String newChatDialog_error(Object chatName) {
     return 'Chat mit dem Namen $chatName konnte nicht hinzugefügt werden';
   }
@@ -1062,12 +1099,12 @@ class AppLocalizationsDe extends AppLocalizations {
   String get homeTab_profile => 'Du';
 
   @override
-  String messageList_unreadMessages(int count) {
+  String messageList_newMessages(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count ungelesene Nachrichten',
-      one: '$count ungelesene Nachricht',
+      other: '$count neue Nachrichten',
+      one: '$count neue Nachricht',
     );
     return '$_temp0';
   }

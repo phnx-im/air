@@ -57,6 +57,8 @@ final chats = [
       position: UiFlightPosition.single,
       status: UiMessageStatus.sent,
     ),
+    mutedUntil: null,
+    pendingCommitFailed: false,
   ),
   // Connection request
   UiChatDetails(
@@ -92,6 +94,8 @@ final chats = [
       position: UiFlightPosition.single,
       status: UiMessageStatus.sent,
     ),
+    mutedUntil: null,
+    pendingCommitFailed: false,
   ),
   // Group chat
   UiChatDetails(
@@ -124,6 +128,8 @@ final chats = [
       position: UiFlightPosition.single,
       status: UiMessageStatus.sent,
     ),
+    mutedUntil: null,
+    pendingCommitFailed: false,
   ),
   // Group chat with a draft
   UiChatDetails(
@@ -162,6 +168,8 @@ final chats = [
       updatedAt: DateTime.now(),
       isCommitted: true,
     ),
+    mutedUntil: null,
+    pendingCommitFailed: false,
   ),
   // A blocked contact
   UiChatDetails(
@@ -173,6 +181,40 @@ final chats = [
     messagesCount: 10,
     lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
     lastMessage: null,
+    mutedUntil: null,
+    pendingCommitFailed: false,
+  ),
+  // A muted contact
+  UiChatDetails(
+    id: 6.chatId(),
+    status: const UiChatStatus.active(),
+    isApq: false,
+    chatType: UiChatType_Connection(userProfiles[2]),
+    unreadMessages: 3,
+    messagesCount: 10,
+    lastUsed: DateTime.parse('2023-01-01T00:00:00.000Z'),
+    lastMessage: UiChatMessage(
+      id: 6.messageId(),
+      chatId: 6.chatId(),
+      timestamp: DateTime.parse('2023-01-01T00:00:00.000Z'),
+      message: UiMessage_Content(
+        UiContentMessage(
+          sender: 3.userId(),
+          sent: false,
+          edited: false,
+          content: UiMimiContent(
+            plainBody: 'Hey, are you there?',
+            topicId: Uint8List(0),
+            content: simpleMessage('Hey, are you there?'),
+            attachments: [],
+          ),
+        ),
+      ),
+      position: UiFlightPosition.single,
+      status: UiMessageStatus.sent,
+    ),
+    mutedUntil: const UiChatMuted.forever(),
+    pendingCommitFailed: false,
   ),
 ];
 
@@ -236,6 +278,9 @@ void main() {
       when(
         () => usersCubit.state,
       ).thenReturn(MockUsersState(profiles: userProfiles));
+      when(
+        () => userSettingsCubit.state,
+      ).thenReturn(const UserSettings(isDeveloper: false));
     });
 
     Widget buildSubject({
@@ -311,6 +356,24 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/chat_list_content.png'),
+      );
+    });
+
+    testWidgets('renders muted chat correctly', (tester) async {
+      when(
+        () => navigationCubit.state,
+      ).thenReturn(const NavigationState.home());
+
+      final testChats = [chats[0], chats[5], chats[2]];
+      when(
+        () => chatListCubit.state,
+      ).thenReturn(ChatListState(chatIds: testChats.map((c) => c.id).toList()));
+
+      await tester.pumpWidget(buildSubject(chats: testChats));
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_list_content_muted.png'),
       );
     });
   });

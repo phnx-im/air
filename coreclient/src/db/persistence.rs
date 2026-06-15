@@ -4,10 +4,7 @@
 
 use std::{borrow::Cow, collections::BTreeMap};
 
-use aircommon::{
-    codec::PersistenceCodec,
-    identifiers::{AttachmentId, UserId},
-};
+use aircommon::{codec::PersistenceCodec, identifiers::UserId};
 use enumset::EnumSet;
 use serde::{Deserialize, Serialize};
 use sqlx::{Decode, Encode, Sqlite, Type, encode::IsNull, error::BoxDynError, query, query_as};
@@ -15,7 +12,7 @@ use tokio_stream::StreamExt;
 use tracing::error;
 use uuid::Uuid;
 
-use crate::{ChatId, MessageId, db::access::WriteConnection};
+use crate::{AttachmentId, ChatId, MessageId, db::access::WriteConnection};
 
 use super::notification::{DbEntityId, DbEntityKind, DbNotification, DbOperation};
 
@@ -31,7 +28,7 @@ impl Type<Sqlite> for DbEntityId {
 impl<'q> Encode<'q, Sqlite> for DbEntityId {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as sqlx::Database>::ArgumentBuffer<'q>,
+        buf: &mut <Sqlite as sqlx::Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         match self {
             DbEntityId::User(user_id) => {
@@ -58,7 +55,7 @@ impl Type<Sqlite> for DbEntityKind {
 impl<'q> Encode<'q, Sqlite> for DbEntityKind {
     fn encode_by_ref(
         &self,
-        buf: &mut <Sqlite as sqlx::Database>::ArgumentBuffer<'q>,
+        buf: &mut <Sqlite as sqlx::Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
         Encode::<Sqlite>::encode(*self as i64, buf)
     }
@@ -98,7 +95,7 @@ impl SqlDbNotification {
                 DbEntityId::Message(MessageId::new(Uuid::from_slice(&entity_id)?))
             }
             DbEntityKind::Attachment => {
-                DbEntityId::Attachment(AttachmentId::new(Uuid::from_slice(&entity_id)?))
+                DbEntityId::Attachment(AttachmentId::from_raw(Uuid::from_slice(&entity_id)?))
             }
         };
         let mut op: EnumSet<DbOperation> = Default::default();

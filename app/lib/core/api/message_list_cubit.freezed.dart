@@ -399,7 +399,7 @@ String toString() {
 /// @nodoc
 mixin _$MessageListState {
 
- bool? get isConnectionChat; bool get hasOlder; bool get hasNewer; bool get isAtBottom; int? get firstUnreadIndex; int get revision;
+ bool? get isConnectionChat; bool get hasOlder; bool get hasNewer; bool get isAtBottom; int? get firstUnreadIndex; int get unreadCount; int get revision;
 /// Create a copy of MessageListState
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -410,16 +410,16 @@ $MessageListStateCopyWith<MessageListState> get copyWith => _$MessageListStateCo
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListState&&(identical(other.isConnectionChat, isConnectionChat) || other.isConnectionChat == isConnectionChat)&&(identical(other.hasOlder, hasOlder) || other.hasOlder == hasOlder)&&(identical(other.hasNewer, hasNewer) || other.hasNewer == hasNewer)&&(identical(other.isAtBottom, isAtBottom) || other.isAtBottom == isAtBottom)&&(identical(other.firstUnreadIndex, firstUnreadIndex) || other.firstUnreadIndex == firstUnreadIndex)&&(identical(other.revision, revision) || other.revision == revision));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MessageListState&&(identical(other.isConnectionChat, isConnectionChat) || other.isConnectionChat == isConnectionChat)&&(identical(other.hasOlder, hasOlder) || other.hasOlder == hasOlder)&&(identical(other.hasNewer, hasNewer) || other.hasNewer == hasNewer)&&(identical(other.isAtBottom, isAtBottom) || other.isAtBottom == isAtBottom)&&(identical(other.firstUnreadIndex, firstUnreadIndex) || other.firstUnreadIndex == firstUnreadIndex)&&(identical(other.unreadCount, unreadCount) || other.unreadCount == unreadCount)&&(identical(other.revision, revision) || other.revision == revision));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,isConnectionChat,hasOlder,hasNewer,isAtBottom,firstUnreadIndex,revision);
+int get hashCode => Object.hash(runtimeType,isConnectionChat,hasOlder,hasNewer,isAtBottom,firstUnreadIndex,unreadCount,revision);
 
 @override
 String toString() {
-  return 'MessageListState(isConnectionChat: $isConnectionChat, hasOlder: $hasOlder, hasNewer: $hasNewer, isAtBottom: $isAtBottom, firstUnreadIndex: $firstUnreadIndex, revision: $revision)';
+  return 'MessageListState(isConnectionChat: $isConnectionChat, hasOlder: $hasOlder, hasNewer: $hasNewer, isAtBottom: $isAtBottom, firstUnreadIndex: $firstUnreadIndex, unreadCount: $unreadCount, revision: $revision)';
 }
 
 
@@ -430,7 +430,7 @@ abstract mixin class $MessageListStateCopyWith<$Res>  {
   factory $MessageListStateCopyWith(MessageListState value, $Res Function(MessageListState) _then) = _$MessageListStateCopyWithImpl;
 @useResult
 $Res call({
- bool? isConnectionChat, bool hasOlder, bool hasNewer, bool isAtBottom, int? firstUnreadIndex, int revision
+ bool? isConnectionChat, bool hasOlder, bool hasNewer, bool isAtBottom, int? firstUnreadIndex, int unreadCount, int revision
 });
 
 
@@ -447,14 +447,15 @@ class _$MessageListStateCopyWithImpl<$Res>
 
 /// Create a copy of MessageListState
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? isConnectionChat = freezed,Object? hasOlder = null,Object? hasNewer = null,Object? isAtBottom = null,Object? firstUnreadIndex = freezed,Object? revision = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? isConnectionChat = freezed,Object? hasOlder = null,Object? hasNewer = null,Object? isAtBottom = null,Object? firstUnreadIndex = freezed,Object? unreadCount = null,Object? revision = null,}) {
   return _then(_self.copyWith(
 isConnectionChat: freezed == isConnectionChat ? _self.isConnectionChat : isConnectionChat // ignore: cast_nullable_to_non_nullable
 as bool?,hasOlder: null == hasOlder ? _self.hasOlder : hasOlder // ignore: cast_nullable_to_non_nullable
 as bool,hasNewer: null == hasNewer ? _self.hasNewer : hasNewer // ignore: cast_nullable_to_non_nullable
 as bool,isAtBottom: null == isAtBottom ? _self.isAtBottom : isAtBottom // ignore: cast_nullable_to_non_nullable
 as bool,firstUnreadIndex: freezed == firstUnreadIndex ? _self.firstUnreadIndex : firstUnreadIndex // ignore: cast_nullable_to_non_nullable
-as int?,revision: null == revision ? _self.revision : revision // ignore: cast_nullable_to_non_nullable
+as int?,unreadCount: null == unreadCount ? _self.unreadCount : unreadCount // ignore: cast_nullable_to_non_nullable
+as int,revision: null == revision ? _self.revision : revision // ignore: cast_nullable_to_non_nullable
 as int,
   ));
 }
@@ -467,7 +468,7 @@ as int,
 
 
 class _MessageListState extends MessageListState {
-  const _MessageListState({this.isConnectionChat, required this.hasOlder, required this.hasNewer, required this.isAtBottom, this.firstUnreadIndex, required this.revision}): super._();
+  const _MessageListState({this.isConnectionChat, required this.hasOlder, required this.hasNewer, required this.isAtBottom, this.firstUnreadIndex, required this.unreadCount, required this.revision}): super._();
   
 
 @override final  bool? isConnectionChat;
@@ -475,6 +476,7 @@ class _MessageListState extends MessageListState {
 @override final  bool hasNewer;
 @override final  bool isAtBottom;
 @override final  int? firstUnreadIndex;
+@override final  int unreadCount;
 @override final  int revision;
 
 /// Create a copy of MessageListState
@@ -487,16 +489,16 @@ _$MessageListStateCopyWith<_MessageListState> get copyWith => __$MessageListStat
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessageListState&&(identical(other.isConnectionChat, isConnectionChat) || other.isConnectionChat == isConnectionChat)&&(identical(other.hasOlder, hasOlder) || other.hasOlder == hasOlder)&&(identical(other.hasNewer, hasNewer) || other.hasNewer == hasNewer)&&(identical(other.isAtBottom, isAtBottom) || other.isAtBottom == isAtBottom)&&(identical(other.firstUnreadIndex, firstUnreadIndex) || other.firstUnreadIndex == firstUnreadIndex)&&(identical(other.revision, revision) || other.revision == revision));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _MessageListState&&(identical(other.isConnectionChat, isConnectionChat) || other.isConnectionChat == isConnectionChat)&&(identical(other.hasOlder, hasOlder) || other.hasOlder == hasOlder)&&(identical(other.hasNewer, hasNewer) || other.hasNewer == hasNewer)&&(identical(other.isAtBottom, isAtBottom) || other.isAtBottom == isAtBottom)&&(identical(other.firstUnreadIndex, firstUnreadIndex) || other.firstUnreadIndex == firstUnreadIndex)&&(identical(other.unreadCount, unreadCount) || other.unreadCount == unreadCount)&&(identical(other.revision, revision) || other.revision == revision));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,isConnectionChat,hasOlder,hasNewer,isAtBottom,firstUnreadIndex,revision);
+int get hashCode => Object.hash(runtimeType,isConnectionChat,hasOlder,hasNewer,isAtBottom,firstUnreadIndex,unreadCount,revision);
 
 @override
 String toString() {
-  return 'MessageListState(isConnectionChat: $isConnectionChat, hasOlder: $hasOlder, hasNewer: $hasNewer, isAtBottom: $isAtBottom, firstUnreadIndex: $firstUnreadIndex, revision: $revision)';
+  return 'MessageListState(isConnectionChat: $isConnectionChat, hasOlder: $hasOlder, hasNewer: $hasNewer, isAtBottom: $isAtBottom, firstUnreadIndex: $firstUnreadIndex, unreadCount: $unreadCount, revision: $revision)';
 }
 
 
@@ -507,7 +509,7 @@ abstract mixin class _$MessageListStateCopyWith<$Res> implements $MessageListSta
   factory _$MessageListStateCopyWith(_MessageListState value, $Res Function(_MessageListState) _then) = __$MessageListStateCopyWithImpl;
 @override @useResult
 $Res call({
- bool? isConnectionChat, bool hasOlder, bool hasNewer, bool isAtBottom, int? firstUnreadIndex, int revision
+ bool? isConnectionChat, bool hasOlder, bool hasNewer, bool isAtBottom, int? firstUnreadIndex, int unreadCount, int revision
 });
 
 
@@ -524,14 +526,15 @@ class __$MessageListStateCopyWithImpl<$Res>
 
 /// Create a copy of MessageListState
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? isConnectionChat = freezed,Object? hasOlder = null,Object? hasNewer = null,Object? isAtBottom = null,Object? firstUnreadIndex = freezed,Object? revision = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? isConnectionChat = freezed,Object? hasOlder = null,Object? hasNewer = null,Object? isAtBottom = null,Object? firstUnreadIndex = freezed,Object? unreadCount = null,Object? revision = null,}) {
   return _then(_MessageListState(
 isConnectionChat: freezed == isConnectionChat ? _self.isConnectionChat : isConnectionChat // ignore: cast_nullable_to_non_nullable
 as bool?,hasOlder: null == hasOlder ? _self.hasOlder : hasOlder // ignore: cast_nullable_to_non_nullable
 as bool,hasNewer: null == hasNewer ? _self.hasNewer : hasNewer // ignore: cast_nullable_to_non_nullable
 as bool,isAtBottom: null == isAtBottom ? _self.isAtBottom : isAtBottom // ignore: cast_nullable_to_non_nullable
 as bool,firstUnreadIndex: freezed == firstUnreadIndex ? _self.firstUnreadIndex : firstUnreadIndex // ignore: cast_nullable_to_non_nullable
-as int?,revision: null == revision ? _self.revision : revision // ignore: cast_nullable_to_non_nullable
+as int?,unreadCount: null == unreadCount ? _self.unreadCount : unreadCount // ignore: cast_nullable_to_non_nullable
+as int,revision: null == revision ? _self.revision : revision // ignore: cast_nullable_to_non_nullable
 as int,
   ));
 }

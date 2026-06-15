@@ -63,7 +63,7 @@ class AppButton extends StatelessWidget {
     final backgroundColor = switch ((type, tone)) {
       (.primary, .danger) => colors.function.danger,
       (.primary, .normal) => colors.accent.primary,
-      (.secondary, _) => colors.accent.quaternary,
+      (.secondary, _) => colors.accent.tertiary,
     };
 
     const Border? border = null;

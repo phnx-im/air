@@ -6,7 +6,11 @@ import 'dart:async';
 import 'dart:ui' as ui;
 
 import 'package:air/chat/chat_details.dart';
+import 'package:air/chat/mute_chat_sheet.dart';
 import 'package:air/chat_list/chat_list_view.dart';
+import 'package:air/ds/components/context_menu/context_menu.dart';
+import 'package:air/ds/components/context_menu/context_menu_item_ui.dart';
+import 'package:air/ds/components/context_menu/context_menu_submenu_item_ui.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/message_list/display_message_tile.dart';
@@ -122,14 +126,16 @@ class _ChatSeparator extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final isMobile = isSmallScreen(context);
-    // On desktop the separator above and below the active item is suppressed
-    // so the selection background reads as a single rounded surface.
+    // On desktop the separator above and below the active item is made
+    // transparent so the selection background reads as a single rounded
+    // surface while the row height stays constant.
+    var color = CustomColorScheme.of(context).separator.secondary;
     if (!isMobile) {
       final openChatId = context.select(
         (NavigationCubit cubit) => cubit.state.openChatId,
       );
       if (openChatId == aboveId || openChatId == belowId) {
-        return const SizedBox.shrink();
+        color = Colors.transparent;
       }
     }
     return Divider(
@@ -137,7 +143,7 @@ class _ChatSeparator extends StatelessWidget {
       thickness: 0.5,
       indent: Spacing.px16 + Spacing.px48 + Spacing.px12,
       endIndent: Spacing.px16,
-      color: CustomColorScheme.of(context).separator.secondary,
+      color: color,
     );
   }
 }
@@ -159,62 +165,146 @@ class _NoChats extends StatelessWidget {
   }
 }
 
-class _ListTile extends StatelessWidget {
+class _ListTile extends StatefulWidget {
   const _ListTile({required this.chatId});
 
   final ChatId chatId;
 
   @override
+  State<_ListTile> createState() => _ListTileState();
+}
+
+class _ListTileState extends State<_ListTile> {
+  final _contextMenuController = OverlayPortalController();
+  final _cursorPosition = ValueNotifier<Offset?>(null);
+
+  @override
+  void dispose() {
+    _cursorPosition.dispose();
+    super.dispose();
+  }
+
+  @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+
     final currentChatId = context.select(
       (NavigationCubit cubit) => cubit.state.openChatId,
     );
-    final isSelected = currentChatId == chatId;
+    final isChatMuted = context.select(
+      (ChatDetailsCubit cubit) => cubit.state.chat?.isMuted ?? false,
+    );
+    final isSelected = currentChatId == widget.chatId;
+    final isDesktop = ResponsiveScreen.isDesktop(context);
 
-    return GestureDetector(
-      onTap: () => context.read<NavigationCubit>().openChat(chatId),
-      behavior: HitTestBehavior.opaque,
-      child: Container(
-        padding: const EdgeInsets.fromLTRB(
-          Spacing.px16,
-          Spacing.px16,
-          Spacing.px16,
-          Spacing.px12,
-        ),
-        decoration: BoxDecoration(
-          color: isSelected
-              ? CustomColorScheme.of(context).backgroundElevated.primary
-              : null,
-        ),
-        child: Builder(
-          builder: (context) {
-            final chat = context.select(
-              (ChatDetailsCubit cubit) => cubit.state.chat,
-            );
-            if (chat == null) {
-              return const SizedBox.shrink();
-            }
-            return Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              crossAxisAlignment: .start,
-              spacing: Spacing.px12,
-              children: [
-                ChatAvatar(chatId: chat.id, size: 48),
-                Expanded(
-                  child: Column(
-                    mainAxisSize: .min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    mainAxisAlignment: MainAxisAlignment.start,
-                    spacing: 0,
-                    children: [
-                      _ListTileTop(chat: chat),
-                      _ListTileBottom(chat: chat),
-                    ],
-                  ),
+    return ContextMenu(
+      direction: ContextMenuDirection.right,
+      controller: _contextMenuController,
+      cursorPosition: _cursorPosition,
+      menuItems: [
+        if (isChatMuted)
+          ContextMenuItem(
+            label: loc.chatList_contextMenu_unmute,
+            leading: const AppIcon.bell(size: 16),
+            onPressed: () => context.read<ChatDetailsCubit>().unmuteChat(),
+          )
+        else if (isDesktop)
+          ContextMenuSubmenuItem(
+            label: loc.chatList_contextMenu_mute,
+            leading: const AppIcon.bellOff(size: 16),
+            subItems: [
+              ContextMenuItem(
+                label: loc.muteDurationSheet_1hour,
+                onPressed: () => context.read<ChatDetailsCubit>().muteChat(
+                  mutedUntil: UiChatMutedExtension.inOneHour(),
                 ),
-              ],
-            );
-          },
+              ),
+              ContextMenuItem(
+                label: loc.muteDurationSheet_8hours,
+                onPressed: () => context.read<ChatDetailsCubit>().muteChat(
+                  mutedUntil: UiChatMutedExtension.inEightHours(),
+                ),
+              ),
+              ContextMenuItem(
+                label: loc.muteDurationSheet_untilTomorrow,
+                onPressed: () => context.read<ChatDetailsCubit>().muteChat(
+                  mutedUntil: UiChatMutedExtension.untilTomorrow(),
+                ),
+              ),
+              ContextMenuItem(
+                label: loc.muteDurationSheet_untilNextMonday,
+                onPressed: () => context.read<ChatDetailsCubit>().muteChat(
+                  mutedUntil: UiChatMutedExtension.untilNextMonday(),
+                ),
+              ),
+              ContextMenuItem(
+                label: loc.muteDurationSheet_always,
+                onPressed: () => context.read<ChatDetailsCubit>().muteChat(
+                  mutedUntil: const UiChatMuted.forever(),
+                ),
+              ),
+            ],
+          )
+        else
+          ContextMenuItem(
+            label: loc.chatList_contextMenu_mute,
+            leading: const AppIcon.bellOff(size: 16),
+            onPressed: () => showMuteChatSheet(context),
+          ),
+      ],
+      child: GestureDetector(
+        onTap: () => context.read<NavigationCubit>().openChat(widget.chatId),
+        onLongPressStart: (details) {
+          _cursorPosition.value = details.globalPosition;
+          _contextMenuController.show();
+        },
+        onSecondaryTapDown: (details) {
+          _cursorPosition.value = details.globalPosition;
+          _contextMenuController.show();
+        },
+        behavior: HitTestBehavior.opaque,
+        child: Container(
+          padding: const EdgeInsets.fromLTRB(
+            Spacing.px16,
+            Spacing.px16,
+            Spacing.px16,
+            Spacing.px12,
+          ),
+          decoration: BoxDecoration(
+            color: isSelected
+                ? CustomColorScheme.of(context).backgroundElevated.primary
+                : null,
+          ),
+          child: Builder(
+            builder: (context) {
+              final chat = context.select(
+                (ChatDetailsCubit cubit) => cubit.state.chat,
+              );
+              if (chat == null) {
+                return const SizedBox.shrink();
+              }
+              return Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                crossAxisAlignment: .start,
+                spacing: Spacing.px12,
+                children: [
+                  ChatAvatar(chatId: chat.id, size: 48),
+                  Expanded(
+                    child: Column(
+                      mainAxisSize: .min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      mainAxisAlignment: MainAxisAlignment.start,
+                      spacing: 0,
+                      children: [
+                        _ListTileTop(chat: chat),
+                        _ListTileBottom(chat: chat),
+                      ],
+                    ),
+                  ),
+                ],
+              );
+            },
+          ),
         ),
       ),
     );
@@ -228,11 +318,21 @@ class _ListTileTop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tertiaryColor = CustomColorScheme.of(context).text.tertiary;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       spacing: Spacing.px12,
       children: [
-        Expanded(child: _ChatTitle(title: chat.title)),
+        Expanded(
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            spacing: Spacing.px4,
+            children: [
+              Flexible(child: _ChatTitle(title: chat.title)),
+              if (chat.isMuted) AppIcon.bellOff(size: 16, color: tertiaryColor),
+            ],
+          ),
+        ),
         _LastUpdated(chat: chat),
       ],
     );
@@ -313,12 +413,24 @@ class _TrailingIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final (unreadMessages, lastMessage) = context.select((
+    final bool isDeveloper = context.select(
+      (UserSettingsCubit cubit) => cubit.state.isDeveloper,
+    );
+
+    final (unreadMessages, lastMessage, pendingCommitFailed) = context.select((
       ChatDetailsCubit cubit,
     ) {
       final chat = cubit.state.chat;
-      return (chat?.unreadMessages, chat?.lastMessage);
+      return (
+        chat?.unreadMessages,
+        chat?.lastMessage,
+        chat?.pendingCommitFailed ?? false,
+      );
     });
+
+    if (isDeveloper && pendingCommitFailed) {
+      return const _PendingCommitFailedIndicator();
+    }
 
     if (unreadMessages != null && unreadMessages > 0) {
       return _UnreadBadge(count: unreadMessages);
@@ -335,6 +447,18 @@ class _TrailingIndicator extends StatelessWidget {
     return Padding(
       padding: const EdgeInsets.only(right: Spacing.px8),
       child: MessageStatusIndicator(status: lastMessage.status),
+    );
+  }
+}
+
+class _PendingCommitFailedIndicator extends StatelessWidget {
+  const _PendingCommitFailedIndicator();
+
+  @override
+  Widget build(BuildContext context) {
+    return AppIcon.circleAlert(
+      size: 16,
+      color: CustomColorScheme.of(context).function.warning,
     );
   }
 }

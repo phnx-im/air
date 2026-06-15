@@ -2,9 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{fmt, str::FromStr};
+use std::{collections::HashMap, fmt, str::FromStr};
 
-use aircommon::identifiers::{AttachmentId, AttachmentIdParseError};
+use aircommon::identifiers::{RemoteAttachmentId, RemoteAttachmentIdParseError};
+use chrono::{DateTime, Utc};
 pub use content::MimiContentExt;
 pub(crate) use persistence::AttachmentRecord;
 pub use persistence::{AttachmentContent, AttachmentStatus};
@@ -12,8 +13,9 @@ use thiserror::Error;
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
 pub use upload::{ProvisionAttachmentError, UploadTaskError};
 use url::Url;
+use uuid::Uuid;
 
-use crate::{MessageId, clients::CoreUser};
+use crate::{ChatId, MessageId, clients::CoreUser};
 
 mod aead;
 mod content;
@@ -42,11 +44,57 @@ impl CoreUser {
         Ok(AttachmentRecord::status(self.db().read().await?, attachment_id).await?)
     }
 
-    pub async fn attachment_ids_for_message(
+    /// Returns the attachment IDs for the given message IDs.
+    ///
+    /// IDs are ordered by the position in the mimi content.
+    pub async fn attachment_ids_for_message(&self, message_id: MessageId) -> Vec<AttachmentId> {
+        let Ok(read) = self.db().read().await else {
+            return Default::default();
+        };
+        AttachmentRecord::load_ids_by_message_id(read, message_id)
+            .await
+            .unwrap_or_default()
+    }
+
+    /// Returns the attachment IDs for the given contiguous range of messages.
+    ///
+    /// The upper bound is inclusive.
+    ///
+    /// IDs are ordered by the position in the mimi content for each message.
+    pub async fn attachment_ids_in_range_inclusive(
         &self,
-        message_id: MessageId,
-    ) -> anyhow::Result<Vec<AttachmentId>> {
-        Ok(AttachmentRecord::load_ids_by_message_id(self.db().read().await?, message_id).await?)
+        chat_id: ChatId,
+        from: (DateTime<Utc>, MessageId),
+        to: (DateTime<Utc>, MessageId),
+    ) -> HashMap<MessageId, Vec<AttachmentId>> {
+        let Ok(read) = self.db().read().await else {
+            return Default::default();
+        };
+        AttachmentRecord::load_ids_by_in_range_inclusive(read, chat_id, from, to)
+            .await
+            .unwrap_or_default()
+    }
+}
+
+/// An attachment ID
+///
+/// Uniquely identifies an attachment on this local client. Must *not* be shared outside of this
+/// client.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct AttachmentId {
+    // Public for the FRB mirror
+    pub uuid: Uuid,
+}
+
+impl AttachmentId {
+    pub(crate) fn from_raw(uuid: Uuid) -> Self {
+        Self { uuid }
+    }
+
+    pub(crate) fn random() -> Self {
+        Self {
+            uuid: Uuid::new_v4(),
+        }
     }
 }
 
@@ -71,20 +119,20 @@ impl AsRef<[u8]> for AttachmentBytes {
 
 #[derive(Debug)]
 pub struct AttachmentUrl {
-    attachment_id: AttachmentId,
+    remote_attachment_id: RemoteAttachmentId,
     dimensions: Option<(u32, u32)>,
 }
 
 impl AttachmentUrl {
-    pub fn new(attachment_id: AttachmentId, dimensions: Option<(u32, u32)>) -> Self {
+    pub fn new(remote_attachment_id: RemoteAttachmentId, dimensions: Option<(u32, u32)>) -> Self {
         Self {
-            attachment_id,
+            remote_attachment_id,
             dimensions,
         }
     }
 
     pub fn from_url(url: &Url) -> Result<Self, AttachmentUrlParseError> {
-        let attachment_id = AttachmentId::from_url(url)?;
+        let remote_attachment_id = RemoteAttachmentId::from_url(url)?;
 
         let width = url
             .query_pairs()
@@ -97,13 +145,13 @@ impl AttachmentUrl {
         });
 
         Ok(Self {
-            attachment_id,
+            remote_attachment_id,
             dimensions,
         })
     }
 
-    pub fn attachment_id(&self) -> AttachmentId {
-        self.attachment_id
+    pub fn remote_attachment_id(&self) -> RemoteAttachmentId {
+        self.remote_attachment_id
     }
 
     pub fn dimensions(&self) -> Option<(u32, u32)> {
@@ -125,12 +173,12 @@ pub enum AttachmentUrlParseError {
     #[error(transparent)]
     Url(#[from] url::ParseError),
     #[error(transparent)]
-    AttachmentId(#[from] AttachmentIdParseError),
+    RemoteAttachmentId(#[from] RemoteAttachmentIdParseError),
 }
 
 impl fmt::Display for AttachmentUrl {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "air:///attachment/{}", self.attachment_id.uuid)?;
+        write!(f, "air:///attachment/{}", self.remote_attachment_id.uuid())?;
         if let Some((width, height)) = self.dimensions {
             write!(f, "?width={width}&height={height}")?;
         }
@@ -150,10 +198,10 @@ mod test {
         let url = "air:///attachment/b6a42a7a-62fa-4c10-acfb-6124d80aae09"
             .parse()
             .unwrap();
-        let attachment_id = AttachmentId::from_url(&url).unwrap();
-        assert_eq!(attachment_id.uuid, id);
+        let remote_attachment_id = RemoteAttachmentId::from_url(&url).unwrap();
+        assert_eq!(remote_attachment_id.uuid(), id);
 
-        let attachment_url = AttachmentUrl::new(attachment_id, None);
+        let attachment_url = AttachmentUrl::new(remote_attachment_id, None);
         assert_eq!(attachment_url.to_string(), url.to_string());
     }
 
@@ -163,10 +211,10 @@ mod test {
         let url = "air:///attachment/b6a42a7a-62fa-4c10-acfb-6124d80aae09?width=1920&height=1080"
             .parse()
             .unwrap();
-        let attachment_id = AttachmentId::from_url(&url).unwrap();
-        assert_eq!(attachment_id.uuid, id);
+        let remote_attachment_id = RemoteAttachmentId::from_url(&url).unwrap();
+        assert_eq!(remote_attachment_id.uuid(), id);
 
-        let attachment_url = AttachmentUrl::new(attachment_id, Some((1920, 1080)));
+        let attachment_url = AttachmentUrl::new(remote_attachment_id, Some((1920, 1080)));
         assert_eq!(attachment_url.to_string(), url.to_string());
     }
 }

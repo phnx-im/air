@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/chat/safety_code_screen.dart';
+import 'package:air/chat/widgets/mute_button.dart';
 import 'package:air/chat/widgets/remove_member_button.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
@@ -16,6 +17,7 @@ import 'package:air/user/user.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
@@ -134,6 +136,11 @@ class ContactDetailsView extends StatelessWidget {
               ],
             ),
           ),
+
+          if (relationship is ContactRelationship) ...[
+            const SizedBox(height: Spacing.px16),
+            const MuteButton(),
+          ],
 
           const Spacer(),
 

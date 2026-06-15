@@ -27,11 +27,21 @@
   "addMembersScreen_error_noActiveChat": "ein aktiver Chat ist erforderlich",
   "contactDetailsScreen_chat": "Chat",
   "contactDetailsScreen_viewSafetyCode": "Sicherheitscode anzeigen",
+  "contactDetailsScreen_mute": "Stummschalten",
+  "contactDetailsScreen_unmute": "Stummschaltung aufheben",
   "safetyCodeScreen_title": "Sicherheitscode",
   "safetyCodeScreen_tapToCopy": "Zum Kopieren tippen",
   "safetyCodeScreen_copiedToClipboard": "In Zwischenablage kopiert",
   "safetyCodeScreen_safetyCodeExplanation": "Vergleiche den Sicherheitscode mit dem, den {displayName} sieht. Wenn die Codes übereinstimmen, weißt du, dass ihr Ende-zu-Ende-verschlüsselte Nachrichten miteinander austauscht.",
   "chatDetailsScreen_unknownChat": "Unbekannter Chat",
+
+  "muteDurationSheet_title": "Benachrichtigungen stummschalten",
+  "muteDurationSheet_body": "Wähle aus, wie lange du den Chat stummschalten möchtest.",
+  "muteDurationSheet_1hour": "1 Stunde",
+  "muteDurationSheet_8hours": "8 Stunden",
+  "muteDurationSheet_untilTomorrow": "Bis morgen",
+  "muteDurationSheet_untilNextMonday": "Bis nächsten Montag",
+  "muteDurationSheet_always": "Immer (bis ich es ändere)",
   "blockedChatFooter_message": "Du erhältst keine Nachrichten von {displayName}, solange du {displayName} nicht entsperrst.",
   "inactiveChatFooter_message": "Du bist kein Mitglied dieses Chats mehr.",
   "chatScreen_emptyChat": "Wähle einen Chat aus, um mit dem Nachrichten schreiben zu beginnen",
@@ -163,6 +173,9 @@
   "chatList_imageEmoji": "🖼️",
   "chatList_fileEmoji": "📎",
   "chatList_blocked": "Blockiert",
+  "chatList_muted": "Stummgeschaltet",
+  "chatList_contextMenu_mute": "Stummschalten",
+  "chatList_contextMenu_unmute": "Stummschaltung aufheben",
   "newChatDialog_error": "Chat mit dem Namen {chatName} konnte nicht hinzugefügt werden",
   "newChatDialog_error_incompatibleClient": "Gruppenchat mit dem Namen {chatName} konnte nicht erstellt werden, da einer der Kontakte einen inkompatiblen Client hat.",
   "newConnectionDialog_newConnectionTitle": "Air-Kontakt hinzufügen",
@@ -326,5 +339,5 @@
   "memberSelectionList_client_not_supported": "Dieser Kontakt hat eine veraltete App, die aktualisiert werden muss.",
   "homeTab_chats": "Chats",
   "homeTab_profile": "Du",
-  "messageList_unreadMessages": "{count, plural, one {{count} ungelesene Nachricht} other {{count} ungelesene Nachrichten}}"
+  "messageList_newMessages": "{count, plural, one {{count} neue Nachricht} other {{count} neue Nachrichten}}"
 }

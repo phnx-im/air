@@ -6,12 +6,24 @@
       {
         "ordinal": 0,
         "name": "remaining: _",
-        "type_info": "Int8"
+        "type_info": "Int8",
+        "origin": {
+          "Table": {
+            "table": "allowance_record",
+            "name": "remaining"
+          }
+        }
       },
       {
         "ordinal": 1,
         "name": "valid_until: _",
-        "type_info": "Timestamptz"
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "allowance_record",
+            "name": "valid_until"
+          }
+        }
       }
     ],
     "parameters": {

@@ -31,7 +31,7 @@ impl AuthService {
         operation_type: OperationType,
         token_request: AmortizedBatchTokenRequest<Ristretto255>,
     ) -> Result<AmortizedBatchTokenResponse<Ristretto255>, IssueTokensError> {
-        if OperationType::Unknown == operation_type {
+        if OperationType::Unspecified == operation_type {
             return Err(IssueTokensError::BadRequest("unknown operation type"));
         }
 

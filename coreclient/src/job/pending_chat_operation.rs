@@ -5,6 +5,7 @@
 use airapiclient::ds_api::DsRequestError;
 use aircommon::{
     credentials::{ClientCredential, keys::ClientSigningKey},
+    crypto::indexed_aead::keys::UserProfileKey,
     identifiers::{QualifiedGroupId, UserId},
     messages::client_ds_out::{
         ApqGroupOperationParamsOut, DeleteGroupParamsOut, GroupOperationParamsOut,
@@ -30,7 +31,10 @@ use crate::{
         Group, GroupDataBytes, PreparedInvitee, VerifiedGroup,
         client_auth_info::StorableClientCredential, handle_group_not_found_on_ds,
     },
-    job::{Job, JobContext, JobError, chat_operation::ChatOperationError},
+    job::{
+        Job, JobContext, JobContextReadConnection, JobError, chat_operation::ChatOperationError,
+    },
+    key_stores::indexed_keys::StorableIndexedKey,
 };
 
 // Having separate retry intervals for test and non-test is a hack until we can
@@ -182,10 +186,8 @@ impl Job for PendingChatOperation {
                     .write()
                     .await?
                     .with_transaction(async |txn| -> anyhow::Result<()> {
-                        self.group
-                            .group_mut()
-                            .discard_pending_commit(&mut *txn)
-                            .await?;
+                        let group = self.group.group_mut();
+                        group.discard_pending_commit(&mut *txn).await?;
                         Self::delete(txn, self.group.group_id()).await?;
                         Ok(())
                     })
@@ -230,6 +232,12 @@ impl PendingChatOperation {
                 "Failed to execute PendingChatOperation for group because
                 it is still waiting for a queue response",
             );
+            // Re-assert the flag derived from the persisted job state, in case
+            // the original write was lost
+            self.group
+                .group_mut()
+                .mark_commit_failed(context.db.write().await?)
+                .await?;
             return Err(JobError::Blocked);
         }
 
@@ -238,6 +246,7 @@ impl PendingChatOperation {
             db,
             key_store,
             now,
+            qs_client_id,
             ..
         } = context;
         let signer = &key_store.signing_key;
@@ -267,6 +276,18 @@ impl PendingChatOperation {
                 .stage_leave_group(db.write().await?, signer)?;
         }
 
+        let encrypt_user_profile_key =
+            async |connection: JobContextReadConnection| -> Result<_, JobError<ChatOperationError>> {
+                let own_user_id = key_store.signing_key.credential().user_id();
+                let own_user_profile_key = UserProfileKey::load_own(connection).await?;
+                let own_encrypted_user_profile_key = own_user_profile_key
+                    .encrypt(self.group.identity_link_wrapper_key(), own_user_id)
+                    .map_err(|e| {
+                        JobError::domain(ChatOperationError::UserProfileKeyEncryptionError(e))
+                    })?;
+                Ok(own_encrypted_user_profile_key)
+            };
+
         let mut new_chat_picture = None;
         // TODO: Can we avoid cloning here?
         let res = match self.operation.clone() {
@@ -285,8 +306,18 @@ impl PendingChatOperation {
                 new_chat_picture: chat_picture,
             } => {
                 new_chat_picture = chat_picture;
+                let own_qs_client_reference = key_store.create_own_client_reference(qs_client_id);
+                let own_encrypted_user_profile_key =
+                    encrypt_user_profile_key(db.read().await?).await?;
+
                 api_client
-                    .ds_group_operation(*params, signer, self.group.group_state_ear_key())
+                    .ds_group_operation(
+                        *params,
+                        signer,
+                        self.group.group_state_ear_key(),
+                        own_qs_client_reference,
+                        own_encrypted_user_profile_key,
+                    )
                     .await
             }
             OperationType::ApqOther {
@@ -294,8 +325,19 @@ impl PendingChatOperation {
                 new_chat_picture: chat_picture,
             } => {
                 new_chat_picture = chat_picture;
+
+                let own_qs_client_reference = key_store.create_own_client_reference(qs_client_id);
+                let own_encrypted_user_profile_key =
+                    encrypt_user_profile_key(db.read().await?).await?;
+
                 api_client
-                    .ds_apq_group_operation(*params, signer, self.group.group_state_ear_key())
+                    .ds_apq_group_operation(
+                        *params,
+                        signer,
+                        self.group.group_state_ear_key(),
+                        own_qs_client_reference,
+                        own_encrypted_user_profile_key,
+                    )
                     .await
             }
         };
@@ -438,16 +480,25 @@ impl PendingChatOperation {
 
     async fn handle_error(
         &mut self,
-        connection: impl WriteConnection,
+        mut connection: impl WriteConnection,
         error: DsRequestError,
     ) -> Result<JobError<ChatOperationError>, JobError<ChatOperationError>> {
         debug!(?error, "DS request failed");
         const MAX_RETRIES: u32 = 5;
-        if error.is_wrong_epoch() {
+        if error.is_not_found() {
+            // The group no longer exists on the DS. There is no point
+            // in retrying, the group needs to be torn down instead.
+            Ok(JobError::NotFound)
+        } else if error.is_wrong_epoch() {
             // If we get a WrongEpochError, we know the commit was
             // either accepted on a previous try, or the DS rejected
             // it because another one got there first.
-            self.mark_as_waiting_for_queue_response(connection).await?;
+            self.mark_as_waiting_for_queue_response(&mut connection)
+                .await?;
+            self.group
+                .group_mut()
+                .mark_commit_failed(&mut connection)
+                .await?;
 
             Err(JobError::Blocked)
         } else if error.is_network_error() && self.number_of_attempts < MAX_RETRIES {
@@ -737,7 +788,7 @@ mod persistence {
     impl sqlx::Encode<'_, sqlx::Sqlite> for OperationType {
         fn encode_by_ref(
             &self,
-            buf: &mut <sqlx::Sqlite as sqlx::Database>::ArgumentBuffer<'_>,
+            buf: &mut <sqlx::Sqlite as sqlx::Database>::ArgumentBuffer,
         ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
             let s = self.to_string();
             <String as sqlx::Encode<sqlx::Sqlite>>::encode_by_ref(&s, buf)
@@ -784,7 +835,7 @@ mod persistence {
     impl sqlx::Encode<'_, sqlx::Sqlite> for PendingChatOperationStatus {
         fn encode_by_ref(
             &self,
-            buf: &mut <sqlx::Sqlite as sqlx::Database>::ArgumentBuffer<'_>,
+            buf: &mut <sqlx::Sqlite as sqlx::Database>::ArgumentBuffer,
         ) -> Result<sqlx::encode::IsNull, sqlx::error::BoxDynError> {
             let s = self.to_string();
             <String as sqlx::Encode<sqlx::Sqlite>>::encode_by_ref(&s, buf)
@@ -1096,6 +1147,7 @@ pub mod test_utils {
 #[cfg(test)]
 mod tests {
     use aircommon::{
+        assert_matches,
         credentials::{keys::ClientSigningKey, test_utils::create_test_credentials},
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QualifiedGroupId, UserId},
@@ -1221,6 +1273,25 @@ mod tests {
                 Ok(())
             })
             .await
+    }
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn not_found_ds_error_is_routed_to_not_found() -> anyhow::Result<()> {
+        let (pool, mut group, _chat_id, signing_key) = setup_group_and_chat().await?;
+
+        let leave_params = group
+            .group_mut()
+            .stage_leave_group(pool.write().await?, &signing_key)?;
+        let mut pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
+
+        // A "group not found" response from the DS must be classified as
+        // NotFound so the group is torn down, not retried as a generic fatal.
+        let error = DsRequestError::Tonic(tonic::Status::not_found("group not found"));
+        let result = pending.handle_error(pool.write().await?, error).await;
+
+        assert_matches!(result, Ok(JobError::NotFound));
+
+        Ok(())
     }
 
     #[tokio::test(flavor = "multi_thread")]

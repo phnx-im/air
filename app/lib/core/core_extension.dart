@@ -62,6 +62,38 @@ extension UiChatDetailsExtension on UiChatDetails {
     UiChatType_HandleConnection() ||
     UiChatType_PendingConnection() => false,
   };
+
+  bool get isMuted => mutedUntil.isMuted;
+}
+
+extension UiChatMutedExtension on UiChatMuted? {
+  bool get isMuted => switch (this) {
+    UiChatMuted_Until(:final field0) => DateTime.now().isBefore(field0),
+    UiChatMuted_Forever() => true,
+    null => false,
+  };
+
+  static UiChatMuted inOneHour() =>
+      UiChatMuted.until(DateTime.now().add(const Duration(hours: 1)));
+
+  static UiChatMuted inEightHours() =>
+      UiChatMuted.until(DateTime.now().add(const Duration(hours: 8)));
+
+  static UiChatMuted untilTomorrow() {
+    final now = DateTime.now();
+    return UiChatMuted.until(
+      DateTime(now.year, now.month, now.day + 1).toUtc(),
+    );
+  }
+
+  static UiChatMuted untilNextMonday() {
+    final now = DateTime.now();
+    final daysUntilMonday = (DateTime.monday - now.weekday + 7) % 7;
+    final days = daysUntilMonday == 0 ? 7 : daysUntilMonday;
+    return UiChatMuted.until(
+      DateTime(now.year, now.month, now.day + days).toUtc(),
+    );
+  }
 }
 
 extension UiChatTypeExtension on UiChatType {

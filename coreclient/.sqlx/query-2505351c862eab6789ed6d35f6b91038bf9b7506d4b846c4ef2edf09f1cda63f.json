@@ -6,12 +6,24 @@
       {
         "name": "mimi_id: _",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "receipt_queue",
+            "name": "mimi_id"
+          }
+        }
       },
       {
         "name": "status: _",
         "ordinal": 1,
-        "type_info": "Integer"
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "receipt_queue",
+            "name": "status"
+          }
+        }
       }
     ],
     "parameters": {

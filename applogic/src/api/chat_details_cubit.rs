@@ -6,18 +6,15 @@
 
 use std::{collections::HashMap, path::PathBuf, time::Duration};
 
-use aircommon::{
-    OpenMlsRand, RustCrypto,
-    identifiers::{AttachmentId, UserId},
-};
+use aircommon::{OpenMlsRand, RustCrypto, identifiers::UserId};
 pub use aircoreclient::{
     AcceptContactRequestError, AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
-    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqDebugInfo,
+    ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqGroupDebugInfo,
     RequiredDebugCapabilities,
 };
 use aircoreclient::{
-    AttachmentProgress, Chat, ChatId, ChatMessage, MessageId, ProvisionAttachmentError,
-    UploadTaskError, clients::CoreUser,
+    AttachmentId, AttachmentProgress, Chat, ChatId, ChatMessage, MessageId,
+    ProvisionAttachmentError, UploadTaskError, clients::CoreUser,
 };
 use airprotos::client::component::AirComponent;
 use anyhow::{Context as _, bail};
@@ -28,7 +25,14 @@ use tokio::{sync::watch, time::sleep};
 use tokio_stream::StreamExt;
 use tracing::{error, info, warn};
 
-use crate::{StreamSink, api::types::UiInReplyToMessage, mark_as_read::MarkAsReadState};
+use crate::{
+    StreamSink,
+    api::{
+        message_content::UnresolvedMimiContent,
+        types::{UiChatMessage, UiInReplyToMessage},
+    },
+    mark_as_read::MarkAsReadState,
+};
 use crate::{api::types::UiMessageDraft, message_content::MimiContentExt};
 use crate::{
     api::{
@@ -43,6 +47,9 @@ use crate::{
     notifications::NotificationService,
     util::{Cubit, CubitCore, spawn_from_sync},
 };
+
+// Re-export for FRB reasons
+pub(crate) use crate::api::types::UiChatMuted;
 
 use super::{types::UiChatDetails, user_cubit::UserCubitBase};
 
@@ -286,7 +293,7 @@ impl ChatDetailsCubitBase {
         &self,
         attachment_id: AttachmentId,
     ) -> anyhow::Result<Option<UploadAttachmentError>> {
-        let (new_attachment_id, progress, upload_task) = match self
+        let (progress, upload_task) = match self
             .context
             .core_user
             .retry_upload_chat_attachment(attachment_id)
@@ -295,7 +302,7 @@ impl ChatDetailsCubitBase {
             Ok(result) => result,
             Err(error) => return error.into_ui_result(),
         };
-        self.upload_attachment_impl(new_attachment_id, progress, upload_task)
+        self.upload_attachment_impl(attachment_id, progress, upload_task)
             .await?;
         Ok(None)
     }
@@ -314,7 +321,7 @@ impl ChatDetailsCubitBase {
                 self.context
                     .core_user
                     .outbound_service()
-                    .enqueue_chat_message(message.id(), Some(attachment_id))
+                    .enqueue_chat_message(message.id())
                     .await?;
             }
             Some(Err(UploadTaskError { message_id, error })) => {
@@ -322,7 +329,7 @@ impl ChatDetailsCubitBase {
                 self.context
                     .core_user
                     .outbound_service()
-                    .fail_enqueued_chat_message(message_id, Some(attachment_id))
+                    .fail_enqueued_chat_message(message_id)
                     .await?;
             }
             None => {
@@ -506,6 +513,12 @@ impl ChatDetailsCubitBase {
             return Ok(());
         };
 
+        let attachment_ids = self
+            .context
+            .core_user
+            .attachment_ids_for_message(message_id)
+            .await;
+
         // Update draft in state
         let changed = self.core.state_tx().send_if_modified(|state| {
             let Some(chat) = state.chat.as_mut() else {
@@ -531,7 +544,8 @@ impl ChatDetailsCubitBase {
                 UiInReplyToMessage::Resolved {
                     message_id,
                     sender: sender.into(),
-                    mimi_content: mimi_content.into(),
+                    mimi_content: UnresolvedMimiContent::from(mimi_content)
+                        .resolve(&attachment_ids),
                 },
             ));
             draft.is_committed = false;
@@ -568,6 +582,16 @@ impl ChatDetailsCubitBase {
             .accept_contact_request(chat_id)
             .await?
             .err())
+    }
+
+    /// Mute notifications for this chat until the given datetime.
+    /// Pass `None` to unmute.
+    pub async fn mute_chat(&self, muted_until: Option<UiChatMuted>) -> anyhow::Result<()> {
+        let chat_id = self.context.chat_id;
+        self.context
+            .core_user
+            .set_chat_muted_until(chat_id, muted_until.map(Into::into))
+            .await
     }
 
     pub async fn chat_debug_info(&self) -> anyhow::Result<GroupDebugInfo> {
@@ -739,6 +763,7 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         .unwrap_or_default() // default is UNIX_EPOCH
         .with_timezone(&Local);
 
+    let group_id = chat.group_id;
     let chat_type = UiChatType::load_from_chat_type(core_user, chat.chat_type).await;
 
     let draft = core_user
@@ -749,6 +774,8 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
 
     let is_apq = core_user.chat_is_apq(chat.id).await.unwrap_or(false);
 
+    let pending_commit_failed = core_user.chat_is_pending(&group_id).await.unwrap_or(false);
+
     UiChatDetails {
         id: chat.id,
         status: chat.status.into(),
@@ -756,9 +783,11 @@ pub(super) async fn load_chat_details(core_user: &CoreUser, chat: Chat) -> UiCha
         last_used,
         messages_count,
         unread_messages,
-        last_message: last_message.map(From::from),
+        last_message: last_message.map(UiChatMessage::from_message_without_attachments),
         draft,
         is_apq,
+        muted_until: chat.muted_until.map(Into::into),
+        pending_commit_failed,
     }
 }
 
@@ -812,11 +841,11 @@ pub struct _GroupDebugInfo {
     pub members: HashMap<u32, DebugCapabilities>,
     pub group_data: Option<GroupDataDebugInfo>,
     pub size_bytes: u64,
-    pub pq: Option<PqDebugInfo>,
+    pub pq: Option<PqGroupDebugInfo>,
 }
 
-#[frb(mirror(PqDebugInfo))]
-pub struct _PqDebugInfo {
+#[frb(mirror(PqGroupDebugInfo))]
+pub struct _PqGroupDebugInfo {
     pub group_id: String,
     pub epoch: u64,
     pub ciphersuite: String,

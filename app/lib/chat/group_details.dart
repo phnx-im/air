@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/chat/widgets/member_list_item.dart';
+import 'package:air/chat/widgets/mute_button.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/navigation/navigation.dart';
@@ -100,12 +101,15 @@ class GroupDetailsScreen extends StatelessWidget {
                           color: colors.text.secondary,
                         ),
                       ),
+                      const SizedBox(height: Spacing.px8),
+                      const MuteButton(),
                       const SizedBox(height: Spacing.px32),
                       _PeoplePreview(memberIds: members),
                     ],
                   ),
                 ),
               ),
+              const SizedBox(height: Spacing.px16),
               Row(
                 children: [
                   Expanded(

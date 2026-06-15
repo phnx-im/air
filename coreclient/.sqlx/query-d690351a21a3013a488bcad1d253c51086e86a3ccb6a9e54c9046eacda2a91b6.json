@@ -6,32 +6,68 @@
       {
         "name": "chat_id: ChatId",
         "ordinal": 0,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_connection_info",
+            "name": "chat_id"
+          }
+        }
       },
       {
         "name": "created_at: TimeStamp",
         "ordinal": 1,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "pending_connection_info",
+            "name": "created_at"
+          }
+        }
       },
       {
         "name": "connection_info: ConnectionInfo",
         "ordinal": 2,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_connection_info",
+            "name": "connection_info"
+          }
+        }
       },
       {
         "name": "handle: _",
         "ordinal": 3,
-        "type_info": "Text"
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "pending_connection_info",
+            "name": "handle"
+          }
+        }
       },
       {
         "name": "connection_offer_hash: _",
         "ordinal": 4,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_connection_info",
+            "name": "connection_offer_hash"
+          }
+        }
       },
       {
         "name": "connection_package_hash: _",
         "ordinal": 5,
-        "type_info": "Blob"
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_connection_info",
+            "name": "connection_package_hash"
+          }
+        }
       }
     ],
     "parameters": {

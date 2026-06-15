@@ -6,7 +6,7 @@ use std::{borrow::Cow, collections::VecDeque, sync::Arc};
 
 use aircommon::identifiers::QsClientId;
 use airprotos::queue_service::v1::{
-    QueueEmpty, QueueEvent, QueueEventPayload, QueueMessage, queue_event,
+    ListenResponse, QueueEmpty, QueueEventPayload, QueueMessage, listen_response,
 };
 use dashmap::DashMap;
 use futures_util::{Stream, stream};
@@ -81,7 +81,7 @@ impl Queues {
         client_id: QsClientId,
         client_version: Option<Version>,
         sequence_number_start: u64,
-    ) -> Result<impl Stream<Item = Option<QueueEvent>> + use<>, QueueError> {
+    ) -> Result<impl Stream<Item = Option<ListenResponse>> + use<>, QueueError> {
         let notifications = self.pg_listener_task_handle.subscribe(client_id);
         let (payload_tx, payload_rx) = mpsc::channel(1024);
 
@@ -98,18 +98,18 @@ impl Queues {
         };
 
         let message_stream = context.into_stream().map(|message| match message {
-            Some(message) => Some(QueueEvent {
-                event: Some(queue_event::Event::Message(message)),
+            Some(message) => Some(ListenResponse {
+                event: Some(listen_response::Event::Message(message)),
             }),
-            None => Some(QueueEvent {
-                event: Some(queue_event::Event::Empty(QueueEmpty {})),
+            None => Some(ListenResponse {
+                event: Some(listen_response::Event::Empty(QueueEmpty {})),
             }),
         });
 
         let payload_stream =
             tokio_stream::wrappers::ReceiverStream::new(payload_rx).map(|payload| {
-                Some(QueueEvent {
-                    event: Some(queue_event::Event::Payload(payload)),
+                Some(ListenResponse {
+                    event: Some(listen_response::Event::Payload(payload)),
                 })
             });
 
@@ -125,8 +125,10 @@ impl Queues {
         message: &QueueMessage,
     ) -> Result<bool, QueueError> {
         Queue::enqueue(txn.as_mut(), queue_id, message).await?;
-        let query = format!(r#"NOTIFY "{}""#, pg_queue_label(queue_id));
-        sqlx::query(&query).execute(txn.as_mut()).await?;
+        sqlx::query("SELECT pg_notify($1, '')")
+            .bind(queue_id.pg_channel())
+            .execute(txn.as_mut())
+            .await?;
 
         let is_listening = self
             .listeners
@@ -146,8 +148,10 @@ impl Queues {
     }
 
     pub(crate) async fn trigger_fetch(&self, queue_id: QsClientId) -> Result<(), QueueError> {
-        let query = queue_id.notify_query();
-        sqlx::query(&query).execute(&self.pool).await?;
+        sqlx::query("SELECT pg_notify($1, '')")
+            .bind(queue_id.pg_channel())
+            .execute(&self.pool)
+            .await?;
         Ok(())
     }
 
@@ -319,10 +323,6 @@ impl<S: Stream<Item = ()> + Send + Unpin> QueueStreamContext<S> {
     }
 }
 
-fn pg_queue_label(queue_id: QsClientId) -> String {
-    format!("qs_{}", queue_id.as_uuid())
-}
-
 fn client_version_label(client_version: Option<&Version>) -> Cow<'static, str> {
     client_version
         .as_ref()
@@ -357,7 +357,7 @@ pub(crate) mod persistence {
     impl<'q> Encode<'q, Postgres> for SqlQueueMessageRef<'_> {
         fn encode_by_ref(
             &self,
-            buf: &mut <Postgres as Database>::ArgumentBuffer<'q>,
+            buf: &mut <Postgres as Database>::ArgumentBuffer,
         ) -> Result<IsNull, BoxDynError> {
             let buf: &mut Vec<u8> = buf.as_mut();
             self.0.encode(buf)?;

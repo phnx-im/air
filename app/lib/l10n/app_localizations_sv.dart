@@ -104,6 +104,12 @@ class AppLocalizationsSv extends AppLocalizations {
   String get contactDetailsScreen_viewSafetyCode => 'Visa säkerhetskod';
 
   @override
+  String get contactDetailsScreen_mute => 'Tysta';
+
+  @override
+  String get contactDetailsScreen_unmute => 'Sluta tysta';
+
+  @override
   String get safetyCodeScreen_title => 'Säkerhetskod';
 
   @override
@@ -119,6 +125,27 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get chatDetailsScreen_unknownChat => 'Okänd chatt';
+
+  @override
+  String get muteDurationSheet_title => 'Tysta notifikationer';
+
+  @override
+  String get muteDurationSheet_body => 'Välj hur länge du vill tysta chatten.';
+
+  @override
+  String get muteDurationSheet_1hour => '1 timme';
+
+  @override
+  String get muteDurationSheet_8hours => '8 timmar';
+
+  @override
+  String get muteDurationSheet_untilTomorrow => 'Till imorgon';
+
+  @override
+  String get muteDurationSheet_untilNextMonday => 'Till nästa måndag';
+
+  @override
+  String get muteDurationSheet_always => 'Alltid (tills jag ändrar det)';
 
   @override
   String blockedChatFooter_message(Object displayName) {
@@ -592,6 +619,15 @@ class AppLocalizationsSv extends AppLocalizations {
   String get chatList_blocked => 'Blockerad';
 
   @override
+  String get chatList_muted => 'Tystad';
+
+  @override
+  String get chatList_contextMenu_mute => 'Tysta';
+
+  @override
+  String get chatList_contextMenu_unmute => 'Sluta tysta';
+
+  @override
   String newChatDialog_error(Object chatName) {
     return 'Kunde inte skapa en ny gruppchatt med namnet $chatName';
   }
@@ -1055,12 +1091,12 @@ class AppLocalizationsSv extends AppLocalizations {
   String get homeTab_profile => 'Du';
 
   @override
-  String messageList_unreadMessages(int count) {
+  String messageList_newMessages(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count olästa meddelanden',
-      one: '$count oläst meddelande',
+      other: '$count nya meddelanden',
+      one: '$count nytt meddelande',
     );
     return '$_temp0';
   }

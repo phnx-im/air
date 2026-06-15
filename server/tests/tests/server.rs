@@ -14,8 +14,8 @@ use aircommon::{
     mls_group_config::MAX_PAST_EPOCHS,
 };
 use aircoreclient::{
-    ChatId,
-    clients::{QueueEvent, process::process_qs::ProcessedQsMessages, queue_event},
+    ChatId, DisplayName, UserProfile,
+    clients::{ListenResponse, listen_response, process::process_qs::ProcessedQsMessages},
     outbound_service::{APQ_KEY_PACKAGES, KEY_PACKAGES},
 };
 
@@ -32,7 +32,7 @@ use rand::thread_rng;
 use semver::VersionReq;
 use tokio::time::{sleep, timeout};
 use tokio_stream::StreamExt;
-use tonic::transport::Channel;
+use tonic::{Code, codegen::http, transport::Channel};
 use tonic_health::pb::{
     HealthCheckRequest, health_check_response::ServingStatus, health_client::HealthClient,
 };
@@ -150,6 +150,65 @@ async fn user_deletion_triggers() {
         bob_user_profile_charlie,
         aircoreclient::UserProfile::from_user_id(&charlie)
     );
+}
+
+/// Old method paths must not return UNIMPLEMENTED: proves the alias layer is wired up.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn grpc_method_aliases() {
+    use tower::ServiceExt as _;
+
+    const OLD_PATHS: &[&str] = &[
+        "/auth_service.v1.AuthService/CheckHandleExists",
+        "/auth_service.v1.AuthService/CreateHandle",
+        "/auth_service.v1.AuthService/DeleteHandle",
+        "/auth_service.v1.AuthService/RefreshHandle",
+        "/auth_service.v1.AuthService/ConnectHandle",
+        "/auth_service.v1.AuthService/ListenHandle",
+    ];
+
+    let setup = TestBackend::single().await;
+    let channel = Channel::from_shared(String::from(setup.server_url()))
+        .unwrap()
+        .connect()
+        .await
+        .unwrap();
+
+    for path in OLD_PATHS {
+        let request = http::Request::builder()
+            .method(http::Method::POST)
+            .uri(*path)
+            .header("content-type", "application/grpc")
+            .header("te", "trailers")
+            .body(tonic::body::Body::empty())
+            .unwrap();
+
+        let response = channel.clone().oneshot(request).await.unwrap();
+
+        // Expect either a code != UNIMPLEMENTED (non-streaming RPC) or an abstent grpc-status which
+        // is a 200 HTTP/2 request (streaming RPC). Both cases mean that the redirect worked.
+        let code = response
+            .headers()
+            .get("grpc-status")
+            .map(|v| Code::from_bytes(v.as_bytes()));
+        match code {
+            Some(code) => {
+                // Non-streaming RPC: returns grpc-status as header
+                assert_ne!(code, Code::Unknown, "grpc status failed to parse");
+                assert_ne!(
+                    code,
+                    Code::Unimplemented,
+                    "path {path} is unknown to the server",
+                );
+            }
+            None => {
+                // Streaming RPC: returns HTTP/2 200 OK and no grpc-status header
+                assert!(
+                    response.status().is_success(),
+                    "path {path} is unknown to the server"
+                );
+            }
+        }
+    }
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -580,6 +639,12 @@ async fn resync_group_not_found_cleans_up_local_state() {
 async fn resync_valid_group_succeeds() {
     let mut setup = TestBackend::single().await;
 
+    // Skip resyncs for APQ groups.
+    if setup.apq_groups {
+        warn!("Skipping test: resync is not supported for APQ groups");
+        return;
+    }
+
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
@@ -614,6 +679,219 @@ async fn resync_valid_group_succeeds() {
 
     // Bob should be able to send messages normally.
     setup.send_message(chat_id, &bob, vec![&alice], None).await;
+}
+
+// Make sure that resync is refused for APQ groups for now.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Resync is refused for APQ groups", skip_all)]
+async fn resync_refused_for_apq_group() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+
+    let chat_id = setup.create_apq_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let bob_user = &setup.get_user(&bob).user;
+    bob_user
+        .enqueue_group_resync(chat_id)
+        .await
+        .expect_err("resync must be refused for APQ groups");
+    assert!(
+        !bob_user.is_resync_pending(chat_id).await.unwrap(),
+        "no resync should be queued for an APQ group"
+    );
+}
+
+/// Resync with holes in the leaf nodes: Alice creates a group with Bob,
+/// Charlie and Dave (leaf indices 0, 1, 2, 3), and then removes Bob. This
+/// blanks Bob's leaf, leaving a hole in the leaf nodes, so that leaf indices
+/// no longer match positions in flattened member lists. Charlie then leaves
+/// the chat, which puts a pending SelfRemove proposal (for leaf index 2) on
+/// the DS. Alice resyncs first, then Dave; both resyncs must succeed.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Resync with blank leaf", skip_all)]
+async fn resync_with_blank_leaf_succeeds() {
+    let mut setup = TestBackend::single().await;
+
+    // Skip resyncs for APQ groups.
+    if setup.apq_groups {
+        warn!("Skipping test: resync is not supported for APQ groups");
+        return;
+    }
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+    let dave = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+    setup.connect_users(&alice, &dave).await;
+
+    let chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(chat_id, &alice, vec![&bob, &charlie, &dave])
+        .await;
+
+    // Removing Bob blanks his leaf, creating a hole in the leaf nodes.
+    setup
+        .remove_from_group(chat_id, &alice, vec![&bob])
+        .await
+        .unwrap();
+
+    // Charlie leaves the chat. This puts a pending SelfRemove proposal for leaf index 2 on the DS,
+    // which is committed by the next resync's external commit.
+    let charlie_user = &setup.get_user(&charlie).user;
+    charlie_user.leave_chat(chat_id).await.unwrap();
+
+    // Alice and Dave observe Charlie's proposal.
+    for user_id in [&alice, &dave] {
+        let user = &setup.get_user(user_id).user;
+        let qs_messages = user.qs_fetch_messages().await.unwrap();
+        let result = user.fully_process_qs_messages(qs_messages).await;
+        assert!(
+            result.errors.is_empty(),
+            "{user_id:?} should process Charlie's proposal without errors: {:?}",
+            result.errors
+        );
+    }
+
+    // Dave changes his profile. This rotates his user profile key, so Alice's post-resync profile
+    // fetch must decrypt it with the key from the external commit info.
+    let dave_user = &setup.get_user(&dave).user;
+    let dave_display_name: DisplayName = "D4v3".parse().unwrap();
+    dave_user
+        .set_own_user_profile(UserProfile {
+            user_id: dave.clone(),
+            display_name: dave_display_name.clone(),
+            profile_picture: None,
+        })
+        .await
+        .unwrap();
+
+    // Alice resyncs first.
+    let alice_user = &setup.get_user(&alice).user;
+    alice_user.enqueue_group_resync(chat_id).await.unwrap();
+    assert!(
+        alice_user.is_resync_pending(chat_id).await.unwrap(),
+        "resync should be queued"
+    );
+
+    // Run outbound service — resync should succeed despite the blank leaves.
+    alice_user.outbound_service().run_once().await;
+
+    assert!(
+        !alice_user.is_resync_pending(chat_id).await.unwrap(),
+        "resync should have completed"
+    );
+
+    // Run the outbound service again to process the user profile fetch operations enqueued by the
+    // resync.
+    alice_user.outbound_service().run_once().await;
+
+    // Alice should see Dave's updated profile after the resync.
+    let dave_profile = alice_user.user_profile(&dave).await;
+    assert_eq!(dave_profile.display_name, dave_display_name);
+
+    // Alice must not have received her own external commit from the DS.
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    let result = alice_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Alice should process her queue without errors: {:?}",
+        result.errors
+    );
+
+    // Dave processes Alice's rejoin commit.
+    let dave_user = &setup.get_user(&dave).user;
+    let qs_messages = dave_user.qs_fetch_messages().await.unwrap();
+    let result = dave_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Dave should process Alice's rejoin without errors: {:?}",
+        result.errors
+    );
+
+    // Now Dave resyncs as well.
+    dave_user.enqueue_group_resync(chat_id).await.unwrap();
+    assert!(
+        dave_user.is_resync_pending(chat_id).await.unwrap(),
+        "resync should be queued"
+    );
+
+    dave_user.outbound_service().run_once().await;
+
+    assert!(
+        !dave_user.is_resync_pending(chat_id).await.unwrap(),
+        "resync should have completed"
+    );
+
+    // Run the outbound service again to process the user profile fetch operations enqueued by the
+    // resync.
+    dave_user.outbound_service().run_once().await;
+
+    // Dave must not have received his own external commit from the DS.
+    let qs_messages = dave_user.qs_fetch_messages().await.unwrap();
+    let result = dave_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Dave should process his queue without errors: {:?}",
+        result.errors
+    );
+
+    // Alice processes Dave's rejoin commit.
+    let alice_user = &setup.get_user(&alice).user;
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    let result = alice_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Alice should process Dave's rejoin without errors"
+    );
+
+    // Both group members should agree on the group membership.
+    let expected_members: HashSet<_> = [alice.clone(), dave.clone()].into_iter().collect();
+    let participants = alice_user.group_members(chat_id).await.unwrap();
+    assert_eq!(participants, expected_members);
+    let dave_user = &setup.get_user(&dave).user;
+    let participants = dave_user.group_members(chat_id).await.unwrap();
+    assert_eq!(participants, expected_members);
+
+    // Dave sends a message.
+    //
+    // Note: the external commit re-added Dave at the leftmost blank leaf (Bob's old position), i.e.
+    // his leaf index changed.
+    dave_user
+        .send_message(
+            chat_id,
+            MimiContent::simple_markdown_message("message".to_owned(), [0; 16]),
+            None,
+        )
+        .await
+        .unwrap();
+    // Actually send the queued message to the DS.
+    dave_user.outbound_service().run_once().await;
+
+    // Alice receives the message.
+    let alice_user = &setup.get_user(&alice).user;
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    let result = alice_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Alice should process Dave's message without errors: {:?}",
+        result.errors
+    );
+
+    // The DS must not fan out Dave's own message back to him.
+    let dave_user = &setup.get_user(&dave).user;
+    let qs_messages = dave_user.qs_fetch_messages().await.unwrap();
+    let result = dave_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Dave should not receive his own message: {:?}",
+        result.errors
+    );
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -836,16 +1114,16 @@ async fn listen_stream_eviction() {
     let (mut stream_a, _responder_a) = alice_user.listen_queue().await.unwrap();
     assert_matches!(
         stream_a.next().await,
-        Some(QueueEvent {
-            event: Some(queue_event::Event::Empty(_)),
+        Some(ListenResponse {
+            event: Some(listen_response::Event::Empty(_)),
         })
     );
 
     let (mut stream_b, _responder_b) = alice_user.listen_queue().await.unwrap();
     assert_matches!(
         stream_b.next().await,
-        Some(QueueEvent {
-            event: Some(queue_event::Event::Empty(_)),
+        Some(ListenResponse {
+            event: Some(listen_response::Event::Empty(_)),
         })
     );
 

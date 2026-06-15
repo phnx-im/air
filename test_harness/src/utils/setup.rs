@@ -975,7 +975,7 @@ impl TestBackend {
         let path = tmp_dir.path().join(filename);
         std::fs::write(&path, attachment).unwrap();
 
-        let (attachment_id, _progress, upload_task) = sender
+        let (_local_attachment_id, _progress, upload_task) = sender
             .upload_chat_attachment(chat_id, &path)
             .await
             .expect("fatal error")?;
@@ -983,7 +983,7 @@ impl TestBackend {
         let message = upload_task.await.unwrap();
         sender
             .outbound_service()
-            .enqueue_chat_message(message.id(), Some(attachment_id))
+            .enqueue_chat_message(message.id())
             .await
             .unwrap();
         sender.outbound_service().run_once().await;

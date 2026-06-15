@@ -36,6 +36,11 @@ abstract class UserSettingsCubitBase implements RustOpaqueInterface {
     required double value,
   });
 
+  Future<void> setIsDeveloper({
+    required UserCubitBase userCubit,
+    required bool value,
+  });
+
   Future<void> setLocale({required User user, required String value});
 
   Future<void> setReadReceipts({
@@ -66,5 +71,6 @@ sealed class UserSettings with _$UserSettings {
     @Default(300.0) double sidebarWidth,
     @Default(false) bool sendOnEnter,
     @Default(true) bool readReceipts,
+    @Default(false) bool isDeveloper,
   }) = _UserSettings;
 }

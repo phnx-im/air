@@ -10,7 +10,7 @@ use std::{
 };
 
 use aircoreclient::{
-    ChatId, ChatMessage, ChatType, MessageId,
+    AttachmentId, ChatId, ChatMessage, ChatType, MessageId,
     clients::CoreUser,
     db::notification::{DbEntityId, DbNotification, DbOperation},
 };
@@ -30,7 +30,7 @@ use super::{
     user_cubit::UserCubitBase,
 };
 
-const PAGE_SIZE: usize = 50;
+const PAGE_SIZE: usize = 64;
 /// Maximum number of messages kept in the loaded window.
 /// When a prepend/append would exceed this, messages are dropped from the far
 /// end. With anchored rendering we can retain a larger buffer to make long
@@ -51,6 +51,8 @@ pub struct MessageListState {
     pub is_at_bottom: bool,
     /// Index of the first unread message (set on initial load only)
     pub first_unread_index: Option<usize>,
+    /// Number of unread messages shown in the unread divider.
+    pub unread_count: usize,
     /// Monotonic revision incremented for every emitted transition.
     pub revision: usize,
 }
@@ -115,6 +117,7 @@ enum LoadDirection {
         has_newer: bool,
         is_at_bottom: bool,
         first_unread_index: Option<usize>,
+        unread_count: usize,
         command: Option<MessageListCommand>,
     },
     /// Prepend older messages before the current window
@@ -225,6 +228,7 @@ impl MessageListData {
         &mut self,
         state: &mut MessageListState,
         new_messages: Vec<ChatMessage>,
+        local_attachment_ids: HashMap<MessageId, Vec<AttachmentId>>,
         is_connection_chat: Option<bool>,
         direction: LoadDirection,
     ) -> MessageListTransition {
@@ -238,10 +242,19 @@ impl MessageListData {
                 has_newer,
                 is_at_bottom,
                 first_unread_index,
+                unread_count,
                 command: next_command,
             } => {
-                let mut messages: Vec<UiChatMessage> =
-                    new_messages.into_iter().map(From::from).collect();
+                let mut messages: Vec<UiChatMessage> = new_messages
+                    .into_iter()
+                    .map(|m| {
+                        let ids = local_attachment_ids
+                            .get(&m.id())
+                            .map(|ids| ids.as_slice())
+                            .unwrap_or_default();
+                        UiChatMessage::from_message(m, ids)
+                    })
+                    .collect();
                 compute_flight_positions(&mut messages, first_unread_index);
 
                 self.messages = messages;
@@ -252,6 +265,7 @@ impl MessageListData {
                 state.has_newer = has_newer;
                 state.is_at_bottom = is_at_bottom;
                 state.first_unread_index = first_unread_index;
+                state.unread_count = unread_count;
 
                 changes.push(MessageListChange::Reload {
                     messages: newest_first(&self.messages),
@@ -260,8 +274,16 @@ impl MessageListData {
                 kind = MessageListTransitionKind::WindowReplaced;
             }
             LoadDirection::PrependOlder { has_older } => {
-                let mut prepended: Vec<UiChatMessage> =
-                    new_messages.into_iter().map(From::from).collect();
+                let mut prepended: Vec<UiChatMessage> = new_messages
+                    .into_iter()
+                    .map(|m| {
+                        let ids = local_attachment_ids
+                            .get(&m.id())
+                            .map(|ids| ids.as_slice())
+                            .unwrap_or_default();
+                        UiChatMessage::from_message(m, ids)
+                    })
+                    .collect();
                 let prepend_count = prepended.len();
                 let old_len = self.messages.len();
                 let inserted_messages = newest_first(&prepended);
@@ -322,8 +344,16 @@ impl MessageListData {
                 kind = MessageListTransitionKind::OlderPageLoaded;
             }
             LoadDirection::AppendNewer { has_newer } => {
-                let mut appended: Vec<UiChatMessage> =
-                    new_messages.into_iter().map(From::from).collect();
+                let mut appended: Vec<UiChatMessage> = new_messages
+                    .into_iter()
+                    .map(|m| {
+                        let ids = local_attachment_ids
+                            .get(&m.id())
+                            .map(|ids| ids.as_slice())
+                            .unwrap_or_default();
+                        UiChatMessage::from_message(m, ids)
+                    })
+                    .collect();
                 let old_count = self.messages.len();
                 let appended_count = appended.len();
                 let inserted_messages = newest_first(&appended);
@@ -411,6 +441,7 @@ impl MessageListData {
         let end = (unread_idx + 1).min(self.messages.len());
         recompute_flight_positions_range(&mut self.messages, start, end, None);
         state.first_unread_index = None;
+        state.unread_count = 0;
 
         let mut changes = Vec::new();
         push_patch_changes(&mut changes, &self.messages, start..end);
@@ -428,9 +459,10 @@ impl MessageListData {
         &mut self,
         state: &mut MessageListState,
         message: ChatMessage,
+        local_attachment_ids: &[AttachmentId],
     ) -> Option<MessageListTransition> {
         let idx = self.message_ids_index.get(&message.id()).copied()?;
-        let updated: UiChatMessage = message.into();
+        let updated = UiChatMessage::from_message(message, local_attachment_ids);
         if self.messages[idx] == updated {
             return None;
         }
@@ -712,18 +744,34 @@ impl MessageListContext {
                 }
             };
 
+            let local_attachment_ids =
+                if let Some((from, to)) = messages.first().zip(messages.last()) {
+                    self.core_user
+                        .attachment_ids_in_range_inclusive(
+                            self.chat_id,
+                            (from.timestamp(), from.id()),
+                            (to.timestamp(), to.id()),
+                        )
+                        .await
+                } else {
+                    Default::default()
+                };
+
             let first_unread_index = messages.iter().position(|m| m.id() == unread_id);
+            let unread_count = self.core_user.unread_messages_count(self.chat_id).await;
 
             let mut state = self.state_tx.borrow().clone();
             let transition = self.data.apply_messages(
                 &mut state,
                 messages,
+                local_attachment_ids,
                 is_connection_chat,
                 LoadDirection::Replace {
                     has_older,
                     has_newer,
                     is_at_bottom: !has_newer,
                     first_unread_index,
+                    unread_count,
                     command: None,
                 },
             );
@@ -751,16 +799,30 @@ impl MessageListContext {
             messages
         };
 
+        let local_attachment_ids = if let Some((from, to)) = messages.first().zip(messages.last()) {
+            self.core_user
+                .attachment_ids_in_range_inclusive(
+                    self.chat_id,
+                    (from.timestamp(), from.id()),
+                    (to.timestamp(), to.id()),
+                )
+                .await
+        } else {
+            Default::default()
+        };
+
         let mut state = self.state_tx.borrow().clone();
         let transition = self.data.apply_messages(
             &mut state,
             messages,
+            local_attachment_ids,
             is_connection_chat,
             LoadDirection::Replace {
                 has_older,
                 has_newer: false,
                 is_at_bottom: true,
                 first_unread_index: None,
+                unread_count: 0,
                 command: scroll_to_bottom.then_some(MessageListCommand::ScrollToBottom),
             },
         );
@@ -837,9 +899,22 @@ impl MessageListContext {
                 command: None,
             }
         } else {
+            let local_attachment_ids =
+                if let Some((from, to)) = messages.first().zip(messages.last()) {
+                    self.core_user
+                        .attachment_ids_in_range_inclusive(
+                            self.chat_id,
+                            (from.timestamp(), from.id()),
+                            (to.timestamp(), to.id()),
+                        )
+                        .await
+                } else {
+                    Default::default()
+                };
             self.data.apply_messages(
                 &mut state,
                 messages,
+                local_attachment_ids,
                 None,
                 LoadDirection::PrependOlder { has_older },
             )
@@ -878,9 +953,22 @@ impl MessageListContext {
                 command: None,
             }
         } else {
+            let local_attachment_ids =
+                if let Some((from, to)) = messages.first().zip(messages.last()) {
+                    self.core_user
+                        .attachment_ids_in_range_inclusive(
+                            self.chat_id,
+                            (from.timestamp(), from.id()),
+                            (to.timestamp(), to.id()),
+                        )
+                        .await
+                } else {
+                    Default::default()
+                };
             self.data.apply_messages(
                 &mut state,
                 messages,
+                local_attachment_ids,
                 None,
                 LoadDirection::AppendNewer { has_newer },
             )
@@ -934,18 +1022,32 @@ impl MessageListContext {
             }
         };
 
+        let local_attachment_ids = if let Some((from, to)) = messages.first().zip(messages.last()) {
+            self.core_user
+                .attachment_ids_in_range_inclusive(
+                    self.chat_id,
+                    (from.timestamp(), from.id()),
+                    (to.timestamp(), to.id()),
+                )
+                .await
+        } else {
+            Default::default()
+        };
+
         let is_connection_chat = self.load_is_connection_chat().await;
 
         let mut state = self.state_tx.borrow().clone();
         let transition = self.data.apply_messages(
             &mut state,
             messages,
+            local_attachment_ids,
             is_connection_chat,
             LoadDirection::Replace {
                 has_older,
                 has_newer,
                 is_at_bottom: !has_newer,
                 first_unread_index: None,
+                unread_count: 0,
                 command: Some(MessageListCommand::ScrollToId { message_id }),
             },
         );
@@ -997,7 +1099,11 @@ impl MessageListContext {
                 && let Some(message) = self.core_user.message(*message_id).await?
                 && message.chat_id() == self.chat_id
             {
-                self.update_message_in_place(message);
+                let local_attachment_ids = self
+                    .core_user
+                    .attachment_ids_for_message(message.id())
+                    .await;
+                self.update_message_in_place(message, local_attachment_ids.as_slice());
             }
         }
 
@@ -1019,9 +1125,16 @@ impl MessageListContext {
     }
 
     /// Update a single message in place and recompute its flight position + neighbors.
-    fn update_message_in_place(&mut self, message: ChatMessage) {
+    fn update_message_in_place(
+        &mut self,
+        message: ChatMessage,
+        local_attachment_ids: &[AttachmentId],
+    ) {
         let mut state = self.state_tx.borrow().clone();
-        if let Some(transition) = self.data.update_message_in_place(&mut state, message) {
+        if let Some(transition) =
+            self.data
+                .update_message_in_place(&mut state, message, local_attachment_ids)
+        {
             self.emit_state_and_transition(state, transition);
         }
     }
@@ -1098,12 +1211,14 @@ mod tests {
         data.apply_messages(
             &mut state,
             messages.clone(),
+            Default::default(),
             None,
             LoadDirection::Replace {
                 has_older: false,
                 has_newer: false,
                 is_at_bottom: true,
                 first_unread_index: None,
+                unread_count: 0,
                 command: None,
             },
         );
@@ -1138,12 +1253,14 @@ mod tests {
         data.apply_messages(
             &mut state,
             messages,
+            Default::default(),
             None,
             LoadDirection::Replace {
                 has_older: false,
                 has_newer: false,
                 is_at_bottom: true,
                 first_unread_index: Some(2),
+                unread_count: 2,
                 command: None,
             },
         );
@@ -1164,12 +1281,14 @@ mod tests {
         let transition = data.apply_messages(
             &mut state,
             vec![first.clone(), second.clone()],
+            Default::default(),
             None,
             LoadDirection::Replace {
                 has_older: false,
                 has_newer: false,
                 is_at_bottom: true,
                 first_unread_index: None,
+                unread_count: 0,
                 command: Some(MessageListCommand::ScrollToBottom),
             },
         );
@@ -1202,12 +1321,14 @@ mod tests {
         data.apply_messages(
             &mut state,
             vec![first, second.clone()],
+            Default::default(),
             None,
             LoadDirection::Replace {
                 has_older: false,
                 has_newer: false,
                 is_at_bottom: true,
                 first_unread_index: None,
+                unread_count: 0,
                 command: None,
             },
         );
@@ -1215,6 +1336,7 @@ mod tests {
         let transition = data.apply_messages(
             &mut state,
             vec![third.clone()],
+            Default::default(),
             None,
             LoadDirection::AppendNewer { has_newer: false },
         );
@@ -1266,12 +1388,14 @@ mod tests {
         data.apply_messages(
             &mut state,
             vec![second.clone(), third],
+            Default::default(),
             None,
             LoadDirection::Replace {
                 has_older: true,
                 has_newer: false,
                 is_at_bottom: true,
                 first_unread_index: None,
+                unread_count: 0,
                 command: None,
             },
         );
@@ -1279,6 +1403,7 @@ mod tests {
         let transition = data.apply_messages(
             &mut state,
             vec![first.clone()],
+            Default::default(),
             None,
             LoadDirection::PrependOlder { has_older: false },
         );
@@ -1330,12 +1455,14 @@ mod tests {
         data.apply_messages(
             &mut state,
             vec![first.clone(), second.clone(), third.clone()],
+            Default::default(),
             None,
             LoadDirection::Replace {
                 has_older: false,
                 has_newer: false,
                 is_at_bottom: true,
                 first_unread_index: None,
+                unread_count: 0,
                 command: None,
             },
         );

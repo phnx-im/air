@@ -155,6 +155,7 @@ impl CoreUser {
                     db: JobContextDb::Db(self.inner.db.clone()),
                     key_store: &self.inner.key_store,
                     now: Utc::now(),
+                    qs_client_id: &self.inner.qs_client_id,
                 };
                 let chat_id =
                     Self::process_connection_offer(&mut context, connection_info_source).await?;
@@ -236,13 +237,25 @@ impl CoreUser {
                     &connection_info.connection_group_ear_key,
                 )
                 .await?;
-            ensure!(
-                eci.encrypted_user_profile_keys.len() == 1,
-                "Unjoined connection group must have exactly one user profile key"
-            );
+            let encrypted_user_profile_key = if !eci.indexed_encrypted_user_profile_keys.is_empty()
+            {
+                ensure!(
+                    eci.indexed_encrypted_user_profile_keys.len() == 1,
+                    "Unjoined connection group must have exactly one user profile key"
+                );
+                eci.indexed_encrypted_user_profile_keys
+                    .values()
+                    .next()
+                    .expect("logic error: len == 1")
+            } else {
+                ensure!(
+                    eci.encrypted_user_profile_keys.len() == 1,
+                    "Unjoined connection group must have exactly one user profile key"
+                );
+                &eci.encrypted_user_profile_keys[0]
+            };
 
             // Decrypt user profile key
-            let encrypted_user_profile_key = &eci.encrypted_user_profile_keys[0];
             let user_profile_key = UserProfileKey::decrypt(
                 &connection_info.connection_group_identity_link_wrapper_key,
                 encrypted_user_profile_key,

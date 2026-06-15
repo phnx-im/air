@@ -21,7 +21,7 @@ use aircommon::{
 };
 use airprotos::{
     client::group::GroupData,
-    queue_service::v1::{QueueEvent, queue_event},
+    queue_service::v1::{ListenResponse, listen_response},
 };
 use anyhow::{Context, Result, bail, ensure};
 use apqmls::messages::ApqMlsMessageIn;
@@ -54,7 +54,7 @@ use crate::{
     contacts::{PartialContact, PartialContactType},
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
-        Group, ProfileInfo, VerifiedGroup, client_auth_info::StorableClientCredential,
+        DecryptedProfileInfos, Group, VerifiedGroup, client_auth_info::StorableClientCredential,
         process::ProcessMessageResult,
     },
     job::{JobContext, JobContextDb, pending_chat_operation::PendingChatOperation},
@@ -305,7 +305,7 @@ impl CoreUser {
         ds_timestamp: TimeStamp,
         group: Group,
         sender_user_id: UserId,
-        member_profile_info: Vec<ProfileInfo>,
+        member_profile_info: DecryptedProfileInfos,
     ) -> anyhow::Result<ProcessQsMessageResult> {
         let group_id = group.group_id().clone();
 
@@ -314,20 +314,9 @@ impl CoreUser {
 
         // TODO: This can fail in some cases. If it does, we should fetch and
         // process messages and then try again.
-        let mut own_profile_key_in_group = None;
-        for profile_info in member_profile_info {
-            // TODO: Don't fetch while holding a transaction!
-            if profile_info.client_credential.user_id() == self.user_id() {
-                // We already have our own profile info.
-                own_profile_key_in_group = Some(profile_info.user_profile_key);
-                continue;
-            }
+        for profile_info in member_profile_info.members {
             Self::schedule_fetch_user_profile(&mut *txn, profile_info).await?;
         }
-
-        let Some(own_profile_key_in_group) = own_profile_key_in_group else {
-            bail!("No profile info for our user found");
-        };
 
         // WelcomeBundle Phase 3: Store the user profiles of the group
         // members if they don't exist yet and store the group and the
@@ -351,6 +340,7 @@ impl CoreUser {
                     sender_user_id.clone(),
                     ds_timestamp,
                     external_group_profile,
+                    true,
                 )
                 .await?;
             }
@@ -377,7 +367,7 @@ impl CoreUser {
 
         // WelcomeBundle Phase 4: Check whether our user profile key is up to
         // date and if not, update it.
-        if own_profile_key_in_group != own_profile_key {
+        if member_profile_info.own_profile_key.as_ref() != Some(&own_profile_key) {
             let qualified_group_id = QualifiedGroupId::try_from(group.group_id().clone())?;
             let api_client = self
                 .inner
@@ -437,6 +427,7 @@ impl CoreUser {
                 identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
                 original_leaf_index: group.own_index(),
             };
+            group.group_mut().mark_commit_failed(&mut *txn).await?;
             return Ok(ProcessQsMessageResult::None);
         };
 
@@ -471,6 +462,7 @@ impl CoreUser {
             db: JobContextDb::Transaction(txn),
             key_store: &self.inner.key_store,
             now: Utc::now(),
+            qs_client_id: &self.inner.qs_client_id,
         };
 
         let chat_id =
@@ -525,7 +517,7 @@ impl CoreUser {
                 identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
                 original_leaf_index: group.own_index(),
             };
-
+            group.group_mut().mark_commit_failed(&mut *txn).await?;
             return Ok(ProcessQsMessageResult::None);
         };
 
@@ -578,7 +570,7 @@ impl CoreUser {
                 identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
                 original_leaf_index: group.own_index(),
             };
-
+            group.group_mut().mark_commit_failed(&mut *txn).await?;
             return Ok(ProcessQsMessageResult::None);
         };
 
@@ -922,6 +914,7 @@ impl CoreUser {
                         sender_client_credential.user_id().clone(),
                         ds_timestamp,
                         external_group_profile,
+                        false,
                     )
                     .await?;
                     None
@@ -1174,10 +1167,16 @@ impl CoreUser {
         result: &mut ProcessedQsMessages,
         read_receipts_enabled: bool,
     ) -> anyhow::Result<()> {
-        let qs_message_payload = StorableQsQueueRatchet::decrypt_qs_queue_message(txn, qs_message)
-            .await
-            .inspect_err(|error| error!(%error, "QS queue message decryption failed"))
-            .context("Decrypting message failed")?;
+        let Some(qs_message_payload) =
+            StorableQsQueueRatchet::decrypt_qs_queue_message(txn, qs_message)
+                .await
+                .inspect_err(|error| error!(%error, "QS queue message decryption failed"))
+                .context("Decrypting message failed")?
+        else {
+            // Skip the message if it is behind the ratchet (replay)
+            return Ok(());
+        };
+
         let qs_message_plaintext = match qs_message_payload.extract() {
             Ok(extracted) => extracted,
             Err(error) => {
@@ -1379,21 +1378,21 @@ impl QsStreamProcessor {
     pub async fn process_event(
         &mut self,
         core_user: &CoreUser,
-        event: QueueEvent,
+        response: ListenResponse,
     ) -> QsProcessEventResult {
-        debug!(?event, "processing QS listen event");
+        debug!(?response, "processing QS listen event");
 
-        match event.event {
+        match response.event {
             None => {
                 error!("received an empty event");
                 QsProcessEventResult::Ignored
             }
-            Some(queue_event::Event::Payload(_)) => {
+            Some(listen_response::Event::Payload(_)) => {
                 // currently, we don't handle payload events
                 warn!("ignoring QS listen payload event");
                 QsProcessEventResult::Ignored
             }
-            Some(queue_event::Event::Message(message)) => match message.try_into() {
+            Some(listen_response::Event::Message(message)) => match message.try_into() {
                 Ok(message) => {
                     // Invariant: after a message there is always an Empty event as sentinel
                     // => accumulated messages will be processed there
@@ -1410,7 +1409,7 @@ impl QsStreamProcessor {
                 }
             },
             // Empty event indicates that the queue is empty
-            Some(queue_event::Event::Empty(_)) => {
+            Some(listen_response::Event::Empty(_)) => {
                 let max_sequence_number = self.messages.last().map(|m| m.sequence_number);
 
                 let messages = std::mem::take(&mut self.messages);

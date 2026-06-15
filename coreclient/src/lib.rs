@@ -21,7 +21,7 @@ mod utils;
 
 pub use crate::{
     chats::{
-        Chat, ChatAttributes, ChatId, ChatStatus, ChatType, InactiveChat, MessageDraft,
+        Chat, ChatAttributes, ChatId, ChatMuted, ChatStatus, ChatType, InactiveChat, MessageDraft,
         messages::{
             ChatMessage, ContentMessage, ErrorMessage, EventMessage, InReplyToMessage, Message,
             MessageId, SystemMessage,
@@ -31,8 +31,8 @@ pub use crate::{
     clients::{
         add_contact::AddUsernameContactError,
         attachment::{
-            AttachmentContent, AttachmentStatus, AttachmentUrl, AttachmentUrlParseError,
-            MimiContentExt, ProvisionAttachmentError, UploadTaskError,
+            AttachmentContent, AttachmentId, AttachmentStatus, AttachmentUrl,
+            AttachmentUrlParseError, MimiContentExt, ProvisionAttachmentError, UploadTaskError,
             progress::{AttachmentProgress, AttachmentProgressEvent},
         },
         block_contact::BlockedContactError,
@@ -40,12 +40,12 @@ pub use crate::{
         invitation_code::{InvitationCode, RequestInvitationCodeError},
         invite_users::InviteUsersError,
         safety_code::SafetyCode,
-        user_settings::{ReadReceiptsSetting, UserSetting},
+        user_settings::{IsDeveloperSetting, ReadReceiptsSetting, UserSetting},
     },
     contacts::{Contact, ContactType, PartialContact, TargetedMessageContact},
     groups::debug_info::{
         AppDataDebugInfo, DebugCapabilities, EncryptedGroupTitleDebugInfo,
-        ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqDebugInfo,
+        ExternalGroupProfileDebugInfo, GroupDataDebugInfo, GroupDebugInfo, PqGroupDebugInfo,
         RequiredDebugCapabilities,
     },
     privacy_pass::{RequestTokensError, TokenId},
