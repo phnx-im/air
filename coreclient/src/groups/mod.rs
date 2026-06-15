@@ -1346,7 +1346,12 @@ impl Group {
         self.clear_commit_failed(&mut *txn).await?;
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         self.pending_diff = None;
+        // Clear the pending commit in the T group...
         self.mls_group.clear_pending_commit(provider.storage())?;
+        // ... and in the PQ group if it exists.
+        if let Some(pq) = &mut self.pq {
+            pq.mls_group.clear_pending_commit(provider.storage())?;
+        }
         Ok(())
     }
 

@@ -43,6 +43,11 @@ impl CoreUser {
             .await?
             .context("group not found")?;
 
+        // Resync is disabled for APQ groups for now.
+        if group.is_apq() {
+            anyhow::bail!("Resync is not supported for APQ groups");
+        }
+
         let resync = Resync {
             chat_id,
             group_id: group.group_id().clone(),
