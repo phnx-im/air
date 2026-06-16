@@ -4,9 +4,9 @@
 
 use aircommon::crypto::signatures::keys::QsUserVerifyingKeyType;
 
-use crate::signed::impl_signed_payload2;
+use crate::signed::impl_signed_payload;
 
-impl_signed_payload2!(
+impl_signed_payload!(
     request = super::v1::LinkClientRequest,
     payload = super::v1::LinkClientRequestPayload,
     key_type = QsUserVerifyingKeyType,

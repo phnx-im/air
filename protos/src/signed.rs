@@ -157,7 +157,7 @@ pub struct Seal;
 /// * `payload` is the type which is signed.
 /// * `key_type` the key used for signing and verification.
 /// * `label` is the label of the payload prepended when signing.
-macro_rules! impl_signed_payload2 {
+macro_rules! impl_signed_payload {
     {
         request = $request:ty,
         payload = $payload:ty,
@@ -217,4 +217,4 @@ macro_rules! impl_signed_payload2 {
     };
 }
 
-pub(crate) use impl_signed_payload2;
+pub(crate) use impl_signed_payload;

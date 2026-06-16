@@ -4,9 +4,9 @@
 
 use aircommon::crypto::signatures::keys::{QsClientVerifyingKeyType, QsUserVerifyingKeyType};
 
-use crate::signed::impl_signed_payload2;
+use crate::signed::impl_signed_payload;
 
-impl_signed_payload2!(
+impl_signed_payload!(
     request = super::v1::UpdateUserRequest,
     payload = super::v1::UpdateUserPayload,
     key_type = QsUserVerifyingKeyType,
@@ -14,7 +14,7 @@ impl_signed_payload2!(
     seal = private::Seal,
 );
 
-impl_signed_payload2!(
+impl_signed_payload!(
     request = super::v1::DeleteUserRequest,
     payload = super::v1::DeleteUserPayload,
     key_type = QsUserVerifyingKeyType,
@@ -22,7 +22,7 @@ impl_signed_payload2!(
     seal = private::Seal,
 );
 
-impl_signed_payload2!(
+impl_signed_payload!(
     request = super::v1::CreateClientRequest,
     payload = super::v1::CreateClientPayload,
     key_type = QsUserVerifyingKeyType,
@@ -30,7 +30,7 @@ impl_signed_payload2!(
     seal = private::Seal,
 );
 
-impl_signed_payload2!(
+impl_signed_payload!(
     request = super::v1::UpdateClientRequest,
     payload = super::v1::UpdateClientPayload,
     key_type = QsClientVerifyingKeyType,
@@ -38,7 +38,7 @@ impl_signed_payload2!(
     seal = private::Seal,
 );
 
-impl_signed_payload2!(
+impl_signed_payload!(
     request = super::v1::DeleteClientRequest,
     payload = super::v1::DeleteClientPayload,
     key_type = QsClientVerifyingKeyType,
@@ -46,7 +46,7 @@ impl_signed_payload2!(
     seal = private::Seal,
 );
 
-impl_signed_payload2!(
+impl_signed_payload!(
     request = super::v1::PublishKeyPackagesRequest,
     payload = super::v1::PublishKeyPackagesPayload,
     key_type = QsClientVerifyingKeyType,
@@ -54,7 +54,7 @@ impl_signed_payload2!(
     seal = private::Seal,
 );
 
-impl_signed_payload2!(
+impl_signed_payload!(
     request = super::v1::PublishApqKeyPackagesRequest,
     payload = super::v1::PublishApqKeyPackagesPayload,
     key_type = QsClientVerifyingKeyType,
@@ -62,7 +62,7 @@ impl_signed_payload2!(
     seal = private::Seal,
 );
 
-impl_signed_payload2!(
+impl_signed_payload!(
     request = super::v1::InitListenRequest,
     payload = super::v1::InitListenPayload,
     key_type = QsClientVerifyingKeyType,
