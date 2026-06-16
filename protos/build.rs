@@ -36,51 +36,27 @@ fn main() {
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
     let server_dir = out_dir.join("server");
     std::fs::create_dir_all(&server_dir).unwrap();
-    tonic_prost_build::configure()
+    let mut builder = tonic_prost_build::configure()
         .build_client(false)
         .out_dir(&server_dir)
         // Use generated code from the first pass
         .extern_path(".common.v1", "crate::common::v1")
         .extern_path(".auth_service.v1", "crate::auth_service::v1")
         .extern_path(".delivery_service.v1", "crate::delivery_service::v1")
-        .extern_path(".queue_service.v1", "crate::queue_service::v1")
-        // Override request types containing signed payload
-        .extern_path(
-            ".auth_service.v1.DeleteUserRequest",
-            "crate::signed::SignedRequest<crate::auth_service::v1::DeleteUserRequest, 1, 2>",
-        )
-        .extern_path(
-            ".auth_service.v1.PublishConnectionPackagesRequest",
-            "crate::signed::SignedRequest<crate::auth_service::v1::PublishConnectionPackagesRequest, 1, 2>",
-        )
-        .extern_path(
-            ".auth_service.v1.StageUserProfileRequest",
-            "crate::signed::SignedRequest<crate::auth_service::v1::StageUserProfileRequest, 1, 2>",
-        )
-        .extern_path(
-            ".auth_service.v1.MergeUserProfileRequest",
-            "crate::signed::SignedRequest<crate::auth_service::v1::MergeUserProfileRequest, 1, 2>",
-        )
-        .extern_path(
-            ".auth_service.v1.IssueTokensRequest",
-            "crate::signed::SignedRequest<crate::auth_service::v1::IssueTokensRequest, 1, 2>",
-        )
-        .extern_path(
-            ".auth_service.v1.ReportSpamRequest",
-            "crate::signed::SignedRequest<crate::auth_service::v1::ReportSpamRequest, 1, 2>",
-        )
-        .extern_path(
-            ".auth_service.v1.CreateUsernameRequest",
-            "crate::signed::SignedRequest<crate::auth_service::v1::CreateUsernameRequest, 1, 2>",
-        )
-        .extern_path(
-            ".auth_service.v1.DeleteUsernameRequest",
-            "crate::signed::SignedRequest<crate::auth_service::v1::DeleteUsernameRequest, 1, 2>",
-        )
-        .extern_path(
-            ".auth_service.v1.RefreshUsernameRequest",
-            "crate::signed::SignedRequest<crate::auth_service::v1::RefreshUsernameRequest, 1, 2>",
-        )
+        .extern_path(".queue_service.v1", "crate::queue_service::v1");
+    for config in SIGNED_REQUEST_CONFIGS {
+        builder = builder.extern_path(
+            format!(".{}.v1.{}", config.service.as_str(), config.request_type),
+            format!(
+                "crate::signed::SignedRequest<crate::{}::v1::{}, {}, {}>",
+                config.service.as_str(),
+                config.request_type,
+                config.payload_tag,
+                config.signature_tag
+            ),
+        );
+    }
+    builder
         .compile_with_config(
             config(&protoc_path),
             &[
@@ -106,4 +82,81 @@ fn main() {
         .unwrap();
 
     println!("cargo:rerun-if-changed=api");
+}
+
+/// Requests that should be wrapped in `SignedRequest<T>`
+///
+/// When deconding protobuf bytes, the payload and signature will be extracted as bytes and stored
+/// in the wrapper. Allows to verify payload without encoding the payload again.
+const SIGNED_REQUEST_CONFIGS: &[SignedRequestConfig] = &[
+    sr(Service::As, "DeleteUserRequest"),
+    sr(Service::As, "PublishConnectionPackagesRequest"),
+    sr(Service::As, "StageUserProfileRequest"),
+    sr(Service::As, "MergeUserProfileRequest"),
+    sr(Service::As, "IssueTokensRequest"),
+    sr(Service::As, "ReportSpamRequest"),
+    sr(Service::As, "CreateUsernameRequest"),
+    sr(Service::As, "DeleteUsernameRequest"),
+    sr(Service::As, "RefreshUsernameRequest"),
+    sr(Service::Ds, "SendMessageRequest"),
+    srt(Service::Ds, "WelcomeInfoRequest", 2, 1),
+    sr(Service::Ds, "CreateGroupRequest"),
+    sr(Service::Ds, "CreateApqGroupRequest"),
+    sr(Service::Ds, "GroupOperationRequest"),
+    sr(Service::Ds, "ApqGroupOperationRequest"),
+    sr(Service::Ds, "DeleteGroupRequest"),
+    sr(Service::Ds, "TargetedMessageRequest"),
+    srt(Service::Ds, "SelfRemoveRequest", 2, 1),
+    sr(Service::Ds, "ResyncRequest"),
+    sr(Service::Ds, "UpdateProfileKeyRequest"),
+    sr(Service::Ds, "ProvisionAttachmentRequest"),
+    sr(Service::Ds, "GetAttachmentUrlRequest"),
+];
+
+/// Construct a `SignedRequestConfig` with default payload and signature tags (1, 2)
+const fn sr(service: Service, request_type: &'static str) -> SignedRequestConfig {
+    SignedRequestConfig {
+        service,
+        request_type,
+        payload_tag: 1,
+        signature_tag: 2,
+    }
+}
+
+/// Construct a `SignedRequestConfig` with custom payload and signature tags
+const fn srt(
+    service: Service,
+    request_type: &'static str,
+    payload_tag: u32,
+    signature_tag: u32,
+) -> SignedRequestConfig {
+    SignedRequestConfig {
+        service,
+        request_type,
+        payload_tag,
+        signature_tag,
+    }
+}
+
+enum Service {
+    As,
+    Ds,
+    // Qs,
+}
+
+impl Service {
+    fn as_str(&self) -> &'static str {
+        match self {
+            Service::As => "auth_service",
+            Service::Ds => "delivery_service",
+            // Service::Qs => "queue_service",
+        }
+    }
+}
+
+struct SignedRequestConfig {
+    service: Service,
+    request_type: &'static str,
+    payload_tag: u32,
+    signature_tag: u32,
 }

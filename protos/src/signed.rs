@@ -21,7 +21,7 @@ use prost::{Message, bytes::BufMut};
 /// When `T` implements `VerifiableRequest` the extracted payload bytes are verified against the
 /// extracted signature.
 #[derive(Debug, Default)]
-pub struct SignedRequest<T, const PAYLOAD_TAG: u32, const SIGNATURE_TAG: u32> {
+pub struct SignedRequest<T, const PAYLOAD_TAG: u32 = 1, const SIGNATURE_TAG: u32 = 2> {
     pub(crate) request: T,
     payload_bytes: Vec<u8>,
     signature: Vec<u8>,
