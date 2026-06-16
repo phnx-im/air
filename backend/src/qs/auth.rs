@@ -9,12 +9,15 @@ use aircommon::{
     },
     identifiers,
 };
-use airprotos::queue_service::v1::{
-    CreateClientPayload, CreateClientRequest, DeleteClientPayload, DeleteClientRequest,
-    DeleteUserPayload, DeleteUserRequest, InitListenPayload, InitListenRequest,
-    PublishApqKeyPackagesPayload, PublishApqKeyPackagesRequest, PublishKeyPackagesPayload,
-    PublishKeyPackagesRequest, QsClientId, QsUserId, UpdateClientPayload, UpdateClientRequest,
-    UpdateUserPayload, UpdateUserRequest,
+use airprotos::{
+    queue_service::v1::{
+        CreateClientPayload, CreateClientRequest, DeleteClientPayload, DeleteClientRequest,
+        DeleteUserPayload, DeleteUserRequest, InitListenPayload, InitListenRequest,
+        PublishApqKeyPackagesPayload, PublishApqKeyPackagesRequest, PublishKeyPackagesPayload,
+        PublishKeyPackagesRequest, QsClientId, QsUserId, UpdateClientPayload, UpdateClientRequest,
+        UpdateUserPayload, UpdateUserRequest,
+    },
+    signed::{SignedRequest, VerifiableRequest},
 };
 use tonic::Status;
 use tracing::error;
@@ -23,14 +26,17 @@ use crate::qs::{client_record::QsClientRecord, grpc::GrpcQs, user_record::UserRe
 
 impl GrpcQs {
     /// Verifies request with QS user authentication.
-    pub(super) async fn verify_user_auth<R, P>(&self, request: R) -> Result<P, Status>
+    pub(super) async fn verify_user_auth<R, P, const PAYLOAD_TAG: u32, const SIGNATURE_TAG: u32>(
+        &self,
+        request: SignedRequest<R, PAYLOAD_TAG, SIGNATURE_TAG>,
+    ) -> Result<P, Status>
     where
-        R: WithQsUserId<Payload = P> + Verifiable,
-        P: VerifiedStruct<R>,
+        R: WithQsUserId<Payload = P> + VerifiableRequest,
+        P: VerifiedStruct<SignedRequest<R, PAYLOAD_TAG, SIGNATURE_TAG>>,
     {
-        match request.user_id() {
+        match request.inner().user_id() {
             // Support for legacy clients which use don't authentication.
-            None => Ok(request.into_unverified_payload()),
+            None => Ok(request.into_inner().into_unverified_payload()),
             Some(user_id) => {
                 let user_id = user_id?;
                 let verifying_key = UserRecord::load_verifying_key(&self.qs.db_pool, &user_id)
@@ -46,14 +52,17 @@ impl GrpcQs {
     }
 
     /// Verifies request with QS client authentication.
-    pub(super) async fn verify_client_auth<R, P>(&self, request: R) -> Result<P, Status>
+    pub(super) async fn verify_client_auth<R, P, const PAYLOAD_TAG: u32, const SIGNATURE_TAG: u32>(
+        &self,
+        request: SignedRequest<R, PAYLOAD_TAG, SIGNATURE_TAG>,
+    ) -> Result<P, Status>
     where
-        R: WithQsClientId<Payload = P> + Verifiable,
-        P: VerifiedStruct<R>,
+        R: WithQsClientId<Payload = P> + VerifiableRequest,
+        P: VerifiedStruct<SignedRequest<R, PAYLOAD_TAG, SIGNATURE_TAG>>,
     {
-        match request.client_id() {
+        match request.inner().client_id() {
             // Support for legacy clients which don't use authentication.
-            None => Ok(request.into_unverified_payload()),
+            None => Ok(request.into_inner().into_unverified_payload()),
             Some(client_id) => {
                 let verifying_key =
                     QsClientRecord::load_verifying_key(&self.qs.db_pool, &client_id?)

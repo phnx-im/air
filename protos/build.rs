@@ -89,6 +89,7 @@ fn main() {
 /// When deconding protobuf bytes, the payload and signature will be extracted as bytes and stored
 /// in the wrapper. Allows to verify payload without encoding the payload again.
 const SIGNED_REQUEST_CONFIGS: &[SignedRequestConfig] = &[
+    // As
     sr(Service::As, "DeleteUserRequest"),
     sr(Service::As, "PublishConnectionPackagesRequest"),
     sr(Service::As, "StageUserProfileRequest"),
@@ -98,6 +99,7 @@ const SIGNED_REQUEST_CONFIGS: &[SignedRequestConfig] = &[
     sr(Service::As, "CreateUsernameRequest"),
     sr(Service::As, "DeleteUsernameRequest"),
     sr(Service::As, "RefreshUsernameRequest"),
+    // Ds
     sr(Service::Ds, "SendMessageRequest"),
     srt(Service::Ds, "WelcomeInfoRequest", 2, 1),
     sr(Service::Ds, "CreateGroupRequest"),
@@ -111,6 +113,14 @@ const SIGNED_REQUEST_CONFIGS: &[SignedRequestConfig] = &[
     sr(Service::Ds, "UpdateProfileKeyRequest"),
     sr(Service::Ds, "ProvisionAttachmentRequest"),
     sr(Service::Ds, "GetAttachmentUrlRequest"),
+    // Qs
+    srt(Service::Qs, "UpdateUserRequest", 5, 6),
+    srt(Service::Qs, "DeleteUserRequest", 3, 4),
+    srt(Service::Qs, "CreateClientRequest", 7, 8),
+    srt(Service::Qs, "UpdateClientRequest", 6, 7),
+    srt(Service::Qs, "DeleteClientRequest", 3, 4),
+    srt(Service::Qs, "PublishKeyPackagesRequest", 4, 5),
+    sr(Service::Qs, "PublishApqKeyPackagesRequest"),
 ];
 
 /// Construct a `SignedRequestConfig` with default payload and signature tags (1, 2)
@@ -141,7 +151,7 @@ const fn srt(
 enum Service {
     As,
     Ds,
-    // Qs,
+    Qs,
 }
 
 impl Service {
@@ -149,7 +159,7 @@ impl Service {
         match self {
             Service::As => "auth_service",
             Service::Ds => "delivery_service",
-            // Service::Qs => "queue_service",
+            Service::Qs => "queue_service",
         }
     }
 }

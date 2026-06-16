@@ -4,11 +4,17 @@
 
 use aircommon::crypto::signatures::keys::QsUserVerifyingKeyType;
 
-use crate::relay_service::v1::{LinkClientRequest, LinkClientRequestPayload};
+use crate::signed::impl_signed_payload2;
 
-impl_signed_payload!(
-    LinkClientRequest,
-    LinkClientRequestPayload,
-    QsUserVerifyingKeyType,
-    "LinkClientRequestPayload"
+impl_signed_payload2!(
+    request = super::v1::LinkClientRequest,
+    payload = super::v1::LinkClientRequestPayload,
+    key_type = QsUserVerifyingKeyType,
+    label = "LinkClientRequestPayload",
+    seal = private::Seal,
 );
+
+mod private {
+    #[derive(Default)]
+    pub struct Seal;
+}
