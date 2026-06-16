@@ -14,9 +14,8 @@ use prost::{Message, bytes::BufMut};
 
 /// A wrapper around a request that has a signed payload
 ///
-/// Cannot be constructed directly. It is decoded from protobuf message bytes of `T`. During
-/// decoding of `T` it extracts the payload and signature bytes identified by the corresponding
-/// `TAG` and `SIGNATURE_TAG` constants.
+/// Can be constructed directly, but usually it is decoded from protobuf message bytes of `T`.
+/// During decoding of `T` it extracts the payload bytes identified by the the `TAG` parameter.
 ///
 /// When `T` implements `VerifiableRequest` the extracted payload bytes are verified against the
 /// extracted signature.

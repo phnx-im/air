@@ -85,8 +85,8 @@ fn main() {
 
 /// Requests that should be wrapped in `SignedRequest<T>`
 ///
-/// When deconding protobuf bytes, the payload and signature will be extracted as bytes and stored
-/// in the wrapper. Allows to verify payload without encoding the payload again.
+/// When decoding protobuf bytes, the payload and signature will be extracted as bytes and stored in
+/// the wrapper. Allows to verify payload without encoding the payload again.
 const SIGNED_REQUEST_CONFIGS: &[SignedRequestConfig] = &[
     // As
     sr(Service::As, "DeleteUserRequest"),
