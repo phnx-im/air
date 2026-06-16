@@ -114,7 +114,7 @@ class _DurationOption extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppButton(
-      type: AppButtonType.primary,
+      type: AppButtonType.secondary,
       onPressed: () {
         Navigator.of(context).pop();
         context.read<ChatDetailsCubit>().muteChat(mutedUntil: mutedUntil());

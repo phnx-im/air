@@ -140,13 +140,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String get muteDurationSheet_8hours => '8 hours';
 
   @override
-  String get muteDurationSheet_untilTomorrow => 'Until tomorrow';
+  String get muteDurationSheet_untilTomorrow => 'Until midnight';
 
   @override
   String get muteDurationSheet_untilNextMonday => 'Until next Monday';
 
   @override
-  String get muteDurationSheet_always => 'Always (until I change it)';
+  String get muteDurationSheet_always => 'Always';
 
   @override
   String blockedChatFooter_message(Object displayName) {
