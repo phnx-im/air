@@ -59,6 +59,10 @@ impl_signed_payload!(
     payload = super::v1::CreateUsernamePayload,
     key_type = keys::UsernameKeyType,
     label = "CreateHandlePayload",
+    signature = |request| request
+        .signature
+        .as_ref()
+        .and_then(|s| s.signature.as_ref()),
     seal = private_mod::Seal,
 );
 
@@ -67,6 +71,10 @@ impl_signed_payload!(
     payload = super::v1::DeleteUsernamePayload,
     key_type = keys::UsernameKeyType,
     label = "DeleteHandlePayload",
+    signature = |request| request
+        .signature
+        .as_ref()
+        .and_then(|s| s.signature.as_ref()),
     seal = private_mod::Seal,
 );
 
@@ -75,6 +83,10 @@ impl_signed_payload!(
     payload = super::v1::RefreshUsernamePayload,
     key_type = keys::UsernameKeyType,
     label = "RefreshHandlePayload",
+    signature = |request| request
+        .signature
+        .as_ref()
+        .and_then(|s| s.signature.as_ref()),
     seal = private_mod::Seal,
 );
 
@@ -83,6 +95,10 @@ impl_signed_payload!(
     payload = super::v1::InitListenUsernamePayload,
     key_type = keys::UsernameKeyType,
     label = "InitListenHandleRequest",
+    signature = |request| request
+        .signature
+        .as_ref()
+        .and_then(|s| s.signature.as_ref()),
     seal = private_mod::Seal,
 );
 

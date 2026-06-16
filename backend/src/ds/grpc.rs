@@ -288,15 +288,15 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     /// `Err`.
     ///
     /// If the group state has expired, it is deleted and not found is returned.
-    async fn update_group_state<R, P, T: Send, const PAYLOAD_TAG: u32, const SIGNATURE_TAG: u32>(
+    async fn update_group_state<R, P, T: Send, const TAG: u32>(
         &self,
-        request: SignedRequest<R, PAYLOAD_TAG, SIGNATURE_TAG>,
+        request: SignedRequest<R, TAG>,
         sender_index: Option<LeafNodeIndex>,
         f: impl AsyncFnOnce(LeafVerificationData<P, true>) -> Result<T, Status>,
     ) -> Result<T, Status>
     where
         R: WithGroupStateEarKey + WithMessage + VerifiableRequest,
-        P: VerifiedStruct<SignedRequest<R, PAYLOAD_TAG, SIGNATURE_TAG>>,
+        P: VerifiedStruct<SignedRequest<R, TAG>>,
     {
         let ear_key = request.inner().ear_key()?;
         let message = request.inner().message()?;
@@ -369,14 +369,14 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     }
 }
 
-fn verify_message<R, P, const PAYLOAD_TAG: u32, const SIGNATURE_TAG: u32>(
-    request: SignedRequest<R, PAYLOAD_TAG, SIGNATURE_TAG>,
+fn verify_message<R, P, const TAG: u32>(
+    request: SignedRequest<R, TAG>,
     group_state: &DsGroupState,
     sender_index: Option<LeafNodeIndex>,
 ) -> Result<(P, LeafNodeIndex, AssistedMessageIn), Status>
 where
     R: WithMessage + VerifiableRequest,
-    P: VerifiedStruct<SignedRequest<R, PAYLOAD_TAG, SIGNATURE_TAG>>,
+    P: VerifiedStruct<SignedRequest<R, TAG>>,
 {
     let message = request.inner().message()?;
 
@@ -708,7 +708,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
     async fn welcome_info(
         &self,
-        request: Request<SignedRequest<WelcomeInfoRequest, 2, 1>>,
+        request: Request<SignedRequest<WelcomeInfoRequest, 2>>,
     ) -> Result<Response<WelcomeInfoResponse>, Status> {
         let request = request.into_inner();
 
@@ -973,7 +973,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
     async fn self_remove(
         &self,
-        request: Request<SignedRequest<SelfRemoveRequest, 2, 1>>,
+        request: Request<SignedRequest<SelfRemoveRequest, 2>>,
     ) -> Result<Response<SelfRemoveResponse>, Status> {
         let request = request.into_inner();
 
@@ -1477,7 +1477,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
     async fn update_profile_key(
         &self,
-        request: Request<SignedRequest<UpdateProfileKeyRequest>>,
+        request: Request<SignedRequest<UpdateProfileKeyRequest, 2>>,
     ) -> Result<Response<UpdateProfileKeyResponse>, Status> {
         let request = request.into_inner();
 

@@ -67,13 +67,13 @@ impl GrpcAs {
         Self { inner }
     }
 
-    async fn verify_user_auth<R, P, const PAYLOAD_TAG: u32, const SIGNATURE_TAG: u32>(
+    async fn verify_user_auth<R, P, const TAG: u32>(
         &self,
-        request: SignedRequest<R, PAYLOAD_TAG, SIGNATURE_TAG>,
+        request: SignedRequest<R, TAG>,
     ) -> Result<(identifiers::UserId, P), Status>
     where
         R: WithUserId + VerifiableRequest,
-        P: VerifiedStruct<SignedRequest<R, PAYLOAD_TAG, SIGNATURE_TAG>>,
+        P: VerifiedStruct<SignedRequest<R, TAG>>,
     {
         let user_id = request.inner().user_id()?;
         let client_verifying_key = self.load_client_verifying_key(&user_id).await?;
@@ -95,13 +95,13 @@ impl GrpcAs {
             .ok_or_else(|| Status::not_found("unknown client"))
     }
 
-    async fn verify_username_auth<R, P, const PAYLOAD_TAG: u32, const SIGNATURE_TAG: u32>(
+    async fn verify_username_auth<R, P, const TAG: u32>(
         &self,
-        request: SignedRequest<R, PAYLOAD_TAG, SIGNATURE_TAG>,
+        request: SignedRequest<R, TAG>,
     ) -> Result<(identifiers::UsernameHash, P), Status>
     where
         R: WithUsernameHash + VerifiableRequest + fmt::Debug,
-        P: VerifiedStruct<SignedRequest<R, PAYLOAD_TAG, SIGNATURE_TAG>>,
+        P: VerifiedStruct<SignedRequest<R, TAG>>,
     {
         let hash = request.inner().username_hash()?;
         let verifying_key = self.load_username_verifying_key(hash).await?;
@@ -360,11 +360,11 @@ impl auth_service_server::AuthService for GrpcAs {
 
     async fn delete_user(
         &self,
-        request: Request<SignedRequest<DeleteUserRequest, 1, 2>>,
+        request: Request<SignedRequest<DeleteUserRequest>>,
     ) -> Result<Response<DeleteUserResponse>, Status> {
         let signed_request = request.into_inner();
         let (user_id, payload) = self
-            .verify_user_auth::<_, DeleteUserPayload, _, _>(signed_request)
+            .verify_user_auth::<_, DeleteUserPayload, _>(signed_request)
             .await?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
         let payload_user_id: identifiers::UserId =
@@ -378,7 +378,7 @@ impl auth_service_server::AuthService for GrpcAs {
 
     async fn publish_connection_packages(
         &self,
-        request: Request<SignedRequest<PublishConnectionPackagesRequest, 1, 2>>,
+        request: Request<SignedRequest<PublishConnectionPackagesRequest>>,
     ) -> Result<Response<PublishConnectionPackagesResponse>, Status> {
         let request = request.into_inner();
 
@@ -446,11 +446,11 @@ impl auth_service_server::AuthService for GrpcAs {
 
     async fn stage_user_profile(
         &self,
-        request: Request<SignedRequest<StageUserProfileRequest, 1, 2>>,
+        request: Request<SignedRequest<StageUserProfileRequest>>,
     ) -> Result<Response<StageUserProfileResponse>, Status> {
         let request = request.into_inner();
         let (user_id, payload) = self
-            .verify_user_auth::<_, StageUserProfilePayload, _, _>(request)
+            .verify_user_auth::<_, StageUserProfilePayload, _>(request)
             .await?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
         let params = StageUserProfileParamsTbs {
@@ -466,11 +466,11 @@ impl auth_service_server::AuthService for GrpcAs {
 
     async fn merge_user_profile(
         &self,
-        request: Request<SignedRequest<MergeUserProfileRequest, 1, 2>>,
+        request: Request<SignedRequest<MergeUserProfileRequest>>,
     ) -> Result<Response<MergeUserProfileResponse>, Status> {
         let request = request.into_inner();
         let (user_id, payload) = self
-            .verify_user_auth::<_, MergeUserProfilePayload, _, _>(request)
+            .verify_user_auth::<_, MergeUserProfilePayload, _>(request)
             .await?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
         let params = MergeUserProfileParamsTbs { user_id };
@@ -499,11 +499,11 @@ impl auth_service_server::AuthService for GrpcAs {
 
     async fn issue_tokens(
         &self,
-        request: Request<SignedRequest<IssueTokensRequest, 1, 2>>,
+        request: Request<SignedRequest<IssueTokensRequest>>,
     ) -> Result<Response<IssueTokensResponse>, Status> {
         let request = request.into_inner();
         let (user_id, payload) = self
-            .verify_user_auth::<_, IssueTokensPayload, _, _>(request)
+            .verify_user_auth::<_, IssueTokensPayload, _>(request)
             .await?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
@@ -528,11 +528,11 @@ impl auth_service_server::AuthService for GrpcAs {
 
     async fn report_spam(
         &self,
-        request: Request<SignedRequest<ReportSpamRequest, 1, 2>>,
+        request: Request<SignedRequest<ReportSpamRequest>>,
     ) -> Result<Response<ReportSpamResponse>, Status> {
         let request = request.into_inner();
         let (_user_id, payload) = self
-            .verify_user_auth::<_, ReportSpamPayload, _, _>(request)
+            .verify_user_auth::<_, ReportSpamPayload, _>(request)
             .await?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
@@ -556,7 +556,7 @@ impl auth_service_server::AuthService for GrpcAs {
 
     async fn create_username(
         &self,
-        request: Request<SignedRequest<CreateUsernameRequest, 1, 2>>,
+        request: Request<SignedRequest<CreateUsernameRequest>>,
     ) -> Result<Response<CreateUsernameResponse>, Status> {
         let request = request.into_inner();
 
@@ -589,12 +589,12 @@ impl auth_service_server::AuthService for GrpcAs {
 
     async fn delete_username(
         &self,
-        request: Request<SignedRequest<DeleteUsernameRequest, 1, 2>>,
+        request: Request<SignedRequest<DeleteUsernameRequest>>,
     ) -> Result<Response<DeleteUsernameResponse>, Status> {
         let request = request.into_inner();
 
         let (hash, payload) = self
-            .verify_username_auth::<_, DeleteUsernamePayload, _, _>(request)
+            .verify_username_auth::<_, DeleteUsernamePayload, _>(request)
             .await?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
@@ -620,12 +620,12 @@ impl auth_service_server::AuthService for GrpcAs {
 
     async fn refresh_username(
         &self,
-        request: Request<SignedRequest<RefreshUsernameRequest, 1, 2>>,
+        request: Request<SignedRequest<RefreshUsernameRequest>>,
     ) -> Result<Response<RefreshUsernameResponse>, Status> {
         let request = request.into_inner();
 
         let (hash, payload) = self
-            .verify_username_auth::<_, RefreshUsernamePayload, _, _>(request)
+            .verify_username_auth::<_, RefreshUsernamePayload, _>(request)
             .await?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
@@ -682,19 +682,10 @@ impl auth_service_server::AuthService for GrpcAs {
             .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
         let init_payload_bytes = payload.encode_to_vec();
-        let init_signature = init_request
-            .signature
-            .as_ref()
-            .and_then(|sig| sig.signature.as_ref())
-            .map(|sig| sig.value.clone())
-            .ok_or_missing_field("signature")?;
-        let signed_request = SignedRequest::<InitListenUsernameRequest, 1, 2>::new(
-            init_request,
-            init_payload_bytes,
-            init_signature,
-        );
+        let signed_request =
+            SignedRequest::<InitListenUsernameRequest>::new(init_request, init_payload_bytes);
         let (hash, _payload) = self
-            .verify_username_auth::<_, InitListenUsernamePayload, _, _>(signed_request)
+            .verify_username_auth::<_, InitListenUsernamePayload, _>(signed_request)
             .await?;
 
         let messages = self.inner.username_queues.listen(hash).await?;

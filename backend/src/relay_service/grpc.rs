@@ -167,8 +167,8 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
             .await?
             .ok_or_else(|| Status::invalid_argument("stream closed before LinkClientRequest"))?;
 
-        let request: SignedRequest<LinkClientRequest, 1, 2> =
-            prost::Message::decode(first_frame.payload).map_err(|error| {
+        let request: SignedRequest<LinkClientRequest> = prost::Message::decode(first_frame.payload)
+            .map_err(|error| {
                 error!(%error, "failed to decode initial msg");
                 Status::internal("decoding failure")
             })?;

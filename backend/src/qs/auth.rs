@@ -26,13 +26,13 @@ use crate::qs::{client_record::QsClientRecord, grpc::GrpcQs, user_record::UserRe
 
 impl GrpcQs {
     /// Verifies request with QS user authentication.
-    pub(super) async fn verify_user_auth<R, P, const PAYLOAD_TAG: u32, const SIGNATURE_TAG: u32>(
+    pub(super) async fn verify_user_auth<R, P, const TAG: u32>(
         &self,
-        request: SignedRequest<R, PAYLOAD_TAG, SIGNATURE_TAG>,
+        request: SignedRequest<R, TAG>,
     ) -> Result<P, Status>
     where
         R: WithQsUserId<Payload = P> + VerifiableRequest,
-        P: VerifiedStruct<SignedRequest<R, PAYLOAD_TAG, SIGNATURE_TAG>>,
+        P: VerifiedStruct<SignedRequest<R, TAG>>,
     {
         match request.inner().user_id() {
             // Support for legacy clients which use don't authentication.
@@ -52,13 +52,13 @@ impl GrpcQs {
     }
 
     /// Verifies request with QS client authentication.
-    pub(super) async fn verify_client_auth<R, P, const PAYLOAD_TAG: u32, const SIGNATURE_TAG: u32>(
+    pub(super) async fn verify_client_auth<R, P, const TAG: u32>(
         &self,
-        request: SignedRequest<R, PAYLOAD_TAG, SIGNATURE_TAG>,
+        request: SignedRequest<R, TAG>,
     ) -> Result<P, Status>
     where
         R: WithQsClientId<Payload = P> + VerifiableRequest,
-        P: VerifiedStruct<SignedRequest<R, PAYLOAD_TAG, SIGNATURE_TAG>>,
+        P: VerifiedStruct<SignedRequest<R, TAG>>,
     {
         match request.inner().client_id() {
             // Support for legacy clients which don't use authentication.

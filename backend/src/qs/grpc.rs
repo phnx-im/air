@@ -195,7 +195,7 @@ impl QueueService for GrpcQs {
 
     async fn update_user(
         &self,
-        request: Request<SignedRequest<UpdateUserRequest, 5, 6>>,
+        request: Request<SignedRequest<UpdateUserRequest, 5>>,
     ) -> Result<Response<UpdateUserResponse>, Status> {
         let request = request.into_inner();
 
@@ -236,7 +236,7 @@ impl QueueService for GrpcQs {
 
     async fn delete_user(
         &self,
-        request: Request<SignedRequest<DeleteUserRequest, 3, 4>>,
+        request: Request<SignedRequest<DeleteUserRequest, 3>>,
     ) -> Result<Response<DeleteUserResponse>, Status> {
         let request = request.into_inner();
 
@@ -269,7 +269,7 @@ impl QueueService for GrpcQs {
 
     async fn create_client(
         &self,
-        request: Request<SignedRequest<CreateClientRequest, 7, 8>>,
+        request: Request<SignedRequest<CreateClientRequest, 7>>,
     ) -> Result<Response<CreateClientResponse>, Status> {
         let request = request.into_inner();
         let CreateClientPayload {
@@ -304,7 +304,7 @@ impl QueueService for GrpcQs {
 
     async fn update_client(
         &self,
-        request: Request<SignedRequest<UpdateClientRequest, 6, 7>>,
+        request: Request<SignedRequest<UpdateClientRequest, 6>>,
     ) -> Result<Response<UpdateClientResponse>, Status> {
         let request = request.into_inner();
         self.verify_client_version(
@@ -340,7 +340,7 @@ impl QueueService for GrpcQs {
 
     async fn delete_client(
         &self,
-        request: Request<SignedRequest<DeleteClientRequest, 3, 4>>,
+        request: Request<SignedRequest<DeleteClientRequest, 3>>,
     ) -> Result<Response<DeleteClientResponse>, Status> {
         let request = request.into_inner();
         self.verify_client_version(
@@ -364,7 +364,7 @@ impl QueueService for GrpcQs {
 
     async fn publish_key_packages(
         &self,
-        request: Request<SignedRequest<PublishKeyPackagesRequest, 4, 5>>,
+        request: Request<SignedRequest<PublishKeyPackagesRequest, 4>>,
     ) -> Result<Response<PublishKeyPackagesResponse>, Status> {
         let request = request.into_inner();
         self.verify_client_version(
@@ -491,22 +491,12 @@ impl QueueService for GrpcQs {
             .as_ref()
             .ok_or_missing_field("payload")?
             .encode_to_vec();
-        let signature = init_request
-            .signature
-            .as_ref()
-            .ok_or_missing_field("signature")?
-            .value
-            .clone();
         let InitListenPayload {
             client_metadata: _,
             client_id,
             sequence_number_start,
         } = self
-            .verify_client_auth(SignedRequest::<_, 1, 2>::new(
-                init_request,
-                payload_bytes,
-                signature,
-            ))
+            .verify_client_auth(SignedRequest::<_, 1>::new(init_request, payload_bytes))
             .await?;
 
         let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;

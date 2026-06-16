@@ -48,11 +48,10 @@ fn main() {
         builder = builder.extern_path(
             format!(".{}.v1.{}", config.service.as_str(), config.request_type),
             format!(
-                "crate::signed::SignedRequest<crate::{}::v1::{}, {}, {}>",
+                "crate::signed::SignedRequest<crate::{}::v1::{}, {}>",
                 config.service.as_str(),
                 config.request_type,
                 config.payload_tag,
-                config.signature_tag
             ),
         );
     }
@@ -101,50 +100,47 @@ const SIGNED_REQUEST_CONFIGS: &[SignedRequestConfig] = &[
     sr(Service::As, "RefreshUsernameRequest"),
     // Ds
     sr(Service::Ds, "SendMessageRequest"),
-    srt(Service::Ds, "WelcomeInfoRequest", 2, 1),
+    srt(Service::Ds, "WelcomeInfoRequest", 2),
     sr(Service::Ds, "CreateGroupRequest"),
     sr(Service::Ds, "CreateApqGroupRequest"),
     sr(Service::Ds, "GroupOperationRequest"),
     sr(Service::Ds, "ApqGroupOperationRequest"),
     sr(Service::Ds, "DeleteGroupRequest"),
     sr(Service::Ds, "TargetedMessageRequest"),
-    srt(Service::Ds, "SelfRemoveRequest", 2, 1),
+    srt(Service::Ds, "SelfRemoveRequest", 2),
     sr(Service::Ds, "ResyncRequest"),
-    sr(Service::Ds, "UpdateProfileKeyRequest"),
+    srt(Service::Ds, "UpdateProfileKeyRequest", 2),
     sr(Service::Ds, "ProvisionAttachmentRequest"),
     sr(Service::Ds, "GetAttachmentUrlRequest"),
     // Qs
-    srt(Service::Qs, "UpdateUserRequest", 5, 6),
-    srt(Service::Qs, "DeleteUserRequest", 3, 4),
-    srt(Service::Qs, "CreateClientRequest", 7, 8),
-    srt(Service::Qs, "UpdateClientRequest", 6, 7),
-    srt(Service::Qs, "DeleteClientRequest", 3, 4),
-    srt(Service::Qs, "PublishKeyPackagesRequest", 4, 5),
+    srt(Service::Qs, "UpdateUserRequest", 5),
+    srt(Service::Qs, "DeleteUserRequest", 3),
+    srt(Service::Qs, "CreateClientRequest", 7),
+    srt(Service::Qs, "UpdateClientRequest", 6),
+    srt(Service::Qs, "DeleteClientRequest", 3),
+    srt(Service::Qs, "PublishKeyPackagesRequest", 4),
     sr(Service::Qs, "PublishApqKeyPackagesRequest"),
 ];
 
-/// Construct a `SignedRequestConfig` with default payload and signature tags (1, 2)
+/// Construct a `SignedRequestConfig` with default payload tag (1)
 const fn sr(service: Service, request_type: &'static str) -> SignedRequestConfig {
     SignedRequestConfig {
         service,
         request_type,
         payload_tag: 1,
-        signature_tag: 2,
     }
 }
 
-/// Construct a `SignedRequestConfig` with custom payload and signature tags
+/// Construct a `SignedRequestConfig` with a custom payload tag
 const fn srt(
     service: Service,
     request_type: &'static str,
     payload_tag: u32,
-    signature_tag: u32,
 ) -> SignedRequestConfig {
     SignedRequestConfig {
         service,
         request_type,
         payload_tag,
-        signature_tag,
     }
 }
 
@@ -168,5 +164,4 @@ struct SignedRequestConfig {
     service: Service,
     request_type: &'static str,
     payload_tag: u32,
-    signature_tag: u32,
 }

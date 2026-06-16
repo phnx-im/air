@@ -16,25 +16,30 @@ use prost::{Message, bytes::BufMut};
 ///
 /// Cannot be constructed directly. It is decoded from protobuf message bytes of `T`. During
 /// decoding of `T` it extracts the payload and signature bytes identified by the corresponding
-/// `PAYLOAD_TAG` and `SIGNATURE_TAG` constants.
+/// `TAG` and `SIGNATURE_TAG` constants.
 ///
 /// When `T` implements `VerifiableRequest` the extracted payload bytes are verified against the
 /// extracted signature.
-#[derive(Debug, Default)]
-pub struct SignedRequest<T, const PAYLOAD_TAG: u32 = 1, const SIGNATURE_TAG: u32 = 2> {
+#[derive(Default)]
+pub struct SignedRequest<T, const TAG: u32 = 1> {
     pub(crate) request: T,
     payload_bytes: Vec<u8>,
-    signature: Vec<u8>,
 }
 
-impl<T, const PAYLOAD_TAG: u32, const SIGNATURE_TAG: u32>
-    SignedRequest<T, PAYLOAD_TAG, SIGNATURE_TAG>
-{
-    pub fn new(request: T, payload_bytes: Vec<u8>, signature: Vec<u8>) -> Self {
+impl<T: fmt::Debug, const TAG: u32> fmt::Debug for SignedRequest<T, TAG> {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+        f.debug_struct("SignedRequest")
+            .field("request", &self.request)
+            .field("payload_bytes", &self.payload_bytes.len())
+            .finish()
+    }
+}
+
+impl<T, const TAG: u32> SignedRequest<T, TAG> {
+    pub fn new(request: T, payload_bytes: Vec<u8>) -> Self {
         Self {
             request,
             payload_bytes,
-            signature,
         }
     }
 
@@ -47,8 +52,7 @@ impl<T, const PAYLOAD_TAG: u32, const SIGNATURE_TAG: u32>
     }
 }
 
-impl<T, const PAYLOAD_TAG: u32, const SIGNATURE_TAG: u32> Message
-    for SignedRequest<T, PAYLOAD_TAG, SIGNATURE_TAG>
+impl<T, const TAG: u32> Message for SignedRequest<T, TAG>
 where
     T: Message,
 {
@@ -77,8 +81,7 @@ where
         Self: Sized,
     {
         let raw = buf.copy_to_bytes(buf.remaining());
-        self.payload_bytes = extract_field(&raw, PAYLOAD_TAG)?.into();
-        self.signature = extract_field(&raw, SIGNATURE_TAG)?.into();
+        self.payload_bytes = extract_field(&raw, TAG)?.into();
         self.request.merge(raw)?;
         Ok(())
     }
@@ -86,7 +89,6 @@ where
     fn clear(&mut self) {
         self.request.clear();
         self.payload_bytes.clear();
-        self.signature.clear();
     }
 }
 
@@ -120,12 +122,13 @@ fn extract_field(raw: &Bytes, tag: u32) -> Result<Bytes, DecodeError> {
 
 /// A request that contains a signature a can be verified using it
 pub trait VerifiableRequest: fmt::Debug {
+    fn signature(&self) -> Option<&crate::common::v1::Signature>;
+
     fn label(&self) -> &str;
 }
 
 // Any `VerifiableRequest` request wrapped by `SignedRequest` can be verified
-impl<T, const PAYLOAD_TAG: u32, const SIGNATURE_TAG: u32> Verifiable
-    for SignedRequest<T, PAYLOAD_TAG, SIGNATURE_TAG>
+impl<T, const TAG: u32> Verifiable for SignedRequest<T, TAG>
 where
     T: VerifiableRequest,
 {
@@ -135,7 +138,10 @@ where
     }
 
     fn signature(&self) -> impl AsRef<[u8]> {
-        self.signature.as_slice()
+        self.request
+            .signature()
+            .map(|s| s.value.as_slice())
+            .unwrap_or_default()
     }
 
     fn label(&self) -> &str {
@@ -157,12 +163,33 @@ pub struct Seal;
 /// * `payload` is the type which is signed.
 /// * `key_type` the key used for signing and verification.
 /// * `label` is the label of the payload prepended when signing.
+/// * `seal` is the seal type used to seal the implementation.
 macro_rules! impl_signed_payload {
+    // Default: signature lives in the top-level `signature` field.
     {
         request = $request:ty,
         payload = $payload:ty,
         key_type = $key_type:ty,
         label = $label:expr,
+        seal = $seal:ty $(,)?
+    } => {
+        $crate::signed::impl_signed_payload! {
+            request = $request,
+            payload = $payload,
+            key_type = $key_type,
+            label = $label,
+            signature = |request: &$request| request.signature.as_ref(),
+            seal = $seal,
+        }
+    };
+
+    // Explicit signature accessor.
+    {
+        request = $request:ty,
+        payload = $payload:ty,
+        key_type = $key_type:ty,
+        label = $label:expr,
+        signature = $signature:expr,
         seal = $seal:ty $(,)?
     } => {
         #[allow(clippy::needless_update)]
@@ -194,22 +221,27 @@ macro_rules! impl_signed_payload {
             }
         }
 
-        impl<const PAYLOAD_TAG: u32, const SIGNATURE_TAG: u32>
+        impl<const TAG: u32>
             ::aircommon::crypto::signatures::signable::VerifiedStruct<
-                crate::signed::SignedRequest<$request, PAYLOAD_TAG, SIGNATURE_TAG>,
+                $crate::signed::SignedRequest<$request, TAG>,
             > for $payload
         {
             type SealingType = $seal;
 
             fn from_verifiable(
-                verifiable: crate::signed::SignedRequest<$request, PAYLOAD_TAG, SIGNATURE_TAG>,
+                verifiable: crate::signed::SignedRequest<$request, TAG>,
                 _seal: Self::SealingType
             ) -> Self {
                 verifiable.request.payload.unwrap_or_default()
             }
         }
 
-        impl crate::signed::VerifiableRequest for $request {
+        impl $crate::signed::VerifiableRequest for $request {
+            fn signature(&self) -> Option<&$crate::common::v1::Signature> {
+                let accessor: fn(&$request) -> Option<&$crate::common::v1::Signature> = $signature;
+                accessor(self)
+            }
+
             fn label(&self) -> &str {
                 $label
             }
