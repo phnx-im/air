@@ -472,6 +472,8 @@ message InitListenUsernameRequest {
   UsernameSignature signature = 2;
 }
 
+// Warning: This type must be backwards compatible on the wire (binary). The
+// signature is computed over the *re-encoded* version of this type.
 message InitListenUsernamePayload {
   common.v1.ClientMetadata client_metadata = 2;
   UsernameHash hash = 1;
