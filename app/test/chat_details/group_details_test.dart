@@ -4,6 +4,7 @@
 
 import 'package:air/chat/chat_details.dart';
 import 'package:air/chat/group_details.dart';
+import 'package:air/chat/widgets/mute_button.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/user/user.dart';
@@ -15,6 +16,8 @@ import 'package:mocktail/mocktail.dart';
 import '../chat_list/chat_list_content_test.dart';
 import '../mocks.dart';
 import '../helpers.dart';
+
+const desktopPhysicalSize = Size(1400, 1000);
 
 void main() {
   group('GroupDetailsScreen', () {
@@ -80,6 +83,41 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/group_details_empty.png'),
+      );
+    });
+
+    testWidgets('renders correctly with mute menu open (mobile)', (
+      tester,
+    ) async {
+      await tester.pumpWidget(buildSubject());
+
+      await tester.tap(find.byType(MuteButton));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/group_details_mute_menu_mobile.png'),
+      );
+    });
+
+    testWidgets('renders correctly with mute menu open (desktop)', (
+      tester,
+    ) async {
+      tester.view.physicalSize = desktopPhysicalSize;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(buildSubject());
+
+      await tester.tap(find.byType(MuteButton));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/group_details_mute_menu_desktop.png'),
       );
     });
   });
