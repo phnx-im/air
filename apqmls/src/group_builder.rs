@@ -281,8 +281,8 @@ fn ensure_group_context_component_support<StorageError>(
         .unwrap_or_default()
         .pipe(ensure_component_support)?;
     let mut dictionary = dictionary;
-    let (compoent_id, data) = apq_info.into_parts();
-    dictionary.insert(compoent_id, data.into());
+    let (component_id, data) = apq_info.into_parts();
+    dictionary.insert(component_id, data.into());
     extensions.add_or_replace(Extension::AppDataDictionary(
         AppDataDictionaryExtension::new(dictionary),
     ))?;

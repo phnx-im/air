@@ -17,6 +17,7 @@ members = [
     "server",
     "test_harness",
     "xtask",
+    "apqmls",
 ]
 
 [workspace.dependencies]
