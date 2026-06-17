@@ -13,7 +13,11 @@ use airserver_test_harness::utils::setup::TestBackend;
 async fn recv_session_id(
     rx: &mut tokio::sync::mpsc::Receiver<MultiDeviceProvisionStep>,
 ) -> LinkingSessionId {
-    match rx.recv().await.expect("provision channel closed before session id") {
+    match rx
+        .recv()
+        .await
+        .expect("provision channel closed before session id")
+    {
         MultiDeviceProvisionStep::SessionId(session_id) => session_id,
         MultiDeviceProvisionStep::Linking => panic!("unexpected Linking step before session id"),
     }
