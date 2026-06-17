@@ -69,7 +69,8 @@ unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = [
     "https://github.com/raphaelrobert/privacypass",
-    "https://github.com/boxdot/openmls",
+    # unreleased post-quantum and virtual-clients features of openmls after the 0.8.1 release
+    "https://github.com/openmls/openmls",
     "https://github.com/cryspen/hpke-rs",
     "https://github.com/RustCrypto/RSA",
 ]
