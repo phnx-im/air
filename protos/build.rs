@@ -2,9 +2,21 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::path::{Path, PathBuf};
+use std::{
+    fmt,
+    path::{Path, PathBuf},
+};
 
-use tonic_prost_build::Config;
+use tonic_prost_build::{Config, FileDescriptorSet};
+
+const PROTOS: &[&str] = &[
+    "api/auth_service/v1/auth_service.proto",
+    "api/delivery_service/v1/delivery_service.proto",
+    "api/queue_service/v1/queue_service.proto",
+];
+
+/// Name of the field whose raw wire bytes are signed and verified in a `SignedRequest`.
+const SIGNED_FIELD: &str = "payload";
 
 fn config(protoc_path: &Path) -> Config {
     let mut config = Config::new();
@@ -21,16 +33,10 @@ fn main() {
     // Pass 1: messages + clients
     tonic_prost_build::configure()
         .build_server(false)
-        .compile_with_config(
-            config(&protoc_path),
-            &[
-                "api/auth_service/v1/auth_service.proto",
-                "api/delivery_service/v1/delivery_service.proto",
-                "api/queue_service/v1/queue_service.proto",
-            ],
-            &["api"],
-        )
+        .compile_with_config(config(&protoc_path), PROTOS, &["api"])
         .unwrap();
+
+    let fds = config(&protoc_path).load_fds(PROTOS, &["api"]).unwrap();
 
     // Pass 2: servers
     let out_dir = PathBuf::from(std::env::var("OUT_DIR").unwrap());
@@ -44,27 +50,21 @@ fn main() {
         .extern_path(".auth_service.v1", "crate::auth_service::v1")
         .extern_path(".delivery_service.v1", "crate::delivery_service::v1")
         .extern_path(".queue_service.v1", "crate::queue_service::v1");
-    for config in SIGNED_REQUEST_CONFIGS {
+    for (service, request_type) in SIGNED_REQUESTS {
+        let package = format!("{service}.v1");
+        let tag = payload_field_number(&fds, &package, request_type).unwrap_or_else(|| {
+            panic!(
+                "signed request {package}.{request_type} has no `{SIGNED_FIELD}` field; \
+                 fix the proto or remove it from SIGNED_REQUESTS",
+            )
+        });
         builder = builder.extern_path(
-            format!(".{}.v1.{}", config.service.as_str(), config.request_type),
-            format!(
-                "crate::signed::SignedRequest<crate::{}::v1::{}, {}>",
-                config.service.as_str(),
-                config.request_type,
-                config.payload_tag,
-            ),
+            format!(".{package}.{request_type}"),
+            format!("crate::signed::SignedRequest<crate::{service}::v1::{request_type}, {tag}>",),
         );
     }
     builder
-        .compile_with_config(
-            config(&protoc_path),
-            &[
-                "api/auth_service/v1/auth_service.proto",
-                "api/delivery_service/v1/delivery_service.proto",
-                "api/queue_service/v1/queue_service.proto",
-            ],
-            &["api"],
-        )
+        .compile_with_config(config(&protoc_path), PROTOS, &["api"])
         .unwrap();
 
     let mut relay_config = Config::new();
@@ -83,66 +83,46 @@ fn main() {
     println!("cargo:rerun-if-changed=api");
 }
 
-/// Requests that should be wrapped in `SignedRequest<T>`
+/// Requests that should be wrapped in `SignedRequest<T>`.
 ///
-/// When decoding protobuf bytes, the payload and signature will be extracted as bytes and stored in
-/// the wrapper. Allows to verify payload without encoding the payload again.
-const SIGNED_REQUEST_CONFIGS: &[SignedRequestConfig] = &[
+/// When decoding protobuf bytes, the payload and signature are extracted as bytes and stored in the
+/// wrapper, which allows verifying the payload without encoding it again. The payload field number
+/// (the `TAG` of `SignedRequest`) is derived from the proto at build time, see
+/// [`payload_field_number`].
+const SIGNED_REQUESTS: &[(Service, &str)] = &[
     // As
-    sr(Service::As, "DeleteUserRequest"),
-    sr(Service::As, "PublishConnectionPackagesRequest"),
-    sr(Service::As, "StageUserProfileRequest"),
-    sr(Service::As, "MergeUserProfileRequest"),
-    sr(Service::As, "IssueTokensRequest"),
-    sr(Service::As, "ReportSpamRequest"),
-    sr(Service::As, "CreateUsernameRequest"),
-    sr(Service::As, "DeleteUsernameRequest"),
-    sr(Service::As, "RefreshUsernameRequest"),
+    (Service::As, "DeleteUserRequest"),
+    (Service::As, "PublishConnectionPackagesRequest"),
+    (Service::As, "StageUserProfileRequest"),
+    (Service::As, "MergeUserProfileRequest"),
+    (Service::As, "IssueTokensRequest"),
+    (Service::As, "ReportSpamRequest"),
+    (Service::As, "CreateUsernameRequest"),
+    (Service::As, "DeleteUsernameRequest"),
+    (Service::As, "RefreshUsernameRequest"),
     // Ds
-    sr(Service::Ds, "SendMessageRequest"),
-    srt(Service::Ds, "WelcomeInfoRequest", 2),
-    sr(Service::Ds, "CreateGroupRequest"),
-    sr(Service::Ds, "CreateApqGroupRequest"),
-    sr(Service::Ds, "GroupOperationRequest"),
-    sr(Service::Ds, "ApqGroupOperationRequest"),
-    sr(Service::Ds, "DeleteGroupRequest"),
-    sr(Service::Ds, "TargetedMessageRequest"),
-    srt(Service::Ds, "SelfRemoveRequest", 2),
-    sr(Service::Ds, "ResyncRequest"),
-    srt(Service::Ds, "UpdateProfileKeyRequest", 2),
-    sr(Service::Ds, "ProvisionAttachmentRequest"),
-    sr(Service::Ds, "GetAttachmentUrlRequest"),
+    (Service::Ds, "SendMessageRequest"),
+    (Service::Ds, "WelcomeInfoRequest"),
+    (Service::Ds, "CreateGroupRequest"),
+    (Service::Ds, "CreateApqGroupRequest"),
+    (Service::Ds, "GroupOperationRequest"),
+    (Service::Ds, "ApqGroupOperationRequest"),
+    (Service::Ds, "DeleteGroupRequest"),
+    (Service::Ds, "TargetedMessageRequest"),
+    (Service::Ds, "SelfRemoveRequest"),
+    (Service::Ds, "ResyncRequest"),
+    (Service::Ds, "UpdateProfileKeyRequest"),
+    (Service::Ds, "ProvisionAttachmentRequest"),
+    (Service::Ds, "GetAttachmentUrlRequest"),
     // Qs
-    srt(Service::Qs, "UpdateUserRequest", 5),
-    srt(Service::Qs, "DeleteUserRequest", 3),
-    srt(Service::Qs, "CreateClientRequest", 7),
-    srt(Service::Qs, "UpdateClientRequest", 6),
-    srt(Service::Qs, "DeleteClientRequest", 3),
-    srt(Service::Qs, "PublishKeyPackagesRequest", 4),
-    sr(Service::Qs, "PublishApqKeyPackagesRequest"),
+    (Service::Qs, "UpdateUserRequest"),
+    (Service::Qs, "DeleteUserRequest"),
+    (Service::Qs, "CreateClientRequest"),
+    (Service::Qs, "UpdateClientRequest"),
+    (Service::Qs, "DeleteClientRequest"),
+    (Service::Qs, "PublishKeyPackagesRequest"),
+    (Service::Qs, "PublishApqKeyPackagesRequest"),
 ];
-
-/// Construct a `SignedRequestConfig` with default payload tag (1)
-const fn sr(service: Service, request_type: &'static str) -> SignedRequestConfig {
-    SignedRequestConfig {
-        service,
-        request_type,
-        payload_tag: 1,
-    }
-}
-
-/// Construct a `SignedRequestConfig` with a custom payload tag
-const fn srt(
-    service: Service,
-    request_type: &'static str,
-    payload_tag: u32,
-) -> SignedRequestConfig {
-    SignedRequestConfig {
-        service,
-        request_type,
-        payload_tag,
-    }
-}
 
 enum Service {
     As,
@@ -150,18 +130,27 @@ enum Service {
     Qs,
 }
 
-impl Service {
-    fn as_str(&self) -> &'static str {
+impl fmt::Display for Service {
+    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         match self {
-            Service::As => "auth_service",
-            Service::Ds => "delivery_service",
-            Service::Qs => "queue_service",
+            Service::As => f.write_str("auth_service"),
+            Service::Ds => f.write_str("delivery_service"),
+            Service::Qs => f.write_str("queue_service"),
         }
     }
 }
 
-struct SignedRequestConfig {
-    service: Service,
-    request_type: &'static str,
-    payload_tag: u32,
+/// Look up the field number of the `payload` field of `package.message` in the descriptor set.
+///
+/// Returns `None` if the message has no such field, which the caller turns into a build error.
+fn payload_field_number(fds: &FileDescriptorSet, package: &str, message: &str) -> Option<u32> {
+    fds.file
+        .iter()
+        .filter(|file| file.package() == package)
+        .flat_map(|file| &file.message_type)
+        .find(|msg| msg.name() == message)?
+        .field
+        .iter()
+        .find(|field| field.name() == SIGNED_FIELD)
+        .map(|field| field.number() as u32)
 }

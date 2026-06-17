@@ -682,8 +682,8 @@ impl auth_service_server::AuthService for GrpcAs {
             .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
         let init_payload_bytes = payload.encode_to_vec();
-        let signed_request =
-            SignedRequest::<InitListenUsernameRequest>::new(init_request, init_payload_bytes);
+        let signed_request: SignedRequest<InitListenUsernameRequest> =
+            SignedRequest::new(init_request, init_payload_bytes.into());
         let (hash, _payload) = self
             .verify_username_auth::<_, InitListenUsernamePayload, _>(signed_request)
             .await?;

@@ -496,7 +496,10 @@ impl QueueService for GrpcQs {
             client_id,
             sequence_number_start,
         } = self
-            .verify_client_auth(SignedRequest::<_, 1>::new(init_request, payload_bytes))
+            .verify_client_auth(SignedRequest::<_, 1>::new(
+                init_request,
+                payload_bytes.into(),
+            ))
             .await?;
 
         let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
