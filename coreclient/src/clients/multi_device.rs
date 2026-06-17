@@ -6,6 +6,7 @@ use airapiclient::ApiClient;
 use aircommon::crypto::aead::{
     AeadDecryptable, AeadEncryptable, Ciphertext, keys::MultiDeviceLinkingKey,
 };
+use aircommon::identifiers::Fqdn;
 use airprotos::relay_service::v1::LinkingSessionId;
 use anyhow::{Context, anyhow, bail};
 use openmls::{
@@ -72,10 +73,13 @@ fn export_aead_key(
 }
 
 impl CoreUser {
+    /// Provisions a new client for linking by connecting to the relay at `domain`.
     pub async fn multi_device_provision_client(
-        api_client: &ApiClient,
+        domain: &Fqdn,
         session_id_tx: tokio::sync::oneshot::Sender<LinkingSessionId>,
     ) -> anyhow::Result<String> {
+        let api_client = ApiClient::with_domain(domain).context("build api client")?;
+
         let (provider, credential_with_key, signature_keys) =
             make_provider_and_credential(b"initiator")?;
 

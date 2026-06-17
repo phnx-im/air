@@ -216,6 +216,12 @@ abstract class AppLocalizations {
   /// **'Invite codes'**
   String get userSettingsScreen_inviteCodes;
 
+  /// No description provided for @userSettingsScreen_devices.
+  ///
+  /// In en, this message translates to:
+  /// **'Devices'**
+  String get userSettingsScreen_devices;
+
   /// No description provided for @settingsScreen_copiedToClipboard.
   ///
   /// In en, this message translates to:
@@ -540,10 +546,34 @@ abstract class AppLocalizations {
   /// **'Save'**
   String get changeGroupTitleDialog_confirm;
 
+  /// No description provided for @introScreen_serverLabel.
+  ///
+  /// In en, this message translates to:
+  /// **'Choose a server to connect to for linking.'**
+  String get introScreen_serverLabel;
+
+  /// No description provided for @introScreen_serverHint.
+  ///
+  /// In en, this message translates to:
+  /// **'DOMAIN NAME'**
+  String get introScreen_serverHint;
+
+  /// No description provided for @introScreen_error_invalidDomain.
+  ///
+  /// In en, this message translates to:
+  /// **'Domain is invalid'**
+  String get introScreen_error_invalidDomain;
+
+  /// No description provided for @introScreen_linkExisting.
+  ///
+  /// In en, this message translates to:
+  /// **'Link to an existing account'**
+  String get introScreen_linkExisting;
+
   /// No description provided for @introScreen_signUp.
   ///
   /// In en, this message translates to:
-  /// **'Start'**
+  /// **'Create account'**
   String get introScreen_signUp;
 
   /// No description provided for @introScreen_termsLinkText.
@@ -792,6 +822,240 @@ abstract class AppLocalizations {
   /// **'Add a username...'**
   String get usernameOnboarding_usernameInputHint;
 
+  /// No description provided for @linkingDeviceScreen_header.
+  ///
+  /// In en, this message translates to:
+  /// **'Link to an existing account'**
+  String get linkingDeviceScreen_header;
+
+  /// No description provided for @linkingDeviceScreen_connecting.
+  ///
+  /// In en, this message translates to:
+  /// **'Connecting…'**
+  String get linkingDeviceScreen_connecting;
+
+  /// No description provided for @linkingDeviceScreen_separator.
+  ///
+  /// In en, this message translates to:
+  /// **'or'**
+  String get linkingDeviceScreen_separator;
+
+  /// No description provided for @linkingDeviceScreen_numericCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Numeric code'**
+  String get linkingDeviceScreen_numericCode;
+
+  /// No description provided for @linkingDeviceScreen_linked.
+  ///
+  /// In en, this message translates to:
+  /// **'Device linked 🙌'**
+  String get linkingDeviceScreen_linked;
+
+  /// No description provided for @linkingDeviceScreen_instructions_1.
+  ///
+  /// In en, this message translates to:
+  /// **'Open Air on your existing device and go to You → Manage devices.'**
+  String get linkingDeviceScreen_instructions_1;
+
+  /// No description provided for @linkingDeviceScreen_instructions_2.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap \"Link a device\", then scan the QR code or enter the numeric code shown above.'**
+  String get linkingDeviceScreen_instructions_2;
+
+  /// No description provided for @linkingDeviceScreen_instructions_3.
+  ///
+  /// In en, this message translates to:
+  /// **'Keep both apps open during the linking process.'**
+  String get linkingDeviceScreen_instructions_3;
+
+  /// No description provided for @linkingDeviceScreen_error_codesExpired_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Codes expired'**
+  String get linkingDeviceScreen_error_codesExpired_title;
+
+  /// No description provided for @linkingDeviceScreen_error_codesExpired_message.
+  ///
+  /// In en, this message translates to:
+  /// **'To link this device, reload the codes and try again.'**
+  String get linkingDeviceScreen_error_codesExpired_message;
+
+  /// No description provided for @linkingDeviceScreen_error_codesExpired_cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get linkingDeviceScreen_error_codesExpired_cancel;
+
+  /// No description provided for @linkingDeviceScreen_error_codesExpired_reload.
+  ///
+  /// In en, this message translates to:
+  /// **'Reload'**
+  String get linkingDeviceScreen_error_codesExpired_reload;
+
+  /// No description provided for @linkingDeviceScreen_error_generic.
+  ///
+  /// In en, this message translates to:
+  /// **'An unknown error occurred, please try again.'**
+  String get linkingDeviceScreen_error_generic;
+
+  /// No description provided for @linkedDevicesScreen_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Devices'**
+  String get linkedDevicesScreen_title;
+
+  /// No description provided for @linkedDevicesScreen_thisDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'This device'**
+  String get linkedDevicesScreen_thisDevice;
+
+  /// No description provided for @linkedDevicesScreen_linkedDevices.
+  ///
+  /// In en, this message translates to:
+  /// **'Linked devices'**
+  String get linkedDevicesScreen_linkedDevices;
+
+  /// No description provided for @linkedDevicesScreen_linkedOn.
+  ///
+  /// In en, this message translates to:
+  /// **'Linked on {date}'**
+  String linkedDevicesScreen_linkedOn(String date);
+
+  /// No description provided for @linkedDevicesScreen_editNameHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap a device to edit its name.'**
+  String get linkedDevicesScreen_editNameHint;
+
+  /// No description provided for @linkedDevicesScreen_linkDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Link a device'**
+  String get linkedDevicesScreen_linkDevice;
+
+  /// No description provided for @linkedDevicesScreen_deviceCount.
+  ///
+  /// In en, this message translates to:
+  /// **'{count, plural, one {{count} device linked.} other {{count} devices linked.}} You can link up to {remaining} more.'**
+  String linkedDevicesScreen_deviceCount(int count, int remaining);
+
+  /// No description provided for @linkedDevicesScreen_encryptionNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'Messages are end-to-end encrypted on all devices. {learnMore}'**
+  String linkedDevicesScreen_encryptionNotice(Object learnMore);
+
+  /// No description provided for @linkedDevicesScreen_encryptionNotice_learnMore.
+  ///
+  /// In en, this message translates to:
+  /// **'Learn more.'**
+  String get linkedDevicesScreen_encryptionNotice_learnMore;
+
+  /// No description provided for @linkedDevicesScreen_encryptionDialog_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Encryption and device linking'**
+  String get linkedDevicesScreen_encryptionDialog_title;
+
+  /// No description provided for @linkedDevicesScreen_encryptionDialog_content.
+  ///
+  /// In en, this message translates to:
+  /// **'On Air, your messages (including attachments) are always end-to-end encrypted. This means that nobody else, even Air, can read them.\n\nWhen you link a device, your messages are still encrypted and you\'re the only one who can read them.'**
+  String get linkedDevicesScreen_encryptionDialog_content;
+
+  /// No description provided for @linkedDevicesScreen_encryptionDialog_confirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Okay'**
+  String get linkedDevicesScreen_encryptionDialog_confirm;
+
+  /// No description provided for @linkedDevicesScreen_linkDialog_chooseMethod.
+  ///
+  /// In en, this message translates to:
+  /// **'If you\'re using a mobile phone or tablet with a working camera, choose \"Scan QR code\". If you\'re using a computer or a device with a broken camera, choose \"Enter numeric code\".'**
+  String get linkedDevicesScreen_linkDialog_chooseMethod;
+
+  /// No description provided for @linkedDevicesScreen_linkDialog_openApp.
+  ///
+  /// In en, this message translates to:
+  /// **'On the device you want to link, open Air, then tap \"Link to an existing account\" on the start screen.'**
+  String get linkedDevicesScreen_linkDialog_openApp;
+
+  /// No description provided for @linkedDevicesScreen_linkDialog_scanQrCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan QR code'**
+  String get linkedDevicesScreen_linkDialog_scanQrCode;
+
+  /// No description provided for @linkedDevicesScreen_linkDialog_enterNumericCode.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter numeric code'**
+  String get linkedDevicesScreen_linkDialog_enterNumericCode;
+
+  /// No description provided for @linkedDevicesScreen_linkDialog_warning.
+  ///
+  /// In en, this message translates to:
+  /// **'Devices you link will have full access to your Air account (including the ability to add or remove devices - even this one). Only link devices you trust.'**
+  String get linkedDevicesScreen_linkDialog_warning;
+
+  /// No description provided for @linkedDevicesScreen_linkDialog_numericCodeInstructions.
+  ///
+  /// In en, this message translates to:
+  /// **'Enter the numeric code shown on the device you want to link.'**
+  String get linkedDevicesScreen_linkDialog_numericCodeInstructions;
+
+  /// No description provided for @linkedDevicesScreen_linkDialog_link.
+  ///
+  /// In en, this message translates to:
+  /// **'Link device'**
+  String get linkedDevicesScreen_linkDialog_link;
+
+  /// No description provided for @linkedDevicesScreen_deviceName_editDialog_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Change device name'**
+  String get linkedDevicesScreen_deviceName_editDialog_title;
+
+  /// No description provided for @linkedDevicesScreen_deviceName_editDialog_cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get linkedDevicesScreen_deviceName_editDialog_cancel;
+
+  /// No description provided for @linkedDevicesScreen_deviceName_editDialog_confirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Change'**
+  String get linkedDevicesScreen_deviceName_editDialog_confirm;
+
+  /// No description provided for @linkedDevicesScreen_unlinkDialog_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlink device'**
+  String get linkedDevicesScreen_unlinkDialog_title;
+
+  /// No description provided for @linkedDevicesScreen_unlinkDialog_content.
+  ///
+  /// In en, this message translates to:
+  /// **'The device will no longer be able to send or receive messages. All of your account\'s data will be deleted from the device.'**
+  String get linkedDevicesScreen_unlinkDialog_content;
+
+  /// No description provided for @linkedDevicesScreen_unlinkDialog_cancel.
+  ///
+  /// In en, this message translates to:
+  /// **'Cancel'**
+  String get linkedDevicesScreen_unlinkDialog_cancel;
+
+  /// No description provided for @linkedDevicesScreen_unlinkDialog_confirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlink'**
+  String get linkedDevicesScreen_unlinkDialog_confirm;
+
   /// No description provided for @usernameScreen_title.
   ///
   /// In en, this message translates to:
@@ -863,6 +1127,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Username must not start with a digit'**
   String get usernameScreen_error_leadingDigit;
+
+  /// No description provided for @editDialog_characters_remaining.
+  ///
+  /// In en, this message translates to:
+  /// **'{characters}/{remaining} characters'**
+  String editDialog_characters_remaining(Object characters, Object remaining);
 
   /// No description provided for @editDisplayNameScreen_title.
   ///

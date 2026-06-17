@@ -293,6 +293,38 @@ String toString() {
 /// @nodoc
 
 
+class IntroScreenType_Linking extends IntroScreenType {
+  const IntroScreenType_Linking(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is IntroScreenType_Linking);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'IntroScreenType.linking()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
 class IntroScreenType_DeveloperSettings extends IntroScreenType {
   const IntroScreenType_DeveloperSettings(this.field0): super._();
   

@@ -21,6 +21,7 @@ import 'api/member_details_cubit.dart';
 import 'api/message_content.dart';
 import 'api/message_cubit.dart';
 import 'api/message_list_cubit.dart';
+import 'api/multi_device.dart';
 import 'api/navigation_cubit.dart';
 import 'api/notifications.dart';
 import 'api/types.dart';
@@ -553,6 +554,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<MultiDeviceProvisionEvent>
+  dco_decode_StreamSink_multi_device_provision_event_Sse(dynamic raw);
+
+  @protected
   RustStreamSink<NavigationState> dco_decode_StreamSink_navigation_state_Sse(
     dynamic raw,
   );
@@ -958,6 +963,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageState dco_decode_message_state(dynamic raw);
+
+  @protected
+  MultiDeviceProvisionEvent dco_decode_multi_device_provision_event(
+    dynamic raw,
+  );
 
   @protected
   NavigationState dco_decode_navigation_state(dynamic raw);
@@ -1689,6 +1699,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  RustStreamSink<MultiDeviceProvisionEvent>
+  sse_decode_StreamSink_multi_device_provision_event_Sse(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   RustStreamSink<NavigationState> sse_decode_StreamSink_navigation_state_Sse(
     SseDeserializer deserializer,
   );
@@ -2200,6 +2216,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   MessageState sse_decode_message_state(SseDeserializer deserializer);
+
+  @protected
+  MultiDeviceProvisionEvent sse_decode_multi_device_provision_event(
+    SseDeserializer deserializer,
+  );
 
   @protected
   NavigationState sse_decode_navigation_state(SseDeserializer deserializer);
@@ -3096,6 +3117,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_StreamSink_multi_device_provision_event_Sse(
+    RustStreamSink<MultiDeviceProvisionEvent> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_StreamSink_navigation_state_Sse(
     RustStreamSink<NavigationState> self,
     SseSerializer serializer,
@@ -3736,6 +3763,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_message_state(MessageState self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_multi_device_provision_event(
+    MultiDeviceProvisionEvent self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_navigation_state(

@@ -115,4 +115,12 @@ class UserCubit implements StateStreamableSource<UiUser> {
     final cacheDir = await getCacheDirectory();
     return _impl.uploadLogs(cacheDir: cacheDir);
   }
+
+  Future<String> linkDevice(String sessionId) =>
+      multiDeviceLinkClient(userCubit: _impl, sessionId: sessionId);
+
+  /// Extracts a linking code from a scanned QR payload, validating it targets
+  /// this user's home server. Returns null if it isn't a linking URL for us.
+  String? parseLinkingUrl(String url) =>
+      _impl.parseMultiDeviceLinkingUrl(url: url);
 }

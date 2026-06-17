@@ -2,8 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/foundations/icons/icons.dart';
 import 'package:air/ds/foundations/font_size.dart';
+import 'package:air/registration/registration_cubit.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -14,12 +16,13 @@ import 'package:air/ds/foundations/themes.dart';
 import 'package:air/user/user.dart';
 import 'package:air/ds/theme/theme.dart';
 import 'package:air/util/notification_permissions.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_svg/svg.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 import 'package:air/ds/components/desktop/width_constraints.dart';
 
-class IntroScreen extends StatelessWidget {
+class IntroScreen extends HookWidget {
   const IntroScreen({super.key});
 
   static const double _logoWidth = 104;
@@ -34,6 +37,24 @@ class IntroScreen extends StatelessWidget {
     final loc = AppLocalizations.of(context);
 
     final colors = CustomColorScheme.of(context);
+
+    final serverFieldVisible = useState(false);
+
+    final textFormConstraints = BoxConstraints.tight(
+      isSmallScreen(context)
+          ? const Size(double.infinity, 120)
+          : const Size(300, 120),
+    );
+
+    final bool isDeveloper = context.select(
+      (UserSettingsCubit cubit) => cubit.state.isDeveloper,
+    );
+
+    startLinking() async {
+      await requestNotificationPermission();
+      if (!context.mounted) return;
+      context.read<NavigationCubit>().openLinking();
+    }
 
     return Scaffold(
       backgroundColor: colors.backgroundBase.secondary,
@@ -69,43 +90,45 @@ class IntroScreen extends StatelessWidget {
               Align(
                 alignment: Alignment.bottomCenter,
                 child: ConstrainedWidth(
+                  width: 500,
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
                       _TermsOfUseText(loc: loc),
-                      SizedBox(
-                        width: double.infinity,
-                        child: Padding(
-                          padding: const EdgeInsets.only(
-                            left: Spacing.px24,
-                            right: Spacing.px24,
-                            top: Spacing.px32 + Spacing.px8,
-                          ),
-                          child: OutlinedButton(
-                            style: OutlinedButtonTheme.of(context).style!
-                                .copyWith(
-                                  backgroundColor: WidgetStateProperty.all(
-                                    colors.accent.primary,
-                                  ),
-                                  foregroundColor: WidgetStateProperty.all(
-                                    colors.function.toggleWhite,
-                                  ),
-                                ),
-                            onPressed: () async {
+                      const SizedBox(height: Spacing.px16),
+                      if (serverFieldVisible.value) ...[
+                        Text(
+                          loc.introScreen_serverLabel,
+                          style: Theme.of(context).textTheme.bodyMedium,
+                          textAlign: TextAlign.left,
+                        ),
+                        const SizedBox(height: Spacing.px16),
+
+                        ConstrainedBox(
+                          constraints: textFormConstraints,
+                          child: _ServerTextField(
+                            onFieldSubmitted: () async {
                               await requestNotificationPermission();
                               if (!context.mounted) return;
-                              context.read<NavigationCubit>().openSignUp();
+                              context.read<NavigationCubit>().openLinking();
                             },
-                            child: Text(
-                              loc.introScreen_signUp,
-                              style: TextStyle(
-                                color: colors.function.toggleWhite,
-                                fontSize: LabelFontSize.base.size,
-                              ),
-                            ),
                           ),
                         ),
+                      ],
+                      if (isDeveloper) ...[
+                        AppButton(
+                          type: .secondary,
+                          label: loc.introScreen_linkExisting,
+                          onPressed: startLinking,
+                          onLongPress: () => serverFieldVisible.value = true,
+                        ),
+                        const SizedBox(height: Spacing.px8),
+                      ],
+                      AppButton(
+                        type: .primary,
+                        label: loc.introScreen_signUp,
+                        onPressed: startLinking,
                       ),
                       const SizedBox(height: Spacing.px16),
                     ],
@@ -214,6 +237,41 @@ class _TermsOfUseText extends StatelessWidget {
         ],
       ),
       textAlign: TextAlign.center,
+    );
+  }
+}
+
+class _ServerTextField extends HookWidget {
+  const _ServerTextField({required this.onFieldSubmitted});
+
+  final VoidCallback onFieldSubmitted;
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+
+    final colors = CustomColorScheme.of(context);
+
+    final focusNode = useFocusNode();
+
+    return TextFormField(
+      decoration: InputDecoration(
+        hintText: loc.introScreen_serverHint,
+        fillColor: colors.backgroundBase.tertiary,
+      ),
+      initialValue: context.read<RegistrationCubit>().state.domain,
+      focusNode: focusNode,
+      onChanged: (String value) {
+        context.read<RegistrationCubit>().setDomain(value);
+      },
+      onFieldSubmitted: (_) {
+        focusNode.requestFocus();
+        onFieldSubmitted();
+      },
+      validator: (value) =>
+          context.read<RegistrationCubit>().state.isDomainValid
+          ? null
+          : loc.introScreen_error_invalidDomain,
     );
   }
 }

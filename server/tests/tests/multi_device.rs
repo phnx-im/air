@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use airapiclient::ApiClient;
 use aircoreclient::clients::CoreUser;
 use airprotos::relay_service::v1::LinkingSessionId;
 use airserver_test_harness::utils::setup::TestBackend;
@@ -11,18 +10,15 @@ use airserver_test_harness::utils::setup::TestBackend;
 #[tracing::instrument(name = "Test multi-device linking session", skip_all)]
 async fn multi_device_linking_session() {
     let mut setup = TestBackend::single().await;
-    let server_url = setup.server_url();
-
     let alice = setup.add_user().await;
+    let domain = alice.domain().clone();
 
     let (session_id_tx, session_id_rx) = tokio::sync::oneshot::channel();
 
     let new_device_task = tokio::spawn(async move {
-        let api_client = ApiClient::with_endpoint(&server_url).unwrap();
-        let old_device_message =
-            CoreUser::multi_device_provision_client(&api_client, session_id_tx)
-                .await
-                .unwrap();
+        let old_device_message = CoreUser::multi_device_provision_client(&domain, session_id_tx)
+            .await
+            .unwrap();
 
         assert_eq!(old_device_message, "pong!");
     });
@@ -70,14 +66,13 @@ async fn multi_device_link_with_nonexistent_session_id() {
 #[tracing::instrument(name = "Test second link attempt returns error", skip_all)]
 async fn multi_device_second_link_attempt_returns_error() {
     let mut setup = TestBackend::single().await;
-    let server_url = setup.server_url();
     let alice = setup.add_user().await;
+    let domain = alice.domain().clone();
 
     let (session_id_tx, session_id_rx) = tokio::sync::oneshot::channel();
 
     let new_device_task = tokio::spawn(async move {
-        let api_client = ApiClient::with_endpoint(&server_url).unwrap();
-        CoreUser::multi_device_provision_client(&api_client, session_id_tx)
+        CoreUser::multi_device_provision_client(&domain, session_id_tx)
             .await
             .unwrap()
     });
@@ -110,24 +105,22 @@ async fn multi_device_second_link_attempt_returns_error() {
 #[tracing::instrument(name = "Test concurrent linking sessions don't interfere", skip_all)]
 async fn multi_device_concurrent_linking_sessions_dont_interfere() {
     let mut setup = TestBackend::single().await;
-    let server_url = setup.server_url();
     let alice = setup.add_user().await;
+    let domain = alice.domain().clone();
     let bob = setup.add_user().await;
 
     let (alice_session_id_tx, alice_session_id_rx) = tokio::sync::oneshot::channel();
     let (bob_session_id_tx, bob_session_id_rx) = tokio::sync::oneshot::channel();
 
-    let server_url_clone = server_url.clone();
+    let domain_inner = domain.clone();
     let alice_new_device = tokio::spawn(async move {
-        let api_client = ApiClient::with_endpoint(&server_url_clone).unwrap();
-        CoreUser::multi_device_provision_client(&api_client, alice_session_id_tx)
+        CoreUser::multi_device_provision_client(&domain_inner, alice_session_id_tx)
             .await
             .unwrap()
     });
 
     let bob_new_device = tokio::spawn(async move {
-        let api_client = ApiClient::with_endpoint(&server_url).unwrap();
-        CoreUser::multi_device_provision_client(&api_client, bob_session_id_tx)
+        CoreUser::multi_device_provision_client(&domain, bob_session_id_tx)
             .await
             .unwrap()
     });

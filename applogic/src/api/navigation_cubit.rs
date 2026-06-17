@@ -40,6 +40,7 @@ pub enum IntroScreenType {
     InvitationCode,
     SignUp,
     UsernameOnboarding,
+    Linking,
     DeveloperSettings(DeveloperSettingsScreenType),
 }
 
