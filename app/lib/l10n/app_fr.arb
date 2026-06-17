@@ -18,6 +18,8 @@
   "userSettingsScreen_accountSection": "Compte",
   "userSettingsScreen_usernamePlaceholder": "Nom d'utilisateur",
   "userSettingsScreen_inviteCodes": "Codes d'invitation",
+
+  "userSettingsScreen_devices": "Appareils",
   "settingsScreen_copiedToClipboard": "Copié dans le presse-papiers",
   "removeUsernameDialog_title": "Supprimer le nom d'utilisateur",
   "removeUsernameDialog_content": "Si vous continuez, votre nom d'utilisateur sera supprimé et pourra être réclamé par quelqu'un d'autre. Vous ne serez plus accessible par son intermédiaire.",
@@ -72,7 +74,12 @@
   "changeGroupTitleDialog_content": "Choisissez un titre pour le groupe.",
   "changeGroupTitleDialog_cancel": "Annuler",
   "changeGroupTitleDialog_confirm": "Enregistrer",
-  "introScreen_signUp": "Commencer",
+  "introScreen_serverLabel": "Choisissez un serveur auquel vous connecter pour l'association.",
+  "introScreen_serverHint": "NOM DE DOMAINE",
+  "introScreen_error_invalidDomain": "Le domaine est invalide",
+
+  "introScreen_linkExisting": "Associer à un compte existant",
+  "introScreen_signUp": "Créer un compte",
   "introScreen_termsLinkText": "Conditions d'utilisation",
   "introScreen_termsText": "En vous inscrivant, vous acceptez nos {termsOfUseLink}.",
   "@introScreen_termsText": {
@@ -121,6 +128,69 @@
   "usernameOnboarding_next": "Suivant",
   "usernameOnboarding_usernameInputName": "Nom d'utilisateur (facultatif)",
   "usernameOnboarding_usernameInputHint": "Ajoutez un nom d'utilisateur...",
+  "linkingDeviceScreen_header": "Associer à un compte existant",
+  "linkingDeviceScreen_connecting": "Connexion…",
+  "linkingDeviceScreen_separator": "ou",
+  "linkingDeviceScreen_numericCode": "Code numérique",
+  "linkingDeviceScreen_linked": "Appareil associé 🙌",
+  "linkingDeviceScreen_instructions_1": "Ouvrez Air sur votre appareil existant et accédez à Profil → Appareils.",
+  "linkingDeviceScreen_instructions_2": "Touchez \"Associer un appareil\", puis scannez le code QR ou saisissez le code numérique affiché ci-dessus.",
+  "linkingDeviceScreen_instructions_3": "Gardez les deux applications ouvertes pendant le processus d'association.",
+  "linkingDeviceScreen_error_codesExpired_title": "Codes expirés",
+  "linkingDeviceScreen_error_codesExpired_message": "Pour associer cet appareil, rechargez les codes et réessayez.",
+  "linkingDeviceScreen_error_codesExpired_cancel": "Annuler",
+  "linkingDeviceScreen_error_codesExpired_reload": "Recharger",
+  "linkingDeviceScreen_error_generic": "Une erreur inconnue s'est produite, veuillez réessayer.",
+
+  "linkedDevicesScreen_title": "Appareils",
+  "linkedDevicesScreen_thisDevice": "Cet appareil",
+  "linkedDevicesScreen_linkedDevices": "Appareils associés",
+  "linkedDevicesScreen_linkedOn": "Associé le {date}",
+  "@linkedDevicesScreen_linkedOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "linkedDevicesScreen_editNameHint": "Touchez un appareil pour modifier son nom.",
+  "linkedDevicesScreen_linkDevice": "Associer un appareil",
+  "linkedDevicesScreen_deviceCount": "{count, plural, one {{count} appareil associé.} other {{count} appareils associés.}} Vous pouvez en associer jusqu'à {remaining} de plus.",
+  "@linkedDevicesScreen_deviceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "remaining": {
+        "type": "int"
+      }
+    }
+  },
+  "linkedDevicesScreen_encryptionNotice": "Les messages sont chiffrés de bout en bout sur tous les appareils. {learnMore}",
+  "@linkedDevicesScreen_encryptionNotice": {
+    "placeholders": {
+      "learnMore": {}
+    }
+  },
+  "linkedDevicesScreen_encryptionNotice_learnMore": "En savoir plus.",
+  "linkedDevicesScreen_encryptionDialog_title": "Chiffrement et association d'appareils",
+  "linkedDevicesScreen_encryptionDialog_content": "Sur Air, vos messages (y compris les pièces jointes) sont toujours chiffrés de bout en bout. Cela signifie que personne d'autre, pas même Air, ne peut les lire.\n\nLorsque vous associez un appareil, vos messages restent chiffrés et vous êtes le seul à pouvoir les lire.",
+  "linkedDevicesScreen_encryptionDialog_confirm": "D'accord",
+  "linkedDevicesScreen_linkDialog_chooseMethod": "Si vous utilisez un téléphone mobile ou une tablette avec une caméra fonctionnelle, choisissez \"Scanner le code QR\". Si vous utilisez un ordinateur ou un appareil dont la caméra est défectueuse, choisissez \"Saisir le code numérique\".",
+  "linkedDevicesScreen_linkDialog_openApp": "Sur l'appareil que vous souhaitez associer, ouvrez Air, puis touchez \"Associer à un compte existant\" sur l'écran d'accueil.",
+  "linkedDevicesScreen_linkDialog_scanQrCode": "Scanner le code QR",
+  "linkedDevicesScreen_linkDialog_enterNumericCode": "Saisir le code numérique",
+  "linkedDevicesScreen_linkDialog_warning": "Les appareils que vous associez auront un accès complet à votre compte Air (y compris la possibilité d'ajouter ou de supprimer des appareils - même celui-ci). N'associez que des appareils de confiance.",
+  "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Saisissez le code numérique affiché sur l'appareil que vous souhaitez associer.",
+  "linkedDevicesScreen_linkDialog_link": "Associer l'appareil",
+  "linkedDevicesScreen_deviceName_editDialog_title": "Modifier le nom de l'appareil",
+  "linkedDevicesScreen_deviceName_editDialog_cancel": "Annuler",
+  "linkedDevicesScreen_deviceName_editDialog_confirm": "Modifier",
+  "linkedDevicesScreen_unlinkDialog_title": "Dissocier l'appareil",
+  "linkedDevicesScreen_unlinkDialog_content": "L'appareil ne pourra plus envoyer ni recevoir de messages. Toutes les données de votre compte seront supprimées de l'appareil.",
+  "linkedDevicesScreen_unlinkDialog_cancel": "Annuler",
+  "linkedDevicesScreen_unlinkDialog_confirm": "Dissocier",
+
   "usernameScreen_title": "Ajouter un nom d'utilisateur",
   "usernameScreen_inputHint": "Saisissez un nom d'utilisateur...",
   "usernameScreen_error_emptyUsername": "Le nom d'utilisateur ne peut pas être vide",
@@ -133,6 +203,8 @@
   "usernameScreen_error_invalidCharacter": "Le nom d'utilisateur ne peut contenir que des lettres, des chiffres ou des tirets",
   "usernameScreen_error_consecutiveDashes": "Le nom d'utilisateur ne doit pas contenir de tirets consécutifs",
   "usernameScreen_error_leadingDigit": "Le nom d'utilisateur ne doit pas commencer par un chiffre",
+  "editDialog_characters_remaining": "{characters}/{remaining} caractères",
+
   "editDisplayNameScreen_title": "Modifier le nom d'affichage",
   "editDisplayNameScreen_description": "Choisissez un nom que les autres verront lorsque vous communiquez avec eux.",
   "editDisplayNameScreen_cancel": "Annuler",

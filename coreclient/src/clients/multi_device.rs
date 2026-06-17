@@ -72,14 +72,32 @@ fn export_aead_key(
     Ok(MultiDeviceLinkingKey::from_bytes(key_bytes))
 }
 
+#[derive(Debug)]
+pub enum MultiDeviceProvisionStep {
+    /// When the session is open and the server acknowledges it, we can use the session ID.
+    SessionId(LinkingSessionId),
+    /// When the existing client has connected on the other side.
+    Linking,
+}
+
 impl CoreUser {
     /// Provisions a new client for linking by connecting to the relay at `domain`.
     pub async fn multi_device_provision_client(
         domain: &Fqdn,
-        session_id_tx: tokio::sync::oneshot::Sender<LinkingSessionId>,
+        session_tx: tokio::sync::mpsc::Sender<MultiDeviceProvisionStep>,
     ) -> anyhow::Result<String> {
         let api_client = ApiClient::with_domain(domain).context("build api client")?;
+        Self::multi_device_provision_client_with_api(&api_client, session_tx).await
+    }
 
+    /// Like [`Self::multi_device_provision_client`] but against an explicit [`ApiClient`].
+    ///
+    /// Lets tests target an ephemeral server that [`ApiClient::with_domain`] (which hardcodes the
+    /// localhost port) can't reach.
+    pub async fn multi_device_provision_client_with_api(
+        api_client: &ApiClient,
+        session_tx: tokio::sync::mpsc::Sender<MultiDeviceProvisionStep>,
+    ) -> anyhow::Result<String> {
         let (provider, credential_with_key, signature_keys) =
             make_provider_and_credential(b"initiator")?;
 
@@ -108,12 +126,18 @@ impl CoreUser {
         let session_id = LinkingSessionId::from_digest(&key_package_checksum, session_id_length)
             .context("invalid session ID")?;
 
-        session_id_tx
-            .send(session_id)
+        session_tx
+            .send(MultiDeviceProvisionStep::SessionId(session_id))
+            .await
             .map_err(|_| anyhow!("session ID receiver dropped"))?;
 
         // wait for the existing (old) client to send us the welcome
         let welcome_bytes = rx.next().await.context("relay connection closed")??;
+        session_tx
+            .send(MultiDeviceProvisionStep::Linking)
+            .await
+            .map_err(|_| anyhow!("session ID receiver dropped"))?;
+
         let welcome_msg = MlsMessageIn::tls_deserialize_exact(welcome_bytes.as_slice())
             .context("failed to deserialize welcome")?;
         let welcome = match welcome_msg.extract() {
@@ -235,6 +259,10 @@ impl CoreUser {
             .into(),
         )
         .await?;
+
+        // Keep the RPC alive until the relay closes our stream, which happens once the new
+        // device has received the pong and disconnected.
+        while rx.next().await.is_some() {}
 
         Ok(answer_str)
     }

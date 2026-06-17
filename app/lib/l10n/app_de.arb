@@ -18,6 +18,8 @@
   "userSettingsScreen_accountSection": "Konto",
   "userSettingsScreen_usernamePlaceholder": "Benutzername",
   "userSettingsScreen_inviteCodes": "Einladungscodes",
+
+  "userSettingsScreen_devices": "Geräte",
   "settingsScreen_copiedToClipboard": "In Zwischenablage kopiert",
   "removeUsernameDialog_title": "Benutzername entfernen",
   "removeUsernameDialog_content": "Wenn du fortfährst, wird dein Benutzername entfernt und kann von jemand anderem beansprucht werden. Du wirst über ihn nicht mehr erreichbar sein.",
@@ -72,7 +74,12 @@
   "changeGroupTitleDialog_content": "Wähle einen Titel für die Gruppe.",
   "changeGroupTitleDialog_cancel": "Abbrechen",
   "changeGroupTitleDialog_confirm": "Speichern",
-  "introScreen_signUp": "Starten",
+  "introScreen_serverLabel": "Wähle einen Server, mit dem du dich zum Verknüpfen verbinden möchtest.",
+  "introScreen_serverHint": "DOMAINNAME",
+  "introScreen_error_invalidDomain": "Domain ist ungültig",
+
+  "introScreen_linkExisting": "Mit einem bestehenden Konto verknüpfen",
+  "introScreen_signUp": "Konto erstellen",
   "introScreen_termsLinkText": "Nutzungsbedingungen",
   "introScreen_termsText": "Mit deiner Registrierung stimmst du unseren {termsOfUseLink} zu.",
   "@introScreen_termsText": {
@@ -121,6 +128,69 @@
   "usernameOnboarding_next": "Weiter",
   "usernameOnboarding_usernameInputName": "Benutzername (optional)",
   "usernameOnboarding_usernameInputHint": "Benutzernamen hinzufügen...",
+  "linkingDeviceScreen_header": "Mit einem bestehenden Konto verknüpfen",
+  "linkingDeviceScreen_connecting": "Verbinden…",
+  "linkingDeviceScreen_separator": "oder",
+  "linkingDeviceScreen_numericCode": "Numerischer Code",
+  "linkingDeviceScreen_linked": "Gerät verknüpft 🙌",
+  "linkingDeviceScreen_instructions_1": "Öffne Air auf deinem bestehenden Gerät und gehe zu Du → Geräte.",
+  "linkingDeviceScreen_instructions_2": "Tippe auf \"Gerät verknüpfen\" und scanne dann den QR-Code oder gib den oben angezeigten numerischen Code ein.",
+  "linkingDeviceScreen_instructions_3": "Lass während des Verknüpfungsvorgangs beide Apps geöffnet.",
+  "linkingDeviceScreen_error_codesExpired_title": "Codes abgelaufen",
+  "linkingDeviceScreen_error_codesExpired_message": "Um dieses Gerät zu verknüpfen, lade die Codes neu und versuche es erneut.",
+  "linkingDeviceScreen_error_codesExpired_cancel": "Abbrechen",
+  "linkingDeviceScreen_error_codesExpired_reload": "Neu laden",
+  "linkingDeviceScreen_error_generic": "Ein unbekannter Fehler ist aufgetreten, bitte versuche es erneut.",
+
+  "linkedDevicesScreen_title": "Geräte",
+  "linkedDevicesScreen_thisDevice": "Dieses Gerät",
+  "linkedDevicesScreen_linkedDevices": "Verknüpfte Geräte",
+  "linkedDevicesScreen_linkedOn": "Verknüpft am {date}",
+  "@linkedDevicesScreen_linkedOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "linkedDevicesScreen_editNameHint": "Tippe auf ein Gerät, um seinen Namen zu ändern.",
+  "linkedDevicesScreen_linkDevice": "Gerät verknüpfen",
+  "linkedDevicesScreen_deviceCount": "{count, plural, one {{count} Gerät verknüpft.} other {{count} Geräte verknüpft.}} Du kannst bis zu {remaining} weitere verknüpfen.",
+  "@linkedDevicesScreen_deviceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "remaining": {
+        "type": "int"
+      }
+    }
+  },
+  "linkedDevicesScreen_encryptionNotice": "Nachrichten sind auf allen Geräten Ende-zu-Ende-verschlüsselt. {learnMore}",
+  "@linkedDevicesScreen_encryptionNotice": {
+    "placeholders": {
+      "learnMore": {}
+    }
+  },
+  "linkedDevicesScreen_encryptionNotice_learnMore": "Mehr erfahren.",
+  "linkedDevicesScreen_encryptionDialog_title": "Verschlüsselung und Geräteverknüpfung",
+  "linkedDevicesScreen_encryptionDialog_content": "Auf Air sind deine Nachrichten (einschließlich Anhänge) immer Ende-zu-Ende-verschlüsselt. Das bedeutet, dass niemand sonst, nicht einmal Air, sie lesen kann.\n\nWenn du ein Gerät verknüpfst, bleiben deine Nachrichten verschlüsselt und nur du kannst sie lesen.",
+  "linkedDevicesScreen_encryptionDialog_confirm": "Okay",
+  "linkedDevicesScreen_linkDialog_chooseMethod": "Wenn du ein Mobiltelefon oder Tablet mit funktionierender Kamera verwendest, wähle \"QR-Code scannen\". Wenn du einen Computer oder ein Gerät mit defekter Kamera verwendest, wähle \"Numerischen Code eingeben\".",
+  "linkedDevicesScreen_linkDialog_openApp": "Öffne Air auf dem Gerät, das du verknüpfen möchtest, und tippe dann auf dem Startbildschirm auf \"Mit einem bestehenden Konto verknüpfen\".",
+  "linkedDevicesScreen_linkDialog_scanQrCode": "QR-Code scannen",
+  "linkedDevicesScreen_linkDialog_enterNumericCode": "Numerischen Code eingeben",
+  "linkedDevicesScreen_linkDialog_warning": "Geräte, die du verknüpfst, haben vollen Zugriff auf dein Air-Konto (einschließlich der Möglichkeit, Geräte hinzuzufügen oder zu entfernen – sogar dieses). Verknüpfe nur Geräte, denen du vertraust.",
+  "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Gib den numerischen Code ein, der auf dem Gerät angezeigt wird, das du verknüpfen möchtest.",
+  "linkedDevicesScreen_linkDialog_link": "Gerät verknüpfen",
+  "linkedDevicesScreen_deviceName_editDialog_title": "Gerätenamen ändern",
+  "linkedDevicesScreen_deviceName_editDialog_cancel": "Abbrechen",
+  "linkedDevicesScreen_deviceName_editDialog_confirm": "Ändern",
+  "linkedDevicesScreen_unlinkDialog_title": "Geräteverknüpfung aufheben",
+  "linkedDevicesScreen_unlinkDialog_content": "Das Gerät kann dann keine Nachrichten mehr senden oder empfangen. Alle Daten deines Kontos werden vom Gerät gelöscht.",
+  "linkedDevicesScreen_unlinkDialog_cancel": "Abbrechen",
+  "linkedDevicesScreen_unlinkDialog_confirm": "Verknüpfung aufheben",
+
   "usernameScreen_title": "Benutzername hinzufügen",
   "usernameScreen_inputHint": "Gib einen Benutzernamen ein...",
   "usernameScreen_error_emptyUsername": "Benutzername darf nicht leer sein",
@@ -133,6 +203,8 @@
   "usernameScreen_error_invalidCharacter": "Benutzername darf nur Buchstaben, Zahlen oder Bindestriche enthalten",
   "usernameScreen_error_consecutiveDashes": "Benutzername darf keine aufeinanderfolgenden Bindestriche enthalten",
   "usernameScreen_error_leadingDigit": "Benutzername darf nicht mit einer Ziffer beginnen",
+  "editDialog_characters_remaining": "{characters}/{remaining} Zeichen",
+
   "editDisplayNameScreen_title": "Anzeigenamen ändern",
   "editDisplayNameScreen_description": "Wähle einen Namen, den andere sehen werden, wenn du mit ihnen kommunizierst.",
   "editDisplayNameScreen_cancel": "Abbrechen",

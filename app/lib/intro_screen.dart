@@ -50,7 +50,7 @@ class IntroScreen extends HookWidget {
       (UserSettingsCubit cubit) => cubit.state.isDeveloper,
     );
 
-    startLinking() async {
+    openLinking() async {
       await requestNotificationPermission();
       if (!context.mounted) return;
       context.read<NavigationCubit>().openLinking();
@@ -108,11 +108,7 @@ class IntroScreen extends HookWidget {
                         ConstrainedBox(
                           constraints: textFormConstraints,
                           child: _ServerTextField(
-                            onFieldSubmitted: () async {
-                              await requestNotificationPermission();
-                              if (!context.mounted) return;
-                              context.read<NavigationCubit>().openLinking();
-                            },
+                            onFieldSubmitted: openLinking,
                           ),
                         ),
                       ],
@@ -120,7 +116,7 @@ class IntroScreen extends HookWidget {
                         AppButton(
                           type: .secondary,
                           label: loc.introScreen_linkExisting,
-                          onPressed: startLinking,
+                          onPressed: openLinking,
                           onLongPress: () => serverFieldVisible.value = true,
                         ),
                         const SizedBox(height: Spacing.px8),
@@ -128,7 +124,11 @@ class IntroScreen extends HookWidget {
                       AppButton(
                         type: .primary,
                         label: loc.introScreen_signUp,
-                        onPressed: startLinking,
+                        onPressed: () async {
+                          await requestNotificationPermission();
+                          if (!context.mounted) return;
+                          context.read<NavigationCubit>().openSignUp();
+                        },
                       ),
                       const SizedBox(height: Spacing.px16),
                     ],
@@ -249,9 +249,7 @@ class _ServerTextField extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-
     final colors = CustomColorScheme.of(context);
-
     final focusNode = useFocusNode();
 
     return TextFormField(
@@ -266,7 +264,9 @@ class _ServerTextField extends HookWidget {
       },
       onFieldSubmitted: (_) {
         focusNode.requestFocus();
-        onFieldSubmitted();
+        if (context.read<RegistrationCubit>().state.isDomainValid) {
+          onFieldSubmitted();
+        }
       },
       validator: (value) =>
           context.read<RegistrationCubit>().state.isDomainValid

@@ -585,7 +585,7 @@ abstract class AppLocalizations {
   /// No description provided for @introScreen_termsText.
   ///
   /// In en, this message translates to:
-  /// **'By signing up, you agree to our {termsOfUseLink}.'**
+  /// **'By creating an account, you agree to our {termsOfUseLink}.'**
   String introScreen_termsText(Object termsOfUseLink);
 
   /// No description provided for @invitationCodeScreen_header.
@@ -831,7 +831,7 @@ abstract class AppLocalizations {
   /// No description provided for @linkingDeviceScreen_connecting.
   ///
   /// In en, this message translates to:
-  /// **'Connecting…'**
+  /// **'Connecting...'**
   String get linkingDeviceScreen_connecting;
 
   /// No description provided for @linkingDeviceScreen_separator.
@@ -845,6 +845,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Numeric code'**
   String get linkingDeviceScreen_numericCode;
+
+  /// No description provided for @linkingDeviceScreen_linking.
+  ///
+  /// In en, this message translates to:
+  /// **'Linking...'**
+  String get linkingDeviceScreen_linking;
 
   /// No description provided for @linkingDeviceScreen_linked.
   ///
@@ -894,11 +900,23 @@ abstract class AppLocalizations {
   /// **'Reload'**
   String get linkingDeviceScreen_error_codesExpired_reload;
 
-  /// No description provided for @linkingDeviceScreen_error_generic.
+  /// No description provided for @linkingDevicesScreen_error_title.
   ///
   /// In en, this message translates to:
-  /// **'An unknown error occurred, please try again.'**
-  String get linkingDeviceScreen_error_generic;
+  /// **'Linking failed'**
+  String get linkingDevicesScreen_error_title;
+
+  /// No description provided for @linkingDevicesScreen_error_generic.
+  ///
+  /// In en, this message translates to:
+  /// **'An unknown error occurred.'**
+  String get linkingDevicesScreen_error_generic;
+
+  /// No description provided for @linkingDevicesScreen_error_dismiss.
+  ///
+  /// In en, this message translates to:
+  /// **'Try again'**
+  String get linkingDevicesScreen_error_dismiss;
 
   /// No description provided for @linkedDevicesScreen_title.
   ///
@@ -999,7 +1017,7 @@ abstract class AppLocalizations {
   /// No description provided for @linkedDevicesScreen_linkDialog_warning.
   ///
   /// In en, this message translates to:
-  /// **'Devices you link will have full access to your Air account (including the ability to add or remove devices - even this one). Only link devices you trust.'**
+  /// **'Devices you link will have full access to your Air account (including the ability to add or remove devices — even this one). Only link devices you trust.'**
   String get linkedDevicesScreen_linkDialog_warning;
 
   /// No description provided for @linkedDevicesScreen_linkDialog_numericCodeInstructions.

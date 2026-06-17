@@ -9589,8 +9589,10 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           code: dco_decode_String(raw[2]),
         );
       case 1:
-        return MultiDeviceProvisionEvent_Linked(dco_decode_String(raw[1]));
+        return MultiDeviceProvisionEvent_Linking();
       case 2:
+        return MultiDeviceProvisionEvent_Linked(dco_decode_String(raw[1]));
+      case 3:
         return MultiDeviceProvisionEvent_Failed(dco_decode_String(raw[1]));
       default:
         throw Exception("unreachable");
@@ -12805,9 +12807,11 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           code: var_code,
         );
       case 1:
+        return MultiDeviceProvisionEvent_Linking();
+      case 2:
         var var_field0 = sse_decode_String(deserializer);
         return MultiDeviceProvisionEvent_Linked(var_field0);
-      case 2:
+      case 3:
         var var_field0 = sse_decode_String(deserializer);
         return MultiDeviceProvisionEvent_Failed(var_field0);
       default:
@@ -16477,11 +16481,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_32(0, serializer);
         sse_encode_opt_String(qrcodeSvg, serializer);
         sse_encode_String(code, serializer);
-      case MultiDeviceProvisionEvent_Linked(field0: final field0):
+      case MultiDeviceProvisionEvent_Linking():
         sse_encode_i_32(1, serializer);
+      case MultiDeviceProvisionEvent_Linked(field0: final field0):
+        sse_encode_i_32(2, serializer);
         sse_encode_String(field0, serializer);
       case MultiDeviceProvisionEvent_Failed(field0: final field0):
-        sse_encode_i_32(2, serializer);
+        sse_encode_i_32(3, serializer);
         sse_encode_String(field0, serializer);
     }
   }
@@ -18500,9 +18506,6 @@ class UserCubitBaseImpl extends RustOpaque implements UserCubitBase {
 
   /// Extracts the linking code from a scanned QR payload, validating that it targets this user's
   /// own home server. Returns `None` if `url` is not a multi-device linking URL for this domain.
-  ///
-  /// Lets the QR scanner filter out unrelated codes and decode linking codes with the same logic
-  /// (and domain) that produced them.
   String? parseMultiDeviceLinkingUrl({required String url}) => RustLib
       .instance
       .api

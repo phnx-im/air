@@ -10767,10 +10767,13 @@ impl SseDecode for crate::api::multi_device::MultiDeviceProvisionEvent {
                 };
             }
             1 => {
+                return crate::api::multi_device::MultiDeviceProvisionEvent::Linking;
+            }
+            2 => {
                 let mut var_field0 = <String>::sse_decode(deserializer);
                 return crate::api::multi_device::MultiDeviceProvisionEvent::Linked(var_field0);
             }
-            2 => {
+            3 => {
                 let mut var_field0 = <String>::sse_decode(deserializer);
                 return crate::api::multi_device::MultiDeviceProvisionEvent::Failed(var_field0);
             }
@@ -13800,11 +13803,14 @@ impl flutter_rust_bridge::IntoDart for crate::api::multi_device::MultiDeviceProv
                 code.into_into_dart().into_dart(),
             ]
             .into_dart(),
+            crate::api::multi_device::MultiDeviceProvisionEvent::Linking => {
+                [1.into_dart()].into_dart()
+            }
             crate::api::multi_device::MultiDeviceProvisionEvent::Linked(field0) => {
-                [1.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+                [2.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
             crate::api::multi_device::MultiDeviceProvisionEvent::Failed(field0) => {
-                [2.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+                [3.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
             _ => {
                 unimplemented!("");
@@ -16409,12 +16415,15 @@ impl SseEncode for crate::api::multi_device::MultiDeviceProvisionEvent {
                 <Option<String>>::sse_encode(qrcode_svg, serializer);
                 <String>::sse_encode(code, serializer);
             }
-            crate::api::multi_device::MultiDeviceProvisionEvent::Linked(field0) => {
+            crate::api::multi_device::MultiDeviceProvisionEvent::Linking => {
                 <i32>::sse_encode(1, serializer);
+            }
+            crate::api::multi_device::MultiDeviceProvisionEvent::Linked(field0) => {
+                <i32>::sse_encode(2, serializer);
                 <String>::sse_encode(field0, serializer);
             }
             crate::api::multi_device::MultiDeviceProvisionEvent::Failed(field0) => {
-                <i32>::sse_encode(2, serializer);
+                <i32>::sse_encode(3, serializer);
                 <String>::sse_encode(field0, serializer);
             }
             _ => {

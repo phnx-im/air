@@ -34,6 +34,11 @@ class _AwaitingLink extends _LinkingPhase {
   final String? qrcodeSvg;
 }
 
+/// The existing device has established the session.
+class _Linking extends _LinkingPhase {
+  _Linking();
+}
+
 /// The existing device connected and linking completed.
 class _Linked extends _LinkingPhase {
   _Linked({required this.answer});
@@ -85,17 +90,24 @@ class MultiDeviceProvisionScreen extends HookWidget {
           switch (event) {
             case MultiDeviceProvisionEvent_Code(:final code, :final qrcodeSvg):
               phase.value = _AwaitingLink(code: code, qrcodeSvg: qrcodeSvg);
+            case MultiDeviceProvisionEvent_Linking():
+              debugPrint("LINKING");
+              phase.value = _Linking();
             case MultiDeviceProvisionEvent_Linked(:final field0):
+              debugPrint("LINKED");
               phase.value = _Linked(answer: field0);
             case MultiDeviceProvisionEvent_Failed(:final field0):
               phase.value = _Failed(message: field0);
           }
         },
         onError: (Object error) {
-          phase.value = _Failed(message: loc.linkingDeviceScreen_error_generic);
+          phase.value = _Failed(
+            message: loc.linkingDevicesScreen_error_generic,
+          );
         },
         onDone: () {
           // the stream has been closed from the Rust side (i.e. timeout)
+          debugPrint("DONNNNEEE");
           if (phase.value is! _Linked) {
             phase.value = _Failed(
               message: loc.linkingDeviceScreen_error_codesExpired_message,
@@ -153,6 +165,7 @@ class MultiDeviceProvisionScreen extends HookWidget {
                 _Connecting() => const _ConnectingView(),
                 _AwaitingLink(:final code, :final qrcodeSvg) =>
                   _AwaitingLinkView(code: code, qrcodeSvg: qrcodeSvg),
+                _Linking() => const _LinkingView(),
                 _Linked() => const _LinkedView(),
                 // The failure is shown as a modal
                 _Failed() => const SizedBox.expand(),
@@ -235,7 +248,6 @@ class _ConnectingView extends StatelessWidget {
       mainAxisAlignment: .center,
       spacing: Spacing.px16,
       children: [
-        const CircularProgressIndicator(),
         Text(
           loc.linkingDeviceScreen_connecting,
           style: TextStyle(
@@ -243,6 +255,7 @@ class _ConnectingView extends StatelessWidget {
             color: colors.text.secondary,
           ),
         ),
+        const CircularProgressIndicator(),
       ],
     );
   }
@@ -433,6 +446,33 @@ class _AwaitingLinkView extends StatelessWidget {
   }
 }
 
+/// When linking with an existing client
+class _LinkingView extends StatelessWidget {
+  const _LinkingView();
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final colors = CustomColorScheme.of(context);
+
+    return Column(
+      mainAxisAlignment: .center,
+      spacing: Spacing.px16,
+      children: [
+        Text(
+          loc.linkingDeviceScreen_linking,
+          style: TextStyle(
+            fontSize: LabelFontSize.base.size,
+            color: colors.text.secondary,
+          ),
+        ),
+        const CircularProgressIndicator(),
+      ],
+    );
+  }
+}
+
+// TODO: this should not exist and will be a loading chat list instead?
 class _LinkedView extends StatelessWidget {
   const _LinkedView();
 

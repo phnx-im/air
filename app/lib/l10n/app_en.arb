@@ -100,7 +100,7 @@
   "introScreen_linkExisting": "Link to an existing account",
   "introScreen_signUp": "Create account",
   "introScreen_termsLinkText": "Terms of Use",
-  "introScreen_termsText": "By signing up, you agree to our {termsOfUseLink}.",
+  "introScreen_termsText": "By creating an account, you agree to our {termsOfUseLink}.",
   "@introScreen_termsText": {
     "placeholders": {
       "termsOfUseLink": {}
@@ -151,10 +151,11 @@
   "usernameOnboarding_usernameInputHint": "Add a username...",
 
   "linkingDeviceScreen_header": "Link to an existing account",
-  "linkingDeviceScreen_connecting": "Connecting…",
+  "linkingDeviceScreen_connecting": "Connecting...",
   "linkingDeviceScreen_separator": "or",
   "linkingDeviceScreen_numericCode": "Numeric code",
-  "linkingDeviceScreen_linked": "Device linked 🙌",
+  "linkingDeviceScreen_linking": "Linking...",
+  "linkingDeviceScreen_linked": "Device successfully linked!",
   "linkingDeviceScreen_instructions_1": "Open Air on your existing device and go to You → Manage devices.",
   "linkingDeviceScreen_instructions_2": "Tap \"Link a device\", then scan the QR code or enter the numeric code shown above.",
   "linkingDeviceScreen_instructions_3": "Keep both apps open during the linking process.",
@@ -162,7 +163,9 @@
   "linkingDeviceScreen_error_codesExpired_message": "To link this device, reload the codes and try again.",
   "linkingDeviceScreen_error_codesExpired_cancel": "Cancel",
   "linkingDeviceScreen_error_codesExpired_reload": "Reload",
-  "linkingDeviceScreen_error_generic": "An unknown error occurred, please try again.",
+  "linkingDevicesScreen_error_title": "Linking failed",
+  "linkingDevicesScreen_error_generic": "An unknown error occurred.",
+  "linkingDevicesScreen_error_dismiss": "Try again",
 
   "linkedDevicesScreen_title": "Devices",
   "linkedDevicesScreen_thisDevice": "This device",
@@ -202,7 +205,7 @@
   "linkedDevicesScreen_linkDialog_openApp": "On the device you want to link, open Air, then tap \"Link to an existing account\" on the start screen.",
   "linkedDevicesScreen_linkDialog_scanQrCode": "Scan QR code",
   "linkedDevicesScreen_linkDialog_enterNumericCode": "Enter numeric code",
-  "linkedDevicesScreen_linkDialog_warning": "Devices you link will have full access to your Air account (including the ability to add or remove devices - even this one). Only link devices you trust.",
+  "linkedDevicesScreen_linkDialog_warning": "Devices you link will have full access to your Air account (including the ability to add or remove devices — even this one). Only link devices you trust.",
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Enter the numeric code shown on the device you want to link.",
   "linkedDevicesScreen_linkDialog_link": "Link device",
   "linkedDevicesScreen_deviceName_editDialog_title": "Change device name",

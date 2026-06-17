@@ -49,6 +49,10 @@ sealed class MultiDeviceProvisionEvent with _$MultiDeviceProvisionEvent {
     required String code,
   }) = MultiDeviceProvisionEvent_Code;
 
+  /// The existing device has established the session and the linking process is underway.
+  const factory MultiDeviceProvisionEvent.linking() =
+      MultiDeviceProvisionEvent_Linking;
+
   /// The existing device connected and linking completed successfully.
   const factory MultiDeviceProvisionEvent.linked(String field0) =
       MultiDeviceProvisionEvent_Linked;

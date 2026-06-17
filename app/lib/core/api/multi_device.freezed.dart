@@ -113,6 +113,38 @@ as String,
 /// @nodoc
 
 
+class MultiDeviceProvisionEvent_Linking extends MultiDeviceProvisionEvent {
+  const MultiDeviceProvisionEvent_Linking(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceProvisionEvent_Linking);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'MultiDeviceProvisionEvent.linking()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
 class MultiDeviceProvisionEvent_Linked extends MultiDeviceProvisionEvent {
   const MultiDeviceProvisionEvent_Linked(this.field0): super._();
   

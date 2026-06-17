@@ -428,13 +428,16 @@ class AppLocalizationsSv extends AppLocalizations {
   String get linkingDeviceScreen_header => 'Link to an existing account';
 
   @override
-  String get linkingDeviceScreen_connecting => 'Connecting…';
+  String get linkingDeviceScreen_connecting => 'Connecting...';
 
   @override
   String get linkingDeviceScreen_separator => 'or';
 
   @override
   String get linkingDeviceScreen_numericCode => 'Numeric code';
+
+  @override
+  String get linkingDeviceScreen_linking => 'Linking...';
 
   @override
   String get linkingDeviceScreen_linked => 'Device linked 🙌';
@@ -465,8 +468,13 @@ class AppLocalizationsSv extends AppLocalizations {
   String get linkingDeviceScreen_error_codesExpired_reload => 'Reload';
 
   @override
-  String get linkingDeviceScreen_error_generic =>
-      'An unknown error occurred, please try again.';
+  String get linkingDevicesScreen_error_title => 'Linking failed';
+
+  @override
+  String get linkingDevicesScreen_error_generic => 'An unknown error occurred.';
+
+  @override
+  String get linkingDevicesScreen_error_dismiss => 'Try again';
 
   @override
   String get linkedDevicesScreen_title => 'Devices';
@@ -536,7 +544,7 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_linkDialog_warning =>
-      'Devices you link will have full access to your Air account (including the ability to add or remove devices - even this one). Only link devices you trust.';
+      'Devices you link will have full access to your Air account (including the ability to add or remove devices — even this one). Only link devices you trust.';
 
   @override
   String get linkedDevicesScreen_linkDialog_numericCodeInstructions =>

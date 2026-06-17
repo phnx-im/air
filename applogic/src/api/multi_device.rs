@@ -5,7 +5,7 @@
 //! Multi-device linking
 
 use aircommon::identifiers::Fqdn;
-use aircoreclient::clients::CoreUser;
+use aircoreclient::clients::{CoreUser, multi_device::MultiDeviceProvisionStep};
 use airprotos::relay_service::v1::LinkingSessionId;
 use anyhow::Result;
 use qrcode::QrCode;
@@ -67,6 +67,8 @@ pub enum MultiDeviceProvisionEvent {
         qrcode_svg: Option<String>,
         code: String,
     },
+    /// The existing device has established the session and the linking process is underway.
+    Linking,
     /// The existing device connected and linking completed successfully.
     Linked(String),
     /// The session ended without linking (e.g. it timed out or the connection dropped).
@@ -83,33 +85,42 @@ pub async fn multi_device_provision_client(
     sink: StreamSink<MultiDeviceProvisionEvent>,
 ) -> Result<()> {
     let domain: Fqdn = domain.parse()?;
-    let (session_id_tx, session_id_rx) = tokio::sync::oneshot::channel::<LinkingSessionId>();
+    let (session_tx, mut session_rx) = tokio::sync::mpsc::channel::<MultiDeviceProvisionStep>(1);
 
     let forward_code = async {
-        if let Ok(session_id) = session_id_rx.await {
-            let qrcode_svg = QrCode::new(multi_device_linking_url(&domain, &session_id))
-                .map(|code| {
-                    use qrcode::render::svg;
-                    code.render::<svg::Color>()
-                        .min_dimensions(200, 200)
-                        .dark_color(svg::Color("#000000"))
-                        .light_color(svg::Color("#FFFFFF"))
-                        .quiet_zone(false)
-                        .build()
-                })
-                .ok();
+        while let Some(msg) = session_rx.recv().await {
+            match msg {
+                MultiDeviceProvisionStep::SessionId(session_id) => {
+                    let qrcode_svg = QrCode::new(multi_device_linking_url(&domain, &session_id))
+                        .map(|code| {
+                            use qrcode::render::svg;
+                            code.render::<svg::Color>()
+                                .min_dimensions(200, 200)
+                                .dark_color(svg::Color("#000000"))
+                                .light_color(svg::Color("#FFFFFF"))
+                                .quiet_zone(false)
+                                .build()
+                        })
+                        .ok();
 
-            if let Err(error) = sink.add(MultiDeviceProvisionEvent::Code {
-                code: session_id.to_string(),
-                qrcode_svg,
-            }) {
-                error!(%error, "failed to forward MultiDeviceProvisionEvent to the Dart side");
+                    if let Err(error) = sink.add(MultiDeviceProvisionEvent::Code {
+                        code: session_id.to_string(),
+                        qrcode_svg,
+                    }) {
+                        error!(%error, "failed to forward MultiDeviceProvisionEvent to the Dart side");
+                    }
+                }
+                MultiDeviceProvisionStep::Linking => {
+                    if let Err(error) = sink.add(MultiDeviceProvisionEvent::Linking) {
+                        error!(%error, "failed to forward MultiDeviceProvisionEvent to the Dart side");
+                    }
+                }
             }
         }
     };
 
     let linking_session = async {
-        match CoreUser::multi_device_provision_client(&domain, session_id_tx).await {
+        match CoreUser::multi_device_provision_client(&domain, session_tx).await {
             Ok(answer) => {
                 if let Err(error) = sink.add(MultiDeviceProvisionEvent::Linked(answer)) {
                     error!(%error, "failed to forward MultiDeviceProvisionEvent to the Dart side");

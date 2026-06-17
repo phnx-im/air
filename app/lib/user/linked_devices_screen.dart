@@ -336,19 +336,13 @@ class _LinkChooserPage extends StatelessWidget {
 /// Second page: the QR-code scanner.
 ///
 /// Uses the device camera via [MobileScanner] on mobile. On platforms without
-/// camera scanning support (desktop/web) it falls back to a placeholder; those
-/// users are steered towards the numeric-code flow anyway.
-///
-/// consumes a linking code exists.
+/// camera scanning support (desktop/web) it falls back to a placeholder.
 class _ScanQrCodePage extends StatefulWidget {
   const _ScanQrCodePage({required this.onBack, required this.onCodeScanned});
 
   final VoidCallback onBack;
-
-  /// Called with the linking code once a linking QR is scanned.
   final ValueChanged<String> onCodeScanned;
 
-  /// Whether live camera scanning is available on this platform.
   static bool get _scannerSupported =>
       !kIsWeb &&
       (defaultTargetPlatform == TargetPlatform.android ||
@@ -369,8 +363,6 @@ class _ScanQrCodePageState extends State<_ScanQrCodePage> {
     final userCubit = context.read<UserCubit>();
     for (final raw in capture.barcodes.map((barcode) => barcode.rawValue)) {
       if (raw == null) continue;
-      // Parsing lives in Rust (the cubit), the single source of truth for the
-      // URL format, and validates the code targets our own home server.
       final sessionId = userCubit.parseLinkingUrl(raw);
       if (sessionId != null) {
         _handled = true;
@@ -645,6 +637,7 @@ class _LinkingPageState extends State<_LinkingPage> {
 
   @override
   Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final colors = CustomColorScheme.of(context);
 
     return FutureBuilder<String>(
@@ -670,31 +663,30 @@ class _LinkingPageState extends State<_LinkingPage> {
           });
         }
 
-        if (snapshot.hasError) {
-          debugPrint("$snapshot.error!");
-        }
-
-        final loc = AppLocalizations.of(context);
-
         return Column(
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.stretch,
           children: [
             _LinkModalHeader(
-              title: loc.linkedDevicesScreen_linkDevice,
+              title: loc.linkingDevicesScreen_error_title,
               onBack: snapshot.hasError ? widget.onBack : null,
             ),
             const SizedBox(height: Spacing.px24),
-            if (snapshot.hasError)
+            if (snapshot.hasError) ...[
               Text(
-                loc.linkingDeviceScreen_error_generic,
+                loc.linkingDevicesScreen_error_generic,
                 textAlign: TextAlign.center,
                 style: TextStyle(
-                  color: colors.function.danger,
+                  color: colors.text.primary,
                   fontSize: BodyFontSize.small2.size,
                 ),
-              )
-            else if (snapshot.hasData)
+              ),
+              const SizedBox(height: Spacing.px24),
+              AppButton(
+                label: loc.linkingDevicesScreen_error_dismiss,
+                onPressed: widget.onBack,
+              ),
+            ] else if (snapshot.hasData)
               Center(child: Text(snapshot.data!))
             else
               const Center(child: CircularProgressIndicator()),
