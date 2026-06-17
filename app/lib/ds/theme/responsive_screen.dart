@@ -2,8 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:io';
-
+import 'package:air/ds/foundations/device_type.dart';
 import 'package:flutter/widgets.dart';
 
 /// Different screen types
@@ -24,7 +23,7 @@ const double kMobileBreakpoint = 576;
 ResponsiveScreenType _screenType(double width) {
   if (width < kMobileBreakpoint) {
     return ResponsiveScreenType.mobile;
-  } else if (ResponsiveScreen.isTouch) {
+  } else if (DeviceType.isPhone) {
     return ResponsiveScreenType.tablet;
   } else {
     return ResponsiveScreenType.desktop;
@@ -63,8 +62,6 @@ class ResponsiveScreen extends StatefulWidget {
       context.responsiveScreenType == ResponsiveScreenType.tablet;
   static bool isDesktop(BuildContext context) =>
       context.responsiveScreenType == ResponsiveScreenType.desktop;
-
-  static bool isTouch = Platform.isIOS || Platform.isAndroid;
 
   @override
   State<ResponsiveScreen> createState() => _ResponsiveScreenState();

@@ -40,7 +40,7 @@ class InvitationCodeScreen extends HookWidget {
           loc.invitationCodeScreen_header,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        toolbarHeight: isPointer() ? 100 : null,
+        toolbarHeight: DeviceType.isDesktop ? 100 : null,
         backgroundColor: colors.backgroundBase.secondary,
       ),
       backgroundColor: backgroundColor,

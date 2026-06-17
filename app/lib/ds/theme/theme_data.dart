@@ -47,7 +47,7 @@ ThemeData themeData(Brightness brightness) {
       elevation: 0,
       iconTheme: IconThemeData(color: colorScheme.text.primary),
       centerTitle: true,
-      toolbarHeight: isPointer() ? 100 : null,
+      toolbarHeight: DeviceType.isDesktop ? 100 : null,
       systemOverlayStyle: brightness == Brightness.light
           ? SystemUiOverlayStyle.dark
           : SystemUiOverlayStyle.light,

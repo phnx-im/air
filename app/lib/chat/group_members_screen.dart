@@ -119,7 +119,7 @@ class GroupMembersView extends HookWidget {
         child: Align(
           alignment: Alignment.topCenter,
           child: Container(
-            constraints: isPointer()
+            constraints: DeviceType.isDesktop
                 ? const BoxConstraints(maxWidth: 800)
                 : null,
             child: Column(
