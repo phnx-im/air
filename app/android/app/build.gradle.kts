@@ -46,6 +46,9 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
+
+        // Enables desugaring for older APIs
+        isCoreLibraryDesugaringEnabled = true
     }
 
     flavorDimensions += "default"
