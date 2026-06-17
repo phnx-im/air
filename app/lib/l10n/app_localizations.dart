@@ -345,7 +345,7 @@ abstract class AppLocalizations {
   /// No description provided for @muteDurationSheet_untilTomorrow.
   ///
   /// In en, this message translates to:
-  /// **'Until tomorrow'**
+  /// **'Until midnight'**
   String get muteDurationSheet_untilTomorrow;
 
   /// No description provided for @muteDurationSheet_untilNextMonday.
@@ -357,7 +357,7 @@ abstract class AppLocalizations {
   /// No description provided for @muteDurationSheet_always.
   ///
   /// In en, this message translates to:
-  /// **'Always (until I change it)'**
+  /// **'Always'**
   String get muteDurationSheet_always;
 
   /// No description provided for @blockedChatFooter_message.

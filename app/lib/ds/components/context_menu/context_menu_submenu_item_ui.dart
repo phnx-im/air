@@ -115,6 +115,7 @@ class _ContextMenuSubmenuItemWidgetState
         link: _layerLink,
         child: TextButton(
           onPressed: _toggleSubmenu,
+          onHover: (hover) => hover ? _toggleSubmenu() : null,
           style: TextButton.styleFrom(
             shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.zero,

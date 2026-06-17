@@ -124,5 +124,54 @@ void main() {
         matchesGoldenFile('goldens/chat_list.png'),
       );
     });
+
+    testWidgets('renders correctly with mute menu open (mobile)', (
+      tester,
+    ) async {
+      final testChats = [chats[0]];
+      when(
+        () => chatListCubit.state,
+      ).thenReturn(ChatListState(chatIds: [chats[0].id]));
+
+      await tester.pumpWidget(buildSubject(chats: testChats));
+
+      await tester.longPress(find.text('Hello Alice'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mute'));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_list_mute_menu_mobile.png'),
+      );
+    });
+
+    testWidgets('renders correctly with mute menu open (desktop)', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(1400, 1000);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final testChats = [chats[0]];
+      when(
+        () => chatListCubit.state,
+      ).thenReturn(ChatListState(chatIds: [chats[0].id]));
+
+      await tester.pumpWidget(buildSubject(chats: testChats));
+
+      await tester.longPress(find.text('Hello Alice'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Mute'));
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/chat_list_mute_menu_desktop.png'),
+      );
+    });
   });
 }
