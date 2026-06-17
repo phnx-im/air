@@ -448,7 +448,7 @@ mod test {
     /// A short wake interval used in tests so the periodic ticker fires quickly.
     const TEST_WAKE_INTERVAL: Duration = Duration::from_millis(20);
 
-    #[tokio::test(start_paused = true)]
+    #[tokio::test]
     async fn periodic_wake_runs_work_while_started() {
         init_test_tracing();
 
@@ -459,22 +459,17 @@ mod test {
         assert_eq!(1, context.counter.load(Ordering::SeqCst));
 
         // Without any external notification, the periodic ticker wakes the started service and runs
-        // work again once the interval elapses. The start above ran work via a notification, which
-        // resets the ticker, so the next run only completes after the interval plus the work's own
-        // duration. With time paused we drive the clock forward in interval-sized steps until the
-        // work has run again. We advance in small steps (rather than one jump) because the global
-        // lock acquires via real SQLite I/O: stepping yields between advances so the woken work can
-        // acquire the lock and register its own sleep before we advance past it. Bounded so a
-        // regression that stops the ticker fails instead of hanging.
-        let mut elapsed = Duration::ZERO;
-        while context.counter.load(Ordering::SeqCst) < 2 {
-            assert!(
-                elapsed < Duration::from_secs(5),
-                "periodic wake should run work again while started"
-            );
-            time::advance(TEST_WAKE_INTERVAL).await;
-            elapsed += TEST_WAKE_INTERVAL;
-        }
+        // work again once the interval elapses. We cannot use paused time here: the global lock
+        // acquires via real SQLite I/O that virtual time cannot coordinate with. Instead we poll
+        // until a second run lands, bounded so a regression that stops the ticker fails fast
+        // instead of hanging.
+        timeout(Duration::from_secs(5), async {
+            while context.counter.load(Ordering::SeqCst) < 2 {
+                sleep(TEST_WAKE_INTERVAL).await;
+            }
+        })
+        .await
+        .expect("periodic wake should run work again while started");
     }
 
     #[tokio::test]
