@@ -49,9 +49,9 @@
   "muteDurationSheet_body": "Choose how long to mute the chat for.",
   "muteDurationSheet_1hour": "1 hour",
   "muteDurationSheet_8hours": "8 hours",
-  "muteDurationSheet_untilTomorrow": "Until tomorrow",
+  "muteDurationSheet_untilTomorrow": "Until midnight",
   "muteDurationSheet_untilNextMonday": "Until next Monday",
-  "muteDurationSheet_always": "Always (until I change it)",
+  "muteDurationSheet_always": "Always",
 
   "blockedChatFooter_message": "You won’t receive messages from {displayName} unless you unblock them.",
   "inactiveChatFooter_message": "You're no longer a member of this chat.",
