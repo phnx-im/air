@@ -436,7 +436,7 @@ class AppLocalizationsEn extends AppLocalizations {
   String get linkingDeviceScreen_linking => 'Linking...';
 
   @override
-  String get linkingDeviceScreen_linked => 'Device linked 🙌';
+  String get linkingDeviceScreen_linked => 'Device successfully linked!';
 
   @override
   String get linkingDeviceScreen_instructions_1 =>

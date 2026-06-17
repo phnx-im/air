@@ -855,7 +855,7 @@ abstract class AppLocalizations {
   /// No description provided for @linkingDeviceScreen_linked.
   ///
   /// In en, this message translates to:
-  /// **'Device linked 🙌'**
+  /// **'Device successfully linked!'**
   String get linkingDeviceScreen_linked;
 
   /// No description provided for @linkingDeviceScreen_instructions_1.

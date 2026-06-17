@@ -73,7 +73,7 @@ class AppLocalizationsSv extends AppLocalizations {
   String get userSettingsScreen_inviteCodes => 'Inbjudningskoder';
 
   @override
-  String get userSettingsScreen_devices => 'Devices';
+  String get userSettingsScreen_devices => 'Enheter';
 
   @override
   String get settingsScreen_copiedToClipboard => 'Kopierat till urklipp';
@@ -260,19 +260,19 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get introScreen_serverLabel =>
-      'Choose a server to connect to for linking.';
+      'Välj en server att ansluta till för länkning.';
 
   @override
-  String get introScreen_serverHint => 'DOMAIN NAME';
+  String get introScreen_serverHint => 'DOMÄNNAMN';
 
   @override
-  String get introScreen_error_invalidDomain => 'Domain is invalid';
+  String get introScreen_error_invalidDomain => 'Domänen är ogiltig';
 
   @override
-  String get introScreen_linkExisting => 'Link to an existing account';
+  String get introScreen_linkExisting => 'Länka till ett befintligt konto';
 
   @override
-  String get introScreen_signUp => 'Starta';
+  String get introScreen_signUp => 'Skapa konto';
 
   @override
   String get introScreen_termsLinkText => 'Användarvillkor';
@@ -425,156 +425,157 @@ class AppLocalizationsSv extends AppLocalizations {
       'Lägg till ett användarnamn...';
 
   @override
-  String get linkingDeviceScreen_header => 'Link to an existing account';
+  String get linkingDeviceScreen_header => 'Länka till ett befintligt konto';
 
   @override
-  String get linkingDeviceScreen_connecting => 'Connecting...';
+  String get linkingDeviceScreen_connecting => 'Ansluter...';
 
   @override
-  String get linkingDeviceScreen_separator => 'or';
+  String get linkingDeviceScreen_separator => 'eller';
 
   @override
-  String get linkingDeviceScreen_numericCode => 'Numeric code';
+  String get linkingDeviceScreen_numericCode => 'Numerisk kod';
 
   @override
-  String get linkingDeviceScreen_linking => 'Linking...';
+  String get linkingDeviceScreen_linking => 'Länkar...';
 
   @override
-  String get linkingDeviceScreen_linked => 'Device linked 🙌';
+  String get linkingDeviceScreen_linked => 'Enheten har länkats!';
 
   @override
   String get linkingDeviceScreen_instructions_1 =>
-      'Open Air on your existing device and go to You → Manage devices.';
+      'Öppna Air på din befintliga enhet och gå till Du → Enheter.';
 
   @override
   String get linkingDeviceScreen_instructions_2 =>
-      'Tap \"Link a device\", then scan the QR code or enter the numeric code shown above.';
+      'Tryck på \"Länka en enhet\" och skanna sedan QR-koden eller ange den numeriska koden som visas ovan.';
 
   @override
   String get linkingDeviceScreen_instructions_3 =>
-      'Keep both apps open during the linking process.';
+      'Håll båda apparna öppna under länkningsprocessen.';
 
   @override
-  String get linkingDeviceScreen_error_codesExpired_title => 'Codes expired';
+  String get linkingDeviceScreen_error_codesExpired_title =>
+      'Koderna har gått ut';
 
   @override
   String get linkingDeviceScreen_error_codesExpired_message =>
-      'To link this device, reload the codes and try again.';
+      'Ladda om koderna och försök igen för att länka den här enheten.';
 
   @override
-  String get linkingDeviceScreen_error_codesExpired_cancel => 'Cancel';
+  String get linkingDeviceScreen_error_codesExpired_cancel => 'Avbryt';
 
   @override
-  String get linkingDeviceScreen_error_codesExpired_reload => 'Reload';
+  String get linkingDeviceScreen_error_codesExpired_reload => 'Ladda om';
 
   @override
-  String get linkingDevicesScreen_error_title => 'Linking failed';
+  String get linkingDevicesScreen_error_title => 'Länkning misslyckades';
 
   @override
-  String get linkingDevicesScreen_error_generic => 'An unknown error occurred.';
+  String get linkingDevicesScreen_error_generic => 'Ett okänt fel uppstod.';
 
   @override
-  String get linkingDevicesScreen_error_dismiss => 'Try again';
+  String get linkingDevicesScreen_error_dismiss => 'Försök igen';
 
   @override
-  String get linkedDevicesScreen_title => 'Devices';
+  String get linkedDevicesScreen_title => 'Enheter';
 
   @override
-  String get linkedDevicesScreen_thisDevice => 'This device';
+  String get linkedDevicesScreen_thisDevice => 'Den här enheten';
 
   @override
-  String get linkedDevicesScreen_linkedDevices => 'Linked devices';
+  String get linkedDevicesScreen_linkedDevices => 'Länkade enheter';
 
   @override
   String linkedDevicesScreen_linkedOn(String date) {
-    return 'Linked on $date';
+    return 'Länkad den $date';
   }
 
   @override
   String get linkedDevicesScreen_editNameHint =>
-      'Tap a device to edit its name.';
+      'Tryck på en enhet för att ändra dess namn.';
 
   @override
-  String get linkedDevicesScreen_linkDevice => 'Link a device';
+  String get linkedDevicesScreen_linkDevice => 'Länka en enhet';
 
   @override
   String linkedDevicesScreen_deviceCount(int count, int remaining) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count devices linked.',
-      one: '$count device linked.',
+      other: '$count enheter länkade.',
+      one: '$count enhet länkad.',
     );
-    return '$_temp0 You can link up to $remaining more.';
+    return '$_temp0 Du kan länka upp till $remaining till.';
   }
 
   @override
   String linkedDevicesScreen_encryptionNotice(Object learnMore) {
-    return 'Messages are end-to-end encrypted on all devices. $learnMore';
+    return 'Meddelanden är end-to-end-krypterade på alla enheter. $learnMore';
   }
 
   @override
-  String get linkedDevicesScreen_encryptionNotice_learnMore => 'Learn more.';
+  String get linkedDevicesScreen_encryptionNotice_learnMore => 'Läs mer.';
 
   @override
   String get linkedDevicesScreen_encryptionDialog_title =>
-      'Encryption and device linking';
+      'Kryptering och enhetslänkning';
 
   @override
   String get linkedDevicesScreen_encryptionDialog_content =>
-      'On Air, your messages (including attachments) are always end-to-end encrypted. This means that nobody else, even Air, can read them.\n\nWhen you link a device, your messages are still encrypted and you\'re the only one who can read them.';
+      'På Air är dina meddelanden (inklusive bilagor) alltid end-to-end-krypterade. Det innebär att ingen annan, inte ens Air, kan läsa dem.\n\nNär du länkar en enhet förblir dina meddelanden krypterade och bara du kan läsa dem.';
 
   @override
-  String get linkedDevicesScreen_encryptionDialog_confirm => 'Okay';
+  String get linkedDevicesScreen_encryptionDialog_confirm => 'Okej';
 
   @override
   String get linkedDevicesScreen_linkDialog_chooseMethod =>
-      'If you\'re using a mobile phone or tablet with a working camera, choose \"Scan QR code\". If you\'re using a computer or a device with a broken camera, choose \"Enter numeric code\".';
+      'Om du använder en mobiltelefon eller surfplatta med en fungerande kamera, välj \"Skanna QR-kod\". Om du använder en dator eller en enhet med trasig kamera, välj \"Ange numerisk kod\".';
 
   @override
   String get linkedDevicesScreen_linkDialog_openApp =>
-      'On the device you want to link, open Air, then tap \"Link to an existing account\" on the start screen.';
+      'På enheten du vill länka, öppna Air och tryck sedan på \"Länka till ett befintligt konto\" på startskärmen.';
 
   @override
-  String get linkedDevicesScreen_linkDialog_scanQrCode => 'Scan QR code';
+  String get linkedDevicesScreen_linkDialog_scanQrCode => 'Skanna QR-kod';
 
   @override
   String get linkedDevicesScreen_linkDialog_enterNumericCode =>
-      'Enter numeric code';
+      'Ange numerisk kod';
 
   @override
   String get linkedDevicesScreen_linkDialog_warning =>
-      'Devices you link will have full access to your Air account (including the ability to add or remove devices — even this one). Only link devices you trust.';
+      'Enheter du länkar får full åtkomst till ditt Air-konto (inklusive möjligheten att lägga till eller ta bort enheter – även den här). Länka bara enheter du litar på.';
 
   @override
   String get linkedDevicesScreen_linkDialog_numericCodeInstructions =>
-      'Enter the numeric code shown on the device you want to link.';
+      'Ange den numeriska koden som visas på enheten du vill länka.';
 
   @override
-  String get linkedDevicesScreen_linkDialog_link => 'Link device';
+  String get linkedDevicesScreen_linkDialog_link => 'Länka enhet';
 
   @override
   String get linkedDevicesScreen_deviceName_editDialog_title =>
-      'Change device name';
+      'Ändra enhetsnamn';
 
   @override
-  String get linkedDevicesScreen_deviceName_editDialog_cancel => 'Cancel';
+  String get linkedDevicesScreen_deviceName_editDialog_cancel => 'Avbryt';
 
   @override
-  String get linkedDevicesScreen_deviceName_editDialog_confirm => 'Change';
+  String get linkedDevicesScreen_deviceName_editDialog_confirm => 'Ändra';
 
   @override
-  String get linkedDevicesScreen_unlinkDialog_title => 'Unlink device';
+  String get linkedDevicesScreen_unlinkDialog_title => 'Avlänka enhet';
 
   @override
   String get linkedDevicesScreen_unlinkDialog_content =>
-      'The device will no longer be able to send or receive messages. All of your account\'s data will be deleted from the device.';
+      'Enheten kommer inte längre att kunna skicka eller ta emot meddelanden. All data för ditt konto raderas från enheten.';
 
   @override
-  String get linkedDevicesScreen_unlinkDialog_cancel => 'Cancel';
+  String get linkedDevicesScreen_unlinkDialog_cancel => 'Avbryt';
 
   @override
-  String get linkedDevicesScreen_unlinkDialog_confirm => 'Unlink';
+  String get linkedDevicesScreen_unlinkDialog_confirm => 'Avlänka';
 
   @override
   String get usernameScreen_title => 'Lägg till användarnamn';
@@ -622,7 +623,7 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String editDialog_characters_remaining(Object characters, Object remaining) {
-    return '$characters/$remaining characters';
+    return '$characters/$remaining tecken';
   }
 
   @override

@@ -73,7 +73,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get userSettingsScreen_inviteCodes => 'Einladungscodes';
 
   @override
-  String get userSettingsScreen_devices => 'Devices';
+  String get userSettingsScreen_devices => 'Geräte';
 
   @override
   String get settingsScreen_copiedToClipboard => 'In Zwischenablage kopiert';
@@ -263,19 +263,20 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get introScreen_serverLabel =>
-      'Choose a server to connect to for linking.';
+      'Wähle einen Server, mit dem du dich zum Verknüpfen verbinden möchtest.';
 
   @override
-  String get introScreen_serverHint => 'DOMAIN NAME';
+  String get introScreen_serverHint => 'DOMAINNAME';
 
   @override
-  String get introScreen_error_invalidDomain => 'Domain is invalid';
+  String get introScreen_error_invalidDomain => 'Domain ist ungültig';
 
   @override
-  String get introScreen_linkExisting => 'Link to an existing account';
+  String get introScreen_linkExisting =>
+      'Mit einem bestehenden Konto verknüpfen';
 
   @override
-  String get introScreen_signUp => 'Starten';
+  String get introScreen_signUp => 'Konto erstellen';
 
   @override
   String get introScreen_termsLinkText => 'Nutzungsbedingungen';
@@ -429,156 +430,159 @@ class AppLocalizationsDe extends AppLocalizations {
       'Benutzernamen hinzufügen...';
 
   @override
-  String get linkingDeviceScreen_header => 'Link to an existing account';
+  String get linkingDeviceScreen_header =>
+      'Mit einem bestehenden Konto verknüpfen';
 
   @override
-  String get linkingDeviceScreen_connecting => 'Connecting...';
+  String get linkingDeviceScreen_connecting => 'Verbinden...';
 
   @override
-  String get linkingDeviceScreen_separator => 'or';
+  String get linkingDeviceScreen_separator => 'oder';
 
   @override
-  String get linkingDeviceScreen_numericCode => 'Numeric code';
+  String get linkingDeviceScreen_numericCode => 'Numerischer Code';
 
   @override
-  String get linkingDeviceScreen_linking => 'Linking...';
+  String get linkingDeviceScreen_linking => 'Verknüpfen...';
 
   @override
-  String get linkingDeviceScreen_linked => 'Device linked 🙌';
+  String get linkingDeviceScreen_linked => 'Gerät erfolgreich verknüpft!';
 
   @override
   String get linkingDeviceScreen_instructions_1 =>
-      'Open Air on your existing device and go to You → Manage devices.';
+      'Öffne Air auf deinem bestehenden Gerät und gehe zu Du → Geräte.';
 
   @override
   String get linkingDeviceScreen_instructions_2 =>
-      'Tap \"Link a device\", then scan the QR code or enter the numeric code shown above.';
+      'Tippe auf \"Gerät verknüpfen\" und scanne dann den QR-Code oder gib den oben angezeigten numerischen Code ein.';
 
   @override
   String get linkingDeviceScreen_instructions_3 =>
-      'Keep both apps open during the linking process.';
+      'Lass während des Verknüpfungsvorgangs beide Apps geöffnet.';
 
   @override
-  String get linkingDeviceScreen_error_codesExpired_title => 'Codes expired';
+  String get linkingDeviceScreen_error_codesExpired_title => 'Codes abgelaufen';
 
   @override
   String get linkingDeviceScreen_error_codesExpired_message =>
-      'To link this device, reload the codes and try again.';
+      'Um dieses Gerät zu verknüpfen, lade die Codes neu und versuche es erneut.';
 
   @override
-  String get linkingDeviceScreen_error_codesExpired_cancel => 'Cancel';
+  String get linkingDeviceScreen_error_codesExpired_cancel => 'Abbrechen';
 
   @override
-  String get linkingDeviceScreen_error_codesExpired_reload => 'Reload';
+  String get linkingDeviceScreen_error_codesExpired_reload => 'Neu laden';
 
   @override
-  String get linkingDevicesScreen_error_title => 'Linking failed';
+  String get linkingDevicesScreen_error_title => 'Verknüpfung fehlgeschlagen';
 
   @override
-  String get linkingDevicesScreen_error_generic => 'An unknown error occurred.';
+  String get linkingDevicesScreen_error_generic =>
+      'Ein unbekannter Fehler ist aufgetreten.';
 
   @override
-  String get linkingDevicesScreen_error_dismiss => 'Try again';
+  String get linkingDevicesScreen_error_dismiss => 'Erneut versuchen';
 
   @override
-  String get linkedDevicesScreen_title => 'Devices';
+  String get linkedDevicesScreen_title => 'Geräte';
 
   @override
-  String get linkedDevicesScreen_thisDevice => 'This device';
+  String get linkedDevicesScreen_thisDevice => 'Dieses Gerät';
 
   @override
-  String get linkedDevicesScreen_linkedDevices => 'Linked devices';
+  String get linkedDevicesScreen_linkedDevices => 'Verknüpfte Geräte';
 
   @override
   String linkedDevicesScreen_linkedOn(String date) {
-    return 'Linked on $date';
+    return 'Verknüpft am $date';
   }
 
   @override
   String get linkedDevicesScreen_editNameHint =>
-      'Tap a device to edit its name.';
+      'Tippe auf ein Gerät, um seinen Namen zu ändern.';
 
   @override
-  String get linkedDevicesScreen_linkDevice => 'Link a device';
+  String get linkedDevicesScreen_linkDevice => 'Gerät verknüpfen';
 
   @override
   String linkedDevicesScreen_deviceCount(int count, int remaining) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
-      other: '$count devices linked.',
-      one: '$count device linked.',
+      other: '$count Geräte verknüpft.',
+      one: '$count Gerät verknüpft.',
     );
-    return '$_temp0 You can link up to $remaining more.';
+    return '$_temp0 Du kannst bis zu $remaining weitere verknüpfen.';
   }
 
   @override
   String linkedDevicesScreen_encryptionNotice(Object learnMore) {
-    return 'Messages are end-to-end encrypted on all devices. $learnMore';
+    return 'Nachrichten sind auf allen Geräten Ende-zu-Ende-verschlüsselt. $learnMore';
   }
 
   @override
-  String get linkedDevicesScreen_encryptionNotice_learnMore => 'Learn more.';
+  String get linkedDevicesScreen_encryptionNotice_learnMore => 'Mehr erfahren.';
 
   @override
   String get linkedDevicesScreen_encryptionDialog_title =>
-      'Encryption and device linking';
+      'Verschlüsselung und Geräteverknüpfung';
 
   @override
   String get linkedDevicesScreen_encryptionDialog_content =>
-      'On Air, your messages (including attachments) are always end-to-end encrypted. This means that nobody else, even Air, can read them.\n\nWhen you link a device, your messages are still encrypted and you\'re the only one who can read them.';
+      'Auf Air sind deine Nachrichten (einschließlich Anhänge) immer Ende-zu-Ende-verschlüsselt. Das bedeutet, dass niemand sonst, nicht einmal Air, sie lesen kann.\n\nWenn du ein Gerät verknüpfst, bleiben deine Nachrichten verschlüsselt und nur du kannst sie lesen.';
 
   @override
   String get linkedDevicesScreen_encryptionDialog_confirm => 'Okay';
 
   @override
   String get linkedDevicesScreen_linkDialog_chooseMethod =>
-      'If you\'re using a mobile phone or tablet with a working camera, choose \"Scan QR code\". If you\'re using a computer or a device with a broken camera, choose \"Enter numeric code\".';
+      'Wenn du ein Mobiltelefon oder Tablet mit funktionierender Kamera verwendest, wähle \"QR-Code scannen\". Wenn du einen Computer oder ein Gerät mit defekter Kamera verwendest, wähle \"Numerischen Code eingeben\".';
 
   @override
   String get linkedDevicesScreen_linkDialog_openApp =>
-      'On the device you want to link, open Air, then tap \"Link to an existing account\" on the start screen.';
+      'Öffne Air auf dem Gerät, das du verknüpfen möchtest, und tippe dann auf dem Startbildschirm auf \"Mit einem bestehenden Konto verknüpfen\".';
 
   @override
-  String get linkedDevicesScreen_linkDialog_scanQrCode => 'Scan QR code';
+  String get linkedDevicesScreen_linkDialog_scanQrCode => 'QR-Code scannen';
 
   @override
   String get linkedDevicesScreen_linkDialog_enterNumericCode =>
-      'Enter numeric code';
+      'Numerischen Code eingeben';
 
   @override
   String get linkedDevicesScreen_linkDialog_warning =>
-      'Devices you link will have full access to your Air account (including the ability to add or remove devices — even this one). Only link devices you trust.';
+      'Geräte, die du verknüpfst, haben vollen Zugriff auf dein Air-Konto (einschließlich der Möglichkeit, Geräte hinzuzufügen oder zu entfernen – sogar dieses). Verknüpfe nur Geräte, denen du vertraust.';
 
   @override
   String get linkedDevicesScreen_linkDialog_numericCodeInstructions =>
-      'Enter the numeric code shown on the device you want to link.';
+      'Gib den numerischen Code ein, der auf dem Gerät angezeigt wird, das du verknüpfen möchtest.';
 
   @override
-  String get linkedDevicesScreen_linkDialog_link => 'Link device';
+  String get linkedDevicesScreen_linkDialog_link => 'Gerät verknüpfen';
 
   @override
   String get linkedDevicesScreen_deviceName_editDialog_title =>
-      'Change device name';
+      'Gerätenamen ändern';
 
   @override
-  String get linkedDevicesScreen_deviceName_editDialog_cancel => 'Cancel';
+  String get linkedDevicesScreen_deviceName_editDialog_cancel => 'Abbrechen';
 
   @override
-  String get linkedDevicesScreen_deviceName_editDialog_confirm => 'Change';
+  String get linkedDevicesScreen_deviceName_editDialog_confirm => 'Ändern';
 
   @override
-  String get linkedDevicesScreen_unlinkDialog_title => 'Unlink device';
+  String get linkedDevicesScreen_unlinkDialog_title =>
+      'Geräteverknüpfung aufheben';
 
   @override
   String get linkedDevicesScreen_unlinkDialog_content =>
-      'The device will no longer be able to send or receive messages. All of your account\'s data will be deleted from the device.';
+      'Das Gerät kann dann keine Nachrichten mehr senden oder empfangen. Alle Daten deines Kontos werden vom Gerät gelöscht.';
 
   @override
-  String get linkedDevicesScreen_unlinkDialog_cancel => 'Cancel';
+  String get linkedDevicesScreen_unlinkDialog_cancel => 'Abbrechen';
 
   @override
-  String get linkedDevicesScreen_unlinkDialog_confirm => 'Unlink';
+  String get linkedDevicesScreen_unlinkDialog_confirm => 'Verknüpfung aufheben';
 
   @override
   String get usernameScreen_title => 'Benutzername hinzufügen';
@@ -626,7 +630,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String editDialog_characters_remaining(Object characters, Object remaining) {
-    return '$characters/$remaining characters';
+    return '$characters/$remaining Zeichen';
   }
 
   @override
