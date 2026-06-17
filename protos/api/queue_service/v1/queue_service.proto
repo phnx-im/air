@@ -279,8 +279,8 @@ message InitListenRequest {
   common.v1.Signature signature = 5;
 }
 
-// WARNING: The signature is verified against the server's prost *re-encoding"
-// of this message, not the wire bytes. Threfore, to keep verifying signatures
+// WARNING: The signature is verified against the server's prost *re-encoding*
+// of this message, not the wire bytes. Therefore, to keep verifying signatures
 // from older clients the encoding must be stable: never reorder, renumber, or
 // remove fields (adding optional fields is fine).
 message InitListenPayload {
