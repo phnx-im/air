@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 mod bump_version;
+mod git_num_stats;
 mod prune_unused_l10n;
 mod publish_linux_packages;
 mod util;
@@ -31,6 +32,8 @@ enum Commands {
     /// Sign and publish a .deb or .rpm to an S3-hosted package repository.
     #[command(name = "publish-packages")]
     PublishLinuxPackages(publish_linux_packages::PublishArgs),
+    #[command(name = "git-line-count")]
+    GitNumStats(git_num_stats::GitNumStatsArgs),
 }
 
 fn main() -> anyhow::Result<()> {
@@ -39,5 +42,6 @@ fn main() -> anyhow::Result<()> {
         Commands::BumpVersion => bump_version::run(),
         Commands::PruneUnusedL10n(args) => prune_unused_l10n::run(args),
         Commands::PublishLinuxPackages(args) => publish_linux_packages::run(args),
+        Commands::GitNumStats(args) => git_num_stats::run(args),
     }
 }
