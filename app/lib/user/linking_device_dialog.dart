@@ -1,3 +1,7 @@
+// SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/button/glass_circle_button.dart';
 import 'package:air/ds/components/modal/app_dialog.dart';
