@@ -3,6 +3,8 @@ import java.io.FileInputStream
 
 plugins {
     id("com.android.application")
+    id("kotlin-android")
+    id("org.jetbrains.kotlin.plugin.serialization") version "2.1.0"
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
     id("com.google.gms.google-services")
@@ -21,12 +23,6 @@ if (keystorePropertiesFile.exists()) {
     keystoreProperties.load(FileInputStream(keystorePropertiesFile))
 }
 
-kotlin {
-    compilerOptions {
-        jvmTarget = org.jetbrains.kotlin.gradle.dsl.JvmTarget.JVM_17
-    }
-}
-
 android {
     namespace = "ms.air"
     compileSdk = flutter.compileSdkVersion
@@ -37,6 +33,10 @@ android {
         targetCompatibility = JavaVersion.VERSION_11
     }
 
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_11.toString()
+    }
+
     defaultConfig {
         applicationId = "ms.air"
         // You can update the following values to match your application needs.
@@ -45,10 +45,6 @@ android {
         targetSdk = flutter.targetSdkVersion
         versionCode = flutter.versionCode
         versionName = flutter.versionName
-    }
-
-    buildFeatures {
-        resValues = true 
     }
 
     flavorDimensions += "default"

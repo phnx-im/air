@@ -35,7 +35,6 @@
 .pub/
 /build/
 
-
 # Web related
 lib/generated_plugin_registrant.dart
 
@@ -50,8 +49,6 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 /android/app/.cxx
-/android/.kotlin
-/android/build
 
 # Rust
 target
