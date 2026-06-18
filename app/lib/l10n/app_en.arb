@@ -209,7 +209,7 @@
   "linkedDevicesScreen_linkDialog_chooseMethod": "If you're using a mobile phone or tablet with a working camera, choose \"Scan QR code\". If you're using a computer or a device with a broken camera, choose \"Enter numeric code\".",
   "linkedDevicesScreen_linkDialog_openApp": "On the device you want to link, open Air, then tap \"Link to an existing account\" on the start screen.",
   "linkedDevicesScreen_linkDialog_scanQrCode": "Scan QR code",
-  "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "Scan QR code (unavailable on this platform)",
+  "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "Scan QR code (unavailable)",
   "linkedDevicesScreen_linkDialog_enterNumericCode": "Enter numeric code",
   "linkedDevicesScreen_linkDialog_warning": "Devices you link will have full access to your Air account (including the ability to add or remove devices — even this one). Only link devices you trust.",
   "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Enter the numeric code shown on the device you want to link.",
