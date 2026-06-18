@@ -23,12 +23,12 @@ sealed class _LinkingPhase {
   const _LinkingPhase();
 }
 
-/// Connecting to the relay; no code assigned yet.
+/// Connecting to the relay, no session exists yet.
 class _Connecting extends _LinkingPhase {
   const _Connecting();
 }
 
-/// The relay assigned a [code]; waiting for the existing device to link.
+/// We have a [code] and are waiting for the existing device to link.
 class _AwaitingLink extends _LinkingPhase {
   const _AwaitingLink({required this.code, required this.qrcodeSvg});
   final String code;
@@ -89,9 +89,6 @@ class MultiDeviceProvisionScreen extends HookWidget {
       lastVisiblePhase.value = phase.value;
     }
 
-    // Subscribe to the provisioning stream while the screen is mounted. The
-    // subscription keeps the session alive, and cancelling it
-    // (on dispose or reload) tears it down.
     useEffect(() {
       phase.value = const _Connecting();
       final subscription = provisionClient(domain: domain).listen(
