@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:io';
-
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
 import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/foundations/themes.dart';
@@ -21,7 +19,6 @@ class AttachmentCategoryPicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = Platform.isAndroid || Platform.isIOS;
     final loc = AppLocalizations.of(context);
     return Row(
       mainAxisAlignment: .spaceEvenly,
@@ -33,7 +30,7 @@ class AttachmentCategoryPicker extends StatelessWidget {
             onCategorySelected?.call(AttachmentCategory.gallery);
           },
         ),
-        if (isMobile)
+        if (DeviceType.isPhone)
           _AttachmentCategoryButton(
             icon: const AppIcon.camera(),
             label: loc.attachment_camera,

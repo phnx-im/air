@@ -51,7 +51,9 @@ class InvitationCodesView extends StatelessWidget {
       child: Align(
         alignment: Alignment.topCenter,
         child: Container(
-          constraints: isPointer() ? const BoxConstraints(maxWidth: 800) : null,
+          constraints: DeviceType.isDesktop
+              ? const BoxConstraints(maxWidth: 800)
+              : null,
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,

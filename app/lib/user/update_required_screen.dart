@@ -26,7 +26,7 @@ class UpdateRequiredScreen extends StatelessWidget {
     final isOutdated = context.select(
       (UserCubit cubit) => cubit.state.unsupportedVersion,
     );
-    final showUpdateButton = Platform.isIOS || Platform.isAndroid;
+    final showUpdateButton = DeviceType.isPhone;
     return isOutdated
         ? UpdateRequiredView(showUpdateButton: showUpdateButton)
         : child;
@@ -50,7 +50,7 @@ class UpdateRequiredView extends StatelessWidget {
           loc.appOutdatedScreen_title,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        toolbarHeight: isPointer() ? 100 : null,
+        toolbarHeight: DeviceType.isDesktop ? 100 : null,
         backgroundColor: colors.backgroundBase.secondary,
       ),
       backgroundColor: colors.backgroundBase.secondary,

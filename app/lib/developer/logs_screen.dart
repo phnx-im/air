@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
-import 'dart:io';
 
 import 'package:air/util/platform.dart';
 import 'package:file_selector/file_selector.dart';
@@ -95,14 +94,14 @@ class LogsScreenView extends StatelessWidget {
         appBar: AppBar(
           clipBehavior: Clip.none,
           title: const Text('Logs'),
-          toolbarHeight: isPointer() ? 100 : null,
+          toolbarHeight: DeviceType.isDesktop ? 100 : null,
           leading: const AppBarBackButton(),
           actions: [
             PopupMenuButton(
               itemBuilder: (context) => [
-                if (Platform.isLinux || Platform.isMacOS || Platform.isWindows)
+                if (DeviceType.isDesktop)
                   PopupMenuItem(onTap: _saveLogs, child: const Text('Save')),
-                if (Platform.isAndroid || Platform.isIOS)
+                if (DeviceType.isPhone)
                   PopupMenuItem(onTap: _shareLogs, child: const Text('Share')),
                 PopupMenuItem(onTap: reloadLogs, child: const Text('Reload')),
                 PopupMenuItem(onTap: clearLogs, child: const Text('Clear')),

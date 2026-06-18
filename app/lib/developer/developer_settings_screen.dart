@@ -48,7 +48,7 @@ class _DeveloperSettingsScreenState extends State<DeveloperSettingsScreen> {
   build(BuildContext context) {
     return DeveloperSettingsScreenView(
       deviceToken: deviceToken,
-      isMobile: Platform.isAndroid || Platform.isIOS,
+      isMobile: DeviceType.isPhone,
       onRefreshPushToken: () =>
           _reRegisterPushToken(context.read<CoreClient>()),
     );
@@ -112,7 +112,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: Container(
-            constraints: isPointer()
+            constraints: DeviceType.isDesktop
                 ? const BoxConstraints(maxWidth: 800)
                 : null,
             child: ListTileTheme(

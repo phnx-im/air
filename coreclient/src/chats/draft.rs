@@ -128,8 +128,8 @@ mod persistence {
             chat_id: ChatId,
         ) -> sqlx::Result<()> {
             let in_reply_to_mimi_id = self.in_reply_to.as_ref().map(|(mimi_id, _)| mimi_id);
-            query!(
-                "INSERT INTO message_draft (
+            let result = query!(
+                r#"INSERT INTO message_draft (
                     chat_id,
                     message,
                     editing_id,
@@ -137,13 +137,14 @@ mod persistence {
                     updated_at,
                     is_committed
                 )
-                VALUES (?, ?, ?, ?, ?, ?)
+                SELECT ?1, ?2, ?3, ?4, ?5, ?6
+                WHERE EXISTS (SELECT 1 FROM chat WHERE chat_id = ?1)
                 ON CONFLICT(chat_id) DO UPDATE SET
                     message = excluded.message,
                     editing_id = excluded.editing_id,
                     in_reply_to_mimi_id = excluded.in_reply_to_mimi_id,
                     updated_at = excluded.updated_at,
-                    is_committed = excluded.is_committed",
+                    is_committed = excluded.is_committed"#,
                 chat_id,
                 self.message,
                 self.editing_id,
@@ -153,7 +154,7 @@ mod persistence {
             )
             .execute(connection.as_mut())
             .await?;
-            if self.is_committed {
+            if self.is_committed && result.rows_affected() > 0 {
                 connection.notifier().update(chat_id);
             }
             Ok(())

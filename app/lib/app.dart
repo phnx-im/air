@@ -88,14 +88,14 @@ class _AppState extends State<App> with WidgetsBindingObserver {
   Future<void> _onStateChanged(AppLifecycleState state) async {
     // Detect background transitions
 
-    if (isPointer() && state == AppLifecycleState.inactive) {
+    if (DeviceType.isDesktop && state == AppLifecycleState.inactive) {
       // On desktop platforms, the inactive state is entered when the user
       // switches to another app. In that case, we want to treat it as
       // background state.
       _appStateController.sink.add(AppState.desktopBackground);
       return;
     }
-    if (isTouch() && state == AppLifecycleState.paused) {
+    if (DeviceType.isPhone && state == AppLifecycleState.paused) {
       // On mobile platforms, the paused state is entered when the app
       // is closed. In that case, we want to treat it as background state.
       _appStateController.sink.add(AppState.mobileBackground);
