@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                qs_user_id AS \"qs_user_id: _\",\n                qs_client_id AS \"qs_client_id: _\",\n                user_uuid AS \"user_uuid: _\",\n                user_domain AS \"user_domain: _\",\n                self_group_id AS \"self_group_id: _\"\n            FROM own_client_info",
+  "describe": {
+    "columns": [
+      {
+        "name": "qs_user_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "own_client_info",
+            "name": "qs_user_id"
+          }
+        }
+      },
+      {
+        "name": "qs_client_id: _",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "own_client_info",
+            "name": "qs_client_id"
+          }
+        }
+      },
+      {
+        "name": "user_uuid: _",
+        "ordinal": 2,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "own_client_info",
+            "name": "user_uuid"
+          }
+        }
+      },
+      {
+        "name": "user_domain: _",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "own_client_info",
+            "name": "user_domain"
+          }
+        }
+      },
+      {
+        "name": "self_group_id: _",
+        "ordinal": 4,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "own_client_info",
+            "name": "self_group_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      true
+    ]
+  },
+  "hash": "34ba9c7477d243ea0bd135d18467bf1ea7a8d9012e54470ffed404f67724620a"
+}

@@ -8,8 +8,8 @@ use crate::queue_service::v1::{
     CreateClientPayload, CreateClientRequest, DeleteClientPayload, DeleteClientRequest,
     DeleteUserPayload, DeleteUserRequest, InitListenPayload, InitListenRequest,
     PublishApqKeyPackagesPayload, PublishApqKeyPackagesRequest, PublishKeyPackagesPayload,
-    PublishKeyPackagesRequest, UpdateClientPayload, UpdateClientRequest, UpdateUserPayload,
-    UpdateUserRequest,
+    PublishKeyPackagesRequest, StageKeyPackagesPayload, StageKeyPackagesRequest,
+    UpdateClientPayload, UpdateClientRequest, UpdateUserPayload, UpdateUserRequest,
 };
 use crate::sign::impl_signed_payload;
 
@@ -67,4 +67,11 @@ impl_signed_payload!(
     InitListenPayload,
     QsClientVerifyingKeyType,
     "InitListenPayload"
+);
+
+impl_signed_payload!(
+    StageKeyPackagesRequest,
+    StageKeyPackagesPayload,
+    QsClientVerifyingKeyType,
+    "StageKeyPackagesPayload"
 );

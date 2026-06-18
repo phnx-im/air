@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "INSERT INTO key_package (client_id, key_package, is_last_resort)\n            SELECT c.client_id, s.key_package, s.is_last_resort\n            FROM qs_staged_key_package s\n            JOIN qs_client_record c ON c.user_id = $1 AND c.deleted_at IS NULL\n            WHERE s.batch_id = $2 AND s.is_apq = false\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Int4"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "f22ed9d13bf57eb9808c2c97bdba59099fd545a3332123db82bd512d589bc13c"
+}

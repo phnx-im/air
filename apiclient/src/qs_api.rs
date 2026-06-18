@@ -30,8 +30,8 @@ use airprotos::{
     queue_service::v1::{
         AckListenRequest, ApqKeyPackageRequest, CreateClientPayload, DeleteClientPayload,
         DeleteUserPayload, FetchListenRequest, InitListenPayload, ListenResponse,
-        PublishApqKeyPackagesPayload, PublishKeyPackagesPayload, UpdateClientPayload,
-        UpdateUserPayload, listen_request,
+        PublishApqKeyPackagesPayload, PublishKeyPackagesPayload, StageKeyPackagesPayload,
+        UpdateClientPayload, UpdateUserPayload, listen_request,
     },
 };
 use airprotos::{
@@ -264,6 +264,34 @@ impl ApiClient {
         self.qs_grpc_client()
             .publish_apq_key_packages(request)
             .await?;
+        Ok(())
+    }
+
+    pub async fn qs_stage_key_packages(
+        &self,
+        client_id: QsClientId,
+        epoch_id: Vec<u8>,
+        random: Vec<u8>,
+        key_packages: Vec<KeyPackage>,
+        apq_key_packages: Vec<ApqKeyPackage>,
+        signing_key: &QsClientSigningKey,
+    ) -> Result<(), QsRequestError> {
+        let payload = StageKeyPackagesPayload {
+            client_metadata: Some(self.metadata().clone()),
+            client_id: Some(client_id.into()),
+            epoch_id,
+            random,
+            key_packages: key_packages
+                .into_iter()
+                .map(|key_package| key_package.try_into())
+                .collect::<Result<Vec<_>, _>>()?,
+            apq_key_packages: apq_key_packages
+                .into_iter()
+                .map(|key_package| key_package.try_into())
+                .collect::<Result<Vec<_>, _>>()?,
+        };
+        let request = payload.sign(signing_key)?;
+        self.qs_grpc_client().stage_key_packages(request).await?;
         Ok(())
     }
 

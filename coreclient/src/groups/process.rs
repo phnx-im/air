@@ -235,7 +235,7 @@ impl Group {
     ) -> Result<PostProcessAadResult> {
         // Let's figure out which operation this is meant to be.
         let aad_payload =
-            AadMessage::tls_deserialize_exact_bytes(processed_message.aad())?.into_payload();
+            AadMessage::tls_deserialize_exact_bytes(processed_message.tail_aad())?.into_payload();
         let result = match aad_payload {
             AadPayload::GroupOperation(group_operation_payload) => {
                 let encrypted_profile_infos = self
