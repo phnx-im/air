@@ -12,6 +12,201 @@ part of 'multi_device.dart';
 // dart format off
 T _$identity<T>(T value) => value;
 /// @nodoc
+mixin _$MultiDeviceLinkEvent {
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceLinkEvent);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'MultiDeviceLinkEvent()';
+}
+
+
+}
+
+/// @nodoc
+class $MultiDeviceLinkEventCopyWith<$Res>  {
+$MultiDeviceLinkEventCopyWith(MultiDeviceLinkEvent _, $Res Function(MultiDeviceLinkEvent) __);
+}
+
+
+
+/// @nodoc
+
+
+class MultiDeviceLinkEvent_AwaitingConfirmation extends MultiDeviceLinkEvent {
+  const MultiDeviceLinkEvent_AwaitingConfirmation(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceLinkEvent_AwaitingConfirmation);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'MultiDeviceLinkEvent.awaitingConfirmation()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
+class MultiDeviceLinkEvent_Linked extends MultiDeviceLinkEvent {
+  const MultiDeviceLinkEvent_Linked(this.field0): super._();
+  
+
+ final  String field0;
+
+/// Create a copy of MultiDeviceLinkEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MultiDeviceLinkEvent_LinkedCopyWith<MultiDeviceLinkEvent_Linked> get copyWith => _$MultiDeviceLinkEvent_LinkedCopyWithImpl<MultiDeviceLinkEvent_Linked>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceLinkEvent_Linked&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'MultiDeviceLinkEvent.linked(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MultiDeviceLinkEvent_LinkedCopyWith<$Res> implements $MultiDeviceLinkEventCopyWith<$Res> {
+  factory $MultiDeviceLinkEvent_LinkedCopyWith(MultiDeviceLinkEvent_Linked value, $Res Function(MultiDeviceLinkEvent_Linked) _then) = _$MultiDeviceLinkEvent_LinkedCopyWithImpl;
+@useResult
+$Res call({
+ String field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$MultiDeviceLinkEvent_LinkedCopyWithImpl<$Res>
+    implements $MultiDeviceLinkEvent_LinkedCopyWith<$Res> {
+  _$MultiDeviceLinkEvent_LinkedCopyWithImpl(this._self, this._then);
+
+  final MultiDeviceLinkEvent_Linked _self;
+  final $Res Function(MultiDeviceLinkEvent_Linked) _then;
+
+/// Create a copy of MultiDeviceLinkEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(MultiDeviceLinkEvent_Linked(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
+
+
+class MultiDeviceLinkEvent_Failed extends MultiDeviceLinkEvent {
+  const MultiDeviceLinkEvent_Failed(this.field0): super._();
+  
+
+ final  String field0;
+
+/// Create a copy of MultiDeviceLinkEvent
+/// with the given fields replaced by the non-null parameter values.
+@JsonKey(includeFromJson: false, includeToJson: false)
+@pragma('vm:prefer-inline')
+$MultiDeviceLinkEvent_FailedCopyWith<MultiDeviceLinkEvent_Failed> get copyWith => _$MultiDeviceLinkEvent_FailedCopyWithImpl<MultiDeviceLinkEvent_Failed>(this, _$identity);
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceLinkEvent_Failed&&(identical(other.field0, field0) || other.field0 == field0));
+}
+
+
+@override
+int get hashCode => Object.hash(runtimeType,field0);
+
+@override
+String toString() {
+  return 'MultiDeviceLinkEvent.failed(field0: $field0)';
+}
+
+
+}
+
+/// @nodoc
+abstract mixin class $MultiDeviceLinkEvent_FailedCopyWith<$Res> implements $MultiDeviceLinkEventCopyWith<$Res> {
+  factory $MultiDeviceLinkEvent_FailedCopyWith(MultiDeviceLinkEvent_Failed value, $Res Function(MultiDeviceLinkEvent_Failed) _then) = _$MultiDeviceLinkEvent_FailedCopyWithImpl;
+@useResult
+$Res call({
+ String field0
+});
+
+
+
+
+}
+/// @nodoc
+class _$MultiDeviceLinkEvent_FailedCopyWithImpl<$Res>
+    implements $MultiDeviceLinkEvent_FailedCopyWith<$Res> {
+  _$MultiDeviceLinkEvent_FailedCopyWithImpl(this._self, this._then);
+
+  final MultiDeviceLinkEvent_Failed _self;
+  final $Res Function(MultiDeviceLinkEvent_Failed) _then;
+
+/// Create a copy of MultiDeviceLinkEvent
+/// with the given fields replaced by the non-null parameter values.
+@pragma('vm:prefer-inline') $Res call({Object? field0 = null,}) {
+  return _then(MultiDeviceLinkEvent_Failed(
+null == field0 ? _self.field0 : field0 // ignore: cast_nullable_to_non_nullable
+as String,
+  ));
+}
+
+
+}
+
+/// @nodoc
 mixin _$MultiDeviceProvisionEvent {
 
 

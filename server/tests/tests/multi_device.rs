@@ -7,6 +7,20 @@ use aircoreclient::clients::{CoreUser, multi_device::MultiDeviceProvisionStep};
 use airprotos::relay_service::v1::LinkingSessionId;
 use airserver_test_harness::utils::setup::TestBackend;
 
+/// A confirmation receiver that is already fulfilled, so the acceptor proceeds
+/// without waiting for user confirmation in tests.
+fn auto_confirm() -> tokio::sync::oneshot::Receiver<()> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    tx.send(()).unwrap();
+    rx
+}
+
+/// A connected-signal sender whose receiver is dropped; the acceptor ignores the
+/// send failure, so tests don't need to observe the "connected" signal.
+fn ignore_connected() -> tokio::sync::oneshot::Sender<()> {
+    tokio::sync::oneshot::channel().0
+}
+
 /// Receives the session ID from the first provisioning step. The receiver must
 /// stay alive afterwards: the new device later sends a `Linking` step, and
 /// dropping the receiver would make that send fail and abort provisioning.
@@ -48,7 +62,7 @@ async fn multi_device_linking_session() {
     let new_device_message = setup
         .get_user(&alice)
         .user()
-        .multi_device_link_client(session_id)
+        .multi_device_link_client(session_id, ignore_connected(), auto_confirm())
         .await
         .unwrap();
 
@@ -73,7 +87,7 @@ async fn multi_device_link_with_nonexistent_session_id() {
     let result = setup
         .get_user(&alice)
         .user()
-        .multi_device_link_client(fake_session_id)
+        .multi_device_link_client(fake_session_id, ignore_connected(), auto_confirm())
         .await;
 
     assert!(result.is_err());
@@ -102,7 +116,7 @@ async fn multi_device_second_link_attempt_returns_error() {
     let result = setup
         .get_user(&alice)
         .user()
-        .multi_device_link_client(session_id.clone())
+        .multi_device_link_client(session_id.clone(), ignore_connected(), auto_confirm())
         .await
         .unwrap();
     assert_eq!(result, "ping!");
@@ -113,7 +127,7 @@ async fn multi_device_second_link_attempt_returns_error() {
     let second_result = setup
         .get_user(&alice)
         .user()
-        .multi_device_link_client(session_id)
+        .multi_device_link_client(session_id, ignore_connected(), auto_confirm())
         .await;
 
     assert!(second_result.is_err());
@@ -156,7 +170,7 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
     let alice_result = setup
         .get_user(&alice)
         .user()
-        .multi_device_link_client(alice_session_id)
+        .multi_device_link_client(alice_session_id, ignore_connected(), auto_confirm())
         .await
         .unwrap();
     assert_eq!(alice_result, "ping!");
@@ -164,7 +178,7 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
     let bob_result = setup
         .get_user(&bob)
         .user()
-        .multi_device_link_client(bob_session_id)
+        .multi_device_link_client(bob_session_id, ignore_connected(), auto_confirm())
         .await
         .unwrap();
     assert_eq!(bob_result, "ping!");

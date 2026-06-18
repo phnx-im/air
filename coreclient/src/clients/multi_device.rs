@@ -21,6 +21,7 @@ use openmls_rust_crypto::OpenMlsRustCrypto;
 use openmls_traits::OpenMlsProvider;
 use sha2::{Digest, Sha256};
 use tls_codec::{Deserialize, DeserializeBytes, Serialize};
+use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
 use tracing::info;
 
@@ -133,6 +134,7 @@ impl CoreUser {
 
         // wait for the existing (old) client to send us the welcome
         let welcome_bytes = rx.next().await.context("relay connection closed")??;
+
         session_tx
             .send(MultiDeviceProvisionStep::Linking)
             .await
@@ -182,6 +184,8 @@ impl CoreUser {
     pub async fn multi_device_link_client(
         &self,
         session_id: LinkingSessionId,
+        connected_tx: oneshot::Sender<()>,
+        confirmation_rx: oneshot::Receiver<()>,
     ) -> anyhow::Result<String> {
         let client = self.api_client()?;
         let qs_user_id = self.inner.qs_user_id;
@@ -190,6 +194,9 @@ impl CoreUser {
         let (tx, mut rx) = client
             .rs_multi_device_link_client(qs_user_id, &qs_user_signing_key, session_id.clone())
             .await?;
+
+        // Signal that we're connected to the relay
+        let _ = connected_tx.send(());
 
         let key_package_bytes = rx.next().await.context("relay connection closed")??;
 
@@ -236,6 +243,11 @@ impl CoreUser {
         tx.send(welcome_bytes.into())
             .await
             .context("send welcome")?;
+
+        // Wait for confirmation from the client
+        confirmation_rx
+            .await
+            .context("confirmation channel closed")?;
 
         // TODO: maybe use OpenMLS application messages instead? (because they're signed?)
         let cipher = export_aead_key(group, provider)?;

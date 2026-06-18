@@ -454,6 +454,24 @@ class AppLocalizationsFr extends AppLocalizations {
   String get linkingDeviceScreen_linked => 'Appareil associé avec succès !';
 
   @override
+  String get linkingDeviceScreen_linking_confirm_title => 'Confirm linking';
+
+  @override
+  String get linkingDeviceScreen_linking_confirm_edit_subtitle =>
+      'Tap to edit device name';
+
+  @override
+  String get linkingDeviceScreen_linking_confirm_body =>
+      'You\'re about to link a new device, which will have full access to your Air account. Only do this if the device belongs to you.';
+
+  @override
+  String get linkingDeviceScreen_linking_confirm_checkbox =>
+      'I want to link this device.';
+
+  @override
+  String get linkingDeviceScreen_linking_confirm_button => 'Confirm';
+
+  @override
   String get linkingDeviceScreen_instructions_1 =>
       'Ouvrez Air sur votre appareil existant et accédez à Profil → Appareils.';
 
@@ -550,6 +568,10 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_linkDialog_scanQrCode => 'Scanner le code QR';
+
+  @override
+  String get linkedDevicesScreen_linkDialog_scanQrCode_unavailable =>
+      'Scan QR code (unavailable on this platform)';
 
   @override
   String get linkedDevicesScreen_linkDialog_enterNumericCode =>

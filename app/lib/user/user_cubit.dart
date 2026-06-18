@@ -116,8 +116,17 @@ class UserCubit implements StateStreamableSource<UiUser> {
     return _impl.uploadLogs(cacheDir: cacheDir);
   }
 
-  Future<String> linkDevice(String sessionId) =>
-      multiDeviceLinkClient(userCubit: _impl, sessionId: sessionId);
+  /// Drives the acceptor side of linking. Connects to the relay, emits
+  /// [MultiDeviceLinkEvent_AwaitingConfirmation] once connected, then completes
+  /// the handshake after the user approves via [confirmation].
+  Stream<MultiDeviceLinkEvent> linkDevice(
+    String sessionId,
+    MultiDeviceLinkConfirmation confirmation,
+  ) => multiDeviceLinkClient(
+    userCubit: _impl,
+    sessionId: sessionId,
+    confirmation: confirmation,
+  );
 
   /// Extracts a linking code from a scanned QR payload, validating it targets
   /// this user's home server. Returns null if it isn't a linking URL for us.

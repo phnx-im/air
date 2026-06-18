@@ -127,8 +127,14 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                     title: const Text("Enable experimental features"),
                     value: isDeveloper,
                     onChanged: (value) {
+                      UserCubit? userCubit;
+                      try {
+                        userCubit = context.read<UserCubit>();
+                        // ignore: empty_catches
+                      } on ProviderNotFoundException {}
+
                       context.read<UserSettingsCubit>().setIsDeveloper(
-                        userCubit: context.read(),
+                        userCubit: userCubit,
                         value: value,
                       );
                     },

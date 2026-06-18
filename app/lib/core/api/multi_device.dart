@@ -12,7 +12,7 @@ import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
 import 'user_cubit.dart';
 part 'multi_device.freezed.dart';
 
-// These functions are ignored because they are not marked as `pub`: `linking_code_from_url`, `multi_device_linking_url`
+// These functions are ignored because they are not marked as `pub`: `linking_code_from_url`, `multi_device_linking_url`, `take_receiver`
 
 /// Runs a multi-device provisioning session on a fresh device.
 ///
@@ -28,15 +28,45 @@ Stream<MultiDeviceProvisionEvent> multiDeviceProvisionClient({
 /// Drives the acceptor (existing-device) side of multi-device linking.
 ///
 /// `session_id` is the linking code that the existing device scanned from (or typed in from) the
-/// fresh device. Connects to the relay, admits the new device into a fresh MLS group and completes
-/// the handshake.
-Future<String> multiDeviceLinkClient({
+/// fresh device. Connects to the relay, emits [`MultiDeviceLinkEvent::AwaitingConfirmation`] once
+/// connected, then waits for the user to approve via [`MultiDeviceLinkConfirmation::confirm`] before
+/// admitting the new device into a fresh MLS group and completing the handshake.
+Stream<MultiDeviceLinkEvent> multiDeviceLinkClient({
   required UserCubitBase userCubit,
   required String sessionId,
+  required MultiDeviceLinkConfirmation confirmation,
 }) => RustLib.instance.api.crateApiMultiDeviceMultiDeviceLinkClient(
   userCubit: userCubit,
   sessionId: sessionId,
+  confirmation: confirmation,
 );
+
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MultiDeviceLinkConfirmation>>
+abstract class MultiDeviceLinkConfirmation implements RustOpaqueInterface {
+  /// Approves the link, unblocking the linking task. A no-op if already confirmed.
+  void confirm();
+
+  factory MultiDeviceLinkConfirmation() =>
+      RustLib.instance.api.crateApiMultiDeviceMultiDeviceLinkConfirmationNew();
+}
+
+@freezed
+sealed class MultiDeviceLinkEvent with _$MultiDeviceLinkEvent {
+  const MultiDeviceLinkEvent._();
+
+  /// Connected to the relay; waiting for the user to approve on this device via
+  /// [`MultiDeviceLinkConfirmation::confirm`].
+  const factory MultiDeviceLinkEvent.awaitingConfirmation() =
+      MultiDeviceLinkEvent_AwaitingConfirmation;
+
+  /// Linking completed successfully.
+  const factory MultiDeviceLinkEvent.linked(String field0) =
+      MultiDeviceLinkEvent_Linked;
+
+  /// Linking failed (e.g. the connection dropped or the session expired).
+  const factory MultiDeviceLinkEvent.failed(String field0) =
+      MultiDeviceLinkEvent_Failed;
+}
 
 @freezed
 sealed class MultiDeviceProvisionEvent with _$MultiDeviceProvisionEvent {

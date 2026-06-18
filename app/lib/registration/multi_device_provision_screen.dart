@@ -91,10 +91,8 @@ class MultiDeviceProvisionScreen extends HookWidget {
             case MultiDeviceProvisionEvent_Code(:final code, :final qrcodeSvg):
               phase.value = _AwaitingLink(code: code, qrcodeSvg: qrcodeSvg);
             case MultiDeviceProvisionEvent_Linking():
-              debugPrint("LINKING");
               phase.value = _Linking();
             case MultiDeviceProvisionEvent_Linked(:final field0):
-              debugPrint("LINKED");
               phase.value = _Linked(answer: field0);
             case MultiDeviceProvisionEvent_Failed(:final field0):
               phase.value = _Failed(message: field0);
@@ -107,7 +105,6 @@ class MultiDeviceProvisionScreen extends HookWidget {
         },
         onDone: () {
           // the stream has been closed from the Rust side (i.e. timeout)
-          debugPrint("DONNNNEEE");
           if (phase.value is! _Linked) {
             phase.value = _Failed(
               message: loc.linkingDeviceScreen_error_codesExpired_message,

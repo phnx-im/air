@@ -4,11 +4,15 @@
 
 //! Multi-device linking
 
+use std::sync::Mutex;
+
 use aircommon::identifiers::Fqdn;
 use aircoreclient::clients::{CoreUser, multi_device::MultiDeviceProvisionStep};
 use airprotos::relay_service::v1::LinkingSessionId;
-use anyhow::Result;
+use anyhow::{Context, Result};
+use flutter_rust_bridge::frb;
 use qrcode::QrCode;
+use tokio::sync::oneshot;
 use tracing::{debug, error};
 use url::Url;
 
@@ -139,18 +143,95 @@ pub async fn multi_device_provision_client(
     Ok(())
 }
 
+/// Lets Dart approve a pending multi-device link.
+#[frb(opaque)]
+pub struct MultiDeviceLinkConfirmation {
+    tx: Mutex<Option<oneshot::Sender<()>>>,
+    rx: Mutex<Option<oneshot::Receiver<()>>>,
+}
+
+impl MultiDeviceLinkConfirmation {
+    #[frb(sync)]
+    pub fn new() -> Self {
+        let (tx, rx) = oneshot::channel();
+        Self {
+            tx: Mutex::new(Some(tx)),
+            rx: Mutex::new(Some(rx)),
+        }
+    }
+
+    /// Approves the link, unblocking the linking task. A no-op if already confirmed.
+    #[frb(sync)]
+    pub fn confirm(&self) {
+        if let Some(tx) = self.tx.lock().unwrap().take() {
+            let _ = tx.send(());
+        }
+    }
+
+    /// Takes the receiver to hand to the linking task. `None` if already taken.
+    #[frb(ignore)]
+    fn take_receiver(&self) -> Option<oneshot::Receiver<()>> {
+        self.rx.lock().unwrap().take()
+    }
+}
+
+/// An event emitted while the acceptor (existing device) links a fresh device.
+pub enum MultiDeviceLinkEvent {
+    /// Connected to the relay; waiting for the user to approve on this device via
+    /// [`MultiDeviceLinkConfirmation::confirm`].
+    AwaitingConfirmation,
+    /// Linking completed successfully.
+    Linked(String),
+    /// Linking failed (e.g. the connection dropped or the session expired).
+    Failed(String),
+}
+
 /// Drives the acceptor (existing-device) side of multi-device linking.
 ///
 /// `session_id` is the linking code that the existing device scanned from (or typed in from) the
-/// fresh device. Connects to the relay, admits the new device into a fresh MLS group and completes
-/// the handshake.
+/// fresh device. Connects to the relay, emits [`MultiDeviceLinkEvent::AwaitingConfirmation`] once
+/// connected, then waits for the user to approve via [`MultiDeviceLinkConfirmation::confirm`] before
+/// admitting the new device into a fresh MLS group and completing the handshake.
 pub async fn multi_device_link_client(
     user_cubit: &UserCubitBase,
     session_id: String,
-) -> Result<String> {
+    confirmation: &MultiDeviceLinkConfirmation,
+    sink: StreamSink<MultiDeviceLinkEvent>,
+) -> Result<()> {
+    let confirmation_rx = confirmation
+        .take_receiver()
+        .context("multi-device link confirmation already used")?;
     let session_id = LinkingSessionId { value: session_id };
-    user_cubit
-        .core_user()
-        .multi_device_link_client(session_id)
-        .await
+    let (connected_tx, connected_rx) = oneshot::channel();
+
+    let forward_connected = async {
+        if connected_rx.await.is_ok() {
+            if let Err(error) = sink.add(MultiDeviceLinkEvent::AwaitingConfirmation) {
+                error!(%error, "failed to forward MultiDeviceLinkEvent to the Dart side");
+            }
+        }
+    };
+
+    let linking = async {
+        match user_cubit
+            .core_user()
+            .multi_device_link_client(session_id, connected_tx, confirmation_rx)
+            .await
+        {
+            Ok(answer) => {
+                if let Err(error) = sink.add(MultiDeviceLinkEvent::Linked(answer)) {
+                    error!(%error, "failed to forward MultiDeviceLinkEvent to the Dart side");
+                }
+            }
+            Err(error) => {
+                if let Err(error) = sink.add(MultiDeviceLinkEvent::Failed(error.to_string())) {
+                    error!(%error, "failed to forward MultiDeviceLinkEvent to the Dart side");
+                }
+            }
+        }
+    };
+
+    tokio::join!(forward_connected, linking);
+
+    Ok(())
 }

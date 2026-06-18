@@ -858,6 +858,36 @@ abstract class AppLocalizations {
   /// **'Device successfully linked!'**
   String get linkingDeviceScreen_linked;
 
+  /// No description provided for @linkingDeviceScreen_linking_confirm_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm linking'**
+  String get linkingDeviceScreen_linking_confirm_title;
+
+  /// No description provided for @linkingDeviceScreen_linking_confirm_edit_subtitle.
+  ///
+  /// In en, this message translates to:
+  /// **'Tap to edit device name'**
+  String get linkingDeviceScreen_linking_confirm_edit_subtitle;
+
+  /// No description provided for @linkingDeviceScreen_linking_confirm_body.
+  ///
+  /// In en, this message translates to:
+  /// **'You\'re about to link a new device, which will have full access to your Air account. Only do this if the device belongs to you.'**
+  String get linkingDeviceScreen_linking_confirm_body;
+
+  /// No description provided for @linkingDeviceScreen_linking_confirm_checkbox.
+  ///
+  /// In en, this message translates to:
+  /// **'I want to link this device.'**
+  String get linkingDeviceScreen_linking_confirm_checkbox;
+
+  /// No description provided for @linkingDeviceScreen_linking_confirm_button.
+  ///
+  /// In en, this message translates to:
+  /// **'Confirm'**
+  String get linkingDeviceScreen_linking_confirm_button;
+
   /// No description provided for @linkingDeviceScreen_instructions_1.
   ///
   /// In en, this message translates to:
@@ -1007,6 +1037,12 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Scan QR code'**
   String get linkedDevicesScreen_linkDialog_scanQrCode;
+
+  /// No description provided for @linkedDevicesScreen_linkDialog_scanQrCode_unavailable.
+  ///
+  /// In en, this message translates to:
+  /// **'Scan QR code (unavailable on this platform)'**
+  String get linkedDevicesScreen_linkDialog_scanQrCode_unavailable;
 
   /// No description provided for @linkedDevicesScreen_linkDialog_enterNumericCode.
   ///
