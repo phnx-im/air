@@ -92,9 +92,6 @@ impl CoreUser {
     }
 
     /// Like [`Self::multi_device_provision_client`] but against an explicit [`ApiClient`].
-    ///
-    /// Lets tests target an ephemeral server that [`ApiClient::with_domain`] (which hardcodes the
-    /// localhost port) can't reach.
     pub async fn multi_device_provision_client_with_api(
         api_client: &ApiClient,
         session_tx: tokio::sync::mpsc::Sender<MultiDeviceProvisionStep>,
@@ -181,6 +178,8 @@ impl CoreUser {
         Ok(answer_str)
     }
 
+    /// Establishes a session with a new device (with the given `session_id`). The `connected_tx` and `confirmation_rx` are
+    /// channels to report established connection and wait for the user's confirmation.
     pub async fn multi_device_link_client(
         &self,
         session_id: LinkingSessionId,

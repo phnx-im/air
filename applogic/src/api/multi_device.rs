@@ -29,8 +29,7 @@ fn multi_device_linking_url(domain: &Fqdn, session_id: &LinkingSessionId) -> Str
     )
 }
 
-/// Extracts the linking code from a QR payload produced by [`multi_device_linking_url`], or returns
-/// `None` if `url` is not a linking URL targeting `fqdn`.
+/// Extracts the linking code from a QR payload produced by [`multi_device_linking_url`].
 pub(crate) fn linking_code_from_url(fqdn: &Fqdn, url: &str) -> Option<String> {
     let url = Url::parse(url).ok()?;
     if url.scheme() != LINKING_URL_SCHEME {
@@ -75,10 +74,6 @@ pub enum MultiDeviceProvisionEvent {
 }
 
 /// Runs a multi-device provisioning session on a fresh device.
-///
-/// Connects to the relay at `domain`, emits the linking [`MultiDeviceProvisionEvent::Code`] as soon
-/// as the relay assigns it, and keeps the session alive until the existing device links or the
-/// session fails.
 pub async fn multi_device_provision_client(
     domain: String,
     sink: StreamSink<MultiDeviceProvisionEvent>,
@@ -182,11 +177,6 @@ pub enum MultiDeviceLinkEvent {
 }
 
 /// Drives the acceptor (existing-device) side of multi-device linking.
-///
-/// `session_id` is the linking code that the existing device scanned from (or typed in from) the
-/// fresh device. Connects to the relay, emits [`MultiDeviceLinkEvent::AwaitingConfirmation`] once
-/// connected, then waits for the user to approve via [`MultiDeviceLinkConfirmation::confirm`] before
-/// admitting the new device into a fresh MLS group and completing the handshake.
 pub async fn multi_device_link_client(
     user_cubit: &UserCubitBase,
     session_id: String,
@@ -200,10 +190,10 @@ pub async fn multi_device_link_client(
     let (connected_tx, connected_rx) = oneshot::channel();
 
     let forward_connected = async {
-        if connected_rx.await.is_ok() {
-            if let Err(error) = sink.add(MultiDeviceLinkEvent::AwaitingConfirmation) {
-                error!(%error, "failed to forward MultiDeviceLinkEvent to the Dart side");
-            }
+        if connected_rx.await.is_ok()
+            && let Err(error) = sink.add(MultiDeviceLinkEvent::AwaitingConfirmation)
+        {
+            error!(%error, "failed to forward MultiDeviceLinkEvent to the Dart side");
         }
     };
 
