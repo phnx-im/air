@@ -10912,6 +10912,9 @@ impl SseDecode for crate::api::multi_device::MultiDeviceLinkEvent {
                 let mut var_field0 = <String>::sse_decode(deserializer);
                 return crate::api::multi_device::MultiDeviceLinkEvent::Failed(var_field0);
             }
+            3 => {
+                return crate::api::multi_device::MultiDeviceLinkEvent::SessionNotFound;
+            }
             _ => {
                 unimplemented!("");
             }
@@ -14013,6 +14016,9 @@ impl flutter_rust_bridge::IntoDart for crate::api::multi_device::MultiDeviceLink
             crate::api::multi_device::MultiDeviceLinkEvent::Failed(field0) => {
                 [2.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
+            crate::api::multi_device::MultiDeviceLinkEvent::SessionNotFound => {
+                [3.into_dart()].into_dart()
+            }
             _ => {
                 unimplemented!("");
             }
@@ -16694,6 +16700,9 @@ impl SseEncode for crate::api::multi_device::MultiDeviceLinkEvent {
             crate::api::multi_device::MultiDeviceLinkEvent::Failed(field0) => {
                 <i32>::sse_encode(2, serializer);
                 <String>::sse_encode(field0, serializer);
+            }
+            crate::api::multi_device::MultiDeviceLinkEvent::SessionNotFound => {
+                <i32>::sse_encode(3, serializer);
             }
             _ => {
                 unimplemented!("");

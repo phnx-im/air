@@ -3,7 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use airapiclient::ApiClient;
-use aircoreclient::clients::{CoreUser, multi_device::MultiDeviceProvisionStep};
+use aircoreclient::clients::{
+    CoreUser,
+    multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
+};
 use airprotos::relay_service::v1::LinkingSessionId;
 use airserver_test_harness::utils::setup::TestBackend;
 
@@ -64,6 +67,7 @@ async fn multi_device_linking_session() {
         .user()
         .multi_device_link_client(session_id, ignore_connected(), auto_confirm())
         .await
+        .unwrap()
         .unwrap();
 
     assert_eq!(new_device_message, "ping!");
@@ -90,7 +94,10 @@ async fn multi_device_link_with_nonexistent_session_id() {
         .multi_device_link_client(fake_session_id, ignore_connected(), auto_confirm())
         .await;
 
-    assert!(result.is_err());
+    assert!(matches!(
+        result,
+        Ok(Err(MultiDeviceLinkClientError::SessionNotFound))
+    ));
 }
 
 // A session can only be claimed once; a second link attempt on the same session ID
@@ -118,6 +125,7 @@ async fn multi_device_second_link_attempt_returns_error() {
         .user()
         .multi_device_link_client(session_id.clone(), ignore_connected(), auto_confirm())
         .await
+        .unwrap()
         .unwrap();
     assert_eq!(result, "ping!");
 
@@ -130,7 +138,10 @@ async fn multi_device_second_link_attempt_returns_error() {
         .multi_device_link_client(session_id, ignore_connected(), auto_confirm())
         .await;
 
-    assert!(second_result.is_err());
+    assert!(matches!(
+        second_result,
+        Ok(Err(MultiDeviceLinkClientError::SessionNotFound))
+    ));
 }
 
 // Two concurrent linking sessions must not interfere with each other.
@@ -172,6 +183,7 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
         .user()
         .multi_device_link_client(alice_session_id, ignore_connected(), auto_confirm())
         .await
+        .unwrap()
         .unwrap();
     assert_eq!(alice_result, "ping!");
 
@@ -180,6 +192,7 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
         .user()
         .multi_device_link_client(bob_session_id, ignore_connected(), auto_confirm())
         .await
+        .unwrap()
         .unwrap();
     assert_eq!(bob_result, "ping!");
 

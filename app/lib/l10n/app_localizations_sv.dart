@@ -493,6 +493,10 @@ class AppLocalizationsSv extends AppLocalizations {
   String get linkingDevicesScreen_error_generic => 'Ett okänt fel uppstod.';
 
   @override
+  String get linkingDevicesScreen_error_sessionNotFound =>
+      'The code you provided is incorrect.';
+
+  @override
   String get linkingDevicesScreen_error_dismiss => 'Försök igen';
 
   @override

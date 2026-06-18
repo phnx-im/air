@@ -500,6 +500,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Ein unbekannter Fehler ist aufgetreten.';
 
   @override
+  String get linkingDevicesScreen_error_sessionNotFound =>
+      'The code you provided is incorrect.';
+
+  @override
   String get linkingDevicesScreen_error_dismiss => 'Erneut versuchen';
 
   @override

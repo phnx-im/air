@@ -207,6 +207,38 @@ as String,
 }
 
 /// @nodoc
+
+
+class MultiDeviceLinkEvent_SessionNotFound extends MultiDeviceLinkEvent {
+  const MultiDeviceLinkEvent_SessionNotFound(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is MultiDeviceLinkEvent_SessionNotFound);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'MultiDeviceLinkEvent.sessionNotFound()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
 mixin _$MultiDeviceProvisionEvent {
 
 

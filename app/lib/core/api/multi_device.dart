@@ -15,10 +15,6 @@ part 'multi_device.freezed.dart';
 // These functions are ignored because they are not marked as `pub`: `linking_code_from_url`, `multi_device_linking_url`, `take_receiver`
 
 /// Runs a multi-device provisioning session on a fresh device.
-///
-/// Connects to the relay at `domain`, emits the linking [`MultiDeviceProvisionEvent::Code`] as soon
-/// as the relay assigns it, and keeps the session alive until the existing device links or the
-/// session fails.
 Stream<MultiDeviceProvisionEvent> multiDeviceProvisionClient({
   required String domain,
 }) => RustLib.instance.api.crateApiMultiDeviceMultiDeviceProvisionClient(
@@ -26,11 +22,6 @@ Stream<MultiDeviceProvisionEvent> multiDeviceProvisionClient({
 );
 
 /// Drives the acceptor (existing-device) side of multi-device linking.
-///
-/// `session_id` is the linking code that the existing device scanned from (or typed in from) the
-/// fresh device. Connects to the relay, emits [`MultiDeviceLinkEvent::AwaitingConfirmation`] once
-/// connected, then waits for the user to approve via [`MultiDeviceLinkConfirmation::confirm`] before
-/// admitting the new device into a fresh MLS group and completing the handshake.
 Stream<MultiDeviceLinkEvent> multiDeviceLinkClient({
   required UserCubitBase userCubit,
   required String sessionId,
@@ -43,7 +34,7 @@ Stream<MultiDeviceLinkEvent> multiDeviceLinkClient({
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MultiDeviceLinkConfirmation>>
 abstract class MultiDeviceLinkConfirmation implements RustOpaqueInterface {
-  /// Approves the link, unblocking the linking task. A no-op if already confirmed.
+  /// Approves the link, unblocking the linking task.
   void confirm();
 
   factory MultiDeviceLinkConfirmation() =>
@@ -66,20 +57,21 @@ sealed class MultiDeviceLinkEvent with _$MultiDeviceLinkEvent {
   /// Linking failed (e.g. the connection dropped or the session expired).
   const factory MultiDeviceLinkEvent.failed(String field0) =
       MultiDeviceLinkEvent_Failed;
+  const factory MultiDeviceLinkEvent.sessionNotFound() =
+      MultiDeviceLinkEvent_SessionNotFound;
 }
 
 @freezed
 sealed class MultiDeviceProvisionEvent with _$MultiDeviceProvisionEvent {
   const MultiDeviceProvisionEvent._();
 
-  /// The relay assigned a linking code. Display it so the user can enter it on their existing
-  /// device.
+  /// The relay confirmed a linking code.
   const factory MultiDeviceProvisionEvent.code({
     String? qrcodeSvg,
     required String code,
   }) = MultiDeviceProvisionEvent_Code;
 
-  /// The existing device has established the session and the linking process is underway.
+  /// The existing device has established the session and the linking process is ongoing.
   const factory MultiDeviceProvisionEvent.linking() =
       MultiDeviceProvisionEvent_Linking;
 
@@ -87,7 +79,7 @@ sealed class MultiDeviceProvisionEvent with _$MultiDeviceProvisionEvent {
   const factory MultiDeviceProvisionEvent.linked(String field0) =
       MultiDeviceProvisionEvent_Linked;
 
-  /// The session ended without linking (e.g. it timed out or the connection dropped).
+  /// The session ended without linking.
   const factory MultiDeviceProvisionEvent.failed(String field0) =
       MultiDeviceProvisionEvent_Failed;
 }

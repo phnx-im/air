@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use airapiclient::ApiClient;
+use airapiclient::rs_api::RsRequestError;
 use aircommon::crypto::aead::{
     AeadDecryptable, AeadEncryptable, Ciphertext, keys::MultiDeviceLinkingKey,
 };
@@ -81,6 +82,12 @@ pub enum MultiDeviceProvisionStep {
     Linking,
 }
 
+#[derive(Debug, thiserror::Error)]
+pub enum MultiDeviceLinkClientError {
+    #[error("session ID not found")]
+    SessionNotFound,
+}
+
 impl CoreUser {
     /// Provisions a new client for linking by connecting to the relay at `domain`.
     pub async fn multi_device_provision_client(
@@ -127,7 +134,7 @@ impl CoreUser {
         session_tx
             .send(MultiDeviceProvisionStep::SessionId(session_id))
             .await
-            .map_err(|_| anyhow!("session ID receiver dropped"))?;
+            .map_err(|_| anyhow!("reporting stream dropped"))?;
 
         // wait for the existing (old) client to send us the welcome
         let welcome_bytes = rx.next().await.context("relay connection closed")??;
@@ -135,7 +142,7 @@ impl CoreUser {
         session_tx
             .send(MultiDeviceProvisionStep::Linking)
             .await
-            .map_err(|_| anyhow!("session ID receiver dropped"))?;
+            .map_err(|_| anyhow!("reporting stream dropped"))?;
 
         let welcome_msg = MlsMessageIn::tls_deserialize_exact(welcome_bytes.as_slice())
             .context("failed to deserialize welcome")?;
@@ -185,14 +192,21 @@ impl CoreUser {
         session_id: LinkingSessionId,
         connected_tx: oneshot::Sender<()>,
         confirmation_rx: oneshot::Receiver<()>,
-    ) -> anyhow::Result<String> {
+    ) -> anyhow::Result<Result<String, MultiDeviceLinkClientError>> {
         let client = self.api_client()?;
         let qs_user_id = self.inner.qs_user_id;
         let qs_user_signing_key = self.key_store().qs_user_signing_key.clone();
 
-        let (tx, mut rx) = client
+        let (tx, mut rx) = match client
             .rs_multi_device_link_client(qs_user_id, &qs_user_signing_key, session_id.clone())
-            .await?;
+            .await
+        {
+            Ok((tx, rx)) => (tx, rx),
+            Err(RsRequestError::SessionNotFound) => {
+                return Ok(Err(MultiDeviceLinkClientError::SessionNotFound));
+            }
+            Err(e) => return Err(e.into()),
+        };
 
         // Signal that we're connected to the relay
         let _ = connected_tx.send(());
@@ -275,6 +289,6 @@ impl CoreUser {
         // device has received the pong and disconnected.
         while rx.next().await.is_some() {}
 
-        Ok(answer_str)
+        Ok(Ok(answer_str))
     }
 }

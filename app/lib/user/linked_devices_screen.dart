@@ -4,7 +4,6 @@
 
 import 'package:air/ds/components/app_scaffold.dart';
 import 'package:air/ds/components/button/button.dart';
-import 'package:air/ds/components/desktop/width_constraints.dart';
 import 'package:air/ds/components/modal/bottom_sheet_modal.dart';
 import 'package:air/ds/components/modal/confirm_dialog.dart';
 import 'package:air/ds/components/modal/edit_dialog.dart';
@@ -17,7 +16,6 @@ import 'package:air/ds/theme/styles.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/user/linking_device_dialog.dart';
 import 'package:air/user/user_settings_cubit.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';

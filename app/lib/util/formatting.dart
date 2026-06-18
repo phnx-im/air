@@ -8,4 +8,8 @@ extension Formatting on String {
     }
     return chunks.join(' ');
   }
+
+  String digitsOnly() {
+    return replaceAll(RegExp(r'\D'), "");
+  }
 }

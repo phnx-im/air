@@ -126,7 +126,10 @@ void main() {
       controller.add(
         const MultiDeviceProvisionEvent.failed('The linking codes expired.'),
       );
-      await tester.pumpAndSettle();
+      // Can't pumpAndSettle: the spinner behind the modal never settles.
+      await tester.pump();
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 300));
 
       await expectLater(
         find.byType(MaterialApp),

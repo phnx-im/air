@@ -415,6 +415,11 @@ class _NumericCodePage extends HookWidget {
       color: colors.text.primary,
     );
 
+    void onEditingComplete() {
+      final code = controller.text.digitsOnly(); // remove all spaces
+      if (code.isNotEmpty) onSubmit(code);
+    }
+
     return Column(
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -435,10 +440,7 @@ class _NumericCodePage extends HookWidget {
         TextField(
           controller: controller,
           autofocus: true,
-          onEditingComplete: () {
-            final code = controller.text.trim();
-            if (code.isNotEmpty) onSubmit(code);
-          },
+          onEditingComplete: onEditingComplete,
           keyboardType: TextInputType.number,
           textAlign: TextAlign.center,
           inputFormatters: [_GroupedDigitsFormatter(groupSize: 4)],
@@ -461,10 +463,7 @@ class _NumericCodePage extends HookWidget {
         AppButton(
           type: .primary,
           label: loc.linkedDevicesScreen_linkDialog_link,
-          onPressed: () {
-            final code = controller.text.trim();
-            if (code.isNotEmpty) onSubmit(code);
-          },
+          onPressed: onEditingComplete,
         ),
       ],
     );
@@ -472,7 +471,13 @@ class _NumericCodePage extends HookWidget {
 }
 
 /// The phase the linking flow is in.
-enum _LinkPhase { connecting, awaitingConfirmation, linking, failed }
+enum _LinkPhase {
+  connecting,
+  awaitingConfirmation,
+  linking,
+  sessionNotFound,
+  failed,
+}
 
 /// Fourth page: drives the linking process once it has started.
 class _LinkingPage extends HookWidget {
@@ -508,6 +513,8 @@ class _LinkingPage extends HookWidget {
           case MultiDeviceLinkEvent_Linked():
             // TODO: this should end the entire process later
             if (context.mounted) _showLinkedDialog(context);
+          case MultiDeviceLinkEvent_SessionNotFound():
+            phase.value = _LinkPhase.sessionNotFound;
           case MultiDeviceLinkEvent_Failed():
             phase.value = _LinkPhase.failed;
         }
@@ -531,7 +538,16 @@ class _LinkingPage extends HookWidget {
         title: loc.linkedDevicesScreen_linkDevice,
         message: loc.linkingDeviceScreen_linking,
       ),
-      _LinkPhase.failed => _LinkErrorView(onBack: onBack),
+      _LinkPhase.sessionNotFound => _LinkErrorView(
+        onBack: onBack,
+        title: loc.linkingDevicesScreen_error_title,
+        message: loc.linkingDevicesScreen_error_sessionNotFound,
+      ),
+      _LinkPhase.failed => _LinkErrorView(
+        onBack: onBack,
+        title: loc.linkingDevicesScreen_error_title,
+        message: loc.linkingDevicesScreen_error_generic,
+      ),
     };
   }
 
@@ -586,8 +602,14 @@ class _LinkStatusView extends StatelessWidget {
 
 /// The failure page for the acceptor-side linking flow.
 class _LinkErrorView extends StatelessWidget {
-  const _LinkErrorView({required this.onBack});
+  const _LinkErrorView({
+    required this.onBack,
+    required this.title,
+    required this.message,
+  });
 
+  final String title;
+  final String message;
   final VoidCallback onBack;
 
   @override
@@ -599,13 +621,10 @@ class _LinkErrorView extends StatelessWidget {
       mainAxisSize: MainAxisSize.min,
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        _LinkModalHeader(
-          title: loc.linkingDevicesScreen_error_title,
-          onBack: onBack,
-        ),
+        _LinkModalHeader(title: title, onBack: onBack),
         const SizedBox(height: Spacing.px24),
         Text(
-          loc.linkingDevicesScreen_error_generic,
+          message,
           textAlign: TextAlign.center,
           style: TextStyle(
             color: colors.text.primary,

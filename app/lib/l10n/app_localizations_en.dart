@@ -488,6 +488,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get linkingDevicesScreen_error_generic => 'An unknown error occurred.';
 
   @override
+  String get linkingDevicesScreen_error_sessionNotFound =>
+      'The code you provided is incorrect.';
+
+  @override
   String get linkingDevicesScreen_error_dismiss => 'Try again';
 
   @override

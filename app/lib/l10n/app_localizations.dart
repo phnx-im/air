@@ -942,6 +942,12 @@ abstract class AppLocalizations {
   /// **'An unknown error occurred.'**
   String get linkingDevicesScreen_error_generic;
 
+  /// No description provided for @linkingDevicesScreen_error_sessionNotFound.
+  ///
+  /// In en, this message translates to:
+  /// **'The code you provided is incorrect.'**
+  String get linkingDevicesScreen_error_sessionNotFound;
+
   /// No description provided for @linkingDevicesScreen_error_dismiss.
   ///
   /// In en, this message translates to:

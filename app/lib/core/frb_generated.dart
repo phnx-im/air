@@ -9734,6 +9734,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return MultiDeviceLinkEvent_Linked(dco_decode_String(raw[1]));
       case 2:
         return MultiDeviceLinkEvent_Failed(dco_decode_String(raw[1]));
+      case 3:
+        return MultiDeviceLinkEvent_SessionNotFound();
       default:
         throw Exception("unreachable");
     }
@@ -13038,6 +13040,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 2:
         var var_field0 = sse_decode_String(deserializer);
         return MultiDeviceLinkEvent_Failed(var_field0);
+      case 3:
+        return MultiDeviceLinkEvent_SessionNotFound();
       default:
         throw UnimplementedError('');
     }
@@ -16825,6 +16829,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case MultiDeviceLinkEvent_Failed(field0: final field0):
         sse_encode_i_32(2, serializer);
         sse_encode_String(field0, serializer);
+      case MultiDeviceLinkEvent_SessionNotFound():
+        sse_encode_i_32(3, serializer);
     }
   }
 
@@ -18662,7 +18668,7 @@ class MultiDeviceLinkConfirmationImpl extends RustOpaque
         .rust_arc_decrement_strong_count_MultiDeviceLinkConfirmationPtr,
   );
 
-  /// Approves the link, unblocking the linking task. A no-op if already confirmed.
+  /// Approves the link, unblocking the linking task.
   void confirm() => RustLib.instance.api
       .crateApiMultiDeviceMultiDeviceLinkConfirmationConfirm(that: this);
 }

@@ -398,8 +398,8 @@ class _AwaitingLinkView extends StatelessWidget {
               if (svg != null)
                 SvgPicture.string(
                   svg,
-                  width: 200, // Easily override or set width
-                  height: 200, // Easily override or set height
+                  width: 200,
+                  height: 200,
                   colorMapper: _LinkQrCodeSvgColorMapper(colors: colors),
                   placeholderBuilder: (BuildContext context) =>
                       const CircularProgressIndicator(),

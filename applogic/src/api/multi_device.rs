@@ -7,7 +7,10 @@
 use std::sync::Mutex;
 
 use aircommon::identifiers::Fqdn;
-use aircoreclient::clients::{CoreUser, multi_device::MultiDeviceProvisionStep};
+use aircoreclient::clients::{
+    CoreUser,
+    multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
+};
 use airprotos::relay_service::v1::LinkingSessionId;
 use anyhow::{Context, Result};
 use flutter_rust_bridge::frb;
@@ -174,6 +177,7 @@ pub enum MultiDeviceLinkEvent {
     Linked(String),
     /// Linking failed (e.g. the connection dropped or the session expired).
     Failed(String),
+    SessionNotFound,
 }
 
 /// Drives the acceptor (existing-device) side of multi-device linking.
@@ -198,21 +202,20 @@ pub async fn multi_device_link_client(
     };
 
     let linking = async {
-        match user_cubit
+        let event = match user_cubit
             .core_user()
             .multi_device_link_client(session_id, connected_tx, confirmation_rx)
             .await
         {
-            Ok(answer) => {
-                if let Err(error) = sink.add(MultiDeviceLinkEvent::Linked(answer)) {
-                    error!(%error, "failed to forward MultiDeviceLinkEvent to the Dart side");
-                }
+            Ok(Ok(answer)) => MultiDeviceLinkEvent::Linked(answer),
+            Ok(Err(MultiDeviceLinkClientError::SessionNotFound)) => {
+                MultiDeviceLinkEvent::SessionNotFound
             }
-            Err(error) => {
-                if let Err(error) = sink.add(MultiDeviceLinkEvent::Failed(error.to_string())) {
-                    error!(%error, "failed to forward MultiDeviceLinkEvent to the Dart side");
-                }
-            }
+            Err(error) => MultiDeviceLinkEvent::Failed(error.to_string()),
+        };
+
+        if let Err(error) = sink.add(event) {
+            error!(%error, "failed to forward MultiDeviceLinkEvent to the Dart side");
         }
     };
 

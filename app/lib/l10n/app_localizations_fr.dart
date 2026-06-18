@@ -505,6 +505,10 @@ class AppLocalizationsFr extends AppLocalizations {
       'Une erreur inconnue s\'est produite.';
 
   @override
+  String get linkingDevicesScreen_error_sessionNotFound =>
+      'The code you provided is incorrect.';
+
+  @override
   String get linkingDevicesScreen_error_dismiss => 'Réessayer';
 
   @override
