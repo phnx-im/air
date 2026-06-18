@@ -33,7 +33,7 @@
 .packages
 .pub-cache/
 .pub/
-build/
+/build/
 
 
 # Web related
@@ -50,6 +50,8 @@ app.*.map.json
 /android/app/profile
 /android/app/release
 /android/app/.cxx
+/android/.kotlin
+/android/build
 
 # Rust
 target
