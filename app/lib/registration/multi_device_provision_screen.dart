@@ -154,7 +154,7 @@ class MultiDeviceProvisionScreen extends HookWidget {
           loc.linkingDeviceScreen_header,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        toolbarHeight: isPointer() ? 100 : null,
+        toolbarHeight: DeviceType.isDesktop ? 100 : null,
         backgroundColor: colors.backgroundBase.secondary,
       ),
       backgroundColor: colors.backgroundBase.secondary,
@@ -400,6 +400,7 @@ class _AwaitingLinkView extends StatelessWidget {
                   svg,
                   width: 200,
                   height: 200,
+                  // Easily override or set height
                   colorMapper: _LinkQrCodeSvgColorMapper(colors: colors),
                   placeholderBuilder: (BuildContext context) =>
                       const CircularProgressIndicator(),

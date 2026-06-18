@@ -7,12 +7,12 @@ import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/modal/bottom_sheet_modal.dart';
 import 'package:air/ds/components/modal/confirm_dialog.dart';
 import 'package:air/ds/components/modal/edit_dialog.dart';
+import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/ds/foundations/icons/app_icon_badge.dart';
 import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:air/ds/foundations/spacing.dart';
 import 'package:air/ds/foundations/themes.dart';
-import 'package:air/ds/theme/styles.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/user/linking_device_dialog.dart';
 import 'package:air/user/user_settings_cubit.dart';
@@ -50,7 +50,9 @@ class LinkedDevicesView extends HookWidget {
       child: Align(
         alignment: Alignment.topCenter,
         child: Container(
-          constraints: isPointer() ? const BoxConstraints(maxWidth: 800) : null,
+          constraints: DeviceType.isDesktop
+              ? const BoxConstraints(maxWidth: 800)
+              : null,
           child: SingleChildScrollView(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
