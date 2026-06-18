@@ -196,12 +196,7 @@
       }
     }
   },
-  "linkedDevicesScreen_encryptionNotice": "Messages are end-to-end encrypted on all devices. {learnMore}",
-  "@linkedDevicesScreen_encryptionNotice": {
-    "placeholders": {
-      "learnMore": {}
-    }
-  },
+  "linkedDevicesScreen_encryptionNotice": "Messages are end-to-end encrypted on all devices.",
   "linkedDevicesScreen_encryptionNotice_learnMore": "Learn more.",
   "linkedDevicesScreen_encryptionDialog_title": "Encryption and device linking",
   "linkedDevicesScreen_encryptionDialog_content": "On Air, your messages (including attachments) are always end-to-end encrypted. This means that nobody else, even Air, can read them.\n\nWhen you link a device, your messages are still encrypted and you're the only one who can read them.",

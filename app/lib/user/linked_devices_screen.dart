@@ -4,9 +4,12 @@
 
 import 'package:air/ds/components/app_scaffold.dart';
 import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/components/desktop/width_constraints.dart';
+import 'package:air/ds/components/modal/bottom_sheet_modal.dart';
 import 'package:air/ds/components/modal/confirm_dialog.dart';
 import 'package:air/ds/components/modal/edit_dialog.dart';
 import 'package:air/ds/foundations/font_size.dart';
+import 'package:air/ds/foundations/icons/app_icon_badge.dart';
 import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:air/ds/foundations/spacing.dart';
 import 'package:air/ds/foundations/themes.dart';
@@ -128,8 +131,7 @@ class LinkedDevicesView extends HookWidget {
   }
 }
 
-/// The end-to-end encryption footer, with an inline "Learn more." link that
-/// opens [_showEncryptionInfoDialog].
+/// The end-to-end encryption footer.
 class _EncryptionNotice extends StatelessWidget {
   const _EncryptionNotice();
 
@@ -137,75 +139,34 @@ class _EncryptionNotice extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final colors = CustomColorScheme.of(context);
-
-    final baseStyle = TextStyle(
+    final textStyle = TextStyle(
       fontSize: LabelFontSize.small2.size,
       color: colors.text.quaternary,
     );
 
-    final linkText = loc.linkedDevicesScreen_encryptionNotice_learnMore;
-    final notice = loc.linkedDevicesScreen_encryptionNotice(linkText);
-    final linkStart = notice.indexOf(linkText);
-
-    if (linkStart == -1) {
-      return Text(notice, style: baseStyle, textAlign: TextAlign.center);
-    }
-
-    return Text.rich(
-      TextSpan(
-        style: baseStyle,
-        children: [
-          TextSpan(text: notice.substring(0, linkStart)),
-          TextSpan(
-            text: linkText,
-            style: baseStyle.copyWith(color: colors.function.link),
-            recognizer: TapGestureRecognizer()
-              ..onTap = () => showDialog(
-                context: context,
-                builder: (_) => ConfirmDialog(
-                  title: loc.linkedDevicesScreen_encryptionDialog_title,
-                  message: loc.linkedDevicesScreen_encryptionDialog_content,
-                  confirm: loc.linkedDevicesScreen_encryptionDialog_confirm,
-                ),
-              ),
+    return Column(
+      mainAxisAlignment: .center,
+      spacing: Spacing.px8,
+      children: [
+        Text(loc.linkedDevicesScreen_encryptionNotice, style: textStyle),
+        GestureDetector(
+          child: Text(
+            loc.linkedDevicesScreen_encryptionNotice_learnMore,
+            style: textStyle.copyWith(color: colors.function.link),
           ),
-          TextSpan(text: notice.substring(linkStart + linkText.length)),
-        ],
-      ),
-      textAlign: TextAlign.center,
+          onTap: () => showBottomSheetDialog(
+            context: context,
+            title: loc.linkedDevicesScreen_encryptionDialog_title,
+            description: loc.linkedDevicesScreen_encryptionDialog_content,
+            primaryActionText: loc.linkedDevicesScreen_encryptionDialog_confirm,
+          ),
+        ),
+      ],
     );
   }
 }
 
-/// An [AppIcon] wrapped in a rounded/circular background.
-class _AppIconBadge extends StatelessWidget {
-  const _AppIconBadge({
-    required this.size,
-    required this.type,
-    this.backgroundColor,
-  });
-
-  final AppIconType type;
-  final double size;
-  final Color? backgroundColor;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
-
-    return Container(
-      padding: EdgeInsets.all(size / 2),
-      alignment: Alignment.center,
-      decoration: BoxDecoration(
-        color: backgroundColor ?? colors.backgroundBase.tertiary,
-        shape: BoxShape.rectangle,
-        borderRadius: BorderRadius.circular(Spacing.px12),
-      ),
-      child: AppIcon(type: type, size: size),
-    );
-  }
-}
-
+/// A tappable entry for a single linked device in the "Devices" view.
 class _SingleDevice extends StatelessWidget {
   const _SingleDevice({
     required this.deviceName,
@@ -233,7 +194,7 @@ class _SingleDevice extends StatelessWidget {
       child: Row(
         spacing: Spacing.px16,
         children: [
-          _AppIconBadge(
+          AppIconBadge(
             type: .laptop,
             size: 24,
             backgroundColor: colors.backgroundBase.quaternary,

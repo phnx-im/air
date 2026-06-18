@@ -445,7 +445,7 @@ class AppLocalizationsFr extends AppLocalizations {
   String get linkingDeviceScreen_separator => 'ou';
 
   @override
-  String get linkingDeviceScreen_numericCode => 'Code numérique';
+  String get linkingDeviceScreen_numericCode => 'Code';
 
   @override
   String get linkingDeviceScreen_linking => 'Association...';
@@ -454,22 +454,23 @@ class AppLocalizationsFr extends AppLocalizations {
   String get linkingDeviceScreen_linked => 'Appareil associé avec succès !';
 
   @override
-  String get linkingDeviceScreen_linking_confirm_title => 'Confirm linking';
+  String get linkingDeviceScreen_linking_confirm_title =>
+      'Confirmer l\'association';
 
   @override
   String get linkingDeviceScreen_linking_confirm_edit_subtitle =>
-      'Tap to edit device name';
+      'Appuyez pour modifier le nom de l\'appareil';
 
   @override
   String get linkingDeviceScreen_linking_confirm_body =>
-      'You\'re about to link a new device, which will have full access to your Air account. Only do this if the device belongs to you.';
+      'Vous êtes sur le point d\'associer un nouvel appareil, qui aura un accès intégral à votre compte Air. Ne le faites que si l\'appareil vous appartient.';
 
   @override
   String get linkingDeviceScreen_linking_confirm_checkbox =>
-      'I want to link this device.';
+      'Je veux associer cet appareil.';
 
   @override
-  String get linkingDeviceScreen_linking_confirm_button => 'Confirm';
+  String get linkingDeviceScreen_linking_confirm_button => 'Confirmer';
 
   @override
   String get linkingDeviceScreen_instructions_1 =>
@@ -539,9 +540,8 @@ class AppLocalizationsFr extends AppLocalizations {
   }
 
   @override
-  String linkedDevicesScreen_encryptionNotice(Object learnMore) {
-    return 'Les messages sont chiffrés de bout en bout sur tous les appareils. $learnMore';
-  }
+  String get linkedDevicesScreen_encryptionNotice =>
+      'Les messages sont chiffrés de bout en bout sur tous les appareils. null';
 
   @override
   String get linkedDevicesScreen_encryptionNotice_learnMore =>
@@ -571,7 +571,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_linkDialog_scanQrCode_unavailable =>
-      'Scan QR code (unavailable on this platform)';
+      'Scanner le code QR (indisponible)';
 
   @override
   String get linkedDevicesScreen_linkDialog_enterNumericCode =>

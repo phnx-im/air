@@ -11,6 +11,7 @@ import 'package:air/ds/foundations/themes.dart';
 import 'package:air/ds/components/desktop/width_constraints.dart';
 import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/registration/registration_cubit.dart';
+import 'package:air/util/formatting.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -79,6 +80,14 @@ class MultiDeviceProvisionScreen extends HookWidget {
     // Bumping this restarts the linking session (cancels the old stream).
     final attempt = useState(0);
     final phase = useState<_LinkingPhase>(const _Connecting());
+
+    // The failure is surfaced as a modal; keep painting the last non-failed
+    // view behind it so the dimmed barrier shows real content instead of an
+    // empty (blacked-out) screen.
+    final lastVisiblePhase = useRef<_LinkingPhase>(const _Connecting());
+    if (phase.value is! _Failed) {
+      lastVisiblePhase.value = phase.value;
+    }
 
     // Subscribe to the provisioning stream while the screen is mounted. The
     // subscription keeps the session alive, and cancelling it
@@ -164,8 +173,15 @@ class MultiDeviceProvisionScreen extends HookWidget {
                   _AwaitingLinkView(code: code, qrcodeSvg: qrcodeSvg),
                 _Linking() => const _LinkingView(),
                 _Linked() => const _LinkedView(),
-                // The failure is shown as a modal
-                _Failed() => const SizedBox.expand(),
+                // The failure itself is shown as a modal, we want to
+                // keep the last visible view painted behind it.
+                _Failed() => switch (lastVisiblePhase.value) {
+                  _AwaitingLink(:final code, :final qrcodeSvg) =>
+                    _AwaitingLinkView(code: code, qrcodeSvg: qrcodeSvg),
+                  _Linking() => const _LinkingView(),
+                  _Linked() => const _LinkedView(),
+                  _ => const _ConnectingView(),
+                },
               },
             ),
           ),
@@ -411,7 +427,7 @@ class _AwaitingLinkView extends StatelessWidget {
               ),
               const SizedBox(height: Spacing.px8),
               Text(
-                code,
+                code.spacedInGroupsOf(4),
                 textAlign: TextAlign.center,
                 style: TextStyle(
                   fontSize: HeaderFontSize.h1.size,
@@ -507,7 +523,7 @@ Future<void> _showLinkingFailedDialog(
     return;
   }
   final loc = AppLocalizations.of(context);
-  final shouldReload = await showDialog<bool>(
+  final shouldReload = await showDialog(
     context: context,
     barrierDismissible: false,
     builder: (_) => ConfirmDialog(

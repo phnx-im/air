@@ -993,8 +993,8 @@ abstract class AppLocalizations {
   /// No description provided for @linkedDevicesScreen_encryptionNotice.
   ///
   /// In en, this message translates to:
-  /// **'Messages are end-to-end encrypted on all devices. {learnMore}'**
-  String linkedDevicesScreen_encryptionNotice(Object learnMore);
+  /// **'Messages are end-to-end encrypted on all devices.'**
+  String get linkedDevicesScreen_encryptionNotice;
 
   /// No description provided for @linkedDevicesScreen_encryptionNotice_learnMore.
   ///
@@ -1041,7 +1041,7 @@ abstract class AppLocalizations {
   /// No description provided for @linkedDevicesScreen_linkDialog_scanQrCode_unavailable.
   ///
   /// In en, this message translates to:
-  /// **'Scan QR code (unavailable on this platform)'**
+  /// **'Scan QR code (unavailable)'**
   String get linkedDevicesScreen_linkDialog_scanQrCode_unavailable;
 
   /// No description provided for @linkedDevicesScreen_linkDialog_enterNumericCode.

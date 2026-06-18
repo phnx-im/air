@@ -443,22 +443,22 @@ class AppLocalizationsSv extends AppLocalizations {
   String get linkingDeviceScreen_linked => 'Enheten har länkats!';
 
   @override
-  String get linkingDeviceScreen_linking_confirm_title => 'Confirm linking';
+  String get linkingDeviceScreen_linking_confirm_title => 'Bekräfta länkning';
 
   @override
   String get linkingDeviceScreen_linking_confirm_edit_subtitle =>
-      'Tap to edit device name';
+      'Tryck för att ändra enhetsnamnet';
 
   @override
   String get linkingDeviceScreen_linking_confirm_body =>
-      'You\'re about to link a new device, which will have full access to your Air account. Only do this if the device belongs to you.';
+      'Du är på väg att länka en ny enhet som får full åtkomst till ditt Air-konto. Gör bara detta om enheten tillhör dig.';
 
   @override
   String get linkingDeviceScreen_linking_confirm_checkbox =>
-      'I want to link this device.';
+      'Jag vill länka den här enheten.';
 
   @override
-  String get linkingDeviceScreen_linking_confirm_button => 'Confirm';
+  String get linkingDeviceScreen_linking_confirm_button => 'Bekräfta';
 
   @override
   String get linkingDeviceScreen_instructions_1 =>
@@ -528,9 +528,8 @@ class AppLocalizationsSv extends AppLocalizations {
   }
 
   @override
-  String linkedDevicesScreen_encryptionNotice(Object learnMore) {
-    return 'Meddelanden är end-to-end-krypterade på alla enheter. $learnMore';
-  }
+  String get linkedDevicesScreen_encryptionNotice =>
+      'Meddelanden är end-to-end-krypterade på alla enheter. null';
 
   @override
   String get linkedDevicesScreen_encryptionNotice_learnMore => 'Läs mer.';
@@ -559,7 +558,7 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_linkDialog_scanQrCode_unavailable =>
-      'Scan QR code (unavailable on this platform)';
+      'Skanna QR-kod (inte tillgängligt på den här plattformen)';
 
   @override
   String get linkedDevicesScreen_linkDialog_enterNumericCode =>

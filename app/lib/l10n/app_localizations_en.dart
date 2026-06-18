@@ -523,9 +523,8 @@ class AppLocalizationsEn extends AppLocalizations {
   }
 
   @override
-  String linkedDevicesScreen_encryptionNotice(Object learnMore) {
-    return 'Messages are end-to-end encrypted on all devices. $learnMore';
-  }
+  String get linkedDevicesScreen_encryptionNotice =>
+      'Messages are end-to-end encrypted on all devices.';
 
   @override
   String get linkedDevicesScreen_encryptionNotice_learnMore => 'Learn more.';
@@ -554,7 +553,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_linkDialog_scanQrCode_unavailable =>
-      'Scan QR code (unavailable on this platform)';
+      'Scan QR code (unavailable)';
 
   @override
   String get linkedDevicesScreen_linkDialog_enterNumericCode =>

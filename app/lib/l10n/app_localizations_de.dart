@@ -449,22 +449,23 @@ class AppLocalizationsDe extends AppLocalizations {
   String get linkingDeviceScreen_linked => 'Gerät erfolgreich verknüpft!';
 
   @override
-  String get linkingDeviceScreen_linking_confirm_title => 'Confirm linking';
+  String get linkingDeviceScreen_linking_confirm_title =>
+      'Verknüpfung bestätigen';
 
   @override
   String get linkingDeviceScreen_linking_confirm_edit_subtitle =>
-      'Tap to edit device name';
+      'Tippe, um den Gerätenamen zu bearbeiten';
 
   @override
   String get linkingDeviceScreen_linking_confirm_body =>
-      'You\'re about to link a new device, which will have full access to your Air account. Only do this if the device belongs to you.';
+      'Du bist dabei, ein neues Gerät zu verknüpfen, das vollen Zugriff auf dein Air-Konto haben wird. Tu dies nur, wenn das Gerät dir gehört.';
 
   @override
   String get linkingDeviceScreen_linking_confirm_checkbox =>
-      'I want to link this device.';
+      'Ich möchte dieses Gerät verknüpfen.';
 
   @override
-  String get linkingDeviceScreen_linking_confirm_button => 'Confirm';
+  String get linkingDeviceScreen_linking_confirm_button => 'Bestätigen';
 
   @override
   String get linkingDeviceScreen_instructions_1 =>
@@ -534,9 +535,8 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
-  String linkedDevicesScreen_encryptionNotice(Object learnMore) {
-    return 'Nachrichten sind auf allen Geräten Ende-zu-Ende-verschlüsselt. $learnMore';
-  }
+  String get linkedDevicesScreen_encryptionNotice =>
+      'Nachrichten sind auf allen Geräten Ende-zu-Ende-verschlüsselt. null';
 
   @override
   String get linkedDevicesScreen_encryptionNotice_learnMore => 'Mehr erfahren.';
@@ -565,7 +565,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_linkDialog_scanQrCode_unavailable =>
-      'Scan QR code (unavailable on this platform)';
+      'QR-Code scannen (nicht verfügbar)';
 
   @override
   String get linkedDevicesScreen_linkDialog_enterNumericCode =>

@@ -13,6 +13,7 @@ import 'package:air/ds/foundations/themes.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/user/user_cubit.dart';
+import 'package:air/util/formatting.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
@@ -434,9 +435,13 @@ class _NumericCodePage extends HookWidget {
         TextField(
           controller: controller,
           autofocus: true,
+          onEditingComplete: () {
+            final code = controller.text.trim();
+            if (code.isNotEmpty) onSubmit(code);
+          },
           keyboardType: TextInputType.number,
           textAlign: TextAlign.center,
-          inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+          inputFormatters: [_GroupedDigitsFormatter(groupSize: 4)],
           buildCounter:
               (_, {required currentLength, required isFocused, maxLength}) =>
                   null,
@@ -742,6 +747,28 @@ class _LinkConfirmView extends HookWidget {
           onPressed: onConfirm,
         ),
       ],
+    );
+  }
+}
+
+class _GroupedDigitsFormatter extends TextInputFormatter {
+  _GroupedDigitsFormatter({required this.groupSize});
+
+  final int groupSize;
+
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) {
+    var text = FilteringTextInputFormatter.digitsOnly
+        .formatEditUpdate(oldValue, newValue)
+        .text
+        .spacedInGroupsOf(groupSize);
+
+    return TextEditingValue(
+      text: text,
+      selection: TextSelection.collapsed(offset: text.length),
     );
   }
 }
