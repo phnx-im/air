@@ -60,22 +60,17 @@ pub(crate) fn linking_code_from_url(fqdn: &Fqdn, url: &str) -> Option<String> {
 }
 
 /// An event emitted while a fresh device provisions itself against an existing account.
-///
-/// The new device opens a linking session with the relay, which hands back a numeric `code`. The
-/// user types (or scans) that code on their existing device. Once the existing device connects,
-/// the session completes with [`MultiDeviceProvisionEvent::Linked`].
 pub enum MultiDeviceProvisionEvent {
-    /// The relay assigned a linking code. Display it so the user can enter it on their existing
-    /// device.
+    /// The relay confirmed a linking code.
     Code {
         qrcode_svg: Option<String>,
         code: String,
     },
-    /// The existing device has established the session and the linking process is underway.
+    /// The existing device has established the session and the linking process is ongoing.
     Linking,
     /// The existing device connected and linking completed successfully.
     Linked(String),
-    /// The session ended without linking (e.g. it timed out or the connection dropped).
+    /// The session ended without linking.
     Failed(String),
 }
 
@@ -160,7 +155,7 @@ impl MultiDeviceLinkConfirmation {
         }
     }
 
-    /// Approves the link, unblocking the linking task. A no-op if already confirmed.
+    /// Approves the link, unblocking the linking task.
     #[frb(sync)]
     pub fn confirm(&self) {
         if let Some(tx) = self.tx.lock().unwrap().take() {
@@ -168,7 +163,7 @@ impl MultiDeviceLinkConfirmation {
         }
     }
 
-    /// Takes the receiver to hand to the linking task. `None` if already taken.
+    /// Takes the receiver to hand to the linking task.
     #[frb(ignore)]
     fn take_receiver(&self) -> Option<oneshot::Receiver<()>> {
         self.rx.lock().unwrap().take()

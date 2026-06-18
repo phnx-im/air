@@ -60,7 +60,7 @@ void main() {
     });
 
     testWidgets('renders link modal scan QR page', (tester) async {
-      debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+      debugDefaultTargetPlatformOverride = TargetPlatform.android;
       try {
         await pumpView(tester);
 

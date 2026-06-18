@@ -1,5 +1,3 @@
-import 'dart:io';
-
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/button/glass_circle_button.dart';
 import 'package:air/ds/components/modal/app_dialog.dart';
@@ -11,13 +9,15 @@ import 'package:air/ds/foundations/themes.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/user/user_cubit.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:mobile_scanner/mobile_scanner.dart';
 
-bool get _isQrCodeScannerSupported => Platform.isAndroid || Platform.isIOS;
+bool get _isQrCodeScannerSupported =>
+    defaultTargetPlatform == .android || defaultTargetPlatform == .iOS;
 
 String initialDeviceName(TargetPlatform platform) => switch (platform) {
   TargetPlatform.android => "Android",
@@ -28,12 +28,30 @@ String initialDeviceName(TargetPlatform platform) => switch (platform) {
   _ => "New device",
 };
 
-/// The page currently shown inside [_LinkDeviceModal].
 enum _LinkPage { chooser, scanQrCode, numericCode, linking }
+
+/// A running linking session
+typedef LinkSession = ({
+  Stream<MultiDeviceLinkEvent> events,
+  VoidCallback confirm,
+});
+
+/// Starts a linking session for [sessionId]. Injectable for tests.
+typedef LinkSessionStarter =
+    LinkSession Function(BuildContext context, String sessionId);
+
+LinkSession _startLinkSession(BuildContext context, String sessionId) {
+  final confirmation = MultiDeviceLinkConfirmation();
+  final events = context.read<UserCubit>().linkDevice(sessionId, confirmation);
+  return (events: events, confirm: confirmation.confirm);
+}
 
 /// Entry point for linking a new device.
 class LinkDeviceModal extends HookWidget {
-  const LinkDeviceModal({super.key});
+  const LinkDeviceModal({super.key, this.startLinkSession = _startLinkSession});
+
+  /// Starts the linking session for the [_LinkPage.linking] page.
+  final LinkSessionStarter startLinkSession;
 
   @override
   Widget build(BuildContext context) {
@@ -70,6 +88,7 @@ class LinkDeviceModal extends HookWidget {
         _LinkPage.linking => _LinkingPage(
           sessionId: sessionId.value!,
           onBack: backToChooser,
+          startLinkSession: startLinkSession,
         ),
       },
     );
@@ -455,45 +474,44 @@ class _NumericCodePage extends HookWidget {
 /// The phase the linking flow is in.
 enum _LinkPhase { connecting, awaitingConfirmation, linking, failed }
 
-/// Fourth page: drives the acceptor side of linking for a scanned or entered
-/// code. Shows a "connecting" spinner, then asks the user to confirm once the
-/// relay connection is up, then shows progress until it completes (closing the
-/// modal) or fails.
+/// Fourth page: drives the linking process once it has started.
 class _LinkingPage extends HookWidget {
-  const _LinkingPage({required this.sessionId, required this.onBack});
+  const _LinkingPage({
+    required this.sessionId,
+    required this.onBack,
+    required this.startLinkSession,
+  });
 
   final String sessionId;
   final VoidCallback onBack;
+  final LinkSessionStarter startLinkSession;
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final userCubit = context.read<UserCubit>();
 
-    // The oneshot that gates linking on the user's approval checkbox.
-    final confirmation = useMemoized(MultiDeviceLinkConfirmation.new);
+    // Starts linking once; the same session (event stream + confirm callback) is
+    // reused across rebuilds.
+    final session = useMemoized(() => startLinkSession(context, sessionId));
 
     final phase = useState(_LinkPhase.connecting);
 
     // Subscribe to the linking event stream while this page is mounted.
     useEffect(() {
-      final subscription = userCubit.linkDevice(sessionId, confirmation).listen(
-        (event) {
-          switch (event) {
-            case MultiDeviceLinkEvent_AwaitingConfirmation():
-              // Connected: prompt the user (unless they already confirmed).
-              if (phase.value == _LinkPhase.connecting) {
-                phase.value = _LinkPhase.awaitingConfirmation;
-              }
-            case MultiDeviceLinkEvent_Linked():
-              // TODO: this should end the entire process later
-              if (context.mounted) _showLinkedDialog(context);
-            case MultiDeviceLinkEvent_Failed():
-              phase.value = _LinkPhase.failed;
-          }
-        },
-        onError: (Object _) => phase.value = _LinkPhase.failed,
-      );
+      final subscription = session.events.listen((event) {
+        switch (event) {
+          case MultiDeviceLinkEvent_AwaitingConfirmation():
+            // Connected: prompt the user (unless they already confirmed).
+            if (phase.value == _LinkPhase.connecting) {
+              phase.value = _LinkPhase.awaitingConfirmation;
+            }
+          case MultiDeviceLinkEvent_Linked():
+            // TODO: this should end the entire process later
+            if (context.mounted) _showLinkedDialog(context);
+          case MultiDeviceLinkEvent_Failed():
+            phase.value = _LinkPhase.failed;
+        }
+      }, onError: (Object _) => phase.value = _LinkPhase.failed);
       return subscription.cancel;
     }, const []);
 
@@ -505,7 +523,7 @@ class _LinkingPage extends HookWidget {
       _LinkPhase.awaitingConfirmation => _LinkConfirmView(
         onBack: onBack,
         onConfirm: () {
-          confirmation.confirm();
+          session.confirm();
           phase.value = _LinkPhase.linking;
         },
       ),
@@ -604,6 +622,7 @@ class _LinkErrorView extends StatelessWidget {
   }
 }
 
+/// Text field with hint for naming the device being linked.
 class _LinkDeviceName extends StatelessWidget {
   const _LinkDeviceName({required this.textEditingController});
 
@@ -633,7 +652,19 @@ class _LinkDeviceName extends StatelessWidget {
             spacing: Spacing.px8,
             children: [
               const AppIcon.laptop(),
-              Expanded(child: TextField(controller: textEditingController)),
+              Expanded(
+                child: TextField(
+                  controller: textEditingController,
+                  maxLength: 30,
+                  buildCounter:
+                      (
+                        _, {
+                        required currentLength,
+                        required isFocused,
+                        maxLength,
+                      }) => null,
+                ),
+              ),
             ],
           ),
         ),
