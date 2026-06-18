@@ -41,6 +41,7 @@ class LinkedDevicesView extends HookWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final colors = CustomColorScheme.of(context);
+    final platform = Theme.of(context).platform;
 
     return AppScaffold(
       title: loc.linkedDevicesScreen_title,
@@ -63,7 +64,7 @@ class LinkedDevicesView extends HookWidget {
                 ),
                 const SizedBox(height: Spacing.px8),
                 _SingleDevice(
-                  deviceName: "Linux",
+                  deviceName: platform.name,
                   linkedAt: DateTime.parse("2026-01-15 02:45:00"),
                 ),
                 const SizedBox(height: Spacing.px24),

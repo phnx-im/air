@@ -23,15 +23,6 @@ import 'package:mobile_scanner/mobile_scanner.dart';
 bool get _isQrCodeScannerSupported =>
     defaultTargetPlatform == .android || defaultTargetPlatform == .iOS;
 
-String initialDeviceName(TargetPlatform platform) => switch (platform) {
-  TargetPlatform.android => "Android",
-  TargetPlatform.iOS => "iOS",
-  TargetPlatform.linux => "Linux",
-  TargetPlatform.macOS => "macOS",
-  TargetPlatform.windows => "Windows",
-  _ => "New device",
-};
-
 enum _LinkPage { chooser, scanQrCode, numericCode, linking }
 
 /// A running linking session
@@ -699,9 +690,7 @@ class _LinkConfirmView extends HookWidget {
     final checked = useState(false);
 
     final platform = Theme.of(context).platform;
-    final deviceName = useTextEditingController(
-      text: initialDeviceName(platform),
-    );
+    final deviceName = useTextEditingController(text: platform.name);
 
     return Column(
       mainAxisSize: MainAxisSize.min,

@@ -4,6 +4,7 @@
 
 import 'dart:async';
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:logging/logging.dart';
 import 'package:air/core/core.dart';
@@ -270,4 +271,15 @@ extension PlatformExtension on Platform {
   static bool get isMobile => Platform.isAndroid || Platform.isIOS;
   static bool get isDesktop =>
       Platform.isMacOS || Platform.isLinux || Platform.isWindows;
+}
+
+extension TargetPlatformExtension on TargetPlatform {
+  String get name => switch (this) {
+    TargetPlatform.android => "Android",
+    TargetPlatform.iOS => "iOS",
+    TargetPlatform.linux => "Linux",
+    TargetPlatform.macOS => "macOS",
+    TargetPlatform.windows => "Windows",
+    TargetPlatform.fuchsia => "Fuchsia",
+  };
 }
