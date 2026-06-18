@@ -530,7 +530,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -541,7 +541,7 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -553,10 +553,12 @@ checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 [[package]]
 name = "apqmls"
 version = "0.1.0"
-source = "git+https://github.com/phnx-im/apqmls?rev=021ba62bbe2d319f614c5be2888993fb1055d0a0#021ba62bbe2d319f614c5be2888993fb1055d0a0"
 dependencies = [
  "openmls",
  "openmls_basic_credential",
+ "openmls_memory_storage",
+ "openmls_rust_crypto",
+ "openmls_sqlite_storage",
  "openmls_traits",
  "serde",
  "tap",
@@ -1805,7 +1807,7 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -2656,7 +2658,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -3235,9 +3237,6 @@ name = "hashbrown"
 version = "0.14.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "e5274423e17b7c9fc20b6e7e208532f9b19825d82dfd615708b70edd83df41f1"
-dependencies = [
- "ahash",
-]
 
 [[package]]
 name = "hashbrown"
@@ -3259,15 +3258,6 @@ dependencies = [
  "allocator-api2",
  "equivalent",
  "foldhash 0.2.0",
-]
-
-[[package]]
-name = "hashlink"
-version = "0.9.1"
-source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "6ba4ff7128dee98c7dc9794b6a411377e1404dba1c97deb8d1a55297bd25d8af"
-dependencies = [
- "hashbrown 0.14.5",
 ]
 
 [[package]]
@@ -4327,9 +4317,9 @@ dependencies = [
 
 [[package]]
 name = "libsqlite3-sys"
-version = "0.30.1"
+version = "0.35.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2e99fb7a497b1e3339bc746195567ed8d3e24945ecd636e3619d20b9de9e9149"
+checksum = "133c182a6a2c87864fe97778797e46c7e999672690dc9fa3ee8e241aa4a9c13f"
 dependencies = [
  "cc",
  "pkg-config",
@@ -4600,6 +4590,16 @@ dependencies = [
 ]
 
 [[package]]
+name = "minicov"
+version = "0.3.8"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4869b6a491569605d66d3952bcdf03df789e5b536e5f0cf7758a7f08a55ae24d"
+dependencies = [
+ "cc",
+ "walkdir",
+]
+
+[[package]]
 name = "minimal-lexical"
 version = "0.2.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -4821,7 +4821,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.59.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -5060,27 +5060,35 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 [[package]]
 name = "openmls"
 version = "0.8.1"
-source = "git+https://github.com/boxdot/openmls?rev=ac45b95dde09c024bbf3876e4b71d754bf49368c#ac45b95dde09c024bbf3876e4b71d754bf49368c"
+source = "git+https://github.com/openmls/openmls?rev=26fadc3e49f92361d895598ffaa0f4c548446776#26fadc3e49f92361d895598ffaa0f4c548446776"
 dependencies = [
+ "backtrace",
+ "itertools 0.14.0",
  "log",
+ "once_cell",
  "openmls_basic_credential",
  "openmls_libcrux_crypto",
  "openmls_memory_storage",
  "openmls_rust_crypto",
+ "openmls_serialization_helpers",
  "openmls_sqlite_storage",
+ "openmls_test",
  "openmls_traits",
+ "rand 0.10.1",
  "rayon",
  "serde",
  "serde_bytes",
+ "serde_json",
  "thiserror 2.0.18",
  "tls_codec",
+ "wasm-bindgen-test",
  "zeroize",
 ]
 
 [[package]]
 name = "openmls_basic_credential"
 version = "0.5.0"
-source = "git+https://github.com/boxdot/openmls?rev=ac45b95dde09c024bbf3876e4b71d754bf49368c#ac45b95dde09c024bbf3876e4b71d754bf49368c"
+source = "git+https://github.com/openmls/openmls?rev=26fadc3e49f92361d895598ffaa0f4c548446776#26fadc3e49f92361d895598ffaa0f4c548446776"
 dependencies = [
  "ed25519-dalek",
  "ml-dsa",
@@ -5096,7 +5104,7 @@ dependencies = [
 [[package]]
 name = "openmls_libcrux_crypto"
 version = "0.3.1"
-source = "git+https://github.com/boxdot/openmls?rev=ac45b95dde09c024bbf3876e4b71d754bf49368c#ac45b95dde09c024bbf3876e4b71d754bf49368c"
+source = "git+https://github.com/openmls/openmls?rev=26fadc3e49f92361d895598ffaa0f4c548446776#26fadc3e49f92361d895598ffaa0f4c548446776"
 dependencies = [
  "hpke-rs",
  "hpke-rs-crypto",
@@ -5117,7 +5125,7 @@ dependencies = [
 [[package]]
 name = "openmls_memory_storage"
 version = "0.5.0"
-source = "git+https://github.com/boxdot/openmls?rev=ac45b95dde09c024bbf3876e4b71d754bf49368c#ac45b95dde09c024bbf3876e4b71d754bf49368c"
+source = "git+https://github.com/openmls/openmls?rev=26fadc3e49f92361d895598ffaa0f4c548446776#26fadc3e49f92361d895598ffaa0f4c548446776"
 dependencies = [
  "hex",
  "log",
@@ -5130,7 +5138,7 @@ dependencies = [
 [[package]]
 name = "openmls_rust_crypto"
 version = "0.5.1"
-source = "git+https://github.com/boxdot/openmls?rev=ac45b95dde09c024bbf3876e4b71d754bf49368c#ac45b95dde09c024bbf3876e4b71d754bf49368c"
+source = "git+https://github.com/openmls/openmls?rev=26fadc3e49f92361d895598ffaa0f4c548446776#26fadc3e49f92361d895598ffaa0f4c548446776"
 dependencies = [
  "aes-gcm",
  "chacha20poly1305",
@@ -5148,29 +5156,50 @@ dependencies = [
  "rand_chacha 0.3.1",
  "rand_core 0.10.1",
  "rand_core 0.6.4",
- "serde",
  "sha2 0.11.0",
  "thiserror 2.0.18",
  "tls_codec",
 ]
 
 [[package]]
+name = "openmls_serialization_helpers"
+version = "0.1.0"
+source = "git+https://github.com/openmls/openmls?rev=26fadc3e49f92361d895598ffaa0f4c548446776#26fadc3e49f92361d895598ffaa0f4c548446776"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+ "thiserror 2.0.18",
+]
+
+[[package]]
 name = "openmls_sqlite_storage"
 version = "0.2.0"
-source = "git+https://github.com/boxdot/openmls?rev=ac45b95dde09c024bbf3876e4b71d754bf49368c#ac45b95dde09c024bbf3876e4b71d754bf49368c"
+source = "git+https://github.com/openmls/openmls?rev=26fadc3e49f92361d895598ffaa0f4c548446776#26fadc3e49f92361d895598ffaa0f4c548446776"
 dependencies = [
- "log",
  "openmls_traits",
  "refinery",
  "rusqlite",
  "serde",
- "thiserror 2.0.18",
+]
+
+[[package]]
+name = "openmls_test"
+version = "0.2.1"
+source = "git+https://github.com/openmls/openmls?rev=26fadc3e49f92361d895598ffaa0f4c548446776#26fadc3e49f92361d895598ffaa0f4c548446776"
+dependencies = [
+ "openmls_libcrux_crypto",
+ "openmls_rust_crypto",
+ "openmls_sqlite_storage",
+ "openmls_traits",
+ "quote",
+ "syn",
 ]
 
 [[package]]
 name = "openmls_traits"
 version = "0.5.0"
-source = "git+https://github.com/boxdot/openmls?rev=ac45b95dde09c024bbf3876e4b71d754bf49368c#ac45b95dde09c024bbf3876e4b71d754bf49368c"
+source = "git+https://github.com/openmls/openmls?rev=26fadc3e49f92361d895598ffaa0f4c548446776#26fadc3e49f92361d895598ffaa0f4c548446776"
 dependencies = [
  "serde",
  "tls_codec",
@@ -5193,7 +5222,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
- "windows-sys 0.45.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6379,14 +6408,14 @@ dependencies = [
 
 [[package]]
 name = "rusqlite"
-version = "0.32.1"
+version = "0.37.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "7753b721174eb8ff87a9a0e799e2d7bc3749323e773db92e0984debb00019d6e"
+checksum = "165ca6e57b20e1351573e3729b958bc62f0e48025386970b6e4d29e7a7e71f3f"
 dependencies = [
  "bitflags 2.11.0",
  "fallible-iterator",
  "fallible-streaming-iterator",
- "hashlink 0.9.1",
+ "hashlink 0.10.0",
  "libsqlite3-sys",
  "smallvec",
 ]
@@ -6422,7 +6451,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -6823,7 +6852,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7176,7 +7205,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -7796,7 +7825,7 @@ checksum = "f2f6fb2847f6742cd76af783a2a2c49e9375d0a111c7bef6f71cd9e738c72d6e"
 dependencies = [
  "memoffset",
  "tempfile",
- "windows-sys 0.60.2",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]
@@ -8066,6 +8095,45 @@ dependencies = [
 ]
 
 [[package]]
+name = "wasm-bindgen-test"
+version = "0.3.64"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6311c867385cc7d5602463b31825d454d0837a3aba7cdb5e56d5201792a3f7fe"
+dependencies = [
+ "async-trait",
+ "cast",
+ "js-sys",
+ "libm",
+ "minicov",
+ "nu-ansi-term",
+ "num-traits",
+ "oorandom",
+ "serde",
+ "serde_json",
+ "wasm-bindgen",
+ "wasm-bindgen-futures",
+ "wasm-bindgen-test-macro",
+ "wasm-bindgen-test-shared",
+]
+
+[[package]]
+name = "wasm-bindgen-test-macro"
+version = "0.3.64"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "67008cdde4769831958536b0f11b3bdd0380bde882be17fff9c2f34bb4549abd"
+dependencies = [
+ "proc-macro2",
+ "quote",
+ "syn",
+]
+
+[[package]]
+name = "wasm-bindgen-test-shared"
+version = "0.2.114"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "cfe29135b180b72b04c74aa97b2b4a2ef275161eff9a6c7955ea9eaedc7e1d4e"
+
+[[package]]
 name = "wasm-encoder"
 version = "0.244.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -8264,7 +8332,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.52.0",
+ "windows-sys 0.61.2",
 ]
 
 [[package]]

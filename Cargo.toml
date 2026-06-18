@@ -17,6 +17,7 @@ members = [
     "server",
     "test_harness",
     "xtask",
+    "apqmls",
 ]
 
 [workspace.dependencies]
@@ -28,11 +29,11 @@ airmacros = { path = "macros" }
 airprotos = { path = "protos" }
 airserver = { path = "server" }
 airserver_test_harness = { path = "test_harness" }
+apqmls = { path = "apqmls" }
 mls-assist = { path = "mls-assist" }
 
 aes-gcm = "0.10"
 anyhow = { version = "1.0.98", features = ["backtrace"] }
-apqmls = { git = "https://github.com/phnx-im/apqmls", rev = "021ba62bbe2d319f614c5be2888993fb1055d0a0" }
 arboard = "3"
 argon2 = "0.5.3"
 async-trait = "0.1.53"
@@ -80,10 +81,11 @@ minicbor = { version = "2.2.1", features = ["std"] }
 minicbor-serde = { version = "0.6", features = ["std"] }
 mockall = "0.13.1"
 mockito = "1.7.0"
-openmls = { version = "0.8.1", features = ["extensions-draft-08", "draft-ietf-mls-pq-ciphersuites"] }
-openmls_basic_credential = { version = "0.5.0" }
+openmls = { version = "0.8.1", features = ["extensions-draft-08", "draft-ietf-mls-pq-ciphersuites", "unchecked-conversions", "0-8-1-storage-format"] }
+openmls_basic_credential = { version = "0.5.0", features = ["clonable"] }
 openmls_memory_storage = { version = "0.5.0", features = ["extensions-draft-08", "draft-ietf-mls-pq-ciphersuites"] }
 openmls_rust_crypto = { version = "0.5.1", features = ["draft-ietf-mls-pq-ciphersuites"] }
+openmls_sqlite_storage = { version = "0.2.0", features = ["extensions-draft-08", "draft-ietf-mls-pq-ciphersuites"] }
 openmls_traits = { version = "0.5.0", features = ["draft-ietf-mls-pq-ciphersuites"] }
 parking_lot = "0.12"
 pin-project = "1.1.10"
@@ -107,6 +109,7 @@ sha2 = "0.10.9"
 shadow-rs = { version = "1.4.0", default-features = false }
 sqlx = { version = "0.9.0", default-features = false, features = ["macros", "uuid", "chrono", "migrate", "bigdecimal", "runtime-tokio", "sqlx-toml"] }
 strum = { version = "0.28", features = ["derive"] }
+tap = "1.0.1"
 tar = "0.4.44"
 tempfile = "3.23.0"
 thiserror = "2.0"
@@ -133,16 +136,13 @@ zeroize = "1.8.2"
 
 
 [patch.crates-io]
-# Use the several commits after the 0.8.1 release exposing methods as public APIs, in particular:
-# <https://github.com/openmls/openmls/commit/04c50d7fb12d52f4f9aee26de5f5234f3df29fa8>
-# <https://github.com/openmls/openmls/commit/b73621ba14ead6b32636a4e910f2cbfabb0d1ee9>
-#
-# Also, use the post-quantum-support branch of openmls.
-openmls = { git = "https://github.com/boxdot/openmls", rev = "ac45b95dde09c024bbf3876e4b71d754bf49368c" }
-openmls_rust_crypto = { git = "https://github.com/boxdot/openmls", rev = "ac45b95dde09c024bbf3876e4b71d754bf49368c" }
-openmls_traits = { git = "https://github.com/boxdot/openmls", rev = "ac45b95dde09c024bbf3876e4b71d754bf49368c" }
-openmls_memory_storage = { git = "https://github.com/boxdot/openmls", rev = "ac45b95dde09c024bbf3876e4b71d754bf49368c" }
-openmls_basic_credential = { git = "https://github.com/boxdot/openmls", rev = "ac45b95dde09c024bbf3876e4b71d754bf49368c" }
+# Use unreleased post-quantum and virtual-clients features of openmls after the 0.8.1 release
+openmls = { git = "https://github.com/openmls/openmls", rev = "26fadc3e49f92361d895598ffaa0f4c548446776" }
+openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "26fadc3e49f92361d895598ffaa0f4c548446776" }
+openmls_traits = { git = "https://github.com/openmls/openmls", rev = "26fadc3e49f92361d895598ffaa0f4c548446776" }
+openmls_memory_storage = { git = "https://github.com/openmls/openmls", rev = "26fadc3e49f92361d895598ffaa0f4c548446776" }
+openmls_basic_credential = { git = "https://github.com/openmls/openmls", rev = "26fadc3e49f92361d895598ffaa0f4c548446776" }
+openmls_sqlite_storage = { git = "https://github.com/openmls/openmls", rev = "26fadc3e49f92361d895598ffaa0f4c548446776" }
 # openmls = { path = "../openmls/openmls" }
 # openmls_rust_crypto = { path = "../openmls/openmls_rust_crypto" }
 # openmls_traits = { path = "../openmls/traits" }
@@ -162,9 +162,6 @@ hpke-rs-rust-crypto = { git = "https://github.com/cryspen/hpke-rs", rev = "42f9b
 # v0.10.0-rc.18 with additional unreleased commit using `signature@0.3` instead of `3.0.0-rc.10`
 # This patch is needed to be compatible with dsa 0.1 which uses `signature@0.3`.
 rsa = { git = "https://github.com/RustCrypto/RSA", rev = "99f80888cdc838da78a48ad14f6e1f5c01be5c30" }
-
-# [patch."https://github.com/phnx-im/apqmls"]
-# apqmls = { path = "../apqmls" }
 
 
 [profile.release]
