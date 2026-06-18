@@ -36,11 +36,7 @@ import 'package:air/ds/foundations/font_size.dart';
 import 'package:provider/provider.dart';
 
 import 'package:air/util/platform.dart'
-    show
-        ClipboardImage,
-        getClipboardFilePaths,
-        getClipboardImage,
-        PlatformExtension;
+    show ClipboardImage, getClipboardFilePaths, getClipboardImage;
 
 import 'message_renderer.dart';
 import 'text_message_tile.dart' show messageHorizontalPadding;
@@ -131,7 +127,7 @@ class _MessageComposerState extends State<MessageComposer>
       }
 
       // always request focus on chat draft loading on desktop
-      bool requestFocus = PlatformExtension.isDesktop;
+      bool requestFocus = DeviceType.isDesktop;
 
       switch (state.chat?.draft) {
         // Initially loaded draft
@@ -386,7 +382,7 @@ class _MessageComposerState extends State<MessageComposer>
     if (!modifierKeyPressed &&
         evt.logicalKey == LogicalKeyboardKey.enter &&
         evt is KeyDownEvent &&
-        PlatformExtension.isDesktop) {
+        DeviceType.isDesktop) {
       final chatDetailsCubit = context.read<ChatDetailsCubit>();
       _submitMessage(chatDetailsCubit);
       return KeyEventResult.handled;

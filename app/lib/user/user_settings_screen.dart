@@ -55,7 +55,9 @@ class UserSettingsView extends StatelessWidget {
       child: Align(
         alignment: Alignment.topCenter,
         child: Container(
-          constraints: isPointer() ? const BoxConstraints(maxWidth: 800) : null,
+          constraints: DeviceType.isDesktop
+              ? const BoxConstraints(maxWidth: 800)
+              : null,
           child: const _Sections(),
         ),
       ),
@@ -109,9 +111,8 @@ class _Sections extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final isMobilePlatform = Platform.isAndroid || Platform.isIOS;
-    final isDesktopPlatform =
-        Platform.isMacOS || Platform.isWindows || Platform.isLinux;
+    final isMobilePlatform = DeviceType.isPhone;
+    final isDesktopPlatform = DeviceType.isDesktop;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,

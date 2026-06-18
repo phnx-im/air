@@ -121,7 +121,7 @@ class _MemberSelectionStep extends HookWidget {
         child: Align(
           alignment: Alignment.topCenter,
           child: Container(
-            constraints: isPointer()
+            constraints: DeviceType.isDesktop
                 ? const BoxConstraints(maxWidth: 800)
                 : null,
             child: Column(
@@ -249,7 +249,7 @@ class _CreateGroupDetailsStep extends HookWidget {
             child: Align(
               alignment: Alignment.topCenter,
               child: Container(
-                constraints: isPointer()
+                constraints: DeviceType.isDesktop
                     ? const BoxConstraints(maxWidth: 800)
                     : null,
                 child: Column(

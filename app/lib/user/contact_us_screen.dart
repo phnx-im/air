@@ -51,7 +51,7 @@ class ContactUsScreen extends StatelessWidget {
         ),
         actions: null,
         backgroundColor: colors.backgroundBase.secondary,
-        toolbarHeight: isPointer() ? 100 : null,
+        toolbarHeight: DeviceType.isDesktop ? 100 : null,
         centerTitle: true,
       ),
       backgroundColor: colors.backgroundBase.secondary,
@@ -62,7 +62,7 @@ class ContactUsScreen extends StatelessWidget {
           child: Align(
             alignment: Alignment.topCenter,
             child: Container(
-              constraints: isPointer()
+              constraints: DeviceType.isDesktop
                   ? const BoxConstraints(maxWidth: 800)
                   : null,
               child: Theme(
