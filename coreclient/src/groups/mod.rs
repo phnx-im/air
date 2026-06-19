@@ -312,6 +312,10 @@ impl Group {
         self.pq.as_ref()
     }
 
+    pub(crate) fn pq_mut(&mut self) -> Option<&mut PqGroup> {
+        self.pq.as_mut()
+    }
+
     pub(crate) async fn mark_commit_failed(
         &mut self,
         mut connection: impl WriteConnection,
@@ -1835,13 +1839,22 @@ impl Group {
         signer: &ClientSigningKey,
     ) -> Result<SelfRemoveParamsOut> {
         let provider = &AirOpenMlsProvider::new(connection.as_mut());
-        let proposal = self
+
+        let t_proposal = self
             .mls_group
             .leave_group_via_self_remove(provider, signer)?;
+        let pq_proposal = self
+            .pq_mut()
+            .map(|pq| pq.mls_group.leave_group_via_self_remove(provider, signer))
+            .transpose()?;
 
-        let assisted_message = AssistedMessageOut::new(proposal, None);
+        let t_remove_proposal = AssistedMessageOut::new(t_proposal, None);
+        let pq_remove_proposal =
+            pq_proposal.map(|proposal| AssistedMessageOut::new(proposal, None));
+
         let params = SelfRemoveParamsOut {
-            remove_proposal: assisted_message,
+            t_remove_proposal,
+            pq_remove_proposal,
         };
         Ok(params)
     }

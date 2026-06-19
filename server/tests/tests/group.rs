@@ -1144,3 +1144,48 @@ async fn send_message_in_apq_group() {
         .send_message(chat_id, &bob, vec![&alice, &charlie], None)
         .await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn apq_leave_stages_self_remove_on_both_t_and_pq() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+
+    let chat_id = setup.create_apq_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, vec![&charlie]).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+    let bob_user = &setup.get_user(&bob).user;
+
+    // Alice leaves the APQ group.
+    alice_user.leave_chat(chat_id).await.unwrap();
+
+    // Bob picks up Alice's self-remove proposal.
+    let qs_messages = bob_user.qs_fetch_messages().await.unwrap();
+    let result = bob_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Bob should process Alice's self-remove without errors"
+    );
+
+    let debug_info = bob_user.chat_debug_info(chat_id).await.unwrap();
+    let pq = debug_info
+        .pq
+        .clone()
+        .expect("APQ group must have a PQ group");
+
+    assert_eq!(
+        debug_info.pending_proposals, 1,
+        "T group must have Alice's self-remove proposal staged"
+    );
+    assert_eq!(
+        pq.pending_proposals, 1,
+        "PQ group must also have Alice's self-remove proposal staged"
+    );
+}

@@ -81,7 +81,9 @@ pub struct ApqGroupOperationParamsOut {
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct SelfRemoveParamsOut {
-    pub remove_proposal: AssistedMessageOut,
+    pub t_remove_proposal: AssistedMessageOut,
+    #[serde(default)]
+    pub pq_remove_proposal: Option<AssistedMessageOut>,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]

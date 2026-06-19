@@ -6,10 +6,11 @@ use prost::Message;
 
 use crate::{
     delivery_service::v1::{
-        ApqGroupOperationPayload, ApqGroupOperationRequest, AssistedMessage, CreateApqGroupPayload,
-        CreateApqGroupRequest, GetAttachmentUrlPayload, GetAttachmentUrlRequest, GroupStateEarKey,
-        LeafNodeIndex, ProvisionAttachmentPayload, ProvisionAttachmentRequest,
-        TargetedMessagePayload, TargetedMessageRequest,
+        ApqGroupOperationPayload, ApqGroupOperationRequest, ApqSelfRemovePayload,
+        ApqSelfRemoveRequest, AssistedMessage, CreateApqGroupPayload, CreateApqGroupRequest,
+        GetAttachmentUrlPayload, GetAttachmentUrlRequest, GroupStateEarKey, LeafNodeIndex,
+        ProvisionAttachmentPayload, ProvisionAttachmentRequest, TargetedMessagePayload,
+        TargetedMessageRequest,
     },
     sign::impl_signed_payload,
 };
@@ -641,6 +642,13 @@ impl From<MissingPayloadError> for tls_codec::Error {
         tls_codec::Error::EncodingError("missing payload".to_owned())
     }
 }
+
+impl_signed_payload!(
+    ApqSelfRemoveRequest,
+    ApqSelfRemovePayload,
+    ClientKeyType,
+    "ApqSelfRemovePayload"
+);
 
 mod private_mod {
     #[derive(Default)]

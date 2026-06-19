@@ -30,6 +30,7 @@ use openmls::{
         ProtocolMessage, Sender, SignaturePublicKey, StagedCommit,
     },
 };
+use openmls_traits::OpenMlsProvider;
 use tls_codec::DeserializeBytes as TlsDeserializeBytes;
 use tracing::{debug, instrument};
 
@@ -682,16 +683,24 @@ impl Group {
         let res = Self::post_process_message(self, txn, api_clients, t_message, Some(&pq_message))
             .await?;
 
-        // Merge the PQ staged commit
-        if let ProcessedMessageContent::StagedCommitMessage(pq_staged_commit) =
-            pq_message.into_content()
-        {
-            let provider = AirOpenMlsProvider::new(txn.as_mut());
-            self.pq
-                .as_mut()
-                .context("logic error: no PQ group")?
-                .mls_group
-                .merge_staged_commit(&provider, *pq_staged_commit)?;
+        // Merge the PQ staged commit or proposal (self-remove)
+        match pq_message.into_content() {
+            ProcessedMessageContent::StagedCommitMessage(pq_staged_commit) => {
+                let provider = AirOpenMlsProvider::new(txn.as_mut());
+                self.pq
+                    .as_mut()
+                    .context("logic error: no PQ group")?
+                    .mls_group
+                    .merge_staged_commit(&provider, *pq_staged_commit)?;
+            }
+            ProcessedMessageContent::ProposalMessage(pq_queue_proposal) => {
+                let provider = AirOpenMlsProvider::new(txn.as_mut());
+                self.pq_mut()
+                    .context("logic error: no PQ group")?
+                    .mls_group
+                    .store_pending_proposal(provider.storage(), *pq_queue_proposal)?;
+            }
+            _ => (),
         }
 
         Ok(Some(res))
