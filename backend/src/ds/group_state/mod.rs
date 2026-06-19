@@ -213,16 +213,15 @@ impl DsGroupState {
     pub(super) fn self_commit_message(
         &self,
         sender_index: LeafNodeIndex,
-        commit: DsFanOutPayload,
+        payload: DsFanOutPayload,
     ) -> Result<DsFanOutMessage, GroupOperationError> {
-        let sender_client_reference = self
-            .qs_client_ref_by_index(sender_index)
-            .ok_or(GroupOperationError::InvalidMessage)?;
-        Ok(DsFanOutMessage {
-            payload: commit,
-            client_reference: sender_client_reference,
-            suppress_notifications: true.into(),
-        })
+        self.qs_client_ref_by_index(sender_index)
+            .map(|client_reference| DsFanOutMessage {
+                payload,
+                client_reference,
+                suppress_notifications: true.into(),
+            })
+            .ok_or(GroupOperationError::InvalidMessage)
     }
 }
 

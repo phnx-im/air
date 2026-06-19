@@ -31,7 +31,7 @@ use mimi_room_policy::RoleIndex;
 use openmls::{
     group::{GroupId, QueuedProposal},
     prelude::{
-        ApplicationMessage, MlsMessageBodyIn, MlsMessageIn, ProcessedMessageContent,
+        ApplicationMessage, ContentType, MlsMessageBodyIn, MlsMessageIn, ProcessedMessageContent,
         ProtocolMessage, Sender, StagedCommit,
     },
 };
@@ -476,9 +476,19 @@ impl CoreUser {
         ds_timestamp: TimeStamp,
         read_receipts_enabled: bool,
     ) -> Result<ProcessQsMessageResult> {
+        // Capture the sender of a commit before consuming the message, so we can
+        // recognize a self-originating commit (sender == our own leaf) once the
+        // group is loaded. This covers our own commit echoed back by the DS as
+        // well as a commit from a sibling emulator client sharing this virtual
+        // client's leaf.
+        let mut commit_sender = None;
         let protocol_message: ProtocolMessage = match mls_message.extract() {
-            MlsMessageBodyIn::PublicMessage(handshake_message) =>
-                handshake_message.into(),
+            MlsMessageBodyIn::PublicMessage(handshake_message) => {
+                if handshake_message.content_type() == ContentType::Commit {
+                    commit_sender = Some(handshake_message.sender().clone());
+                }
+                handshake_message.into()
+            }
             // Only application messages are private
             MlsMessageBodyIn::PrivateMessage(app_msg) => app_msg.into(),
             // Welcomes always come as a WelcomeBundle, not as an MLSMessage.
@@ -499,24 +509,40 @@ impl CoreUser {
             .await?
             .ok_or_else(|| anyhow!("No group found for group ID {:?}", group_id))?;
 
+        // A commit whose sender is our own leaf is self-originating: either our own
+        // commit echoed back by the DS, or a commit from a sibling emulator client
+        // sharing this virtual client's leaf.
+        let is_self_commit = matches!(
+            &commit_sender,
+            Some(Sender::Member(index)) if *index == group.own_index()
+        );
+
         // MLSMessage Phase 2: Process the message
 
-        let Some(process_message_result) = group
+        let process_message_result = match group
             .group_mut()
             .process_message(&mut *txn, &self.inner.api_clients, protocol_message)
-            .await?
-        else {
-            // TODO: Once we have a UX for resyncs, we should schedule one
-            // here and re-enable the resync test in integration.rs
-            let _resync = Resync {
-                chat_id,
-                group_id: group.group_id().clone(),
-                group_state_ear_key: group.group_state_ear_key().clone(),
-                identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
-                original_leaf_index: group.own_index(),
-            };
+            .await
+        {
+            Ok(Some(result)) => result,
+            Ok(None) => {
+                // TODO: Once we have a UX for resyncs, we should schedule one
+                // here and re-enable the resync test in integration.rs
+                let _resync = Resync {
+                    chat_id,
+                    group_id: group.group_id().clone(),
+                    group_state_ear_key: group.group_state_ear_key().clone(),
+                    identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
+                    original_leaf_index: group.own_index(),
+                };
 
-            return Ok(ProcessQsMessageResult::None);
+                return Ok(ProcessQsMessageResult::None);
+            }
+            Err(error) if is_self_commit => {
+                debug!(%error, "Skipping self-originating commit that could not be processed");
+                return Ok(ProcessQsMessageResult::None);
+            }
+            Err(error) => return Err(error),
         };
 
         self.finalize_handle_message(
@@ -537,6 +563,18 @@ impl CoreUser {
         ds_timestamp: TimeStamp,
         read_receipts_enabled: bool,
     ) -> anyhow::Result<ProcessQsMessageResult> {
+        // Capture the sender of a commit before consuming the message, so we can
+        // recognize a self-originating commit (sender == our own leaf) once the
+        // group is loaded. The leaf index lives in the T-group component.
+        let commit_sender = match apq_mls_message.t_message().clone().extract() {
+            MlsMessageBodyIn::PublicMessage(handshake_message)
+                if handshake_message.content_type() == ContentType::Commit =>
+            {
+                Some(handshake_message.sender().clone())
+            }
+            _ => None,
+        };
+
         let protocol_message = apq_mls_message
             .into_protocol_message()
             .context("expected APQMLS protocol message")?;
@@ -553,23 +591,39 @@ impl CoreUser {
             .await?
             .with_context(|| format!("No group found for APQ group ID: {apq_group_id:?}"))?;
 
+        // A commit whose sender is our own leaf is self-originating: either our own
+        // commit echoed back by the DS, or a commit from a sibling emulator client
+        // sharing this virtual client's leaf.
+        let is_self_commit = matches!(
+            &commit_sender,
+            Some(Sender::Member(index)) if *index == group.own_index()
+        );
+
         // MLSMessage Phase 2: Process the message
-        let Some(process_message_result) = group
+        let process_message_result = match group
             .group_mut()
             .process_apq_message(txn, self.api_clients(), protocol_message)
-            .await?
-        else {
-            // TODO: Once we have a UX for resyncs, we should schedule one
-            // here and re-enable the resync test in integration.rs
-            let _resync = Resync {
-                chat_id,
-                group_id: group.group_id().clone(),
-                group_state_ear_key: group.group_state_ear_key().clone(),
-                identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
-                original_leaf_index: group.own_index(),
-            };
+            .await
+        {
+            Ok(Some(result)) => result,
+            Ok(None) => {
+                // TODO: Once we have a UX for resyncs, we should schedule one
+                // here and re-enable the resync test in integration.rs
+                let _resync = Resync {
+                    chat_id,
+                    group_id: group.group_id().clone(),
+                    group_state_ear_key: group.group_state_ear_key().clone(),
+                    identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
+                    original_leaf_index: group.own_index(),
+                };
 
-            return Ok(ProcessQsMessageResult::None);
+                return Ok(ProcessQsMessageResult::None);
+            }
+            Err(error) if is_self_commit => {
+                debug!(%error, "Skipping self-originating APQ commit that could not be processed");
+                return Ok(ProcessQsMessageResult::None);
+            }
+            Err(error) => return Err(error),
         };
 
         self.finalize_handle_message(
