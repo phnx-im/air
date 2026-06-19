@@ -1166,21 +1166,27 @@ impl CoreUser {
         qs_message: QueueMessage,
         result: &mut ProcessedQsMessages,
         read_receipts_enabled: bool,
-    ) -> anyhow::Result<()> {
-        let Some(qs_message_payload) =
-            StorableQsQueueRatchet::decrypt_qs_queue_message(txn, qs_message)
-                .await
-                .inspect_err(|error| error!(%error, "QS queue message decryption failed"))
-                .context("Decrypting message failed")?
-        else {
-            // Skip the message if it is behind the ratchet (replay)
-            return Ok(());
-        };
+    ) -> sqlx::Result<()> {
+        let qs_message_payload =
+            match StorableQsQueueRatchet::decrypt_qs_queue_message(txn, qs_message).await {
+                Ok(Some(qs_message_payload)) => qs_message_payload,
+                Ok(None) => {
+                    // Skip the message if it is behind the ratchet (replay)
+                    return Ok(());
+                }
+                Err(error) => {
+                    // Cannot decrypt or deserialize the message's container
+                    error!(%error, "QS queue message decryption failed; dropping message");
+                    result.errors.push(error.into());
+                    return Ok(());
+                }
+            };
 
         let qs_message_plaintext = match qs_message_payload.extract() {
             Ok(extracted) => extracted,
             Err(error) => {
                 error!(%error, "Extracting message failed; dropping message");
+                result.errors.push(error.into());
                 return Ok(());
             }
         };
@@ -1207,18 +1213,23 @@ impl CoreUser {
                 info!("Dropping message from blocked contact");
                 return Ok(());
             }
-            Err(error)
-                if error
-                    .downcast_ref::<sqlx::Error>()
-                    .is_some_and(|error| error.as_database_error().is_some()) =>
-            {
-                // Fatal error, stop processing
-                return Err(error);
-            }
             Err(error) => {
-                error!(%error, "Processing message failed; continue");
-                result.errors.push(error);
-                return Ok(());
+                match error.downcast::<sqlx::Error>() {
+                    Ok(error) if error.as_database_error().is_some() => {
+                        // Fatal database error, stop processing
+                        return Err(error);
+                    }
+                    Ok(error) => {
+                        error!(%error, "Processing message failed with a recoverable database error; continue");
+                        result.errors.push(error.into());
+                        return Ok(());
+                    }
+                    Err(error) => {
+                        error!(%error, "Processing message failed; continue");
+                        result.errors.push(error);
+                        return Ok(());
+                    }
+                }
             }
         };
 
