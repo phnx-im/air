@@ -32,7 +32,7 @@ enum Commands {
     /// Sign and publish a .deb or .rpm to an S3-hosted package repository.
     #[command(name = "publish-packages")]
     PublishLinuxPackages(publish_linux_packages::PublishArgs),
-    #[command(name = "git-line-count")]
+    #[command(name = "git-num-stats")]
     GitNumStats(git_num_stats::GitNumStatsArgs),
 }
 
