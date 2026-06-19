@@ -1140,6 +1140,11 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .create_commit_response(sender_index, fan_out_payload.timestamp())?;
                 individual_fan_out_messages.push(commit_response);
 
+                // Echo the full commit to the committer's own leaf (QS fans it to all
+                // emulator clients). Older clients will error but skip it.
+                individual_fan_out_messages
+                    .push(group_state.self_commit_message(sender_index, fan_out_payload.clone())?);
+
                 Ok((
                     destination_clients,
                     fan_out_payload,
@@ -1369,6 +1374,13 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
         let commit_response = t_group_state.create_commit_response(t_sender_index, timestamp)?;
         individual_fan_out_messages.push(commit_response);
+
+        // Echo the full commit to the committer's own leaf (QS fans it to all
+        // emulator clients). Older clients will error but skip it.
+        individual_fan_out_messages.push(t_group_state.self_commit_message(
+            t_sender_index,
+            DsFanOutPayload::QueueMessage(apq_payload.clone()),
+        )?);
 
         // Persist and commit the DS state *before* dispatching welcome bundles, so that joiners
         // fetching welcome info always observe the freshly stored past group state.
