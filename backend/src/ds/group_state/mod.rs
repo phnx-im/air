@@ -35,7 +35,10 @@ use tls_codec::{Serialize as _, TlsDeserializeBytes, TlsSerialize, TlsSize, VLBy
 use tracing::error;
 use uuid::Uuid;
 
-use crate::errors::{CborMlsAssistStorage, StorageError};
+use crate::{
+    errors::{CborMlsAssistStorage, GroupOperationError, StorageError},
+    messages::intra_backend::{DsFanOutMessage, DsFanOutPayload},
+};
 
 use super::{GROUP_STATE_EXPIRATION, ReservedGroupId, process::ExternalCommitInfo};
 
@@ -205,6 +208,21 @@ impl DsGroupState {
         self.member_profiles
             .get(&member_index)
             .map(|cp| cp.client_queue_config.clone())
+    }
+
+    pub(super) fn self_commit_message(
+        &self,
+        sender_index: LeafNodeIndex,
+        commit: DsFanOutPayload,
+    ) -> Result<DsFanOutMessage, GroupOperationError> {
+        let sender_client_reference = self
+            .qs_client_ref_by_index(sender_index)
+            .ok_or(GroupOperationError::InvalidMessage)?;
+        Ok(DsFanOutMessage {
+            payload: commit,
+            client_reference: sender_client_reference,
+            suppress_notifications: true.into(),
+        })
     }
 }
 
