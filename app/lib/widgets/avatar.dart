@@ -93,8 +93,13 @@ class _Avatar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final targetSize = (size * MediaQuery.devicePixelRatioOf(context)).round();
     final foregroundImage = image != null
-        ? CachedMemoryImage.fromImageData(image!)
+        ? CachedMemoryImage.fromImageData(
+            image!,
+            targetWidth: targetSize,
+            targetHeight: targetSize,
+          )
         : null;
     final colors = CustomColorScheme.of(context);
     final gradient = _AvatarGradient.fromUuid(gradientKey);
