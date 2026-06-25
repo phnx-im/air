@@ -211,7 +211,7 @@ class _ScanQrCodePageState extends State<_ScanQrCodePage> {
   bool _handled = false;
 
   void _onDetect(BarcodeCapture capture) {
-    if (_handled) return;
+    if (_handled || !mounted) return;
 
     final userCubit = context.read<UserCubit>();
     for (final raw in capture.barcodes.map((barcode) => barcode.rawValue)) {
