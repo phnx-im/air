@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+// ignore: depend_on_referenced_packages
 import 'package:flutter_rust_bridge_hooks/flutter_rust_bridge_hooks.dart';
 
 void main(List<String> args) async {
