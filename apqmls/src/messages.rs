@@ -5,9 +5,9 @@
 use openmls::{
     group::GroupEpoch,
     prelude::{
-        Ciphersuite, Credential, KeyPackage, KeyPackageIn, KeyPackageVerifyError, MlsMessageBodyIn,
-        MlsMessageIn, MlsMessageOut, OpenMlsCrypto, OpenMlsSignaturePublicKey, ProtocolMessage,
-        ProtocolVersion, RatchetTreeIn, SignatureError, Verifiable as _, Welcome,
+        Ciphersuite, Credential, KeyPackage, KeyPackageIn, MlsMessageBodyIn, MlsMessageIn,
+        MlsMessageOut, OpenMlsCrypto, OpenMlsSignaturePublicKey, ProtocolMessage, ProtocolVersion,
+        RatchetTreeIn, SignatureError, Verifiable as _, Welcome,
         group_info::{GroupInfo, VerifiableGroupInfo},
     },
     treesync::RatchetTree,
@@ -262,11 +262,11 @@ impl ApqKeyPackageIn {
         }
     }
 
-    pub fn unwrap_verified(self) -> Result<ApqKeyPackage, KeyPackageVerifyError> {
-        Ok(ApqKeyPackage {
-            t_key_package: self.t_key_package.into_unchecked()?,
-            pq_key_package: self.pq_key_package.into_unchecked()?,
-        })
+    pub fn unwrap_verified(self) -> ApqKeyPackage {
+        ApqKeyPackage {
+            t_key_package: self.t_key_package.into_unchecked(),
+            pq_key_package: self.pq_key_package.into_unchecked(),
+        }
     }
 }
 

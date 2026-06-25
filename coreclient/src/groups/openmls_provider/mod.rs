@@ -58,6 +58,10 @@ struct StorableOperationTreeRef<'a, VcOperationTree: Entity<CURRENT_VERSION>>(
     pub &'a VcOperationTree,
 );
 
+struct StorableRetainedKeyPackageMaterialRef<'a, RetainedKeyPackageMaterial: Entity<CURRENT_VERSION>>(
+    pub &'a RetainedKeyPackageMaterial,
+);
+
 pub(crate) struct AirOpenMlsProvider<'a> {
     storage: SqliteStorageProvider<'a>,
     crypto: RustCrypto,
