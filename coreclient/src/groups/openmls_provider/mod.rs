@@ -39,6 +39,25 @@ struct EntityVecWrapper<T: Entity<CURRENT_VERSION>>(pub Vec<T>);
 
 struct StorableGroupIdRef<'a, GroupId: Key<CURRENT_VERSION>>(pub &'a GroupId);
 
+#[derive(Debug, sqlx::Type)]
+#[repr(i32)]
+enum StorableVcSecretType {
+    Pprf,
+    EmulationEpochState,
+}
+
+struct StorableVcSecretRef<'a, VcSecret: Entity<CURRENT_VERSION>>(pub &'a VcSecret);
+
+struct StorableVcEpochIdRef<'a, VcEpochId: Key<CURRENT_VERSION>>(pub &'a VcEpochId);
+
+struct StorableEmulationBindingRef<'a, VcEmulationBindings: Entity<CURRENT_VERSION>>(
+    pub &'a VcEmulationBindings,
+);
+
+struct StorableOperationTreeRef<'a, VcOperationTree: Entity<CURRENT_VERSION>>(
+    pub &'a VcOperationTree,
+);
+
 pub(crate) struct AirOpenMlsProvider<'a> {
     storage: SqliteStorageProvider<'a>,
     crypto: RustCrypto,
