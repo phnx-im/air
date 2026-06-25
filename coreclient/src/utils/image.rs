@@ -245,7 +245,7 @@ fn load_animated_frames<'a, D: AnimationDecoder<'a>>(
 /// zero-duration frames.
 fn delay_to_ms(delay: Delay) -> i32 {
     let (n, d) = delay.numer_denom_ms();
-    let ms = if d == 0 { 0 } else { n / d };
+    let ms = n.checked_div(d).unwrap_or(0);
     let ms_i32: i32 = ms.try_into().unwrap_or(i32::MAX);
     ms_i32.max(MIN_FRAME_DURATION_MS)
 }
