@@ -18,7 +18,7 @@ use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, AttachmentId, ChatAttributes, ChatMessage, ChatMuted, ChatStatus, ChatType, Contact,
     ContentMessage, DisplayName, ErrorMessage, EventMessage, InactiveChat, Message, MessageDraft,
-    SystemMessage, TargetedMessageContact, UserProfile, clients::CoreUser,
+    MessageReaction, SystemMessage, TargetedMessageContact, UserProfile, clients::CoreUser,
 };
 use chrono::{DateTime, Duration, Local, Utc};
 use flutter_rust_bridge::frb;
@@ -344,6 +344,18 @@ pub struct _MessageId {
     pub uuid: Uuid,
 }
 
+/// An emoji reaction on a message, aggregated across the users who applied it.
+///
+/// `users.len()` is the count; the UI determines whether the current user
+/// reacted by checking whether their id is in `users`, and uses the list to
+/// show who reacted with this emoji.
+#[derive(Debug, Clone, Eq, PartialEq, Hash)]
+#[frb(dart_metadata = ("freezed"))]
+pub struct UiReaction {
+    pub emoji: String,
+    pub users: Vec<UiUserId>,
+}
+
 /// A message in a chat
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[frb(dart_metadata = ("freezed"))]
@@ -355,6 +367,25 @@ pub struct UiChatMessage {
     pub in_reply_to_message: Option<UiInReplyToMessage>,
     pub position: UiFlightPosition,
     pub status: UiMessageStatus,
+    /// Emoji reactions on this message, in order of first appearance.
+    pub reactions: Vec<UiReaction>,
+}
+
+/// Aggregate raw per-user reactions into per-emoji groups, preserving the order
+/// in which each emoji first appears.
+fn aggregate_reactions(reactions: &[MessageReaction]) -> Vec<UiReaction> {
+    let mut aggregated: Vec<UiReaction> = Vec::new();
+    for MessageReaction { sender, emoji } in reactions {
+        if let Some(existing) = aggregated.iter_mut().find(|r| &r.emoji == emoji) {
+            existing.users.push(sender.clone().into());
+        } else {
+            aggregated.push(UiReaction {
+                emoji: emoji.clone(),
+                users: vec![sender.clone().into()],
+            });
+        }
+    }
+    aggregated
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]
@@ -403,6 +434,7 @@ impl UiChatMessage {
         let chat_id = chat_message.chat_id();
         let id = chat_message.id();
         let timestamp = chat_message.timestamp().with_timezone(&Local);
+        let reactions = aggregate_reactions(chat_message.reactions());
         let message = chat_message.into_message();
 
         Self {
@@ -413,6 +445,7 @@ impl UiChatMessage {
             in_reply_to_message,
             position: UiFlightPosition::Single,
             status,
+            reactions,
         }
     }
 

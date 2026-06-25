@@ -70,8 +70,8 @@ use super::{Chat, ChatId, CoreUser, FriendshipPackage, TimestampedMessage, anyho
 pub enum ProcessQsMessageResult {
     None,
     NewChat(ChatId, Vec<ChatMessage>),
-    ChatChanged(ChatId, Vec<ChatMessage>),
-    Messages(Vec<ChatMessage>),
+    ChatChanged(ChatId, Vec<ChatMessage>, Vec<ReactionNotification>),
+    Messages(Vec<ChatMessage>, Vec<ReactionNotification>),
     NewConnection(ChatId),
 }
 
@@ -83,6 +83,19 @@ pub struct ProcessedQsMessages {
     pub errors: Vec<anyhow::Error>,
     pub processed: usize,
     pub new_connections: Vec<ChatId>,
+    /// Reactions on our own messages, for which we should notify the user.
+    pub reaction_notifications: Vec<ReactionNotification>,
+}
+
+/// A reaction by another user on a message we sent.
+///
+/// Only reactions on our own messages produce these (and only additions, not
+/// retractions); the consumer turns them into user-facing notifications.
+#[derive(Debug, Clone)]
+pub struct ReactionNotification {
+    pub chat_id: ChatId,
+    pub reactor: UserId,
+    pub emoji: String,
 }
 
 impl ProcessedQsMessages {
@@ -99,6 +112,7 @@ struct ApplicationMessagesHandlerResult {
     new_messages: Vec<TimestampedMessage>,
     updated_messages: Vec<ChatMessage>,
     chat_changed: bool,
+    reaction_notifications: Vec<ReactionNotification>,
 }
 
 impl CoreUser {
@@ -614,70 +628,76 @@ impl CoreUser {
         let chat_id = chat.id();
 
         // `chat_changed` indicates whether the state of the chat was updated
-        let (new_messages, updated_messages, chat_changed) = match processed_message.into_content()
-        {
-            ProcessedMessageContent::ApplicationMessage(application_message) => {
-                // Drop messages in 1:1 blocked chats Note: In group chats, messages
-                // from blocked users are still received and processed.
-                if chat.status() == &ChatStatus::Blocked {
-                    bail!(BlockedContactError);
+        let (new_messages, updated_messages, chat_changed, reaction_notifications) =
+            match processed_message.into_content() {
+                ProcessedMessageContent::ApplicationMessage(application_message) => {
+                    // Drop messages in 1:1 blocked chats Note: In group chats, messages
+                    // from blocked users are still received and processed.
+                    if chat.status() == &ChatStatus::Blocked {
+                        bail!(BlockedContactError);
+                    }
+                    let ApplicationMessagesHandlerResult {
+                        new_messages,
+                        updated_messages,
+                        chat_changed,
+                        reaction_notifications,
+                    } = self
+                        .handle_application_message(
+                            &mut *txn,
+                            &group,
+                            application_message,
+                            ds_timestamp,
+                            &sender_user_id,
+                            read_receipts_enabled,
+                        )
+                        .await?;
+                    (
+                        new_messages,
+                        updated_messages,
+                        chat_changed,
+                        reaction_notifications,
+                    )
                 }
-                let ApplicationMessagesHandlerResult {
-                    new_messages,
-                    updated_messages,
-                    chat_changed,
-                } = self
-                    .handle_application_message(
-                        &mut *txn,
-                        &group,
-                        application_message,
-                        ds_timestamp,
-                        &sender_user_id,
-                        read_receipts_enabled,
-                    )
-                    .await?;
-                (new_messages, updated_messages, chat_changed)
-            }
-            ProcessedMessageContent::ProposalMessage(proposal) => {
-                let (new_messages, updated) = self
-                    .handle_proposal_message(&mut *txn, &mut group, *proposal, ds_timestamp)
-                    .await?;
-                group
-                    .group_mut()
-                    .store_update(&mut *txn, None, None)
-                    .await?;
-                (new_messages, Vec::new(), updated)
-            }
-            ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
-                let sender_client_credential =
-                    StorableClientCredential::load_by_user_id(&mut *txn, &sender_user_id)
-                        .await?
-                        .ok_or_else(|| anyhow!("No sender client credential found"))?
-                        .into();
-                let (new_messages, updated) = self
-                    .handle_staged_commit_message(
-                        &mut *txn,
-                        &mut group,
-                        chat,
-                        *staged_commit,
-                        aad,
-                        ds_timestamp,
-                        &sender,
-                        &sender_client_credential,
-                        we_were_removed,
-                    )
-                    .await?;
-                group
-                    .group_mut()
-                    .store_update(&mut *txn, None, None)
-                    .await?;
-                (new_messages, Vec::new(), updated)
-            }
-            ProcessedMessageContent::ExternalJoinProposalMessage(_) => {
-                let (new_messages, updated) = self.handle_external_join_proposal_message()?;
-                (new_messages, Vec::new(), updated)
-            }
-        };
+                ProcessedMessageContent::ProposalMessage(proposal) => {
+                    let (new_messages, updated) = self
+                        .handle_proposal_message(&mut *txn, &mut group, *proposal, ds_timestamp)
+                        .await?;
+                    group
+                        .group_mut()
+                        .store_update(&mut *txn, None, None)
+                        .await?;
+                    (new_messages, Vec::new(), updated, Vec::new())
+                }
+                ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
+                    let sender_client_credential =
+                        StorableClientCredential::load_by_user_id(&mut *txn, &sender_user_id)
+                            .await?
+                            .ok_or_else(|| anyhow!("No sender client credential found"))?
+                            .into();
+                    let (new_messages, updated) = self
+                        .handle_staged_commit_message(
+                            &mut *txn,
+                            &mut group,
+                            chat,
+                            *staged_commit,
+                            aad,
+                            ds_timestamp,
+                            &sender,
+                            &sender_client_credential,
+                            we_were_removed,
+                        )
+                        .await?;
+                    group
+                        .group_mut()
+                        .store_update(&mut *txn, None, None)
+                        .await?;
+                    (new_messages, Vec::new(), updated, Vec::new())
+                }
+                ProcessedMessageContent::ExternalJoinProposalMessage(_) => {
+                    let (new_messages, updated) = self.handle_external_join_proposal_message()?;
+                    (new_messages, Vec::new(), updated, Vec::new())
+                }
+            };
 
         let mut messages = Self::store_new_messages(&mut *txn, chat_id, new_messages).await?;
         for updated_message in updated_messages {
@@ -703,8 +723,10 @@ impl CoreUser {
             .await?;
 
         let res = match (messages, chat_changed) {
-            (messages, true) => ProcessQsMessageResult::ChatChanged(chat_id, messages),
-            (messages, false) => ProcessQsMessageResult::Messages(messages),
+            (messages, true) => {
+                ProcessQsMessageResult::ChatChanged(chat_id, messages, reaction_notifications)
+            }
+            (messages, false) => ProcessQsMessageResult::Messages(messages, reaction_notifications),
         };
 
         // MLSMessage Phase 4: Fetch user profiles of new clients and store them.
@@ -768,11 +790,17 @@ impl CoreUser {
                 }
             )
         {
-            self.handle_reaction(txn, group, content, sender, ds_timestamp)
-                .await?;
+            let reaction_notifications = self
+                .handle_reaction(txn, group, content, sender, ds_timestamp)
+                .await?
+                .into_iter()
+                .collect();
             // Reactions are not stored as messages; the targeted message is
             // notified as updated from within the handler.
-            return Ok(Default::default());
+            return Ok(ApplicationMessagesHandlerResult {
+                reaction_notifications,
+                ..Default::default()
+            });
         }
 
         // Message edit
@@ -825,6 +853,10 @@ impl CoreUser {
     /// Reactions are stored in the `reaction` table rather than as message
     /// tiles; the targeted message is notified as updated so its reactions
     /// re-render.
+    ///
+    /// Returns a [`ReactionNotification`] when the reaction is an addition by
+    /// another user on a message *we* sent (req: only notify for reactions on
+    /// our own messages, and never for retractions).
     async fn handle_reaction(
         &self,
         txn: &mut WriteDbTransaction<'_>,
@@ -832,50 +864,59 @@ impl CoreUser {
         content: &MimiContent,
         sender: &UserId,
         ds_timestamp: TimeStamp,
-    ) -> anyhow::Result<()> {
+    ) -> anyhow::Result<Option<ReactionNotification>> {
         // Retraction: `replaces` the previously sent reaction with an empty body.
         if let Some(replaces) = content.replaces.as_ref() {
             let replaced_mimi_id = MimiId::from_slice(replaces)?;
             if let Some(target_mimi_id) =
                 Reaction::delete_by_mimi_id(&mut *txn, &replaced_mimi_id).await?
-                && let Some(target) = ChatMessage::load_by_mimi_id(&mut *txn, &target_mimi_id).await?
+                && let Some(target) =
+                    ChatMessage::load_by_mimi_id(&mut *txn, &target_mimi_id).await?
             {
                 txn.notifier().update(target.id());
             }
-            return Ok(());
+            return Ok(None);
         }
 
         // Add: `in_reply_to` references the reacted-to message.
         let Some(in_reply_to) = content.in_reply_to.as_ref() else {
             warn!("Received reaction without in_reply_to; ignoring");
-            return Ok(());
+            return Ok(None);
         };
         let target_mimi_id = MimiId::from_slice(in_reply_to)?;
 
         // We can only attach a reaction to a message we know about.
         let Some(target) = ChatMessage::load_by_mimi_id(&mut *txn, &target_mimi_id).await? else {
             warn!("Received reaction for unknown message; ignoring");
-            return Ok(());
+            return Ok(None);
         };
 
         let NestedPart::SinglePart { content: body, .. } = &content.nested_part else {
-            return Ok(());
+            return Ok(None);
         };
         let emoji = String::from_utf8(body.clone()).context("Reaction emoji is not valid UTF-8")?;
+
+        let chat_id = target.chat_id();
+        // Notify only when someone else reacts to a message we sent.
+        let notify = sender != self.user_id() && target.message().sender() == Some(self.user_id());
 
         let reaction_mimi_id = MimiId::calculate(group.group_id(), sender, content)?;
         let reaction = Reaction::new(
             reaction_mimi_id,
             target_mimi_id,
-            target.chat_id(),
+            chat_id,
             sender.clone(),
-            emoji,
+            emoji.clone(),
             ds_timestamp,
         );
         reaction.store(&mut *txn).await?;
         txn.notifier().update(target.id());
 
-        Ok(())
+        Ok(notify.then(|| ReactionNotification {
+            chat_id,
+            reactor: sender.clone(),
+            emoji,
+        }))
     }
 
     async fn read_receipts_enabled(&self) -> bool {
@@ -1304,11 +1345,13 @@ impl CoreUser {
         };
 
         match processed {
-            ProcessQsMessageResult::Messages(messages) => {
+            ProcessQsMessageResult::Messages(messages, reaction_notifications) => {
                 result.new_messages.extend(messages);
+                result.reaction_notifications.extend(reaction_notifications);
             }
-            ProcessQsMessageResult::ChatChanged(chat_id, messages) => {
+            ProcessQsMessageResult::ChatChanged(chat_id, messages, reaction_notifications) => {
                 result.new_messages.extend(messages);
+                result.reaction_notifications.extend(reaction_notifications);
                 result.changed_chats.push(chat_id);
             }
             ProcessQsMessageResult::NewChat(chat_id, messages) => {

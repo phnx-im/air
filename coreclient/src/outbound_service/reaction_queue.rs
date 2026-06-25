@@ -101,10 +101,7 @@ mod persistence {
             Ok(res)
         }
 
-        pub(crate) async fn remove(
-            txn: &mut WriteDbTransaction<'_>,
-            id: Uuid,
-        ) -> sqlx::Result<()> {
+        pub(crate) async fn remove(txn: &mut WriteDbTransaction<'_>, id: Uuid) -> sqlx::Result<()> {
             query!("DELETE FROM reaction_queue WHERE id = ?", id)
                 .execute(txn.as_mut())
                 .await?;

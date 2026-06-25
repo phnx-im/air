@@ -2,7 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircoreclient::{ChatId, ChatMessage, ChatType};
+use aircoreclient::{
+    ChatId, ChatMessage, ChatType, clients::process::process_qs::ReactionNotification,
+};
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -43,6 +45,46 @@ impl User {
                     identifier: NotificationId::random(),
                     title: title.to_owned(),
                     body: body.to_owned(),
+                    chat_id: chat.id(),
+                });
+            }
+        }
+    }
+
+    /// Send notifications for reactions on our own messages.
+    pub(crate) async fn reaction_notifications(
+        &self,
+        reactions: &[ReactionNotification],
+        notifications: &mut Vec<NotificationContent>,
+    ) {
+        for reaction in reactions {
+            if let Some(chat) = self.user.chat(&reaction.chat_id).await {
+                if chat.is_muted() {
+                    continue;
+                }
+                let title = match chat.chat_type() {
+                    ChatType::TargetedMessageConnection(user_id)
+                    | ChatType::PendingConnection(user_id)
+                    | ChatType::Connection(user_id) => self
+                        .user
+                        .user_profile(user_id)
+                        .await
+                        .display_name
+                        .to_string(),
+                    ChatType::HandleConnection(handle) => handle.plaintext().to_owned(),
+                    ChatType::Group(attrs) => attrs.title().to_owned(),
+                };
+                let reactor = self
+                    .user
+                    .user_profile(&reaction.reactor)
+                    .await
+                    .display_name
+                    .to_string();
+                let body = format!("{reactor} reacted {} to your message", reaction.emoji);
+                notifications.push(NotificationContent {
+                    identifier: NotificationId::random(),
+                    title,
+                    body,
                     chat_id: chat.id(),
                 });
             }

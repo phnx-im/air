@@ -81,14 +81,19 @@ impl OutboundServiceContext {
 
             // If a chat operation is pending, skip sending reactions for this chat.
             if PendingChatOperation::is_pending_for_chat(self.db.read().await?, chat_id).await? {
-                debug!(?chat_id, "Skipping sending reaction due to pending chat operation");
+                debug!(
+                    ?chat_id,
+                    "Skipping sending reaction due to pending chat operation"
+                );
                 continue;
             }
 
             match self.send_reaction_message(&dequeued).await {
                 Ok(SendOutcome::Sent) => {
                     self.db
-                        .with_write_transaction(async |txn| ReactionQueue::remove(txn, dequeued.id).await)
+                        .with_write_transaction(async |txn| {
+                            ReactionQueue::remove(txn, dequeued.id).await
+                        })
                         .await?;
                 }
                 Ok(SendOutcome::Collided) => {

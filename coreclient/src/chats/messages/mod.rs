@@ -10,6 +10,7 @@ use mimi_content::{
 use tracing::{error, warn};
 
 use crate::{
+    chats::reactions::MessageReaction,
     clients::{CoreUser, attachment::AttachmentId},
     groups::Group,
 };
@@ -107,6 +108,8 @@ pub struct ChatMessage {
     pub(super) in_reply_to: Option<(MimiId, Option<InReplyToMessage>)>,
     pub(super) timestamped_message: TimestampedMessage,
     pub(super) status: MessageStatus,
+    /// Reactions on this message, loaded lazily like [`Self::in_reply_to`].
+    pub(super) reactions: Vec<MessageReaction>,
 }
 
 impl ChatMessage {
@@ -123,6 +126,7 @@ impl ChatMessage {
             in_reply_to: None,
             timestamped_message,
             status: MessageStatus::Unread,
+            reactions: Vec::new(),
         }
     }
 
@@ -153,6 +157,7 @@ impl ChatMessage {
             },
             in_reply_to: None,
             status: MessageStatus::Unread,
+            reactions: Vec::new(),
         }
     }
 
@@ -176,6 +181,7 @@ impl ChatMessage {
             in_reply_to: None,
             timestamped_message,
             status: MessageStatus::Unread,
+            reactions: Vec::new(),
         }
     }
 
@@ -283,6 +289,11 @@ impl ChatMessage {
 
     pub fn take_in_reply_to(&mut self) -> Option<(MimiId, Option<InReplyToMessage>)> {
         self.in_reply_to.take()
+    }
+
+    /// Reactions on this message, populated when the message is loaded.
+    pub fn reactions(&self) -> &[MessageReaction] {
+        &self.reactions
     }
 }
 

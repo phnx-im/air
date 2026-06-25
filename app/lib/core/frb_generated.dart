@@ -9560,6 +9560,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<UiReaction> dco_decode_list_ui_reaction(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return (raw as List<dynamic>).map(dco_decode_ui_reaction).toList();
+  }
+
+  @protected
   List<UiUserId> dco_decode_list_ui_user_id(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return (raw as List<dynamic>).map(dco_decode_ui_user_id).toList();
@@ -10380,8 +10386,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiChatMessage dco_decode_ui_chat_message(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 7)
-      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
     return UiChatMessage(
       chatId: dco_decode_chat_id(arr[0]),
       id: dco_decode_message_id(arr[1]),
@@ -10392,6 +10398,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       ),
       position: dco_decode_ui_flight_position(arr[5]),
       status: dco_decode_ui_message_status(arr[6]),
+      reactions: dco_decode_list_ui_reaction(arr[7]),
     );
   }
 
@@ -10643,6 +10650,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (arr.length != 1)
       throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
     return UiMimiId(field0: dco_decode_u_8_array_32(arr[0]));
+  }
+
+  @protected
+  UiReaction dco_decode_ui_reaction(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    final arr = raw as List<dynamic>;
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return UiReaction(
+      emoji: dco_decode_String(arr[0]),
+      users: dco_decode_list_ui_user_id(arr[1]),
+    );
   }
 
   @protected
@@ -12838,6 +12857,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  List<UiReaction> sse_decode_list_ui_reaction(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    var len_ = sse_decode_i_32(deserializer);
+    var ans_ = <UiReaction>[];
+    for (var idx_ = 0; idx_ < len_; ++idx_) {
+      ans_.add(sse_decode_ui_reaction(deserializer));
+    }
+    return ans_;
+  }
+
+  @protected
   List<UiUserId> sse_decode_list_ui_user_id(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
 
@@ -13948,6 +13979,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_decode_opt_box_autoadd_ui_in_reply_to_message(deserializer);
     var var_position = sse_decode_ui_flight_position(deserializer);
     var var_status = sse_decode_ui_message_status(deserializer);
+    var var_reactions = sse_decode_list_ui_reaction(deserializer);
     return UiChatMessage(
       chatId: var_chatId,
       id: var_id,
@@ -13956,6 +13988,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       inReplyToMessage: var_inReplyToMessage,
       position: var_position,
       status: var_status,
+      reactions: var_reactions,
     );
   }
 
@@ -14228,6 +14261,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_field0 = sse_decode_u_8_array_32(deserializer);
     return UiMimiId(field0: var_field0);
+  }
+
+  @protected
+  UiReaction sse_decode_ui_reaction(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var var_emoji = sse_decode_String(deserializer);
+    var var_users = sse_decode_list_ui_user_id(deserializer);
+    return UiReaction(emoji: var_emoji, users: var_users);
   }
 
   @protected
@@ -16653,6 +16694,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_list_ui_reaction(
+    List<UiReaction> self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.length, serializer);
+    for (final item in self) {
+      sse_encode_ui_reaction(item, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_list_ui_user_id(
     List<UiUserId> self,
     SseSerializer serializer,
@@ -17678,6 +17731,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
     sse_encode_ui_flight_position(self.position, serializer);
     sse_encode_ui_message_status(self.status, serializer);
+    sse_encode_list_ui_reaction(self.reactions, serializer);
   }
 
   @protected
@@ -17907,6 +17961,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_ui_mimi_id(UiMimiId self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_u_8_array_32(self.field0, serializer);
+  }
+
+  @protected
+  void sse_encode_ui_reaction(UiReaction self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_String(self.emoji, serializer);
+    sse_encode_list_ui_user_id(self.users, serializer);
   }
 
   @protected
