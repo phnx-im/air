@@ -434,7 +434,7 @@ class AppLocalizationsDe extends AppLocalizations {
       'Mit einem bestehenden Konto verknüpfen';
 
   @override
-  String get linkingDeviceScreen_connecting => 'Verbinden...';
+  String get linkingDeviceScreen_connecting => 'Verbinde...';
 
   @override
   String get linkingDeviceScreen_separator => 'oder';
@@ -443,7 +443,7 @@ class AppLocalizationsDe extends AppLocalizations {
   String get linkingDeviceScreen_numericCode => 'Numerischer Code';
 
   @override
-  String get linkingDeviceScreen_linking => 'Verknüpfen...';
+  String get linkingDeviceScreen_linking => 'Verknüpfe...';
 
   @override
   String get linkingDeviceScreen_linked => 'Gerät erfolgreich verknüpft!';
@@ -454,7 +454,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get linkingDeviceScreen_linking_confirm_edit_subtitle =>
-      'Tippe, um den Gerätenamen zu bearbeiten';
+      'Tippe, um den Namen zu ändern.';
 
   @override
   String get linkingDeviceScreen_linking_confirm_body =>
@@ -522,7 +522,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_editNameHint =>
-      'Tippe auf ein Gerät, um seinen Namen zu ändern.';
+      'Tippe auf ein Gerät, um den Namen zu ändern.';
 
   @override
   String get linkedDevicesScreen_linkDevice => 'Gerät verknüpfen';
@@ -558,7 +558,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_linkDialog_chooseMethod =>
-      'Wenn du ein Mobiltelefon oder Tablet mit funktionierender Kamera verwendest, wähle \"QR-Code scannen\". Wenn du einen Computer oder ein Gerät mit defekter Kamera verwendest, wähle \"Numerischen Code eingeben\".';
+      'Wenn du ein Mobiltelefon oder Tablet mit funktionierender Kamera verwendest, wähle \"QR-Code scannen\". Wenn du einen Computer oder ein Gerät ohne funktionierende Kamera verwendest, wähle \"Numerischen Code eingeben\".';
 
   @override
   String get linkedDevicesScreen_linkDialog_openApp =>
