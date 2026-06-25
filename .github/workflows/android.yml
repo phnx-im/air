@@ -49,7 +49,6 @@ jobs:
           fastlane: true
           jdk: true
           sccache: true
-          cargo-binstall-tools: cargo-ndk
 
       - name: Build Android app
         env:
