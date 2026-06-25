@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM client_record WHERE user_uuid = ? AND user_domain = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "3d59301f7853c8a1bfcc3774dc35438831a164852419c61a1e6f0733d3317906"
+}

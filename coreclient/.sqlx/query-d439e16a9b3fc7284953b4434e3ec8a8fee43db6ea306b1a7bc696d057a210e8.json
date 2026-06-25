@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE push_token_state\n        SET pending_update = ?1\n        WHERE id = ?2 AND pending_update > ?1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "d439e16a9b3fc7284953b4434e3ec8a8fee43db6ea306b1a7bc696d057a210e8"
+}

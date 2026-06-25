@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE client_record SET is_default = (user_uuid == ? AND user_domain == ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "cb07f5a709a8bec7efa3663898c1a1cb4c988788cefc2902008dc9ba755c040d"
+}

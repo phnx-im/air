@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM indexed_key WHERE key_index = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "ff058e4a9be1b1d22aa05485ade16abf7453783a40c4537d64301f71814f5c8a"
+}

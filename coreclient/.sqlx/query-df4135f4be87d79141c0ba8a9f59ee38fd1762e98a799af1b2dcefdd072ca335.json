@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO store_notification (entity_id, kind, added, updated, removed)\n                VALUES (?1, ?2, ?3, ?4, ?5)\n                ON CONFLICT DO UPDATE SET\n                    added = MAX(?3, added),\n                    updated = MAX(?4, updated),\n                    removed = MAX(?5, removed)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "df4135f4be87d79141c0ba8a9f59ee38fd1762e98a799af1b2dcefdd072ca335"
+}

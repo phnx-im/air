@@ -1,0 +1,74 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                    pco.group_id,\n                    pco.operation_data AS \"operation_data: _\",\n                    pco.retry_due_at AS \"retry_due_at: _\",\n                    pco.request_status AS \"request_status: _\",\n                    pco.number_of_attempts\n                FROM pending_chat_operation pco\n                JOIN chat c ON pco.group_id = c.group_id\n                WHERE c.chat_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "group_id",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_chat_operation",
+            "name": "group_id"
+          }
+        }
+      },
+      {
+        "name": "operation_data: _",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "pending_chat_operation",
+            "name": "operation_data"
+          }
+        }
+      },
+      {
+        "name": "retry_due_at: _",
+        "ordinal": 2,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "pending_chat_operation",
+            "name": "retry_due_at"
+          }
+        }
+      },
+      {
+        "name": "request_status: _",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "pending_chat_operation",
+            "name": "request_status"
+          }
+        }
+      },
+      {
+        "name": "number_of_attempts",
+        "ordinal": 4,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "pending_chat_operation",
+            "name": "number_of_attempts"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false,
+      false
+    ]
+  },
+  "hash": "6bfe2ad0320a03ca211334692df9419da065abe8387f98c785757c3d49cff114"
+}

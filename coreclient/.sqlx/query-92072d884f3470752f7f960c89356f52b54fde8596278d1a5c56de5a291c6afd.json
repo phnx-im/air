@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO vc_operation_tree (epoch_id, operation_tree)\n            VALUES (?1, ?2)\n            ON CONFLICT(epoch_id) DO UPDATE SET\n                operation_tree = excluded.operation_tree",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "92072d884f3470752f7f960c89356f52b54fde8596278d1a5c56de5a291c6afd"
+}

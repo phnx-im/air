@@ -939,7 +939,7 @@ impl StorageProvider<CURRENT_VERSION> for SqliteStorageProvider<'_> {
         &self,
         epoch_id: &EpochId,
     ) -> Result<bool, Self::Error> {
-        // The application should call this within a transaction so the liveness
+        // NB: Call this within a transaction so the liveness
         // check and the deletions apply atomically and a material stored
         // concurrently cannot be orphaned.
         let storable = StorableVcEpochIdRef(epoch_id);
@@ -957,9 +957,7 @@ impl StorageProvider<CURRENT_VERSION> for SqliteStorageProvider<'_> {
                     StorableVcSecretType::EmulationEpochState,
                 )
                 .await?;
-            storable
-                .delete_vc_operation_tree(&mut **connection)
-                .await?;
+            storable.delete_vc_operation_tree(&mut **connection).await?;
             Ok(true)
         };
         block_async_in_place(task)
@@ -1160,16 +1158,6 @@ impl<T: Entity<CURRENT_VERSION>> Decode<'_, Sqlite> for EntityWrapper<T> {
     fn decode(value: <Sqlite as Database>::ValueRef<'_>) -> Result<Self, BoxDynError> {
         let bytes: &[u8] = Decode::<Sqlite>::decode(value)?;
         let entity = PersistenceCodec::from_slice(bytes)?;
-        Ok(Self(entity))
-    }
-}
-
-impl<T: Entity<CURRENT_VERSION>> TryFrom<Vec<u8>> for EntityWrapper<T> {
-    type Error = sqlx::Error;
-
-    fn try_from(bytes: Vec<u8>) -> Result<Self, Self::Error> {
-        let entity =
-            PersistenceCodec::from_slice(&bytes).map_err(|e| sqlx::Error::Decode(Box::new(e)))?;
         Ok(Self(entity))
     }
 }
@@ -1472,18 +1460,15 @@ impl<GroupId: Key<CURRENT_VERSION>> StorableGroupIdRef<'_, GroupId> {
         &self,
         executor: impl SqliteExecutor<'_>,
     ) -> sqlx::Result<Option<VcEmulationBindings>> {
-        let group_id = KeyRefWrapper(self.0);
-        query!(
-            "SELECT bindings FROM vc_emulation_binding WHERE group_id = ?1",
-            group_id
-        )
-        .fetch_optional(executor)
-        .await?
-        .map(|row| {
-            let EntityWrapper(bindings) = row.bindings.try_into()?;
-            Ok(bindings)
-        })
-        .transpose()
+        sqlx::query("SELECT bindings FROM vc_emulation_binding WHERE group_id = ?1")
+            .bind(KeyRefWrapper(self.0))
+            .fetch_optional(executor)
+            .await?
+            .map(|row| {
+                let EntityWrapper(bindings) = row.try_get(0)?;
+                Ok(bindings)
+            })
+            .transpose()
     }
 
     pub(super) async fn delete_vc_emulation_bindings(
@@ -1549,17 +1534,16 @@ impl<KeyPackageRef: Key<CURRENT_VERSION>> StorableHashRef<'_, KeyPackageRef> {
         &self,
         executor: impl SqliteExecutor<'_>,
     ) -> sqlx::Result<Option<RetainedKeyPackageMaterial>> {
-        let key_package_ref = KeyRefWrapper(self.0);
-        query!(
+        sqlx::query(
             "SELECT record
                 FROM vc_retained_key_package_material
                 WHERE key_package_ref = ?1",
-            key_package_ref
         )
+        .bind(KeyRefWrapper(self.0))
         .fetch_optional(executor)
         .await?
         .map(|row| {
-            let EntityWrapper(record) = row.record.try_into()?;
+            let EntityWrapper(record) = row.try_get(0)?;
             Ok(record)
         })
         .transpose()
@@ -1622,18 +1606,17 @@ impl<VcEpochId: Key<CURRENT_VERSION>> StorableVcEpochIdRef<'_, VcEpochId> {
         executor: impl SqliteExecutor<'_>,
         secret_type: StorableVcSecretType,
     ) -> sqlx::Result<Option<VcSecret>> {
-        let epoch_id = KeyRefWrapper(self.0);
-        query!(
+        sqlx::query(
             "SELECT vc_secret
                 FROM vc_emulation_group_secret
                 WHERE epoch_id = ?1 AND secret_type = ?2",
-            epoch_id,
-            secret_type
         )
+        .bind(KeyRefWrapper(self.0))
+        .bind(secret_type)
         .fetch_optional(executor)
         .await?
         .map(|row| {
-            let EntityWrapper(secret) = row.vc_secret.try_into()?;
+            let EntityWrapper(secret) = row.try_get(0)?;
             Ok(secret)
         })
         .transpose()
@@ -1663,17 +1646,16 @@ impl<VcEpochId: Key<CURRENT_VERSION>> StorableVcEpochIdRef<'_, VcEpochId> {
         &self,
         executor: impl SqliteExecutor<'_>,
     ) -> sqlx::Result<Option<VcOperationTree>> {
-        let epoch_id = KeyRefWrapper(self.0);
-        query!(
+        sqlx::query(
             "SELECT operation_tree
                 FROM vc_operation_tree
                 WHERE epoch_id = ?1",
-            epoch_id,
         )
+        .bind(KeyRefWrapper(self.0))
         .fetch_optional(executor)
         .await?
         .map(|row| {
-            let EntityWrapper(tree) = row.operation_tree.try_into()?;
+            let EntityWrapper(tree) = row.try_get(0)?;
             Ok(tree)
         })
         .transpose()
@@ -1698,17 +1680,16 @@ impl<VcEpochId: Key<CURRENT_VERSION>> StorableVcEpochIdRef<'_, VcEpochId> {
         &self,
         executor: impl SqliteExecutor<'_>,
     ) -> sqlx::Result<bool> {
-        let epoch_id = KeyRefWrapper(self.0);
-        let exists = query!(
+        let exists = sqlx::query(
             "SELECT EXISTS(
                 SELECT 1 FROM vc_retained_key_package_material
                 WHERE epoch_id = ?1
-            ) AS \"exists!: bool\"",
-            epoch_id,
+            )",
         )
+        .bind(KeyRefWrapper(self.0))
         .fetch_one(executor)
         .await?
-        .exists;
+        .try_get::<bool, _>(0)?;
         Ok(exists)
     }
 }

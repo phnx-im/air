@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO chat (\n                chat_id,\n                chat_title,\n                chat_picture,\n                group_id,\n                last_read,\n                connection_user_uuid,\n                connection_user_domain,\n                connection_user_handle,\n                is_confirmed_connection,\n                is_active,\n                is_incoming\n            )\n            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)\n            ON CONFLICT(chat_id) DO UPDATE SET\n                chat_title = excluded.chat_title,\n                chat_picture = excluded.chat_picture,\n                group_id = excluded.group_id,\n                last_read = excluded.last_read,\n                connection_user_uuid = excluded.connection_user_uuid,\n                connection_user_domain = excluded.connection_user_domain,\n                connection_user_handle = excluded.connection_user_handle,\n                is_confirmed_connection = excluded.is_confirmed_connection,\n                is_active = excluded.is_active,\n                is_incoming = excluded.is_incoming",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 11
+    },
+    "nullable": []
+  },
+  "hash": "5faa936319b92ca0651506178a5fb44734ed3abbbf69689a33daf62f06158e04"
+}

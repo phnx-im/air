@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE queue_ratchet\n            SET queue_ratchet = ?, sequence_number = ?\n            WHERE queue_type = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "755e02b86345cb66e75da1f2b2eb4504f51827a6af040ef170a9d6cef42c8262"
+}

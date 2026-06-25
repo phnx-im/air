@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE message SET status = ?1 WHERE message_id = ?2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "717525a58ace516bfe7536c1193f298e3f9d964dcde29c0b96abc4129401459b"
+}

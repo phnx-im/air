@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE user SET\n                epoch = ?3,\n                decryption_key_index = ?4,\n                display_name = ?5,\n                profile_picture = ?6\n            WHERE user_uuid = ?1 AND user_domain = ?2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "256facec15377a1e1dae1b5d103d05ed290f1cd148d2a1daed462c63b210d043"
+}

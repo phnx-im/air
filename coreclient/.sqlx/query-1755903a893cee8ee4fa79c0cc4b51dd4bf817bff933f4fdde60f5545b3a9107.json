@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO vc_emulation_binding(group_id, bindings)\n            VALUES (?1, ?2)\n            ON CONFLICT(group_id) DO UPDATE SET\n                bindings = excluded.bindings",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "1755903a893cee8ee4fa79c0cc4b51dd4bf817bff933f4fdde60f5545b3a9107"
+}

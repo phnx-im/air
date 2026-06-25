@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO message_edit (\n                    mimi_id,\n                    message_id,\n                    created_at,\n                    content\n                ) VALUES (?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": []
+  },
+  "hash": "97f6d303d9bed8cdc1d9347b952724f7ea7125a650700043e3b260e22cb4d2c0"
+}

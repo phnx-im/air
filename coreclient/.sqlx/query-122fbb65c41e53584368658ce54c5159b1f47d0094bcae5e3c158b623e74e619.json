@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO queue_ratchet\n                (queue_type, queue_ratchet, sequence_number)\n            VALUES (?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "122fbb65c41e53584368658ce54c5159b1f47d0094bcae5e3c158b623e74e619"
+}

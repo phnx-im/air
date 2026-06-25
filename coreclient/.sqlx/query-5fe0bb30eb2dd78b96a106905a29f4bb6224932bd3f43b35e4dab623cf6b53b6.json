@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM vc_emulation_binding WHERE group_id = ?1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "5fe0bb30eb2dd78b96a106905a29f4bb6224932bd3f43b35e4dab623cf6b53b6"
+}

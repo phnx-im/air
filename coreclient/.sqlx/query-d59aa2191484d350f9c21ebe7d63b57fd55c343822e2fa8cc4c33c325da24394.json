@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO operation (\n                    operation_id,\n                    kind,\n                    data,\n                    created_at,\n                    scheduled_at,\n                    retries\n                )\n                VALUES (?, ?, ?, ?, ?, ?)\n                ON CONFLICT (operation_id) DO UPDATE SET\n                    kind = excluded.kind,\n                    data = excluded.data,\n                    created_at = excluded.created_at,\n                    scheduled_at = excluded.scheduled_at,\n                    retries = excluded.retries\n                ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "d59aa2191484d350f9c21ebe7d63b57fd55c343822e2fa8cc4c33c325da24394"
+}

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT vc_secret\n                FROM vc_emulation_group_secret\n                WHERE epoch_id = ?1 AND secret_type = ?2",
+  "describe": {
+    "columns": [
+      {
+        "name": "vc_secret",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "vc_emulation_group_secret",
+            "name": "vc_secret"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "71455cdfa349daed4da1e285bc535aa6338c3256e06ade179f24bfd2a58183d9"
+}

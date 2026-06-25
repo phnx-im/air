@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO push_token_state (id, operator, token, updated_at, pending_update)\n        VALUES (?1, ?2, ?3, ?4, ?5)\n        ON CONFLICT(id) DO UPDATE SET\n            operator = excluded.operator,\n            token = excluded.token,\n            updated_at = excluded.updated_at,\n            pending_update = excluded.pending_update",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "841b0fea6542befa40de055fbed2ba82810e5751a0a60ab837c600430f57218b"
+}

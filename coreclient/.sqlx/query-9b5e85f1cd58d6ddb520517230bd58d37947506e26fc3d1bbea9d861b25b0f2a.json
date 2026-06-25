@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR IGNORE INTO indexed_key (base_secret, key_value, key_index)\n                VALUES ($1, $2, $3)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "9b5e85f1cd58d6ddb520517230bd58d37947506e26fc3d1bbea9d861b25b0f2a"
+}

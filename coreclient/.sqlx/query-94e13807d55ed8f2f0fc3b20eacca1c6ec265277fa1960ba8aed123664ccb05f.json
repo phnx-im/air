@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM vc_retained_key_package_material WHERE key_package_ref = ?1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "94e13807d55ed8f2f0fc3b20eacca1c6ec265277fa1960ba8aed123664ccb05f"
+}

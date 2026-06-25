@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO pending_connection_info (\n                    chat_id,\n                    created_at,\n                    connection_info,\n                    handle,\n                    connection_offer_hash,\n                    connection_package_hash\n                )\n                VALUES (?,  ?, ?, ?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 6
+    },
+    "nullable": []
+  },
+  "hash": "2c0145591da5bdafc11ebc563a73f45d40fa5474028df8b534a8caa3350875f9"
+}

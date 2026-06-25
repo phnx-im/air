@@ -2,7 +2,6 @@
 --
 -- SPDX-License-Identifier: AGPL-3.0-or-later
 --
---
 CREATE TABLE vc_emulation_group_secret(
     epoch_id BLOB NOT NULL,
     secret_type TEXT NOT NULL CHECK (secret_type IN (

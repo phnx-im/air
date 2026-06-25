@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO connection_package\n                 (connection_package_hash, handle, decryption_key, expires_at, is_last_resort)\n                 VALUES ($1, $2, $3, $4, $5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "be9e3f07a8586e3c2449a6943f7c7eeb32369e448960d988d6ed35bcb3917d1b"
+}

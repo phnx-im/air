@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT bindings FROM vc_emulation_binding WHERE group_id = ?1",
+  "describe": {
+    "columns": [
+      {
+        "name": "bindings",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "vc_emulation_binding",
+            "name": "bindings"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "92b2b13d920b132bca15e164a64957129aacc096ef01164fe45ca0d601315cf0"
+}

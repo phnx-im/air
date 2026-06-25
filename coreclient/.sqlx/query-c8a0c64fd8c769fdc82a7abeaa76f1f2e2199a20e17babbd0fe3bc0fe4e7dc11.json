@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                DELETE FROM user_handle\n                WHERE handle = ?\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "c8a0c64fd8c769fdc82a7abeaa76f1f2e2199a20e17babbd0fe3bc0fe4e7dc11"
+}

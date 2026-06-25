@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM batched_token_key WHERE operation_type = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "cfd5bb5cf0d351d563aa49e45bf5b5e6cbf4e3744b8423d081ab0ae68cc16bed"
+}

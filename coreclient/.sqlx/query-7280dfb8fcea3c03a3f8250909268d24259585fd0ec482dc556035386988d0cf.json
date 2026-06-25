@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO targeted_message_contact (\n                user_uuid,\n                user_domain,\n                chat_id,\n                friendship_package_ear_key,\n                created_at\n            ) VALUES (?, ?,?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "7280dfb8fcea3c03a3f8250909268d24259585fd0ec482dc556035386988d0cf"
+}
