@@ -41,7 +41,10 @@ use tracing::{debug, error, info, warn};
 use crate::{
     ChatAttributes, ChatMessage, ChatStatus, ContentMessage, Message, MimiContentExt,
     SystemMessage,
-    chats::{GroupDataExt, GroupDataProfilePart, StatusRecord, messages::edit::MessageEdit},
+    chats::{
+        GroupDataExt, GroupDataProfilePart, StatusRecord, messages::edit::MessageEdit,
+        reactions::Reaction,
+    },
     clients::{
         QsListenResponder,
         attachment::AttachmentRecord,
@@ -752,6 +755,26 @@ impl CoreUser {
             return Ok(Default::default());
         }
 
+        // Reaction (add or retraction).
+        //
+        // Must come before the message-edit branch: a retraction carries
+        // `replaces` and would otherwise be misrouted as an edit.
+        if let Ok(content) = &content
+            && matches!(
+                &content.nested_part,
+                NestedPart::SinglePart {
+                    disposition: Disposition::Reaction,
+                    ..
+                }
+            )
+        {
+            self.handle_reaction(txn, group, content, sender, ds_timestamp)
+                .await?;
+            // Reactions are not stored as messages; the targeted message is
+            // notified as updated from within the handler.
+            return Ok(Default::default());
+        }
+
         // Message edit
         if let Ok(content) = &mut content
             && let Some(replaces) = content.replaces.as_ref()
@@ -795,6 +818,64 @@ impl CoreUser {
             chat_changed: true,
             ..Default::default()
         })
+    }
+
+    /// Apply an incoming reaction (add or retraction) to the targeted message.
+    ///
+    /// Reactions are stored in the `reaction` table rather than as message
+    /// tiles; the targeted message is notified as updated so its reactions
+    /// re-render.
+    async fn handle_reaction(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+        group: &Group,
+        content: &MimiContent,
+        sender: &UserId,
+        ds_timestamp: TimeStamp,
+    ) -> anyhow::Result<()> {
+        // Retraction: `replaces` the previously sent reaction with an empty body.
+        if let Some(replaces) = content.replaces.as_ref() {
+            let replaced_mimi_id = MimiId::from_slice(replaces)?;
+            if let Some(target_mimi_id) =
+                Reaction::delete_by_mimi_id(&mut *txn, &replaced_mimi_id).await?
+                && let Some(target) = ChatMessage::load_by_mimi_id(&mut *txn, &target_mimi_id).await?
+            {
+                txn.notifier().update(target.id());
+            }
+            return Ok(());
+        }
+
+        // Add: `in_reply_to` references the reacted-to message.
+        let Some(in_reply_to) = content.in_reply_to.as_ref() else {
+            warn!("Received reaction without in_reply_to; ignoring");
+            return Ok(());
+        };
+        let target_mimi_id = MimiId::from_slice(in_reply_to)?;
+
+        // We can only attach a reaction to a message we know about.
+        let Some(target) = ChatMessage::load_by_mimi_id(&mut *txn, &target_mimi_id).await? else {
+            warn!("Received reaction for unknown message; ignoring");
+            return Ok(());
+        };
+
+        let NestedPart::SinglePart { content: body, .. } = &content.nested_part else {
+            return Ok(());
+        };
+        let emoji = String::from_utf8(body.clone()).context("Reaction emoji is not valid UTF-8")?;
+
+        let reaction_mimi_id = MimiId::calculate(group.group_id(), sender, content)?;
+        let reaction = Reaction::new(
+            reaction_mimi_id,
+            target_mimi_id,
+            target.chat_id(),
+            sender.clone(),
+            emoji,
+            ds_timestamp,
+        );
+        reaction.store(&mut *txn).await?;
+        txn.notifier().update(target.id());
+
+        Ok(())
     }
 
     async fn read_receipts_enabled(&self) -> bool {

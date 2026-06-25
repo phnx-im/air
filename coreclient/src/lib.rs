@@ -27,6 +27,7 @@ pub use crate::{
             MessageId, SystemMessage,
         },
         pending::AcceptContactRequestError,
+        reactions::MessageReaction,
     },
     clients::{
         add_contact::AddUsernameContactError,

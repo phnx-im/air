@@ -30,6 +30,7 @@ mod draft;
 pub(crate) mod messages;
 pub(crate) mod pending;
 pub(crate) mod persistence;
+pub(crate) mod reactions;
 mod sqlx_support;
 pub(crate) mod status;
 
