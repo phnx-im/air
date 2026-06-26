@@ -91,11 +91,6 @@ platform :mac do
     # Build the app with flutter first to create the necessary ephemeral files
     sh "just flutter build macos --flavor production --config-only #{skip_signing ? '--debug' : '--release'} --build-number=#{build_number}"
 
-    # Install CocoaPods dependencies
-    cocoapods(
-      podfile: "macos/Podfile"
-    )
-
     # Build the app
     build_mac_app(
       workspace: "macos/Runner.xcworkspace",

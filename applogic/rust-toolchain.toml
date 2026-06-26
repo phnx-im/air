@@ -13,12 +13,14 @@
 # hook and FRB codegen), not the workspace-root server/backend builds.
 #
 # `targets` lists exactly the platforms we build: Linux x64, Windows x64, macOS
-# (Apple Silicon), iOS (arm64 device + simulator), Android arm64-v8a.
+# (universal: Apple Silicon + Intel), iOS (arm64 device + simulator), Android
+# arm64-v8a. Both macOS arches are required because release builds are universal.
 [toolchain]
 channel = "1.96.0"
 components = ["rustfmt", "clippy"]
 targets = [
   "aarch64-apple-darwin",
+  "x86_64-apple-darwin",
   "aarch64-apple-ios",
   "aarch64-apple-ios-sim",
   "aarch64-linux-android",
