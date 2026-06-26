@@ -10672,18 +10672,6 @@ impl SseDecode for Vec<crate::api::invitation_codes_cubit::UiInvitationCode> {
     }
 }
 
-impl SseDecode for Vec<crate::api::types::UiReaction> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut len_ = <i32>::sse_decode(deserializer);
-        let mut ans_ = Vec::with_capacity(len_ as usize);
-        for idx_ in 0..len_ {
-            ans_.push(<crate::api::types::UiReaction>::sse_decode(deserializer));
-        }
-        return ans_;
-    }
-}
-
 impl SseDecode for Vec<crate::api::types::UiUserId> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -11830,7 +11818,6 @@ impl SseDecode for crate::api::types::UiChatMessage {
             <Option<crate::api::types::UiInReplyToMessage>>::sse_decode(deserializer);
         let mut var_position = <crate::api::types::UiFlightPosition>::sse_decode(deserializer);
         let mut var_status = <crate::api::types::UiMessageStatus>::sse_decode(deserializer);
-        let mut var_reactions = <Vec<crate::api::types::UiReaction>>::sse_decode(deserializer);
         return crate::api::types::UiChatMessage {
             chat_id: var_chatId,
             id: var_id,
@@ -11839,7 +11826,6 @@ impl SseDecode for crate::api::types::UiChatMessage {
             in_reply_to_message: var_inReplyToMessage,
             position: var_position,
             status: var_status,
-            reactions: var_reactions,
         };
     }
 }
@@ -12167,18 +12153,6 @@ impl SseDecode for crate::api::message_content::UiMimiId {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_field0 = <[u8; 32]>::sse_decode(deserializer);
         return crate::api::message_content::UiMimiId(var_field0);
-    }
-}
-
-impl SseDecode for crate::api::types::UiReaction {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_emoji = <String>::sse_decode(deserializer);
-        let mut var_users = <Vec<crate::api::types::UiUserId>>::sse_decode(deserializer);
-        return crate::api::types::UiReaction {
-            emoji: var_emoji,
-            users: var_users,
-        };
     }
 }
 
@@ -14529,7 +14503,6 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiChatMessage {
             self.in_reply_to_message.into_into_dart().into_dart(),
             self.position.into_into_dart().into_dart(),
             self.status.into_into_dart().into_dart(),
-            self.reactions.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -14972,24 +14945,6 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::message_content::UiMimiId>
     for crate::api::message_content::UiMimiId
 {
     fn into_into_dart(self) -> crate::api::message_content::UiMimiId {
-        self
-    }
-}
-// Codec=Dco (DartCObject based), see doc to use other codecs
-impl flutter_rust_bridge::IntoDart for crate::api::types::UiReaction {
-    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [
-            self.emoji.into_into_dart().into_dart(),
-            self.users.into_into_dart().into_dart(),
-        ]
-        .into_dart()
-    }
-}
-impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive for crate::api::types::UiReaction {}
-impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiReaction>
-    for crate::api::types::UiReaction
-{
-    fn into_into_dart(self) -> crate::api::types::UiReaction {
         self
     }
 }
@@ -16552,16 +16507,6 @@ impl SseEncode for Vec<crate::api::invitation_codes_cubit::UiInvitationCode> {
     }
 }
 
-impl SseEncode for Vec<crate::api::types::UiReaction> {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <i32>::sse_encode(self.len() as _, serializer);
-        for item in self {
-            <crate::api::types::UiReaction>::sse_encode(item, serializer);
-        }
-    }
-}
-
 impl SseEncode for Vec<crate::api::types::UiUserId> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -17497,7 +17442,6 @@ impl SseEncode for crate::api::types::UiChatMessage {
         );
         <crate::api::types::UiFlightPosition>::sse_encode(self.position, serializer);
         <crate::api::types::UiMessageStatus>::sse_encode(self.status, serializer);
-        <Vec<crate::api::types::UiReaction>>::sse_encode(self.reactions, serializer);
     }
 }
 
@@ -17774,14 +17718,6 @@ impl SseEncode for crate::api::message_content::UiMimiId {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <[u8; 32]>::sse_encode(self.0, serializer);
-    }
-}
-
-impl SseEncode for crate::api::types::UiReaction {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <String>::sse_encode(self.emoji, serializer);
-        <Vec<crate::api::types::UiUserId>>::sse_encode(self.users, serializer);
     }
 }
 

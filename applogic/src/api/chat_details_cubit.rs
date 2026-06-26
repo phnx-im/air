@@ -201,6 +201,36 @@ impl ChatDetailsCubitBase {
         Ok(())
     }
 
+    /// Adds an emoji reaction to a message and sends it to the other members.
+    ///
+    /// Reacting again with the same emoji is a no-op.
+    pub async fn send_reaction(&self, message_id: MessageId, emoji: String) -> anyhow::Result<()> {
+        Box::pin(
+            self.context
+                .core_user
+                .send_reaction(self.context.chat_id, message_id, emoji),
+        )
+        .await
+        .inspect_err(|error| error!(%error, "Failed to send reaction"))?;
+        Ok(())
+    }
+
+    /// Removes an emoji reaction we previously added to a message.
+    pub async fn remove_reaction(
+        &self,
+        message_id: MessageId,
+        emoji: String,
+    ) -> anyhow::Result<()> {
+        Box::pin(
+            self.context
+                .core_user
+                .remove_reaction(self.context.chat_id, message_id, emoji),
+        )
+        .await
+        .inspect_err(|error| error!(%error, "Failed to remove reaction"))?;
+        Ok(())
+    }
+
     /// Sends a message to the chat.
     ///
     /// The not yet sent message is immediately stored in the local store and then the message is
