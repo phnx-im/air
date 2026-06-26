@@ -265,3 +265,14 @@ FutureOr<void> cancelNotifications(List<NotificationId> identifiers) async {
     );
   }
 }
+
+extension TargetPlatformExtension on TargetPlatform {
+  String get name => switch (this) {
+    TargetPlatform.android => "Android",
+    TargetPlatform.iOS => "iOS",
+    TargetPlatform.linux => "Linux",
+    TargetPlatform.macOS => "macOS",
+    TargetPlatform.windows => "Windows",
+    TargetPlatform.fuchsia => "Fuchsia",
+  };
+}

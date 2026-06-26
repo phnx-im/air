@@ -11,6 +11,7 @@ import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/foundations/themes.dart';
 import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:air/ds/foundations/font_size.dart';
+import 'package:air/user/linked_devices_screen.dart';
 import 'package:air/user/user.dart';
 import 'package:air/util/debouncer.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -330,17 +331,17 @@ class _CommonSettings extends HookWidget {
     final readReceipts = useState(
       useMemoized(() => context.read<UserSettingsCubit>().state.readReceipts),
     );
+    final bool isDeveloper = context.select(
+      (UserSettingsCubit cubit) => cubit.state.isDeveloper,
+    );
 
     final loc = AppLocalizations.of(context);
     return Column(
+      spacing: Spacing.px12,
       children: [
         const _InviteCodes(),
-
-        const SizedBox(height: Spacing.px12),
-
-        const _LanguageSetting(),
-
-        const SizedBox(height: Spacing.px12),
+        if (isDeveloper) const _Devices(),
+        const _LanguageSettings(),
         _SwitchField(
           onSubmit: (value) {
             context.read<UserSettingsCubit>().setReadReceipts(
@@ -351,8 +352,6 @@ class _CommonSettings extends HookWidget {
           value: readReceipts,
           label: loc.userSettingsScreen_readReceipts,
         ),
-
-        const SizedBox(height: Spacing.px12),
 
         FieldLabel(loc.userSettingsScreen_readReceiptsDescription),
       ],
@@ -438,8 +437,8 @@ class _InvitationCodesBadge extends StatelessWidget {
   }
 }
 
-class _LanguageSetting extends StatelessWidget {
-  const _LanguageSetting();
+class _LanguageSettings extends StatelessWidget {
+  const _LanguageSettings();
 
   @override
   Widget build(BuildContext context) {
@@ -469,6 +468,34 @@ class _LanguageSetting extends StatelessWidget {
           ),
         );
       },
+    );
+  }
+}
+
+class _Devices extends StatelessWidget {
+  const _Devices();
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final colors = CustomColorScheme.of(context);
+
+    return _FieldContainer(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) =>
+                LinkedDevicesScreen(userSettingsCubit: context.read()),
+          ),
+        );
+      },
+      child: Row(
+        children: [
+          AppIcon.laptop(color: colors.text.secondary, size: 24),
+          const SizedBox(width: Spacing.px12),
+          Expanded(child: Text(loc.userSettingsScreen_devices)),
+        ],
+      ),
     );
   }
 }

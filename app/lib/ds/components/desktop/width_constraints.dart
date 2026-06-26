@@ -8,11 +8,12 @@ import 'package:flutter/widgets.dart';
 /// Height remains unconstrained and is determined by the child.
 class ConstrainedWidth extends StatelessWidget {
   final Widget child;
+  final double width;
 
-  const ConstrainedWidth({super.key, required this.child});
+  const ConstrainedWidth({super.key, required this.child, this.width = 800});
 
   @override
   Widget build(BuildContext context) {
-    return SizedBox(width: 800, child: child);
+    return SizedBox(width: width, child: child);
   }
 }

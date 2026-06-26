@@ -13,6 +13,7 @@ export 'api/member_details_cubit.dart';
 export 'api/message_content.dart';
 export 'api/message_cubit.dart';
 export 'api/message_list_cubit.dart';
+export 'api/multi_device.dart';
 export 'api/navigation_cubit.dart';
 export 'api/notifications.dart';
 export 'api/types.dart';
