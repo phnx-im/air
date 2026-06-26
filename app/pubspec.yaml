@@ -53,6 +53,7 @@ dependencies:
   vector_graphics: ^1.1.19
   photo_view: ^0.15.0
   system_date_time_format: 1.4.0
+  mobile_scanner: ^7.2.0
 
 dev_dependencies:
   args: ^2.5.0
