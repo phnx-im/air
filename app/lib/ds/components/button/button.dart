@@ -23,8 +23,10 @@ class AppButton extends StatelessWidget {
     this.tone = AppButtonTone.normal,
     this.state = AppButtonState.active,
     required this.onPressed,
+    this.onLongPress,
     this.icon,
     required this.label,
+    this.alignment = MainAxisAlignment.center,
   });
 
   final AppButtonSize size;
@@ -33,9 +35,11 @@ class AppButton extends StatelessWidget {
   final AppButtonState state;
 
   final VoidCallback onPressed;
+  final VoidCallback? onLongPress;
 
   final Function(Size size, Color color)? icon;
   final String label;
+  final MainAxisAlignment alignment;
 
   @override
   Widget build(BuildContext context) {
@@ -94,7 +98,8 @@ class AppButton extends StatelessWidget {
     };
 
     return OutlinedButton(
-      onPressed: state == AppButtonState.active ? onPressed : null,
+      onPressed: state == .active ? onPressed : null,
+      onLongPress: state == .active ? onLongPress : null,
       style: ButtonStyle(
         visualDensity: .compact,
         padding: const WidgetStatePropertyAll(EdgeInsets.zero),
@@ -118,7 +123,7 @@ class AppButton extends StatelessWidget {
           horizontal: 12,
         ),
         child: Row(
-          mainAxisAlignment: .center,
+          mainAxisAlignment: alignment,
           crossAxisAlignment: .center,
           children: [
             if (state == .pending)

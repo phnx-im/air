@@ -4,10 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/theme/theme.dart';
-import 'package:air/ds/foundations/themes.dart';
-import 'package:air/ds/components/modal/app_dialog.dart';
-import 'package:air/ds/foundations/font_size.dart';
+import 'package:air/ds/components/modal/confirm_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -20,73 +17,15 @@ class RemoveUsernameDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
     final loc = AppLocalizations.of(context);
 
-    return AppDialog(
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Center(
-            child: Text(
-              loc.removeUsernameDialog_title,
-              style: TextStyle(
-                fontSize: HeaderFontSize.h4.size,
-                fontWeight: FontWeight.bold,
-              ),
-            ),
-          ),
-
-          const SizedBox(height: Spacing.px8),
-
-          Text(
-            loc.removeUsernameDialog_content,
-            style: TextStyle(
-              color: colors.text.secondary,
-              fontSize: BodyFontSize.base.size,
-            ),
-          ),
-
-          const SizedBox(height: Spacing.px24),
-
-          Row(
-            children: [
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    Navigator.of(context).pop(false);
-                  },
-                  child: Text(loc.removeUsernameDialog_cancel),
-                ),
-              ),
-
-              const SizedBox(width: Spacing.px12),
-
-              Expanded(
-                child: OutlinedButton(
-                  onPressed: () {
-                    context.read<UserCubit>().removeUsername(username);
-                    Navigator.of(context).pop(true);
-                  },
-                  style: ButtonStyle(
-                    backgroundColor: WidgetStatePropertyAll(
-                      colors.function.danger,
-                    ),
-                    overlayColor: WidgetStatePropertyAll(
-                      colors.function.danger,
-                    ),
-                    foregroundColor: WidgetStatePropertyAll(
-                      colors.function.white,
-                    ),
-                  ),
-                  child: Text(loc.removeUsernameDialog_remove),
-                ),
-              ),
-            ],
-          ),
-        ],
-      ),
+    return ConfirmDialog(
+      title: loc.removeUsernameDialog_title,
+      message: loc.removeUsernameDialog_content,
+      cancel: loc.removeUsernameDialog_cancel,
+      confirm: loc.removeUsernameDialog_remove,
+      destructive: true,
+      onConfirm: () => context.read<UserCubit>().removeUsername(username),
     );
   }
 }
