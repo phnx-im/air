@@ -106,6 +106,7 @@ sealed class IntroScreenType with _$IntroScreenType {
   const factory IntroScreenType.signUp() = IntroScreenType_SignUp;
   const factory IntroScreenType.usernameOnboarding() =
       IntroScreenType_UsernameOnboarding;
+  const factory IntroScreenType.linking() = IntroScreenType_Linking;
   const factory IntroScreenType.developerSettings(
     DeveloperSettingsScreenType field0,
   ) = IntroScreenType_DeveloperSettings;

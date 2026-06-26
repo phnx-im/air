@@ -18,6 +18,8 @@
   "userSettingsScreen_accountSection": "Konto",
   "userSettingsScreen_usernamePlaceholder": "Användarnamn",
   "userSettingsScreen_inviteCodes": "Inbjudningskoder",
+
+  "userSettingsScreen_devices": "Enheter",
   "settingsScreen_copiedToClipboard": "Kopierat till urklipp",
   "removeUsernameDialog_title": "Ta bort användarnamn",
   "removeUsernameDialog_content": "Personer kan inte skicka dig en kontaktförfrågan med det här användarnamnet, och det kan tas av någon annan.",
@@ -72,7 +74,12 @@
   "changeGroupTitleDialog_content": "Välj ett namn för gruppen.",
   "changeGroupTitleDialog_cancel": "Avbryt",
   "changeGroupTitleDialog_confirm": "Spara",
-  "introScreen_signUp": "Starta",
+  "introScreen_serverLabel": "Välj en server att ansluta till för länkning.",
+  "introScreen_serverHint": "DOMÄNNAMN",
+  "introScreen_error_invalidDomain": "Domänen är ogiltig",
+
+  "introScreen_linkExisting": "Länka till ett befintligt konto",
+  "introScreen_signUp": "Skapa konto",
   "introScreen_termsLinkText": "Användarvillkor",
   "introScreen_termsText": "Genom att registrera dig godkänner du våra {termsOfUseLink}.",
   "@introScreen_termsText": {
@@ -121,6 +128,78 @@
   "usernameOnboarding_next": "Nästa",
   "usernameOnboarding_usernameInputName": "Användarnamn (valfritt)",
   "usernameOnboarding_usernameInputHint": "Lägg till ett användarnamn...",
+  "linkingDeviceScreen_header": "Länka till ett befintligt konto",
+  "linkingDeviceScreen_connecting": "Ansluter...",
+  "linkingDeviceScreen_separator": "eller",
+  "linkingDeviceScreen_numericCode": "Numerisk kod",
+  "linkingDeviceScreen_linking": "Länkar...",
+  "linkingDeviceScreen_linked": "Enheten har länkats!",
+  "linkingDeviceScreen_linking_confirm_title": "Bekräfta länkning",
+  "linkingDeviceScreen_linking_confirm_edit_subtitle": "Tryck för att ändra enhetsnamnet",
+  "linkingDeviceScreen_linking_confirm_body": "Du är på väg att länka en ny enhet som får full åtkomst till ditt Air-konto. Gör bara detta om enheten tillhör dig.",
+  "linkingDeviceScreen_linking_confirm_checkbox": "Jag vill länka den här enheten.",
+  "linkingDeviceScreen_linking_confirm_button": "Bekräfta",
+  "linkingDeviceScreen_instructions_1": "Öppna Air på din befintliga enhet och gå till Du → Enheter.",
+  "linkingDeviceScreen_instructions_2": "Tryck på \"Länka en enhet\" och skanna sedan QR-koden eller ange den numeriska koden som visas ovan.",
+  "linkingDeviceScreen_instructions_3": "Håll båda apparna öppna under länkningsprocessen.",
+  "linkingDeviceScreen_error_codesExpired_title": "Koderna har gått ut",
+  "linkingDeviceScreen_error_codesExpired_message": "Ladda om koderna och försök igen för att länka den här enheten.",
+  "linkingDeviceScreen_error_codesExpired_cancel": "Avbryt",
+  "linkingDeviceScreen_error_codesExpired_reload": "Ladda om",
+  "linkingDevicesScreen_error_title": "Länkning misslyckades",
+  "linkingDevicesScreen_error_generic": "Ett okänt fel uppstod.",
+  "linkingDevicesScreen_error_dismiss": "Försök igen",
+
+  "linkedDevicesScreen_title": "Enheter",
+  "linkedDevicesScreen_thisDevice": "Den här enheten",
+  "linkedDevicesScreen_linkedDevices": "Länkade enheter",
+  "linkedDevicesScreen_linkedOn": "Länkad den {date}",
+  "@linkedDevicesScreen_linkedOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "linkedDevicesScreen_editNameHint": "Tryck på en enhet för att ändra dess namn.",
+  "linkedDevicesScreen_linkDevice": "Länka en enhet",
+  "linkedDevicesScreen_deviceCount": "{count, plural, one {{count} enhet länkad.} other {{count} enheter länkade.}} Du kan länka upp till {remaining} till.",
+  "@linkedDevicesScreen_deviceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "remaining": {
+        "type": "int"
+      }
+    }
+  },
+  "linkedDevicesScreen_encryptionNotice": "Meddelanden är end-to-end-krypterade på alla enheter. {learnMore}",
+  "@linkedDevicesScreen_encryptionNotice": {
+    "placeholders": {
+      "learnMore": {}
+    }
+  },
+  "linkedDevicesScreen_encryptionNotice_learnMore": "Läs mer.",
+  "linkedDevicesScreen_encryptionDialog_title": "Kryptering och enhetslänkning",
+  "linkedDevicesScreen_encryptionDialog_content": "På Air är dina meddelanden (inklusive bilagor) alltid end-to-end-krypterade. Det innebär att ingen annan, inte ens Air, kan läsa dem.\n\nNär du länkar en enhet förblir dina meddelanden krypterade och bara du kan läsa dem.",
+  "linkedDevicesScreen_encryptionDialog_confirm": "Okej",
+  "linkedDevicesScreen_linkDialog_chooseMethod": "Om du använder en mobiltelefon eller surfplatta med en fungerande kamera, välj \"Skanna QR-kod\". Om du använder en dator eller en enhet med trasig kamera, välj \"Ange numerisk kod\".",
+  "linkedDevicesScreen_linkDialog_openApp": "På enheten du vill länka, öppna Air och tryck sedan på \"Länka till ett befintligt konto\" på startskärmen.",
+  "linkedDevicesScreen_linkDialog_scanQrCode": "Skanna QR-kod",
+  "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "Skanna QR-kod (inte tillgängligt på den här plattformen)",
+  "linkedDevicesScreen_linkDialog_enterNumericCode": "Ange numerisk kod",
+  "linkedDevicesScreen_linkDialog_warning": "Enheter du länkar får full åtkomst till ditt Air-konto (inklusive möjligheten att lägga till eller ta bort enheter – även den här). Länka bara enheter du litar på.",
+  "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Ange den numeriska koden som visas på enheten du vill länka.",
+  "linkedDevicesScreen_linkDialog_link": "Länka enhet",
+  "linkedDevicesScreen_deviceName_editDialog_title": "Ändra enhetsnamn",
+  "linkedDevicesScreen_deviceName_editDialog_cancel": "Avbryt",
+  "linkedDevicesScreen_deviceName_editDialog_confirm": "Ändra",
+  "linkedDevicesScreen_unlinkDialog_title": "Avlänka enhet",
+  "linkedDevicesScreen_unlinkDialog_content": "Enheten kommer inte längre att kunna skicka eller ta emot meddelanden. All data för ditt konto raderas från enheten.",
+  "linkedDevicesScreen_unlinkDialog_cancel": "Avbryt",
+  "linkedDevicesScreen_unlinkDialog_confirm": "Avlänka",
+
   "usernameScreen_title": "Lägg till användarnamn",
   "usernameScreen_inputHint": "Skriv ett användarnamn...",
   "usernameScreen_error_emptyUsername": "Användarnamn får inte vara tomt",
@@ -133,6 +212,8 @@
   "usernameScreen_error_invalidCharacter": "Användarnamn får bara innehålla bokstäver, siffror eller bindestreck",
   "usernameScreen_error_consecutiveDashes": "Användarnamn får inte innehålla flera bindestreck i rad",
   "usernameScreen_error_leadingDigit": "Användarnamn får inte börja med en siffra",
+  "editDialog_characters_remaining": "{characters}/{remaining} tecken",
+
   "editDisplayNameScreen_title": "Ändra visningsnamn",
   "editDisplayNameScreen_description": "Välj ett namn som andra ser.",
   "editDisplayNameScreen_cancel": "Avbryt",
