@@ -98,6 +98,9 @@ qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 quickcheck = "1.0.3"
 quickcheck_macros = "1.0.0"
 rand = "0.8"
+# privacypass/voprf-ng require an RNG implementing rand_core 0.10's TryRng. Aliased
+# so it can coexist with the rand 0.8 the rest of the workspace still uses.
+rand_v10 = { package = "rand", version = "0.10" }
 rand_chacha = "0.3.1"
 regex = "1.11.1"
 reqwest = { version = "^0.12", features = ["json", "rustls-tls-webpki-roots", "brotli", "http2", "charset"], default-features = false }
