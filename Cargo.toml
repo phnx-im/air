@@ -131,7 +131,7 @@ tracing-log = "0.2"
 tracing-subscriber = { version = "0.3", features = ["env-filter", "tracing-log", "parking_lot"] }
 url = "2.5.4"
 uuid = "1.16.0"
-webpx = { version = "0.3.4", default-features = false, features = ["encode", "animation", "std"] }
+webpx = { version = "0.4.0", default-features = false, features = ["encode", "animation", "std"] }
 xshell = "0.2"
 zeroize = "1.8.2"
 
