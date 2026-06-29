@@ -18,8 +18,8 @@ use aircommon::{
         client_ds::UserProfileKeyUpdateParams,
         client_ds_out::{
             ApqGroupOperationParamsOut, CreateGroupParamsOut, DeleteGroupParamsOut,
-            ExternalCommitInfoIn, GroupOperationParamsOut, SendMessageCollisionTag,
-            SendMessageParamsOut, TargetedMessageParamsOut, WelcomeInfoIn,
+            ExternalCommitInfoIn, GroupOperationParamsOut, SelfRemoveParamsOut,
+            SendMessageCollisionTag, SendMessageParamsOut, TargetedMessageParamsOut, WelcomeInfoIn,
         },
     },
     time::TimeStamp,
@@ -502,16 +502,29 @@ impl ApiClient {
     }
 
     /// Leave the given group with this client.
+    ///
+    /// Dispatches to the APQ or non-APQ self-remove RPC depending on whether a PQ remove proposal
+    /// is present.
     pub async fn ds_self_remove(
         &self,
-        remove_proposal: AssistedMessageOut,
+        params: SelfRemoveParamsOut,
         signing_key: &ClientSigningKey,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
+        if let Some(pq_remove_proposal) = params.pq_remove_proposal {
+            return self
+                .ds_apq_self_remove(
+                    params.t_remove_proposal,
+                    pq_remove_proposal,
+                    signing_key,
+                    group_state_ear_key,
+                )
+                .await;
+        }
         let payload = SelfRemovePayload {
             client_metadata: Some(self.metadata().clone()),
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
-            remove_proposal: Some(remove_proposal.try_ref_into()?),
+            remove_proposal: Some(params.t_remove_proposal.try_ref_into()?),
         };
         let request = payload.sign(signing_key)?;
         let response = self
@@ -526,7 +539,7 @@ impl ApiClient {
     }
 
     /// Same as [`Self::ds_self_remove`], but for APQ groups.
-    pub async fn ds_apq_self_remove(
+    async fn ds_apq_self_remove(
         &self,
         t_remove_proposal: AssistedMessageOut,
         pq_remove_proposal: AssistedMessageOut,

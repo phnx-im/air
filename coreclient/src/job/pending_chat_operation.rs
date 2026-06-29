@@ -293,27 +293,11 @@ impl PendingChatOperation {
         let mut new_chat_picture = None;
         // TODO: Can we avoid cloning here?
         let res = match self.operation.clone() {
-            OperationType::Leave(params) => match params.pq_remove_proposal {
-                Some(pq_remove_proposal) => {
-                    api_client
-                        .ds_apq_self_remove(
-                            params.t_remove_proposal,
-                            pq_remove_proposal,
-                            signer,
-                            self.group.group_state_ear_key(),
-                        )
-                        .await
-                }
-                None => {
-                    api_client
-                        .ds_self_remove(
-                            params.t_remove_proposal,
-                            signer,
-                            self.group.group_state_ear_key(),
-                        )
-                        .await
-                }
-            },
+            OperationType::Leave(params) => {
+                api_client
+                    .ds_self_remove(*params, signer, self.group.group_state_ear_key())
+                    .await
+            }
             OperationType::Delete(params) => {
                 api_client
                     .ds_delete_group(*params, signer, self.group.group_state_ear_key())

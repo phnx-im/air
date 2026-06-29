@@ -90,24 +90,10 @@ impl CoreUser {
             .await?;
 
         for (params, ear_key) in removals {
-            let result = match params.pq_remove_proposal {
-                Some(pq_remove_proposal) => {
-                    api_client
-                        .ds_apq_self_remove(
-                            params.t_remove_proposal,
-                            pq_remove_proposal,
-                            self.signing_key(),
-                            &ear_key,
-                        )
-                        .await
-                }
-                None => {
-                    api_client
-                        .ds_self_remove(params.t_remove_proposal, self.signing_key(), &ear_key)
-                        .await
-                }
-            };
-            match result {
+            match api_client
+                .ds_self_remove(params, self.signing_key(), &ear_key)
+                .await
+            {
                 Ok(_) => {}
                 Err(e) if e.is_not_found() => {
                     warn!("Group already gone from server; skipping");

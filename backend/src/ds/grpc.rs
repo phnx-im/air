@@ -134,6 +134,35 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .await
     }
 
+    /// Loads the group state for update inside `txn`, returning the (owned) transaction alongside
+    /// the state on success.
+    ///
+    /// If the group state has expired, it has already been deleted; the transaction is committed to
+    /// persist the deletion and [`Status::not_found()`] is returned.
+    async fn load_for_update_or_not_found<'a>(
+        &self,
+        mut txn: PgTransaction<'a>,
+        qgid: &QualifiedGroupId,
+        ear_key: &GroupStateEarKey,
+    ) -> Result<(PgTransaction<'a>, DsGroupState, StorableDsGroupData<true>), Status> {
+        match self
+            .load_group_state_for_update(&mut txn, qgid, ear_key)
+            .await
+        {
+            Ok((group_data, group_state)) => Ok((txn, group_state, group_data)),
+            Err(LoadGroupStateError::Expired) => {
+                // The group state has expired and has already been deleted.
+                // Commit the transaction and return not found.
+                txn.commit().await.map_err(|error| {
+                    error!(%error, "Failed to commit transaction");
+                    Status::internal("Failed to commit transaction")
+                })?;
+                Err(Status::not_found("Group state expired"))
+            }
+            Err(LoadGroupStateError::Status(status)) => Err(status),
+        }
+    }
+
     async fn load_group_state_immutable(
         &self,
         qgid: &QualifiedGroupId,
@@ -228,28 +257,13 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         ear_key: &GroupStateEarKey,
         f: impl AsyncFnOnce(&mut DsGroupState, &mut StorableDsGroupData<true>) -> Result<T, Status>,
     ) -> Result<T, Status> {
-        let mut txn = self.ds.db_pool.begin().await.map_err(|error| {
+        let txn = self.ds.db_pool.begin().await.map_err(|error| {
             error!(%error, "Failed to start transaction");
             Status::internal("Failed to start transaction")
         })?;
-        let (mut group_state, mut group_data) = match self
-            .load_group_state_for_update(&mut txn, qgid, ear_key)
-            .await
-        {
-            Ok((group_data, group_state)) => (group_state, group_data),
-            Err(LoadGroupStateError::Expired) => {
-                // The group state has expired and has already been deleted.
-                // Commit the transaction and return not found.
-                txn.commit().await.map_err(|error| {
-                    error!(%error, "Failed to commit transaction");
-                    Status::internal("Failed to commit transaction")
-                })?;
-                return Err(Status::not_found("Group state expired"));
-            }
-            Err(LoadGroupStateError::Status(status)) => {
-                return Err(status);
-            }
-        };
+        let (mut txn, mut group_state, mut group_data) = self
+            .load_for_update_or_not_found(txn, qgid, ear_key)
+            .await?;
 
         let value = f(&mut group_state, &mut group_data).await?;
         let new_epoch = group_state.group().epoch().as_u64();
@@ -301,28 +315,13 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         let message = request.message()?;
         let qgid = message.validated_qgid(self.ds.own_domain())?;
 
-        let mut txn = self.ds.db_pool.begin().await.map_err(|error| {
+        let txn = self.ds.db_pool.begin().await.map_err(|error| {
             error!(%error, "Failed to start transaction");
             Status::internal("Failed to start transaction")
         })?;
-        let (mut group_state, group_data) = match self
-            .load_group_state_for_update(&mut txn, &qgid, &ear_key)
-            .await
-        {
-            Ok((group_data, group_state)) => (group_state, group_data),
-            Err(LoadGroupStateError::Expired) => {
-                // The group state has expired and has already been deleted.
-                // Commit the transaction and return not found.
-                txn.commit().await.map_err(|error| {
-                    error!(%error, "Failed to commit transaction");
-                    Status::internal("Failed to commit transaction")
-                })?;
-                return Err(Status::not_found("Group state expired"));
-            }
-            Err(LoadGroupStateError::Status(status)) => {
-                return Err(status);
-            }
-        };
+        let (mut txn, mut group_state, group_data) = self
+            .load_for_update_or_not_found(txn, &qgid, &ear_key)
+            .await?;
 
         let (payload, sender_index, message) = verify_message(request, &group_state, sender_index)?;
 
@@ -382,50 +381,20 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         let t_qgid = t_message.validated_qgid(self.ds.own_domain())?;
         let pq_qgid = pq_message.validated_qgid(self.ds.own_domain())?;
 
-        let mut txn = self.ds.db_pool.begin().await.map_err(|error| {
+        let txn = self.ds.db_pool.begin().await.map_err(|error| {
             error!(%error, "Failed to start transaction");
             Status::internal("Failed to start transaction")
         })?;
 
-        let (mut t_group_state, t_group_data) = match self
-            .load_group_state_for_update(&mut txn, &t_qgid, &ear_key)
-            .await
-        {
-            Ok((group_data, group_state)) => (group_state, group_data),
-            Err(LoadGroupStateError::Expired) => {
-                // The group state has expired and has already been deleted.
-                // Commit the transaction and return not found.
-                txn.commit().await.map_err(|error| {
-                    error!(%error, "Failed to commit transaction");
-                    Status::internal("Failed to commit transaction")
-                })?;
-                return Err(Status::not_found("Group state expired"));
-            }
-            Err(LoadGroupStateError::Status(status)) => {
-                return Err(status);
-            }
-        };
+        let (txn, mut t_group_state, t_group_data) = self
+            .load_for_update_or_not_found(txn, &t_qgid, &ear_key)
+            .await?;
         let (payload, t_sender_index) =
             resolve_and_verify(request, &t_message, &t_group_state, None)?;
 
-        let (mut pq_group_state, pq_group_data) = match self
-            .load_group_state_for_update(&mut txn, &pq_qgid, &ear_key)
-            .await
-        {
-            Ok((group_data, group_state)) => (group_state, group_data),
-            Err(LoadGroupStateError::Expired) => {
-                // The group state has expired and has already been deleted.
-                // Commit the transaction and return not found.
-                txn.commit().await.map_err(|error| {
-                    error!(%error, "Failed to commit transaction");
-                    Status::internal("Failed to commit transaction")
-                })?;
-                return Err(Status::not_found("Group state expired"));
-            }
-            Err(LoadGroupStateError::Status(status)) => {
-                return Err(status);
-            }
-        };
+        let (mut txn, mut pq_group_state, pq_group_data) = self
+            .load_for_update_or_not_found(txn, &pq_qgid, &ear_key)
+            .await?;
 
         // Check that the T/PQ indices and signature keys match
         let Sender::Member(pq_sender_index) = *pq_message.sender().ok_or_missing_field("sender")?
@@ -442,8 +411,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         let t_sender = t_group_state
             .group()
             .leaf(t_sender_index)
-            .ok_or(Status::invalid_argument("unknown sender"))?
-            .clone();
+            .ok_or(Status::invalid_argument("unknown sender"))?;
         let pq_sender = pq_group_state
             .group()
             .leaf(pq_sender_index)
