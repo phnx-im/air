@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::{Fqdn, MimiId, UserId};
-use sqlx::{query, query_as};
+use sqlx::{query, query_as, query_scalar};
 use uuid::Uuid;
 
 use crate::{
@@ -120,6 +120,20 @@ impl Reaction {
         .fetch_optional(connection.as_mut())
         .await?;
         Ok(res.map(|row| row.target_mimi_id))
+    }
+
+    pub(crate) async fn exists_by_mimi_id(
+        mut connection: impl ReadConnection,
+        reaction_mimi_id: &MimiId,
+    ) -> sqlx::Result<bool> {
+        let exists = query_scalar!(
+            "SELECT EXISTS(SELECT 1 FROM reaction WHERE reaction_mimi_id = ?)",
+            reaction_mimi_id,
+        )
+        .fetch_one(connection.as_mut())
+        .await?
+            != 0;
+        Ok(exists)
     }
 
     /// Load all reactions on a given message, oldest first.

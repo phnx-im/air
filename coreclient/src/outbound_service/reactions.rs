@@ -73,6 +73,25 @@ impl OutboundServiceContext {
             let chat_id = dequeued.chat_id;
             debug!(?chat_id, "dequeued reaction");
 
+            // Skip add-reactions whose row was removed before we could send them
+            if let Some(reaction_mimi_id) = &dequeued.reaction_mimi_id {
+                let exists = self
+                    .db
+                    .with_read_transaction(async |txn| {
+                        Reaction::exists_by_mimi_id(txn, reaction_mimi_id).await
+                    })
+                    .await?;
+                if !exists {
+                    debug!(?chat_id, "Skipping reaction send: row no longer exists");
+                    self.db
+                        .with_write_transaction(async |txn| {
+                            ReactionQueue::remove(txn, dequeued.id).await
+                        })
+                        .await?;
+                    continue;
+                }
+            }
+
             // If a resync is pending, skip sending reactions for this chat.
             if Resync::is_pending_for_chat(self.db.read().await?, &chat_id).await? {
                 debug!(?chat_id, "Skipping sending reaction due to pending resync");
