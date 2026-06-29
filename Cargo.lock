@@ -176,6 +176,7 @@ dependencies = [
  "pin-project",
  "privacypass",
  "prost",
+ "rand 0.10.1",
  "rand 0.8.5",
  "semver",
  "serde",
@@ -5641,8 +5642,9 @@ dependencies = [
 
 [[package]]
 name = "privacypass"
-version = "0.2.0-pre.0"
-source = "git+https://github.com/raphaelrobert/privacypass?rev=48296d412e9d6e4b9b3a6a9f747e39bce253fcfb#48296d412e9d6e4b9b3a6a9f747e39bce253fcfb"
+version = "0.2.0-pre.1"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "00ddbfc777a0739773ccc19c40cdf1ac8def46fad1727877d86d77364ce95d29"
 dependencies = [
  "async-trait",
  "base64",
@@ -5652,7 +5654,7 @@ dependencies = [
  "log",
  "nom 8.0.0",
  "p384",
- "rand 0.8.5",
+ "rand 0.10.1",
  "serde",
  "sha2 0.10.9",
  "subtle",
@@ -5661,7 +5663,7 @@ dependencies = [
  "tls_codec_derive",
  "trait-variant",
  "typenum",
- "voprf",
+ "voprf-ng",
 ]
 
 [[package]]
@@ -7976,10 +7978,10 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "0b928f33d975fc6ad9f86c8f283853ad26bdd5b10b7f1542aa2fa15e2289105a"
 
 [[package]]
-name = "voprf"
-version = "0.6.0-pre.0"
+name = "voprf-ng"
+version = "0.6.0-pre.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "4120bad202975a1d3b5fb3468a65ee459d9e19a1d5d2a70d32fe615b9d65e04d"
+checksum = "bed8944bdc5dfafa7b1c434c086b3f6281dfb26715bd8e42d58d5e4434cc0307"
 dependencies = [
  "curve25519-dalek 4.1.3",
  "derive-where",
@@ -7987,7 +7989,7 @@ dependencies = [
  "displaydoc",
  "elliptic-curve",
  "generic-array 1.3.5",
- "rand_core 0.6.4",
+ "rand_core 0.10.1",
  "serde",
  "sha2 0.10.9",
  "subtle",
@@ -9109,18 +9111,18 @@ dependencies = [
 
 [[package]]
 name = "zeroize"
-version = "1.8.2"
+version = "1.9.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "b97154e67e32c85465826e8bcc1c59429aaaf107c1e4a9e53c8d8ccd5eff88d0"
+checksum = "e13c156562582aa81c60cb29407084cdb54c4164760106ab78e6c5b0858cf64e"
 dependencies = [
  "zeroize_derive",
 ]
 
 [[package]]
 name = "zeroize_derive"
-version = "1.4.3"
+version = "1.5.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "85a5b4158499876c763cb03bc4e49185d3cccbabb15b33c627f7884f43db852e"
+checksum = "3c50655cbb0fe3fc43170059e702f1ce5e19b84cec58dc87b037a09935c2f328"
 dependencies = [
  "proc-macro2",
  "quote",
