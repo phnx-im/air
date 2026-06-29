@@ -6,10 +6,7 @@
 --
 -- A reaction is a MIMI message (disposition "reaction") whose `in_reply_to`
 -- points at the reacted-to message. We don't store reactions as rows in the
--- `message` table (they are not displayed as tiles); instead we keep their
--- aggregated state here, keyed by the reaction message's own MimiId so that a
--- later retraction (which `replaces` that MimiId with an empty body) can find
--- and remove the corresponding row.
+-- `message` table (they are not displayed as tiles).
 CREATE TABLE reaction (
     reaction_mimi_id BLOB NOT NULL PRIMARY KEY,
     target_mimi_id BLOB NOT NULL,

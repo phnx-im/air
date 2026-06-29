@@ -108,7 +108,7 @@ impl CoreUser {
     /// retraction to the other group members.
     ///
     /// A no-op if we have no such reaction.
-    pub async fn remove_reaction(
+    pub async fn delete_reaction(
         &self,
         chat_id: ChatId,
         target: MessageId,

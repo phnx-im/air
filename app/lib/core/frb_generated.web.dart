@@ -953,6 +953,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   List<UiInvitationCode> dco_decode_list_ui_invitation_code(dynamic raw);
 
   @protected
+  List<UiReaction> dco_decode_list_ui_reaction(dynamic raw);
+
+  @protected
   List<UiUserId> dco_decode_list_ui_user_id(dynamic raw);
 
   @protected
@@ -1291,6 +1294,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiMimiId dco_decode_ui_mimi_id(dynamic raw);
+
+  @protected
+  UiReaction dco_decode_ui_reaction(dynamic raw);
 
   @protected
   UiSystemMessage dco_decode_ui_system_message(dynamic raw);
@@ -2235,6 +2241,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  List<UiReaction> sse_decode_list_ui_reaction(SseDeserializer deserializer);
+
+  @protected
   List<UiUserId> sse_decode_list_ui_user_id(SseDeserializer deserializer);
 
   @protected
@@ -2649,6 +2658,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UiMimiId sse_decode_ui_mimi_id(SseDeserializer deserializer);
+
+  @protected
+  UiReaction sse_decode_ui_reaction(SseDeserializer deserializer);
 
   @protected
   UiSystemMessage sse_decode_ui_system_message(SseDeserializer deserializer);
@@ -3809,6 +3821,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_list_ui_reaction(
+    List<UiReaction> self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_ui_user_id(
     List<UiUserId> self,
     SseSerializer serializer,
@@ -4336,6 +4354,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_ui_mimi_id(UiMimiId self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_ui_reaction(UiReaction self, SseSerializer serializer);
 
   @protected
   void sse_encode_ui_system_message(

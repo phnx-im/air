@@ -1173,8 +1173,8 @@ async fn react_to_message() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Remove a reaction", skip_all)]
-async fn remove_reaction() {
+#[tracing::instrument(name = "Delete a reaction", skip_all)]
+async fn delete_reaction() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
@@ -1199,7 +1199,7 @@ async fn remove_reaction() {
     // Bob retracts the reaction.
     let bob_user = setup.get_user(&bob).user();
     bob_user
-        .remove_reaction(chat_id, sent.recipient_message_id(&bob), "🫪".to_owned())
+        .delete_reaction(chat_id, sent.recipient_message_id(&bob), "🫪".to_owned())
         .await
         .unwrap();
     bob_user.outbound_service().run_once().await;
@@ -1328,7 +1328,7 @@ async fn react_notifies_message_author() {
     // Retracting it produces no notification.
     let bob_user = setup.get_user(&bob).user();
     bob_user
-        .remove_reaction(chat_id, sent.recipient_message_id(&bob), "🫪".to_owned())
+        .delete_reaction(chat_id, sent.recipient_message_id(&bob), "🫪".to_owned())
         .await
         .unwrap();
     bob_user.outbound_service().run_once().await;

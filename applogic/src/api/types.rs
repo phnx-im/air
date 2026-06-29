@@ -345,10 +345,6 @@ pub struct _MessageId {
 }
 
 /// An emoji reaction on a message, aggregated across the users who applied it.
-///
-/// `users.len()` is the count; the UI determines whether the current user
-/// reacted by checking whether their id is in `users`, and uses the list to
-/// show who reacted with this emoji.
 #[derive(Debug, Clone, Eq, PartialEq, Hash)]
 #[frb(dart_metadata = ("freezed"))]
 pub struct UiReaction {

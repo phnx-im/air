@@ -849,14 +849,6 @@ impl CoreUser {
     }
 
     /// Apply an incoming reaction (add or retraction) to the targeted message.
-    ///
-    /// Reactions are stored in the `reaction` table rather than as message
-    /// tiles; the targeted message is notified as updated so its reactions
-    /// re-render.
-    ///
-    /// Returns a [`ReactionNotification`] when the reaction is an addition by
-    /// another user on a message *we* sent (req: only notify for reactions on
-    /// our own messages, and never for retractions).
     async fn handle_reaction(
         &self,
         txn: &mut WriteDbTransaction<'_>,
@@ -880,14 +872,13 @@ impl CoreUser {
 
         // Add: `in_reply_to` references the reacted-to message.
         let Some(in_reply_to) = content.in_reply_to.as_ref() else {
-            warn!("Received reaction without in_reply_to; ignoring");
+            warn!("Received reaction without in_reply_to, ignoring");
             return Ok(None);
         };
         let target_mimi_id = MimiId::from_slice(in_reply_to)?;
 
-        // We can only attach a reaction to a message we know about.
         let Some(target) = ChatMessage::load_by_mimi_id(&mut *txn, &target_mimi_id).await? else {
-            warn!("Received reaction for unknown message; ignoring");
+            warn!("Received reaction for unknown message, ignoring");
             return Ok(None);
         };
 

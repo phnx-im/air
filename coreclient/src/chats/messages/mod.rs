@@ -291,7 +291,6 @@ impl ChatMessage {
         self.in_reply_to.take()
     }
 
-    /// Reactions on this message, populated when the message is loaded.
     pub fn reactions(&self) -> &[MessageReaction] {
         &self.reactions
     }

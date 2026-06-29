@@ -215,8 +215,8 @@ impl ChatDetailsCubitBase {
         Ok(())
     }
 
-    /// Removes an emoji reaction we previously added to a message.
-    pub async fn remove_reaction(
+    /// Deletes an emoji reaction we previously added to a message.
+    pub async fn delete_reaction(
         &self,
         message_id: MessageId,
         emoji: String,
@@ -224,7 +224,7 @@ impl ChatDetailsCubitBase {
         Box::pin(
             self.context
                 .core_user
-                .remove_reaction(self.context.chat_id, message_id, emoji),
+                .delete_reaction(self.context.chat_id, message_id, emoji),
         )
         .await
         .inspect_err(|error| error!(%error, "Failed to remove reaction"))?;
