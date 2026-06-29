@@ -10,6 +10,7 @@ use aircommon::{
     time::TimeStamp,
 };
 use anyhow::bail;
+use indexmap::IndexMap;
 use mimi_content::{MessageStatus, MimiContent};
 use serde::{Deserialize, Serialize};
 use sqlx::{query, query_as, query_scalar};
@@ -19,7 +20,7 @@ use uuid::Uuid;
 
 use crate::{
     ChatId, ChatMessage, ContentMessage, Message,
-    chats::messages::InReplyToMessage,
+    chats::{messages::InReplyToMessage, reactions::Reaction},
     clients::attachment::AttachmentRecord,
     db::access::{ReadConnection, WriteConnection},
 };
@@ -172,6 +173,8 @@ impl From<SqlChatMessage> for ChatMessage {
             in_reply_to: in_reply_to_mimi_id.map(|id| (id, None)),
             timestamped_message,
             status,
+            // Populated by `augment` after the row is decoded.
+            reactions: IndexMap::new(),
         }
     }
 }
@@ -588,10 +591,24 @@ impl ChatMessage {
         .await
     }
 
-    /// Augments a chat message when it is a reply with the data from the referenced message
-    async fn augment_in_reply_to(&mut self, connection: impl ReadConnection) -> sqlx::Result<()> {
+    /// Augments a loaded chat message with lazily-loaded data: the referenced
+    /// reply (if any) and the reactions on this message.
+    async fn augment(&mut self, mut connection: impl ReadConnection) -> sqlx::Result<()> {
         if let Some((mimi_id, message)) = self.in_reply_to.as_mut() {
-            *message = InReplyToMessage::load(connection, mimi_id).await?;
+            *message = InReplyToMessage::load(&mut connection, mimi_id).await?;
+        }
+
+        if let Some(mimi_id) = self.message().mimi_id().copied() {
+            self.reactions = Reaction::load_by_target(&mut connection, &mimi_id)
+                .await?
+                .into_iter()
+                .fold(IndexMap::new(), |mut reactions, reaction| {
+                    reactions
+                        .entry(reaction.emoji)
+                        .or_default()
+                        .push(reaction.sender);
+                    reactions
+                });
         }
 
         Ok(())
@@ -978,10 +995,7 @@ where
 
 impl SqlChatMessageExt for &mut ChatMessage {
     async fn with_loaded_in_reply_to(self, connection: impl ReadConnection) -> sqlx::Result<Self> {
-        if let Some((in_reply_to_mimi_id, in_reply_to_message)) = self.in_reply_to.as_mut() {
-            *in_reply_to_message = InReplyToMessage::load(connection, in_reply_to_mimi_id).await?;
-        }
-
+        self.augment(connection).await?;
         Ok(self)
     }
 }
@@ -992,8 +1006,8 @@ impl SqlChatMessageExt for Vec<ChatMessage> {
         mut connection: impl ReadConnection,
     ) -> sqlx::Result<Self> {
         for message in &mut self {
-            if let Err(error) = message.augment_in_reply_to(&mut connection).await {
-                error!(%error, "failed to load reply for message");
+            if let Err(error) = message.augment(&mut connection).await {
+                error!(%error, "failed to load reply/reactions for message");
             }
         }
         Ok(self)
@@ -1006,7 +1020,7 @@ impl SqlChatMessageExt for Option<ChatMessage> {
         connection: impl ReadConnection,
     ) -> sqlx::Result<Self> {
         if let Some(chat_message) = self.as_mut() {
-            chat_message.augment_in_reply_to(connection).await?;
+            chat_message.augment(connection).await?;
         }
 
         Ok(self)
@@ -1119,6 +1133,7 @@ pub(crate) mod tests {
             timestamped_message,
             status: MessageStatus::Unread,
             in_reply_to: None,
+            reactions: IndexMap::new(),
         }
     }
 

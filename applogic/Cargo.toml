@@ -38,6 +38,7 @@ flutter_rust_bridge.workspace = true
 futures-util.workspace = true
 hex.workspace = true
 image.workspace = true
+indexmap.workspace = true
 jni.workspace = true
 lru.workspace = true
 memmap2.workspace = true

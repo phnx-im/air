@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{OpenMlsRand, RustCrypto, identifiers::MimiId, time::TimeStamp};
+use indexmap::IndexMap;
 use mimi_content::{
     MessageStatus, MimiContent,
     content_container::{Disposition, NestedPart, PartSemantics},
@@ -107,6 +108,7 @@ pub struct ChatMessage {
     pub(super) in_reply_to: Option<(MimiId, Option<InReplyToMessage>)>,
     pub(super) timestamped_message: TimestampedMessage,
     pub(super) status: MessageStatus,
+    pub(super) reactions: IndexMap<String, Vec<UserId>>,
 }
 
 impl ChatMessage {
@@ -123,6 +125,7 @@ impl ChatMessage {
             in_reply_to: None,
             timestamped_message,
             status: MessageStatus::Unread,
+            reactions: IndexMap::new(),
         }
     }
 
@@ -153,6 +156,7 @@ impl ChatMessage {
             },
             in_reply_to: None,
             status: MessageStatus::Unread,
+            reactions: IndexMap::new(),
         }
     }
 
@@ -176,6 +180,7 @@ impl ChatMessage {
             in_reply_to: None,
             timestamped_message,
             status: MessageStatus::Unread,
+            reactions: IndexMap::new(),
         }
     }
 
@@ -283,6 +288,10 @@ impl ChatMessage {
 
     pub fn take_in_reply_to(&mut self) -> Option<(MimiId, Option<InReplyToMessage>)> {
         self.in_reply_to.take()
+    }
+
+    pub fn reactions(&self) -> &IndexMap<String, Vec<UserId>> {
+        &self.reactions
     }
 }
 

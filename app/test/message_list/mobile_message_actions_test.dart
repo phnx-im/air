@@ -42,6 +42,7 @@ final _mobileMessages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   UiChatMessage(
     id: 2.messageId(),
@@ -62,6 +63,7 @@ final _mobileMessages = [
     ),
     position: UiFlightPosition.start,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   UiChatMessage(
     id: 3.messageId(),
@@ -82,6 +84,7 @@ final _mobileMessages = [
     ),
     position: UiFlightPosition.middle,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   UiChatMessage(
     id: 4.messageId(),
@@ -102,6 +105,7 @@ final _mobileMessages = [
     ),
     position: UiFlightPosition.end,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   UiChatMessage(
     id: 5.messageId(),
@@ -124,6 +128,7 @@ final _mobileMessages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.delivered,
+    reactions: [],
   ),
   UiChatMessage(
     id: 6.messageId(),
@@ -144,6 +149,7 @@ final _mobileMessages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.read,
+    reactions: [],
   ),
 ];
 
