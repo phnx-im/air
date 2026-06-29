@@ -272,10 +272,12 @@ impl PendingChatOperation {
         {
             // No need to check the PQ epoch (if any) because a different PQ epoch implies a
             // different T epoch.
-            **leave_params = self
-                .group
-                .group_mut()
-                .stage_leave_group(db.write().await?, signer)?;
+            let restaged = self.group.group_mut().restage_leave_group(
+                db.write().await?,
+                signer,
+                leave_params,
+            )?;
+            **leave_params = restaged;
         }
 
         let encrypt_user_profile_key =
