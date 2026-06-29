@@ -320,6 +320,7 @@ UiChatMessage _lastChatMessage(ChatId chatId, UiUserId senderId, String body) =>
       ),
       position: UiFlightPosition.single,
       status: UiMessageStatus.sent,
+      reactions: [],
     );
 
 MessageContent _simpleMessage(String msg) {
@@ -360,6 +361,7 @@ final fredMessages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.read,
+    reactions: [],
   ),
   UiChatMessage(
     id: (messageIdx++).messageId(),
@@ -382,6 +384,7 @@ final fredMessages = [
     ),
     position: UiFlightPosition.start,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   UiChatMessage(
     id: (messageIdx++).messageId(),
@@ -415,6 +418,7 @@ final fredMessages = [
     ),
     position: UiFlightPosition.end,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
 ];
 
@@ -442,6 +446,7 @@ final gardeningPartyMessages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.read,
+    reactions: [],
   ),
   UiChatMessage(
     id: (messageIdx++).messageId(),
@@ -462,6 +467,7 @@ final gardeningPartyMessages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   UiChatMessage(
     id: (messageIdx++).messageId(),
@@ -484,6 +490,7 @@ final gardeningPartyMessages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
 ];
 

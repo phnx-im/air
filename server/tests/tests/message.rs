@@ -5,6 +5,7 @@
 use aircommon::messages::client_ds_out::SendMessageCollisionTag;
 use aircoreclient::{ChatId, ChatMessage, MimiContentExt, ReadReceiptsSetting, clients::CoreUser};
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
+use indexmap::indexmap;
 use mimi_content::{MessageStatus, MimiContent};
 use rand::{Rng, distributions::Alphanumeric, rngs::OsRng};
 
@@ -1119,4 +1120,275 @@ async fn send_message_collision_tags_from_different_users_never_collide() {
         .send_message(chat_id, content.clone(), None)
         .await
         .expect("send from bob should succeed");
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "React to a message", skip_all)]
+async fn react_to_message() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    // Alice sends a message; Bob reacts to it.
+    let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
+
+    let bob_user = setup.get_user(&bob).user();
+    bob_user
+        .send_reaction(chat_id, sent.recipient_message_id(&bob), "🫪".to_owned())
+        .await
+        .unwrap();
+    bob_user.outbound_service().run_once().await;
+
+    // Bob sees his own reaction immediately (optimistic).
+    assert_eq!(
+        bob_user
+            .message_reactions(sent.recipient_message_id(&bob))
+            .await
+            .unwrap(),
+        indexmap! { "🫪".to_owned() => vec![bob.clone()] },
+    );
+
+    // Alice receives and stores the reaction on her copy of the message.
+    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+    assert_eq!(
+        setup
+            .get_user(&alice)
+            .user()
+            .message_reactions(sent.own_message_id)
+            .await
+            .unwrap(),
+        indexmap! { "🫪".to_owned() => vec![bob] },
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Delete a reaction", skip_all)]
+async fn delete_reaction() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
+
+    let bob_user = setup.get_user(&bob).user();
+    bob_user
+        .send_reaction(chat_id, sent.recipient_message_id(&bob), "🫪".to_owned())
+        .await
+        .unwrap();
+    bob_user.outbound_service().run_once().await;
+    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+    assert_eq!(
+        setup
+            .get_user(&alice)
+            .user()
+            .message_reactions(sent.own_message_id)
+            .await
+            .unwrap()
+            .len(),
+        1,
+    );
+
+    // Bob retracts the reaction.
+    let bob_user = setup.get_user(&bob).user();
+    bob_user
+        .delete_reaction(chat_id, sent.recipient_message_id(&bob), "🫪".to_owned())
+        .await
+        .unwrap();
+    bob_user.outbound_service().run_once().await;
+
+    // Gone locally for Bob and, after processing, for Alice too.
+    assert!(
+        bob_user
+            .message_reactions(sent.recipient_message_id(&bob))
+            .await
+            .unwrap()
+            .is_empty()
+    );
+    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+    assert!(
+        setup
+            .get_user(&alice)
+            .user()
+            .message_reactions(sent.own_message_id)
+            .await
+            .unwrap()
+            .is_empty()
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Multiple reactions per user", skip_all)]
+async fn multiple_reactions_per_user() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    let bob_target = sent.recipient_message_id(&bob);
+
+    let bob_user = setup.get_user(&bob).user();
+    // Two distinct emojis are independent reactions.
+    bob_user
+        .send_reaction(chat_id, bob_target, "🫪".to_owned())
+        .await
+        .unwrap();
+    bob_user
+        .send_reaction(chat_id, bob_target, "👍".to_owned())
+        .await
+        .unwrap();
+    // Re-reacting with an existing emoji is a no-op.
+    bob_user
+        .send_reaction(chat_id, bob_target, "🫪".to_owned())
+        .await
+        .unwrap();
+    bob_user.outbound_service().run_once().await;
+
+    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+    assert_eq!(
+        setup
+            .get_user(&alice)
+            .user()
+            .message_reactions(sent.own_message_id)
+            .await
+            .unwrap(),
+        indexmap! { "👍".to_owned() => vec![bob.clone()], "🫪".to_owned() => vec![bob] },
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Reactions in a group", skip_all)]
+async fn reactions_in_group() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+
+    let group_chat = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(group_chat, &alice, vec![&bob, &charlie])
+        .await;
+
+    // Alice posts; Bob and Charlie each react with a different emoji.
+    let sent = setup
+        .send_message(group_chat, &alice, vec![&bob, &charlie], None)
+        .await;
+
+    let bob_user = setup.get_user(&bob).user();
+    bob_user
+        .send_reaction(group_chat, sent.recipient_message_id(&bob), "🫪".to_owned())
+        .await
+        .unwrap();
+    bob_user.outbound_service().run_once().await;
+
+    let charlie_user = setup.get_user(&charlie).user();
+    charlie_user
+        .send_reaction(
+            group_chat,
+            sent.recipient_message_id(&charlie),
+            "👍".to_owned(),
+        )
+        .await
+        .unwrap();
+    charlie_user.outbound_service().run_once().await;
+
+    // Alice sees who reacted with what — the basis for the "who reacted" view.
+    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+    assert_eq!(
+        setup
+            .get_user(&alice)
+            .user()
+            .message_reactions(sent.own_message_id)
+            .await
+            .unwrap(),
+        indexmap! { "👍".to_owned() => vec![charlie], "🫪".to_owned() => vec![bob] },
+    );
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Notified about reactions on own message", skip_all)]
+async fn react_notifies_message_author() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let chat_id = setup.connect_users(&alice, &bob).await;
+
+    // Alice sends a message; Bob reacts to it.
+    let sent = setup.send_message(chat_id, &alice, vec![&bob], None).await;
+    let bob_user = setup.get_user(&bob).user();
+    bob_user
+        .send_reaction(chat_id, sent.recipient_message_id(&bob), "🫪".to_owned())
+        .await
+        .unwrap();
+    bob_user.outbound_service().run_once().await;
+
+    // Alice processes and is notified about the reaction on her own message.
+    let alice_user = setup.get_user(&alice).user();
+    let qs = alice_user.qs_fetch_messages().await.unwrap();
+    let processed = alice_user.fully_process_qs_messages(qs).await;
+    assert_eq!(processed.reaction_notifications.len(), 1);
+    assert_eq!(processed.reaction_notifications[0].reactor, bob);
+    assert_eq!(processed.reaction_notifications[0].emoji, "🫪");
+
+    // Retracting it produces no notification.
+    let bob_user = setup.get_user(&bob).user();
+    bob_user
+        .delete_reaction(chat_id, sent.recipient_message_id(&bob), "🫪".to_owned())
+        .await
+        .unwrap();
+    bob_user.outbound_service().run_once().await;
+    let alice_user = setup.get_user(&alice).user();
+    let qs = alice_user.qs_fetch_messages().await.unwrap();
+    let processed = alice_user.fully_process_qs_messages(qs).await;
+    assert!(processed.reaction_notifications.is_empty());
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "No notification for reactions on others' messages", skip_all)]
+async fn no_notification_for_reaction_on_others_message() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+
+    let group_chat = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(group_chat, &alice, vec![&bob, &charlie])
+        .await;
+
+    // Bob posts; Charlie reacts to Bob's message.
+    let sent = setup
+        .send_message(group_chat, &bob, vec![&alice, &charlie], None)
+        .await;
+    let charlie_user = setup.get_user(&charlie).user();
+    charlie_user
+        .send_reaction(
+            group_chat,
+            sent.recipient_message_id(&charlie),
+            "🫪".to_owned(),
+        )
+        .await
+        .unwrap();
+    charlie_user.outbound_service().run_once().await;
+
+    // Alice (a bystander) is not notified — it's not her message.
+    let alice_user = setup.get_user(&alice).user();
+    let qs = alice_user.qs_fetch_messages().await.unwrap();
+    let processed = alice_user.fully_process_qs_messages(qs).await;
+    assert!(processed.reaction_notifications.is_empty());
+
+    // Bob (the author) is notified.
+    let bob_user = setup.get_user(&bob).user();
+    let qs = bob_user.qs_fetch_messages().await.unwrap();
+    let processed = bob_user.fully_process_qs_messages(qs).await;
+    assert_eq!(processed.reaction_notifications.len(), 1);
+    assert_eq!(processed.reaction_notifications[0].reactor, charlie);
 }

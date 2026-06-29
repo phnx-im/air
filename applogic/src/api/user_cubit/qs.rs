@@ -36,6 +36,7 @@ impl CubitContext {
             errors: _,
             processed: _,
             new_connections,
+            reaction_notifications,
         }: ProcessedQsMessages,
     ) {
         let mut notifications = Vec::with_capacity(new_chats.len() + new_messages.len());
@@ -43,6 +44,8 @@ impl CubitContext {
         user.new_chat_notifications(&new_chats, &mut notifications)
             .await;
         user.new_message_notifications(&new_messages, &mut notifications)
+            .await;
+        user.reaction_notifications(&reaction_notifications, &mut notifications)
             .await;
         user.new_connection_request_notifications(&new_connections, &mut notifications)
             .await;

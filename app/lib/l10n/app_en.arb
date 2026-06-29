@@ -22,6 +22,8 @@
 
   "userSettingsScreen_inviteCodes": "Invite codes",
 
+  "userSettingsScreen_devices": "Devices",
+
   "settingsScreen_copiedToClipboard": "Copied to clipboard",
 
   "removeUsernameDialog_title": "Remove username?",
@@ -91,9 +93,14 @@
   "changeGroupTitleDialog_cancel": "Cancel",
   "changeGroupTitleDialog_confirm": "Save",
 
-  "introScreen_signUp": "Start",
+  "introScreen_serverLabel": "Choose a server to connect to for linking.",
+  "introScreen_serverHint": "DOMAIN NAME",
+  "introScreen_error_invalidDomain": "Domain is invalid",
+
+  "introScreen_linkExisting": "Link to an existing account",
+  "introScreen_signUp": "Create account",
   "introScreen_termsLinkText": "Terms of Use",
-  "introScreen_termsText": "By signing up, you agree to our {termsOfUseLink}.",
+  "introScreen_termsText": "By creating an account, you agree to our {termsOfUseLink}.",
   "@introScreen_termsText": {
     "placeholders": {
       "termsOfUseLink": {}
@@ -143,6 +150,74 @@
   "usernameOnboarding_usernameInputName": "Username (optional)",
   "usernameOnboarding_usernameInputHint": "Add a username...",
 
+  "linkingDeviceScreen_header": "Link to an existing account",
+  "linkingDeviceScreen_connecting": "Connecting...",
+  "linkingDeviceScreen_separator": "or",
+  "linkingDeviceScreen_numericCode": "Numeric code",
+  "linkingDeviceScreen_linking": "Linking...",
+  "linkingDeviceScreen_linked": "Device successfully linked!",
+  "linkingDeviceScreen_linking_confirm_title": "Confirm linking",
+  "linkingDeviceScreen_linking_confirm_edit_subtitle": "Tap to edit device name",
+  "linkingDeviceScreen_linking_confirm_body": "You're about to link a new device, which will have full access to your Air account. Only do this if the device belongs to you.",
+  "linkingDeviceScreen_linking_confirm_checkbox": "I want to link this device.",
+  "linkingDeviceScreen_linking_confirm_button": "Confirm",
+  "linkingDeviceScreen_instructions_1": "Open Air on your existing device and go to You → Manage devices.",
+  "linkingDeviceScreen_instructions_2": "Tap \"Link a device\", then scan the QR code or enter the numeric code shown above.",
+  "linkingDeviceScreen_instructions_3": "Keep both apps open during the linking process.",
+  "linkingDeviceScreen_error_codesExpired_title": "Codes expired",
+  "linkingDeviceScreen_error_codesExpired_message": "To link this device, reload the codes and try again.",
+  "linkingDeviceScreen_error_codesExpired_cancel": "Cancel",
+  "linkingDeviceScreen_error_codesExpired_reload": "Reload",
+  "linkingDevicesScreen_error_title": "Linking failed",
+  "linkingDevicesScreen_error_generic": "An unknown error occurred.",
+  "linkingDevicesScreen_error_sessionNotFound": "The code you provided is incorrect.",
+  "linkingDevicesScreen_error_dismiss": "Try again",
+
+  "linkedDevicesScreen_title": "Devices",
+  "linkedDevicesScreen_thisDevice": "This device",
+  "linkedDevicesScreen_linkedDevices": "Linked devices",
+  "linkedDevicesScreen_linkedOn": "Linked on {date}",
+  "@linkedDevicesScreen_linkedOn": {
+    "placeholders": {
+      "date": {
+        "type": "String"
+      }
+    }
+  },
+  "linkedDevicesScreen_editNameHint": "Tap a device to edit its name.",
+  "linkedDevicesScreen_linkDevice": "Link a device",
+  "linkedDevicesScreen_deviceCount": "{count, plural, one {{count} device linked.} other {{count} devices linked.}} You can link up to {remaining} more.",
+  "@linkedDevicesScreen_deviceCount": {
+    "placeholders": {
+      "count": {
+        "type": "int"
+      },
+      "remaining": {
+        "type": "int"
+      }
+    }
+  },
+  "linkedDevicesScreen_encryptionNotice": "Messages are end-to-end encrypted on all devices.",
+  "linkedDevicesScreen_encryptionNotice_learnMore": "Learn more.",
+  "linkedDevicesScreen_encryptionDialog_title": "Encryption and device linking",
+  "linkedDevicesScreen_encryptionDialog_content": "On Air, your messages (including attachments) are always end-to-end encrypted. This means that nobody else, even Air, can read them.\n\nWhen you link a device, your messages are still encrypted and you're the only one who can read them.",
+  "linkedDevicesScreen_encryptionDialog_confirm": "Okay",
+  "linkedDevicesScreen_linkDialog_chooseMethod": "If you're using a mobile phone or tablet with a working camera, choose \"Scan QR code\". If you're using a computer or a device with a broken camera, choose \"Enter numeric code\".",
+  "linkedDevicesScreen_linkDialog_openApp": "On the device you want to link, open Air, then tap \"Link to an existing account\" on the start screen.",
+  "linkedDevicesScreen_linkDialog_scanQrCode": "Scan QR code",
+  "linkedDevicesScreen_linkDialog_scanQrCode_unavailable": "Scan QR code (unavailable)",
+  "linkedDevicesScreen_linkDialog_enterNumericCode": "Enter numeric code",
+  "linkedDevicesScreen_linkDialog_warning": "Devices you link will have full access to your Air account (including the ability to add or remove devices — even this one). Only link devices you trust.",
+  "linkedDevicesScreen_linkDialog_numericCodeInstructions": "Enter the numeric code shown on the device you want to link.",
+  "linkedDevicesScreen_linkDialog_link": "Link device",
+  "linkedDevicesScreen_deviceName_editDialog_title": "Change device name",
+  "linkedDevicesScreen_deviceName_editDialog_cancel": "Cancel",
+  "linkedDevicesScreen_deviceName_editDialog_confirm": "Change",
+  "linkedDevicesScreen_unlinkDialog_title": "Unlink device",
+  "linkedDevicesScreen_unlinkDialog_content": "The device will no longer be able to send or receive messages. All of your account's data will be deleted from the device.",
+  "linkedDevicesScreen_unlinkDialog_cancel": "Cancel",
+  "linkedDevicesScreen_unlinkDialog_confirm": "Unlink",
+
   "usernameScreen_title": "Add username",
   "usernameScreen_inputHint": "Type a username...",
   "usernameScreen_error_emptyUsername": "Username cannot be empty",
@@ -155,6 +230,8 @@
   "usernameScreen_error_invalidCharacter": "Username must only contain letters, numbers, or dashes",
   "usernameScreen_error_consecutiveDashes": "Username must not contain consecutive dashes",
   "usernameScreen_error_leadingDigit": "Username must not start with a digit",
+
+  "editDialog_characters_remaining": "{characters}/{remaining} characters",
 
   "editDisplayNameScreen_title": "Change display name",
   "editDisplayNameScreen_description": "Choose a name that others will see.",

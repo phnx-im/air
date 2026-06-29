@@ -218,6 +218,14 @@ impl UserCubitBase {
 
     // Cubit methods
 
+    /// Extracts the linking code from a scanned QR payload, validating that it targets this user's
+    /// own home server. Returns `None` if `url` is not a multi-device linking URL for this domain.
+    #[frb(sync)]
+    pub fn parse_multi_device_linking_url(&self, url: String) -> Option<String> {
+        let domain = self.core_user().user_id().domain();
+        crate::api::multi_device::linking_code_from_url(domain, &url)
+    }
+
     /// Set the display name and/or profile picture of the user.
     pub async fn set_profile(
         &self,
