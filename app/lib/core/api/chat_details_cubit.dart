@@ -79,12 +79,6 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
     withMembers: withMembers,
   );
 
-  /// Removes an emoji reaction we previously added to a message.
-  Future<void> removeReaction({
-    required MessageId messageId,
-    required String emoji,
-  });
-
   Future<void> replyToMessage({required MessageId messageId});
 
   Future<void> requestResync();
@@ -102,14 +96,6 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
   /// The not yet sent message is immediately stored in the local store and then the message is
   /// send to the DS.
   Future<void> sendMessage({required String messageText});
-
-  /// Adds an emoji reaction to a message and sends it to the other members.
-  ///
-  /// Reacting again with the same emoji is a no-op.
-  Future<void> sendReaction({
-    required MessageId messageId,
-    required String emoji,
-  });
 
   /// Sets the chat picture.
   ///

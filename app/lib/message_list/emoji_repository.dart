@@ -53,22 +53,6 @@ class EmojiRepository {
     return _entries.take(limit).toList();
   }
 
-  /// All emoji entries, in asset order.
-  List<EmojiEntry> all() => List.unmodifiable(_entries);
-
-  /// All entries whose shortcodes contain [query] (case-insensitive). Returns
-  /// the full set when [query] is empty. Unlike [search], this is unbounded and
-  /// intended to back the emoji picker grid.
-  List<EmojiEntry> filter(String query) {
-    final normalized = query.trim().toLowerCase();
-    if (normalized.isEmpty) {
-      return _entries;
-    }
-    return _entries
-        .where((entry) => entry.shortcodes.any((c) => c.contains(normalized)))
-        .toList();
-  }
-
   List<EmojiSearchResult> search(String query, {int limit = 20}) {
     final normalized = query.toLowerCase();
     if (normalized.isEmpty) {
