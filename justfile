@@ -85,7 +85,7 @@ _check-unstaged-changes:
     #!/usr/bin/env -S bash -eu
     if ! git diff --quiet; then
         echo -e "{{RED}}Found unstaged changes.{{NORMAL}}"
-        git --no-pager diff
+        git --no-pager diff --exit-code
     fi
 
 # Regenerate flutter rust bridge files.
