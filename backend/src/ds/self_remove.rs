@@ -10,7 +10,7 @@ use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::ProcessedAssistedMessage,
     messages::{AssistedMessageIn, SerializedMlsMessage},
-    openmls::prelude::{LeafNodeIndex, ProcessedMessageContent, Proposal, Sender},
+    openmls::prelude::{LeafNode, ProcessedMessageContent, Proposal, Sender},
     provider_traits::MlsAssistProvider,
 };
 use tracing::error;
@@ -20,17 +20,15 @@ impl DsGroupState {
         &mut self,
         remove_proposal: AssistedMessageIn,
     ) -> Result<SerializedMlsMessage, ClientSelfRemovalError> {
-        let (sender_index, serialized_mls_message) =
+        let (sender_leaf, serialized_mls_message) =
             self.self_remove_client_inner(remove_proposal)?;
 
         // Change the role of the sender to outsider.
-        let sender = VerifiableClientCredential::from_basic_credential(
-            self.group.leaf(sender_index).unwrap().credential(),
-        )
-        .map_err(|error| {
-            error!(%error, "Credential of sender is invalid");
-            ClientSelfRemovalError::InvalidMessage
-        })?;
+        let sender = VerifiableClientCredential::from_basic_credential(sender_leaf.credential())
+            .map_err(|error| {
+                error!(%error, "Credential of sender is invalid");
+                ClientSelfRemovalError::InvalidMessage
+            })?;
         self.room_state_change_role(sender.user_id(), sender.user_id(), RoleIndex::Outsider)
             .ok_or(ClientSelfRemovalError::InvalidMessage)?;
 
@@ -42,7 +40,7 @@ impl DsGroupState {
         &mut self,
         remove_proposal: AssistedMessageIn,
     ) -> Result<SerializedMlsMessage, ClientSelfRemovalError> {
-        let (_sender_index, serialized_mls_message) =
+        let (_sender_leaf, serialized_mls_message) =
             self.self_remove_client_inner(remove_proposal)?;
         Ok(serialized_mls_message)
     }
@@ -50,7 +48,7 @@ impl DsGroupState {
     fn self_remove_client_inner(
         &mut self,
         remove_proposal: AssistedMessageIn,
-    ) -> Result<(LeafNodeIndex, SerializedMlsMessage), ClientSelfRemovalError> {
+    ) -> Result<(&LeafNode, SerializedMlsMessage), ClientSelfRemovalError> {
         // Process message (but don't apply it yet). This performs
         // mls-assist-level validations and puts the proposal into mls-assist's
         // proposal store.
@@ -97,7 +95,14 @@ impl DsGroupState {
 
         // We remove the user and client profile only when the proposal is committed.
 
+        // The leaf still exists at this point: the member is only removed once
+        // the proposal is committed.
+        let sender_leaf = self
+            .group
+            .leaf(sender_index)
+            .ok_or(ClientSelfRemovalError::InvalidMessage)?;
+
         // Finally, we create the message for distribution.
-        Ok((sender_index, serialized_mls_message))
+        Ok((sender_leaf, serialized_mls_message))
     }
 }

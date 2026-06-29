@@ -683,8 +683,7 @@ impl Group {
         match pq_message.into_content() {
             ProcessedMessageContent::StagedCommitMessage(pq_staged_commit) => {
                 let provider = AirOpenMlsProvider::new(txn.as_mut());
-                self.pq
-                    .as_mut()
+                self.pq_mut()
                     .context("logic error: no PQ group")?
                     .mls_group
                     .merge_staged_commit(&provider, *pq_staged_commit)?;
