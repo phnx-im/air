@@ -3,9 +3,11 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use airapiclient::ApiClient;
+use airapiclient::rs_api::RsRequestError;
 use aircommon::crypto::aead::{
     AeadDecryptable, AeadEncryptable, Ciphertext, keys::MultiDeviceLinkingKey,
 };
+use aircommon::identifiers::Fqdn;
 use airprotos::relay_service::v1::LinkingSessionId;
 use anyhow::{Context, anyhow, bail};
 use openmls::{
@@ -20,6 +22,7 @@ use openmls_rust_crypto::OpenMlsRustCrypto;
 use openmls_traits::OpenMlsProvider;
 use sha2::{Digest, Sha256};
 use tls_codec::{Deserialize, DeserializeBytes, Serialize};
+use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
 use tracing::info;
 
@@ -71,10 +74,34 @@ fn export_aead_key(
     Ok(MultiDeviceLinkingKey::from_bytes(key_bytes))
 }
 
+#[derive(Debug)]
+pub enum MultiDeviceProvisionStep {
+    /// When the session is open and the server acknowledges it, we can use the session ID.
+    SessionId(LinkingSessionId),
+    /// When the existing client has connected on the other side.
+    Linking,
+}
+
+#[derive(Debug, thiserror::Error)]
+pub enum MultiDeviceLinkClientError {
+    #[error("session ID not found")]
+    SessionNotFound,
+}
+
 impl CoreUser {
+    /// Provisions a new client for linking by connecting to the relay at `domain`.
     pub async fn multi_device_provision_client(
+        domain: &Fqdn,
+        session_tx: tokio::sync::mpsc::Sender<MultiDeviceProvisionStep>,
+    ) -> anyhow::Result<String> {
+        let api_client = ApiClient::with_domain(domain).context("build api client")?;
+        Self::multi_device_provision_client_with_api(&api_client, session_tx).await
+    }
+
+    /// Like [`Self::multi_device_provision_client`] but against an explicit [`ApiClient`].
+    pub async fn multi_device_provision_client_with_api(
         api_client: &ApiClient,
-        session_id_tx: tokio::sync::oneshot::Sender<LinkingSessionId>,
+        session_tx: tokio::sync::mpsc::Sender<MultiDeviceProvisionStep>,
     ) -> anyhow::Result<String> {
         let (provider, credential_with_key, signature_keys) =
             make_provider_and_credential(b"initiator")?;
@@ -104,12 +131,19 @@ impl CoreUser {
         let session_id = LinkingSessionId::from_digest(&key_package_checksum, session_id_length)
             .context("invalid session ID")?;
 
-        session_id_tx
-            .send(session_id)
-            .map_err(|_| anyhow!("session ID receiver dropped"))?;
+        session_tx
+            .send(MultiDeviceProvisionStep::SessionId(session_id))
+            .await
+            .map_err(|_| anyhow!("reporting stream dropped"))?;
 
         // wait for the existing (old) client to send us the welcome
         let welcome_bytes = rx.next().await.context("relay connection closed")??;
+
+        session_tx
+            .send(MultiDeviceProvisionStep::Linking)
+            .await
+            .map_err(|_| anyhow!("reporting stream dropped"))?;
+
         let welcome_msg = MlsMessageIn::tls_deserialize_exact(welcome_bytes.as_slice())
             .context("failed to deserialize welcome")?;
         let welcome = match welcome_msg.extract() {
@@ -151,17 +185,31 @@ impl CoreUser {
         Ok(answer_str)
     }
 
+    /// Establishes a session with a new device (with the given `session_id`). The `connected_tx` and `confirmation_rx` are
+    /// channels to report established connection and wait for the user's confirmation.
     pub async fn multi_device_link_client(
         &self,
         session_id: LinkingSessionId,
-    ) -> anyhow::Result<String> {
+        connected_tx: oneshot::Sender<()>,
+        confirmation_rx: oneshot::Receiver<()>,
+    ) -> anyhow::Result<Result<String, MultiDeviceLinkClientError>> {
         let client = self.api_client()?;
         let qs_user_id = self.inner.qs_user_id;
         let qs_user_signing_key = self.key_store().qs_user_signing_key.clone();
 
-        let (tx, mut rx) = client
+        let (tx, mut rx) = match client
             .rs_multi_device_link_client(qs_user_id, &qs_user_signing_key, session_id.clone())
-            .await?;
+            .await
+        {
+            Ok((tx, rx)) => (tx, rx),
+            Err(RsRequestError::SessionNotFound) => {
+                return Ok(Err(MultiDeviceLinkClientError::SessionNotFound));
+            }
+            Err(e) => return Err(e.into()),
+        };
+
+        // Signal that we're connected to the relay
+        let _ = connected_tx.send(());
 
         let key_package_bytes = rx.next().await.context("relay connection closed")??;
 
@@ -209,6 +257,11 @@ impl CoreUser {
             .await
             .context("send welcome")?;
 
+        // Wait for confirmation from the client
+        confirmation_rx
+            .await
+            .context("confirmation channel closed")?;
+
         // TODO: maybe use OpenMLS application messages instead? (because they're signed?)
         let cipher = export_aead_key(group, provider)?;
         info!("joined MLS group, AEAD key exported");
@@ -232,6 +285,10 @@ impl CoreUser {
         )
         .await?;
 
-        Ok(answer_str)
+        // Keep the RPC alive until the relay closes our stream, which happens once the new
+        // device has received the pong and disconnected.
+        while rx.next().await.is_some() {}
+
+        Ok(Ok(answer_str))
     }
 }

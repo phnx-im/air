@@ -45,6 +45,10 @@ impl Fqdn {
             Host::Ipv6(ref addr) => addr.is_loopback(),
         }
     }
+
+    pub fn is_host(&self, host: Host) -> bool {
+        self.domain == host
+    }
 }
 
 impl From<Host> for Fqdn {

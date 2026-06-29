@@ -346,11 +346,7 @@ impl Group {
             // Match up client credentials and new UserProfileKeys
             let new_profile_infos: Vec<_> = credentials
                 .into_iter()
-                .zip(
-                    group_operation_payload
-                        .new_encrypted_user_profile_keys
-                        .into_iter(),
-                )
+                .zip(group_operation_payload.new_encrypted_user_profile_keys)
                 .collect();
             encrypted_profile_infos.extend(new_profile_infos);
         }

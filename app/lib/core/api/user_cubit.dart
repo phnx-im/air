@@ -96,6 +96,10 @@ abstract class UserCubitBase implements RustOpaqueInterface {
     navigation: navigation,
   );
 
+  /// Extracts the linking code from a scanned QR payload, validating that it targets this user's
+  /// own home server. Returns `None` if `url` is not a multi-device linking URL for this domain.
+  String? parseMultiDeviceLinkingUrl({required String url});
+
   Future<void> removeUserFromChat(ChatId chatId, UiUserId userId);
 
   Future<void> removeUsername({required UiUsername username});
