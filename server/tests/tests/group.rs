@@ -5,7 +5,7 @@
 use std::slice;
 
 use aircoreclient::{
-    DisplayName, EventMessage, Message, MessageDraft, SystemMessage, UserProfile,
+    ChatStatus, DisplayName, EventMessage, Message, MessageDraft, SystemMessage, UserProfile,
     clients::{
         listen_response,
         process::process_qs::{QsProcessEventResult, QsStreamProcessor},
@@ -1146,7 +1146,7 @@ async fn send_message_in_apq_group() {
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-async fn apq_leave_stages_self_remove_on_both_t_and_pq() {
+async fn apq_leave_removes_member_from_both_t_and_pq() {
     let mut setup = TestBackend::single().await;
 
     let alice = setup.add_user().await;
@@ -1162,6 +1162,7 @@ async fn apq_leave_stages_self_remove_on_both_t_and_pq() {
 
     let alice_user = &setup.get_user(&alice).user;
     let bob_user = &setup.get_user(&bob).user;
+    let charlie_user = &setup.get_user(&charlie).user;
 
     // Alice leaves the APQ group.
     alice_user.leave_chat(chat_id).await.unwrap();
@@ -1187,5 +1188,54 @@ async fn apq_leave_stages_self_remove_on_both_t_and_pq() {
     assert_eq!(
         pq.pending_proposals, 1,
         "PQ group must also have Alice's self-remove proposal staged"
+    );
+    let pq_epoch_before = pq.epoch;
+
+    // A non-leaver (Bob) commits the self-remove via an APQ FULL commit, which
+    // sweeps the pending proposal on both the T and PQ groups.
+    bob_user.update_apq_key(chat_id).await.unwrap();
+
+    // Charlie picks up the commit ...
+    let qs_messages = charlie_user.qs_fetch_messages().await.unwrap();
+    let result = charlie_user.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        result.errors.is_empty(),
+        "Charlie should process the self-remove commit without errors"
+    );
+
+    // ... and Alice learns she was removed.
+    let qs_messages = alice_user.qs_fetch_messages().await.unwrap();
+    alice_user.fully_process_qs_messages(qs_messages).await;
+
+    // Both Bob and Charlie must have committed the removal on the T and PQ
+    // groups: Alice is gone, nothing is left pending, and the PQ epoch advanced.
+    for (label, user) in [("Bob", bob_user), ("Charlie", charlie_user)] {
+        let debug_info = user.chat_debug_info(chat_id).await.unwrap();
+        let pq = debug_info.pq.expect("APQ group must have a PQ group");
+
+        assert_eq!(
+            debug_info.members.len(),
+            2,
+            "{label}'s T group must have Alice removed (only Bob and Charlie left)"
+        );
+        assert_eq!(
+            debug_info.pending_proposals, 0,
+            "{label}'s T group must have no pending proposals after the commit"
+        );
+        assert_eq!(
+            pq.pending_proposals, 0,
+            "{label}'s PQ group must have no pending proposals after the commit"
+        );
+        assert!(
+            pq.epoch > pq_epoch_before,
+            "{label}'s PQ group must advance its epoch by committing the removal"
+        );
+    }
+
+    // Alice's chat is now inactive.
+    let alice_chat = alice_user.chat(&chat_id).await.unwrap();
+    assert!(
+        matches!(alice_chat.status(), ChatStatus::Inactive(_)),
+        "Alice's chat must be inactive after being removed from the APQ group"
     );
 }
