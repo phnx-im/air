@@ -21,9 +21,20 @@ pub enum RsRequestError {
     #[error(transparent)]
     Tls(#[from] tls_codec::Error),
     #[error(transparent)]
-    Tonic(#[from] tonic::Status),
+    Tonic(tonic::Status),
     #[error("send error: channel closed? {0}")]
     SendError(#[from] mpsc::error::SendError<RelayFrame>),
+    #[error("session not found")]
+    SessionNotFound,
+}
+
+impl From<tonic::Status> for RsRequestError {
+    fn from(status: tonic::Status) -> Self {
+        match status.code() {
+            tonic::Code::NotFound => Self::SessionNotFound,
+            _ => Self::Tonic(status),
+        }
+    }
 }
 
 impl ApiClient {

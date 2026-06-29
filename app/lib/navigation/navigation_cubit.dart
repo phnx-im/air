@@ -65,6 +65,9 @@ class NavigationCubit implements StateStreamableSource<NavigationState> {
 
   bool pop() => _impl.pop();
 
+  Future<void> openLinking() =>
+      _impl.openIntroScreen(screen: const IntroScreenType.linking());
+
   Future<void> openSignUp() =>
       _impl.openIntroScreen(screen: const IntroScreenType.invitationCode());
 }
