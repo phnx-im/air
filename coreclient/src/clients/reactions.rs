@@ -2,12 +2,16 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{identifiers::MimiId, time::TimeStamp};
+use aircommon::{
+    identifiers::{MimiId, UserId},
+    time::TimeStamp,
+};
 use anyhow::{Context, bail};
+use indexmap::IndexMap;
 
 use crate::{
     Chat, ChatId, ChatMessage, MessageId,
-    chats::reactions::{MessageReaction, Reaction, reaction_content, reaction_tombstone_content},
+    chats::reactions::{Reaction, reaction_content, reaction_tombstone_content},
     clients::block_contact::BlockedContactError,
     db::access::WriteConnection,
 };
@@ -86,22 +90,24 @@ impl CoreUser {
     pub async fn message_reactions(
         &self,
         message_id: MessageId,
-    ) -> anyhow::Result<Vec<MessageReaction>> {
+    ) -> anyhow::Result<IndexMap<String, Vec<UserId>>> {
         let mut connection = self.db().read().await?;
         let Some(message) = ChatMessage::load(&mut connection, message_id).await? else {
-            return Ok(Vec::new());
+            return Ok(IndexMap::new());
         };
         let Some(target_mimi_id) = message.message().mimi_id().copied() else {
-            return Ok(Vec::new());
+            return Ok(IndexMap::new());
         };
         let reactions = Reaction::load_by_target(&mut connection, &target_mimi_id).await?;
         Ok(reactions
             .into_iter()
-            .map(|reaction| MessageReaction {
-                sender: reaction.sender,
-                emoji: reaction.emoji,
-            })
-            .collect())
+            .fold(IndexMap::new(), |mut reactions, reaction| {
+                reactions
+                    .entry(reaction.emoji)
+                    .or_default()
+                    .push(reaction.sender);
+                reactions
+            }))
     }
 
     /// Remove an emoji reaction we previously added to a message, and send the

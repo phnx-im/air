@@ -10,6 +10,7 @@ use aircommon::{
     time::TimeStamp,
 };
 use anyhow::bail;
+use indexmap::IndexMap;
 use mimi_content::{MessageStatus, MimiContent};
 use serde::{Deserialize, Serialize};
 use sqlx::{query, query_as, query_scalar};
@@ -19,7 +20,7 @@ use uuid::Uuid;
 
 use crate::{
     ChatId, ChatMessage, ContentMessage, Message,
-    chats::{messages::InReplyToMessage, reactions::MessageReaction},
+    chats::{messages::InReplyToMessage, reactions::Reaction},
     clients::attachment::AttachmentRecord,
     db::access::{ReadConnection, WriteConnection},
 };
@@ -173,7 +174,7 @@ impl From<SqlChatMessage> for ChatMessage {
             timestamped_message,
             status,
             // Populated by `augment` after the row is decoded.
-            reactions: Vec::new(),
+            reactions: IndexMap::new(),
         }
     }
 }
@@ -598,15 +599,16 @@ impl ChatMessage {
         }
 
         if let Some(mimi_id) = self.message().mimi_id().copied() {
-            self.reactions =
-                crate::chats::reactions::Reaction::load_by_target(&mut connection, &mimi_id)
-                    .await?
-                    .into_iter()
-                    .map(|reaction| MessageReaction {
-                        sender: reaction.sender,
-                        emoji: reaction.emoji,
-                    })
-                    .collect();
+            self.reactions = Reaction::load_by_target(&mut connection, &mimi_id)
+                .await?
+                .into_iter()
+                .fold(IndexMap::new(), |mut reactions, reaction| {
+                    reactions
+                        .entry(reaction.emoji)
+                        .or_default()
+                        .push(reaction.sender);
+                    reactions
+                });
         }
 
         Ok(())
@@ -1131,7 +1133,7 @@ pub(crate) mod tests {
             timestamped_message,
             status: MessageStatus::Unread,
             in_reply_to: None,
-            reactions: Vec::new(),
+            reactions: IndexMap::new(),
         }
     }
 

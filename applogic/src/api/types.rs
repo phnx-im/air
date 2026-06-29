@@ -18,10 +18,11 @@ use aircommon::identifiers::UserId;
 use aircoreclient::{
     Asset, AttachmentId, ChatAttributes, ChatMessage, ChatMuted, ChatStatus, ChatType, Contact,
     ContentMessage, DisplayName, ErrorMessage, EventMessage, InactiveChat, Message, MessageDraft,
-    MessageReaction, SystemMessage, TargetedMessageContact, UserProfile, clients::CoreUser,
+    SystemMessage, TargetedMessageContact, UserProfile, clients::CoreUser,
 };
 use chrono::{DateTime, Duration, Local, Utc};
 use flutter_rust_bridge::frb;
+use indexmap::IndexMap;
 use mimi_content::MessageStatus;
 use uuid::Uuid;
 
@@ -363,25 +364,19 @@ pub struct UiChatMessage {
     pub in_reply_to_message: Option<UiInReplyToMessage>,
     pub position: UiFlightPosition,
     pub status: UiMessageStatus,
-    /// Emoji reactions on this message, in order of first appearance.
     pub reactions: Vec<UiReaction>,
 }
 
 /// Aggregate raw per-user reactions into per-emoji groups, preserving the order
 /// in which each emoji first appears.
-fn aggregate_reactions(reactions: &[MessageReaction]) -> Vec<UiReaction> {
-    let mut aggregated: Vec<UiReaction> = Vec::new();
-    for MessageReaction { sender, emoji } in reactions {
-        if let Some(existing) = aggregated.iter_mut().find(|r| &r.emoji == emoji) {
-            existing.users.push(sender.clone().into());
-        } else {
-            aggregated.push(UiReaction {
-                emoji: emoji.clone(),
-                users: vec![sender.clone().into()],
-            });
-        }
-    }
-    aggregated
+fn aggregate_reactions(reactions: &IndexMap<String, Vec<UserId>>) -> Vec<UiReaction> {
+    reactions
+        .iter()
+        .map(|(emoji, users)| UiReaction {
+            emoji: emoji.clone(),
+            users: users.iter().cloned().map(From::from).collect(),
+        })
+        .collect()
 }
 
 #[derive(Debug, Clone, Copy, Eq, PartialEq, Hash)]

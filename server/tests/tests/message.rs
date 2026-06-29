@@ -2,12 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{identifiers::UserId, messages::client_ds_out::SendMessageCollisionTag};
-use aircoreclient::{
-    ChatId, ChatMessage, MessageId, MessageReaction, MimiContentExt, ReadReceiptsSetting,
-    clients::CoreUser,
-};
+use aircommon::messages::client_ds_out::SendMessageCollisionTag;
+use aircoreclient::{ChatId, ChatMessage, MimiContentExt, ReadReceiptsSetting, clients::CoreUser};
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
+use indexmap::indexmap;
 use mimi_content::{MessageStatus, MimiContent};
 use rand::{Rng, distributions::Alphanumeric, rngs::OsRng};
 
@@ -1124,22 +1122,6 @@ async fn send_message_collision_tags_from_different_users_never_collide() {
         .expect("send from bob should succeed");
 }
 
-/// Collect a message's reactions as (sender debug string, emoji) pairs, sorted
-/// for stable comparison regardless of arrival order.
-async fn reactions_of(user: &CoreUser, message_id: MessageId) -> Vec<(UserId, String)> {
-    let mut pairs: Vec<_> = user
-        .message_reactions(message_id)
-        .await
-        .unwrap()
-        .into_iter()
-        .map(|MessageReaction { sender, emoji }| (sender, emoji))
-        .collect();
-    // Sort by emoji: the tests use a distinct emoji per reaction, and sender
-    // debug strings contain random UUIDs (not stable to sort on).
-    pairs.sort_by(|a, b| a.1.cmp(&b.1));
-    pairs
-}
-
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "React to a message", skip_all)]
 async fn react_to_message() {
@@ -1160,15 +1142,23 @@ async fn react_to_message() {
 
     // Bob sees his own reaction immediately (optimistic).
     assert_eq!(
-        reactions_of(bob_user, sent.recipient_message_id(&bob)).await,
-        [(bob.clone(), "🫪".to_owned())],
+        bob_user
+            .message_reactions(sent.recipient_message_id(&bob))
+            .await
+            .unwrap(),
+        indexmap! { "🫪".to_owned() => vec![bob.clone()] },
     );
 
     // Alice receives and stores the reaction on her copy of the message.
     setup.get_user(&alice).fetch_and_process_qs_messages().await;
     assert_eq!(
-        reactions_of(setup.get_user(&alice).user(), sent.own_message_id).await,
-        [(bob, "🫪".to_owned())],
+        setup
+            .get_user(&alice)
+            .user()
+            .message_reactions(sent.own_message_id)
+            .await
+            .unwrap(),
+        indexmap! { "🫪".to_owned() => vec![bob] },
     );
 }
 
@@ -1190,8 +1180,12 @@ async fn delete_reaction() {
     bob_user.outbound_service().run_once().await;
     setup.get_user(&alice).fetch_and_process_qs_messages().await;
     assert_eq!(
-        reactions_of(setup.get_user(&alice).user(), sent.own_message_id)
+        setup
+            .get_user(&alice)
+            .user()
+            .message_reactions(sent.own_message_id)
             .await
+            .unwrap()
             .len(),
         1,
     );
@@ -1206,14 +1200,20 @@ async fn delete_reaction() {
 
     // Gone locally for Bob and, after processing, for Alice too.
     assert!(
-        reactions_of(bob_user, sent.recipient_message_id(&bob))
+        bob_user
+            .message_reactions(sent.recipient_message_id(&bob))
             .await
+            .unwrap()
             .is_empty()
     );
     setup.get_user(&alice).fetch_and_process_qs_messages().await;
     assert!(
-        reactions_of(setup.get_user(&alice).user(), sent.own_message_id)
+        setup
+            .get_user(&alice)
+            .user()
+            .message_reactions(sent.own_message_id)
             .await
+            .unwrap()
             .is_empty()
     );
 }
@@ -1248,8 +1248,13 @@ async fn multiple_reactions_per_user() {
 
     setup.get_user(&alice).fetch_and_process_qs_messages().await;
     assert_eq!(
-        reactions_of(setup.get_user(&alice).user(), sent.own_message_id).await,
-        [(bob.clone(), "👍".to_owned()), (bob, "🫪".to_owned()),],
+        setup
+            .get_user(&alice)
+            .user()
+            .message_reactions(sent.own_message_id)
+            .await
+            .unwrap(),
+        indexmap! { "👍".to_owned() => vec![bob.clone()], "🫪".to_owned() => vec![bob] },
     );
 }
 
@@ -1295,8 +1300,13 @@ async fn reactions_in_group() {
     // Alice sees who reacted with what — the basis for the "who reacted" view.
     setup.get_user(&alice).fetch_and_process_qs_messages().await;
     assert_eq!(
-        reactions_of(setup.get_user(&alice).user(), sent.own_message_id).await,
-        [(charlie, "👍".to_owned()), (bob, "🫪".to_owned()),],
+        setup
+            .get_user(&alice)
+            .user()
+            .message_reactions(sent.own_message_id)
+            .await
+            .unwrap(),
+        indexmap! { "👍".to_owned() => vec![charlie], "🫪".to_owned() => vec![bob] },
     );
 }
 

@@ -20,13 +20,6 @@ use crate::ChatId;
 
 mod persistence;
 
-/// A reaction as surfaced to the UI: who reacted, and with which emoji.
-#[derive(Debug, Clone, PartialEq, Eq)]
-pub struct MessageReaction {
-    pub sender: UserId,
-    pub emoji: String,
-}
-
 /// MIME content type used for the emoji payload of a reaction, per
 /// draft-ietf-mimi-content.
 const REACTION_CONTENT_TYPE: &str = "text/plain;charset=utf-8";
