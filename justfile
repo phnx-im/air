@@ -83,9 +83,11 @@ check-rustfmt:
 # This task will run the command. If git diff then reports unstaged changes, the task will fail.
 _check-unstaged-changes:
     #!/usr/bin/env -S bash -eu
-    if ! git diff --quiet; then
+    diff=$(git --no-pager diff)
+    if [ -n "$diff" ]; then
         echo -e "{{RED}}Found unstaged changes.{{NORMAL}}"
-        git --no-pager diff --exit-code
+        echo "$diff"
+        exit 1
     fi
 
 # Regenerate flutter rust bridge files.
