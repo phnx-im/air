@@ -43,8 +43,8 @@ impl User {
                 };
                 notifications.push(NotificationContent {
                     identifier: NotificationId::random(),
-                    title: title.to_owned(),
-                    body: body.to_owned(),
+                    title,
+                    body,
                     chat_id: chat.id(),
                 });
             }
@@ -74,12 +74,7 @@ impl User {
                     ChatType::HandleConnection(handle) => handle.plaintext().to_owned(),
                     ChatType::Group(attrs) => attrs.title().to_owned(),
                 };
-                let reactor = self
-                    .user
-                    .user_profile(&reaction.reactor)
-                    .await
-                    .display_name
-                    .to_string();
+                let reactor = self.user.user_profile(&reaction.reactor).await.display_name;
                 let body = format!("{reactor} reacted {} to your message", reaction.emoji);
                 notifications.push(NotificationContent {
                     identifier: NotificationId::random(),
