@@ -179,26 +179,7 @@ impl ApqGroupRef<'_> {
         };
 
         let serialized_apq_message =
-            SerializedMlsMessage([&*t_serialized_message.0, &*pq_serialized_message.0].concat());
-
-        // Verify that the concat bytes is the same as TLS serialized ApqMlsMessageIn
-        #[cfg(debug_assertions)]
-        {
-            use apqmls::messages::ApqMlsMessageIn;
-            use openmls::prelude::MlsMessageIn;
-            use tls_codec::DeserializeBytes;
-
-            let apq_message =
-                ApqMlsMessageIn::tls_deserialize_exact_bytes(&serialized_apq_message.0)
-                    .expect("concat bytes must be valid ApqMlsMessageIn");
-            let t_message = MlsMessageIn::tls_deserialize_exact_bytes(&t_serialized_message.0)
-                .expect("MLS message must be valid");
-            let pq_message = MlsMessageIn::tls_deserialize_exact_bytes(&pq_serialized_message.0)
-                .expect("MLS message must be valid");
-            debug_assert_eq!(apq_message.t_message(), &t_message);
-            debug_assert_eq!(apq_message.pq_message(), &pq_message);
-        }
-
+            SerializedMlsMessage::combine_apq(t_serialized_message, pq_serialized_message);
         Ok(ApqProcessedAssistedMessagePlus {
             processed_assisted_message,
             serialized_apq_message,

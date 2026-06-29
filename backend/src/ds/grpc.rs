@@ -15,7 +15,7 @@ use aircommon::{
     identifiers::{self, Fqdn, QualifiedGroupId},
     messages::client_ds::{
         self, GroupOperationParams, JoinConnectionGroupParams, QsQueueMessagePayload,
-        QsQueueMessageType, UserProfileKeyUpdateParams, WelcomeInfoParams,
+        UserProfileKeyUpdateParams, WelcomeInfoParams,
     },
     mls_group_config::MAX_PAST_EPOCHS,
     time::TimeStamp,
@@ -1224,13 +1224,10 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     let t_serialized = t_group_state.self_remove_client(t_message)?;
 
                     let timestamp = TimeStamp::now();
-                    let serialized_apq_message =
-                        SerializedMlsMessage([&*t_serialized.0, &*pq_serialized.0].concat());
-                    let apq_payload = QsQueueMessagePayload {
+                    let apq_payload = QsQueueMessagePayload::apq_mls_message(
                         timestamp,
-                        message_type: QsQueueMessageType::ApqMlsMessage,
-                        payload: serialized_apq_message.0,
-                    };
+                        SerializedMlsMessage::combine_apq(t_serialized, pq_serialized),
+                    );
 
                     Ok(ApqFanOut {
                         broadcast: (apq_payload, destination_clients),
@@ -1525,11 +1522,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
                     // Fan out the commit message to the destination clients
                     let timestamp = TimeStamp::now();
-                    let apq_payload = QsQueueMessagePayload {
-                        timestamp,
-                        message_type: QsQueueMessageType::ApqMlsMessage,
-                        payload: serialized_apq_message.0,
-                    };
+
+                    let apq_payload =
+                        QsQueueMessagePayload::apq_mls_message(timestamp, serialized_apq_message);
 
                     // Generate welcome bundles for new members
                     let mut individual_fan_out_messages = match (t_add_users_state, pq_welcome) {
