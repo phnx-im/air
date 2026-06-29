@@ -66,10 +66,10 @@ class ChatDetailsCubit extends StateStreamableSource<ChatDetailsState> {
     required String emoji,
   }) => _impl.sendReaction(messageId: messageId, emoji: emoji);
 
-  Future<void> removeReaction({
+  Future<void> deleteReaction({
     required MessageId messageId,
     required String emoji,
-  }) => _impl.removeReaction(messageId: messageId, emoji: emoji);
+  }) => _impl.deleteReaction(messageId: messageId, emoji: emoji);
 
   Future<UploadAttachmentError?> uploadAttachment(String path) =>
       _impl.uploadAttachment(path: path);
