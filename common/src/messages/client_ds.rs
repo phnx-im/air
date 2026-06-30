@@ -79,6 +79,20 @@ pub struct QsQueueMessagePayload {
 }
 
 impl QsQueueMessagePayload {
+    /// Create a new [`QsQueueMessagePayload`] for an APQ MLS message.
+    ///
+    /// Use [`SerializedMlsMessage::combine_apq`] to create the payload.
+    pub fn apq_mls_message(
+        timestamp: TimeStamp,
+        serialized_apq_message: SerializedMlsMessage,
+    ) -> Self {
+        Self {
+            timestamp,
+            message_type: QsQueueMessageType::ApqMlsMessage,
+            payload: serialized_apq_message.0,
+        }
+    }
+
     pub fn extract(self) -> Result<ExtractedQsQueueMessage, tls_codec::Error> {
         let payload = match self.message_type {
             QsQueueMessageType::WelcomeBundle => {

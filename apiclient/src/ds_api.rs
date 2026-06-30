@@ -33,12 +33,12 @@ use airprotos::{
     convert::{RefInto, TryRefInto},
     delivery_service::v1::{
         AddUsersInfo, ApqAddUsersInfo, ApqAssistedMlsMessage, ApqGroupOperationPayload,
-        ConnectionGroupInfoRequest, CreateApqGroupPayload, CreateGroupPayload, DeleteGroupPayload,
-        ExternalCommitInfoRequest, GetAttachmentUrlPayload, GroupOperationPayload,
-        GroupSessionData, IndexedEncryptedUserProfileKey, JoinConnectionGroupRequest,
-        ProvisionAttachmentPayload, RequestGroupIdRequest, ResyncPayload, SelfRemovePayload,
-        SendMessageCollisionTags, SendMessagePayload, StorageObjectType, TargetedMessagePayload,
-        UpdateProfileKeyPayload, WelcomeInfoPayload,
+        ApqSelfRemovePayload, ConnectionGroupInfoRequest, CreateApqGroupPayload,
+        CreateGroupPayload, DeleteGroupPayload, ExternalCommitInfoRequest, GetAttachmentUrlPayload,
+        GroupOperationPayload, GroupSessionData, IndexedEncryptedUserProfileKey,
+        JoinConnectionGroupRequest, ProvisionAttachmentPayload, RequestGroupIdRequest,
+        ResyncPayload, SelfRemovePayload, SendMessageCollisionTags, SendMessagePayload,
+        StorageObjectType, TargetedMessagePayload, UpdateProfileKeyPayload, WelcomeInfoPayload,
     },
     validation::MissingFieldExt,
 };
@@ -502,21 +502,63 @@ impl ApiClient {
     }
 
     /// Leave the given group with this client.
+    ///
+    /// Dispatches to the APQ or non-APQ self-remove RPC depending on whether a PQ remove proposal
+    /// is present.
     pub async fn ds_self_remove(
         &self,
         params: SelfRemoveParamsOut,
         signing_key: &ClientSigningKey,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
+        if let Some(pq_remove_proposal) = params.pq_remove_proposal {
+            return self
+                .ds_apq_self_remove(
+                    params.t_remove_proposal,
+                    pq_remove_proposal,
+                    signing_key,
+                    group_state_ear_key,
+                )
+                .await;
+        }
         let payload = SelfRemovePayload {
             client_metadata: Some(self.metadata().clone()),
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
-            remove_proposal: Some(params.remove_proposal.try_ref_into()?),
+            remove_proposal: Some(params.t_remove_proposal.try_ref_into()?),
         };
         let request = payload.sign(signing_key)?;
         let response = self
             .ds_grpc_client()
             .self_remove(request)
+            .await?
+            .into_inner();
+        Ok(response
+            .fanout_timestamp
+            .ok_or(DsRequestError::UnexpectedResponse)?
+            .into())
+    }
+
+    /// Same as [`Self::ds_self_remove`], but for APQ groups.
+    async fn ds_apq_self_remove(
+        &self,
+        t_remove_proposal: AssistedMessageOut,
+        pq_remove_proposal: AssistedMessageOut,
+        signing_key: &ClientSigningKey,
+        group_state_ear_key: &GroupStateEarKey,
+    ) -> Result<TimeStamp, DsRequestError> {
+        let remove_proposal = ApqAssistedMlsMessage {
+            t_message: Some(t_remove_proposal.try_ref_into()?),
+            pq_message: Some(pq_remove_proposal.try_ref_into()?),
+        };
+        let payload = ApqSelfRemovePayload {
+            client_metadata: Some(self.metadata().clone()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            remove_proposal: Some(remove_proposal),
+        };
+        let request = payload.sign(signing_key)?;
+        let response = self
+            .ds_grpc_client()
+            .apq_self_remove(request)
             .await?
             .into_inner();
         Ok(response

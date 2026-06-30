@@ -80,6 +80,7 @@ impl User {
             errors: _,
             processed: _,
             mut new_connections,
+            reaction_notifications,
         } = Box::pin(self.fetch_and_process_qs_messages())
             .await
             .map_err(|error| {
@@ -92,6 +93,8 @@ impl User {
         self.new_chat_notifications(&new_chats, &mut notifications)
             .await;
         self.new_message_notifications(&new_messages, &mut notifications)
+            .await;
+        self.reaction_notifications(&reaction_notifications, &mut notifications)
             .await;
 
         // Fetch AS connection requests

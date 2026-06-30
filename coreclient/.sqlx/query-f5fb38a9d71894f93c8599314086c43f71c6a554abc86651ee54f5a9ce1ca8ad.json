@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO reaction_queue\n                    (id, chat_id, reaction_mimi_id, content, created_at)\n                VALUES (?1, ?2, ?3, ?4, ?5)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": []
+  },
+  "hash": "f5fb38a9d71894f93c8599314086c43f71c6a554abc86651ee54f5a9ce1ca8ad"
+}

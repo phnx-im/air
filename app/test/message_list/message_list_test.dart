@@ -70,6 +70,7 @@ final messages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   UiChatMessage(
     id: 2.messageId(),
@@ -93,6 +94,7 @@ final messages = [
     ),
     position: UiFlightPosition.start,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   UiChatMessage(
     id: 100.messageId(),
@@ -108,6 +110,7 @@ final messages = [
     ),
     position: UiFlightPosition.end,
     status: UiMessageStatus.delivered,
+    reactions: [],
   ),
   UiChatMessage(
     id: 3.messageId(),
@@ -128,6 +131,7 @@ final messages = [
     ),
     position: UiFlightPosition.start,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   UiChatMessage(
     id: 4.messageId(),
@@ -148,6 +152,7 @@ final messages = [
     ),
     position: UiFlightPosition.middle,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   UiChatMessage(
     id: 5.messageId(),
@@ -163,6 +168,7 @@ final messages = [
     ),
     position: UiFlightPosition.end,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   UiChatMessage(
     id: 7.messageId(),
@@ -178,6 +184,7 @@ final messages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.delivered,
+    reactions: [],
   ),
   UiChatMessage(
     id: 8.messageId(),
@@ -198,6 +205,7 @@ final messages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.delivered,
+    reactions: [],
   ),
   UiChatMessage(
     id: 9.messageId(),
@@ -218,6 +226,7 @@ final messages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.read,
+    reactions: [],
   ),
   UiChatMessage(
     id: 10.messageId(),
@@ -243,6 +252,7 @@ final messages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.read,
+    reactions: [],
   ),
   UiChatMessage(
     id: 11.messageId(),
@@ -258,6 +268,7 @@ final messages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   UiChatMessage(
     id: 12.messageId(),
@@ -283,6 +294,7 @@ final messages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.read,
+    reactions: [],
   ),
   UiChatMessage(
     id: 13.messageId(),
@@ -306,6 +318,7 @@ final messages = [
     inReplyToMessage: const UiInReplyToMessage.notFound(),
     position: UiFlightPosition.single,
     status: UiMessageStatus.read,
+    reactions: [],
   ),
 ];
 
@@ -396,6 +409,7 @@ final jumboEmojiMessages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   // Jumbo: multiple emoji from self
   UiChatMessage(
@@ -417,6 +431,7 @@ final jumboEmojiMessages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   // Not jumbo: emoji + text (should keep bubble)
   UiChatMessage(
@@ -438,6 +453,7 @@ final jumboEmojiMessages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   // Not jumbo: edited emoji-only (should keep bubble)
   UiChatMessage(
@@ -459,6 +475,7 @@ final jumboEmojiMessages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   // Normal text message for contrast
   UiChatMessage(
@@ -480,6 +497,7 @@ final jumboEmojiMessages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
 ];
 
@@ -524,6 +542,7 @@ final attachmentMessages = [
       ),
     ),
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   UiChatMessage(
     id: 7.messageId(),
@@ -544,6 +563,7 @@ final attachmentMessages = [
       ),
     ),
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   UiChatMessage(
     id: 8.messageId(),
@@ -562,6 +582,7 @@ final attachmentMessages = [
       ),
     ),
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   UiChatMessage(
     id: 9.messageId(),
@@ -589,6 +610,7 @@ final attachmentMessages = [
       ),
     ),
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
 ];
 
@@ -618,6 +640,7 @@ final replyMessages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   // Short reply, long message
   UiChatMessage(
@@ -644,6 +667,7 @@ final replyMessages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   // Reply and a single emoji message
   UiChatMessage(
@@ -670,6 +694,7 @@ final replyMessages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
   // Reply containing only emoji and some message
   UiChatMessage(
@@ -701,6 +726,7 @@ final replyMessages = [
     ),
     position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
+    reactions: [],
   ),
 ];
 
@@ -999,6 +1025,7 @@ void main() {
           ),
           position: UiFlightPosition.single,
           status: UiMessageStatus.sent,
+          reactions: [],
         );
       });
 
@@ -1021,6 +1048,7 @@ void main() {
         ),
         position: UiFlightPosition.single,
         status: UiMessageStatus.sent,
+        reactions: [],
       );
 
       MessageId? requestedMessageId;
@@ -1078,6 +1106,7 @@ void main() {
           ),
           position: UiFlightPosition.single,
           status: UiMessageStatus.sent,
+          reactions: [],
         );
       });
 
@@ -1138,6 +1167,7 @@ void main() {
           ),
           position: UiFlightPosition.single,
           status: UiMessageStatus.sent,
+          reactions: [],
         );
 
         final all = List.generate(80, mk);
@@ -1217,6 +1247,7 @@ void main() {
             ),
             position: UiFlightPosition.single,
             status: UiMessageStatus.sent,
+            reactions: [],
           );
         });
 
