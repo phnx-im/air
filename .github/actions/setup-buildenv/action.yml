@@ -196,6 +196,11 @@ runs:
         cache: true
         cache-sdk: true
 
+    - if: inputs.flutter == 'true'
+      name: Enable native assets (build hooks)
+      shell: bash
+      run: flutter config --enable-native-assets
+
     - if: inputs.flutter == 'true' && runner.os == 'Linux'
       name: Install Linux Flutter build dependencies
       shell: bash

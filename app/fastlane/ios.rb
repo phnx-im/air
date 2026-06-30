@@ -127,11 +127,6 @@ platform :ios do
     # Build the app with flutter first to create the necessary ephemeral files
     sh "just flutter build ios --flavor production --config-only #{skip_signing ? '--debug --no-codesign' : '--release'} --build-number #{build_number}"
 
-    # Install CocoaPods dependencies
-    cocoapods(
-      podfile: "ios/Podfile"
-    )
-
     # Build the app
     build_app(
       workspace: "ios/Runner.xcworkspace",

@@ -9,13 +9,6 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "96.0.0"
-  airapplogic:
-    dependency: "direct main"
-    description:
-      path: rust_builder
-      relative: true
-    source: path
-    version: "0.0.1"
   analyzer:
     dependency: transitive
     description:
@@ -156,10 +149,10 @@ packages:
     dependency: transitive
     description:
       name: code_assets
-      sha256: dad6bf6b9f4f378b0a69edbf42584d336efd1a9ce15deb1ba591cbb1b5ff440f
+      sha256: "83ccdaa064c980b5596c35dd64a8d3ecc68620174ab9b90b6343b753aa721687"
       url: "https://pub.dev"
     source: hosted
-    version: "1.1.0"
+    version: "1.0.0"
   collection:
     dependency: "direct main"
     description:
@@ -371,10 +364,18 @@ packages:
     dependency: "direct main"
     description:
       name: flutter_rust_bridge
-      sha256: e87d6b9ee934dcd24a128ccb2bd91905d2d5fe5c06245d6a8f5477d4907a437a
+      sha256: "20861a4148ebb72f547366b2dd575ef803e32ff1cb6dc5aa0c9ffdbc774f2799"
       url: "https://pub.dev"
     source: hosted
-    version: "2.12.0"
+    version: "2.13.0-beta.4"
+  flutter_rust_bridge_hooks:
+    dependency: "direct dev"
+    description:
+      name: flutter_rust_bridge_hooks
+      sha256: bebf66b09522335b99a77728fd9856ac76bd40e66431db21f01307a54b78f0f9
+      url: "https://pub.dev"
+    source: hosted
+    version: "2.13.0-beta.2"
   flutter_svg:
     dependency: "direct main"
     description:
@@ -442,10 +443,10 @@ packages:
     dependency: transitive
     description:
       name: hooks
-      sha256: a41af4e8fc687cd6d33de9751eb936c8c0204ebe2bcb6c15ecf707504bf47f31
+      sha256: "025f060e86d2d4c3c47b56e33caf7f93bf9283340f26d23424ebcfccf34f621e"
       url: "https://pub.dev"
     source: hosted
-    version: "2.0.0"
+    version: "1.0.3"
   http:
     dependency: transitive
     description:
@@ -667,6 +668,22 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "1.0.5"
+  native_toolchain_c:
+    dependency: transitive
+    description:
+      name: native_toolchain_c
+      sha256: "6ba77bb18063eebe9de401f5e6437e95e1438af0a87a3a39084fbd37c90df572"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.17.6"
+  native_toolchain_rust:
+    dependency: transitive
+    description:
+      name: native_toolchain_rust
+      sha256: "26d4dcae954328af4ebfa8fc56cca0bf74b9ae8b4a6132de5da2071ac3d237b3"
+      url: "https://pub.dev"
+    source: hosted
+    version: "1.0.4"
   nested:
     dependency: transitive
     description:
@@ -687,10 +704,10 @@ packages:
     dependency: transitive
     description:
       name: objective_c
-      sha256: "6cb691c686fa2838c6deb34980d426145c2a5d537491cb83d463c33cdbc726ed"
+      sha256: "100a1c87616ab6ed41ec263b083c0ef3261ee6cd1dc3b0f35f8ddfa4f996fe52"
       url: "https://pub.dev"
     source: hosted
-    version: "9.4.1"
+    version: "9.3.0"
   package_config:
     dependency: transitive
     description:
@@ -1024,6 +1041,14 @@ packages:
       url: "https://pub.dev"
     source: hosted
     version: "0.6.17"
+  toml:
+    dependency: transitive
+    description:
+      name: toml
+      sha256: "35a35f782228656a2af31e8c73d1353cc4ef3d683fd68af1111b44631879c05e"
+      url: "https://pub.dev"
+    source: hosted
+    version: "0.18.0"
   typed_data:
     dependency: transitive
     description:
