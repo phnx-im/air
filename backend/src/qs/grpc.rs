@@ -7,6 +7,7 @@ use std::{io, pin::Pin};
 use airprotos::{
     common::v1::ClientMetadata,
     queue_service::v1::{queue_service_server::QueueService, *},
+    signed::SignedRequest,
     validation::{InvalidTlsExt, MissingFieldExt},
 };
 
@@ -21,6 +22,7 @@ use aircommon::{
     utils::CancellableStream,
 };
 use displaydoc::Display;
+use prost::Message;
 use semver::Version;
 use tokio::sync::mpsc;
 use tokio_stream::{Stream, StreamExt, wrappers::ReceiverStream};
@@ -193,16 +195,17 @@ impl QueueService for GrpcQs {
 
     async fn update_user(
         &self,
-        request: Request<UpdateUserRequest>,
+        request: Request<SignedRequest<UpdateUserRequest, 5>>,
     ) -> Result<Response<UpdateUserResponse>, Status> {
         let request = request.into_inner();
 
         self.verify_client_version(
             request
+                .inner()
                 .payload
                 .as_ref()
                 .and_then(|p| p.client_metadata.as_ref())
-                .or(request.client_metadata.as_ref()),
+                .or(request.inner().client_metadata.as_ref()),
         )?;
 
         let UpdateUserPayload {
@@ -233,16 +236,17 @@ impl QueueService for GrpcQs {
 
     async fn delete_user(
         &self,
-        request: Request<DeleteUserRequest>,
+        request: Request<SignedRequest<DeleteUserRequest, 3>>,
     ) -> Result<Response<DeleteUserResponse>, Status> {
         let request = request.into_inner();
 
         self.verify_client_version(
             request
+                .inner()
                 .payload
                 .as_ref()
                 .and_then(|p| p.client_metadata.as_ref())
-                .or(request.client_metadata.as_ref()),
+                .or(request.inner().client_metadata.as_ref()),
         )?;
 
         let DeleteUserPayload {
@@ -265,7 +269,7 @@ impl QueueService for GrpcQs {
 
     async fn create_client(
         &self,
-        request: Request<CreateClientRequest>,
+        request: Request<SignedRequest<CreateClientRequest, 7>>,
     ) -> Result<Response<CreateClientResponse>, Status> {
         let request = request.into_inner();
         let CreateClientPayload {
@@ -300,15 +304,16 @@ impl QueueService for GrpcQs {
 
     async fn update_client(
         &self,
-        request: Request<UpdateClientRequest>,
+        request: Request<SignedRequest<UpdateClientRequest, 6>>,
     ) -> Result<Response<UpdateClientResponse>, Status> {
         let request = request.into_inner();
         self.verify_client_version(
             request
+                .inner()
                 .payload
                 .as_ref()
                 .and_then(|p| p.client_metadata.as_ref())
-                .or(request.client_metadata.as_ref()),
+                .or(request.inner().client_metadata.as_ref()),
         )?;
         let UpdateClientPayload {
             client_metadata: _,
@@ -335,15 +340,16 @@ impl QueueService for GrpcQs {
 
     async fn delete_client(
         &self,
-        request: Request<DeleteClientRequest>,
+        request: Request<SignedRequest<DeleteClientRequest, 3>>,
     ) -> Result<Response<DeleteClientResponse>, Status> {
         let request = request.into_inner();
         self.verify_client_version(
             request
+                .inner()
                 .payload
                 .as_ref()
                 .and_then(|p| p.client_metadata.as_ref())
-                .or(request.client_metadata.as_ref()),
+                .or(request.inner().client_metadata.as_ref()),
         )?;
         let DeleteClientPayload {
             client_metadata: _,
@@ -358,15 +364,16 @@ impl QueueService for GrpcQs {
 
     async fn publish_key_packages(
         &self,
-        request: Request<PublishKeyPackagesRequest>,
+        request: Request<SignedRequest<PublishKeyPackagesRequest, 4>>,
     ) -> Result<Response<PublishKeyPackagesResponse>, Status> {
         let request = request.into_inner();
         self.verify_client_version(
             request
+                .inner()
                 .payload
                 .as_ref()
                 .and_then(|p| p.client_metadata.as_ref())
-                .or(request.client_metadata.as_ref()),
+                .or(request.inner().client_metadata.as_ref()),
         )?;
         let PublishKeyPackagesPayload {
             client_metadata: _,
@@ -402,11 +409,12 @@ impl QueueService for GrpcQs {
 
     async fn publish_apq_key_packages(
         &self,
-        request: Request<PublishApqKeyPackagesRequest>,
+        request: Request<SignedRequest<PublishApqKeyPackagesRequest>>,
     ) -> Result<Response<PublishApqKeyPackagesResponse>, Status> {
         let request = request.into_inner();
         self.verify_client_version(
             request
+                .inner()
                 .payload
                 .as_ref()
                 .and_then(|p| p.client_metadata.as_ref()),
@@ -478,11 +486,21 @@ impl QueueService for GrpcQs {
                 .or(init_request.client_metadata.as_ref()),
         )?;
 
+        let payload_bytes = init_request
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?
+            .encode_to_vec();
         let InitListenPayload {
             client_metadata: _,
             client_id,
             sequence_number_start,
-        } = self.verify_client_auth(init_request).await?;
+        } = self
+            .verify_client_auth(SignedRequest::<_, 1>::new(
+                init_request,
+                payload_bytes.into(),
+            ))
+            .await?;
 
         let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
 
