@@ -60,9 +60,9 @@ class UserSettingsCubit implements StateStreamableSource<UserSettings> {
   }) => _impl.setReadReceipts(userCubit: userCubit.impl, value: value);
 
   Future<void> setIsDeveloper({
-    required UserCubit userCubit,
+    required UserCubit? userCubit,
     required bool value,
-  }) => _impl.setIsDeveloper(userCubit: userCubit.impl, value: value);
+  }) => _impl.setIsDeveloper(userCubit: userCubit?.impl, value: value);
 
   Future<void> setDefaultEmojiSkinTone({
     required UserCubit userCubit,

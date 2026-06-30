@@ -5,3 +5,5 @@
 #![expect(clippy::large_enum_variant)]
 
 tonic::include_proto!("queue_service.v1");
+
+include!(concat!(env!("OUT_DIR"), "/server/queue_service.v1.rs"));

@@ -88,6 +88,16 @@ pub struct AssistedMessageIn {
 #[derive(Debug)]
 pub struct SerializedMlsMessage(pub Vec<u8>);
 
+impl SerializedMlsMessage {
+    /// Combine an already-serialized T and PQ MLS messages into a the APQ bundle wire format: T
+    /// followed by PQ, as [`apqmls::messages::ApqMlsMessageIn`] expects.
+    pub fn combine_apq(t: Self, pq: Self) -> Self {
+        let mut bytes = t.0;
+        bytes.extend_from_slice(&pq.0);
+        Self(bytes)
+    }
+}
+
 impl AssistedMessageIn {
     pub fn into_serialized_mls_message(self) -> SerializedMlsMessage {
         self.serialized_mls_message
@@ -149,5 +159,59 @@ impl AssistedWelcome {
             .secrets()
             .iter()
             .map(|secret| secret.new_member())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use apqmls::messages::ApqMlsMessageIn;
+    use openmls::prelude::*;
+    use openmls_basic_credential::SignatureKeyPair;
+    use openmls_rust_crypto::OpenMlsRustCrypto;
+    use tls_codec::{DeserializeBytes, Serialize};
+
+    use super::*;
+
+    fn serialized_key_package(identity: &[u8]) -> Vec<u8> {
+        let provider = OpenMlsRustCrypto::default();
+        let ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
+        let signer = SignatureKeyPair::new(ciphersuite.signature_algorithm()).unwrap();
+        let credential_with_key = CredentialWithKey {
+            credential: BasicCredential::new(identity.to_vec()).into(),
+            signature_key: signer.public().into(),
+        };
+        let key_package = KeyPackage::builder()
+            .build(ciphersuite, &provider, &signer, credential_with_key)
+            .unwrap()
+            .into_key_package();
+        MlsMessageOut::from(key_package)
+            .tls_serialize_detached()
+            .unwrap()
+    }
+
+    #[test]
+    fn combine_apq_is_t_then_pq_without_framing() {
+        let t_bytes = serialized_key_package(b"alice");
+        let pq_bytes = serialized_key_package(b"alice");
+
+        let combined = SerializedMlsMessage::combine_apq(
+            SerializedMlsMessage(t_bytes.clone()),
+            SerializedMlsMessage(pq_bytes.clone()),
+        );
+
+        // Order + no framing: exactly the T bytes followed by the PQ bytes.
+        assert_eq!(combined.0.len(), t_bytes.len() + pq_bytes.len());
+        assert!(combined.0.starts_with(&t_bytes));
+        assert!(combined.0.ends_with(&pq_bytes));
+
+        // And the result parses as the APQ bundle, recovering both messages.
+        let apq_message = ApqMlsMessageIn::tls_deserialize_exact_bytes(&combined.0)
+            .expect("combined bytes must be a valid ApqMlsMessageIn");
+        let t_message =
+            MlsMessageIn::tls_deserialize_exact_bytes(&t_bytes).expect("MLS message must be valid");
+        let pq_message = MlsMessageIn::tls_deserialize_exact_bytes(&pq_bytes)
+            .expect("MLS message must be valid");
+        assert_eq!(apq_message.t_message(), &t_message);
+        assert_eq!(apq_message.pq_message(), &pq_message);
     }
 }

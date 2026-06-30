@@ -41,10 +41,7 @@ abstract class UserSettingsCubitBase implements RustOpaqueInterface {
     required double value,
   });
 
-  Future<void> setIsDeveloper({
-    required UserCubitBase userCubit,
-    required bool value,
-  });
+  Future<void> setIsDeveloper({UserCubitBase? userCubit, required bool value});
 
   Future<void> setLocale({required User user, required String value});
 

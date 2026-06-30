@@ -28,6 +28,7 @@ pub mod member_details_cubit;
 pub mod message_content;
 pub mod message_cubit;
 pub mod message_list_cubit;
+pub mod multi_device;
 pub mod navigation_cubit;
 pub mod notifications;
 pub mod types;

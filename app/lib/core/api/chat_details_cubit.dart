@@ -39,6 +39,12 @@ abstract class ChatDetailsCubitBase implements RustOpaqueInterface {
     required DeleteMode deleteMode,
   });
 
+  /// Deletes an emoji reaction we previously added to a message.
+  Future<void> deleteReaction({
+    required MessageId messageId,
+    required String emoji,
+  });
+
   Future<void> devUpdateApqKey();
 
   Future<void> devUpdateKey();

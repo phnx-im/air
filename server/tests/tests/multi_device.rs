@@ -3,38 +3,71 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use airapiclient::ApiClient;
-use aircoreclient::clients::CoreUser;
+use aircoreclient::clients::{
+    CoreUser,
+    multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
+};
 use airprotos::relay_service::v1::LinkingSessionId;
 use airserver_test_harness::utils::setup::TestBackend;
+
+/// A confirmation receiver that is already fulfilled, so the acceptor proceeds
+/// without waiting for user confirmation in tests.
+fn auto_confirm() -> tokio::sync::oneshot::Receiver<()> {
+    let (tx, rx) = tokio::sync::oneshot::channel();
+    tx.send(()).unwrap();
+    rx
+}
+
+/// A connected-signal sender whose receiver is dropped; the acceptor ignores the
+/// send failure, so tests don't need to observe the "connected" signal.
+fn ignore_connected() -> tokio::sync::oneshot::Sender<()> {
+    tokio::sync::oneshot::channel().0
+}
+
+/// Receives the session ID from the first provisioning step. The receiver must
+/// stay alive afterwards: the new device later sends a `Linking` step, and
+/// dropping the receiver would make that send fail and abort provisioning.
+async fn recv_session_id(
+    rx: &mut tokio::sync::mpsc::Receiver<MultiDeviceProvisionStep>,
+) -> LinkingSessionId {
+    match rx
+        .recv()
+        .await
+        .expect("provision channel closed before session id")
+    {
+        MultiDeviceProvisionStep::SessionId(session_id) => session_id,
+        MultiDeviceProvisionStep::Linking => panic!("unexpected Linking step before session id"),
+    }
+}
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Test multi-device linking session", skip_all)]
 async fn multi_device_linking_session() {
     let mut setup = TestBackend::single().await;
     let server_url = setup.server_url();
-
     let alice = setup.add_user().await;
 
-    let (session_id_tx, session_id_rx) = tokio::sync::oneshot::channel();
+    let (session_tx, mut session_rx) = tokio::sync::mpsc::channel(1);
 
     let new_device_task = tokio::spawn(async move {
         let api_client = ApiClient::with_endpoint(&server_url).unwrap();
         let old_device_message =
-            CoreUser::multi_device_provision_client(&api_client, session_id_tx)
+            CoreUser::multi_device_provision_client_with_api(&api_client, session_tx)
                 .await
                 .unwrap();
 
         assert_eq!(old_device_message, "pong!");
     });
 
-    let session_id = session_id_rx.await.unwrap();
+    let session_id = recv_session_id(&mut session_rx).await;
 
     // The old device scans/types the session ID.
     let new_device_message = setup
         .get_user(&alice)
         .user()
-        .multi_device_link_client(session_id)
+        .multi_device_link_client(session_id, ignore_connected(), auto_confirm())
         .await
+        .unwrap()
         .unwrap();
 
     assert_eq!(new_device_message, "ping!");
@@ -58,10 +91,13 @@ async fn multi_device_link_with_nonexistent_session_id() {
     let result = setup
         .get_user(&alice)
         .user()
-        .multi_device_link_client(fake_session_id)
+        .multi_device_link_client(fake_session_id, ignore_connected(), auto_confirm())
         .await;
 
-    assert!(result.is_err());
+    assert!(matches!(
+        result,
+        Ok(Err(MultiDeviceLinkClientError::SessionNotFound))
+    ));
 }
 
 // A session can only be claimed once; a second link attempt on the same session ID
@@ -73,22 +109,23 @@ async fn multi_device_second_link_attempt_returns_error() {
     let server_url = setup.server_url();
     let alice = setup.add_user().await;
 
-    let (session_id_tx, session_id_rx) = tokio::sync::oneshot::channel();
+    let (session_tx, mut session_rx) = tokio::sync::mpsc::channel(1);
 
     let new_device_task = tokio::spawn(async move {
         let api_client = ApiClient::with_endpoint(&server_url).unwrap();
-        CoreUser::multi_device_provision_client(&api_client, session_id_tx)
+        CoreUser::multi_device_provision_client_with_api(&api_client, session_tx)
             .await
             .unwrap()
     });
 
-    let session_id = session_id_rx.await.unwrap();
+    let session_id = recv_session_id(&mut session_rx).await;
 
     let result = setup
         .get_user(&alice)
         .user()
-        .multi_device_link_client(session_id.clone())
+        .multi_device_link_client(session_id.clone(), ignore_connected(), auto_confirm())
         .await
+        .unwrap()
         .unwrap();
     assert_eq!(result, "ping!");
 
@@ -98,10 +135,13 @@ async fn multi_device_second_link_attempt_returns_error() {
     let second_result = setup
         .get_user(&alice)
         .user()
-        .multi_device_link_client(session_id)
+        .multi_device_link_client(session_id, ignore_connected(), auto_confirm())
         .await;
 
-    assert!(second_result.is_err());
+    assert!(matches!(
+        second_result,
+        Ok(Err(MultiDeviceLinkClientError::SessionNotFound))
+    ));
 }
 
 // Two concurrent linking sessions must not interfere with each other.
@@ -114,26 +154,26 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
 
-    let (alice_session_id_tx, alice_session_id_rx) = tokio::sync::oneshot::channel();
-    let (bob_session_id_tx, bob_session_id_rx) = tokio::sync::oneshot::channel();
+    let (alice_session_tx, mut alice_session_rx) = tokio::sync::mpsc::channel(1);
+    let (bob_session_tx, mut bob_session_rx) = tokio::sync::mpsc::channel(1);
 
-    let server_url_clone = server_url.clone();
+    let alice_server_url = server_url.clone();
     let alice_new_device = tokio::spawn(async move {
-        let api_client = ApiClient::with_endpoint(&server_url_clone).unwrap();
-        CoreUser::multi_device_provision_client(&api_client, alice_session_id_tx)
+        let api_client = ApiClient::with_endpoint(&alice_server_url).unwrap();
+        CoreUser::multi_device_provision_client_with_api(&api_client, alice_session_tx)
             .await
             .unwrap()
     });
 
     let bob_new_device = tokio::spawn(async move {
         let api_client = ApiClient::with_endpoint(&server_url).unwrap();
-        CoreUser::multi_device_provision_client(&api_client, bob_session_id_tx)
+        CoreUser::multi_device_provision_client_with_api(&api_client, bob_session_tx)
             .await
             .unwrap()
     });
 
-    let alice_session_id = alice_session_id_rx.await.unwrap();
-    let bob_session_id = bob_session_id_rx.await.unwrap();
+    let alice_session_id = recv_session_id(&mut alice_session_rx).await;
+    let bob_session_id = recv_session_id(&mut bob_session_rx).await;
 
     // Session IDs derived from different key packages must be distinct.
     assert_ne!(alice_session_id, bob_session_id);
@@ -141,16 +181,18 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
     let alice_result = setup
         .get_user(&alice)
         .user()
-        .multi_device_link_client(alice_session_id)
+        .multi_device_link_client(alice_session_id, ignore_connected(), auto_confirm())
         .await
+        .unwrap()
         .unwrap();
     assert_eq!(alice_result, "ping!");
 
     let bob_result = setup
         .get_user(&bob)
         .user()
-        .multi_device_link_client(bob_session_id)
+        .multi_device_link_client(bob_session_id, ignore_connected(), auto_confirm())
         .await
+        .unwrap()
         .unwrap();
     assert_eq!(bob_result, "ping!");
 

@@ -503,16 +503,11 @@ class _MessageComposerState extends State<MessageComposer>
       ),
     );
 
-    // Reduce image quality to re-encode the image.
+    // Note: using imageQuality triggers re-encoding, which loses animation
+    // properties from GIFs or other animated formats.
     final XFile? file = switch (selectedCategory) {
-      .gallery => await ImagePicker().pickImage(
-        source: .gallery,
-        imageQuality: 99,
-      ),
-      .camera => await ImagePicker().pickImage(
-        source: .camera,
-        imageQuality: 99,
-      ),
+      .gallery => await ImagePicker().pickImage(source: .gallery),
+      .camera => await ImagePicker().pickImage(source: .camera),
       .file => await openFile(),
       null => null,
     };

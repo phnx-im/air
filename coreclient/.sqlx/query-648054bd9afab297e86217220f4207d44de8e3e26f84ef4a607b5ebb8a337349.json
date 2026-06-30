@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM reaction WHERE reaction_mimi_id = ?\n            RETURNING target_mimi_id AS \"target_mimi_id: MimiId\"",
+  "describe": {
+    "columns": [
+      {
+        "name": "target_mimi_id: MimiId",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "target_mimi_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "648054bd9afab297e86217220f4207d44de8e3e26f84ef4a607b5ebb8a337349"
+}
