@@ -97,6 +97,7 @@ pub(crate) mod own_client_info;
 mod persistence;
 pub mod process;
 pub(crate) mod push_token_state;
+mod reactions;
 mod remove_users;
 pub(crate) mod safety_code;
 pub mod store;

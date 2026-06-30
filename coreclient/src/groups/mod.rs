@@ -312,6 +312,10 @@ impl Group {
         self.pq.as_ref()
     }
 
+    pub(crate) fn pq_mut(&mut self) -> Option<&mut PqGroup> {
+        self.pq.as_mut()
+    }
+
     pub(crate) async fn mark_commit_failed(
         &mut self,
         mut connection: impl WriteConnection,
@@ -1835,15 +1839,64 @@ impl Group {
         signer: &ClientSigningKey,
     ) -> Result<SelfRemoveParamsOut> {
         let provider = &AirOpenMlsProvider::new(connection.as_mut());
-        let proposal = self
+
+        let t_proposal = self
             .mls_group
             .leave_group_via_self_remove(provider, signer)?;
+        let pq_proposal = self
+            .pq_mut()
+            .map(|pq| pq.mls_group.leave_group_via_self_remove(provider, signer))
+            .transpose()?;
 
-        let assisted_message = AssistedMessageOut::new(proposal, None);
+        let t_remove_proposal = AssistedMessageOut::new(t_proposal, None);
+        let pq_remove_proposal =
+            pq_proposal.map(|proposal| AssistedMessageOut::new(proposal, None));
+
         let params = SelfRemoveParamsOut {
-            remove_proposal: assisted_message,
+            t_remove_proposal,
+            pq_remove_proposal,
         };
         Ok(params)
+    }
+
+    pub(super) fn restage_leave_group(
+        &mut self,
+        mut connection: impl WriteConnection,
+        signer: &ClientSigningKey,
+        existing: &SelfRemoveParamsOut,
+    ) -> Result<SelfRemoveParamsOut> {
+        let provider = &AirOpenMlsProvider::new(connection.as_mut());
+
+        // T side: regenerate only if the T epoch drifted
+        let t_remove_proposal =
+            if existing.t_remove_proposal.epoch() == Some(self.mls_group().epoch()) {
+                existing.t_remove_proposal.clone()
+            } else {
+                let proposal = self
+                    .mls_group
+                    .leave_group_via_self_remove(provider, signer)?;
+                AssistedMessageOut::new(proposal, None)
+            };
+
+        // PQ side: regenerate only if the PQ epoch drifted (a FULL commit landed)
+        let pq_remove_proposal = match self.pq_mut() {
+            Some(pq) => {
+                let pq_epoch = pq.mls_group.epoch();
+                let existing_pq = existing.pq_remove_proposal.as_ref();
+                if existing_pq.is_some_and(|proposal| proposal.epoch() == Some(pq_epoch)) {
+                    existing_pq.cloned()
+                } else {
+                    let proposal = pq.mls_group.leave_group_via_self_remove(provider, signer)?;
+                    Some(AssistedMessageOut::new(proposal, None))
+                }
+            }
+            None => None,
+        };
+
+        Ok(SelfRemoveParamsOut {
+            t_remove_proposal,
+            pq_remove_proposal,
+        })
     }
 
     pub(super) fn store_proposal(

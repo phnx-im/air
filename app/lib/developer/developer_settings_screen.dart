@@ -48,7 +48,7 @@ class _DeveloperSettingsScreenState extends State<DeveloperSettingsScreen> {
   build(BuildContext context) {
     return DeveloperSettingsScreenView(
       deviceToken: deviceToken,
-      isMobile: Platform.isAndroid || Platform.isIOS,
+      isMobile: DeviceType.isPhone,
       onRefreshPushToken: () =>
           _reRegisterPushToken(context.read<CoreClient>()),
     );
@@ -112,7 +112,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
       body: SafeArea(
         child: Center(
           child: Container(
-            constraints: isPointer()
+            constraints: DeviceType.isDesktop
                 ? const BoxConstraints(maxWidth: 800)
                 : null,
             child: ListTileTheme(
@@ -127,8 +127,17 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                     title: const Text("Enable experimental features"),
                     value: isDeveloper,
                     onChanged: (value) {
+                      UserCubit? userCubit;
+                      // in the context where the app is fresh, we don't
+                      // have a UserCubit, but we might still want to toggle
+                      // the feature flags in transient fashion.
+                      try {
+                        userCubit = context.read<UserCubit>();
+                        // ignore: empty_catches
+                      } on ProviderNotFoundException {}
+
                       context.read<UserSettingsCubit>().setIsDeveloper(
-                        userCubit: context.read(),
+                        userCubit: userCubit,
                         value: value,
                       );
                     },

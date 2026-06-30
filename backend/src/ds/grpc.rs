@@ -15,7 +15,7 @@ use aircommon::{
     identifiers::{self, Fqdn, QualifiedGroupId},
     messages::client_ds::{
         self, GroupOperationParams, JoinConnectionGroupParams, QsQueueMessagePayload,
-        QsQueueMessageType, UserProfileKeyUpdateParams, WelcomeInfoParams,
+        UserProfileKeyUpdateParams, WelcomeInfoParams,
     },
     mls_group_config::MAX_PAST_EPOCHS,
     time::TimeStamp,
@@ -34,7 +34,7 @@ use chrono::TimeDelta;
 use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
     group::Group,
-    messages::AssistedMessageIn,
+    messages::{AssistedMessageIn, SerializedMlsMessage},
     openmls::prelude::{LeafNodeIndex, MlsMessageBodyIn, MlsMessageIn, RatchetTreeIn, Sender},
 };
 use semver::Version;
@@ -135,6 +135,35 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .await
     }
 
+    /// Loads the group state for update inside `txn`, returning the (owned) transaction alongside
+    /// the state on success.
+    ///
+    /// If the group state has expired, it has already been deleted; the transaction is committed to
+    /// persist the deletion and [`Status::not_found()`] is returned.
+    async fn load_for_update_or_not_found<'a>(
+        &self,
+        mut txn: PgTransaction<'a>,
+        qgid: &QualifiedGroupId,
+        ear_key: &GroupStateEarKey,
+    ) -> Result<(PgTransaction<'a>, DsGroupState, StorableDsGroupData<true>), Status> {
+        match self
+            .load_group_state_for_update(&mut txn, qgid, ear_key)
+            .await
+        {
+            Ok((group_data, group_state)) => Ok((txn, group_state, group_data)),
+            Err(LoadGroupStateError::Expired) => {
+                // The group state has expired and has already been deleted.
+                // Commit the transaction and return not found.
+                txn.commit().await.map_err(|error| {
+                    error!(%error, "Failed to commit transaction");
+                    Status::internal("Failed to commit transaction")
+                })?;
+                Err(Status::not_found("Group state expired"))
+            }
+            Err(LoadGroupStateError::Status(status)) => Err(status),
+        }
+    }
+
     async fn load_group_state_immutable(
         &self,
         qgid: &QualifiedGroupId,
@@ -229,28 +258,13 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         ear_key: &GroupStateEarKey,
         f: impl AsyncFnOnce(&mut DsGroupState, &mut StorableDsGroupData<true>) -> Result<T, Status>,
     ) -> Result<T, Status> {
-        let mut txn = self.ds.db_pool.begin().await.map_err(|error| {
+        let txn = self.ds.db_pool.begin().await.map_err(|error| {
             error!(%error, "Failed to start transaction");
             Status::internal("Failed to start transaction")
         })?;
-        let (mut group_state, mut group_data) = match self
-            .load_group_state_for_update(&mut txn, qgid, ear_key)
-            .await
-        {
-            Ok((group_data, group_state)) => (group_state, group_data),
-            Err(LoadGroupStateError::Expired) => {
-                // The group state has expired and has already been deleted.
-                // Commit the transaction and return not found.
-                txn.commit().await.map_err(|error| {
-                    error!(%error, "Failed to commit transaction");
-                    Status::internal("Failed to commit transaction")
-                })?;
-                return Err(Status::not_found("Group state expired"));
-            }
-            Err(LoadGroupStateError::Status(status)) => {
-                return Err(status);
-            }
-        };
+        let (mut txn, mut group_state, mut group_data) = self
+            .load_for_update_or_not_found(txn, qgid, ear_key)
+            .await?;
 
         let value = f(&mut group_state, &mut group_data).await?;
         let new_epoch = group_state.group().epoch().as_u64();
@@ -271,7 +285,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         )
         .await
         .inspect_err(|error| {
-            warn!(%error, "Failed to clean up old collision tags");
+            error!(%error, "Failed to clean up old collision tags");
         })
         .ok();
 
@@ -302,28 +316,13 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         let message = request.inner().message()?;
         let qgid = message.validated_qgid(self.ds.own_domain())?;
 
-        let mut txn = self.ds.db_pool.begin().await.map_err(|error| {
+        let txn = self.ds.db_pool.begin().await.map_err(|error| {
             error!(%error, "Failed to start transaction");
             Status::internal("Failed to start transaction")
         })?;
-        let (mut group_state, group_data) = match self
-            .load_group_state_for_update(&mut txn, &qgid, &ear_key)
-            .await
-        {
-            Ok((group_data, group_state)) => (group_state, group_data),
-            Err(LoadGroupStateError::Expired) => {
-                // The group state has expired and has already been deleted.
-                // Commit the transaction and return not found.
-                txn.commit().await.map_err(|error| {
-                    error!(%error, "Failed to commit transaction");
-                    Status::internal("Failed to commit transaction")
-                })?;
-                return Err(Status::not_found("Group state expired"));
-            }
-            Err(LoadGroupStateError::Status(status)) => {
-                return Err(status);
-            }
-        };
+        let (mut txn, mut group_state, group_data) = self
+            .load_for_update_or_not_found(txn, &qgid, &ear_key)
+            .await?;
 
         let (payload, sender_index, message) = verify_message(request, &group_state, sender_index)?;
 
@@ -354,7 +353,128 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             MAX_PAST_EPOCHS as u64,
         )
         .await
-        .inspect_err(|error| warn!(%error, "Failed to clean up old collision tags"))
+        .inspect_err(|error| error!(%error, "Failed to clean up old collision tags"))
+        .ok();
+
+        Ok(value)
+    }
+
+    /// Verifies the given request and applies the necessary changes to the group state.
+    ///
+    /// This function loads the group state of the T and PQ group for update, calls the provided
+    /// async function with the group state and the storable group data, and then persists any
+    /// changes to the database. The transaction is committed if the function returns `Ok`, and
+    /// rolled back if the function returns `Err`.
+    ///
+    /// If the group state has expired, it is deleted and [`Status::not_found()`] is returned.
+    async fn update_apq_group_state<R, P, T: Send, const TAG: u32>(
+        &self,
+        request: SignedRequest<R, TAG>,
+        f: impl AsyncFnOnce(ApqVerificationData<'_, P>) -> Result<ApqFanOut<T>, Status>,
+    ) -> Result<T, Status>
+    where
+        R: WithGroupStateEarKey + WithApqMessage + VerifiableRequest,
+        P: VerifiedStruct<SignedRequest<R, TAG>>,
+    {
+        let ear_key = request.inner().ear_key()?;
+        let (t_message, pq_message) = request.inner().apq_message()?;
+
+        let t_qgid = t_message.validated_qgid(self.ds.own_domain())?;
+        let pq_qgid = pq_message.validated_qgid(self.ds.own_domain())?;
+
+        let txn = self.ds.db_pool.begin().await.map_err(|error| {
+            error!(%error, "Failed to start transaction");
+            Status::internal("Failed to start transaction")
+        })?;
+
+        let (txn, mut t_group_state, t_group_data) = self
+            .load_for_update_or_not_found(txn, &t_qgid, &ear_key)
+            .await?;
+        let (payload, t_sender_index) =
+            resolve_and_verify(request, &t_message, &t_group_state, None)?;
+
+        let (mut txn, mut pq_group_state, pq_group_data) = self
+            .load_for_update_or_not_found(txn, &pq_qgid, &ear_key)
+            .await?;
+
+        // Check that the T/PQ indices and signature keys match
+        let Sender::Member(pq_sender_index) = *pq_message.sender().ok_or_missing_field("sender")?
+        else {
+            return Err(Status::invalid_argument(
+                "unexpected pq sender: expected member",
+            ));
+        };
+        if t_sender_index != pq_sender_index {
+            return Err(Status::invalid_argument(
+                "t and pq sender indices do not match",
+            ));
+        }
+        let t_sender = t_group_state
+            .group()
+            .leaf(t_sender_index)
+            .ok_or(Status::invalid_argument("unknown sender"))?;
+        let pq_sender = pq_group_state
+            .group()
+            .leaf(pq_sender_index)
+            .ok_or(Status::invalid_argument("unknown PQ sender"))?;
+        if t_sender.signature_key() != pq_sender.signature_key() {
+            return Err(Status::invalid_argument(
+                "t and pq credentials do not match",
+            ));
+        }
+
+        // Process group operation
+        let ApqFanOut {
+            broadcast: (qs_payload, destination_clients),
+            individual,
+            value,
+        } = f(ApqVerificationData {
+            payload,
+            t_group_state: &mut t_group_state,
+            pq_group_state: &mut pq_group_state,
+            t_message,
+            pq_message,
+            t_sender_index,
+            ear_key: &ear_key,
+        })
+        .await?;
+
+        // Persist and commit the DS state
+        let t_new_epoch = t_group_state.group().epoch().as_u64();
+        self.encrypt_and_persist(&mut txn, t_group_data, t_group_state, &ear_key)
+            .await?;
+        self.encrypt_and_persist(&mut txn, pq_group_data, pq_group_state, &ear_key)
+            .await?;
+        txn.commit().await.map_err(|error| {
+            error!(%error, "Failed to commit transaction");
+            Status::internal("Failed to commit transaction")
+        })?;
+
+        // Fan out
+        self.fan_out_message_without_notifications(qs_payload, destination_clients)
+            .await;
+        for message in individual {
+            if let Err(error) = self
+                .qs_connector
+                .dispatch(message)
+                .await
+                .map_err(DistributeMessageError::Connector)
+            {
+                error!(%error, "Failed to dispatch message");
+            };
+        }
+
+        // Best-effort cleanup: the transaction is already committed, so failures here are non-fatal.
+        super::collision_tags::delete_old(
+            &self.ds.db_pool,
+            t_qgid.group_uuid(),
+            t_new_epoch,
+            MAX_PAST_EPOCHS as u64,
+        )
+        .await
+        .inspect_err(|error| {
+            error!(%error, "Failed to clean up old collision tags");
+        })
         .ok();
 
         Ok(value)
@@ -379,7 +499,22 @@ where
     P: VerifiedStruct<SignedRequest<R, TAG>>,
 {
     let message = request.inner().message()?;
+    let (payload, sender_index) = resolve_and_verify(request, &message, group_state, sender_index)?;
+    Ok((payload, sender_index, message))
+}
 
+/// Resolves the sender leaf or `message` and verifies request signature against the leaf signature
+/// key.
+fn resolve_and_verify<R, P>(
+    request: R,
+    message: &AssistedMessageIn,
+    group_state: &DsGroupState,
+    sender_index: Option<LeafNodeIndex>,
+) -> Result<(P, LeafNodeIndex), Status>
+where
+    R: Verifiable,
+    P: VerifiedStruct<R>,
+{
     let sender_index = sender_index.map(Ok).unwrap_or_else(|| {
         match *message.sender().ok_or_missing_field("sender")? {
             Sender::Member(sender_index) => Ok(sender_index),
@@ -388,7 +523,6 @@ where
             )),
         }
     })?;
-
     let verifying_key: LeafVerifyingKeyRef = group_state
         .group()
         .leaf(sender_index)
@@ -396,7 +530,7 @@ where
         .signature_key()
         .into();
     let payload: P = request.verify(verifying_key).map_err(InvalidSignature)?;
-    Ok((payload, sender_index, message))
+    Ok((payload, sender_index))
 }
 
 /// Extracted data in leaf verification
@@ -406,6 +540,22 @@ struct LeafVerificationData<'a, P, const LOADED_FOR_UPDATE: bool> {
     sender_index: LeafNodeIndex,
     payload: P,
     message: AssistedMessageIn,
+}
+
+struct ApqVerificationData<'a, P> {
+    payload: P,
+    t_group_state: &'a mut DsGroupState,
+    pq_group_state: &'a mut DsGroupState,
+    t_message: AssistedMessageIn,
+    pq_message: AssistedMessageIn,
+    t_sender_index: LeafNodeIndex,
+    ear_key: &'a GroupStateEarKey,
+}
+
+struct ApqFanOut<T> {
+    broadcast: (QsQueueMessagePayload, Vec<identifiers::QsReference>),
+    individual: Vec<DsFanOutMessage>,
+    value: T,
 }
 
 #[async_trait]
@@ -1017,6 +1167,66 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         }))
     }
 
+    async fn apq_self_remove(
+        &self,
+        request: Request<SignedRequest<ApqSelfRemoveRequest, 1>>,
+    ) -> Result<Response<ApqSelfRemoveResponse>, Status> {
+        let request = request.into_inner();
+
+        // Short circuit requests without a signature
+        request
+            .inner()
+            .signature
+            .as_ref()
+            .ok_or_missing_field("signature")?;
+
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
+
+        let fanout_timestamp = self
+            .update_apq_group_state(
+                request,
+                async |ApqVerificationData {
+                           payload: _,
+                           t_group_state,
+                           pq_group_state,
+                           t_message,
+                           pq_message,
+                           t_sender_index,
+                           ear_key: _,
+                       }: ApqVerificationData<'_, ApqSelfRemovePayload>| {
+                    let destination_clients: Vec<_> = t_group_state
+                        .other_destination_clients(t_sender_index)
+                        .collect();
+
+                    let pq_serialized =
+                        pq_group_state.self_remove_client_without_room_state(pq_message)?;
+                    let t_serialized = t_group_state.self_remove_client(t_message)?;
+
+                    let timestamp = TimeStamp::now();
+                    let apq_payload = QsQueueMessagePayload::apq_mls_message(
+                        timestamp,
+                        SerializedMlsMessage::combine_apq(t_serialized, pq_serialized),
+                    );
+
+                    Ok(ApqFanOut {
+                        broadcast: (apq_payload, destination_clients),
+                        individual: Default::default(),
+                        value: timestamp,
+                    })
+                },
+            )
+            .await?;
+
+        Ok(Response::new(ApqSelfRemoveResponse {
+            fanout_timestamp: Some(fanout_timestamp.into()),
+        }))
+    }
+
     async fn send_message(
         &self,
         request: Request<SignedRequest<SendMessageRequest>>,
@@ -1258,220 +1468,109 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
-        // Extract the t and pq group state EAR keys
-        let ear_key: GroupStateEarKey = payload
-            .group_state_ear_key
-            .as_ref()
-            .ok_or_missing_field("group_state_ear_key")?
-            .try_ref_into()?;
+        let fanout_timestamp = self
+            .update_apq_group_state(
+                request,
+                async |ApqVerificationData {
+                           payload,
+                           t_group_state,
+                           pq_group_state,
+                           t_message,
+                           pq_message,
+                           t_sender_index,
+                           ear_key,
+                       }: ApqVerificationData<ApqGroupOperationPayload>| {
+                    // If specified by the client, we update our internal mapping of leaves to
+                    // MemberProfile. This is used to recover groups where the OpenMLS leaves and
+                    // its representation on the DS drifted.
+                    if let Some((qs_client_reference, encrypted_user_profile_key)) = payload
+                        .qs_client_reference
+                        .zip(payload.encrypted_user_profile_key)
+                    {
+                        t_group_state.member_profiles.insert(
+                            t_sender_index,
+                            MemberProfile {
+                                leaf_index: t_sender_index,
+                                client_queue_config: qs_client_reference.try_into()?,
+                                activity_time: TimeStamp::now(),
+                                activity_epoch: t_group_state.group().epoch(),
+                                encrypted_user_profile_key: encrypted_user_profile_key
+                                    .try_into()?,
+                            },
+                        );
+                    }
 
-        // Deserialize the t and pq messages
-        let t_message: AssistedMessageIn = payload
-            .commit
-            .as_ref()
-            .and_then(|c| c.t_message.as_ref())
-            .ok_or_missing_field("commit.t_message")?
-            .try_ref_into()
-            .invalid_tls("commit.t_message")?;
-        let pq_message: AssistedMessageIn = payload
-            .commit
-            .as_ref()
-            .and_then(|c| c.pq_message.as_ref())
-            .ok_or_missing_field("commit.pq_message")?
-            .try_ref_into()
-            .invalid_tls("commit.pq_message")?;
+                    // Process group operation
+                    let add_users_info: Option<client_ds::ApqAddUsersInfo> = payload
+                        .add_users_info
+                        .map(|info| info.try_into())
+                        .transpose()?;
+                    let (t_add_users_info, pq_add_users_info) =
+                        add_users_info.map(|info| info.split()).unzip();
 
-        let t_qgid = t_message.validated_qgid(self.ds.own_domain())?;
-        let pq_qgid = pq_message.validated_qgid(self.ds.own_domain())?;
+                    // Collect destination clients before processing the commit so that new invitees (added by
+                    // this commit) don't receive the commit message before their welcome bundle.
+                    let destination_clients: Vec<_> = t_group_state
+                        .other_destination_clients(t_sender_index)
+                        .collect();
 
-        // Load the t-group state and verify the signature
-        let mut txn = self.ds.db_pool.begin().await.map_err(|error| {
-            error!(%error, "Failed to start transaction");
-            Status::internal("Failed to start transaction")
-        })?;
-        let (mut t_group_state, t_group_data) = match self
-            .load_group_state_for_update(&mut txn, &t_qgid, &ear_key)
-            .await
-        {
-            Ok((group_data, group_state)) => (group_state, group_data),
-            Err(LoadGroupStateError::Expired) => {
-                // The group state has expired and has already been deleted.
-                // Commit the transaction and return not found.
-                txn.commit().await.map_err(|error| {
-                    error!(%error, "Failed to commit transaction");
-                    Status::internal("Failed to commit transaction")
-                })?;
-                return Err(Status::not_found("Group state expired"));
-            }
-            Err(LoadGroupStateError::Status(status)) => {
-                return Err(status);
-            }
-        };
+                    let (serialized_apq_message, t_add_users_state, pq_welcome) =
+                        DsGroupState::process_apq_group_operation(
+                            t_group_state,
+                            pq_group_state,
+                            t_message,
+                            pq_message,
+                            t_add_users_info,
+                            pq_add_users_info,
+                        )?;
 
-        // Verify the signature via the t-group state
-        let Sender::Member(t_sender_index) = *t_message.sender().ok_or_missing_field("sender")?
-        else {
-            return Err(Status::invalid_argument(
-                "unexpected sender: expected member",
-            ));
-        };
-        let t_sender = t_group_state
-            .group()
-            .leaf(t_sender_index)
-            .ok_or(Status::invalid_argument("unknown sender"))?
-            .clone();
-        let t_verifying_key: LeafVerifyingKeyRef = t_sender.signature_key().into();
-        let payload: ApqGroupOperationPayload =
-            request.verify(t_verifying_key).map_err(InvalidSignature)?;
+                    // Fan out the commit message to the destination clients
+                    let timestamp = TimeStamp::now();
 
-        // If specified by the client, we update our internal mapping of leaves to MemberProfile.
-        // This is used to recover groups where the OpenMLS leaves and its representation on the DS drifted.
-        if let Some((qs_client_reference, encrypted_user_profile_key)) = payload
-            .qs_client_reference
-            .zip(payload.encrypted_user_profile_key)
-        {
-            t_group_state.member_profiles.insert(
-                t_sender_index,
-                MemberProfile {
-                    leaf_index: t_sender_index,
-                    client_queue_config: qs_client_reference.try_into()?,
-                    activity_time: TimeStamp::now(),
-                    activity_epoch: t_group_state.group().epoch(),
-                    encrypted_user_profile_key: encrypted_user_profile_key.try_into()?,
+                    let apq_payload =
+                        QsQueueMessagePayload::apq_mls_message(timestamp, serialized_apq_message);
+
+                    // Generate welcome bundles for new members
+                    let mut individual_fan_out_messages = match (t_add_users_state, pq_welcome) {
+                        (
+                            Some(AddUsersState {
+                                added_users,
+                                welcome: t_welcome,
+                            }),
+                            Some(pq_welcome),
+                        ) => t_group_state.generate_apq_fan_out_messages(
+                            added_users,
+                            &t_welcome,
+                            &pq_welcome,
+                            ear_key,
+                        )?,
+                        (None, None) => Vec::new(),
+                        _ => {
+                            warn!("T and PQ group operations inconsistently add users");
+                            return Err(Status::invalid_argument(
+                                "Inconsistent APQ add users info",
+                            ));
+                        }
+                    };
+
+                    t_group_state.proposals.clear();
+                    pq_group_state.proposals.clear();
+
+                    let commit_response =
+                        t_group_state.create_commit_response(t_sender_index, timestamp)?;
+                    individual_fan_out_messages.push(commit_response);
+
+                    Ok(ApqFanOut {
+                        broadcast: (apq_payload, destination_clients),
+                        individual: individual_fan_out_messages,
+                        value: timestamp,
+                    })
                 },
-            );
-        }
-
-        // Load the pq-group state
-        let (mut pq_group_state, pq_group_data) = match self
-            .load_group_state_for_update(&mut txn, &pq_qgid, &ear_key)
-            .await
-        {
-            Ok((group_data, group_state)) => (group_state, group_data),
-            Err(LoadGroupStateError::Expired) => {
-                // The group state has expired and has already been deleted.
-                // Commit the transaction and return not found.
-                txn.commit().await.map_err(|error| {
-                    error!(%error, "Failed to commit transaction");
-                    Status::internal("Failed to commit transaction")
-                })?;
-                return Err(Status::not_found("Group state expired"));
-            }
-            Err(LoadGroupStateError::Status(status)) => {
-                return Err(status);
-            }
-        };
-
-        // Check that the T/PQ indices and signature keys match
-        let Sender::Member(pq_sender_index) = *pq_message.sender().ok_or_missing_field("sender")?
-        else {
-            return Err(Status::invalid_argument(
-                "unexpected pq sender: expected member",
-            ));
-        };
-        if t_sender_index != pq_sender_index {
-            return Err(Status::invalid_argument(
-                "t and pq sender indices do not match",
-            ));
-        }
-        let pq_sender = pq_group_state
-            .group()
-            .leaf(pq_sender_index)
-            .ok_or(Status::invalid_argument("unknown pq sender"))?;
-        if t_sender.signature_key() != pq_sender.signature_key() {
-            return Err(Status::invalid_argument(
-                "t and pq credentials do not match",
-            ));
-        }
-
-        // Process group operation
-        let add_users_info: Option<client_ds::ApqAddUsersInfo> = payload
-            .add_users_info
-            .map(|info| info.try_into())
-            .transpose()?;
-        let (t_add_users_info, pq_add_users_info) = add_users_info.map(|info| info.split()).unzip();
-
-        // Collect destination clients before processing the commit so that new invitees (added by
-        // this commit) don't receive the commit message before their welcome bundle.
-        let destination_clients: Vec<_> = t_group_state
-            .other_destination_clients(t_sender_index)
-            .collect();
-
-        let (serialized_apq_message, t_add_users_state, pq_welcome) =
-            DsGroupState::process_apq_group_operation(
-                &mut t_group_state,
-                &mut pq_group_state,
-                t_message,
-                pq_message,
-                t_add_users_info,
-                pq_add_users_info,
-            )?;
-
-        // Fan out the commit message to the destination clients
-        let timestamp = TimeStamp::now();
-        let apq_payload = QsQueueMessagePayload {
-            timestamp,
-            message_type: QsQueueMessageType::ApqMlsMessage,
-            payload: serialized_apq_message.0,
-        };
-
-        // Generate welcome bundles for new members
-        let mut individual_fan_out_messages = match (t_add_users_state, pq_welcome) {
-            (
-                Some(AddUsersState {
-                    added_users,
-                    welcome: t_welcome,
-                }),
-                Some(pq_welcome),
-            ) => t_group_state.generate_apq_fan_out_messages(
-                added_users,
-                &t_welcome,
-                &pq_welcome,
-                &ear_key,
-            )?,
-            (None, None) => vec![],
-            _ => {
-                warn!("T and PQ group operations inconsistently add users");
-                return Err(Status::invalid_argument("Inconsistent APQ add users info"));
-            }
-        };
-
-        t_group_state.proposals.clear();
-        pq_group_state.proposals.clear();
-
-        let commit_response = t_group_state.create_commit_response(t_sender_index, timestamp)?;
-        individual_fan_out_messages.push(commit_response);
-
-        // Persist and commit the DS state *before* dispatching welcome bundles, so that joiners
-        // fetching welcome info always observe the freshly stored past group state.
-        self.encrypt_and_persist(&mut txn, t_group_data, t_group_state, &ear_key)
+            )
             .await?;
-        self.encrypt_and_persist(&mut txn, pq_group_data, pq_group_state, &ear_key)
-            .await?;
-
-        txn.commit().await.map_err(|error| {
-            error!(%error, "Failed to commit transaction");
-            Status::internal("Failed to commit transaction")
-        })?;
-
-        // Fan out the commit message to existing members
-        self.fan_out_message_without_notifications(apq_payload, destination_clients)
-            .await;
-
-        // Dispatch welcome bundles to new members
-        for message in individual_fan_out_messages {
-            if let Err(e) = self
-                .qs_connector
-                .dispatch(message)
-                .await
-                .map_err(DistributeMessageError::Connector)
-            {
-                error!(%e, "Failed to dispatch message");
-            }
-        }
 
         Ok(Response::new(ApqGroupOperationResponse {
-            fanout_timestamp: Some(timestamp.into()),
+            fanout_timestamp: Some(fanout_timestamp.into()),
         }))
     }
 
@@ -1940,6 +2039,12 @@ impl WithGroupStateEarKey for SelfRemoveRequest {
     }
 }
 
+impl WithGroupStateEarKey for ApqSelfRemoveRequest {
+    fn ear_key_proto(&self) -> Option<&v1::GroupStateEarKey> {
+        self.payload.as_ref()?.group_state_ear_key.as_ref()
+    }
+}
+
 impl WithGroupStateEarKey for WelcomeInfoPayload {
     fn ear_key_proto(&self) -> Option<&v1::GroupStateEarKey> {
         self.group_state_ear_key.as_ref()
@@ -1973,6 +2078,12 @@ impl WithGroupStateEarKey for GetAttachmentUrlPayload {
 impl WithGroupStateEarKey for GroupSessionData {
     fn ear_key_proto(&self) -> Option<&v1::GroupStateEarKey> {
         self.group_state_ear_key.as_ref()
+    }
+}
+
+impl WithGroupStateEarKey for ApqGroupOperationRequest {
+    fn ear_key_proto(&self) -> Option<&v1::GroupStateEarKey> {
+        self.payload.as_ref()?.group_state_ear_key.as_ref()
     }
 }
 
@@ -2046,6 +2157,50 @@ impl WithMessage for ResyncRequest {
             .try_ref_into()
             .invalid_tls("external_commit")?;
         Ok(message)
+    }
+}
+
+/// Request containing an APQ MLS message
+trait WithApqMessage {
+    /// Returns the T and PQ message pair for the request.
+    fn apq_message(&self) -> Result<(AssistedMessageIn, AssistedMessageIn), Status>;
+}
+
+impl WithApqMessage for ApqSelfRemoveRequest {
+    fn apq_message(&self) -> Result<(AssistedMessageIn, AssistedMessageIn), Status> {
+        let payload = self.payload.as_ref().ok_or_missing_field("payload")?;
+        let proposal = payload
+            .remove_proposal
+            .as_ref()
+            .ok_or_missing_field("remove_proposal")?;
+        let t_message = proposal
+            .t_message
+            .as_ref()
+            .ok_or_missing_field("t_message")?;
+        let pq_message = proposal
+            .pq_message
+            .as_ref()
+            .ok_or_missing_field("pq_message")?;
+        Ok((
+            t_message.try_ref_into().invalid_tls("t_message")?,
+            pq_message.try_ref_into().invalid_tls("pq_message")?,
+        ))
+    }
+}
+
+impl WithApqMessage for ApqGroupOperationRequest {
+    fn apq_message(&self) -> Result<(AssistedMessageIn, AssistedMessageIn), Status> {
+        let payload = self.payload.as_ref().ok_or_missing_field("payload")?;
+        let commit = payload.commit.as_ref().ok_or_missing_field("commit")?;
+        let t_message = commit.t_message.as_ref().ok_or_missing_field("t_message")?;
+        let pq_message = commit
+            .pq_message
+            .as_ref()
+            .ok_or_missing_field("pq_message")?;
+        Ok((
+            t_message.try_ref_into().invalid_tls("t_message")?,
+            pq_message.try_ref_into().invalid_tls("pq_message")?,
+        ))
     }
 }
 

@@ -107,7 +107,7 @@ class _AddMembersScreenViewState extends State<AddMembersScreenView> {
         child: Align(
           alignment: Alignment.topCenter,
           child: Container(
-            constraints: isPointer()
+            constraints: DeviceType.isDesktop
                 ? const BoxConstraints(maxWidth: 800)
                 : null,
             child: Column(

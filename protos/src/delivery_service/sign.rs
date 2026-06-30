@@ -110,6 +110,14 @@ impl_signed_payload!(
     seal = private_mod::Seal,
 );
 
+impl_signed_payload!(
+    request = super::v1::ApqSelfRemoveRequest,
+    payload = super::v1::ApqSelfRemovePayload,
+    key_type = ClientKeyType,
+    label = "ApqSelfRemovePayload",
+    seal = private_mod::Seal,
+);
+
 mod private_mod {
     #[derive(Default)]
     pub struct Seal;

@@ -79,13 +79,16 @@ class GlassCircleButton extends StatelessWidget {
       circle = Opacity(opacity: 0.4, child: circle);
     }
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onPressed,
-      onLongPress: onLongPress,
-      child: SizedBox.square(
-        dimension: hitSize,
-        child: Center(child: circle),
+    return MouseRegion(
+      cursor: enabled ? SystemMouseCursors.click : MouseCursor.defer,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onPressed,
+        onLongPress: onLongPress,
+        child: SizedBox.square(
+          dimension: hitSize,
+          child: Center(child: circle),
+        ),
       ),
     );
   }

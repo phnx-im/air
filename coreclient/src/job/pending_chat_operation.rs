@@ -47,8 +47,8 @@ const RETRY_INTERVAL: Duration = Duration::seconds(1);
 
 #[derive(Clone, Serialize, Deserialize)]
 pub(super) enum OperationType {
-    Leave(SelfRemoveParamsOut),
-    Delete(DeleteGroupParamsOut),
+    Leave(Box<SelfRemoveParamsOut>),
+    Delete(Box<DeleteGroupParamsOut>),
     Other {
         params: Box<GroupOperationParamsOut>,
         /// New chat picture (if any)
@@ -266,14 +266,18 @@ impl PendingChatOperation {
         if let OperationType::Leave(leave_params) = &mut self.operation
             // This is always Some, because we know the MlsMessage is a
             // PublicMessage
-            && let Some(message_epoch) = leave_params.remove_proposal.epoch()
+            && let Some(message_epoch) = leave_params.t_remove_proposal.epoch()
             && message_epoch != self.group.mls_group().epoch()
             && self.number_of_attempts > 0
         {
-            *leave_params = self
-                .group
-                .group_mut()
-                .stage_leave_group(db.write().await?, signer)?;
+            // No need to check the PQ epoch (if any) because a different PQ epoch implies a
+            // different T epoch.
+            let restaged = self.group.group_mut().restage_leave_group(
+                db.write().await?,
+                signer,
+                leave_params,
+            )?;
+            **leave_params = restaged;
         }
 
         let encrypt_user_profile_key =
@@ -293,12 +297,12 @@ impl PendingChatOperation {
         let res = match self.operation.clone() {
             OperationType::Leave(params) => {
                 api_client
-                    .ds_self_remove(params, signer, self.group.group_state_ear_key())
+                    .ds_self_remove(*params, signer, self.group.group_state_ear_key())
                     .await
             }
             OperationType::Delete(params) => {
                 api_client
-                    .ds_delete_group(params, signer, self.group.group_state_ear_key())
+                    .ds_delete_group(*params, signer, self.group.group_state_ear_key())
                     .await
             }
             OperationType::Other {
@@ -576,7 +580,7 @@ impl PendingChatOperation {
 
         let params = group.group_mut().stage_leave_group(&mut *txn, signer)?;
 
-        let job = Self::new(group, OperationType::Leave(params));
+        let job = Self::new(group, OperationType::Leave(Box::new(params)));
         job.store(txn).await?;
         Ok(job)
     }
@@ -663,7 +667,7 @@ impl PendingChatOperation {
         } else {
             let message = group.group_mut().stage_delete(&mut *txn, signer).await?;
 
-            let job = Self::new(group, OperationType::Delete(message));
+            let job = Self::new(group, OperationType::Delete(Box::new(message)));
             job.store(txn).await?;
             Ok(Some(job))
         }
@@ -1203,7 +1207,8 @@ mod tests {
         let leave_params = group
             .group_mut()
             .stage_leave_group(pool.write().await?, &signing_key)?;
-        let pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
+        let pending =
+            PendingChatOperation::new(group, OperationType::Leave(Box::new(leave_params)));
 
         pending.store(pool.write().await?).await?;
 
@@ -1226,7 +1231,8 @@ mod tests {
         let leave_params = group
             .group_mut()
             .stage_leave_group(&mut connection, &signing_key)?;
-        let mut pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
+        let mut pending =
+            PendingChatOperation::new(group, OperationType::Leave(Box::new(leave_params)));
         pending.store(&mut connection).await?;
 
         let new_timestamp = Utc::now() + Duration::seconds(30);
@@ -1250,7 +1256,8 @@ mod tests {
         let leave_params = group
             .group_mut()
             .stage_leave_group(&mut connection, &signing_key)?;
-        let pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
+        let pending =
+            PendingChatOperation::new(group, OperationType::Leave(Box::new(leave_params)));
         pending.store(&mut connection).await?;
 
         // Initially the job is ready to retry.
@@ -1282,7 +1289,8 @@ mod tests {
         let leave_params = group
             .group_mut()
             .stage_leave_group(pool.write().await?, &signing_key)?;
-        let mut pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
+        let mut pending =
+            PendingChatOperation::new(group, OperationType::Leave(Box::new(leave_params)));
 
         // A "group not found" response from the DS must be classified as
         // NotFound so the group is torn down, not retried as a generic fatal.
@@ -1302,7 +1310,8 @@ mod tests {
         let leave_params = group
             .group_mut()
             .stage_leave_group(&mut connection, &signing_key)?;
-        let pending = PendingChatOperation::new(group, OperationType::Leave(leave_params));
+        let pending =
+            PendingChatOperation::new(group, OperationType::Leave(Box::new(leave_params)));
         pending.store(&mut connection).await?;
 
         // Delete and ensure the row is gone.

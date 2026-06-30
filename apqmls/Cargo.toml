@@ -1,0 +1,27 @@
+# SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+[package]
+name = "apqmls"
+description = "Amortized Post-Quantum MLS Combiner"
+authors = ["Phoenix R&D GmbH <hello@phnx.im>"]
+version = "0.1.0"
+edition = "2024"
+license = "AGPL-3.0-or-later"
+
+[dependencies]
+openmls.workspace = true
+openmls_basic_credential.workspace = true
+openmls_traits.workspace = true
+serde.workspace = true
+tap.workspace = true
+thiserror.workspace = true
+tls_codec.workspace = true
+
+[dev-dependencies]
+# `test-utils` exposes `MlsGroup::export_group_context` for the group context tests
+openmls = { workspace = true, features = ["test-utils"] }
+openmls_memory_storage.workspace = true
+openmls_rust_crypto.workspace = true
+openmls_sqlite_storage.workspace = true

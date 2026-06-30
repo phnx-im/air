@@ -1,0 +1,98 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                reaction_mimi_id AS \"reaction_mimi_id: _\",\n                target_mimi_id AS \"target_mimi_id: _\",\n                chat_id AS \"chat_id: _\",\n                sender_user_uuid AS \"sender_user_uuid: _\",\n                sender_user_domain AS \"sender_user_domain: _\",\n                emoji,\n                created_at AS \"created_at: _\"\n            FROM reaction\n            WHERE target_mimi_id = ?\n            ORDER BY created_at ASC, reaction_mimi_id ASC",
+  "describe": {
+    "columns": [
+      {
+        "name": "reaction_mimi_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "reaction_mimi_id"
+          }
+        }
+      },
+      {
+        "name": "target_mimi_id: _",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "target_mimi_id"
+          }
+        }
+      },
+      {
+        "name": "chat_id: _",
+        "ordinal": 2,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "chat_id"
+          }
+        }
+      },
+      {
+        "name": "sender_user_uuid: _",
+        "ordinal": 3,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "sender_user_uuid"
+          }
+        }
+      },
+      {
+        "name": "sender_user_domain: _",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "sender_user_domain"
+          }
+        }
+      },
+      {
+        "name": "emoji",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "emoji"
+          }
+        }
+      },
+      {
+        "name": "created_at: _",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "fa868eb28398daf00b93f5cc2123edaa50984e0247817bb949c3af46f3f7c7c8"
+}

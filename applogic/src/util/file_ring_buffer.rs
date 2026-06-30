@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use bytes::Buf;
+use bytes::{Buf, BufMut};
 use memmap2::{MmapMut, MmapOptions};
 use parking_lot::Mutex;
 
@@ -12,20 +12,36 @@ use std::{fs::OpenOptions, io, ops::DerefMut, path::Path};
 ///
 /// ## Memory Layout
 ///
-/// The first 8 bytes store a little-endian encoded `u64`, representing the position of the buffer's tail.
-/// This is the position where data will be written on the next call to [`std::io::Write::write`].
-/// The rest of the buffer contains its fixed-length storage. Unwritten bytes are initialized to `0`.
+/// ```
+/// [ HEADER: 16 bytes                    ] [ DATA ]
+/// [ MAGIC: 8 bytes ] [ WRITTEN: 8 bytes ] [ ...  ]
+/// ```
 ///
-/// The tolal size of the buffer in memory is `len + 8`.
+/// * MAGIC is a magic number that identifies the file as a ring buffer, 8
+///   bytes.
+/// * WRITTEN is the total number of bytes ever written to the buffer, including
+///   bytes that were later overwritten. u64 stored in little-endian format, 8
+///   bytes.
 ///
-/// When reading, *all* data is always read, starting at the tail and proceeding circularly until
-/// it reaches the tail again (exclusive). Notably, the buffer's length remains constant.
+/// If the MAGIC constant does not match, the file is overwritten with a fresh
+/// ring buffer (filled with 0). This is what discards files written in an
+/// older/incompatible format.
+///
+/// The total size of the buffer in memory is `16 + len`.
+///
+/// The write position is `WRITTEN % len`. While `WRITTEN <= len` the buffer has
+/// not wrapped and only `[0, WRITTEN)` holds valid data; once `WRITTEN > len`
+/// the whole `len`-byte buffer is valid. Reading returns exactly this valid
+/// window, oldest byte first, never the unwritten remainder, so the unwritten
+/// (zero-filled) region can never leak into the data.
 #[derive(Debug)]
 pub struct FileRingBuffer {
     mmap: MmapMut,
 }
 
-const HEADER_LEN: usize = 8;
+const HEADER_LEN: usize = 16;
+const MAGIC: u64 = 0x4149_524C_4F47_0002; // AIRLOG v2
+const WRITTEN_OFFSET: usize = 8;
 
 impl FileRingBuffer {
     pub fn open(file_path: impl AsRef<Path>, len: usize) -> io::Result<Self> {
@@ -38,14 +54,17 @@ impl FileRingBuffer {
 
         file.set_len((HEADER_LEN + len).try_into().expect("usize overflow"))?;
 
-        let mmap = unsafe { MmapOptions::new().map_mut(&file)? };
-        let mut buf = Self { mmap };
+        let mut mmap = unsafe { MmapOptions::new().map_mut(&file)? };
 
-        // ensure: tail < self.data().len()
-        let tail = buf.read_tail();
-        buf.write_tail(tail % buf.data().len());
+        if (&mmap[..HEADER_LEN]).get_u64_le() != MAGIC {
+            // old format, fresh or garbage file => discard and reinit
+            mmap.fill(0);
+            let mut buf = &mut *mmap;
+            buf.put_u64_le(MAGIC);
+            buf.put_u64_le(0); // written = 0
+        }
 
-        Ok(buf)
+        Ok(Self { mmap })
     }
 
     pub fn anon(len: usize) -> io::Result<Self> {
@@ -55,10 +74,10 @@ impl FileRingBuffer {
 
     /// Clears the buffer.
     ///
-    /// Note that the length of the buffer remains unchanged, but all data is overwritten with zero
-    /// bytes.
+    /// Note that the length of the buffer remains unchanged, but all data is
+    /// overwritten with zero bytes.
     pub fn clear(&mut self) {
-        self.mmap.fill(0); // this also sets the tail to 0
+        self.mmap[WRITTEN_OFFSET..].fill(0); // this also sets written to 0
     }
 
     /// Returns `true` if the buffer is empty, that is, [`Self::len()`] is 0.
@@ -68,33 +87,51 @@ impl FileRingBuffer {
 
     /// Returns the length of the buffer.
     ///
-    /// The length of the buffer is constant and remains the same as it was during creation.
+    /// The length of the buffer is constant and remains the same as it was
+    /// during creation.
     pub fn len(&self) -> usize {
         self.data().len()
     }
 
-    /// Returns a `Buf` implementation for reading the data.
+    /// Returns a [`Buf`] over the valid data, oldest byte first.
     ///
-    /// Full buffer is read, starting at the last non-overwritten position.
+    /// This is `[0, written)` while the buffer has not wrapped, otherwise the
+    /// whole buffer starting at the current write position. The unwritten
+    /// remainder is never included.
     pub fn buf(&self) -> impl Buf + '_ {
+        let len = self.data().len();
+        let written = self.read_written();
+        let pos = if written > len { written % len } else { 0 };
+        let remaining = written.min(len);
         RingBufferReader {
             buf: self,
-            pos: self.read_tail(),
-            flipped: false,
+            pos,
+            remaining,
         }
     }
 
-    /// Tail is encoded as 8-bytes header in u64 little-endian format
+    /// Returns the current write position (`written % len`), where the next
+    /// byte will be written.
     fn read_tail(&self) -> usize {
-        u64::from_le_bytes(self.mmap[..HEADER_LEN].try_into().expect("logic error"))
-            .try_into()
-            .expect("usize overflow")
+        let len = self.data().len();
+        if len == 0 {
+            return 0;
+        }
+        self.read_written() % len
     }
 
-    /// Tail is encoded as 8-bytes header in u64 little-endian format
-    fn write_tail(&mut self, tail: usize) {
-        let tail: u64 = tail.try_into().expect("usize overflow");
-        self.mmap[..HEADER_LEN].copy_from_slice(&tail.to_le_bytes());
+    /// Written is encoded in the 16-bytes header after MAGIC in u64
+    /// little-endian format
+    fn read_written(&self) -> usize {
+        let mut buf = &self.mmap[WRITTEN_OFFSET..WRITTEN_OFFSET + 8];
+        buf.get_u64_le().try_into().expect("usize overflow")
+    }
+
+    /// Written is encoded in the 16-bytes header after MAGIC in u64
+    /// little-endian format
+    fn write_written(&mut self, written: usize) {
+        let written: u64 = written.try_into().expect("usize overflow");
+        self.mmap[WRITTEN_OFFSET..WRITTEN_OFFSET + 8].copy_from_slice(&written.to_le_bytes());
     }
 
     fn data(&self) -> &[u8] {
@@ -112,8 +149,9 @@ impl FileRingBuffer {
         }
 
         if self.len() <= new_data.len() {
-            // This is equivalent to writing the new_data to the circular buffer and overwriting
-            // the non-fitting prefix. Only the suffix of the new_data that fits in the buffer is written.
+            // This is equivalent to writing the new_data to the circular buffer and
+            // overwriting the non-fitting prefix. Only the suffix of the
+            // new_data that fits in the buffer is written.
             let offset = new_data.len() - self.len();
             new_data = &new_data[offset..];
         }
@@ -131,8 +169,8 @@ impl FileRingBuffer {
         data[tail..tail + left_len].copy_from_slice(left_data);
         data[..right_len].copy_from_slice(right_data);
 
-        let tail = (tail + new_data.len()) % data.len();
-        self.write_tail(tail);
+        let written = self.read_written() + new_data.len();
+        self.write_written(written);
 
         Ok(())
     }
@@ -153,48 +191,33 @@ impl io::Write for FileRingBuffer {
 struct RingBufferReader<'a> {
     buf: &'a FileRingBuffer,
     pos: usize,
-    flipped: bool,
+    remaining: usize,
 }
 
 impl Buf for RingBufferReader<'_> {
     fn remaining(&self) -> usize {
-        let pos = self.pos;
-        let tail = self.buf.read_tail();
-
-        if pos < tail {
-            tail - pos
-        } else if self.flipped {
-            0
-        } else {
-            debug_assert!(pos <= self.buf.data().len());
-            self.buf.data().len() - pos
-        }
+        self.remaining
     }
 
     fn chunk(&self) -> &[u8] {
-        let pos = self.pos;
-        let tail = self.buf.read_tail();
-        if pos < tail {
-            &self.buf.data()[pos..tail]
-        } else if self.flipped {
-            &[]
-        } else {
-            &self.buf.data()[pos..]
+        if self.remaining == 0 {
+            return &[];
         }
+        let data = self.buf.data();
+        let end = (self.pos + self.remaining).min(data.len());
+        &data[self.pos..end]
     }
 
     fn advance(&mut self, cnt: usize) {
-        let len = self.buf.data().len();
-        let new_pos = self.pos + cnt;
-        let (div, new_pos) = (new_pos / len, new_pos % len);
-        self.flipped = self.flipped || div > 0;
-        self.pos = new_pos;
+        self.pos = (self.pos + cnt) % self.buf.data().len();
+        self.remaining -= cnt;
     }
 }
 
 /// A thread-safe wrapper around [`FileRingBuffer`].
 ///
-/// `Arc<FileRingBufferLock>` can be used as a writer for [`tracing_subscriber::fmt::Subscriber`].
+/// `Arc<FileRingBufferLock>` can be used as a writer for
+/// [`tracing_subscriber::fmt::Subscriber`].
 #[derive(Debug)]
 pub struct FileRingBufferLock {
     inner: Mutex<FileRingBuffer>,
@@ -243,9 +266,9 @@ mod tests {
         write!(ring_buffer, "{data}").unwrap();
 
         let mut lines = ring_buffer.buf().reader().lines().map_while(Result::ok);
-        // The buffer is larger than the data which was written to it, so the remaining space is
-        // filled with 0 byte.
-        assert_eq!(lines.next().unwrap(), format!("\0\0\0{data}"));
+        // Only the bytes actually written are part of the valid window; the
+        // unwritten remainder of the buffer is not read back.
+        assert_eq!(lines.next().unwrap(), data);
         assert_eq!(lines.next(), None);
 
         Ok(())
@@ -297,15 +320,18 @@ mod tests {
         let len = capacity as usize;
 
         let mut ring_buffer = FileRingBuffer::anon(len)?;
-        let mut model_buffer = vec![0u8; len];
+        // The model holds only the valid window (no zero padding): the most
+        // recent `len` bytes that were actually written.
+        let mut model_buffer: Vec<u8> = Vec::new();
 
         for data in data {
             ring_buffer.write_all(data.as_bytes())?;
 
             let offset = data.len().saturating_sub(len);
-            let data = &data.as_bytes()[offset..];
-            model_buffer.extend(data);
-            model_buffer = model_buffer.split_off(model_buffer.len() - len);
+            model_buffer.extend_from_slice(&data.as_bytes()[offset..]);
+            if model_buffer.len() > len {
+                model_buffer.drain(..model_buffer.len() - len);
+            }
         }
 
         let mut ring_buffer_data = Vec::new();
@@ -315,6 +341,124 @@ mod tests {
             .read_to_end(&mut ring_buffer_data)?;
         assert_eq!(ring_buffer_data, model_buffer);
 
+        Ok(())
+    }
+
+    fn temp_path(tag: &str) -> std::path::PathBuf {
+        std::env::temp_dir().join(format!(
+            "air_ring_buffer_test_{}_{}.log",
+            std::process::id(),
+            tag
+        ))
+    }
+
+    /// Reproduces the original defect. A stale `written` (e.g. a torn header
+    /// that lags the data actually present in the buffer) used to make the
+    /// reader walk past the frontier, reading leftover data, then the
+    /// unwritten zero region, then wrapping around, which surfaced as a
+    /// multi-megabyte line with NUL bytes spliced into the middle. The
+    /// `written`-bounded reader must only return the valid prefix.
+    #[test]
+    fn stale_written_does_not_read_gap_or_stale_data() -> io::Result<()> {
+        let mut ring_buffer = FileRingBuffer::anon(64)?;
+
+        // Valid data occupies [0, 40); more (now-stale) data is at [40, 56);
+        // [56, 64) was never written and is zero-filled.
+        ring_buffer.write_all(&[b'A'; 40])?;
+        ring_buffer.write_all(&[b'B'; 16])?;
+        assert_eq!(ring_buffer.read_written(), 56);
+
+        // Simulate a torn/stale header that lags the real data extent.
+        ring_buffer.write_written(40);
+
+        let mut out = Vec::new();
+        ring_buffer.buf().reader().read_to_end(&mut out)?;
+
+        // Only the valid prefix is returned: no zero gap (the symptom of the
+        // bug) and no stale 'B' bytes from beyond the recorded frontier.
+        assert_eq!(out, vec![b'A'; 40]);
+        assert!(!out.contains(&0), "read must not contain NUL bytes");
+        assert!(!out.contains(&b'B'), "read must not contain stale data");
+
+        Ok(())
+    }
+
+    #[test]
+    fn wrapped_read_returns_last_len_bytes() -> io::Result<()> {
+        let mut ring_buffer = FileRingBuffer::anon(8)?;
+        ring_buffer.write_all(b"01234")?; // written = 5
+        ring_buffer.write_all(b"56789")?; // written = 10, wraps
+        assert_eq!(ring_buffer.read_written(), 10);
+
+        let mut out = Vec::new();
+        ring_buffer.buf().reader().read_to_end(&mut out)?;
+        // The valid window is the last `len` (= 8) bytes of "0123456789".
+        assert_eq!(out, b"23456789");
+
+        Ok(())
+    }
+
+    #[test]
+    fn clear_empties_buffer() -> io::Result<()> {
+        let mut ring_buffer = FileRingBuffer::anon(64)?;
+        ring_buffer.write_all(b"some data\n")?;
+        ring_buffer.clear();
+
+        assert_eq!(ring_buffer.read_written(), 0);
+        let mut out = Vec::new();
+        ring_buffer.buf().reader().read_to_end(&mut out)?;
+        assert!(out.is_empty());
+
+        Ok(())
+    }
+
+    /// An existing file without our MAGIC (old format / garbage) must be fully
+    /// discarded on open, so stale old-format bytes never leak into reads.
+    #[test]
+    fn open_discards_old_format_file() -> io::Result<()> {
+        let path = temp_path("old_format");
+        let _ = std::fs::remove_file(&path);
+
+        // Old format: an 8-byte tail header (a small value, never == MAGIC)
+        // followed by old log data.
+        {
+            let mut f = std::fs::File::create(&path)?;
+            f.write_all(&123u64.to_le_bytes())?;
+            f.write_all(b"OLD LOG LINE\n")?;
+            f.flush()?;
+        }
+
+        let ring_buffer = FileRingBuffer::open(&path, 64)?;
+
+        assert_eq!(ring_buffer.read_written(), 0);
+        let mut out = Vec::new();
+        ring_buffer.buf().reader().read_to_end(&mut out)?;
+        assert!(out.is_empty(), "old-format data must be wiped on open");
+
+        let _ = std::fs::remove_file(&path);
+        Ok(())
+    }
+
+    /// A file written with the current format must be recognized via MAGIC on
+    /// reopen and its data kept (no reinit).
+    #[test]
+    fn open_persists_and_reopens_without_wiping() -> io::Result<()> {
+        let path = temp_path("persist");
+        let _ = std::fs::remove_file(&path);
+
+        {
+            let mut ring_buffer = FileRingBuffer::open(&path, 64)?;
+            writeln!(ring_buffer, "persisted line")?;
+            ring_buffer.flush()?;
+        }
+
+        let ring_buffer = FileRingBuffer::open(&path, 64)?;
+        let mut lines = ring_buffer.buf().reader().lines().map_while(Result::ok);
+        assert_eq!(lines.next().unwrap(), "persisted line");
+        assert_eq!(lines.next(), None);
+        drop(lines);
+
+        let _ = std::fs::remove_file(&path);
         Ok(())
     }
 }
