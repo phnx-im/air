@@ -688,7 +688,7 @@ impl TestBackend {
         let last_message = user1_messages.last().unwrap();
 
         user1
-            .mark_as_read([(user1_chat_id, last_message.timestamp())].into_iter())
+            .mark_as_read([(user1_chat_id, last_message.timestamp())])
             .await
             .unwrap();
 
@@ -702,7 +702,7 @@ impl TestBackend {
         assert_eq!(user2_messages.len(), 1);
         let last_message = user2_messages.last().unwrap();
         user2
-            .mark_as_read([(user2_chat_id, last_message.timestamp())].into_iter())
+            .mark_as_read([(user2_chat_id, last_message.timestamp())])
             .await
             .unwrap();
 
@@ -1282,7 +1282,7 @@ impl TestBackend {
             let recipients: Vec<_> = invitees
                 .iter()
                 .filter(|&name| name != invitee_id)
-                .chain([&inviter_id].into_iter())
+                .chain([&inviter_id])
                 .cloned()
                 .collect();
             self.send_message(chat_id, invitee_id, recipients, None)

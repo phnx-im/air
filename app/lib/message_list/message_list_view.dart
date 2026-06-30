@@ -14,7 +14,7 @@ import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/themes.dart';
 import 'package:air/user/user.dart';
-import 'package:air/util/platform.dart';
+import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/widgets/anchored_list/anchored_list.dart';
 import 'package:air/widgets/anchored_list/controller.dart';
 import 'package:air/widgets/widgets.dart';
@@ -261,7 +261,7 @@ class _MessageListViewState extends State<MessageListView>
   /// Dismisses the keyboard once a drag has pulled down past
   /// [_keyboardDismissDragThreshold].
   void _maybeDismissKeyboardOnDrag(ScrollUpdateNotification notification) {
-    if (!PlatformExtension.isMobile || _keyboardDismissedThisDrag) return;
+    if (!DeviceType.isPhone || _keyboardDismissedThisDrag) return;
     final drag = notification.dragDetails;
     if (drag == null) return;
     _downwardDragSinceStart = max(0, _downwardDragSinceStart + drag.delta.dy);
@@ -393,7 +393,7 @@ class _MessageListViewState extends State<MessageListView>
 
       // On mobile, we want to dismiss the keyboard by tapping anywhere in the
       // list, except when tapping interactive elements like e.g. links.
-      if (PlatformExtension.isMobile) {
+      if (DeviceType.isPhone) {
         list = GestureDetector(
           behavior: HitTestBehavior.translucent,
           onTap: () => FocusScope.of(context).unfocus(),

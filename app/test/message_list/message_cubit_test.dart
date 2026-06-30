@@ -34,6 +34,7 @@ void main() {
         ),
         position: UiFlightPosition.single,
         status: UiMessageStatus.sent,
+        reactions: [],
       );
       final b = UiChatMessage(
         id: 1.messageId(),
@@ -54,6 +55,7 @@ void main() {
         ),
         position: UiFlightPosition.single,
         status: UiMessageStatus.sent,
+        reactions: [],
       );
       expect(a, equals(b));
     });

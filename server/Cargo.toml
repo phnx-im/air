@@ -35,6 +35,7 @@ chrono.workspace = true
 clap = { workspace = true, features = ["derive"] }
 config.workspace = true
 futures-core.workspace = true
+indexmap.workspace = true
 jsonwebtoken.workspace = true
 metrics.workspace = true
 metrics-exporter-prometheus.workspace = true

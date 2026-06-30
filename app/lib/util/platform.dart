@@ -266,8 +266,13 @@ FutureOr<void> cancelNotifications(List<NotificationId> identifiers) async {
   }
 }
 
-extension PlatformExtension on Platform {
-  static bool get isMobile => Platform.isAndroid || Platform.isIOS;
-  static bool get isDesktop =>
-      Platform.isMacOS || Platform.isLinux || Platform.isWindows;
+extension TargetPlatformExtension on TargetPlatform {
+  String get name => switch (this) {
+    TargetPlatform.android => "Android",
+    TargetPlatform.iOS => "iOS",
+    TargetPlatform.linux => "Linux",
+    TargetPlatform.macOS => "macOS",
+    TargetPlatform.windows => "Windows",
+    TargetPlatform.fuchsia => "Fuchsia",
+  };
 }

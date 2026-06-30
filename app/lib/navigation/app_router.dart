@@ -12,6 +12,7 @@ import 'package:air/developer/developer.dart';
 import 'package:air/home_screen.dart';
 import 'package:air/intro_screen.dart';
 import 'package:air/registration/registration.dart';
+import 'package:air/registration/multi_device_provision_screen.dart';
 import 'package:air/ds/theme/theme.dart';
 import 'package:air/user/user.dart';
 import 'package:air/core/core.dart';
@@ -178,6 +179,9 @@ extension on IntroScreenType {
     IntroScreenType_UsernameOnboarding() => const ValueKey(
       "username-onboarding-screen",
     ),
+    IntroScreenType_Linking() => const ValueKey(
+      "linking-existing-device-screen",
+    ),
     IntroScreenType_DeveloperSettings(field0: final screen) => ValueKey(
       "developer-settings-screen-$screen",
     ),
@@ -187,6 +191,7 @@ extension on IntroScreenType {
     IntroScreenType_InvitationCode() => const InvitationCodeScreen(),
     IntroScreenType_SignUp() => const SignUpScreen(),
     IntroScreenType_UsernameOnboarding() => const UsernameOnboardingScreen(),
+    IntroScreenType_Linking() => const MultiDeviceProvisionScreen(),
     IntroScreenType_DeveloperSettings(field0: final screen) => switch (screen) {
       DeveloperSettingsScreenType.root => const DeveloperSettingsScreen(),
       DeveloperSettingsScreenType.changeUser => const ChangeUserScreen(),

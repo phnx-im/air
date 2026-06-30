@@ -5,7 +5,7 @@
 use std::slice;
 
 use aircoreclient::{
-    DisplayName, EventMessage, Message, SystemMessage, UserProfile,
+    DisplayName, EventMessage, Message, MessageDraft, SystemMessage, UserProfile,
     clients::{
         listen_response,
         process::process_qs::{QsProcessEventResult, QsStreamProcessor},
@@ -163,6 +163,29 @@ async fn delete_group() {
     setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
     let delete_group = setup.delete_group(chat_id, &alice);
     delete_group.await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Store draft after delete", skip_all)]
+async fn store_draft_after_delete() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let chat_id = setup.create_apq_group(&alice).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+    let _ = alice_user.delete_chat(chat_id).await;
+    alice_user
+        .erase_chat(chat_id)
+        .await
+        .expect("erasing an APQ chat must not fail");
+
+    // The compose field's draft is persisted after the chat has been erased.
+    // This must not trip the `message_draft -> chat` foreign key.
+    alice_user
+        .store_message_draft(chat_id, Some(&MessageDraft::empty()))
+        .await
+        .expect("storing a draft for a deleted chat must not fail");
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]

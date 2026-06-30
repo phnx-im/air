@@ -7,7 +7,6 @@ import 'package:air/ds/foundations/spacing.dart';
 import 'package:air/ds/theme/font.dart';
 import 'package:flutter/material.dart';
 import 'package:air/ds/foundations/themes.dart';
-import 'dart:io' show Platform;
 
 // === Devices ===
 
@@ -17,14 +16,6 @@ bool isSmallScreen(BuildContext context) {
 
 bool isLargeScreen(BuildContext context) {
   return MediaQuery.sizeOf(context).width >= kMobileBreakpoint;
-}
-
-bool isTouch() {
-  return Platform.isIOS || Platform.isAndroid;
-}
-
-bool isPointer() {
-  return Platform.isLinux || Platform.isMacOS || Platform.isWindows;
 }
 
 // === Buttons ===

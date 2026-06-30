@@ -48,6 +48,7 @@ UiChatMessage _msg(int id, String text, {UiUserId? sender}) => UiChatMessage(
   ),
   position: UiFlightPosition.single,
   status: UiMessageStatus.sent,
+  reactions: [],
 );
 
 UiChatDetails _chatWithDraft(UiMessageDraft draft) => UiChatDetails(
