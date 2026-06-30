@@ -10,7 +10,7 @@ pub mod common;
 pub mod convert;
 pub mod delivery_service;
 pub mod queue_service;
-#[macro_use]
-pub(crate) mod sign;
 pub mod relay_service;
+#[macro_use]
+pub mod signed;
 pub mod validation;

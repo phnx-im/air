@@ -472,6 +472,10 @@ message InitListenUsernameRequest {
   UsernameSignature signature = 2;
 }
 
+// WARNING: The signature is verified against the server's prost *re-encoding*
+// of this message, not the wire bytes. Therefore, to keep verifying signatures
+// from older clients the encoding must be stable: never reorder, renumber, or
+// remove fields (adding optional fields is fine).
 message InitListenUsernamePayload {
   common.v1.ClientMetadata client_metadata = 2;
   UsernameHash hash = 1;

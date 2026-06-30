@@ -245,13 +245,29 @@ class _AttachmentImageState extends State<AttachmentImage> {
 
     final Widget? foreground;
     if (_isAnimated == false) {
-      foreground = Image(
-        image: AttachmentImageProvider(
-          attachment: widget.attachment,
-          attachmentsRepository: context.read<AttachmentsRepository>(),
-        ),
-        fit: widget.fit,
-        alignment: Alignment.center,
+      foreground = LayoutBuilder(
+        builder: (context, constraints) {
+          final dpr = MediaQuery.devicePixelRatioOf(context);
+          final renderingWidth = constraints.maxWidth.isFinite
+              ? (constraints.maxWidth * dpr).round()
+              : null;
+          final renderingHeight = constraints.maxHeight.isFinite
+              ? (constraints.maxHeight * dpr).round()
+              : null;
+          return Image(
+            image: ResizeImage(
+              AttachmentImageProvider(
+                attachment: widget.attachment,
+                attachmentsRepository: context.read<AttachmentsRepository>(),
+              ),
+              width: renderingWidth,
+              height: renderingHeight,
+              allowUpscaling: false,
+            ),
+            fit: widget.fit,
+            alignment: Alignment.center,
+          );
+        },
       );
     } else if (_currentFrame != null) {
       foreground = RawImage(

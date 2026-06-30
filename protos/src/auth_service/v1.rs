@@ -8,6 +8,8 @@ use strum::VariantArray;
 
 tonic::include_proto!("auth_service.v1");
 
+include!(concat!(env!("OUT_DIR"), "/server/auth_service.v1.rs"));
+
 impl OperationType {
     pub fn max_tokens_allowance(&self) -> u16 {
         match self {

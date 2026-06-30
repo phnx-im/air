@@ -27,6 +27,7 @@ use airprotos::{
         self, delivery_service_server::DeliveryService,
         targeted_message_payload::TargetedMessageType, *,
     },
+    signed::{SignedRequest, VerifiableRequest},
     validation::{InvalidTlsExt, MissingFieldExt},
 };
 use chrono::TimeDelta;
@@ -301,18 +302,18 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     /// `Err`.
     ///
     /// If the group state has expired, it is deleted and not found is returned.
-    async fn update_group_state<R, P, T: Send>(
+    async fn update_group_state<R, P, T: Send, const TAG: u32>(
         &self,
-        request: R,
+        request: SignedRequest<R, TAG>,
         sender_index: Option<LeafNodeIndex>,
         f: impl AsyncFnOnce(LeafVerificationData<P, true>) -> Result<T, Status>,
     ) -> Result<T, Status>
     where
-        R: WithGroupStateEarKey + WithMessage + Verifiable,
-        P: VerifiedStruct<R>,
+        R: WithGroupStateEarKey + WithMessage + VerifiableRequest,
+        P: VerifiedStruct<SignedRequest<R, TAG>>,
     {
-        let ear_key = request.ear_key()?;
-        let message = request.message()?;
+        let ear_key = request.inner().ear_key()?;
+        let message = request.inner().message()?;
         let qgid = message.validated_qgid(self.ds.own_domain())?;
 
         let txn = self.ds.db_pool.begin().await.map_err(|error| {
@@ -366,17 +367,17 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     /// rolled back if the function returns `Err`.
     ///
     /// If the group state has expired, it is deleted and [`Status::not_found()`] is returned.
-    async fn update_apq_group_state<R, P, T: Send>(
+    async fn update_apq_group_state<R, P, T: Send, const TAG: u32>(
         &self,
-        request: R,
+        request: SignedRequest<R, TAG>,
         f: impl AsyncFnOnce(ApqVerificationData<'_, P>) -> Result<ApqFanOut<T>, Status>,
     ) -> Result<T, Status>
     where
-        R: WithGroupStateEarKey + WithApqMessage + Verifiable,
-        P: VerifiedStruct<R>,
+        R: WithGroupStateEarKey + WithApqMessage + VerifiableRequest,
+        P: VerifiedStruct<SignedRequest<R, TAG>>,
     {
-        let ear_key = request.ear_key()?;
-        let (t_message, pq_message) = request.apq_message()?;
+        let ear_key = request.inner().ear_key()?;
+        let (t_message, pq_message) = request.inner().apq_message()?;
 
         let t_qgid = t_message.validated_qgid(self.ds.own_domain())?;
         let pq_qgid = pq_message.validated_qgid(self.ds.own_domain())?;
@@ -488,16 +489,16 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     }
 }
 
-fn verify_message<R, P>(
-    request: R,
+fn verify_message<R, P, const TAG: u32>(
+    request: SignedRequest<R, TAG>,
     group_state: &DsGroupState,
     sender_index: Option<LeafNodeIndex>,
 ) -> Result<(P, LeafNodeIndex, AssistedMessageIn), Status>
 where
-    R: WithMessage + Verifiable,
-    P: VerifiedStruct<R>,
+    R: WithMessage + VerifiableRequest,
+    P: VerifiedStruct<SignedRequest<R, TAG>>,
 {
-    let message = request.message()?;
+    let message = request.inner().message()?;
     let (payload, sender_index) = resolve_and_verify(request, &message, group_state, sender_index)?;
     Ok((payload, sender_index, message))
 }
@@ -603,11 +604,12 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
     async fn create_group(
         &self,
-        request: Request<CreateGroupRequest>,
+        request: Request<SignedRequest<CreateGroupRequest>>,
     ) -> Result<Response<CreateGroupResponse>, Status> {
         let request = request.into_inner();
 
         // TODO: signature verification?
+        let request = request.into_inner();
         let payload = request.payload.ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
         let qgid = payload.validated_qgid(&self.ds.own_domain)?;
@@ -722,13 +724,17 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
     async fn create_apq_group(
         &self,
-        request: Request<CreateApqGroupRequest>,
+        request: Request<SignedRequest<CreateApqGroupRequest>>,
     ) -> Result<Response<CreateApqGroupResponse>, Status> {
         let request = request.into_inner();
 
         // First use unverified payload; later we verify it using the client credential from the
         // leaf node.
-        let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         // Extract chat related data
@@ -852,11 +858,12 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
     async fn welcome_info(
         &self,
-        request: Request<WelcomeInfoRequest>,
+        request: Request<SignedRequest<WelcomeInfoRequest, 2>>,
     ) -> Result<Response<WelcomeInfoResponse>, Status> {
         let request = request.into_inner();
 
         let sender: ClientVerifyingKey = request
+            .inner()
             .payload
             .as_ref()
             .ok_or_missing_field("payload")?
@@ -1072,16 +1079,15 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
     async fn resync(
         &self,
-        request: Request<ResyncRequest>,
+        request: Request<SignedRequest<ResyncRequest>>,
     ) -> Result<Response<ResyncResponse>, Status> {
         let request = request.into_inner();
 
-        request
-            .signature
+        let payload = request
+            .inner()
+            .payload
             .as_ref()
-            .ok_or_missing_field("signature")?;
-
-        let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+            .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let sender_index: LeafNodeIndex = payload.sender.ok_or_missing_field("sender")?.into();
@@ -1117,16 +1123,21 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
     async fn self_remove(
         &self,
-        request: Request<SelfRemoveRequest>,
+        request: Request<SignedRequest<SelfRemoveRequest, 2>>,
     ) -> Result<Response<SelfRemoveResponse>, Status> {
         let request = request.into_inner();
 
         request
+            .inner()
             .signature
             .as_ref()
             .ok_or_missing_field("signature")?;
 
-        let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let timestamp = self
@@ -1158,17 +1169,22 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
     async fn apq_self_remove(
         &self,
-        request: Request<ApqSelfRemoveRequest>,
+        request: Request<SignedRequest<ApqSelfRemoveRequest, 1>>,
     ) -> Result<Response<ApqSelfRemoveResponse>, Status> {
         let request = request.into_inner();
 
         // Short circuit requests without a signature
         request
+            .inner()
             .signature
             .as_ref()
             .ok_or_missing_field("signature")?;
 
-        let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let fanout_timestamp = self
@@ -1213,22 +1229,27 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
     async fn send_message(
         &self,
-        request: Request<SendMessageRequest>,
+        request: Request<SignedRequest<SendMessageRequest>>,
     ) -> Result<Response<SendMessageResponse>, Status> {
         let request = request.into_inner();
 
         request
+            .inner()
             .signature
             .as_ref()
             .ok_or_missing_field("signature")?;
 
-        let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let sender_index = payload.sender.ok_or_missing_field("sender")?.into();
 
-        let ear_key = request.ear_key()?;
-        let message = request.message()?;
+        let ear_key = request.inner().ear_key()?;
+        let message = request.inner().message()?;
         let qgid = message.validated_qgid(self.ds.own_domain())?;
 
         // No transaction needed as we do not update the group state and
@@ -1279,16 +1300,21 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
     async fn delete_group(
         &self,
-        request: Request<DeleteGroupRequest>,
+        request: Request<SignedRequest<DeleteGroupRequest>>,
     ) -> Result<Response<DeleteGroupResponse>, Status> {
         let request = request.into_inner();
 
         request
+            .inner()
             .signature
             .as_ref()
             .ok_or_missing_field("signature")?;
 
-        let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let timestamp = self
@@ -1322,16 +1348,21 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
     async fn group_operation(
         &self,
-        request: Request<GroupOperationRequest>,
+        request: Request<SignedRequest<GroupOperationRequest>>,
     ) -> Result<Response<GroupOperationResponse>, Status> {
         let request = request.into_inner();
 
         request
+            .inner()
             .signature
             .as_ref()
             .ok_or_missing_field("signature")?;
 
-        let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let (destination_clients, fan_out_payload, individual_fan_out_messages) = self
@@ -1419,17 +1450,22 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
     async fn apq_group_operation(
         &self,
-        request: Request<ApqGroupOperationRequest>,
+        request: Request<SignedRequest<ApqGroupOperationRequest>>,
     ) -> Result<Response<ApqGroupOperationResponse>, Status> {
         let request = request.into_inner();
 
         // Short circuit requests without a signature
         request
+            .inner()
             .signature
             .as_ref()
             .ok_or_missing_field("signature")?;
 
-        let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let fanout_timestamp = self
@@ -1540,19 +1576,24 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
     async fn update_profile_key(
         &self,
-        request: Request<UpdateProfileKeyRequest>,
+        request: Request<SignedRequest<UpdateProfileKeyRequest, 2>>,
     ) -> Result<Response<UpdateProfileKeyResponse>, Status> {
         let request = request.into_inner();
 
         request
+            .inner()
             .signature
             .as_ref()
             .ok_or_missing_field("signature")?;
 
-        let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
-        let ear_key = request.ear_key()?;
+        let ear_key = request.inner().ear_key()?;
         let qgid = payload.validated_qgid(self.ds.own_domain())?;
         let sender_index = payload.sender.ok_or_missing_field("sender")?.into();
 
@@ -1601,16 +1642,21 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
     async fn provision_attachment(
         &self,
-        request: Request<ProvisionAttachmentRequest>,
+        request: Request<SignedRequest<ProvisionAttachmentRequest>>,
     ) -> Result<Response<ProvisionAttachmentResponse>, Status> {
         let request = request.into_inner();
 
         request
+            .inner()
             .signature
             .as_ref()
             .ok_or_missing_field("signature")?;
 
-        let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         // the payload can be signed in different ways depending of the object type
@@ -1678,16 +1724,21 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
     async fn get_attachment_url(
         &self,
-        request: Request<GetAttachmentUrlRequest>,
+        request: Request<SignedRequest<GetAttachmentUrlRequest>>,
     ) -> Result<Response<GetAttachmentUrlResponse>, Status> {
         let request = request.into_inner();
 
         request
+            .inner()
             .signature
             .as_ref()
             .ok_or_missing_field("signature")?;
 
-        let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         // the payload can be signed in different ways depending of the object type
@@ -1744,22 +1795,27 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
     async fn targeted_message(
         &self,
-        request: Request<TargetedMessageRequest>,
+        request: Request<SignedRequest<TargetedMessageRequest>>,
     ) -> Result<Response<TargetedMessageResponse>, Status> {
         let request = request.into_inner();
 
         request
+            .inner()
             .signature
             .as_ref()
             .ok_or_missing_field("signature")?;
 
-        let payload = request.payload.as_ref().ok_or_missing_field("payload")?;
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let sender_index: LeafNodeIndex = payload.sender.ok_or_missing_field("sender")?.into();
 
-        let ear_key = request.ear_key()?;
-        let message = request.message()?;
+        let ear_key = request.inner().ear_key()?;
+        let message = request.inner().message()?;
         let TargetedMessageType::ApplicationMessage(req) = payload
             .targeted_message_type
             .as_ref()
