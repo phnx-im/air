@@ -158,9 +158,8 @@ impl CoreUser {
 
         // Note: Acquire a transaction here to ensure that the attachment will be deleted from the
         // local database in case of an error.
-        let message = self
-            .db()
-            .with_write_transaction(async |txn| -> anyhow::Result<ChatMessage> {
+        let message = Box::pin(self.db().with_write_transaction(
+            async |txn| -> anyhow::Result<ChatMessage> {
                 let message_id = MessageId::random();
                 let message = self
                     .send_message_transactional(&mut *txn, chat_id, message_id, content)
@@ -180,8 +179,9 @@ impl CoreUser {
                 record.store(txn, Some(content_bytes.as_slice())).await?;
 
                 Ok(message)
-            })
-            .await?;
+            },
+        ))
+        .await?;
 
         // upload the encrypted attachment
         let (progress, task) =

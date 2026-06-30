@@ -10,6 +10,7 @@ use airprotos::{
         LinkClientRequest, LinkClientRequestPayload, LinkingSessionId, RelayFrame,
         relay_service_server::RelayService,
     },
+    signed::SignedRequest,
     validation::MissingFieldExt,
 };
 use futures_util::Stream;
@@ -166,13 +167,14 @@ impl<Qep: QsConnector> RelayService for GrpcRs<Qep> {
             .await?
             .ok_or_else(|| Status::invalid_argument("stream closed before LinkClientRequest"))?;
 
-        let request: LinkClientRequest =
-            prost::Message::decode(first_frame.payload).map_err(|error| {
+        let request: SignedRequest<LinkClientRequest> = prost::Message::decode(first_frame.payload)
+            .map_err(|error| {
                 error!(%error, "failed to decode initial msg");
                 Status::internal("decoding failure")
             })?;
 
         let qs_user_id: Uuid = request
+            .inner()
             .payload
             .as_ref()
             .ok_or_missing_field("payload")?
