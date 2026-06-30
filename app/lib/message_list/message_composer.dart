@@ -8,7 +8,7 @@ import 'dart:ui';
 
 import 'package:air/attachments/attachments.dart';
 import 'package:air/l10n/app_localizations_extension.dart';
-import 'package:air/message_list/emoji_repository.dart';
+import 'package:air/message_list/emoji_data_generated.dart' as emoji_data;
 import 'package:air/message_list/emoji_autocomplete.dart';
 import 'package:air/ds/components/button/glass_circle_button.dart';
 import 'package:air/ds/components/modal/bottom_sheet_modal.dart';
@@ -75,7 +75,7 @@ class _MessageComposerState extends State<MessageComposer>
   String _inputTextCache = '';
   final LayerLink _inputFieldLink = LayerLink();
   final GlobalKey _inputFieldKey = GlobalKey();
-  late final TextAutocompleteController<EmojiEntry> _emojiAutocomplete;
+  late final TextAutocompleteController<emoji_data.Emoji> _emojiAutocomplete;
 
   static final double _buttonSize = _composerButtonSize;
   static final double _inputBorderRadius = _buttonSize / 2;
@@ -87,7 +87,7 @@ class _MessageComposerState extends State<MessageComposer>
     _inputController =
         widget.textEditingController ?? CustomTextEditingController();
     WidgetsBinding.instance.addObserver(this);
-    _emojiAutocomplete = TextAutocompleteController<EmojiEntry>(
+    _emojiAutocomplete = TextAutocompleteController<emoji_data.Emoji>(
       textController: _inputController,
       focusNode: _focusNode,
       inputFieldKey: _inputFieldKey,

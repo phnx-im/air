@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ds/components/button/glass_circle_button.dart';
 import 'package:air/user/users_cubit.dart';
 import 'package:flutter/material.dart';
 
@@ -14,7 +15,7 @@ import 'package:air/ds/theme/theme.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-import 'emoji_picker.dart';
+import 'emoji_repository.dart';
 
 /// Compact reaction chip metrics
 const double _chipSpacing = Spacing.px8;
@@ -285,7 +286,15 @@ class QuickReactionBar extends StatelessWidget {
               emoji: _applyQuickTone(item, skinTone),
               onTap: () => onReact(_applyQuickTone(item, skinTone)),
             ),
-          _QuickMoreButton(onTap: onMore),
+          GlassCircleButton(
+            onPressed: onMore,
+            size: _quickMoreSize,
+            hitTargetSize: _quickTapSize,
+            enableBackdropBlur: false,
+            shadows: const [],
+            color: colors.backgroundBase.secondary,
+            icon: AppIcon.plus(size: 18, color: colors.text.secondary),
+          ),
         ],
       ),
     );
@@ -411,53 +420,24 @@ class _QuickReactionButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: SizedBox(
-        width: _quickTapSize,
-        height: _quickTapSize,
-        child: Center(
-          child: FittedBox(
-            fit: .contain,
-            child: Text(
-              emoji,
-              style: const TextStyle(
-                fontSize: _quickGlyphSize,
-                overflow: .visible,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: SizedBox(
+          width: _quickTapSize,
+          height: _quickTapSize,
+          child: Center(
+            child: FittedBox(
+              fit: .contain,
+              child: Text(
+                emoji,
+                style: const TextStyle(
+                  fontSize: _quickGlyphSize,
+                  overflow: .visible,
+                ),
               ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _QuickMoreButton extends StatelessWidget {
-  const _QuickMoreButton({required this.onTap});
-
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: SizedBox(
-        width: _quickTapSize,
-        height: _quickTapSize,
-        child: Center(
-          child: Container(
-            width: _quickMoreSize,
-            height: _quickMoreSize,
-            decoration: BoxDecoration(
-              color: colors.backgroundBase.secondary,
-              shape: BoxShape.circle,
-            ),
-            child: Center(
-              child: AppIcon.plus(size: 18, color: colors.text.secondary),
             ),
           ),
         ),
@@ -484,39 +464,44 @@ class _ReactionChip extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
     final count = reaction.users.length;
 
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        height: reactionChipHeight,
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.px8,
-          vertical: Spacing.px4,
-        ),
-        decoration: BoxDecoration(
-          color: colors.backgroundElevated.primary,
-          borderRadius: BorderRadius.circular(reactionChipHeight / 2),
-          border: Border.all(color: colors.backgroundBase.primary),
-        ),
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            Text(
-              reaction.emoji,
-              style: TextStyle(fontSize: FontSizes.small2.size, height: 1.0),
-            ),
-            if (count >= 2) ...[
-              const SizedBox(width: Spacing.px4),
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          height: reactionChipHeight,
+          padding: const EdgeInsets.symmetric(
+            horizontal: Spacing.px8,
+            vertical: Spacing.px4,
+          ),
+          decoration: BoxDecoration(
+            color: isSender
+                ? colors.message.selfBackground
+                : colors.message.otherBackground,
+            borderRadius: BorderRadius.circular(reactionChipHeight / 2),
+            border: Border.all(color: colors.backgroundBase.primary),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
               Text(
-                '$count',
-                style: TextStyle(
-                  fontSize: FontSizes.small3.size,
-                  color: colors.text.tertiary,
-                  height: 1.0,
-                ),
+                reaction.emoji,
+                style: TextStyle(fontSize: FontSizes.small2.size, height: 1.0),
               ),
+              if (count >= 2) ...[
+                const SizedBox(width: Spacing.px4),
+                Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: FontSizes.small3.size,
+                    color: colors.text.tertiary,
+                    height: 1.0,
+                  ),
+                ),
+              ],
             ],
-          ],
+          ),
         ),
       ),
     );
@@ -710,9 +695,8 @@ class _WhoReactedSheetState extends State<WhoReactedSheet> {
         _selected = null;
       }
     });
-    if (_reactions.isEmpty) {
-      Navigator.of(context).maybePop();
-    }
+
+    Navigator.of(context).maybePop();
   }
 
   @override
@@ -845,15 +829,18 @@ class _ReactorRow extends StatelessWidget {
             ),
           ),
           if (onRemove != null) ...[
-            GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: onRemove,
-              // TODO(l10n): localize "Remove".
-              child: Text(
-                'Remove',
-                style: TextStyle(
-                  fontSize: FontSizes.base.size,
-                  color: colors.function.danger,
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: onRemove,
+                // TODO(l10n): localize "Remove".
+                child: Text(
+                  'Remove',
+                  style: TextStyle(
+                    fontSize: FontSizes.base.size,
+                    color: colors.function.danger,
+                  ),
                 ),
               ),
             ),

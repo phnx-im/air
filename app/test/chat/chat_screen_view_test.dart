@@ -4,6 +4,7 @@
 
 import 'dart:typed_data';
 
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -192,7 +193,7 @@ void main() {
         // Scroll so the explanatory messages are visible and the long
         // message at the bottom is partially hidden by the composer.
         await tester.drag(find.byType(CustomScrollView), const Offset(0, 640));
-        await tester.pump();
+        await tester.pump(kDoubleTapTimeout);
 
         await expectLater(
           find.byType(MaterialApp),

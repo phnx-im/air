@@ -11,6 +11,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/jumbo_emoji.dart';
 import 'package:air/message_list/emoji_picker.dart';
+import 'package:air/message_list/emoji_repository.dart';
 import 'package:air/message_list/message_composer.dart';
 import 'package:air/message_list/message_list_cubit.dart';
 import 'package:air/message_list/message_reactions.dart';
@@ -312,6 +313,8 @@ class _MessageView extends HookWidget {
       () => ValueNotifier<Offset?>(null),
     );
     final messageBubbleKey = useMemoized(() => GlobalKey());
+    final contextMenuKey = useMemoized(() => GlobalKey<ContextMenuState>());
+    final reactButtonKey = useMemoized(() => GlobalKey());
     final isDetached = useState(false);
     final isHovered = useState(false);
     useEffect(() {
@@ -345,15 +348,16 @@ class _MessageView extends HookWidget {
     final skinTone = EmojiSkinTone
         .values[skinToneIndex.clamp(0, EmojiSkinTone.values.length - 1)];
 
-    Rect? reactionAnchorRect() {
-      final shellContext = messageBubbleKey.currentContext;
-      final renderObject = shellContext?.findRenderObject();
+    Rect? globalRectOf(GlobalKey key) {
+      final renderObject = key.currentContext?.findRenderObject();
       if (renderObject is! RenderBox || !renderObject.hasSize) {
         return null;
       }
       final origin = renderObject.localToGlobal(Offset.zero);
       return origin & renderObject.size;
     }
+
+    Rect? reactionAnchorRect() => globalRectOf(messageBubbleKey);
 
     void sendReaction(String emoji) {
       context.read<ChatDetailsCubit>().sendReaction(
@@ -391,13 +395,19 @@ class _MessageView extends HookWidget {
       }
     }
 
-    void openReactionMenu() {
-      final anchor = reactionAnchorRect();
-      if (anchor == null) return;
+    void openReactionMenu({GlobalKey? anchorKey}) {
+      // Anchor to the context menu (if open) or to the triggering button, so the
+      // reaction bar appears just above whatever was tapped. Fall back to the
+      // message bubble (e.g. double-tap to react).
+      final anchorRect =
+          contextMenuKey.currentState?.currentMenuRect ??
+          (anchorKey != null ? globalRectOf(anchorKey) : null) ??
+          reactionAnchorRect();
+      if (anchorRect == null) return;
       unawaited(
         showQuickReactionMenu(
           context: context,
-          anchorRect: anchor,
+          anchorRect: anchorRect,
           alignEnd: isSender,
           skinTone: skinTone,
           onReact: sendReaction,
@@ -414,7 +424,7 @@ class _MessageView extends HookWidget {
           reactions: reactions,
           ownUserId: ownUserId,
           initialEmoji: tappedEmoji,
-          onRemove: (emoji) => chatDetailsCubit.removeReaction(
+          onRemove: (emoji) => chatDetailsCubit.deleteReaction(
             messageId: messageId,
             emoji: emoji,
           ),
@@ -703,8 +713,9 @@ class _MessageView extends HookWidget {
             child: IgnorePointer(
               ignoring: !isHovered.value,
               child: GlassCircleButton(
+                key: reactButtonKey,
                 size: _hoverReactSize,
-                onPressed: openReactionMenu,
+                onPressed: () => openReactionMenu(anchorKey: reactButtonKey),
                 icon: AppIcon.smilePlus(size: 18, color: colors.text.secondary),
               ),
             ),
@@ -714,6 +725,7 @@ class _MessageView extends HookWidget {
     );
 
     final desktopShell = ContextMenu(
+      key: contextMenuKey,
       direction: isSender
           ? ContextMenuDirection.left
           : ContextMenuDirection.right,

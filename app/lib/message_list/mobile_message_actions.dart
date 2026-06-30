@@ -10,7 +10,7 @@ import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/components/context_menu/context_menu_item_ui.dart';
 import 'package:air/ds/components/context_menu/context_menu_ui.dart';
 
-import 'emoji_picker.dart';
+import 'emoji_repository.dart';
 import 'message_reactions.dart';
 
 const double _mobileActionRowHeight = 56.0;

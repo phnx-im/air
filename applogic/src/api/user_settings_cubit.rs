@@ -26,6 +26,9 @@ pub struct UserSettings {
     pub read_receipts: bool,
     #[frb(default = false)]
     pub is_developer: bool,
+    /// Index into the client `EmojiSkinTone` enum (0 = default/none).
+    #[frb(default = 0)]
+    pub default_emoji_skin_tone: u8,
 }
 
 impl Default for UserSettings {
@@ -38,6 +41,7 @@ impl Default for UserSettings {
             send_on_enter: false,
             read_receipts: true,
             is_developer: false,
+            default_emoji_skin_tone: 0,
         }
     }
 }
@@ -91,6 +95,7 @@ impl UserSettingsCubitBase {
         let send_on_enter = core_user.user_setting().await;
         let read_receipts = core_user.user_setting().await;
         let is_developer = core_user.user_setting().await;
+        let default_emoji_skin_tone = core_user.user_setting().await;
         self.core.state_tx().send_modify(|state| {
             state.locale = locale.map(|LocaleSetting(value)| value);
             state.interface_scale = interface_scale.map(|InterfaceScaleSetting(value)| value);
@@ -105,6 +110,9 @@ impl UserSettingsCubitBase {
             }
             if let Some(IsDeveloperSetting(value)) = is_developer {
                 state.is_developer = value;
+            }
+            if let Some(DefaultEmojiSkinToneSetting(value)) = default_emoji_skin_tone {
+                state.default_emoji_skin_tone = value;
             }
         });
     }
@@ -196,26 +204,59 @@ impl UserSettingsCubitBase {
 
     pub async fn set_is_developer(
         &self,
-        user_cubit: Option<UserCubitBase>,
+        user_cubit: &UserCubitBase,
         value: bool,
     ) -> anyhow::Result<()> {
         if self.core.state_tx().borrow().is_developer == value {
             return Ok(());
         }
-        if let Some(user_cubit) = user_cubit {
-            user_cubit
-                .core_user()
-                .set_user_setting(&IsDeveloperSetting(value))
-                .await?;
-        }
+        user_cubit
+            .core_user()
+            .set_user_setting(&IsDeveloperSetting(value))
+            .await?;
         self.core
             .state_tx()
             .send_modify(|state| state.is_developer = value);
         Ok(())
     }
 
+    pub async fn set_default_emoji_skin_tone(
+        &self,
+        user_cubit: &UserCubitBase,
+        value: u8,
+    ) -> anyhow::Result<()> {
+        if self.core.state_tx().borrow().default_emoji_skin_tone == value {
+            return Ok(());
+        }
+        user_cubit
+            .core_user()
+            .set_user_setting(&DefaultEmojiSkinToneSetting(value))
+            .await?;
+        self.core
+            .state_tx()
+            .send_modify(|state| state.default_emoji_skin_tone = value);
+        Ok(())
+    }
+
     pub(crate) fn subscribe(&self) -> watch::Receiver<UserSettings> {
         self.core.state_tx().subscribe()
+    }
+}
+
+struct DefaultEmojiSkinToneSetting(u8);
+
+impl UserSetting for DefaultEmojiSkinToneSetting {
+    const KEY: &'static str = "default_emoji_skin_tone";
+
+    fn encode(&self) -> anyhow::Result<Vec<u8>> {
+        Ok(vec![self.0])
+    }
+
+    fn decode(bytes: Vec<u8>) -> anyhow::Result<Self> {
+        match bytes.as_slice() {
+            [byte] => Ok(Self(*byte)),
+            _ => bail!("invalid default_emoji_skin_tone bytes"),
+        }
     }
 }
 

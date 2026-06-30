@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/message_list/emoji_data_generated.dart' as emoji_data;
+import 'package:air/message_list/emoji_repository.dart';
 import 'package:flutter/material.dart';
 
 import 'package:air/ds/components/button/glass_circle_button.dart';
@@ -11,38 +13,30 @@ import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:air/ds/foundations/themes.dart';
 import 'package:air/ds/theme/theme.dart';
 
-import 'emoji_repository.dart';
-
-/// Unicode skin-tone modifiers. [EmojiSkinTone.none] is the default yellow.
-enum EmojiSkinTone {
-  none(''),
-  light('\u{1F3FB}'),
-  mediumLight('\u{1F3FC}'),
-  medium('\u{1F3FD}'),
-  mediumDark('\u{1F3FE}'),
-  dark('\u{1F3FF}');
-
-  const EmojiSkinTone(this.modifier);
-
-  /// The Unicode skin-tone modifier appended to a skinnable base emoji.
-  final String modifier;
-}
-
-/// Applies [tone] to [entry] when the emoji supports skin tones, otherwise
-/// returns the base emoji unchanged.
-String applySkinTone(EmojiEntry entry, EmojiSkinTone tone) {
-  if (!entry.supportsSkinTone || tone == EmojiSkinTone.none) {
+/// Applies [tone] to [entry] using its precomputed skin-tone variant, falling
+/// back to the base emoji when the tone is [EmojiSkinTone.none] or the variant
+/// is missing. Using the variant table (rather than appending the modifier)
+/// keeps ZWJ and multi-code-point emojis correct.
+String applySkinTone(emoji_data.Emoji entry, EmojiSkinTone tone) {
+  if (tone == EmojiSkinTone.none) {
     return entry.emoji;
   }
-  return '${entry.emoji}${tone.modifier}';
+  return entry.skinVariations[tone.modifier] ?? entry.emoji;
 }
 
 // Picker metrics.
-const double emojiCellSize = 40;
-const double _emojiGlyphSize = 24;
+const double _emojiCellSize = 52;
+const double _emojiGlyphSize = 32;
 const double _panelRadius = Spacing.px20;
 const double _panelPadding = Spacing.px16;
 const double _searchHeight = 40;
+
+/// Stadium-shaped border for the search field. The oversized radius is clamped
+/// to half the painted height, yielding fully rounded (semicircular) ends.
+final _pillBorder = OutlineInputBorder(
+  borderRadius: BorderRadius.circular(1000),
+  borderSide: BorderSide.none,
+);
 
 /// Default size of the desktop emoji-picker popover.
 const Size emojiPickerPanelSize = Size(360, 360);
@@ -71,9 +65,6 @@ class EmojiPicker extends StatefulWidget {
 }
 
 class _EmojiPickerState extends State<EmojiPicker> {
-  // Loaded once and reused across picker openings.
-  static Future<EmojiRepository>? _repositoryFuture;
-
   final TextEditingController _searchController = TextEditingController();
   String _query = '';
   late EmojiSkinTone _skinTone = widget.initialSkinTone;
@@ -82,7 +73,6 @@ class _EmojiPickerState extends State<EmojiPicker> {
   @override
   void initState() {
     super.initState();
-    _repositoryFuture ??= EmojiRepository.load();
     _searchController.addListener(() {
       if (_searchController.text != _query) {
         setState(() => _query = _searchController.text);
@@ -106,6 +96,8 @@ class _EmojiPickerState extends State<EmojiPicker> {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -125,30 +117,34 @@ class _EmojiPickerState extends State<EmojiPicker> {
         ],
         const SizedBox(height: Spacing.px12),
         Expanded(
-          child: FutureBuilder<EmojiRepository>(
-            future: _repositoryFuture,
-            builder: (context, snapshot) {
-              final repository = snapshot.data;
-              if (repository == null) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              final entries = repository.filter(_query);
-              return GridView.builder(
-                padding: EdgeInsets.zero,
-                gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                  maxCrossAxisExtent: emojiCellSize,
-                  mainAxisExtent: emojiCellSize,
+          child: CustomScrollView(
+            slivers: [
+              for (final (category, emojis) in emoji_data.emojisByCategory) ...[
+                SliverToBoxAdapter(
+                  child: Padding(
+                    padding: const EdgeInsets.all(Spacing.px8),
+                    child: Text(category, style: theme.textTheme.bodySmall),
+                  ),
                 ),
-                itemCount: entries.length,
-                itemBuilder: (context, index) {
-                  final emoji = applySkinTone(entries[index], _skinTone);
-                  return _EmojiCell(
-                    emoji: emoji,
-                    onTap: () => widget.onSelected(emoji),
-                  );
-                },
-              );
-            },
+                SliverGrid.builder(
+                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                    maxCrossAxisExtent: _emojiCellSize,
+                    mainAxisExtent: _emojiCellSize,
+                  ),
+                  itemCount: emojis.length,
+                  itemBuilder: (context, index) {
+                    final emoji = applySkinTone(emojis[index], _skinTone);
+                    return Padding(
+                      padding: const EdgeInsets.all(Spacing.px8),
+                      child: _EmojiCell(
+                        emoji: emoji,
+                        onTap: () => widget.onSelected(emoji),
+                      ),
+                    );
+                  },
+                ),
+              ],
+            ],
           ),
         ),
       ],
@@ -175,7 +171,7 @@ class _SearchField extends StatelessWidget {
         ),
         decoration: InputDecoration(
           filled: true,
-          fillColor: colors.backgroundBase.secondary,
+          fillColor: colors.fill.tertiary,
           hintText: 'Search emoji',
           hintStyle: TextStyle(
             fontSize: FontSizes.base.size,
@@ -193,10 +189,11 @@ class _SearchField extends StatelessWidget {
             minHeight: 0,
           ),
           contentPadding: const EdgeInsets.symmetric(horizontal: Spacing.px12),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(_searchHeight / 2),
-            borderSide: BorderSide.none,
-          ),
+          // Override the theme's enabled/focused borders (radius 8) so the
+          // field is a full pill regardless of its painted height.
+          border: _pillBorder,
+          enabledBorder: _pillBorder,
+          focusedBorder: _pillBorder,
         ),
       ),
     );
@@ -211,9 +208,12 @@ class _SkinToneButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final colors = CustomColorScheme.of(context);
     return GlassCircleButton(
       size: _searchHeight,
       onPressed: onPressed,
+      color: colors.fill.tertiary,
+      enableBackdropBlur: false,
       icon: Text(
         '\u{270B}${tone.modifier}',
         style: const TextStyle(fontSize: 20, height: 1.0),
@@ -235,25 +235,20 @@ class _SkinToneStrip extends StatelessWidget {
       children: [
         for (final tone in EmojiSkinTone.values)
           Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => onSelected(tone),
-              child: Container(
-                height: emojiCellSize,
-                margin: const EdgeInsets.symmetric(horizontal: Spacing.px4 / 2),
-                decoration: BoxDecoration(
-                  color: tone == selected
-                      ? colors.backgroundBase.secondary
-                      : Colors.transparent,
-                  borderRadius: BorderRadius.circular(Spacing.px8),
-                ),
-                child: Center(
-                  child: Text(
-                    '\u{270B}${tone.modifier}',
-                    style: const TextStyle(
-                      fontSize: _emojiGlyphSize,
-                      height: 1.0,
-                    ),
+            child: Center(
+              child: GlassCircleButton(
+                size: _emojiCellSize,
+                onPressed: () => onSelected(tone),
+                enableBackdropBlur: false,
+                shadows: const [],
+                color: tone == selected
+                    ? colors.backgroundBase.secondary
+                    : Colors.transparent,
+                icon: Text(
+                  '\u{270B}${tone.modifier}',
+                  style: const TextStyle(
+                    fontSize: _emojiGlyphSize,
+                    height: 1.0,
                   ),
                 ),
               ),
@@ -272,13 +267,16 @@ class _EmojiCell extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Center(
-        child: Text(
-          emoji,
-          style: const TextStyle(fontSize: _emojiGlyphSize, height: 1.0),
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Center(
+          child: Text(
+            emoji,
+            style: const TextStyle(fontSize: _emojiGlyphSize, height: 1.0),
+          ),
         ),
       ),
     );
