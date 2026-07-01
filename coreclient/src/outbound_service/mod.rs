@@ -35,6 +35,8 @@ mod chat_messages;
 mod error;
 mod profile;
 mod push_tokens;
+mod reaction_queue;
+mod reactions;
 mod receipt_queue;
 mod receipts;
 pub(crate) mod resync;
@@ -282,6 +284,9 @@ impl OutboundServiceContext {
         }
         if let Err(error) = self.send_queued_messages(&run_token).await {
             error!(%error, "Failed to send queued messages");
+        }
+        if let Err(error) = self.send_queued_reactions(&run_token).await {
+            error!(%error, "Failed to send queued reactions");
         }
         if let Err(error) = self.send_pending_push_token_updates(&run_token).await {
             error!(%error, "Failed to send push token update");

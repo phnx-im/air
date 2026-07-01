@@ -1,0 +1,62 @@
+{
+  "db_name": "SQLite",
+  "query": "\n                UPDATE reaction_queue\n                SET locked_by = ?1\n                WHERE id = ?2\n                RETURNING\n                    id AS \"id: _\",\n                    chat_id AS \"chat_id: _\",\n                    reaction_mimi_id AS \"reaction_mimi_id: _\",\n                    content\n                ",
+  "describe": {
+    "columns": [
+      {
+        "name": "id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "reaction_queue",
+            "name": "id"
+          }
+        }
+      },
+      {
+        "name": "chat_id: _",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "reaction_queue",
+            "name": "chat_id"
+          }
+        }
+      },
+      {
+        "name": "reaction_mimi_id: _",
+        "ordinal": 2,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "reaction_queue",
+            "name": "reaction_mimi_id"
+          }
+        }
+      },
+      {
+        "name": "content",
+        "ordinal": 3,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "reaction_queue",
+            "name": "content"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false,
+      false,
+      true,
+      false
+    ]
+  },
+  "hash": "83398c695f70a85ac55a25bfccf7a8b2c84f75dda8a3c9decef5283093cec8d9"
+}

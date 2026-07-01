@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT reaction_mimi_id AS \"reaction_mimi_id: MimiId\"\n            FROM reaction\n            WHERE target_mimi_id = ?\n                AND sender_user_uuid = ?\n                AND sender_user_domain = ?\n                AND emoji = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "reaction_mimi_id: MimiId",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "reaction_mimi_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 4
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "e9ae9a3ef6c83855510a9dab89ff05a0c738f4e90dbf2cd760ef06a2d56ee526"
+}

@@ -28,6 +28,8 @@ service DeliveryService {
 
   rpc SelfRemove(SelfRemoveRequest) returns (SelfRemoveResponse);
 
+  rpc ApqSelfRemove(ApqSelfRemoveRequest) returns (ApqSelfRemoveResponse);
+
   rpc SendMessage(SendMessageRequest) returns (SendMessageResponse);
 
   rpc DeleteGroup(DeleteGroupRequest) returns (DeleteGroupResponse);
@@ -298,6 +300,23 @@ message SelfRemovePayload {
 }
 
 message SelfRemoveResponse {
+  common.v1.Timestamp fanout_timestamp = 1;
+}
+
+// apq self remove
+
+message ApqSelfRemoveRequest {
+  ApqSelfRemovePayload payload = 1;
+  common.v1.Signature signature = 2;
+}
+
+message ApqSelfRemovePayload {
+  common.v1.ClientMetadata client_metadata = 1;
+  GroupStateEarKey group_state_ear_key = 2;
+  ApqAssistedMlsMessage remove_proposal = 3;
+}
+
+message ApqSelfRemoveResponse {
   common.v1.Timestamp fanout_timestamp = 1;
 }
 
