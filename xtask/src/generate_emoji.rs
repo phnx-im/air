@@ -190,7 +190,11 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
             })
             .collect(),
     };
-    let dart = template.render().context("rendering emoji template")?;
+    let mut dart = template.render().context("rendering emoji template")?;
+    // Askama strips the template's trailing newline; dartfmt wants one.
+    if !dart.ends_with('\n') {
+        dart.push('\n');
+    }
 
     let output = if args.output.is_absolute() {
         args.output.clone()
@@ -229,66 +233,3 @@ fn dart_string(value: &str) -> String {
     format!("'{escaped}'")
 }
 
-fn render_dart(
-    categories: &[(String, Vec<OutEmoji>)],
-    shortcodes: &[(String, usize, usize)],
-) -> String {
-    let mut out = String::new();
-    out.push_str(
-        "// SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>\n\
-         //\n\
-         // SPDX-License-Identifier: AGPL-3.0-or-later\n\
-         \n\
-         // GENERATED FILE — DO NOT EDIT.\n\
-         // Regenerate with `cargo xtask generate-emoji <emoji_pretty.json>`.\n\
-         \n\
-         /// Locates one emoji: `(category id, index within that category's\n\
-         /// list)`. Resolve with `emojisByCategory[ref.$1].$2[ref.$2]`.\n\
-         typedef EmojiRef = (int category, int index);\n\
-         \n\
-         /// A single emoji: its rendered glyph and its skin-tone variants,\n\
-         /// keyed by the tone modifier glyph(s) (empty when unsupported).\n\
-         class Emoji {\n\
-         \x20 const Emoji(this.emoji, [this.skinVariations = const {}]);\n\
-         \n\
-         \x20 final String emoji;\n\
-         \x20 final Map<String, String> skinVariations;\n\
-         \n\
-         \x20 bool get supportsSkinTone => skinVariations.isNotEmpty;\n\
-         }\n\
-         \n\
-         /// `(category name, its emojis)` indexed by category id, in canonical\n\
-         /// order then sort order.\n\
-         const List<(String, List<Emoji>)> emojisByCategory = [\n",
-    );
-    for (category, group) in categories {
-        out.push_str(&format!("  ({}, [\n", dart_string(category)));
-        for emoji in group {
-            if emoji.skin_variations.is_empty() {
-                out.push_str(&format!("    Emoji('{}'),\n", emoji.escape));
-            } else {
-                out.push_str(&format!("    Emoji('{}', {{\n", emoji.escape));
-                for (tone, glyph) in &emoji.skin_variations {
-                    out.push_str(&format!("      '{tone}': '{glyph}',\n"));
-                }
-                out.push_str("    }),\n");
-            }
-        }
-        out.push_str("  ]),\n");
-    }
-    out.push_str("];\n\n");
-
-    out.push_str(
-        "/// Short code -> (category id, index) into [emojisByCategory]\n\
-         /// (first occurrence wins).\n\
-         const Map<String, EmojiRef> shortcodeToIndex = {\n",
-    );
-    for (code, category_id, index) in shortcodes {
-        out.push_str(&format!(
-            "  {}: ({category_id}, {index}),\n",
-            dart_string(code)
-        ));
-    }
-    out.push_str("};\n");
-    out
-}
