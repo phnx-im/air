@@ -141,7 +141,8 @@ impl Group {
                 vec![]
             }
             ProcessedMessageContent::ApplicationMessage(_)
-            | ProcessedMessageContent::ExternalJoinProposalMessage(_) => todo!(),
+            | ProcessedMessageContent::ExternalJoinProposalMessage(_)
+            | ProcessedMessageContent::OwnPendingCommit => todo!(),
         };
         // Check if any potential joiners were added.
         self.past_group_states.add_state(

@@ -146,6 +146,7 @@ impl Group {
                 )
                 .await?
             }
+            ProcessedMessageContent::OwnPendingCommit => todo!(),
         };
 
         // Check that the signature keys of the sender match

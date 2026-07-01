@@ -535,7 +535,7 @@ version = "1.1.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "40c48f72fd53cd289104fc64099abca73db4166ad86ea0b4341abe65af83dadc"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -546,14 +546,14 @@ checksum = "291e6a250ff86cd4a820112fb8898808a366d8f9f58ce16d1f538353ad55747d"
 dependencies = [
  "anstyle",
  "once_cell_polyfill",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
 name = "anyhow"
-version = "1.0.103"
+version = "1.0.102"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
+checksum = "7f202df86484c868dbad7eaa557ef785d5c66295e41b460ef922eca0723b842c"
 
 [[package]]
 name = "apqmls"
@@ -1401,7 +1401,7 @@ version = "0.17.2"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "f7c8e1ec3966bafbe115ad484420b260f5fabf88528e4ef8cd3024ffedb50e46"
 dependencies = [
- "crypto-bigint 0.7.5",
+ "crypto-bigint 0.7.3",
  "crypto-primes",
  "ct-codecs",
  "derive-new",
@@ -1821,7 +1821,7 @@ version = "3.1.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "faf9468729b8cbcea668e36183cb69d317348c2e08e994829fb56ebfdfbaac34"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -2112,9 +2112,9 @@ dependencies = [
 
 [[package]]
 name = "crypto-bigint"
-version = "0.7.5"
+version = "0.7.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "1a52aa3fcda4e6302a9f48734f234d35d4721b96f8fe07d073f07ce9df4f0271"
+checksum = "42a0d26b245348befa0c121944541476763dcc46ede886c88f9d12e1697d27c3"
 dependencies = [
  "cpubits",
  "ctutils",
@@ -2152,7 +2152,7 @@ version = "0.7.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "21f41f23de7d24cdbda7f0c4d9c0351f99a4ceb258ef30e5c1927af8987ffe5a"
 dependencies = [
- "crypto-bigint 0.7.5",
+ "crypto-bigint 0.7.3",
  "libm",
  "rand_core 0.10.1",
 ]
@@ -2672,7 +2672,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "39cab71617ae0d63f51a36d69f866391735b51691dbda63cf6f96d042b63efeb"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -4850,7 +4850,7 @@ version = "0.50.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7957b9740744892f114936ab4a57b3f487491bbeafaf8083688b16841a4240e5"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.59.0",
 ]
 
 [[package]]
@@ -5089,7 +5089,7 @@ checksum = "c08d65885ee38876c4f86fa503fb49d7b507c2b62552df7c70b2fce627e06381"
 [[package]]
 name = "openmls"
 version = "0.8.1"
-source = "git+https://github.com/openmls/openmls?rev=c6b79aee981d1347a30871f2091b82cfc9ba6269#c6b79aee981d1347a30871f2091b82cfc9ba6269"
+source = "git+https://github.com/openmls/openmls?rev=d30b7e58a63b79e0f8de470551a455eda45623e3#d30b7e58a63b79e0f8de470551a455eda45623e3"
 dependencies = [
  "backtrace",
  "itertools 0.14.0",
@@ -5117,7 +5117,7 @@ dependencies = [
 [[package]]
 name = "openmls_basic_credential"
 version = "0.5.0"
-source = "git+https://github.com/openmls/openmls?rev=c6b79aee981d1347a30871f2091b82cfc9ba6269#c6b79aee981d1347a30871f2091b82cfc9ba6269"
+source = "git+https://github.com/openmls/openmls?rev=d30b7e58a63b79e0f8de470551a455eda45623e3#d30b7e58a63b79e0f8de470551a455eda45623e3"
 dependencies = [
  "ed25519-dalek",
  "ml-dsa",
@@ -5133,7 +5133,7 @@ dependencies = [
 [[package]]
 name = "openmls_libcrux_crypto"
 version = "0.3.1"
-source = "git+https://github.com/openmls/openmls?rev=c6b79aee981d1347a30871f2091b82cfc9ba6269#c6b79aee981d1347a30871f2091b82cfc9ba6269"
+source = "git+https://github.com/openmls/openmls?rev=d30b7e58a63b79e0f8de470551a455eda45623e3#d30b7e58a63b79e0f8de470551a455eda45623e3"
 dependencies = [
  "aes",
  "fpe",
@@ -5156,7 +5156,7 @@ dependencies = [
 [[package]]
 name = "openmls_memory_storage"
 version = "0.5.0"
-source = "git+https://github.com/openmls/openmls?rev=c6b79aee981d1347a30871f2091b82cfc9ba6269#c6b79aee981d1347a30871f2091b82cfc9ba6269"
+source = "git+https://github.com/openmls/openmls?rev=d30b7e58a63b79e0f8de470551a455eda45623e3#d30b7e58a63b79e0f8de470551a455eda45623e3"
 dependencies = [
  "hex",
  "log",
@@ -5169,7 +5169,7 @@ dependencies = [
 [[package]]
 name = "openmls_rust_crypto"
 version = "0.5.1"
-source = "git+https://github.com/openmls/openmls?rev=c6b79aee981d1347a30871f2091b82cfc9ba6269#c6b79aee981d1347a30871f2091b82cfc9ba6269"
+source = "git+https://github.com/openmls/openmls?rev=d30b7e58a63b79e0f8de470551a455eda45623e3#d30b7e58a63b79e0f8de470551a455eda45623e3"
 dependencies = [
  "aes",
  "aes-gcm",
@@ -5197,7 +5197,7 @@ dependencies = [
 [[package]]
 name = "openmls_serialization_helpers"
 version = "0.1.0"
-source = "git+https://github.com/openmls/openmls?rev=c6b79aee981d1347a30871f2091b82cfc9ba6269#c6b79aee981d1347a30871f2091b82cfc9ba6269"
+source = "git+https://github.com/openmls/openmls?rev=d30b7e58a63b79e0f8de470551a455eda45623e3#d30b7e58a63b79e0f8de470551a455eda45623e3"
 dependencies = [
  "proc-macro2",
  "quote",
@@ -5208,7 +5208,7 @@ dependencies = [
 [[package]]
 name = "openmls_sqlite_storage"
 version = "0.2.0"
-source = "git+https://github.com/openmls/openmls?rev=c6b79aee981d1347a30871f2091b82cfc9ba6269#c6b79aee981d1347a30871f2091b82cfc9ba6269"
+source = "git+https://github.com/openmls/openmls?rev=d30b7e58a63b79e0f8de470551a455eda45623e3#d30b7e58a63b79e0f8de470551a455eda45623e3"
 dependencies = [
  "openmls_traits",
  "refinery",
@@ -5219,7 +5219,7 @@ dependencies = [
 [[package]]
 name = "openmls_test"
 version = "0.2.1"
-source = "git+https://github.com/openmls/openmls?rev=c6b79aee981d1347a30871f2091b82cfc9ba6269#c6b79aee981d1347a30871f2091b82cfc9ba6269"
+source = "git+https://github.com/openmls/openmls?rev=d30b7e58a63b79e0f8de470551a455eda45623e3#d30b7e58a63b79e0f8de470551a455eda45623e3"
 dependencies = [
  "openmls_libcrux_crypto",
  "openmls_rust_crypto",
@@ -5232,7 +5232,7 @@ dependencies = [
 [[package]]
 name = "openmls_traits"
 version = "0.5.0"
-source = "git+https://github.com/openmls/openmls?rev=c6b79aee981d1347a30871f2091b82cfc9ba6269#c6b79aee981d1347a30871f2091b82cfc9ba6269"
+source = "git+https://github.com/openmls/openmls?rev=d30b7e58a63b79e0f8de470551a455eda45623e3#d30b7e58a63b79e0f8de470551a455eda45623e3"
 dependencies = [
  "serde",
  "tls_codec",
@@ -5255,7 +5255,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "7d8fae84b431384b68627d0f9b3b1245fcf9f46f6c0e3dc902e9dce64edd1967"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.45.0",
 ]
 
 [[package]]
@@ -5772,7 +5772,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "343d3bd7056eda839b03204e68deff7d1b13aba7af2b2fd16890697274262ee7"
 dependencies = [
  "heck",
- "itertools 0.14.0",
+ "itertools 0.10.5",
  "log",
  "multimap",
  "petgraph",
@@ -5793,7 +5793,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "27c6023962132f4b30eb4c172c91ce92d933da334c59c23cddee82358ddafb0b"
 dependencies = [
  "anyhow",
- "itertools 0.14.0",
+ "itertools 0.10.5",
  "proc-macro2",
  "quote",
  "syn",
@@ -6433,7 +6433,7 @@ version = "0.10.0-rc.18"
 source = "git+https://github.com/RustCrypto/RSA?rev=99f80888cdc838da78a48ad14f6e1f5c01be5c30#99f80888cdc838da78a48ad14f6e1f5c01be5c30"
 dependencies = [
  "const-oid 0.10.2",
- "crypto-bigint 0.7.5",
+ "crypto-bigint 0.7.3",
  "crypto-primes",
  "digest 0.11.3",
  "pkcs1 0.8.0-rc.4",
@@ -6491,7 +6491,7 @@ dependencies = [
  "errno",
  "libc",
  "linux-raw-sys",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -6892,7 +6892,7 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "3a766e1110788c36f4fa1c2b71b387a7815aa65f88ce0229841826633d93723e"
 dependencies = [
  "libc",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -7245,7 +7245,7 @@ dependencies = [
  "getrandom 0.4.2",
  "once_cell",
  "rustix",
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]
@@ -7865,7 +7865,7 @@ checksum = "f2f6fb2847f6742cd76af783a2a2c49e9375d0a111c7bef6f71cd9e738c72d6e"
 dependencies = [
  "memoffset",
  "tempfile",
- "windows-sys 0.61.2",
+ "windows-sys 0.60.2",
 ]
 
 [[package]]
@@ -8372,7 +8372,7 @@ version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "c2a7b1c03c876122aa43f3020e6c3c3ee5c05081c9a00739faf7503aeba10d22"
 dependencies = [
- "windows-sys 0.61.2",
+ "windows-sys 0.52.0",
 ]
 
 [[package]]

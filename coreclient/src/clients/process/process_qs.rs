@@ -697,6 +697,7 @@ impl CoreUser {
                     let (new_messages, updated) = self.handle_external_join_proposal_message()?;
                     (new_messages, Vec::new(), updated, Vec::new())
                 }
+                ProcessedMessageContent::OwnPendingCommit => todo!(),
             };
 
         let mut messages = Self::store_new_messages(&mut *txn, chat_id, new_messages).await?;

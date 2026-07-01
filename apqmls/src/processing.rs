@@ -185,6 +185,8 @@ impl<F: Fn(&Credential, &Credential) -> bool> MessageType<F> {
                     compare,
                 }))
             }
+            // XXX: IMPLEMENT!
+            ProcessedMessageContent::OwnPendingCommit => None,
         }
     }
 }
