@@ -17,31 +17,51 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'emoji_repository.dart';
 
+/// The curated quick-reaction set shown in the [QuickReactionBar].
+const List<({String emoji, bool skinnable})> quickReactionEmojis = [
+  (emoji: '👍', skinnable: true),
+  (emoji: '❤️', skinnable: false),
+  (emoji: '😂', skinnable: false),
+  (emoji: '😮', skinnable: false),
+  (emoji: '😢', skinnable: false),
+  (emoji: '🙏', skinnable: true),
+];
+
+const double quickReactionBarGlyphSize = 28;
+const double quickReactionBarTapSize = 44;
+const double quickReactionBarMoreSize = 36;
+
 /// Compact reaction chip metrics
-const double _chipSpacing = Spacing.px8;
+const double reactionChipSpacing = Spacing.px8;
 
 /// Fixed height of a reaction chip
 const double reactionChipHeight = 28;
 
 /// How far the chips overlap the bottom border of the message bubble
-const double reactionsOverlap = Spacing.px4;
-
-/// Aligning the chips with the bubble's text rather than its rounded corner
-const double reactionsHorizontalInset = Spacing.px16;
+const double reactionsMessageBubbleOverlap = Spacing.px4;
 
 /// Gap below the chips before the timestamp / next message.
-const double _reactionsGapBelow = Spacing.px4;
+const double reactionsGapBelow = Spacing.px4;
+
+/// Aligning the chips
+const double reactionsHorizontalInset = Spacing.px8;
 
 /// Vertical space [BubbleWithReactions] reserves below the bubble for the chips
 /// that overlap its bottom edge (zero when there are no reactions). Used by
 /// callers to align elements to the bubble rather than the bubble + chips.
 double reactionsReservedBelow(bool hasReactions) => hasReactions
-    ? reactionChipHeight - reactionsOverlap + _reactionsGapBelow
+    ? reactionChipHeight - reactionsMessageBubbleOverlap + reactionsGapBelow
     : 0;
+
+/// Default size of the reactor panel.
+const Size whoReactedPanelSize = Size(360, 380);
+const double reactorRowHeight = 56;
+const double reactorAvatarSize = 36;
+const double reactionTabHeight = 36;
 
 /// Overlays [MessageReactions] onto the bottom edge of [bubble].
 ///
-/// The chips overlap the bubble's bottom by [reactionsOverlap] and the layout
+/// The chips overlap the bubble's bottom by [reactionsMessageBubbleOverlap] and the layout
 /// reserves the chips' protruding height (plus a small gap) below the bubble so
 /// following messages don't collide. Returns [bubble] unchanged when there are
 /// no reactions.
@@ -68,16 +88,18 @@ class BubbleWithReactions extends StatelessWidget {
     }
     return Stack(
       clipBehavior: Clip.none,
-      // alignment: AlignmentGeometry.ce,
       children: [
         Padding(
           padding: const EdgeInsets.only(
-            bottom: reactionChipHeight - reactionsOverlap + _reactionsGapBelow,
+            bottom:
+                reactionChipHeight -
+                reactionsMessageBubbleOverlap +
+                reactionsGapBelow,
           ),
           child: bubble,
         ),
         Positioned(
-          bottom: _reactionsGapBelow,
+          bottom: reactionsGapBelow,
           left: reactionsHorizontalInset,
           right: reactionsHorizontalInset,
           child: MessageReactions(
@@ -94,11 +116,6 @@ class BubbleWithReactions extends StatelessWidget {
 
 /// A row of emoji reaction chips, rendered overlapping the bottom edge of a
 /// message bubble.
-///
-/// Aligns to the bubble's side ([isSender]), shows a numeric count only when an
-/// emoji has 2+ reactors, and highlights the current user's own reactions with
-/// an accent-colored border. [onTap] is invoked with the tapped emoji (used to
-/// show who reacted); there is no tap-to-remove.
 class MessageReactions extends StatelessWidget {
   const MessageReactions({
     super.key,
@@ -136,6 +153,7 @@ class MessageReactions extends StatelessWidget {
     final scaler = MediaQuery.textScalerOf(context);
     final emojiStyle = TextStyle(fontSize: FontSizes.small2.size, height: 1.0);
     final countStyle = TextStyle(fontSize: FontSizes.small3.size, height: 1.0);
+
     double measure(String text, TextStyle style) {
       final painter = TextPainter(
         text: TextSpan(text: text, style: style),
@@ -171,7 +189,7 @@ class MessageReactions extends StatelessWidget {
 
         var fullWidth = 0.0;
         for (var i = 0; i < count; i++) {
-          fullWidth += widths[i] + (i > 0 ? _chipSpacing : 0);
+          fullWidth += widths[i] + (i > 0 ? reactionChipSpacing : 0);
         }
 
         final List<Widget> chips;
@@ -180,11 +198,11 @@ class MessageReactions extends StatelessWidget {
         } else {
           // Reserve room for the overflow chip ("+N" upper bound).
           final overflowReserve =
-              _chipSpacing + chipChrome + measure('+$count', emojiStyle);
+              reactionChipSpacing + chipChrome + measure('+$count', emojiStyle);
           var used = 0.0;
           var shown = 0;
           for (var i = 0; i < count; i++) {
-            final add = widths[i] + (shown > 0 ? _chipSpacing : 0);
+            final add = widths[i] + (shown > 0 ? reactionChipSpacing : 0);
             if (used + add + overflowReserve <= maxWidth) {
               used += add;
               shown++;
@@ -194,8 +212,8 @@ class MessageReactions extends StatelessWidget {
           }
           if (shown == 0) shown = 1; // always keep the highest-count emoji
           chips = [
-            // for (var i = 0; i < shown; i++)
-            // chipFor(ordered[i], extras: count - shown),
+            for (var i = 0; i < shown; i++)
+              chipFor(ordered[i], extras: count - shown),
             _OverflowChip(
               count: count - shown,
               isSender: isSender,
@@ -206,7 +224,7 @@ class MessageReactions extends StatelessWidget {
 
         final children = <Widget>[];
         for (var i = 0; i < chips.length; i++) {
-          if (i > 0) children.add(const SizedBox(width: _chipSpacing));
+          if (i > 0) children.add(const SizedBox(width: reactionChipSpacing));
           children.add(chips[i]);
         }
         return Row(
@@ -220,21 +238,6 @@ class MessageReactions extends StatelessWidget {
   }
 }
 
-/// The curated quick-reaction set shown in the [QuickReactionBar]. Skinnable
-/// entries follow the user's default skin tone.
-const List<({String emoji, bool skinnable})> quickReactionEmojis = [
-  (emoji: '👍', skinnable: true),
-  (emoji: '❤️', skinnable: false),
-  (emoji: '😂', skinnable: false),
-  (emoji: '😮', skinnable: false),
-  (emoji: '😢', skinnable: false),
-  (emoji: '🙏', skinnable: true),
-];
-
-const double _quickGlyphSize = 28;
-const double _quickTapSize = 44;
-const double _quickMoreSize = 36;
-
 String _applyQuickTone(
   ({String emoji, bool skinnable}) item,
   EmojiSkinVariation tone,
@@ -247,8 +250,6 @@ String _applyQuickTone(
 
 /// A horizontal pill bar of common quick reactions plus a trailing "+" that
 /// opens the full emoji picker.
-///
-/// [onReact] receives the tone-applied emoji; [onMore] opens the picker.
 class QuickReactionBar extends StatelessWidget {
   const QuickReactionBar({
     super.key,
@@ -271,14 +272,9 @@ class QuickReactionBar extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: colors.backgroundElevated.primary,
-        borderRadius: BorderRadius.circular((_quickTapSize + Spacing.px8) / 2),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x33000000),
-            blurRadius: 16,
-            offset: Offset(0, 4),
-          ),
-        ],
+        borderRadius: BorderRadius.circular(
+          (quickReactionBarTapSize + Spacing.px8) / 2,
+        ),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -290,8 +286,8 @@ class QuickReactionBar extends StatelessWidget {
             ),
           GlassCircleButton(
             onPressed: onMore,
-            size: _quickMoreSize,
-            hitTargetSize: _quickTapSize,
+            size: quickReactionBarMoreSize,
+            hitTargetSize: quickReactionBarTapSize,
             enableBackdropBlur: false,
             shadows: const [],
             color: colors.backgroundBase.secondary,
@@ -305,9 +301,6 @@ class QuickReactionBar extends StatelessWidget {
 
 /// Shows the [QuickReactionBar] as a small popover anchored above [anchorRect]
 /// (or below it when there isn't room above), aligned to the message's side.
-///
-/// [onReact] receives the chosen quick emoji; [onMore] is invoked when the user
-/// taps "+". Both dismiss the popover first.
 Future<void> showQuickReactionMenu({
   required BuildContext context,
   required Rect anchorRect,
@@ -316,6 +309,7 @@ Future<void> showQuickReactionMenu({
   required void Function(String emoji) onReact,
   required VoidCallback onMore,
 }) {
+  // TODO: barrier colors from theme (it's custom in the bottom_sheet_modal which is also wrong)
   return showGeneralDialog(
     context: context,
     barrierDismissible: true,
@@ -350,7 +344,7 @@ Future<void> showQuickReactionMenu({
 
 /// Approximate height of the quick-reaction bar, used to position it above the
 /// anchored message.
-const double quickReactionBarHeight = _quickTapSize + Spacing.px8;
+const double quickReactionBarHeight = quickReactionBarTapSize + Spacing.px8;
 
 class _QuickReactionMenuOverlay extends StatelessWidget {
   const _QuickReactionMenuOverlay({
@@ -375,7 +369,7 @@ class _QuickReactionMenuOverlay extends StatelessWidget {
     final safeTop = mediaQuery.padding.top + Spacing.px8;
     final safeBottom = mediaQuery.padding.bottom + Spacing.px8;
 
-    // Prefer placing the bar above the message; fall back to below it.
+    // Prefer placing the bar above the message
     final aboveTop = anchorRect.top - Spacing.px8 - quickReactionBarHeight;
     final placeAbove = aboveTop >= safeTop;
     final top = placeAbove
@@ -428,15 +422,15 @@ class _QuickReactionButton extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: SizedBox(
-          width: _quickTapSize,
-          height: _quickTapSize,
+          width: quickReactionBarTapSize,
+          height: quickReactionBarTapSize,
           child: Center(
             child: FittedBox(
               fit: .contain,
               child: Text(
                 emoji,
                 style: const TextStyle(
-                  fontSize: _quickGlyphSize,
+                  fontSize: quickReactionBarGlyphSize,
                   overflow: .visible,
                 ),
               ),
@@ -562,11 +556,6 @@ class _OverflowChip extends StatelessWidget {
   }
 }
 
-const Size _whoReactedPanelSize = Size(360, 380);
-const double _reactorRowHeight = 56;
-const double _reactorAvatarSize = 36;
-const double _reactionTabHeight = 36;
-
 /// Shows the "who reacted" view: a tabbed list (All + per emoji) of the users
 /// who reacted to a message, with a "Remove" action on the current user's own
 /// reactions.
@@ -599,7 +588,7 @@ Future<void> showWhoReactedSheet({
       context: context,
       builder: (context) => Padding(
         padding: const EdgeInsets.all(Spacing.px16),
-        child: SizedBox(height: _whoReactedPanelSize.height, child: sheet),
+        child: SizedBox(height: whoReactedPanelSize.height, child: sheet),
       ),
     );
   }
@@ -619,8 +608,8 @@ Future<void> showWhoReactedSheet({
           child: Material(
             type: MaterialType.transparency,
             child: Container(
-              width: _whoReactedPanelSize.width,
-              height: _whoReactedPanelSize.height,
+              width: whoReactedPanelSize.width,
+              height: whoReactedPanelSize.height,
               padding: const EdgeInsets.all(Spacing.px16),
               decoration: BoxDecoration(
                 color: colors.backgroundElevated.primary,
@@ -713,7 +702,7 @@ class _WhoReactedSheetState extends State<WhoReactedSheet> {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         SizedBox(
-          height: _reactionTabHeight,
+          height: reactionTabHeight,
           child: ListView(
             scrollDirection: Axis.horizontal,
             children: [
@@ -782,7 +771,7 @@ class _ReactionTab extends StatelessWidget {
             color: selected
                 ? colors.backgroundBase.secondary
                 : Colors.transparent,
-            borderRadius: BorderRadius.circular(_reactionTabHeight / 2),
+            borderRadius: BorderRadius.circular(reactionTabHeight / 2),
           ),
           child: Text(
             label,
@@ -814,16 +803,13 @@ class _ReactorRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
     return SizedBox(
-      height: _reactorRowHeight,
+      height: reactorRowHeight,
       child: Row(
         children: [
           if (profile != null)
-            UserAvatar(profile: profile!, size: _reactorAvatarSize)
+            UserAvatar(profile: profile!, size: reactorAvatarSize)
           else
-            const SizedBox(
-              width: _reactorAvatarSize,
-              height: _reactorAvatarSize,
-            ),
+            const SizedBox(width: reactorAvatarSize, height: reactorAvatarSize),
           const SizedBox(width: Spacing.px12),
           Expanded(
             child: Text(
