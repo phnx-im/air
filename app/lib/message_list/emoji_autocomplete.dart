@@ -4,7 +4,7 @@
 
 import 'dart:async';
 
-import 'package:air/message_list/emoji_data_generated.dart';
+import 'package:air/emojis/generated.dart';
 import 'package:air/message_list/emoji_repository.dart';
 import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/foundations/themes.dart';

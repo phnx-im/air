@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/message_list/emoji_data_generated.dart' as data;
+import 'package:air/emojis/generated.dart' as data;
 
 enum EmojiSkinVariation {
   none(''),
@@ -10,11 +10,7 @@ enum EmojiSkinVariation {
   mediumLight('\u{1F3FC}'),
   medium('\u{1F3FD}'),
   mediumDark('\u{1F3FE}'),
-  dark('\u{1F3FF}'),
-  redHair('\u{1F9B0}'),
-  curlyHair('\u{1F9B1}'),
-  bald('\u{1F9B2}'),
-  whiteHair('\u{1F9B3}');
+  dark('\u{1F3FF}');
 
   const EmojiSkinVariation(this.modifier);
 

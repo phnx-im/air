@@ -16,7 +16,7 @@ use xshell::{Shell, cmd};
 
 use crate::util::workspace_root;
 
-const DEFAULT_OUTPUT: &str = "app/lib/message_list/emoji_data_generated.dart";
+const DEFAULT_OUTPUT: &str = "app/lib/emojis/generated.dart";
 
 /// Categories to omit from the generated output. "Component" only holds the
 /// standalone skin-tone / hair modifiers, which aren't pickable emojis.

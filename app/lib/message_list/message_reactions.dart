@@ -52,14 +52,14 @@ class BubbleWithReactions extends StatelessWidget {
     required this.reactions,
     required this.isSender,
     required this.ownUserId,
-    this.onTap,
+    required this.onTap,
   });
 
   final Widget bubble;
   final List<UiReaction> reactions;
   final bool isSender;
   final UiUserId ownUserId;
-  final void Function(String? emoji)? onTap;
+  final void Function(String? emoji) onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -105,13 +105,13 @@ class MessageReactions extends StatelessWidget {
     required this.reactions,
     required this.isSender,
     required this.ownUserId,
-    this.onTap,
+    required this.onTap,
   });
 
   final List<UiReaction> reactions;
   final bool isSender;
   final UiUserId ownUserId;
-  final void Function(String? emoji)? onTap;
+  final void Function(String? emoji) onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -155,11 +155,12 @@ class MessageReactions extends StatelessWidget {
       return width;
     }
 
-    Widget chipFor(UiReaction reaction) => _ReactionChip(
+    Widget chipFor(UiReaction reaction, {int? extras}) => _ReactionChip(
       reaction: reaction,
+      extras: extras,
       isSender: isSender,
       isMine: reaction.users.contains(ownUserId),
-      onTap: onTap == null ? null : () => onTap!(reaction.emoji),
+      onTap: () => onTap(reaction.emoji),
     );
 
     return LayoutBuilder(
@@ -193,11 +194,12 @@ class MessageReactions extends StatelessWidget {
           }
           if (shown == 0) shown = 1; // always keep the highest-count emoji
           chips = [
-            for (var i = 0; i < shown; i++) chipFor(ordered[i]),
+            // for (var i = 0; i < shown; i++)
+            // chipFor(ordered[i], extras: count - shown),
             _OverflowChip(
               count: count - shown,
               isSender: isSender,
-              onTap: onTap == null ? null : () => onTap!(null),
+              onTap: () => onTap(null),
             ),
           ];
         }
@@ -452,11 +454,13 @@ class _ReactionChip extends StatelessWidget {
     required this.isSender,
     required this.isMine,
     this.onTap,
+    this.extras,
   });
 
   final UiReaction reaction;
   final bool isSender;
   final bool isMine;
+  final int? extras;
   final VoidCallback? onTap;
 
   @override
@@ -514,12 +518,12 @@ class _OverflowChip extends StatelessWidget {
   const _OverflowChip({
     required this.count,
     required this.isSender,
-    this.onTap,
+    required this.onTap,
   });
 
   final int count;
   final bool isSender;
-  final VoidCallback? onTap;
+  final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
@@ -527,27 +531,30 @@ class _OverflowChip extends StatelessWidget {
     final borderColor = isSender
         ? colors.message.selfBackground
         : colors.message.otherBackground;
-    return GestureDetector(
-      behavior: HitTestBehavior.opaque,
-      onTap: onTap,
-      child: Container(
-        height: reactionChipHeight,
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.px8,
-          vertical: Spacing.px4,
-        ),
-        decoration: BoxDecoration(
-          color: colors.backgroundElevated.primary,
-          borderRadius: BorderRadius.circular(reactionChipHeight / 2),
-          border: Border.all(color: borderColor),
-        ),
-        alignment: Alignment.center,
-        child: Text(
-          '+$count',
-          style: TextStyle(
-            fontSize: FontSizes.small2.size,
-            color: colors.text.secondary,
-            height: 1.0,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: GestureDetector(
+        behavior: HitTestBehavior.opaque,
+        onTap: onTap,
+        child: Container(
+          height: reactionChipHeight,
+          padding: const EdgeInsets.symmetric(
+            horizontal: Spacing.px8,
+            vertical: Spacing.px4,
+          ),
+          decoration: BoxDecoration(
+            color: colors.backgroundElevated.primary,
+            borderRadius: BorderRadius.circular(reactionChipHeight / 2),
+            border: Border.all(color: borderColor),
+          ),
+          alignment: Alignment.center,
+          child: Text(
+            '+$count',
+            style: TextStyle(
+              fontSize: FontSizes.small2.size,
+              color: colors.text.secondary,
+              height: 1.0,
+            ),
           ),
         ),
       ),
@@ -764,7 +771,7 @@ class _ReactionTab extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
     return Padding(
-      padding: const EdgeInsets.only(right: Spacing.px8),
+      padding: const EdgeInsets.only(right: Spacing.px4),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
@@ -780,7 +787,7 @@ class _ReactionTab extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              fontSize: FontSizes.small2.size,
+              fontSize: FontSizes.base.size,
               color: selected ? colors.text.primary : colors.text.secondary,
             ),
           ),

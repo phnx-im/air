@@ -8,7 +8,7 @@ import 'dart:ui';
 
 import 'package:air/attachments/attachments.dart';
 import 'package:air/l10n/app_localizations_extension.dart';
-import 'package:air/message_list/emoji_data_generated.dart' as emoji_data;
+import 'package:air/emojis/generated.dart' as emoji_data;
 import 'package:air/message_list/emoji_autocomplete.dart';
 import 'package:air/ds/components/button/glass_circle_button.dart';
 import 'package:air/ds/components/modal/bottom_sheet_modal.dart';
