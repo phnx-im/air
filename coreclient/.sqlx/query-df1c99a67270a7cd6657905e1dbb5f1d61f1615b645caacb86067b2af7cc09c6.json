@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM vc_emulation_group_secret\n                WHERE epoch_id = ?1\n                AND secret_type = ?2\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "df1c99a67270a7cd6657905e1dbb5f1d61f1615b645caacb86067b2af7cc09c6"
+}
