@@ -146,7 +146,15 @@ impl Group {
                 )
                 .await?
             }
-            ProcessedMessageContent::OwnPendingCommit => todo!(),
+            ProcessedMessageContent::OwnPendingCommit => {
+                // Our own commit was echoed back to us: openmls matched it
+                // against our pending commit.
+                PostProcessState {
+                    sender_index: self.mls_group.own_leaf_index(),
+                    we_were_removed: false,
+                    encrypted_profile_infos: Vec::new(),
+                }
+            }
         };
 
         // Check that the signature keys of the sender match

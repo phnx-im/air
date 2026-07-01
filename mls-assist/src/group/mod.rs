@@ -140,9 +140,14 @@ impl Group {
                     .map_err(MergeCommitError::StorageError)?;
                 vec![]
             }
+            // `OwnPendingCommit` is only produced by `MlsGroup::process_message`
+            // for a client's own commit: the DS holds no leaf, so this variant
+            // can never occur here.
+            ProcessedMessageContent::OwnPendingCommit => {
+                unreachable!("the DS never authors commits")
+            }
             ProcessedMessageContent::ApplicationMessage(_)
-            | ProcessedMessageContent::ExternalJoinProposalMessage(_)
-            | ProcessedMessageContent::OwnPendingCommit => todo!(),
+            | ProcessedMessageContent::ExternalJoinProposalMessage(_) => todo!(),
         };
         // Check if any potential joiners were added.
         self.past_group_states.add_state(
