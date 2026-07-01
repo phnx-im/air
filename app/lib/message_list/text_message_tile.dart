@@ -10,14 +10,18 @@ import 'package:air/chat/chat_details.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/jumbo_emoji.dart';
+import 'package:air/message_list/emoji_picker.dart';
+import 'package:air/message_list/emoji_repository.dart';
 import 'package:air/message_list/message_composer.dart';
 import 'package:air/message_list/message_list_cubit.dart';
+import 'package:air/message_list/message_reactions.dart';
 import 'package:air/message_list/mobile_message_actions.dart';
 import 'package:air/message_list/timestamp.dart';
 import 'package:air/navigation/navigation.dart';
 import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/foundations/themes.dart';
 import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/components/button/glass_circle_button.dart';
 import 'package:air/ds/components/context_menu/context_menu.dart';
 import 'package:air/ds/components/context_menu/context_menu_item_ui.dart';
 import 'package:air/ds/components/modal/bottom_sheet_modal.dart';
@@ -46,6 +50,7 @@ import 'swipe_to_reply.dart';
 final _log = Logger('MessageTile');
 
 const double _bubbleMaxWidthFactor = 5 / 6;
+const double _hoverReactSize = 32;
 const double largeCornerRadius = Spacing.px20;
 const double smallCornerRadius = Spacing.px8;
 const double messageHorizontalPadding = Spacing.px16;
@@ -60,6 +65,21 @@ const _messagePadding = EdgeInsets.symmetric(
   horizontal: messageHorizontalPadding,
   vertical: messageVerticalPadding,
 );
+
+/// Places [affordance] beside [child], vertically centered on it (the trailing
+/// hover button sits centered on the bubble, not the bubble + metadata).
+Widget _withTrailingAffordance({
+  required bool isSender,
+  required Widget child,
+  Widget? affordance,
+}) {
+  if (affordance == null) return child;
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.center,
+    children: isSender ? [affordance, child] : [child, affordance],
+  );
+}
 
 class WrapWithBubbleWidth extends StatelessWidget {
   const WrapWithBubbleWidth({
@@ -104,6 +124,8 @@ class TextMessageTile extends StatelessWidget {
     required this.status,
     required this.isSender,
     required this.showSender,
+    required this.reactions,
+    required this.ownUserId,
     super.key,
   });
 
@@ -115,6 +137,8 @@ class TextMessageTile extends StatelessWidget {
   final UiMessageStatus status;
   final bool isSender;
   final bool showSender;
+  final List<UiReaction> reactions;
+  final UiUserId ownUserId;
 
   @override
   Widget build(BuildContext context) {
@@ -127,6 +151,8 @@ class TextMessageTile extends StatelessWidget {
         timestamp: timestamp,
         flightPosition: flightPosition,
         status: status,
+        reactions: reactions,
+        ownUserId: ownUserId,
       );
     }
 
@@ -140,6 +166,8 @@ class TextMessageTile extends StatelessWidget {
       status: status,
       showMetadata: true,
       showSenderLabel: showSender,
+      reactions: reactions,
+      ownUserId: ownUserId,
     );
   }
 }
@@ -152,6 +180,8 @@ class _IncomingMessageTile extends StatelessWidget {
     required this.timestamp,
     required this.flightPosition,
     required this.status,
+    required this.reactions,
+    required this.ownUserId,
   });
 
   final MessageId messageId;
@@ -160,6 +190,8 @@ class _IncomingMessageTile extends StatelessWidget {
   final DateTime timestamp;
   final UiFlightPosition flightPosition;
   final UiMessageStatus status;
+  final List<UiReaction> reactions;
+  final UiUserId ownUserId;
 
   @override
   Widget build(BuildContext context) {
@@ -222,6 +254,8 @@ class _IncomingMessageTile extends StatelessWidget {
                 status: status,
                 showMetadata: false,
                 showSenderLabel: showSenderLabel,
+                reactions: reactions,
+                ownUserId: ownUserId,
               ),
             ),
           ],
@@ -253,6 +287,8 @@ class _MessageView extends HookWidget {
     required this.status,
     required this.showMetadata,
     required this.showSenderLabel,
+    required this.reactions,
+    required this.ownUserId,
   });
 
   final MessageId messageId;
@@ -264,6 +300,8 @@ class _MessageView extends HookWidget {
   final UiMessageStatus status;
   final bool showMetadata;
   final bool showSenderLabel;
+  final List<UiReaction> reactions;
+  final UiUserId ownUserId;
 
   @override
   Widget build(BuildContext context) {
@@ -275,7 +313,10 @@ class _MessageView extends HookWidget {
       () => ValueNotifier<Offset?>(null),
     );
     final messageBubbleKey = useMemoized(() => GlobalKey());
+    final contextMenuKey = useMemoized(() => GlobalKey<ContextMenuState>());
+    final reactButtonKey = useMemoized(() => GlobalKey());
     final isDetached = useState(false);
+    final isHovered = useState(false);
     useEffect(() {
       return cursorPositionNotifier.dispose;
     }, [cursorPositionNotifier]);
@@ -299,6 +340,97 @@ class _MessageView extends HookWidget {
         platform == TargetPlatform.macOS ||
         platform == TargetPlatform.linux ||
         platform == TargetPlatform.windows;
+
+    // Persisted default skin tone applied to reactions and the picker.
+    final skinToneIndex = context.select(
+      (UserSettingsCubit cubit) => cubit.state.defaultEmojiSkinTone,
+    );
+    final skinTone = EmojiSkinVariation
+        .values[skinToneIndex.clamp(0, EmojiSkinVariation.values.length - 1)];
+
+    Rect? globalRectOf(GlobalKey key) {
+      final renderObject = key.currentContext?.findRenderObject();
+      if (renderObject is! RenderBox || !renderObject.hasSize) {
+        return null;
+      }
+      final origin = renderObject.localToGlobal(Offset.zero);
+      return origin & renderObject.size;
+    }
+
+    Rect? reactionAnchorRect() => globalRectOf(messageBubbleKey);
+
+    void sendReaction(String emoji) {
+      context.read<ChatDetailsCubit>().sendReaction(
+        messageId: messageId,
+        emoji: emoji,
+      );
+    }
+
+    Future<void> openFullEmojiPicker() async {
+      // Capture cubits before the await so the picker can persist tone changes.
+      final settings = context.read<UserSettingsCubit>();
+      final userCubit = context.read<UserCubit>();
+      void onSkinToneChanged(EmojiSkinVariation tone) {
+        unawaited(
+          settings.setDefaultEmojiSkinTone(
+            userCubit: userCubit,
+            value: tone.index,
+          ),
+        );
+      }
+
+      final emoji = isMobilePlatform
+          ? await showEmojiPickerSheet(
+              context: context,
+              initialSkinTone: skinTone,
+              onSkinToneChanged: onSkinToneChanged,
+            )
+          : await showEmojiPickerPopover(
+              context: context,
+              initialSkinTone: skinTone,
+              onSkinToneChanged: onSkinToneChanged,
+            );
+      if (emoji != null) {
+        sendReaction(emoji);
+      }
+    }
+
+    void openReactionMenu({GlobalKey? anchorKey}) {
+      // Anchor to the context menu (if open) or to the triggering button, so the
+      // reaction bar appears just above whatever was tapped. Fall back to the
+      // message bubble (e.g. double-tap to react).
+      final anchorRect =
+          contextMenuKey.currentState?.currentMenuRect ??
+          (anchorKey != null ? globalRectOf(anchorKey) : null) ??
+          reactionAnchorRect();
+      if (anchorRect == null) return;
+      unawaited(
+        showQuickReactionMenu(
+          context: context,
+          anchorRect: anchorRect,
+          alignEnd: isSender,
+          skinTone: skinTone,
+          onReact: sendReaction,
+          onMore: () => unawaited(openFullEmojiPicker()),
+        ),
+      );
+    }
+
+    void showReactors(String? tappedEmoji) {
+      final chatDetailsCubit = context.read<ChatDetailsCubit>();
+      unawaited(
+        showWhoReactedSheet(
+          context: context,
+          reactions: reactions,
+          ownUserId: ownUserId,
+          initialEmoji: tappedEmoji,
+          onRemove: (emoji) => chatDetailsCubit.deleteReaction(
+            messageId: messageId,
+            emoji: emoji,
+          ),
+        ),
+      );
+    }
 
     Widget buildMessageBubble({required bool enableSelection}) {
       return _MessageContent(
@@ -381,6 +513,16 @@ class _MessageView extends HookWidget {
     ];
 
     final menuItems = <ContextMenuEntry>[];
+    if (isReplyable) {
+      // TODO(l10n): localize "React".
+      menuItems.add(
+        ContextMenuItem(
+          label: 'React',
+          leading: const AppIcon.smilePlus(size: iconSize),
+          onPressed: openReactionMenu,
+        ),
+      );
+    }
     for (final action in actions) {
       if (action.insertSeparatorBefore) {
         menuItems.add(const ContextMenuSeparator());
@@ -412,6 +554,7 @@ class _MessageView extends HookWidget {
       required GlobalKey messageKey,
       required bool detached,
       required bool includeMetadata,
+      Widget? trailingAffordance,
     }) {
       Widget bubble = KeyedSubtree(
         key: messageKey,
@@ -424,6 +567,14 @@ class _MessageView extends HookWidget {
         );
       }
 
+      bubble = BubbleWithReactions(
+        reactions: reactions,
+        isSender: isSender,
+        ownUserId: ownUserId,
+        onTap: showReactors,
+        bubble: bubble,
+      );
+
       return Container(
         padding: EdgeInsets.only(
           top: flightPosition.isFirst ? Spacing.px4 : 0,
@@ -435,40 +586,49 @@ class _MessageView extends HookWidget {
               : CrossAxisAlignment.start,
           mainAxisSize: MainAxisSize.min,
           children: [
-            MouseRegion(
-              cursor: SystemMouseCursors.basic,
-              child: AnimatedOpacity(
-                opacity: detached ? 0.0 : 1.0,
-                duration: const Duration(milliseconds: 120),
-                child: IgnorePointer(
-                  ignoring: detached,
-                  // Right-click: handled via raw pointer events to
-                  // bypass the gesture arena (won by
-                  // _EagerSecondaryClickRecognizer).
-                  child: Listener(
-                    onPointerDown: onSecondaryTapDown != null
-                        ? (event) {
-                            if (event.buttons == kSecondaryMouseButton) {
-                              onSecondaryTapDown(
-                                TapDownDetails(
-                                  globalPosition: event.position,
-                                  localPosition: event.localPosition,
-                                ),
-                              );
+            _withTrailingAffordance(
+              isSender: isSender,
+              affordance: trailingAffordance,
+              child: MouseRegion(
+                cursor: SystemMouseCursors.basic,
+                child: AnimatedOpacity(
+                  opacity: detached ? 0.0 : 1.0,
+                  duration: const Duration(milliseconds: 120),
+                  child: IgnorePointer(
+                    ignoring: detached,
+                    // Right-click: handled via raw pointer events to
+                    // bypass the gesture arena (won by
+                    // _EagerSecondaryClickRecognizer).
+                    child: Listener(
+                      onPointerDown: onSecondaryTapDown != null
+                          ? (event) {
+                              if (event.buttons == kSecondaryMouseButton) {
+                                onSecondaryTapDown(
+                                  TapDownDetails(
+                                    globalPosition: event.position,
+                                    localPosition: event.localPosition,
+                                  ),
+                                );
+                              }
                             }
-                          }
-                        : null,
-                    // Tap and long-press: handled via the
-                    // gesture arena as usual.
-                    child: GestureDetector(
-                      behavior: HitTestBehavior.deferToChild,
-                      onTap:
-                          (status == UiMessageStatus.hidden &&
-                              !isRevealed.value)
-                          ? () => isRevealed.value = true
                           : null,
-                      onLongPress: onLongPress,
-                      child: bubble,
+                      // Tap and long-press: handled via the
+                      // gesture arena as usual.
+                      child: GestureDetector(
+                        behavior: HitTestBehavior.deferToChild,
+                        onTap:
+                            (status == UiMessageStatus.hidden &&
+                                !isRevealed.value)
+                            ? () => isRevealed.value = true
+                            : null,
+                        // Mobile: double-tap a message to react. On desktop,
+                        // double-click is reserved for text selection.
+                        onDoubleTap: (isMobilePlatform && isReplyable)
+                            ? openReactionMenu
+                            : null,
+                        onLongPress: onLongPress,
+                        child: bubble,
+                      ),
                     ),
                   ),
                 ),
@@ -506,6 +666,11 @@ class _MessageView extends HookWidget {
                     actions: actions,
                     messageContent: overlayBubble,
                     alignEnd: isSender,
+                    reactionSkinTone: skinTone,
+                    onReact: isReplyable ? sendReaction : null,
+                    onReactMore: isReplyable
+                        ? () => unawaited(openFullEmojiPicker())
+                        : null,
                   );
                   unawaited(
                     future.whenComplete(() {
@@ -533,33 +698,67 @@ class _MessageView extends HookWidget {
           : wrappedBubble;
     }
 
+    // Padded at the bottom by the chip reserve so the trailing-affordance Row
+    // centers it on the bubble itself (not the bubble + reaction chips).
+    final hoverAffordance = Padding(
+      padding: EdgeInsets.only(
+        bottom: reactionsReservedBelow(reactions.isNotEmpty),
+      ),
+      child: SizedBox(
+        width: _hoverReactSize + Spacing.px8,
+        child: Center(
+          child: AnimatedOpacity(
+            opacity: isHovered.value ? 1.0 : 0.0,
+            duration: const Duration(milliseconds: 120),
+            child: IgnorePointer(
+              ignoring: !isHovered.value,
+              child: GlassCircleButton(
+                key: reactButtonKey,
+                size: _hoverReactSize,
+                onPressed: () => openReactionMenu(anchorKey: reactButtonKey),
+                icon: AppIcon.smilePlus(size: 18, color: colors.text.secondary),
+              ),
+            ),
+          ),
+        ),
+      ),
+    );
+
+    final desktopShell = ContextMenu(
+      key: contextMenuKey,
+      direction: isSender
+          ? ContextMenuDirection.left
+          : ContextMenuDirection.right,
+      offset: const Offset(Spacing.px8, 0),
+      controller: contextMenuController,
+      menuItems: menuItems,
+      cursorPosition: cursorPositionNotifier,
+      child: buildMessageShell(
+        onLongPress: null,
+        onSecondaryTapDown: actions.isEmpty
+            ? null
+            : (details) {
+                if (contextMenuController.isShowing) {
+                  contextMenuController.hide();
+                }
+                ContextMenu.closeActiveMenu();
+                cursorPositionNotifier.value = details.globalPosition;
+                contextMenuController.show();
+              },
+        enableSelection: isDesktopPlatform,
+        messageKey: messageBubbleKey,
+        detached: false,
+        includeMetadata: showMetadata,
+        trailingAffordance: isReplyable ? hoverAffordance : null,
+      ),
+    );
+
     return WrapWithBubbleWidth(
       isSender: isSender,
-      child: ContextMenu(
-        direction: isSender
-            ? ContextMenuDirection.left
-            : ContextMenuDirection.right,
-        offset: const Offset(Spacing.px8, 0),
-        controller: contextMenuController,
-        menuItems: menuItems,
-        cursorPosition: cursorPositionNotifier,
-        child: buildMessageShell(
-          onLongPress: null,
-          onSecondaryTapDown: actions.isEmpty
-              ? null
-              : (details) {
-                  if (contextMenuController.isShowing) {
-                    contextMenuController.hide();
-                  }
-                  ContextMenu.closeActiveMenu();
-                  cursorPositionNotifier.value = details.globalPosition;
-                  contextMenuController.show();
-                },
-          enableSelection: isDesktopPlatform,
-          messageKey: messageBubbleKey,
-          detached: false,
-          includeMetadata: showMetadata,
-        ),
+      child: MouseRegion(
+        onEnter: (_) => isHovered.value = true,
+        onExit: (_) => isHovered.value = false,
+        child: desktopShell,
       ),
     );
   }

@@ -20,7 +20,7 @@ import '../helpers.dart';
 import '../mocks.dart';
 
 // NB: do not forget to adjust this, when you add more content to render
-const highTestSize = Size(1080, 4100);
+const highTestSize = Size(1080, 4400);
 
 final chatId = 1.chatId();
 
@@ -319,6 +319,31 @@ final messages = [
     position: UiFlightPosition.single,
     status: UiMessageStatus.read,
     reactions: [],
+  ),
+  UiChatMessage(
+    id: 14.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-02T00:05:07.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 1.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          topicId: Uint8List(0),
+          plainBody: "I love this app!",
+          content: simpleMessage("I love this app!"),
+          attachments: [],
+        ),
+      ),
+    ),
+    inReplyToMessage: const UiInReplyToMessage.notFound(),
+    position: UiFlightPosition.single,
+    status: UiMessageStatus.read,
+    reactions: [
+      UiReaction(emoji: "🫪", users: [2.userId(), 3.userId()]),
+      UiReaction(emoji: "💖", users: [4.userId()]),
+    ],
   ),
 ];
 
