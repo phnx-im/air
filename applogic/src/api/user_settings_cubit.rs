@@ -204,16 +204,18 @@ impl UserSettingsCubitBase {
 
     pub async fn set_is_developer(
         &self,
-        user_cubit: &UserCubitBase,
+        user_cubit: Option<UserCubitBase>,
         value: bool,
     ) -> anyhow::Result<()> {
         if self.core.state_tx().borrow().is_developer == value {
             return Ok(());
         }
-        user_cubit
-            .core_user()
-            .set_user_setting(&IsDeveloperSetting(value))
-            .await?;
+        if let Some(user_cubit) = user_cubit {
+            user_cubit
+                .core_user()
+                .set_user_setting(&IsDeveloperSetting(value))
+                .await?;
+        }
         self.core
             .state_tx()
             .send_modify(|state| state.is_developer = value);

@@ -4,76 +4,105 @@
 
 import 'package:air/message_list/emoji_data_generated.dart' as data;
 
-enum EmojiSkinTone {
+enum EmojiSkinVariation {
   none(''),
   light('\u{1F3FB}'),
   mediumLight('\u{1F3FC}'),
   medium('\u{1F3FD}'),
   mediumDark('\u{1F3FE}'),
-  dark('\u{1F3FF}');
+  dark('\u{1F3FF}'),
+  redHair('\u{1F9B0}'),
+  curlyHair('\u{1F9B1}'),
+  bald('\u{1F9B2}'),
+  whiteHair('\u{1F9B3}');
 
-  const EmojiSkinTone(this.modifier);
+  const EmojiSkinVariation(this.modifier);
 
   /// The Unicode skintone modifier appended to a skinnable base emoji.
   final String modifier;
+}
+
+extension EmojiExtension on data.Emoji {
+  /// Applies [variation] to [entry] using its precomputed skin-tone variant, falling
+  /// back to the base emoji when the tone is [EmojiSkinVariation.none] or the variant
+  /// is missing. Using the variant table (rather than appending the modifier)
+  /// keeps ZWJ and multi-code-point emojis correct.
+  String applySkinVariation(EmojiSkinVariation variation) {
+    if (variation == .none) {
+      return emoji;
+    }
+    return skinVariations[variation.modifier] ?? emoji;
+  }
 }
 
 class EmojiRepository {
   /// All entries whose shortcodes contain [query] (case-insensitive). Returns
   /// the full set when [query] is empty. Unlike [search], this is unbounded and
   /// intended to back the emoji picker grid.
-  List<data.Emoji> filter(String query) {
+  static List<(String, List<data.Emoji>)> filter(String query) {
     final normalized = query.trim().toLowerCase();
     if (normalized.isEmpty) {
-      return data.emojisByCategory.expand((category) => category.$2).toList();
+      return data.emojisByCategory;
     }
     final matches = data.shortcodeToIndex.entries
         .where((e) => e.key.contains(normalized))
         .map((e) => e.value)
-        .toList();
+        .toSet();
 
-    return matches.expand((match) sync* {
-      final (catId, index) = match;
-      yield data.emojisByCategory[catId].$2[index];
-    }).toList();
+    return data.emojisByCategory.indexed
+        .map((entry) {
+          final (catId, (category, emojis)) = entry;
+          return (
+            category,
+            emojis.indexed
+                .where((e) => matches.contains((catId, e.$1)))
+                .map((e) => e.$2)
+                .toList(),
+          );
+        })
+        .where((category) => category.$2.isNotEmpty)
+        .toList();
   }
 
+  /// Up to [limit] emojis whose shortcode contains [query] (case-insensitive),
+  /// each paired with the matched shortcode. Results are deduped to one entry
+  /// per emoji (keeping its primary/first matching shortcode). An empty [query]
+  /// returns the first [limit] emojis in canonical order.
   static List<EmojiSearchResult> search(String query, {int limit = 20}) {
-    return [];
-    // final normalized = query.toLowerCase();
-    // if (normalized.isEmpty) {
-    //   return top(limit: limit)
-    //       .map(
-    //         (entry) => EmojiSearchResult(
-    //           entry: entry,
-    //           matchedShortcode: entry.shortcodes.first,
-    //         ),
-    //       )
-    //       .toList();
-    // }
+    final normalized = query.toLowerCase();
+    final seen = <(int, int)>{};
+    final results = <EmojiSearchResult>[];
+    // `shortcodeToIndex` is ordered by emoji, primary shortcode first, so the
+    // first surviving entry per emoji carries its best-matching shortcode.
+    for (final entry in data.shortcodeToIndex.entries) {
+      if (normalized.isNotEmpty && !entry.key.contains(normalized)) {
+        continue;
+      }
+      if (!seen.add(entry.value)) {
+        continue;
+      }
+      final (catId, index) = entry.value;
+      results.add(
+        EmojiSearchResult(
+          entry: data.emojisByCategory[catId].$2[index],
+          matchedShortcode: entry.key,
+        ),
+      );
+      // Empty query keeps canonical order, so we can stop once full.
+      if (normalized.isEmpty && results.length >= limit) {
+        break;
+      }
+    }
 
-    // final List<EmojiSearchResult> results = [];
-    // for (final entry in _entries) {
-    //   final match = entry.shortcodes.firstWhere(
-    //     (code) => code.contains(normalized),
-    //     orElse: () => '',
-    //   );
-    //   if (match.isEmpty) {
-    //     continue;
-    //   }
-    //   results.add(EmojiSearchResult(entry: entry, matchedShortcode: match));
-    // }
+    if (normalized.isNotEmpty) {
+      results.sort((a, b) => a.matchedShortcode.compareTo(b.matchedShortcode));
+    }
 
-    // results.sort((a, b) => a.matchedShortcode.compareTo(b.matchedShortcode));
-
-    // if (results.length > limit) {
-    //   return results.sublist(0, limit);
-    // }
-    // return results;
+    return results.length > limit ? results.sublist(0, limit) : results;
   }
 
   static data.Emoji? byShortcode(String shortcode) {
-    final emojiRef = data.shortcodeToIndex[shortcode];
+    final emojiRef = data.shortcodeToIndex[shortcode.toLowerCase()];
     if (emojiRef == null) {
       return null;
     }

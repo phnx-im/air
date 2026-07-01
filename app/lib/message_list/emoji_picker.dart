@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/message_list/emoji_data_generated.dart' as emoji_data;
 import 'package:air/message_list/emoji_repository.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'package:air/ds/components/button/glass_circle_button.dart';
 import 'package:air/ds/components/modal/bottom_sheet_modal.dart';
@@ -13,17 +13,6 @@ import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:air/ds/foundations/themes.dart';
 import 'package:air/ds/theme/theme.dart';
 
-/// Applies [tone] to [entry] using its precomputed skin-tone variant, falling
-/// back to the base emoji when the tone is [EmojiSkinTone.none] or the variant
-/// is missing. Using the variant table (rather than appending the modifier)
-/// keeps ZWJ and multi-code-point emojis correct.
-String applySkinTone(emoji_data.Emoji entry, EmojiSkinTone tone) {
-  if (tone == EmojiSkinTone.none) {
-    return entry.emoji;
-  }
-  return entry.skinVariations[tone.modifier] ?? entry.emoji;
-}
-
 // Picker metrics.
 const double _emojiCellSize = 52;
 const double _emojiGlyphSize = 32;
@@ -31,95 +20,75 @@ const double _panelRadius = Spacing.px20;
 const double _panelPadding = Spacing.px16;
 const double _searchHeight = 40;
 
-/// Stadium-shaped border for the search field. The oversized radius is clamped
-/// to half the painted height, yielding fully rounded (semicircular) ends.
+/// Border for the search field.
 final _pillBorder = OutlineInputBorder(
   borderRadius: BorderRadius.circular(1000),
   borderSide: BorderSide.none,
 );
 
-/// Default size of the desktop emoji-picker popover.
-const Size emojiPickerPanelSize = Size(360, 360);
+/// Default size of the emoji picker popover.
+const Size _emojiPickerPanelSize = Size(360, 360);
 
-/// The emoji picker content: a pinned search field with a skin-tone selector,
-/// over a flat scrollable grid of all emojis. Skinnable emojis render with the
+/// The emoji picker content: a search field with a skin-tone selector,
+/// over a flat scrollable grid of all categorized emojis. Skinnable emojis render with the
 /// selected skin tone.
-///
-/// Picking an emoji calls [onSelected] with the (tone-applied) emoji. The
-/// skin-tone selector starts at [initialSkinTone] and reports changes through
-/// [onSkinToneChanged].
-class EmojiPicker extends StatefulWidget {
+class EmojiPicker extends HookWidget {
   const EmojiPicker({
     super.key,
     required this.onSelected,
-    this.initialSkinTone = EmojiSkinTone.none,
+    this.initialSkinTone = EmojiSkinVariation.none,
     this.onSkinToneChanged,
   });
 
   final void Function(String emoji) onSelected;
-  final EmojiSkinTone initialSkinTone;
-  final ValueChanged<EmojiSkinTone>? onSkinToneChanged;
-
-  @override
-  State<EmojiPicker> createState() => _EmojiPickerState();
-}
-
-class _EmojiPickerState extends State<EmojiPicker> {
-  final TextEditingController _searchController = TextEditingController();
-  String _query = '';
-  late EmojiSkinTone _skinTone = widget.initialSkinTone;
-  bool _toneStripOpen = false;
-
-  @override
-  void initState() {
-    super.initState();
-    _searchController.addListener(() {
-      if (_searchController.text != _query) {
-        setState(() => _query = _searchController.text);
-      }
-    });
-  }
-
-  @override
-  void dispose() {
-    _searchController.dispose();
-    super.dispose();
-  }
-
-  void _selectTone(EmojiSkinTone tone) {
-    setState(() {
-      _skinTone = tone;
-      _toneStripOpen = false;
-    });
-    widget.onSkinToneChanged?.call(tone);
-  }
+  final EmojiSkinVariation initialSkinTone;
+  final ValueChanged<EmojiSkinVariation>? onSkinToneChanged;
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
+
+    final searchController = useTextEditingController();
+    final query = useState('');
+    final skinTone = useState(initialSkinTone);
+    final toneStripOpen = useState(false);
+
+    useEffect(() {
+      void listener() => query.value = searchController.text;
+      searchController.addListener(listener);
+      return () => searchController.removeListener(listener);
+    }, [searchController]);
+
+    void selectTone(EmojiSkinVariation tone) {
+      skinTone.value = tone;
+      toneStripOpen.value = false;
+      onSkinToneChanged?.call(tone);
+    }
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Row(
           children: [
-            Expanded(child: _SearchField(controller: _searchController)),
+            Expanded(child: _SearchField(controller: searchController)),
             const SizedBox(width: Spacing.px8),
-            _SkinToneButton(
-              tone: _skinTone,
-              onPressed: () => setState(() => _toneStripOpen = !_toneStripOpen),
+            _EmojiComponentButton(
+              component: skinTone.value,
+              onPressed: () => toneStripOpen.value = !toneStripOpen.value,
             ),
           ],
         ),
-        if (_toneStripOpen) ...[
+        if (toneStripOpen.value) ...[
           const SizedBox(height: Spacing.px8),
-          _SkinToneStrip(selected: _skinTone, onSelected: _selectTone),
+          _SkinToneStrip(selected: skinTone.value, onSelected: selectTone),
         ],
         const SizedBox(height: Spacing.px12),
         Expanded(
           child: CustomScrollView(
             slivers: [
-              for (final (category, emojis) in emoji_data.emojisByCategory) ...[
+              for (final (category, emojis) in EmojiRepository.filter(
+                query.value,
+              )) ...[
                 SliverToBoxAdapter(
                   child: Padding(
                     padding: const EdgeInsets.all(Spacing.px8),
@@ -133,12 +102,14 @@ class _EmojiPickerState extends State<EmojiPicker> {
                   ),
                   itemCount: emojis.length,
                   itemBuilder: (context, index) {
-                    final emoji = applySkinTone(emojis[index], _skinTone);
+                    final emoji = emojis[index].applySkinVariation(
+                      skinTone.value,
+                    );
                     return Padding(
                       padding: const EdgeInsets.all(Spacing.px8),
                       child: _EmojiCell(
                         emoji: emoji,
-                        onTap: () => widget.onSelected(emoji),
+                        onTap: () => onSelected(emoji),
                       ),
                     );
                   },
@@ -200,10 +171,13 @@ class _SearchField extends StatelessWidget {
   }
 }
 
-class _SkinToneButton extends StatelessWidget {
-  const _SkinToneButton({required this.tone, required this.onPressed});
+class _EmojiComponentButton extends StatelessWidget {
+  const _EmojiComponentButton({
+    required this.component,
+    required this.onPressed,
+  });
 
-  final EmojiSkinTone tone;
+  final EmojiSkinVariation component;
   final VoidCallback onPressed;
 
   @override
@@ -215,7 +189,7 @@ class _SkinToneButton extends StatelessWidget {
       color: colors.fill.tertiary,
       enableBackdropBlur: false,
       icon: Text(
-        '\u{270B}${tone.modifier}',
+        '\u{270B}${component.modifier}',
         style: const TextStyle(fontSize: 20, height: 1.0),
       ),
     );
@@ -225,15 +199,15 @@ class _SkinToneButton extends StatelessWidget {
 class _SkinToneStrip extends StatelessWidget {
   const _SkinToneStrip({required this.selected, required this.onSelected});
 
-  final EmojiSkinTone selected;
-  final ValueChanged<EmojiSkinTone> onSelected;
+  final EmojiSkinVariation selected;
+  final ValueChanged<EmojiSkinVariation> onSelected;
 
   @override
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
     return Row(
       children: [
-        for (final tone in EmojiSkinTone.values)
+        for (final tone in EmojiSkinVariation.values)
           Expanded(
             child: Center(
               child: GlassCircleButton(
@@ -288,14 +262,14 @@ class EmojiPickerPanel extends StatelessWidget {
   const EmojiPickerPanel({
     super.key,
     required this.onSelected,
-    this.initialSkinTone = EmojiSkinTone.none,
+    this.initialSkinTone = EmojiSkinVariation.none,
     this.onSkinToneChanged,
-    this.size = emojiPickerPanelSize,
+    this.size = _emojiPickerPanelSize,
   });
 
   final void Function(String emoji) onSelected;
-  final EmojiSkinTone initialSkinTone;
-  final ValueChanged<EmojiSkinTone>? onSkinToneChanged;
+  final EmojiSkinVariation initialSkinTone;
+  final ValueChanged<EmojiSkinVariation>? onSkinToneChanged;
   final Size size;
 
   @override
@@ -329,8 +303,8 @@ class EmojiPickerPanel extends StatelessWidget {
 /// picked emoji, or `null` if dismissed.
 Future<String?> showEmojiPickerPopover({
   required BuildContext context,
-  EmojiSkinTone initialSkinTone = EmojiSkinTone.none,
-  ValueChanged<EmojiSkinTone>? onSkinToneChanged,
+  EmojiSkinVariation initialSkinTone = EmojiSkinVariation.none,
+  ValueChanged<EmojiSkinVariation>? onSkinToneChanged,
 }) {
   return showGeneralDialog<String>(
     context: context,
@@ -362,15 +336,15 @@ Future<String?> showEmojiPickerPopover({
 /// emoji, or `null` if dismissed.
 Future<String?> showEmojiPickerSheet({
   required BuildContext context,
-  EmojiSkinTone initialSkinTone = EmojiSkinTone.none,
-  ValueChanged<EmojiSkinTone>? onSkinToneChanged,
+  EmojiSkinVariation initialSkinTone = EmojiSkinVariation.none,
+  ValueChanged<EmojiSkinVariation>? onSkinToneChanged,
 }) {
   return showBottomSheetModal<String>(
     context: context,
     builder: (context) => Padding(
       padding: const EdgeInsets.all(_panelPadding),
       child: SizedBox(
-        height: emojiPickerPanelSize.height,
+        height: _emojiPickerPanelSize.height,
         child: EmojiPicker(
           onSelected: (emoji) => Navigator.of(context).pop(emoji),
           initialSkinTone: initialSkinTone,

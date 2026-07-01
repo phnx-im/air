@@ -235,9 +235,9 @@ const double _quickMoreSize = 36;
 
 String _applyQuickTone(
   ({String emoji, bool skinnable}) item,
-  EmojiSkinTone tone,
+  EmojiSkinVariation tone,
 ) {
-  if (!item.skinnable || tone == EmojiSkinTone.none) {
+  if (!item.skinnable || tone == EmojiSkinVariation.none) {
     return item.emoji;
   }
   return '${item.emoji}${tone.modifier}';
@@ -252,12 +252,12 @@ class QuickReactionBar extends StatelessWidget {
     super.key,
     required this.onReact,
     required this.onMore,
-    this.skinTone = EmojiSkinTone.none,
+    this.skinTone = EmojiSkinVariation.none,
   });
 
   final void Function(String emoji) onReact;
   final VoidCallback onMore;
-  final EmojiSkinTone skinTone;
+  final EmojiSkinVariation skinTone;
 
   @override
   Widget build(BuildContext context) {
@@ -310,7 +310,7 @@ Future<void> showQuickReactionMenu({
   required BuildContext context,
   required Rect anchorRect,
   required bool alignEnd,
-  required EmojiSkinTone skinTone,
+  required EmojiSkinVariation skinTone,
   required void Function(String emoji) onReact,
   required VoidCallback onMore,
 }) {
@@ -363,7 +363,7 @@ class _QuickReactionMenuOverlay extends StatelessWidget {
   final Animation<double> animation;
   final Rect anchorRect;
   final bool alignEnd;
-  final EmojiSkinTone skinTone;
+  final EmojiSkinVariation skinTone;
   final void Function(String emoji) onReact;
   final VoidCallback onMore;
 

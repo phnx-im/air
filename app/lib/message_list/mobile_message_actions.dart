@@ -37,7 +37,7 @@ Future<void> showMobileMessageActions({
   required List<MessageAction> actions,
   required Widget messageContent,
   required bool alignEnd,
-  EmojiSkinTone reactionSkinTone = EmojiSkinTone.none,
+  EmojiSkinVariation reactionSkinTone = EmojiSkinVariation.none,
   void Function(String emoji)? onReact,
   VoidCallback? onReactMore,
 }) {
@@ -95,7 +95,7 @@ class _MobileMessageActionView extends StatelessWidget {
   final List<MessageAction> actions;
   final Widget messageContent;
   final bool alignEnd;
-  final EmojiSkinTone reactionSkinTone;
+  final EmojiSkinVariation reactionSkinTone;
   final void Function(String emoji)? onReact;
   final VoidCallback? onReactMore;
 

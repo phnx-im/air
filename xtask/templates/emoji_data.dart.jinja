@@ -1,0 +1,49 @@
+// SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+// GENERATED FILE — DO NOT EDIT.
+// Regenerate with `cargo xtask generate-emoji <emoji_pretty.json>`.
+
+/// Locates one emoji: `(category id, index within that category's list)`.
+/// Resolve with `emojisByCategory[ref.$1].$2[ref.$2]`.
+typedef EmojiRef = (int category, int index);
+
+/// A single emoji: its rendered glyph and its skin-tone variants, keyed by the
+/// tone modifier glyph(s) (empty when unsupported).
+class Emoji {
+  const Emoji(this.emoji, [this.skinVariations = const {}]);
+
+  final String emoji;
+  final Map<String, String> skinVariations;
+
+  bool get supportsSkinTone => skinVariations.isNotEmpty;
+}
+
+/// `(category name, its emojis)` indexed by category id, in canonical order then
+/// sort order.
+const List<(String, List<Emoji>)> emojisByCategory = [
+{%- for category in categories %}
+  ({{ category.name }}, [
+  {%- for emoji in category.emojis %}
+  {%- if emoji.variations.is_empty() %}
+    Emoji('{{ emoji.escape }}'),
+  {%- else %}
+    Emoji('{{ emoji.escape }}', {
+    {%- for variation in emoji.variations %}
+      '{{ variation.tone }}': '{{ variation.glyph }}',
+    {%- endfor %}
+    }),
+  {%- endif %}
+  {%- endfor %}
+  ]),
+{%- endfor %}
+];
+
+/// Short code -> (category id, index) into [emojisByCategory] (first occurrence
+/// wins).
+const Map<String, EmojiRef> shortcodeToIndex = {
+{%- for shortcode in shortcodes %}
+  {{ shortcode.code }}: ({{ shortcode.category_id }}, {{ shortcode.index }}),
+{%- endfor %}
+};

@@ -345,8 +345,8 @@ class _MessageView extends HookWidget {
     final skinToneIndex = context.select(
       (UserSettingsCubit cubit) => cubit.state.defaultEmojiSkinTone,
     );
-    final skinTone = EmojiSkinTone
-        .values[skinToneIndex.clamp(0, EmojiSkinTone.values.length - 1)];
+    final skinTone = EmojiSkinVariation
+        .values[skinToneIndex.clamp(0, EmojiSkinVariation.values.length - 1)];
 
     Rect? globalRectOf(GlobalKey key) {
       final renderObject = key.currentContext?.findRenderObject();
@@ -370,7 +370,7 @@ class _MessageView extends HookWidget {
       // Capture cubits before the await so the picker can persist tone changes.
       final settings = context.read<UserSettingsCubit>();
       final userCubit = context.read<UserCubit>();
-      void onSkinToneChanged(EmojiSkinTone tone) {
+      void onSkinToneChanged(EmojiSkinVariation tone) {
         unawaited(
           settings.setDefaultEmojiSkinTone(
             userCubit: userCubit,
