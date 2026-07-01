@@ -142,6 +142,7 @@ class ContextMenuState extends State<ContextMenu> {
     if (box == null || !box.hasSize) return null;
     return box.localToGlobal(Offset.zero) & box.size;
   }
+
   ValueListenable<Offset?>? _attachedCursorPosition;
   VoidCallback? _cursorPositionListener;
   Size? _menuSize;

@@ -12,6 +12,7 @@ use askama::Template;
 use camino::Utf8PathBuf;
 use clap::Args;
 use serde::Deserialize;
+use xshell::{Shell, cmd};
 
 use crate::util::workspace_root;
 
@@ -213,6 +214,10 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
         categories.len(),
         shortcodes.len(),
     );
+
+    let shell = Shell::new()?;
+    cmd!(shell, "dart format {output}").run()?;
+
     Ok(())
 }
 
@@ -232,4 +237,3 @@ fn dart_string(value: &str) -> String {
         .replace('$', "\\$");
     format!("'{escaped}'")
 }
-

@@ -50,10 +50,7 @@ void main() {
     test('every matched shortcode contains the query', () {
       final results = EmojiRepository.search('smil');
       expect(results, isNotEmpty);
-      expect(
-        results.every((r) => r.matchedShortcode.contains('smil')),
-        isTrue,
-      );
+      expect(results.every((r) => r.matchedShortcode.contains('smil')), isTrue);
     });
 
     test('is case-insensitive', () {
@@ -71,16 +68,22 @@ void main() {
       expect(glyphs.toSet().length, glyphs.length);
     });
 
-    test('collapses an emoji with several matching shortcodes to one entry', () {
-      // Query matches both `laughing` and `satisfied` (same emoji).
-      final matches = EmojiRepository.search(
-        'satisf',
-      ).where((r) => r.entry.emoji == _laughing);
-      expect(matches.length, 1);
-    });
+    test(
+      'collapses an emoji with several matching shortcodes to one entry',
+      () {
+        // Query matches both `laughing` and `satisfied` (same emoji).
+        final matches = EmojiRepository.search(
+          'satisf',
+        ).where((r) => r.entry.emoji == _laughing);
+        expect(matches.length, 1);
+      },
+    );
 
     test('respects the limit', () {
-      expect(EmojiRepository.search('a', limit: 5).length, lessThanOrEqualTo(5));
+      expect(
+        EmojiRepository.search('a', limit: 5).length,
+        lessThanOrEqualTo(5),
+      );
     });
 
     test('sorts results by matched shortcode', () {
@@ -125,7 +128,10 @@ void main() {
     });
 
     test('is case-insensitive', () {
-      expect(glyphs(EmojiRepository.filter('GRIN')), glyphs(EmojiRepository.filter('grin')));
+      expect(
+        glyphs(EmojiRepository.filter('GRIN')),
+        glyphs(EmojiRepository.filter('grin')),
+      );
     });
 
     test('does not repeat an emoji that matches on several shortcodes', () {
