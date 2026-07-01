@@ -156,9 +156,7 @@ class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
 
   @override
   bool matchesQuery(Emoji suggestion, String query) {
-    final normalized = query.toLowerCase();
-    return true;
-    // return suggestion.shortcodes.any((code) => code == normalized);
+    return EmojiRepository.byShortcode(query)?.emoji == suggestion.emoji;
   }
 
   @override
