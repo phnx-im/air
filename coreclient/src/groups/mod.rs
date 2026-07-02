@@ -94,9 +94,10 @@ use crate::{
 use openmls::{
     component::ComponentType,
     components::vc_derivation_info::GenerationId,
+    framing::errors::SecretTreeError,
     group::{
-        CreateCommitError, ExportSecretError, ExternalCommitBuilder, GroupEpoch, JoinBuilder,
-        ProcessedWelcome, ProposalValidationError, UnconfirmedMessage,
+        ConfirmMessageError, CreateCommitError, ExportSecretError, ExternalCommitBuilder,
+        GroupEpoch, JoinBuilder, ProcessedWelcome, ProposalValidationError, UnconfirmedMessage,
     },
     key_packages::KeyPackageBundle,
     prelude::{
@@ -1615,6 +1616,8 @@ impl Group {
             .mls_group
             .create_unconfirmed_message(provider, signer, &content_bytes)?;
 
+        self.confirm_message(provider, generation)?;
+
         let message = AssistedMessageOut::new(message, None);
 
         let recipient_index = self
@@ -1649,9 +1652,19 @@ impl Group {
         provider: &AirOpenMlsProvider<'_>,
         generation: u32,
     ) -> Result<(), GroupOperationError> {
-        self.mls_group
+        match self
+            .mls_group
             .confirm_message(provider.storage(), generation)
-            .map_err(Into::into)
+        {
+            Ok(()) => Ok(()),
+            Err(ConfirmMessageError::SecretTreeError(SecretTreeError::RatchetTypeError)) => {
+                warn!(
+                    "no support for confirmation at this epoch: this group hasn't been updated yet."
+                );
+                Ok(())
+            }
+            Err(error) => Err(error.into()),
+        }
     }
 
     /// Get a reference to the group's group id.

@@ -698,6 +698,7 @@ impl CoreUser {
                     (new_messages, Vec::new(), updated, Vec::new())
                 }
                 ProcessedMessageContent::OwnPendingCommit => {
+                    dbg!("OwnPendingCommit");
                     let (group_messages, _group_data_bytes) = group
                         .merge_pending_commit(&mut *txn, None, ds_timestamp)
                         .await?;

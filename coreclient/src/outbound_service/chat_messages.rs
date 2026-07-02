@@ -148,7 +148,7 @@ impl OutboundServiceContext {
                     );
                 }
                 Err(e) => {
-                    warn!(%e, ?message_id, "Failed to send chat message");
+                    warn!(error = ?e, ?message_id, "Failed to send chat message");
                     // If the message fails, we mark it and all other queued
                     // messages as "failed" and delete them from the queue.
                     self.db
@@ -235,12 +235,14 @@ impl OutboundServiceContext {
                 if !ds_error.process_tag_collisions(&sent_tags).is_empty() {
                     return Ok(SendOutcome::Collided);
                 }
-                return Err(ds_error.into());
+                return Err(anyhow::Error::from(ds_error).context("DS rejected message"));
             }
         };
 
         // message accepted by DS, confirm.
-        self.confirm_mls_message(&chat, generation).await?;
+        self.confirm_mls_message(&chat, generation)
+            .await
+            .context("failed to confirm MLS message")?;
 
         // post-processing:
         self.db

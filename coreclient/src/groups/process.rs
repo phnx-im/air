@@ -156,6 +156,8 @@ impl Group {
             ProcessedMessageContent::OwnPendingCommit => {
                 // Our own commit was echoed back to us: openmls matched it
                 // against our pending commit.
+                dbg!("OwnPendingCommit");
+
                 PostProcessState {
                     sender_index: self.mls_group.own_leaf_index(),
                     we_were_removed: false,
