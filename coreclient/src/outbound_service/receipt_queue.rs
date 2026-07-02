@@ -24,6 +24,7 @@ mod persistence {
     use std::time::Duration;
 
     use aircommon::{identifiers::MimiId, time::TimeStamp};
+    use mimi_content::{MessageStatusReport, PerMessageStatus};
     use sqlx::{query, query_as, query_scalar};
     use tokio_stream::StreamExt;
     use tracing::debug;
@@ -124,6 +125,30 @@ mod persistence {
             query!("DELETE FROM receipt_queue WHERE locked_by = ?", task_id)
                 .execute(connection.as_mut())
                 .await?;
+            Ok(())
+        }
+
+        /// Remove only the receipts a sibling already delivered, identified by
+        /// their `(mimi_id, status)`. Rows still locked by `task_id` that are not
+        /// listed remain queued so they are re-sent at a later generation.
+        pub(crate) async fn remove_delivered(
+            mut connection: impl WriteConnection,
+            task_id: Uuid,
+            delivered: &MessageStatusReport,
+        ) -> sqlx::Result<()> {
+            for PerMessageStatus { mimi_id, status } in &delivered.statuses {
+                let mimi_id = mimi_id.as_slice();
+                let status: u8 = (*status).into();
+                query!(
+                    "DELETE FROM receipt_queue
+                        WHERE locked_by = ?1 AND mimi_id = ?2 AND status = ?3",
+                    task_id,
+                    mimi_id,
+                    status,
+                )
+                .execute(connection.as_mut())
+                .await?;
+            }
             Ok(())
         }
     }

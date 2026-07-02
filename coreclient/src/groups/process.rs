@@ -82,10 +82,17 @@ impl Group {
                     ValidationError::WrongEpoch,
                 )) => {
                     // If the message epoch is in the past, we can just ignore
-                    // it. Likely we already re-joined and this is a message we
-                    // missed.
+                    // it. This is expected on every commit: the DS echoes our
+                    // own commit back, but we usually merge our pending commit
+                    // via the `DsCommitResponse` first, leaving the echo one
+                    // epoch behind. So skip quietly rather than logging an error.
                     if self.mls_group.epoch() > message_epoch {
-                        bail!("Message epoch is in the past");
+                        debug!(
+                            ?message_epoch,
+                            current_epoch = ?self.mls_group.epoch(),
+                            "Ignoring past-epoch message"
+                        );
+                        return Ok(None);
                     }
                     // If the message epoch is in the future, we need to re-join
                     // the group.
@@ -666,13 +673,17 @@ impl Group {
                 ValidationError::WrongEpoch,
             ))) => {
                 // A past-epoch message is one we already moved past, so we
-                // ignore it.
+                // ignore it. This is expected on every commit: the DS echoes
+                // our own commit back, but we usually merge our pending commit
+                // via the `DsCommitResponse` first, leaving the echo one epoch
+                // behind. So skip quietly rather than logging an error.
                 if current_t_epoch > message_t_epoch {
-                    bail!(
-                        "Message epoch is in the past: message t-epoch {} < current t-epoch {}",
-                        message_t_epoch,
-                        current_t_epoch
+                    debug!(
+                        %message_t_epoch,
+                        %current_t_epoch,
+                        "Ignoring past-epoch APQ message"
                     );
+                    return Ok(None);
                 }
                 // A future-epoch message means we are behind and the caller
                 // must trigger a resync.

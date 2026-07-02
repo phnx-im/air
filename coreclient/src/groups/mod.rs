@@ -1607,11 +1607,18 @@ impl Group {
         content: TargetedMessageContent,
     ) -> Result<TargetedMessageParamsOut, GroupOperationError> {
         let content_bytes = content.tls_serialize_detached()?;
-        let mls_message = self
+        let UnconfirmedMessage {
+            message,
+            generation,
+            generation_id,
+        } = self
             .mls_group
-            .create_message(provider, signer, &content_bytes)?;
+            .create_unconfirmed_message(provider, signer, &content_bytes)?;
 
-        let message = AssistedMessageOut::new(mls_message, None);
+        self.mls_group
+            .confirm_message(provider.storage(), generation)?;
+
+        let message = AssistedMessageOut::new(message, None);
 
         let recipient_index = self
             .mls_group()
@@ -1629,6 +1636,7 @@ impl Group {
 
         let params = TargetedMessageParamsOut {
             sender: self.mls_group.own_leaf_index(),
+            generation_id,
             message_type: TargetedMessageType::ApplicationMessage {
                 message,
                 recipient: recipient_index,

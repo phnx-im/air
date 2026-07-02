@@ -14,6 +14,7 @@ use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
     messages::AssistedMessageOut,
     openmls::{
+        components::vc_derivation_info::GenerationId,
         prelude::{
             GroupId, LeafNodeIndex, MlsMessageOut, RatchetTreeIn, group_info::VerifiableGroupInfo,
         },
@@ -151,6 +152,7 @@ pub enum TargetedMessageType {
 pub struct TargetedMessageParamsOut {
     pub sender: LeafNodeIndex,
     pub message_type: TargetedMessageType,
+    pub generation_id: Option<GenerationId>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
