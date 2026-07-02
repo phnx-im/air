@@ -210,6 +210,7 @@ impl OutboundServiceContext {
             .new_mls_message(&chat, content.content().clone(), None)
             .await?;
         let sent_tags = params.collision_tags.clone();
+        let generation = params.generation;
 
         // send MLS message to DS
         let ds_timestamp = match api_client
@@ -237,6 +238,9 @@ impl OutboundServiceContext {
                 return Err(ds_error.into());
             }
         };
+
+        // message accepted by DS, confirm.
+        self.confirm_mls_message(&chat, generation).await?;
 
         // post-processing:
         self.db

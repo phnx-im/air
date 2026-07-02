@@ -171,6 +171,7 @@ impl OutboundServiceContext {
             .await
             .map_err(OutboundServiceError::fatal)?;
         let sent_tags = params.collision_tags.clone();
+        let generation = params.generation;
 
         // send MLS message to DS
         if let Err(ds_error) = self
@@ -222,6 +223,11 @@ impl OutboundServiceContext {
             }
         }
 
+        // message accepted by DS, confirm.
+        self.confirm_mls_message(&chat, generation)
+            .await
+            .map_err(OutboundServiceError::fatal)?;
+
         // store delivery receipt report
         self.store_receipt_report(unsent_receipt.report).await?;
 
@@ -265,6 +271,25 @@ impl OutboundServiceContext {
                     message_status_report,
                 )?;
                 Ok((group.group_state_ear_key().clone(), params))
+            })
+            .await
+    }
+
+    /// Confirms a MLS message was sent to the DS.
+    pub(super) async fn confirm_mls_message(
+        &self,
+        chat: &Chat,
+        generation: u32,
+    ) -> anyhow::Result<()> {
+        self.db
+            .with_write_transaction(async |txn| {
+                let group_id = chat.group_id();
+                let mut group = Group::load_clean(&mut *txn, group_id)
+                    .await?
+                    .with_context(|| format!("Can't find group with id {group_id:?}"))?;
+                let provider = AirOpenMlsProvider::new(txn.as_mut());
+                group.confirm_message(&provider, generation)?;
+                Ok(())
             })
             .await
     }

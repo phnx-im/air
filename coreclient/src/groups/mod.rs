@@ -1582,9 +1582,6 @@ impl Group {
             }
         }
 
-        self.mls_group
-            .confirm_message(provider.storage(), generation)?;
-
         let message = AssistedMessageOut::new(message, None);
         let suppress_notifications = suppress_notifications(&content);
 
@@ -1592,6 +1589,7 @@ impl Group {
             sender: self.mls_group.own_leaf_index(),
             message,
             suppress_notifications,
+            generation,
             collision_tags,
         };
 
@@ -1610,13 +1608,12 @@ impl Group {
         let UnconfirmedMessage {
             message,
             generation,
-            generation_id,
+            // Generating (and checking) for collisions is not necessary here
+            // as a targeted application message always come from a manual input from the user
+            generation_id: _,
         } = self
             .mls_group
             .create_unconfirmed_message(provider, signer, &content_bytes)?;
-
-        self.mls_group
-            .confirm_message(provider.storage(), generation)?;
 
         let message = AssistedMessageOut::new(message, None);
 
@@ -1636,7 +1633,7 @@ impl Group {
 
         let params = TargetedMessageParamsOut {
             sender: self.mls_group.own_leaf_index(),
-            generation_id,
+            generation,
             message_type: TargetedMessageType::ApplicationMessage {
                 message,
                 recipient: recipient_index,
@@ -1644,6 +1641,17 @@ impl Group {
         };
 
         Ok(params)
+    }
+
+    /// Mark the message sent at this generation as confirmed (accepted by DS).
+    pub(crate) fn confirm_message(
+        &mut self,
+        provider: &AirOpenMlsProvider<'_>,
+        generation: u32,
+    ) -> Result<(), GroupOperationError> {
+        self.mls_group
+            .confirm_message(provider.storage(), generation)
+            .map_err(Into::into)
     }
 
     /// Get a reference to the group's group id.
