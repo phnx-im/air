@@ -14,6 +14,7 @@ pub(crate) mod openmls_provider;
 pub(crate) mod persistence;
 pub(crate) mod process;
 
+use apqmls::commit_builder::ApqCommitMessageBundle;
 pub(crate) use error::*;
 pub(crate) use persistence::VerifiedGroup;
 
@@ -1347,14 +1348,16 @@ impl Group {
         }
         ensure!(members.is_empty(), "Not all members to remove were found");
 
-        let aad_payload = AadPayload::GroupOperation(GroupOperationParamsAad {
-            new_encrypted_user_profile_keys: vec![],
-        });
-        let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
-        self.mls_group.set_aad(aad);
-
         let provider = AirOpenMlsProvider::new(connection.as_mut());
         let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
+
+        let aad_payload = AadPayload::GroupOperation(GroupOperationParamsAad {
+            new_encrypted_user_profile_keys: Vec::new(),
+        });
+        let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
+        t_mls_group.set_aad(aad.clone());
+        pq_mls_group.set_aad(aad);
+
         let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
             .force_self_update(true)
             .propose_removals(remove_indices)
@@ -1373,12 +1376,12 @@ impl Group {
         })
     }
 
-    pub(super) async fn stage_delete(
+    pub(super) fn stage_delete(
         &mut self,
         mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
     ) -> anyhow::Result<DeleteGroupParamsOut> {
-        let provider = &AirOpenMlsProvider::new(connection.as_mut());
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
         let remove_indices = self
             .mls_group()
             .members()
@@ -1404,7 +1407,7 @@ impl Group {
             .load_psks(provider.storage())?
             .create_group_info(true)
             .build(provider.rand(), provider.crypto(), signer, |_| true)?
-            .stage_commit(provider)?
+            .stage_commit(&provider)?
             .into_contents();
 
         debug_assert!(_welcome_option.is_none());
@@ -1414,6 +1417,46 @@ impl Group {
 
         let params = DeleteGroupParamsOut { commit };
         Ok(params)
+    }
+
+    pub(super) fn stage_apq_delete(
+        &mut self,
+        mut connection: impl WriteConnection,
+        signer: &ClientSigningKey,
+    ) -> anyhow::Result<ApqCommitMessageBundle> {
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
+
+        let removed_indices = self
+            .mls_group()
+            .members()
+            .filter_map(|m| {
+                if m.index != self.mls_group().own_leaf_index() {
+                    Some(m.index)
+                } else {
+                    None
+                }
+            })
+            .collect::<Vec<_>>();
+
+        let (t_group, pq_group) = self.apq_mls_groups_mut()?;
+
+        let aad_payload = AadPayload::DeleteGroup;
+        let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
+        t_group.set_aad(aad.clone());
+        pq_group.set_aad(aad);
+
+        let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_group, pq_group)
+            .force_self_update(true)
+            .propose_removals(removed_indices)
+            .create_group_info(true)
+            .finalize(&provider, signer, |_| true, |_| true)?;
+        debug_assert!(bundle.welcome.is_none());
+        ensure!(
+            bundle.group_info.is_some(),
+            "No group info after commit operation"
+        );
+
+        Ok(bundle)
     }
 
     pub(super) async fn discard_pending_commit(

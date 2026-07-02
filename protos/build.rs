@@ -108,6 +108,7 @@ const SIGNED_REQUESTS: &[(Service, &str)] = &[
     (Service::Ds, "GroupOperationRequest"),
     (Service::Ds, "ApqGroupOperationRequest"),
     (Service::Ds, "DeleteGroupRequest"),
+    (Service::Ds, "ApqDeleteGroupRequest"),
     (Service::Ds, "TargetedMessageRequest"),
     (Service::Ds, "SelfRemoveRequest"),
     (Service::Ds, "ApqSelfRemoveRequest"),

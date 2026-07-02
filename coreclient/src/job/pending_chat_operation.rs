@@ -15,6 +15,7 @@ use aircommon::{
 };
 use airprotos::client::group::GroupData;
 use anyhow::{Context as _, anyhow, bail};
+use apqmls::commit_builder::ApqCommitMessageBundle;
 use chrono::{DateTime, Duration, Utc};
 use mimi_room_policy::RoleIndex;
 use openmls::group::GroupId;
@@ -49,6 +50,9 @@ const RETRY_INTERVAL: Duration = Duration::seconds(1);
 pub(super) enum OperationType {
     Leave(Box<SelfRemoveParamsOut>),
     Delete(Box<DeleteGroupParamsOut>),
+    ApqDelete {
+        commit: Box<ApqCommitMessageBundle>,
+    },
     Other {
         params: Box<GroupOperationParamsOut>,
         /// New chat picture (if any)
@@ -71,12 +75,14 @@ pub(super) enum OperationType {
 
 impl std::fmt::Display for OperationType {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
-        match self {
-            OperationType::Leave(_) => write!(f, "leave"),
-            OperationType::Delete(_) => write!(f, "delete"),
-            OperationType::Other { .. } => write!(f, "other"),
-            OperationType::ApqOther { .. } => write!(f, "apq_other"),
-        }
+        let label = match self {
+            OperationType::Leave(_) => "leave",
+            OperationType::Delete(_) => "delete",
+            OperationType::ApqDelete { .. } => "apq_delete",
+            OperationType::Other { .. } => "other",
+            OperationType::ApqOther { .. } => "apq_other",
+        };
+        f.write_str(label)
     }
 }
 
@@ -113,13 +119,17 @@ impl OperationType {
         match self {
             OperationType::Leave(_) => false,
             OperationType::Delete(_)
+            | OperationType::ApqDelete { .. }
             | OperationType::Other { .. }
             | OperationType::ApqOther { .. } => true,
         }
     }
 
     fn is_delete(&self) -> bool {
-        matches!(self, OperationType::Delete(_))
+        matches!(
+            self,
+            OperationType::Delete(_) | OperationType::ApqDelete { .. }
+        )
     }
 }
 
@@ -303,6 +313,11 @@ impl PendingChatOperation {
             OperationType::Delete(params) => {
                 api_client
                     .ds_delete_group(*params, signer, self.group.group_state_ear_key())
+                    .await
+            }
+            OperationType::ApqDelete { commit } => {
+                api_client
+                    .ds_apq_delete_group(*commit, signer, self.group.group_state_ear_key())
                     .await
             }
             OperationType::Other {
@@ -665,9 +680,16 @@ impl PendingChatOperation {
             chat.set_inactive(txn, past_members).await?;
             Ok(None)
         } else {
-            let message = group.group_mut().stage_delete(&mut *txn, signer).await?;
-
-            let job = Self::new(group, OperationType::Delete(Box::new(message)));
+            let operation_type = if group.is_apq() {
+                let bundle = group.group_mut().stage_apq_delete(&mut *txn, signer)?;
+                OperationType::ApqDelete {
+                    commit: Box::new(bundle),
+                }
+            } else {
+                let message = group.group_mut().stage_delete(&mut *txn, signer)?;
+                OperationType::Delete(Box::new(message))
+            };
+            let job = Self::new(group, operation_type);
             job.store(txn).await?;
             Ok(Some(job))
         }

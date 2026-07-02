@@ -14,10 +14,37 @@ use crate::errors::GroupDeletionError;
 
 use super::group_state::DsGroupState;
 
+/// Source of truth for the group's membership when validating that a
+/// delete-group commit removes all other members.
+enum MembershipCheck {
+    /// The DS member profiles. Used for regular (T) groups.
+    MemberProfiles,
+    /// The MLS ratchet tree. Used for PQ groups, whose member profiles are
+    /// not maintained.
+    RatchetTree,
+}
+
 impl DsGroupState {
     pub(crate) fn delete_group(
         &mut self,
         commit: AssistedMessageIn,
+    ) -> Result<SerializedMlsMessage, GroupDeletionError> {
+        self.delete_group_inner(commit, MembershipCheck::MemberProfiles)
+    }
+
+    /// Same as [`Self::delete_group`], but validates the removals against the
+    /// MLS ratchet tree instead of the member profiles.
+    pub(crate) fn delete_pq_group(
+        &mut self,
+        commit: AssistedMessageIn,
+    ) -> Result<SerializedMlsMessage, GroupDeletionError> {
+        self.delete_group_inner(commit, MembershipCheck::RatchetTree)
+    }
+
+    fn delete_group_inner(
+        &mut self,
+        commit: AssistedMessageIn,
+        membership_check: MembershipCheck,
     ) -> Result<SerializedMlsMessage, GroupDeletionError> {
         // Process message (but don't apply it yet). This performs mls-assist-level validations.
         let processed_assisted_message_plus = self
@@ -56,16 +83,31 @@ impl DsGroupState {
             }
             // Process remove proposals, but only non-inline ones.
 
-            let removed_clients: Vec<_> = removed_clients(staged_commit);
-            let existing_clients: Vec<_> = self
-                .member_profiles
-                .keys()
-                .filter(|index| index != &sender_index)
-                .copied()
-                .collect();
+            // Note: The staged commit yields the remove proposals in no
+            // particular order, so we compare sorted lists.
+            let mut removed_clients: Vec<_> = removed_clients(staged_commit);
+            removed_clients.sort_unstable();
+            let existing_clients: Vec<_> = match membership_check {
+                MembershipCheck::MemberProfiles => self
+                    .member_profiles
+                    .keys()
+                    .filter(|index| index != &sender_index)
+                    .copied()
+                    .collect(),
+                MembershipCheck::RatchetTree => self
+                    .group()
+                    .members()
+                    .map(|member| member.index)
+                    .filter(|index| index != sender_index)
+                    .collect(),
+            };
             // Check that we're indeed removing all the clients.
             if removed_clients != existing_clients {
-                tracing::warn!("Incomplete remove proposals in delete group commit");
+                tracing::warn!(
+                    ?removed_clients,
+                    ?existing_clients,
+                    "Incomplete remove proposals in delete group commit"
+                );
                 return Err(GroupDeletionError::InvalidMessage);
             }
         } else {

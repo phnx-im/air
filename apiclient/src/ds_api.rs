@@ -32,13 +32,14 @@ use airprotos::{
     },
     convert::{RefInto, TryRefInto},
     delivery_service::v1::{
-        AddUsersInfo, ApqAddUsersInfo, ApqAssistedMlsMessage, ApqGroupOperationPayload,
-        ApqSelfRemovePayload, ConnectionGroupInfoRequest, CreateApqGroupPayload,
-        CreateGroupPayload, DeleteGroupPayload, ExternalCommitInfoRequest, GetAttachmentUrlPayload,
-        GroupOperationPayload, GroupSessionData, IndexedEncryptedUserProfileKey,
-        JoinConnectionGroupRequest, ProvisionAttachmentPayload, RequestGroupIdRequest,
-        ResyncPayload, SelfRemovePayload, SendMessageCollisionTags, SendMessagePayload,
-        StorageObjectType, TargetedMessagePayload, UpdateProfileKeyPayload, WelcomeInfoPayload,
+        AddUsersInfo, ApqAddUsersInfo, ApqAssistedMlsMessage, ApqDeleteGroupPayload,
+        ApqGroupOperationPayload, ApqSelfRemovePayload, ConnectionGroupInfoRequest,
+        CreateApqGroupPayload, CreateGroupPayload, DeleteGroupPayload, ExternalCommitInfoRequest,
+        GetAttachmentUrlPayload, GroupOperationPayload, GroupSessionData,
+        IndexedEncryptedUserProfileKey, JoinConnectionGroupRequest, ProvisionAttachmentPayload,
+        RequestGroupIdRequest, ResyncPayload, SelfRemovePayload, SendMessageCollisionTags,
+        SendMessagePayload, StorageObjectType, TargetedMessagePayload, UpdateProfileKeyPayload,
+        WelcomeInfoPayload,
     },
     validation::MissingFieldExt,
 };
@@ -641,6 +642,48 @@ impl ApiClient {
         let response = self
             .ds_grpc_client()
             .delete_group(request)
+            .await?
+            .into_inner();
+        Ok(response
+            .fanout_timestamp
+            .ok_or(DsRequestError::UnexpectedResponse)?
+            .into())
+    }
+
+    /// Delete the given APQ group
+    pub async fn ds_apq_delete_group(
+        &self,
+        delete_bundle: ApqCommitMessageBundle,
+        signing_key: &ClientSigningKey,
+        group_state_ear_key: &GroupStateEarKey,
+    ) -> Result<TimeStamp, DsRequestError> {
+        let ApqCommitMessageBundle {
+            commit,
+            welcome,
+            group_info,
+        } = delete_bundle;
+        if welcome.is_some() {
+            error!("Unexpected welcome message in APQ delete group request");
+            return Err(DsRequestError::LibraryError);
+        }
+        let (t_commit, pq_commit) = commit.split();
+        let (t_group_info, pq_group_info) = group_info
+            .map(apqmls::messages::ApqMlsMessageOut::from)
+            .map(|msg| msg.split())
+            .unzip();
+        let commit = ApqAssistedMlsMessage {
+            t_message: Some(AssistedMessageOut::new(t_commit, t_group_info).try_ref_into()?),
+            pq_message: Some(AssistedMessageOut::new(pq_commit, pq_group_info).try_ref_into()?),
+        };
+        let payload = ApqDeleteGroupPayload {
+            client_metadata: Some(self.metadata().clone()),
+            group_state_ear_key: Some(group_state_ear_key.ref_into()),
+            commit: Some(commit),
+        };
+        let request = payload.sign(signing_key)?;
+        let response = self
+            .ds_grpc_client()
+            .apq_delete_group(request)
             .await?
             .into_inner();
         Ok(response
