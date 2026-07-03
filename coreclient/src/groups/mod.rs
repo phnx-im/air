@@ -1652,19 +1652,9 @@ impl Group {
         provider: &AirOpenMlsProvider<'_>,
         generation: u32,
     ) -> Result<(), GroupOperationError> {
-        match self
-            .mls_group
+        self.mls_group
             .confirm_message(provider.storage(), generation)
-        {
-            Ok(()) => Ok(()),
-            Err(ConfirmMessageError::SecretTreeError(SecretTreeError::RatchetTypeError)) => {
-                warn!(
-                    "no support for confirmation at this epoch: this group hasn't been updated yet."
-                );
-                Ok(())
-            }
-            Err(error) => Err(error.into()),
-        }
+            .map_err(Into::into)
     }
 
     /// Get a reference to the group's group id.

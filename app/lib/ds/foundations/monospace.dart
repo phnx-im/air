@@ -5,6 +5,18 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
 
+// Ligatures to turn off in monospaced code. `calt` alone is not enough:
+// repeated-punctuation ligatures (e.g. ```) are delivered through the
+// standard ligature features `liga`/`clig` (and sometimes `dlig`) in
+// Iosevka-based fonts such as Adwaita Mono, the default `monospace` on
+// modern GNOME.
+const disableLigaturesFontFeatures = [
+  FontFeature.disable('liga'),
+  FontFeature.disable('clig'),
+  FontFeature.disable('calt'),
+  FontFeature.disable('dlig'),
+];
+
 String getSystemMonospaceFontFamily() {
   if (Platform.isWindows) return 'Consolas';
   if (Platform.isMacOS || Platform.isIOS) return 'Menlo';
@@ -20,6 +32,7 @@ List<String>? getSystemMonospaceFontFallback() {
 extension SystemMonospaceTextStyle on TextStyle {
   TextStyle withSystemMonospace() => copyWith(
     fontFamily: getSystemMonospaceFontFamily(),
+    fontFeatures: disableLigaturesFontFeatures,
     fontFamilyFallback: getSystemMonospaceFontFallback(),
   );
 }
