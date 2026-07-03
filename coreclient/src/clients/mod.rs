@@ -113,7 +113,11 @@ pub(crate) mod user_settings;
 pub(crate) const CIPHERSUITE: Ciphersuite =
     Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
+#[cfg(not(feature = "test_utils"))]
 pub(crate) const CONNECTION_PACKAGES: usize = 50;
+
+#[cfg(feature = "test_utils")]
+pub(crate) const CONNECTION_PACKAGES: usize = 5;
 
 #[derive(Debug, Clone)]
 pub struct CoreUser {
