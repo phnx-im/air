@@ -396,18 +396,23 @@ class _MessageView extends HookWidget {
     }
 
     void openReactionMenu({GlobalKey? anchorKey}) {
-      // Anchor to the context menu (if open) or to the triggering button, so the
-      // reaction bar appears just above whatever was tapped. Fall back to the
-      // message bubble (e.g. double-tap to react).
+      // Anchor the reaction bar to the message bubble so it opens above the
+      // message it was tapped from (not the context menu). For a tall message,
+      // nearRect keeps the bar close to where the interaction happened -- the
+      // context menu or the triggering button -- instead of floating up to the
+      // bubble's top.
       final anchorRect =
-          contextMenuKey.currentState?.currentMenuRect ??
-          (anchorKey != null ? globalRectOf(anchorKey) : null) ??
-          reactionAnchorRect();
+          reactionAnchorRect() ??
+          (anchorKey != null ? globalRectOf(anchorKey) : null);
       if (anchorRect == null) return;
+      final nearRect =
+          contextMenuKey.currentState?.currentMenuRect ??
+          (anchorKey != null ? globalRectOf(anchorKey) : null);
       unawaited(
         showQuickReactionMenu(
           context: context,
           anchorRect: anchorRect,
+          nearRect: nearRect,
           alignEnd: isSender,
           skinTone: skinTone,
           onReact: sendReaction,

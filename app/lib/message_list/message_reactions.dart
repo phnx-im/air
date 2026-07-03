@@ -27,21 +27,25 @@ const List<({String emoji, bool skinnable})> quickReactionEmojis = [
   (emoji: '🙏', skinnable: true),
 ];
 
+/// Size of emojis in the reaction bar
 const double quickReactionBarGlyphSize = 28;
+
+/// Size of the tappable area in the reaction bar
 const double quickReactionBarTapSize = 44;
+
 const double quickReactionBarMoreSize = 36;
 
 /// Compact reaction chip metrics
-const double reactionChipSpacing = Spacing.px8;
+const double reactionChipSpacing = Spacing.px4;
 
 /// Fixed height of a reaction chip
-const double reactionChipHeight = 28;
+const double reactionChipHeight = 40;
 
 /// How far the chips overlap the bottom border of the message bubble
 const double reactionsMessageBubbleOverlap = Spacing.px4;
 
 /// Gap below the chips before the timestamp / next message.
-const double reactionsGapBelow = Spacing.px4;
+const double reactionsGapBelow = Spacing.px8;
 
 /// Aligning the chips
 const double reactionsHorizontalInset = Spacing.px8;
@@ -151,7 +155,7 @@ class MessageReactions extends StatelessWidget {
     final ordered = [for (final e in indexed) e.reaction];
 
     final scaler = MediaQuery.textScalerOf(context);
-    final emojiStyle = TextStyle(fontSize: FontSizes.small2.size, height: 1.0);
+    final emojiStyle = TextStyle(fontSize: BodyFontSize.base.size, height: 1.0);
     final countStyle = TextStyle(fontSize: FontSizes.small3.size, height: 1.0);
 
     double measure(String text, TextStyle style) {
@@ -210,16 +214,30 @@ class MessageReactions extends StatelessWidget {
               break;
             }
           }
-          if (shown == 0) shown = 1; // always keep the highest-count emoji
-          chips = [
-            for (var i = 0; i < shown; i++)
-              chipFor(ordered[i], extras: count - shown),
-            _OverflowChip(
-              count: count - shown,
-              isSender: isSender,
-              onTap: () => onTap(null),
-            ),
-          ];
+          if (shown == 0) {
+            // Too narrow for even one emoji beside the "+N" chip: collapse
+            // every reaction into a single overflow chip.
+            chips = [
+              _OverflowChip(
+                count: count,
+                glyphWidth: measure('+$count', emojiStyle),
+                isSender: isSender,
+                onTap: () => onTap(null),
+              ),
+            ];
+          } else {
+            final overflow = count - shown;
+            chips = [
+              for (var i = 0; i < shown; i++)
+                chipFor(ordered[i], extras: overflow),
+              _OverflowChip(
+                count: overflow,
+                glyphWidth: measure('+$overflow', emojiStyle),
+                isSender: isSender,
+                onTap: () => onTap(null),
+              ),
+            ];
+          }
         }
 
         final children = <Widget>[];
@@ -301,6 +319,10 @@ class QuickReactionBar extends StatelessWidget {
 
 /// Shows the [QuickReactionBar] as a small popover anchored above [anchorRect]
 /// (or below it when there isn't room above), aligned to the message's side.
+///
+/// [nearRect], when given, caps how far up the bar may float: for a tall
+/// message the bar stays near where the interaction happened (e.g. the context
+/// menu or the triggering button) rather than jumping to the bubble's top.
 Future<void> showQuickReactionMenu({
   required BuildContext context,
   required Rect anchorRect,
@@ -308,6 +330,7 @@ Future<void> showQuickReactionMenu({
   required EmojiSkinVariation skinTone,
   required void Function(String emoji) onReact,
   required VoidCallback onMore,
+  Rect? nearRect,
 }) {
   // TODO: barrier colors from theme (it's custom in the bottom_sheet_modal which is also wrong)
   return showGeneralDialog(
@@ -327,6 +350,7 @@ Future<void> showQuickReactionMenu({
       return _QuickReactionMenuOverlay(
         animation: curved,
         anchorRect: anchorRect,
+        nearRect: nearRect,
         alignEnd: alignEnd,
         skinTone: skinTone,
         onReact: (emoji) {
@@ -346,10 +370,15 @@ Future<void> showQuickReactionMenu({
 /// anchored message.
 const double quickReactionBarHeight = quickReactionBarTapSize + Spacing.px8;
 
+/// Vertical gap between the quick-reaction bar and the message it is anchored
+/// to, so the bar has a bit of breathing room above (or below) the bubble.
+const double quickReactionMenuGap = Spacing.px12;
+
 class _QuickReactionMenuOverlay extends StatelessWidget {
   const _QuickReactionMenuOverlay({
     required this.animation,
     required this.anchorRect,
+    required this.nearRect,
     required this.alignEnd,
     required this.skinTone,
     required this.onReact,
@@ -358,6 +387,7 @@ class _QuickReactionMenuOverlay extends StatelessWidget {
 
   final Animation<double> animation;
   final Rect anchorRect;
+  final Rect? nearRect;
   final bool alignEnd;
   final EmojiSkinVariation skinTone;
   final void Function(String emoji) onReact;
@@ -369,12 +399,20 @@ class _QuickReactionMenuOverlay extends StatelessWidget {
     final safeTop = mediaQuery.padding.top + Spacing.px8;
     final safeBottom = mediaQuery.padding.bottom + Spacing.px8;
 
-    // Prefer placing the bar above the message
-    final aboveTop = anchorRect.top - Spacing.px8 - quickReactionBarHeight;
+    // Prefer placing the bar above the message bubble, but for a tall message
+    // don't let it float far up: cap it near where the interaction happened
+    // (nearRect) so it stays close to what was tapped.
+    final near = nearRect;
+    final aboveMessage =
+        anchorRect.top - quickReactionMenuGap - quickReactionBarHeight;
+    final aboveNear = near == null
+        ? aboveMessage
+        : near.top - quickReactionMenuGap - quickReactionBarHeight;
+    final aboveTop = aboveMessage > aboveNear ? aboveMessage : aboveNear;
     final placeAbove = aboveTop >= safeTop;
     final top = placeAbove
         ? aboveTop
-        : (anchorRect.bottom + Spacing.px8).clamp(
+        : (anchorRect.bottom + quickReactionMenuGap).clamp(
             safeTop,
             mediaQuery.size.height - safeBottom - quickReactionBarHeight,
           );
@@ -425,14 +463,12 @@ class _QuickReactionButton extends StatelessWidget {
           width: quickReactionBarTapSize,
           height: quickReactionBarTapSize,
           child: Center(
-            child: FittedBox(
-              fit: .contain,
-              child: Text(
-                emoji,
-                style: const TextStyle(
-                  fontSize: quickReactionBarGlyphSize,
-                  overflow: .visible,
-                ),
+            child: Text(
+              emoji,
+              style: const TextStyle(
+                fontSize: quickReactionBarGlyphSize,
+                decoration: TextDecoration.none,
+                height: 1.0,
               ),
             ),
           ),
@@ -469,10 +505,7 @@ class _ReactionChip extends StatelessWidget {
         onTap: onTap,
         child: Container(
           height: reactionChipHeight,
-          padding: const EdgeInsets.symmetric(
-            horizontal: Spacing.px8,
-            vertical: Spacing.px4,
-          ),
+          padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
           decoration: BoxDecoration(
             color: isSender
                 ? colors.message.selfBackground
@@ -485,14 +518,14 @@ class _ReactionChip extends StatelessWidget {
             children: [
               Text(
                 reaction.emoji,
-                style: TextStyle(fontSize: FontSizes.small2.size, height: 1.0),
+                style: TextStyle(fontSize: BodyFontSize.base.size, height: 1.0),
               ),
               if (count >= 2) ...[
                 const SizedBox(width: Spacing.px4),
                 Text(
                   '$count',
                   style: TextStyle(
-                    fontSize: FontSizes.small3.size,
+                    fontSize: BodyFontSize.base.size,
                     color: colors.text.tertiary,
                     height: 1.0,
                   ),
@@ -511,20 +544,22 @@ class _ReactionChip extends StatelessWidget {
 class _OverflowChip extends StatelessWidget {
   const _OverflowChip({
     required this.count,
+    required this.glyphWidth,
     required this.isSender,
     required this.onTap,
   });
 
   final int count;
+
+  /// Width the "+N" glyph area would occupy at the emoji font size, so the
+  /// chip's footprint matches an emoji chip even though the text is smaller.
+  final double glyphWidth;
   final bool isSender;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
-    final borderColor = isSender
-        ? colors.message.selfBackground
-        : colors.message.otherBackground;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
@@ -539,15 +574,19 @@ class _OverflowChip extends StatelessWidget {
           decoration: BoxDecoration(
             color: colors.backgroundElevated.primary,
             borderRadius: BorderRadius.circular(reactionChipHeight / 2),
-            border: Border.all(color: borderColor),
+            border: Border.all(color: colors.backgroundBase.primary),
           ),
           alignment: Alignment.center,
-          child: Text(
-            '+$count',
-            style: TextStyle(
-              fontSize: FontSizes.small2.size,
-              color: colors.text.secondary,
-              height: 1.0,
+          child: SizedBox(
+            width: glyphWidth,
+            child: Text(
+              '+$count',
+              textAlign: TextAlign.center,
+              style: TextStyle(
+                fontSize: FontSizes.small2.size,
+                color: colors.text.secondary,
+                height: 1.0,
+              ),
             ),
           ),
         ),
@@ -776,7 +815,7 @@ class _ReactionTab extends StatelessWidget {
           child: Text(
             label,
             style: TextStyle(
-              fontSize: FontSizes.base.size,
+              fontSize: BodyFontSize.large1.size,
               color: selected ? colors.text.primary : colors.text.secondary,
             ),
           ),
@@ -839,7 +878,7 @@ class _ReactorRow extends StatelessWidget {
             ),
             const SizedBox(width: Spacing.px12),
           ],
-          Text(emoji, style: TextStyle(fontSize: FontSizes.base.size)),
+          Text(emoji, style: TextStyle(fontSize: BodyFontSize.large1.size)),
         ],
       ),
     );

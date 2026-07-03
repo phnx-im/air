@@ -236,10 +236,8 @@ class _MobileMessageActionView extends StatelessWidget {
               Positioned(
                 left: alignEnd ? null : left,
                 right: alignEnd ? (size.width - (left + width)) : null,
-                top: (top - Spacing.px8 - quickReactionBarHeight).clamp(
-                  safeTop,
-                  size.height,
-                ),
+                top: (top - quickReactionMenuGap - quickReactionBarHeight)
+                    .clamp(safeTop, size.height),
                 child: FadeTransition(
                   opacity: animation,
                   child: QuickReactionBar(
