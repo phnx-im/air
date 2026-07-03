@@ -316,10 +316,16 @@ class _MessageView extends HookWidget {
     final contextMenuKey = useMemoized(() => GlobalKey<ContextMenuState>());
     final reactButtonKey = useMemoized(() => GlobalKey());
     final isDetached = useState(false);
-    final isHovered = useState(false);
+    // A ValueNotifier (not useState) so hover changes rebuild only the hover
+    // affordance via a ValueListenableBuilder, not the whole message tile (and
+    // its reaction chips, which re-measure on every build).
+    final isHovered = useMemoized(() => ValueNotifier(false));
     useEffect(() {
-      return cursorPositionNotifier.dispose;
-    }, [cursorPositionNotifier]);
+      return () {
+        cursorPositionNotifier.dispose();
+        isHovered.dispose();
+      };
+    }, [cursorPositionNotifier, isHovered]);
 
     useEffect(() {
       return () {
@@ -712,17 +718,18 @@ class _MessageView extends HookWidget {
       child: SizedBox(
         width: _hoverReactSize + Spacing.px8,
         child: Center(
-          child: AnimatedOpacity(
-            opacity: isHovered.value ? 1.0 : 0.0,
-            duration: const Duration(milliseconds: 120),
-            child: IgnorePointer(
-              ignoring: !isHovered.value,
-              child: GlassCircleButton(
-                key: reactButtonKey,
-                size: _hoverReactSize,
-                onPressed: () => openReactionMenu(anchorKey: reactButtonKey),
-                icon: AppIcon.smilePlus(size: 18, color: colors.text.secondary),
-              ),
+          child: ValueListenableBuilder(
+            valueListenable: isHovered,
+            child: GlassCircleButton(
+              key: reactButtonKey,
+              size: _hoverReactSize,
+              onPressed: () => openReactionMenu(anchorKey: reactButtonKey),
+              icon: AppIcon.smilePlus(size: 18, color: colors.text.secondary),
+            ),
+            builder: (context, hovered, child) => AnimatedOpacity(
+              opacity: hovered ? 1.0 : 0.0,
+              duration: const Duration(milliseconds: 120),
+              child: IgnorePointer(ignoring: !hovered, child: child),
             ),
           ),
         ),

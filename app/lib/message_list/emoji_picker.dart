@@ -86,8 +86,9 @@ class EmojiPicker extends HookWidget {
         Expanded(
           child: CustomScrollView(
             slivers: [
-              for (final (category, emojis) in EmojiRepository.filter(
-                query.value,
+              for (final (category, emojis) in useMemoized(
+                () => EmojiRepository.filter(query.value),
+                [query.value],
               )) ...[
                 SliverToBoxAdapter(
                   child: Padding(

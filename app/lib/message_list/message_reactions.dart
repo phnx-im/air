@@ -94,12 +94,8 @@ class BubbleWithReactions extends StatelessWidget {
       clipBehavior: Clip.none,
       children: [
         Padding(
-          padding: const EdgeInsets.only(
-            bottom:
-                reactionChipHeight -
-                reactionsMessageBubbleOverlap +
-                reactionsGapBelow,
-          ),
+          // reactions is non-empty here, so reserve the chips' protrusion.
+          padding: EdgeInsets.only(bottom: reactionsReservedBelow(true)),
           child: bubble,
         ),
         Positioned(
@@ -185,11 +181,14 @@ class MessageReactions extends StatelessWidget {
       onTap: () => onTap(reaction.emoji),
     );
 
+    // Chip widths depend only on the reaction data and text scaler, not the
+    // incoming constraints, so measure once rather than on every layout pass.
+    final widths = [for (final reaction in ordered) chipWidth(reaction)];
+    final count = ordered.length;
+
     return LayoutBuilder(
       builder: (context, constraints) {
         final maxWidth = constraints.maxWidth;
-        final widths = [for (final reaction in ordered) chipWidth(reaction)];
-        final count = ordered.length;
 
         var fullWidth = 0.0;
         for (var i = 0; i < count; i++) {
@@ -297,11 +296,10 @@ class QuickReactionBar extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (final item in quickReactionEmojis)
-            _QuickReactionButton(
-              emoji: _applyQuickTone(item, skinTone),
-              onTap: () => onReact(_applyQuickTone(item, skinTone)),
-            ),
+          for (final emoji in quickReactionEmojis.map(
+            (item) => _applyQuickTone(item, skinTone),
+          ))
+            _QuickReactionButton(emoji: emoji, onTap: () => onReact(emoji)),
           GlassCircleButton(
             onPressed: onMore,
             size: quickReactionBarMoreSize,
@@ -615,6 +613,9 @@ Future<void> showWhoReactedSheet({
       profiles[user] ??= usersCubit.state.profile(userId: user);
     }
   }
+  final barrierColor = Colors.black.withValues(
+    alpha: Theme.of(context).brightness == Brightness.dark ? 0.55 : 0.35,
+  );
   final sheet = WhoReactedSheet(
     reactions: reactions,
     profiles: profiles,
@@ -625,6 +626,7 @@ Future<void> showWhoReactedSheet({
   if (isMobile) {
     return showBottomSheetModal<void>(
       context: context,
+      barrierColor: barrierColor,
       builder: (context) => Padding(
         padding: const EdgeInsets.all(Spacing.px16),
         child: SizedBox(height: whoReactedPanelSize.height, child: sheet),
@@ -634,7 +636,7 @@ Future<void> showWhoReactedSheet({
   return showGeneralDialog<void>(
     context: context,
     barrierDismissible: true,
-    barrierColor: const Color(0x33000000),
+    barrierColor: barrierColor,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     transitionDuration: const Duration(milliseconds: 150),
     pageBuilder: (context, animation, secondaryAnimation) =>
@@ -764,8 +766,6 @@ class _WhoReactedSheetState extends State<WhoReactedSheet> {
           child: ListView.builder(
             padding: EdgeInsets.zero,
             itemCount: rows.length,
-            // separatorBuilder: (context, index) =>
-            // Divider(height: 1, color: colors.backgroundBase.tertiary),
             itemBuilder: (context, index) {
               final row = rows[index];
               final isMe = row.user == widget.ownUserId;
