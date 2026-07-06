@@ -1417,11 +1417,6 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .create_commit_response(sender_index, fan_out_payload.timestamp())?;
                 individual_fan_out_messages.push(commit_response);
 
-                // Echo the full commit to the committer's own leaf (QS fans it to all
-                // emulator clients). Older clients will error but skip it.
-                individual_fan_out_messages
-                    .push(group_state.self_commit_message(sender_index, fan_out_payload.clone())?);
-
                 Ok((
                     destination_clients,
                     fan_out_payload,
@@ -1513,7 +1508,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     let (t_add_users_info, pq_add_users_info) =
                         add_users_info.map(|info| info.split()).unzip();
 
-                    // Collect destination clients before processing the commit so that new invitees (added by
+                    // Make sure you collect destination clients before processing the commit so that new invitees (added by
                     // this commit) don't receive the commit message before their welcome bundle.
                     let destination_clients: Vec<_> = t_group_state
                         .other_destination_clients(t_sender_index)
@@ -1564,13 +1559,6 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     let commit_response =
                         t_group_state.create_commit_response(t_sender_index, timestamp)?;
                     individual_fan_out_messages.push(commit_response);
-
-                    // Echo the full commit to the committer's own leaf (QS fans it to all
-                    // emulator clients). Older clients will error but skip it.
-                    individual_fan_out_messages.push(t_group_state.self_commit_message(
-                        t_sender_index,
-                        DsFanOutPayload::QueueMessage(apq_payload.clone()),
-                    )?);
 
                     Ok(ApqFanOut {
                         broadcast: (apq_payload, destination_clients),
