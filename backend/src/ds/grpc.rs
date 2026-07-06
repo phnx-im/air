@@ -1193,7 +1193,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                            pq_group_state,
                            t_message,
                            pq_message,
-                           t_sender_index,
+                           t_sender_index: _,
                            ear_key: _,
                        }: ApqVerificationData<'_, ApqSelfRemovePayload>| {
                     let destination_clients: Vec<_> = t_group_state.destination_clients().collect();

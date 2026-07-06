@@ -603,8 +603,7 @@ impl CoreUser {
         let ds_timestamp = TimeStamp::now();
         self.db()
             .with_write_transaction(async |txn| {
-                self.handle_mls_message(txn, mls_message, ds_timestamp, false)
-                    .await
+                Box::pin(self.handle_mls_message(txn, mls_message, ds_timestamp, false)).await
             })
             .await
     }
