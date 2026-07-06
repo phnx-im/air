@@ -486,5 +486,7 @@
         "type": "int"
       }
     }
-  }
+  },
+
+  "messageList_reactions_remove": "Remove"
 }

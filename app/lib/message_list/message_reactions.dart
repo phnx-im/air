@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/components/button/glass_circle_button.dart';
+import 'package:air/ds/foundations/elevation.dart';
+import 'package:air/l10n/l10n.dart';
 import 'package:air/user/users_cubit.dart';
 import 'package:flutter/material.dart';
 
@@ -39,7 +41,7 @@ const double quickReactionBarMoreSize = 36;
 const double reactionChipSpacing = Spacing.px4;
 
 /// Fixed height of a reaction chip
-const double reactionChipHeight = 40;
+const double reactionChipHeight = 36;
 
 /// How far the chips overlap the bottom border of the message bubble
 const double reactionsMessageBubbleOverlap = Spacing.px4;
@@ -151,8 +153,7 @@ class MessageReactions extends StatelessWidget {
     final ordered = [for (final e in indexed) e.reaction];
 
     final scaler = MediaQuery.textScalerOf(context);
-    final emojiStyle = TextStyle(fontSize: BodyFontSize.base.size, height: 1.0);
-    final countStyle = TextStyle(fontSize: FontSizes.small3.size, height: 1.0);
+    final chipTextStyle = _ReactionChip.textStyle();
 
     double measure(String text, TextStyle style) {
       final painter = TextPainter(
@@ -164,11 +165,13 @@ class MessageReactions extends StatelessWidget {
     }
 
     // Horizontal chrome of a chip: padding (both sides) + border (both sides).
-    const chipChrome = Spacing.px8 * 2 + 2;
+    // Must match the padding used by _ReactionChip/_OverflowChip below.
+    const chipChrome = Spacing.px12 * 2 + 2;
     double chipWidth(UiReaction reaction) {
-      var width = chipChrome + measure(reaction.emoji, emojiStyle);
+      var width = chipChrome + measure(reaction.emoji, chipTextStyle);
       if (reaction.users.length >= 2) {
-        width += Spacing.px4 + measure('${reaction.users.length}', countStyle);
+        width +=
+            Spacing.px4 + measure('${reaction.users.length}', chipTextStyle);
       }
       return width;
     }
@@ -188,7 +191,8 @@ class MessageReactions extends StatelessWidget {
 
     return LayoutBuilder(
       builder: (context, constraints) {
-        final maxWidth = constraints.maxWidth;
+        const fitSlack = 1.0;
+        final maxWidth = constraints.maxWidth - fitSlack;
 
         var fullWidth = 0.0;
         for (var i = 0; i < count; i++) {
@@ -201,7 +205,9 @@ class MessageReactions extends StatelessWidget {
         } else {
           // Reserve room for the overflow chip ("+N" upper bound).
           final overflowReserve =
-              reactionChipSpacing + chipChrome + measure('+$count', emojiStyle);
+              reactionChipSpacing +
+              chipChrome +
+              measure('+$count', chipTextStyle);
           var used = 0.0;
           var shown = 0;
           for (var i = 0; i < count; i++) {
@@ -219,7 +225,6 @@ class MessageReactions extends StatelessWidget {
             chips = [
               _OverflowChip(
                 count: count,
-                glyphWidth: measure('+$count', emojiStyle),
                 isSender: isSender,
                 onTap: () => onTap(null),
               ),
@@ -231,7 +236,6 @@ class MessageReactions extends StatelessWidget {
                 chipFor(ordered[i], extras: overflow),
               _OverflowChip(
                 count: overflow,
-                glyphWidth: measure('+$overflow', emojiStyle),
                 isSender: isSender,
                 onTap: () => onTap(null),
               ),
@@ -292,6 +296,7 @@ class QuickReactionBar extends StatelessWidget {
         borderRadius: BorderRadius.circular(
           (quickReactionBarTapSize + Spacing.px8) / 2,
         ),
+        boxShadow: mediumElevationBoxShadows,
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -326,11 +331,10 @@ Future<void> showQuickReactionMenu({
   required void Function(String emoji) onReact,
   required VoidCallback onMore,
 }) {
-  // TODO: barrier colors from theme (it's custom in the bottom_sheet_modal which is also wrong)
   return showGeneralDialog(
     context: context,
     barrierDismissible: true,
-    barrierColor: Colors.transparent,
+    barrierColor: CustomColorScheme.of(context).function.barrier,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     transitionDuration: const Duration(milliseconds: 150),
     pageBuilder: (context, animation, secondaryAnimation) =>
@@ -515,9 +519,16 @@ class _ReactionChip extends StatelessWidget {
   final int? extras;
   final VoidCallback? onTap;
 
+  static TextStyle textStyle({CustomColorScheme? colors}) => TextStyle(
+    fontSize: BodyFontSize.base.size,
+    height: 1.0,
+    color: colors?.text.tertiary,
+  );
+
   @override
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
+    final chipTextStyle = textStyle(colors: colors);
     final count = reaction.users.length;
 
     return MouseRegion(
@@ -527,31 +538,22 @@ class _ReactionChip extends StatelessWidget {
         onTap: onTap,
         child: Container(
           height: reactionChipHeight,
-          padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+          padding: const EdgeInsets.symmetric(horizontal: Spacing.px12),
           decoration: BoxDecoration(
-            color: isSender
+            color: isMine
                 ? colors.message.selfBackground
                 : colors.message.otherBackground,
             borderRadius: BorderRadius.circular(reactionChipHeight / 2),
             border: Border.all(color: colors.backgroundBase.primary),
           ),
           child: Row(
-            mainAxisSize: MainAxisSize.min,
+            mainAxisSize: .min,
+            crossAxisAlignment: .center,
             children: [
-              Text(
-                reaction.emoji,
-                style: TextStyle(fontSize: BodyFontSize.base.size, height: 1.0),
-              ),
+              Text(reaction.emoji, style: chipTextStyle),
               if (count >= 2) ...[
                 const SizedBox(width: Spacing.px4),
-                Text(
-                  '$count',
-                  style: TextStyle(
-                    fontSize: BodyFontSize.base.size,
-                    color: colors.text.tertiary,
-                    height: 1.0,
-                  ),
-                ),
+                Text('$count', style: chipTextStyle),
               ],
             ],
           ),
@@ -566,16 +568,12 @@ class _ReactionChip extends StatelessWidget {
 class _OverflowChip extends StatelessWidget {
   const _OverflowChip({
     required this.count,
-    required this.glyphWidth,
     required this.isSender,
     required this.onTap,
   });
 
   final int count;
 
-  /// Width the "+N" glyph area would occupy at the emoji font size, so the
-  /// chip's footprint matches an emoji chip even though the text is smaller.
-  final double glyphWidth;
   final bool isSender;
   final VoidCallback onTap;
 
@@ -590,26 +588,21 @@ class _OverflowChip extends StatelessWidget {
         child: Container(
           height: reactionChipHeight,
           padding: const EdgeInsets.symmetric(
-            horizontal: Spacing.px8,
+            horizontal: Spacing.px12,
             vertical: Spacing.px4,
           ),
           decoration: BoxDecoration(
-            color: colors.backgroundElevated.primary,
+            color: isSender
+                ? colors.message.selfBackground
+                : colors.message.otherBackground,
             borderRadius: BorderRadius.circular(reactionChipHeight / 2),
             border: Border.all(color: colors.backgroundBase.primary),
           ),
           alignment: Alignment.center,
-          child: SizedBox(
-            width: glyphWidth,
-            child: Text(
-              '+$count',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                fontSize: FontSizes.small2.size,
-                color: colors.text.secondary,
-                height: 1.0,
-              ),
-            ),
+          child: Text(
+            '+$count',
+            textAlign: TextAlign.center,
+            style: _ReactionChip.textStyle(colors: colors),
           ),
         ),
       ),
@@ -637,9 +630,7 @@ Future<void> showWhoReactedSheet({
       profiles[user] ??= usersCubit.state.profile(userId: user);
     }
   }
-  final barrierColor = Colors.black.withValues(
-    alpha: Theme.of(context).brightness == Brightness.dark ? 0.55 : 0.35,
-  );
+  final barrierColor = CustomColorScheme.of(context).function.barrier;
   final sheet = WhoReactedSheet(
     reactions: reactions,
     profiles: profiles,
@@ -865,6 +856,7 @@ class _ReactorRow extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
+    final loc = AppLocalizations.of(context);
     return SizedBox(
       height: reactorRowHeight,
       child: Row(
@@ -890,9 +882,8 @@ class _ReactorRow extends StatelessWidget {
               child: GestureDetector(
                 behavior: HitTestBehavior.opaque,
                 onTap: onRemove,
-                // TODO(l10n): localize "Remove".
                 child: Text(
-                  'Remove',
+                  loc.messageList_reactions_remove,
                   style: TextStyle(
                     fontSize: FontSizes.base.size,
                     color: colors.function.danger,

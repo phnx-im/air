@@ -25,17 +25,12 @@ Future<T?> showBottomSheetModal<T>({
   Duration animationDuration = const Duration(milliseconds: 280),
   Color? barrierColor,
 }) {
-  final color =
-      barrierColor ??
-      Colors.black.withValues(
-        alpha: Theme.of(context).brightness == Brightness.dark ? 0.55 : 0.35,
-      );
-
   return showGeneralDialog<T>(
     context: context,
     barrierDismissible: isDismissible,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
-    barrierColor: color,
+    barrierColor:
+        barrierColor ?? CustomColorScheme.of(context).function.barrier,
     transitionDuration: animationDuration,
     transitionBuilder: (context, animation, secondaryAnimation, child) => child,
     pageBuilder: (context, animation, secondaryAnimation) {

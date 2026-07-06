@@ -1319,4 +1319,7 @@ class AppLocalizationsFr extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get messageList_reactions_remove => 'Supprimer';
 }

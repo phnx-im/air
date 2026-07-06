@@ -420,5 +420,6 @@
   "memberSelectionList_client_not_supported": "Dieser Kontakt hat eine veraltete App, die aktualisiert werden muss.",
   "homeTab_chats": "Chats",
   "homeTab_profile": "Du",
-  "messageList_newMessages": "{count, plural, one {{count} neue Nachricht} other {{count} neue Nachrichten}}"
+  "messageList_newMessages": "{count, plural, one {{count} neue Nachricht} other {{count} neue Nachrichten}}",
+  "messageList_reactions_remove": "Entfernen"
 }

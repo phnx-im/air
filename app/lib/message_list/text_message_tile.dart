@@ -717,8 +717,11 @@ class _MessageView extends HookWidget {
             child: GlassCircleButton(
               key: reactButtonKey,
               size: _hoverReactSize,
-              onPressed: () => openReactionMenu(anchorKey: reactButtonKey),
+              color: isSender
+                  ? colors.message.selfBackground
+                  : colors.message.otherBackground,
               icon: AppIcon.smilePlus(size: 18, color: colors.text.secondary),
+              onPressed: () => openReactionMenu(anchorKey: reactButtonKey),
             ),
             builder: (context, hovered, child) => AnimatedOpacity(
               opacity: hovered ? 1.0 : 0.0,
