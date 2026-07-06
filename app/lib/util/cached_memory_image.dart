@@ -60,10 +60,10 @@ class CachedMemoryImage extends ImageProvider<CachedMemoryImage> {
     return decode(
       buffer,
       getTargetSize: (intrinsicWidth, intrinsicHeight) {
-        final widthScale = targetWidth != null
+        final widthScale = (targetWidth != null && intrinsicWidth > 0)
             ? targetWidth! / intrinsicWidth
             : null;
-        final heightScale = targetHeight != null
+        final heightScale = (targetHeight != null && intrinsicHeight > 0)
             ? targetHeight! / intrinsicHeight
             : null;
         final double scale;
