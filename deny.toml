@@ -24,6 +24,9 @@ ignore = [
     { id = "RUSTSEC-2024-0436", reason = "no fix yet available" },
     { id = "RUSTSEC-2026-0002", reason = "no fix yet available" },
     { id = "RUSTSEC-2026-0097", reason = "rand 0.8.5 pinned by third-party deps; no 0.8.x patch available" },
+    # <https://github.com/Smithay/wayland-rs/pull/938>
+    { id = "RUSTSEC-2026-0194", reason = "waiting for wayland-scanner to be updated and used upstream" },
+    { id = "RUSTSEC-2026-0195", reason = "waiting for wayland-scanner to be updated and used upstream" },
 ]
 
 [licenses]
@@ -68,7 +71,6 @@ unknown-registry = "deny"
 unknown-git = "deny"
 allow-registry = ["https://github.com/rust-lang/crates.io-index"]
 allow-git = [
-    "https://github.com/raphaelrobert/privacypass",
     # unreleased post-quantum and virtual-clients features of openmls after the 0.8.1 release
     "https://github.com/openmls/openmls",
     "https://github.com/cryspen/hpke-rs",
