@@ -10,6 +10,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/message_list.dart';
 import 'package:air/user/user.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -327,7 +328,7 @@ final messages = [
     timestamp: DateTime.parse('2023-01-02T00:05:07.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
-        sender: 1.userId(),
+        sender: 2.userId(),
         sent: true,
         edited: false,
         content: UiMimiContent(
@@ -341,7 +342,7 @@ final messages = [
     position: UiFlightPosition.single,
     status: UiMessageStatus.read,
     reactions: [
-      UiReaction(emoji: "🫪", users: [2.userId(), 3.userId()]),
+      UiReaction(emoji: "🫪", users: [1.userId(), 3.userId()]),
       UiReaction(emoji: "💖", users: [4.userId()]),
     ],
   ),
@@ -352,7 +353,7 @@ final messages = [
     timestamp: DateTime.parse('2023-01-02T00:05:07.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
-        sender: 1.userId(),
+        sender: 2.userId(),
         sent: true,
         edited: false,
         content: UiMimiContent(
@@ -366,7 +367,7 @@ final messages = [
     position: UiFlightPosition.single,
     status: UiMessageStatus.read,
     reactions: [
-      UiReaction(emoji: "👍", users: [2.userId()]),
+      UiReaction(emoji: "👍", users: [1.userId()]),
       UiReaction(emoji: "🤯", users: [5.userId()]),
       UiReaction(emoji: "🤨", users: [4.userId()]),
     ],
@@ -1354,19 +1355,9 @@ void main() {
 
       await tester.pumpWidget(buildSubject());
 
-      final finder = find.text('🫪');
-      // ignore: avoid_print
-      print('match count: ${finder.evaluate().length}');
-      final center = tester.getCenter(finder);
-      // ignore: avoid_print
-      print('center: $center');
-      await tester.tap(finder);
-      await tester.pump();
-      // ignore: avoid_print
-      print('sheet count right after tap: ${find.text('All · 3').evaluate().length}');
+      await tester.tap(find.text('🫪'));
+      await tester.pump(kDoubleTapTimeout);
       await tester.pumpAndSettle();
-      // ignore: avoid_print
-      print('sheet count after settle: ${find.text('All · 3').evaluate().length}');
 
       await expectLater(
         find.byType(MaterialApp),
