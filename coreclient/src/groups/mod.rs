@@ -94,10 +94,9 @@ use crate::{
 use openmls::{
     component::ComponentType,
     components::vc_derivation_info::GenerationId,
-    framing::errors::SecretTreeError,
     group::{
-        ConfirmMessageError, CreateCommitError, ExportSecretError, ExternalCommitBuilder,
-        GroupEpoch, JoinBuilder, ProcessedWelcome, ProposalValidationError, UnconfirmedMessage,
+        CreateCommitError, ExportSecretError, ExternalCommitBuilder, GroupEpoch, JoinBuilder,
+        ProcessedWelcome, ProposalValidationError, UnconfirmedMessage,
     },
     key_packages::KeyPackageBundle,
     prelude::{

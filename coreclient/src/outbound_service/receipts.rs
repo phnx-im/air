@@ -226,7 +226,8 @@ impl OutboundServiceContext {
         // message accepted by DS, confirm.
         self.confirm_mls_message(&chat, generation)
             .await
-            .map_err(OutboundServiceError::fatal)?;
+            .inspect_err(|error| error!(%error, "failed to confirm MLS message"))
+            .ok();
 
         // store delivery receipt report
         self.store_receipt_report(unsent_receipt.report).await?;
@@ -284,7 +285,7 @@ impl OutboundServiceContext {
         self.db
             .with_write_transaction(async |txn| {
                 let group_id = chat.group_id();
-                let mut group = Group::load_clean(&mut *txn, group_id)
+                let mut group = Group::load(&mut *txn, group_id)
                     .await?
                     .with_context(|| format!("Can't find group with id {group_id:?}"))?;
                 let provider = AirOpenMlsProvider::new(txn.as_mut());

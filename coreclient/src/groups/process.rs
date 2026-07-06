@@ -42,7 +42,15 @@ use crate::{
 
 use super::{Group, openmls_provider::AirOpenMlsProvider};
 
-pub(crate) struct ProcessMessageResult {
+pub(crate) enum ProcessMessageResult {
+    Processed(ProcessMessageProcessed),
+    /// This message was skipped because we have processed it (or its side-effect) already.
+    Ignored,
+    /// We got a message that's too far in the future, and there's nothing we can do about it.
+    TooDistant,
+}
+
+pub(crate) struct ProcessMessageProcessed {
     pub(crate) processed_message: ProcessedMessage,
     pub(crate) we_were_removed: bool,
     pub(crate) profile_infos: Vec<(ClientCredential, UserProfileKey)>,
@@ -70,7 +78,7 @@ impl Group {
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         message: impl Into<ProtocolMessage>,
-    ) -> Result<Option<ProcessMessageResult>> {
+    ) -> Result<ProcessMessageResult> {
         // Phase 1: Process the message.
         let processed_message = {
             let provider = AirOpenMlsProvider::new(txn.as_mut());
@@ -92,11 +100,11 @@ impl Group {
                             current_epoch = ?self.mls_group.epoch(),
                             "Ignoring past-epoch message"
                         );
-                        return Ok(None);
+                        return Ok(ProcessMessageResult::Ignored);
                     }
                     // If the message epoch is in the future, we need to re-join
                     // the group.
-                    return Ok(None);
+                    return Ok(ProcessMessageResult::TooDistant);
                 }
                 Err(e) => {
                     bail!("Could not process message: {e:?}");
@@ -106,7 +114,6 @@ impl Group {
 
         self.post_process_message(txn, api_clients, processed_message, None)
             .await
-            .map(Some)
     }
 
     async fn post_process_message(
@@ -123,11 +130,11 @@ impl Group {
             }
             ProcessedMessageContent::ApplicationMessage(_) => {
                 debug!("process application message");
-                return Ok(ProcessMessageResult {
+                return Ok(ProcessMessageResult::Processed(ProcessMessageProcessed {
                     processed_message,
                     we_were_removed: false,
                     profile_infos: Vec::new(),
-                });
+                }));
             }
             ProcessedMessageContent::ProposalMessage(_proposal) => {
                 // Proposals are just returned and can then be added to the
@@ -156,8 +163,6 @@ impl Group {
             ProcessedMessageContent::OwnPendingCommit => {
                 // Our own commit was echoed back to us: openmls matched it
                 // against our pending commit.
-                dbg!("OwnPendingCommit");
-
                 PostProcessState {
                     sender_index: self.mls_group.own_leaf_index(),
                     we_were_removed: false,
@@ -183,11 +188,11 @@ impl Group {
             })
             .collect::<Result<Vec<_>>>()?;
 
-        Ok(ProcessMessageResult {
+        Ok(ProcessMessageResult::Processed(ProcessMessageProcessed {
             processed_message,
             we_were_removed: post_process_state.we_were_removed,
             profile_infos,
-        })
+        }))
     }
 
     async fn post_process_staged_commit(
@@ -656,7 +661,7 @@ impl Group {
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         message: impl Into<ApqProtocolMessage>,
-    ) -> Result<Option<ProcessMessageResult>> {
+    ) -> Result<ProcessMessageResult> {
         let message: ApqProtocolMessage = message.into();
         let message_t_epoch = message.t_epoch();
         let current_t_epoch = self.mls_group.epoch();
@@ -685,11 +690,11 @@ impl Group {
                         %current_t_epoch,
                         "Ignoring past-epoch APQ message"
                     );
-                    return Ok(None);
+                    return Ok(ProcessMessageResult::Ignored);
                 }
                 // A future-epoch message means we are behind and the caller
                 // must trigger a resync.
-                return Ok(None);
+                return Ok(ProcessMessageResult::TooDistant);
             }
             Err(e) => {
                 return Err(e).context("Failed to process APQ message");
@@ -720,7 +725,7 @@ impl Group {
             _ => (),
         }
 
-        Ok(Some(res))
+        Ok(res)
     }
 }
 

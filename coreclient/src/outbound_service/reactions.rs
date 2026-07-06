@@ -175,7 +175,10 @@ impl OutboundServiceContext {
         }
 
         // message accepted by DS, confirm.
-        self.confirm_mls_message(&chat, generation).await?;
+        self.confirm_mls_message(&chat, generation)
+            .await
+            .inspect_err(|error| error!(%error, "failed to confirm MLS message"))
+            .ok();
 
         Ok(SendOutcome::Sent)
     }

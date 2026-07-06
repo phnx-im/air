@@ -6,8 +6,8 @@ use anyhow::anyhow;
 use anyhow::{Context, ensure};
 use mimi_content::MessageStatus;
 use tokio_util::sync::CancellationToken;
-use tracing::debug;
 use tracing::warn;
+use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::db::access::WriteDbTransaction;
@@ -242,7 +242,8 @@ impl OutboundServiceContext {
         // message accepted by DS, confirm.
         self.confirm_mls_message(&chat, generation)
             .await
-            .context("failed to confirm MLS message")?;
+            .inspect_err(|error| error!(%error, "failed to confirm MLS message"))
+            .ok();
 
         // post-processing:
         self.db
