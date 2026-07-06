@@ -35,7 +35,14 @@ const double quickReactionBarGlyphSize = 28;
 /// Size of the tappable area in the reaction bar
 const double quickReactionBarTapSize = 44;
 
+/// Size of the more (+) button in the reaction bar
 const double quickReactionBarMoreSize = 36;
+
+/// Fixed height of the reaction bar
+const double quickReactionBarHeight = quickReactionBarTapSize + Spacing.px8;
+
+/// Extra vertical space between the hit point and where the reaction bar opens
+const double quickReactionMenuGap = Spacing.px12;
 
 /// Compact reaction chip metrics
 const double reactionChipSpacing = Spacing.px4;
@@ -53,8 +60,7 @@ const double reactionsGapBelow = Spacing.px8;
 const double reactionsHorizontalInset = Spacing.px8;
 
 /// Vertical space [BubbleWithReactions] reserves below the bubble for the chips
-/// that overlap its bottom edge (zero when there are no reactions). Used by
-/// callers to align elements to the bubble rather than the bubble + chips.
+/// that overlap its bottom edge.
 double reactionsReservedBelow(bool hasReactions) => hasReactions
     ? reactionChipHeight - reactionsMessageBubbleOverlap + reactionsGapBelow
     : 0;
@@ -248,11 +254,18 @@ class MessageReactions extends StatelessWidget {
           if (i > 0) children.add(const SizedBox(width: reactionChipSpacing));
           children.add(chips[i]);
         }
-        return Row(
-          mainAxisAlignment: isSender
-              ? MainAxisAlignment.start
-              : MainAxisAlignment.end,
-          children: children,
+        // Size to the chips' natural width rather than filling maxWidth: even
+        // the single "+N" fallback chip can exceed maxWidth on a very narrow
+        // bubble. OverflowBox lets it grow past the bubble edge instead of
+        // force-fitting into maxWidth and triggering a RenderFlex overflow.
+        return SizedBox(
+          height: reactionChipHeight,
+          child: OverflowBox(
+            minWidth: 0,
+            maxWidth: double.infinity,
+            alignment: isSender ? Alignment.centerLeft : Alignment.centerRight,
+            child: Row(mainAxisSize: MainAxisSize.min, children: children),
+          ),
         );
       },
     );
@@ -322,8 +335,7 @@ class QuickReactionBar extends StatelessWidget {
 
 /// Shows the [QuickReactionBar] as a small popover centered horizontally on
 /// [anchorRect] and placed just above it, falling back to below it when there
-/// isn't room above. [anchorRect] is the trigger -- the react button or the
-/// right-click point.
+/// isn't room above.
 Future<void> showQuickReactionMenu({
   required BuildContext context,
   required Rect anchorRect,
@@ -362,14 +374,6 @@ Future<void> showQuickReactionMenu({
   );
 }
 
-/// Approximate height of the quick-reaction bar, used to position it above the
-/// anchored message.
-const double quickReactionBarHeight = quickReactionBarTapSize + Spacing.px8;
-
-/// Vertical gap between the quick-reaction bar and the point it is anchored to,
-/// so the bar has a bit of breathing room above (or below) the trigger.
-const double quickReactionMenuGap = Spacing.px12;
-
 class _QuickReactionMenuOverlay extends StatelessWidget {
   const _QuickReactionMenuOverlay({
     required this.animation,
@@ -395,9 +399,6 @@ class _QuickReactionMenuOverlay extends StatelessWidget {
       right: Spacing.px8,
     );
 
-    // anchorRect is in global coordinates, but the overlay we lay the bar out
-    // in may be scaled (InterfaceScale wraps the app in a Transform). Convert
-    // the anchor into the overlay's local space so centering lines up.
     final overlayBox =
         Overlay.of(context).context.findRenderObject() as RenderBox?;
     final anchor = overlayBox == null

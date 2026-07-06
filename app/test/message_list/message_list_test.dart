@@ -20,7 +20,7 @@ import '../helpers.dart';
 import '../mocks.dart';
 
 // NB: do not forget to adjust this, when you add more content to render
-const highTestSize = Size(1080, 4400);
+const highTestSize = Size(1080, 4300);
 
 final chatId = 1.chatId();
 
@@ -320,6 +320,7 @@ final messages = [
     status: UiMessageStatus.read,
     reactions: [],
   ),
+  // Medium-sized message with three reactions (2+1)
   UiChatMessage(
     id: 14.messageId(),
     chatId: chatId,
@@ -337,12 +338,37 @@ final messages = [
         ),
       ),
     ),
-    inReplyToMessage: const UiInReplyToMessage.notFound(),
     position: UiFlightPosition.single,
     status: UiMessageStatus.read,
     reactions: [
       UiReaction(emoji: "🫪", users: [2.userId(), 3.userId()]),
       UiReaction(emoji: "💖", users: [4.userId()]),
+    ],
+  ),
+  // Very short message with many reactions, to show the overflow pill
+  UiChatMessage(
+    id: 15.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-02T00:05:07.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 1.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          topicId: Uint8List(0),
+          plainBody: "OK",
+          content: simpleMessage("OK"),
+          attachments: [],
+        ),
+      ),
+    ),
+    position: UiFlightPosition.single,
+    status: UiMessageStatus.read,
+    reactions: [
+      UiReaction(emoji: "👍", users: [2.userId()]),
+      UiReaction(emoji: "🤯", users: [5.userId()]),
+      UiReaction(emoji: "🤨", users: [4.userId()]),
     ],
   ),
 ];
