@@ -253,11 +253,12 @@ Widget buildBlockElement(
       TextSpan(
         text: field0.map((e) => e.value).join('\n'),
         style: TextStyle(
+          fontFamily: getSystemMonospaceFontFamily(),
           fontSize: BodyFontSize.small2.size,
           color: isSender
               ? CustomColorScheme.of(context).message.selfText
               : CustomColorScheme.of(context).message.otherText,
-        ).withSystemMonospace(),
+        ),
       ),
     ),
     BlockElement_Error(:final field0) => Container(
@@ -296,8 +297,9 @@ InlineSpan buildInlineElement(
     InlineElement_Code(:final field0) => TextSpan(
       text: field0,
       style: TextStyle(
+        fontFamily: getSystemMonospaceFontFamily(),
         fontSize: BodyFontSize.small2.size,
-      ).withSystemMonospace(),
+      ),
     ),
     InlineElement_Link(:final destUrl, :final children) => TextSpan(
       children: children
@@ -704,8 +706,9 @@ class CustomTextEditingController extends TextEditingController {
               .toList(),
         ),
         style: TextStyle(
+          fontFamily: getSystemMonospaceFontFamily(),
           fontSize: BodyFontSize.small2.size,
-        ).withSystemMonospace(),
+        ),
       ),
       BlockElement_Error() => TextSpan(
         text: utf8.decode(raw.sublist(block.start, block.end)),
@@ -731,8 +734,9 @@ class CustomTextEditingController extends TextEditingController {
       InlineElement_Code() => TextSpan(
         text: utf8.decode(raw.sublist(inline.start, inline.end)),
         style: TextStyle(
+          fontFamily: getSystemMonospaceFontFamily(),
           fontSize: BodyFontSize.small2.size,
-        ).withSystemMonospace(),
+        ),
       ),
       InlineElement_Link() => TextSpan(
         text: utf8.decode(raw.sublist(inline.start, inline.end)),
