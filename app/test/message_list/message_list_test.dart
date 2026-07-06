@@ -1341,5 +1341,37 @@ void main() {
         matchesGoldenFile('goldens/message_list_with_replies.png'),
       );
     });
+
+    testWidgets('opens the who-reacted sheet when tapping a reaction chip', (
+      tester,
+    ) async {
+      tester.view.physicalSize = highTestSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      messageListCubit.setState(messages);
+
+      await tester.pumpWidget(buildSubject());
+
+      final finder = find.text('🫪');
+      // ignore: avoid_print
+      print('match count: ${finder.evaluate().length}');
+      final center = tester.getCenter(finder);
+      // ignore: avoid_print
+      print('center: $center');
+      await tester.tap(finder);
+      await tester.pump();
+      // ignore: avoid_print
+      print('sheet count right after tap: ${find.text('All · 3').evaluate().length}');
+      await tester.pumpAndSettle();
+      // ignore: avoid_print
+      print('sheet count after settle: ${find.text('All · 3').evaluate().length}');
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_list_who_reacted_sheet.png'),
+      );
+    });
   });
 }
