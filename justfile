@@ -137,17 +137,11 @@ regenerate-icons:
 [working-directory: 'app']
 test-flutter: (flutter "test")
 
-docker-is-podman := if `command -v podman || true` =~ ".*podman$" { "true" } else { "false" }
 skip_docker := env_var_or_default("SKIP_DOCKER_COMPOSE", "false")
 # Run docker compose services in the background.
 @start-docker-compose: _generate-db-certs
     if [ "{{skip_docker}}" = "true" ]; then \
         echo "SKIP_DOCKER_COMPOSE is set, skipping docker compose"; \
-    elif {{docker-is-podman}} == "true"; then \
-        podman rm air_minio-setup_1 -i 2>&1 /dev/null; \
-        podman-compose --podman-run-args=--replace up -d; \
-        podman-compose ps; \
-        podman logs air_postgres_1; \
     else \
         docker compose up --wait --wait-timeout=300; \
         docker compose ps; \
