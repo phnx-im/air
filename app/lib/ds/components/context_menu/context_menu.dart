@@ -71,7 +71,7 @@ class ContextMenu extends StatefulWidget {
   }
 
   @override
-  State<ContextMenu> createState() => ContextMenuState();
+  State<ContextMenu> createState() => _ContextMenuState();
 }
 
 class _CursorMenuLayoutDelegate extends SingleChildLayoutDelegate {
@@ -130,18 +130,10 @@ class _CursorMenuLayoutDelegate extends SingleChildLayoutDelegate {
       oldDelegate.safeArea != safeArea;
 }
 
-class ContextMenuState extends State<ContextMenu> {
+class _ContextMenuState extends State<ContextMenu> {
   final LayerLink _layerLink = LayerLink();
   final GlobalKey _targetKey = GlobalKey();
   final GlobalKey _menuKey = GlobalKey();
-
-  /// Returns the current global rect of the rendered menu, or null if the menu
-  /// is not currently visible.
-  Rect? get currentMenuRect {
-    final box = _menuKey.currentContext?.findRenderObject() as RenderBox?;
-    if (box == null || !box.hasSize) return null;
-    return box.localToGlobal(Offset.zero) & box.size;
-  }
 
   ValueListenable<Offset?>? _attachedCursorPosition;
   VoidCallback? _cursorPositionListener;

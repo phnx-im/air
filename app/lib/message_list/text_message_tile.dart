@@ -313,7 +313,6 @@ class _MessageView extends HookWidget {
       () => ValueNotifier<Offset?>(null),
     );
     final messageBubbleKey = useMemoized(() => GlobalKey());
-    final contextMenuKey = useMemoized(() => GlobalKey<ContextMenuState>());
     final reactButtonKey = useMemoized(() => GlobalKey());
     final isDetached = useState(false);
     // A ValueNotifier (not useState) so hover changes rebuild only the hover
@@ -402,24 +401,19 @@ class _MessageView extends HookWidget {
     }
 
     void openReactionMenu({GlobalKey? anchorKey}) {
-      // Anchor the reaction bar to the message bubble so it opens above the
-      // message it was tapped from (not the context menu). For a tall message,
-      // nearRect keeps the bar close to where the interaction happened -- the
-      // context menu or the triggering button -- instead of floating up to the
-      // bubble's top.
+      // Anchor the bar to the trigger so it opens centered above it: the hover
+      // react button, else the right-click point, else the message bubble as a
+      // last resort (e.g. mobile double-tap).
+      final cursor = cursorPositionNotifier.value;
       final anchorRect =
-          reactionAnchorRect() ??
-          (anchorKey != null ? globalRectOf(anchorKey) : null);
+          (anchorKey != null ? globalRectOf(anchorKey) : null) ??
+          (cursor != null ? cursor & Size.zero : null) ??
+          reactionAnchorRect();
       if (anchorRect == null) return;
-      final nearRect =
-          contextMenuKey.currentState?.currentMenuRect ??
-          (anchorKey != null ? globalRectOf(anchorKey) : null);
       unawaited(
         showQuickReactionMenu(
           context: context,
           anchorRect: anchorRect,
-          nearRect: nearRect,
-          alignEnd: isSender,
           skinTone: skinTone,
           onReact: sendReaction,
           onMore: () => unawaited(openFullEmojiPicker()),
@@ -737,7 +731,6 @@ class _MessageView extends HookWidget {
     );
 
     final desktopShell = ContextMenu(
-      key: contextMenuKey,
       direction: isSender
           ? ContextMenuDirection.left
           : ContextMenuDirection.right,

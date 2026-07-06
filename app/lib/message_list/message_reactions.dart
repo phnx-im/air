@@ -315,20 +315,16 @@ class QuickReactionBar extends StatelessWidget {
   }
 }
 
-/// Shows the [QuickReactionBar] as a small popover anchored above [anchorRect]
-/// (or below it when there isn't room above), aligned to the message's side.
-///
-/// [nearRect], when given, caps how far up the bar may float: for a tall
-/// message the bar stays near where the interaction happened (e.g. the context
-/// menu or the triggering button) rather than jumping to the bubble's top.
+/// Shows the [QuickReactionBar] as a small popover centered horizontally on
+/// [anchorRect] and placed just above it, falling back to below it when there
+/// isn't room above. [anchorRect] is the trigger -- the react button or the
+/// right-click point.
 Future<void> showQuickReactionMenu({
   required BuildContext context,
   required Rect anchorRect,
-  required bool alignEnd,
   required EmojiSkinVariation skinTone,
   required void Function(String emoji) onReact,
   required VoidCallback onMore,
-  Rect? nearRect,
 }) {
   // TODO: barrier colors from theme (it's custom in the bottom_sheet_modal which is also wrong)
   return showGeneralDialog(
@@ -348,8 +344,6 @@ Future<void> showQuickReactionMenu({
       return _QuickReactionMenuOverlay(
         animation: curved,
         anchorRect: anchorRect,
-        nearRect: nearRect,
-        alignEnd: alignEnd,
         skinTone: skinTone,
         onReact: (emoji) {
           Navigator.of(dialogContext).pop();
@@ -368,16 +362,14 @@ Future<void> showQuickReactionMenu({
 /// anchored message.
 const double quickReactionBarHeight = quickReactionBarTapSize + Spacing.px8;
 
-/// Vertical gap between the quick-reaction bar and the message it is anchored
-/// to, so the bar has a bit of breathing room above (or below) the bubble.
+/// Vertical gap between the quick-reaction bar and the point it is anchored to,
+/// so the bar has a bit of breathing room above (or below) the trigger.
 const double quickReactionMenuGap = Spacing.px12;
 
 class _QuickReactionMenuOverlay extends StatelessWidget {
   const _QuickReactionMenuOverlay({
     required this.animation,
     required this.anchorRect,
-    required this.nearRect,
-    required this.alignEnd,
     required this.skinTone,
     required this.onReact,
     required this.onMore,
@@ -385,8 +377,6 @@ class _QuickReactionMenuOverlay extends StatelessWidget {
 
   final Animation<double> animation;
   final Rect anchorRect;
-  final Rect? nearRect;
-  final bool alignEnd;
   final EmojiSkinVariation skinTone;
   final void Function(String emoji) onReact;
   final VoidCallback onMore;
@@ -394,54 +384,88 @@ class _QuickReactionMenuOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
-    final safeTop = mediaQuery.padding.top + Spacing.px8;
-    final safeBottom = mediaQuery.padding.bottom + Spacing.px8;
+    final safeArea = EdgeInsets.only(
+      top: mediaQuery.padding.top + Spacing.px8,
+      bottom: mediaQuery.padding.bottom + Spacing.px8,
+      left: Spacing.px8,
+      right: Spacing.px8,
+    );
 
-    // Prefer placing the bar above the message bubble, but for a tall message
-    // don't let it float far up: cap it near where the interaction happened
-    // (nearRect) so it stays close to what was tapped.
-    final near = nearRect;
-    final aboveMessage =
-        anchorRect.top - quickReactionMenuGap - quickReactionBarHeight;
-    final aboveNear = near == null
-        ? aboveMessage
-        : near.top - quickReactionMenuGap - quickReactionBarHeight;
-    final aboveTop = aboveMessage > aboveNear ? aboveMessage : aboveNear;
-    final placeAbove = aboveTop >= safeTop;
-    final top = placeAbove
-        ? aboveTop
-        : (anchorRect.bottom + quickReactionMenuGap).clamp(
-            safeTop,
-            mediaQuery.size.height - safeBottom - quickReactionBarHeight,
+    // anchorRect is in global coordinates, but the overlay we lay the bar out
+    // in may be scaled (InterfaceScale wraps the app in a Transform). Convert
+    // the anchor into the overlay's local space so centering lines up.
+    final overlayBox =
+        Overlay.of(context).context.findRenderObject() as RenderBox?;
+    final anchor = overlayBox == null
+        ? anchorRect
+        : Rect.fromPoints(
+            overlayBox.globalToLocal(anchorRect.topLeft),
+            overlayBox.globalToLocal(anchorRect.bottomRight),
           );
 
-    final bar = FadeTransition(
-      opacity: animation,
-      child: ScaleTransition(
-        scale: Tween<double>(begin: 0.92, end: 1.0).animate(animation),
-        alignment: alignEnd ? Alignment.bottomRight : Alignment.bottomLeft,
-        child: QuickReactionBar(
-          onReact: onReact,
-          onMore: onMore,
-          skinTone: skinTone,
+    return CustomSingleChildLayout(
+      delegate: _QuickReactionBarLayoutDelegate(
+        anchorRect: anchor,
+        safeArea: safeArea,
+      ),
+      child: FadeTransition(
+        opacity: animation,
+        child: ScaleTransition(
+          scale: Tween<double>(begin: 0.92, end: 1.0).animate(animation),
+          alignment: Alignment.bottomCenter,
+          child: QuickReactionBar(
+            onReact: onReact,
+            onMore: onMore,
+            skinTone: skinTone,
+          ),
         ),
       ),
     );
-
-    return Stack(
-      children: [
-        Positioned(
-          top: top,
-          left: alignEnd ? null : anchorRect.left,
-          right: alignEnd ? (mediaQuery.size.width - anchorRect.right) : null,
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
-            child: bar,
-          ),
-        ),
-      ],
-    );
   }
+}
+
+/// Centers the bar horizontally on the anchor and places it [quickReactionMenuGap]
+/// above the anchor, flipping below when there isn't room above. Everything is
+/// clamped into the safe area.
+class _QuickReactionBarLayoutDelegate extends SingleChildLayoutDelegate {
+  const _QuickReactionBarLayoutDelegate({
+    required this.anchorRect,
+    required this.safeArea,
+  });
+
+  final Rect anchorRect;
+  final EdgeInsets safeArea;
+
+  @override
+  BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
+    // Let the bar size to its content instead of filling the dialog.
+    return constraints.loosen();
+  }
+
+  @override
+  Offset getPositionForChild(Size size, Size childSize) {
+    // Centered horizontally on the anchor.
+    var dx = anchorRect.center.dx - childSize.width / 2;
+
+    // Above the anchor if it fits, otherwise below it.
+    final above = anchorRect.top - quickReactionMenuGap - childSize.height;
+    final below = anchorRect.bottom + quickReactionMenuGap;
+    var dy = above >= safeArea.top ? above : below;
+
+    final maxX = (size.width - safeArea.right - childSize.width)
+        .clamp(safeArea.left, size.width)
+        .toDouble();
+    final maxY = (size.height - safeArea.bottom - childSize.height)
+        .clamp(safeArea.top, size.height)
+        .toDouble();
+    dx = dx.clamp(safeArea.left, maxX).toDouble();
+    dy = dy.clamp(safeArea.top, maxY).toDouble();
+    return Offset(dx, dy);
+  }
+
+  @override
+  bool shouldRelayout(_QuickReactionBarLayoutDelegate oldDelegate) =>
+      oldDelegate.anchorRect != anchorRect || oldDelegate.safeArea != safeArea;
 }
 
 class _QuickReactionButton extends StatelessWidget {

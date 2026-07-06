@@ -72,41 +72,44 @@ class ContextMenuItem extends ContextMenuEntry {
     final foregroundColor = isDestructive
         ? colors.function.danger
         : colors.text.primary;
-    return TextButton(
-      onPressed: onPressed,
-      style: TextButton.styleFrom(
-        shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
-        foregroundColor: foregroundColor,
-        padding: const EdgeInsets.symmetric(vertical: Spacing.px4),
-        alignment: Alignment.centerLeft,
-        splashFactory: !Platform.isAndroid ? NoSplash.splashFactory : null,
-        overlayColor: Colors.transparent,
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.max,
-        crossAxisAlignment: CrossAxisAlignment.center,
-        children: [
-          if (reserveLeadingSpace) ...[
-            SizedBox(width: defaultLeadingWidth, child: leadingWidget),
-            const SizedBox(width: Spacing.px8),
-          ] else if (leadingWidget != null) ...[
-            leadingWidget,
-            const SizedBox(width: Spacing.px8),
-          ],
-          Expanded(
-            child: Text(
-              label,
-              style: TextStyle(fontSize: LabelFontSize.base.size),
-              maxLines: 1,
-              softWrap: false,
-              overflow: TextOverflow.ellipsis,
+    return MouseRegion(
+      cursor: SystemMouseCursors.click,
+      child: TextButton(
+        onPressed: onPressed,
+        style: TextButton.styleFrom(
+          shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
+          foregroundColor: foregroundColor,
+          padding: const EdgeInsets.symmetric(vertical: Spacing.px4),
+          alignment: Alignment.centerLeft,
+          splashFactory: !Platform.isAndroid ? NoSplash.splashFactory : null,
+          overlayColor: Colors.transparent,
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.max,
+          crossAxisAlignment: CrossAxisAlignment.center,
+          children: [
+            if (reserveLeadingSpace) ...[
+              SizedBox(width: defaultLeadingWidth, child: leadingWidget),
+              const SizedBox(width: Spacing.px8),
+            ] else if (leadingWidget != null) ...[
+              leadingWidget,
+              const SizedBox(width: Spacing.px8),
+            ],
+            Expanded(
+              child: Text(
+                label,
+                style: TextStyle(fontSize: LabelFontSize.base.size),
+                maxLines: 1,
+                softWrap: false,
+                overflow: TextOverflow.ellipsis,
+              ),
             ),
-          ),
-          if (trailingIcon != null) ...[
-            const SizedBox(width: Spacing.px8),
-            Icon(trailingIcon),
+            if (trailingIcon != null) ...[
+              const SizedBox(width: Spacing.px8),
+              Icon(trailingIcon),
+            ],
           ],
-        ],
+        ),
       ),
     );
   }
