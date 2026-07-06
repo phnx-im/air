@@ -183,6 +183,21 @@ impl DsGroupState {
             .map(|client_profile| client_profile.client_queue_config.clone())
     }
 
+    pub(crate) fn other_destination_clients(
+        &self,
+        sender_index: LeafNodeIndex,
+    ) -> impl Iterator<Item = QsReference> {
+        self.member_profiles
+            .iter()
+            .filter_map(move |(client_index, client_profile)| {
+                if client_index == &sender_index {
+                    None
+                } else {
+                    Some(client_profile.client_queue_config.clone())
+                }
+            })
+    }
+
     pub(crate) fn qs_client_ref_by_index(
         &self,
         member_index: LeafNodeIndex,

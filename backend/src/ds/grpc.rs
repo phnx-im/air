@@ -1103,7 +1103,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     ..
                 } = verified_data;
 
-                let destination_clients: Vec<_> = group_state.destination_clients().collect();
+                let destination_clients: Vec<_> = group_state
+                    .other_destination_clients(sender_index)
+                    .collect();
 
                 let group_message = group_state.resync_client(external_commit, sender_index)?;
 
@@ -1144,11 +1146,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .update_group_state(request, None, async |verification_data| {
                 let LeafVerificationData::<'_, SelfRemovePayload, true> {
                     group_state,
+                    sender_index,
                     message: remove_proposal,
                     ..
                 } = verification_data;
 
-                let destination_clients: Vec<_> = group_state.destination_clients().collect();
+                let destination_clients: Vec<_> = group_state
+                    .other_destination_clients(sender_index)
+                    .collect();
 
                 let group_message = group_state.self_remove_client(remove_proposal)?;
 
@@ -1193,10 +1198,12 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                            pq_group_state,
                            t_message,
                            pq_message,
-                           t_sender_index: _,
+                           t_sender_index,
                            ear_key: _,
                        }: ApqVerificationData<'_, ApqSelfRemovePayload>| {
-                    let destination_clients: Vec<_> = t_group_state.destination_clients().collect();
+                    let destination_clients: Vec<_> = t_group_state
+                        .other_destination_clients(t_sender_index)
+                        .collect();
 
                     let pq_serialized =
                         pq_group_state.self_remove_client_without_room_state(pq_message)?;
@@ -1275,7 +1282,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .await?;
         }
 
-        let destination_clients = group_state.destination_clients();
+        let destination_clients = group_state.other_destination_clients(sender_index);
 
         // Messages from legacy clients won't have this field set. Default to false.
         let suppress_notifications = payload.suppress_notifications.unwrap_or(false);
@@ -1316,11 +1323,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .update_group_state(request, None, async |verification_data| {
                 let LeafVerificationData::<'_, DeleteGroupPayload, true> {
                     group_state,
+                    sender_index,
                     message: commit,
                     ..
                 } = verification_data;
 
-                let destination_clients: Vec<_> = group_state.destination_clients().collect();
+                let destination_clients: Vec<_> = group_state
+                    .other_destination_clients(sender_index)
+                    .collect();
 
                 let group_message = group_state.delete_group(commit)?;
 
@@ -1394,7 +1404,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         .transpose()?,
                 };
 
-                let destination_clients: Vec<_> = group_state.destination_clients().collect();
+                let destination_clients: Vec<_> = group_state
+                    .other_destination_clients(sender_index)
+                    .collect();
 
                 let (group_message, mut individual_fan_out_messages) =
                     group_state.group_operation(params, ear_key).await?;
@@ -1500,7 +1512,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
                     // Make sure you collect destination clients before processing the commit so that new invitees (added by
                     // this commit) don't receive the commit message before their welcome bundle.
-                    let destination_clients: Vec<_> = t_group_state.destination_clients().collect();
+                    let destination_clients: Vec<_> = t_group_state
+                        .other_destination_clients(t_sender_index)
+                        .collect();
 
                     let (serialized_apq_message, t_add_users_state, pq_welcome) =
                         DsGroupState::process_apq_group_operation(
@@ -1614,7 +1628,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
                 group_state.update_user_profile_key(sender_index, params.user_profile_key)?;
 
-                let destination_clients: Vec<_> = group_state.destination_clients().collect();
+                let destination_clients: Vec<_> = group_state
+                    .other_destination_clients(sender_index)
+                    .collect();
 
                 self.fan_out_message_without_notifications(fan_out_payload, destination_clients)
                     .await;
