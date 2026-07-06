@@ -395,7 +395,7 @@ class _MessageView extends HookWidget {
               initialSkinTone: skinTone,
               onSkinToneChanged: onSkinToneChanged,
             );
-      if (emoji != null) {
+      if (emoji != null && context.mounted) {
         sendReaction(emoji);
       }
     }

@@ -16,6 +16,7 @@ import 'package:air/ds/foundations/themes.dart';
 import 'package:air/ds/theme/theme.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'emoji_repository.dart';
 
@@ -671,13 +672,7 @@ Future<void> showWhoReactedSheet({
               decoration: BoxDecoration(
                 color: colors.backgroundElevated.primary,
                 borderRadius: BorderRadius.circular(Spacing.px20),
-                boxShadow: const [
-                  BoxShadow(
-                    color: Color(0x33000000),
-                    blurRadius: 24,
-                    offset: Offset(0, 8),
-                  ),
-                ],
+                boxShadow: smallElevationBoxShadows,
               ),
               child: sheet,
             ),
@@ -690,7 +685,7 @@ Future<void> showWhoReactedSheet({
 
 /// List all user profiles and their reactions in a "All" and single
 /// tab per reaction.
-class WhoReactedSheet extends StatefulWidget {
+class WhoReactedSheet extends HookWidget {
   const WhoReactedSheet({
     super.key,
     required this.reactions,
@@ -707,54 +702,30 @@ class WhoReactedSheet extends StatefulWidget {
   final void Function(String emoji) onRemove;
 
   @override
-  State<WhoReactedSheet> createState() => _WhoReactedSheetState();
-}
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final selected = useState(initialEmoji);
 
-class _WhoReactedSheetState extends State<WhoReactedSheet> {
-  // Mutable working copy so removals update the sheet optimistically.
-  late final List<({String emoji, List<UiUserId> users})> _reactions = [
-    for (final reaction in widget.reactions)
-      (emoji: reaction.emoji, users: List<UiUserId>.of(reaction.users)),
-  ];
-  late String? _selected = widget.initialEmoji;
+    final total = reactions.fold<int>(
+      0,
+      (sum, reaction) => sum + reaction.users.length,
+    );
 
-  int get _total =>
-      _reactions.fold(0, (sum, reaction) => sum + reaction.users.length);
-
-  List<({UiUserId user, String emoji})> get _rows {
     final rows = <({UiUserId user, String emoji})>[];
-    for (final reaction in _reactions) {
-      if (_selected != null && reaction.emoji != _selected) {
+    for (final reaction in reactions) {
+      if (selected.value != null && reaction.emoji != selected.value) {
         continue;
       }
       for (final user in reaction.users) {
         rows.add((user: user, emoji: reaction.emoji));
       }
     }
-    return rows;
-  }
 
-  void _remove(String emoji) {
-    widget.onRemove(emoji);
-    setState(() {
-      for (final reaction in _reactions) {
-        if (reaction.emoji == emoji) {
-          reaction.users.remove(widget.ownUserId);
-        }
-      }
-      _reactions.removeWhere((reaction) => reaction.users.isEmpty);
-      if (_selected != null &&
-          !_reactions.any((reaction) => reaction.emoji == _selected)) {
-        _selected = null;
-      }
-    });
+    void remove(String emoji) {
+      onRemove(emoji);
+      Navigator.of(context).maybePop();
+    }
 
-    Navigator.of(context).maybePop();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final rows = _rows;
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
@@ -764,15 +735,15 @@ class _WhoReactedSheetState extends State<WhoReactedSheet> {
             scrollDirection: Axis.horizontal,
             children: [
               _ReactionTab(
-                label: 'All · $_total',
-                selected: _selected == null,
-                onTap: () => setState(() => _selected = null),
+                label: loc.messageList_reactions_all(total),
+                selected: selected.value == null,
+                onTap: () => selected.value = null,
               ),
-              for (final reaction in _reactions)
+              for (final reaction in reactions)
                 _ReactionTab(
                   label: '${reaction.emoji} ${reaction.users.length}',
-                  selected: _selected == reaction.emoji,
-                  onTap: () => setState(() => _selected = reaction.emoji),
+                  selected: selected.value == reaction.emoji,
+                  onTap: () => selected.value = reaction.emoji,
                 ),
             ],
           ),
@@ -784,13 +755,15 @@ class _WhoReactedSheetState extends State<WhoReactedSheet> {
             itemCount: rows.length,
             itemBuilder: (context, index) {
               final row = rows[index];
-              final isMe = row.user == widget.ownUserId;
-              final profile = widget.profiles[row.user];
+              final isMe = row.user == ownUserId;
+              final profile = profiles[row.user];
               return _ReactorRow(
                 profile: profile,
-                name: isMe ? 'You' : (profile?.displayName ?? ''),
+                name: isMe
+                    ? loc.messageList_reactions_you
+                    : (profile?.displayName ?? ''),
                 emoji: row.emoji,
-                onRemove: isMe ? () => _remove(row.emoji) : null,
+                onRemove: isMe ? () => remove(row.emoji) : null,
               );
             },
           ),

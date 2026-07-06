@@ -2264,6 +2264,18 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Remove'**
   String get messageList_reactions_remove;
+
+  /// No description provided for @messageList_reactions_you.
+  ///
+  /// In en, this message translates to:
+  /// **'You'**
+  String get messageList_reactions_you;
+
+  /// No description provided for @messageList_reactions_all.
+  ///
+  /// In en, this message translates to:
+  /// **'All · {total}'**
+  String messageList_reactions_all(Object total);
 }
 
 class _AppLocalizationsDelegate

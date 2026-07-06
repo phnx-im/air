@@ -1292,4 +1292,12 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get messageList_reactions_remove => 'Remove';
+
+  @override
+  String get messageList_reactions_you => 'You';
+
+  @override
+  String messageList_reactions_all(Object total) {
+    return 'All · $total';
+  }
 }

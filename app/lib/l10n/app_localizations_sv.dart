@@ -494,7 +494,7 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get linkingDevicesScreen_error_sessionNotFound =>
-      'The code you provided is incorrect.';
+      'Koden du angav är felaktig.';
 
   @override
   String get linkingDevicesScreen_error_dismiss => 'Försök igen';
@@ -1302,4 +1302,12 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get messageList_reactions_remove => 'Ta bort';
+
+  @override
+  String get messageList_reactions_you => 'Du';
+
+  @override
+  String messageList_reactions_all(Object total) {
+    return 'Alla · $total';
+  }
 }

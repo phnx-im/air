@@ -148,6 +148,7 @@
   "linkingDeviceScreen_error_codesExpired_reload": "Ladda om",
   "linkingDevicesScreen_error_title": "Länkning misslyckades",
   "linkingDevicesScreen_error_generic": "Ett okänt fel uppstod.",
+  "linkingDevicesScreen_error_sessionNotFound": "Koden du angav är felaktig.",
   "linkingDevicesScreen_error_dismiss": "Försök igen",
 
   "linkedDevicesScreen_title": "Enheter",
@@ -419,5 +420,7 @@
   "homeTab_chats": "Chattar",
   "homeTab_profile": "Du",
   "messageList_newMessages": "{count, plural, one {{count} nytt meddelande} other {{count} nya meddelanden}}",
-  "messageList_reactions_remove": "Ta bort"
+  "messageList_reactions_remove": "Ta bort",
+  "messageList_reactions_you": "Du",
+  "messageList_reactions_all": "Alla · {total}"
 }

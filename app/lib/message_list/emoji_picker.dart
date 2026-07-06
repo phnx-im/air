@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ds/foundations/elevation.dart';
 import 'package:air/message_list/emoji_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -283,13 +284,7 @@ class EmojiPickerPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.backgroundElevated.primary,
         borderRadius: BorderRadius.circular(_panelRadius),
-        boxShadow: const [
-          BoxShadow(
-            color: Color(0x33000000),
-            blurRadius: 24,
-            offset: Offset(0, 8),
-          ),
-        ],
+        boxShadow: smallElevationBoxShadows,
       ),
       child: EmojiPicker(
         onSelected: onSelected,
@@ -310,7 +305,7 @@ Future<String?> showEmojiPickerPopover({
   return showGeneralDialog<String>(
     context: context,
     barrierDismissible: true,
-    barrierColor: const Color(0x33000000),
+    barrierColor: CustomColorScheme.of(context).function.barrier,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     transitionDuration: const Duration(milliseconds: 150),
     pageBuilder: (context, animation, secondaryAnimation) =>

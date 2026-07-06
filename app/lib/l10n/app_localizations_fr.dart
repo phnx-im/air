@@ -506,7 +506,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get linkingDevicesScreen_error_sessionNotFound =>
-      'The code you provided is incorrect.';
+      'Le code que vous avez fourni est incorrect.';
 
   @override
   String get linkingDevicesScreen_error_dismiss => 'Réessayer';
@@ -1322,4 +1322,12 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get messageList_reactions_remove => 'Supprimer';
+
+  @override
+  String get messageList_reactions_you => 'Vous';
+
+  @override
+  String messageList_reactions_all(Object total) {
+    return 'Toutes · $total';
+  }
 }

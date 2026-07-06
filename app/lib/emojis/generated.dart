@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-// GENERATED FILE — DO NOT EDIT.
+// Generated file. Do not edit.
 // Regenerate with `cargo xtask generate-emoji <emoji_pretty.json>`.
 // You can obtain a copy of this file from https://github.com/iamcal/emoji-data/blob/v16.0.0/emoji_pretty.json
 
