@@ -591,6 +591,24 @@ impl CoreUser {
         .await
     }
 
+    /// Test-only: drive an incoming MLS message (e.g. the DS echo of our own
+    /// commit) through the same processing path the QS queue uses, so tests can
+    /// exercise the `OwnPendingCommit` merge without a live server.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub async fn process_incoming_mls_message(
+        &self,
+        mls_message_bytes: &[u8],
+    ) -> Result<ProcessQsMessageResult> {
+        let mls_message = MlsMessageIn::tls_deserialize_exact_bytes(mls_message_bytes)?;
+        let ds_timestamp = TimeStamp::now();
+        self.db()
+            .with_write_transaction(async |txn| {
+                self.handle_mls_message(txn, mls_message, ds_timestamp, false)
+                    .await
+            })
+            .await
+    }
+
     async fn handle_apq_mls_message(
         &self,
         txn: &mut WriteDbTransaction<'_>,

@@ -459,6 +459,90 @@ async fn update_group_data() {
     }
 }
 
+/// Regression test for the `OwnPendingCommit` merge path.
+///
+/// When we commit (here: a title change), the DS both sends a `DsCommitResponse`
+/// and echoes the commit back to us via fanout. If the echo is processed before
+/// the inline merge (a real race, guarded by `is_pending_for_chat`), it hits the
+/// `OwnPendingCommit` arm instead of `DsCommitResponse`. That arm must apply the
+/// same side effects: update the chat title carried by the commit and delete the
+/// pending chat operation. This test drives that arm directly by staging the
+/// commit without merging and feeding the echo back through the QS path.
+///
+/// This is what would happen in the scenario of virtual-clients.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Own pending commit merge test", skip_all)]
+async fn own_pending_commit_merges_group_data_and_clears_pending_op() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    let _alice_bob_chat = setup.connect_users(&alice, &bob).await;
+    let chat_id = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+
+    // Stage Alice's title-change commit WITHOUT merging it. This leaves a
+    // pending commit and a stored pending chat operation, and hands back the
+    // commit bytes the DS would echo back to Alice.
+    let title = "Raced Title".to_string();
+    let echo = alice_user
+        .stage_group_title_commit(chat_id, title.clone())
+        .await
+        .unwrap();
+
+    // Preconditions: pending op exists, title not yet applied.
+    assert!(
+        alice_user
+            .pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .is_some(),
+        "a pending chat operation should be stored before the merge",
+    );
+    assert_ne!(
+        alice_user
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .attributes()
+            .unwrap()
+            .title,
+        title,
+        "title must not be applied before the commit is merged",
+    );
+
+    // Feed Alice her own commit back through the QS path while the commit is
+    // still pending -> hits the `OwnPendingCommit` arm.
+    alice_user
+        .process_incoming_mls_message(&echo)
+        .await
+        .unwrap();
+
+    // The arm must apply the group data (title) ...
+    assert_eq!(
+        alice_user
+            .chat(&chat_id)
+            .await
+            .unwrap()
+            .attributes()
+            .unwrap()
+            .title,
+        title,
+        "OwnPendingCommit must apply the group data carried by the commit",
+    );
+    // ... and delete the pending chat operation.
+    assert!(
+        alice_user
+            .pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .is_none(),
+        "OwnPendingCommit must delete the pending chat operation",
+    );
+}
+
 /// Tests that after being invited to a group, the invitee fetches the encrypted group profile from
 /// object storage via the outbound service and sees the correct group attributes (title and
 /// picture).

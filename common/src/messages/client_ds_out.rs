@@ -153,6 +153,7 @@ pub struct TargetedMessageParamsOut {
     pub sender: LeafNodeIndex,
     pub message_type: TargetedMessageType,
     pub generation: u32,
+    pub collision_tags: Vec<SendMessageCollisionTag>,
 }
 
 #[derive(Clone, Debug, Serialize, Deserialize)]

@@ -1822,6 +1822,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .payload
             .as_ref()
             .ok_or_missing_field("payload")?;
+
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let sender_index: LeafNodeIndex = payload.sender.ok_or_missing_field("sender")?.into();
@@ -1849,7 +1850,19 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .ok_or_else(|| Status::invalid_argument("unknown sender"))?
             .signature_key()
             .into();
-        let _: TargetedMessagePayload = request.verify(verifying_key).map_err(InvalidSignature)?;
+        let payload: TargetedMessagePayload =
+            request.verify(verifying_key).map_err(InvalidSignature)?;
+
+        if let Some(tags) = payload.collision_tags {
+            let msg_epoch = message.epoch().as_u64();
+            super::collision_tags::check_and_insert(
+                &self.ds.db_pool,
+                qgid.group_uuid(),
+                msg_epoch as i64,
+                tags,
+            )
+            .await?;
+        }
 
         let destination_client = group_state
             .qs_client_ref_by_index(recipient_index)

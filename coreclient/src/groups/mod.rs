@@ -1608,14 +1608,17 @@ impl Group {
         let UnconfirmedMessage {
             message,
             generation,
-            // Generating (and checking) for collisions is not necessary here
-            // as a targeted application message always come from a manual input from the user
-            generation_id: _,
+            generation_id,
         } = self
             .mls_group
             .create_unconfirmed_message(provider, signer, &content_bytes)?;
 
-        self.confirm_message(provider, generation)?;
+        let mut collision_tags = Vec::new();
+        if let Some(generation_id) = generation_id {
+            collision_tags.push(SendMessageCollisionTag::Generation(
+                generation_id_to_collision_tag(&generation_id),
+            ));
+        }
 
         let message = AssistedMessageOut::new(message, None);
 
@@ -1636,6 +1639,7 @@ impl Group {
         let params = TargetedMessageParamsOut {
             sender: self.mls_group.own_leaf_index(),
             generation,
+            collision_tags,
             message_type: TargetedMessageType::ApplicationMessage {
                 message,
                 recipient: recipient_index,

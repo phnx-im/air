@@ -155,6 +155,39 @@ impl CoreUser {
         Ok(())
     }
 
+    /// Stages a group-title-change commit and stores the pending chat operation
+    /// WITHOUT merging it, reproducing the window before the inline merge / DS
+    /// commit response. Returns the serialized commit the DS would echo back to
+    /// us, which can be fed to [`CoreUser::process_incoming_mls_message`] to
+    /// drive the `OwnPendingCommit` path.
+    pub async fn stage_group_title_commit(
+        &self,
+        chat_id: ChatId,
+        title: String,
+    ) -> anyhow::Result<Vec<u8>> {
+        let group_data = GroupData {
+            encrypted_title: None,
+            external_group_profile: None,
+            legacy_title: Some(title),
+            legacy_picture: None,
+        };
+        let group_data_bytes = group_data.encode()?;
+        let job = self
+            .db()
+            .with_write_transaction(async |txn| {
+                PendingChatOperation::create_update_with_raw_group_data(
+                    txn,
+                    self.signing_key(),
+                    chat_id,
+                    Some(group_data_bytes),
+                    None,
+                )
+                .await
+            })
+            .await?;
+        job.staged_commit_message_bytes()
+    }
+
     pub async fn group_data(&self, chat_id: ChatId) -> anyhow::Result<Option<GroupData>> {
         let Some(group) = self
             .db()
