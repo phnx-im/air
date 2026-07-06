@@ -138,14 +138,12 @@ impl Group {
                 self.public_group
                     .add_proposal(provider, *proposal)
                     .map_err(MergeCommitError::StorageError)?;
-                vec![]
+                Vec::new()
             }
             // `OwnPendingCommit` is only produced by `MlsGroup::process_message`
             // for a client's own commit: the DS holds no leaf, so this variant
             // can never occur here.
-            ProcessedMessageContent::OwnPendingCommit => {
-                unreachable!("the DS never authors commits")
-            }
+            ProcessedMessageContent::OwnPendingCommit => Vec::new(),
             ProcessedMessageContent::ApplicationMessage(_)
             | ProcessedMessageContent::ExternalJoinProposalMessage(_) => todo!(),
         };
