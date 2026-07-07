@@ -29,7 +29,11 @@ use crate::{
 use super::OutboundServiceContext;
 
 /// Number of key packages to upload (excluding the last resort key package)
+#[cfg(not(feature = "test_utils"))]
 pub const KEY_PACKAGES: usize = 100;
+
+#[cfg(feature = "test_utils")]
+pub const KEY_PACKAGES: usize = 10; // to go faster
 
 /// Number of APQ key packages to upload (excluding the last resort key package)
 ///
