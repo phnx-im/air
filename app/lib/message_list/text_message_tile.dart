@@ -721,6 +721,7 @@ class _MessageView extends HookWidget {
                   : colors.message.otherBackground,
               icon: AppIcon.smilePlus(size: 18, color: colors.text.secondary),
               onPressed: () => openReactionMenu(anchorKey: reactButtonKey),
+              shadows: const [],
             ),
             builder: (context, hovered, child) => AnimatedOpacity(
               opacity: hovered ? 1.0 : 0.0,

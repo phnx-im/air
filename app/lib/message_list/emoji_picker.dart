@@ -190,6 +190,7 @@ class _EmojiComponentButton extends StatelessWidget {
       onPressed: onPressed,
       color: colors.fill.tertiary,
       enableBackdropBlur: false,
+      shadows: const [],
       icon: Text(
         '\u{270B}${component.modifier}',
         style: const TextStyle(fontSize: 20, height: 1.0),
