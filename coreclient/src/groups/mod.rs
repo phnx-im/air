@@ -1357,7 +1357,6 @@ impl Group {
         });
         let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
         t_mls_group.set_aad(aad.clone());
-        pq_mls_group.set_aad(aad);
 
         let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
             .force_self_update(true)
@@ -1444,7 +1443,6 @@ impl Group {
         let aad_payload = AadPayload::DeleteGroup;
         let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
         t_group.set_aad(aad.clone());
-        pq_group.set_aad(aad);
 
         let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_group, pq_group)
             .force_self_update(true)
