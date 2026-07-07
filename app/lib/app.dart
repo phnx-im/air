@@ -206,7 +206,24 @@ class _AppState extends State<App> with WidgetsBindingObserver {
                 routerConfig: _appRouter,
                 builder: (context, router) => LoadableUserCubitProvider(
                   appStateController: _appStateController,
-                  child: router!,
+                  child: BlocListener<NavigationCubit, NavigationState>(
+                    // Drop the keyboard focus whenever we navigate, e.g. leaving
+                    // a chat's message composer to open the contact/chat
+                    // details. Otherwise the composer's FocusNode keeps focus
+                    // while sitting under the pushed screens, and on iOS the
+                    // keyboard reappears when a pageless route on top (like the
+                    // safety code screen) is popped, because Flutter restores
+                    // focus to it.
+                    //
+                    // Only touch devices have a software keyboard, and on
+                    // desktop we want the composer to keep its focus, so this
+                    // is scoped to non-desktop. The listener already only fires
+                    // when the navigation state actually changes.
+                    listenWhen: (previous, current) => !DeviceType.isDesktop,
+                    listener: (context, state) =>
+                        FocusManager.instance.primaryFocus?.unfocus(),
+                    child: router!,
+                  ),
                 ),
               );
             },
