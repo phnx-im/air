@@ -19,9 +19,9 @@ use tap::Pipe as _;
 use thiserror::Error;
 
 use crate::{
-    ApqMlsGroup, ApqMlsGroupMut,
+    ApqCiphersuite, ApqMlsGroup, ApqMlsGroupMut,
     authentication::ApqSigner,
-    extension::APQMLS_COMPONENT_ID,
+    extension::{APQMLS_COMPONENT_ID, ensure_leaf_node_parameters},
     messages::{ApqGroupInfo, ApqKeyPackage, ApqMlsMessageOut, ApqWelcome},
     psk::{ApqPskError, derive_and_store_psk},
 };
@@ -126,11 +126,13 @@ impl ConfigValues {
         if let Some(force) = self.force_self_update {
             builder = builder.force_self_update(force);
         }
-        if let Some(t_leaf_node_parameters) = &self.t_leaf_node_parameters {
-            builder = builder.leaf_node_parameters(t_leaf_node_parameters.clone());
-        }
-        if let Some(pq_leaf_node_parameters) = &self.pq_leaf_node_parameters {
-            builder = builder.leaf_node_parameters(pq_leaf_node_parameters.clone());
+        let leaf_node_parameters = if IS_TRADITIONAL {
+            &self.t_leaf_node_parameters
+        } else {
+            &self.pq_leaf_node_parameters
+        };
+        if let Some(leaf_node_parameters) = leaf_node_parameters {
+            builder = builder.leaf_node_parameters(leaf_node_parameters.clone());
         }
         let (t_kps, pq_kps): (Vec<_>, Vec<_>) = self
             .proposed_adds
@@ -251,12 +253,24 @@ impl<'a> CommitBuilder<'a> {
     ///
     /// TODO: Split this up to enable sans-io usage.
     pub fn finalize<S: ApqSigner, Provider: OpenMlsProvider>(
-        self,
+        mut self,
         provider: &Provider,
         signer: &S,
         t_f: impl FnMut(&QueuedProposal) -> bool,
         pq_f: impl FnMut(&QueuedProposal) -> bool,
     ) -> Result<ApqCommitMessageBundle, CreateCommitError<Provider::StorageError>> {
+        // Augment the configured leaf node parameters with the support required in an APQMLS group
+        let apq_ciphersuite = ApqCiphersuite::new(
+            self.group.t_group.ciphersuite(),
+            self.group.pq_group.ciphersuite(),
+        );
+        if let Some(params) = &mut self.values.t_leaf_node_parameters {
+            *params = ensure_leaf_node_parameters(params, apq_ciphersuite)?;
+        }
+        if let Some(params) = &mut self.values.pq_leaf_node_parameters {
+            *params = ensure_leaf_node_parameters(params, apq_ciphersuite)?;
+        }
+
         let mut apq_info = self
             .group
             .apq_info()
