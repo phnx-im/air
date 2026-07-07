@@ -7,7 +7,7 @@ use openmls::{
     prelude::{
         Ciphersuite, Credential, KeyPackage, KeyPackageIn, MlsMessageBodyIn, MlsMessageIn,
         MlsMessageOut, OpenMlsCrypto, OpenMlsSignaturePublicKey, ProtocolMessage, ProtocolVersion,
-        RatchetTreeIn, SignatureError, Verifiable as _, Welcome,
+        PublicMessageIn, RatchetTreeIn, SignatureError, Verifiable as _, Welcome,
         group_info::{GroupInfo, VerifiableGroupInfo},
     },
     treesync::RatchetTree,
@@ -58,6 +58,19 @@ impl ApqMlsMessageIn {
         Some(ApqKeyPackageIn {
             t_key_package,
             pq_key_package,
+        })
+    }
+
+    pub fn into_verifiable_group_info(self) -> Option<VerifiableApqGroupInfo> {
+        let MlsMessageBodyIn::GroupInfo(t_group_info) = self.t_message.extract() else {
+            return None;
+        };
+        let MlsMessageBodyIn::GroupInfo(pq_group_info) = self.pq_message.extract() else {
+            return None;
+        };
+        Some(VerifiableApqGroupInfo {
+            t_group_info,
+            pq_group_info,
         })
     }
 
@@ -324,5 +337,19 @@ impl VerifiableApqGroupInfo {
             t_group_info: self.t_group_info.verify(provider, &t_verifying_key)?,
             pq_group_info: self.pq_group_info.verify(provider, &pq_verifying_key)?,
         })
+    }
+}
+
+pub struct ApqProposalIn {
+    pub(crate) t_proposal: PublicMessageIn,
+    pub(crate) pq_proposal: PublicMessageIn,
+}
+
+impl ApqProposalIn {
+    pub fn new(t_proposal: PublicMessageIn, pq_proposal: PublicMessageIn) -> Self {
+        Self {
+            t_proposal,
+            pq_proposal,
+        }
     }
 }

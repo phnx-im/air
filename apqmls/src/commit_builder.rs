@@ -52,7 +52,10 @@ pub struct ApqCommitMessageBundle {
 }
 
 impl ApqCommitMessageBundle {
-    fn from_bundles(t_bundle: CommitMessageBundle, pq_bundle: CommitMessageBundle) -> Self {
+    pub(crate) fn from_bundles(
+        t_bundle: CommitMessageBundle,
+        pq_bundle: CommitMessageBundle,
+    ) -> Self {
         let (t_commit, t_welcome, t_group_info) = t_bundle.into_contents();
         let (pq_commit, pq_welcome, pq_group_info) = pq_bundle.into_contents();
 
