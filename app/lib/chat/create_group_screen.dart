@@ -380,7 +380,8 @@ class _CreateGroupDetailsStep extends HookWidget {
     Uint8List? picture,
     bool isApq,
   ) async {
-    if (groupName.isEmpty) return;
+    if (groupName.isEmpty || isCreating.value) return;
+
     final navigationCubit = context.read<NavigationCubit>();
     final userCubit = context.read<UserCubit>();
     final addMembersCubit = context.read<AddMembersCubit>();
