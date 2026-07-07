@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:math' as math;
 import 'dart:ui' as ui;
 
 import 'package:flutter/foundation.dart';
@@ -58,8 +59,25 @@ class CachedMemoryImage extends ImageProvider<CachedMemoryImage> {
     }
     return decode(
       buffer,
-      getTargetSize: (intrinsicWidth, intrinsicHeight) =>
-          ui.TargetImageSize(width: targetWidth, height: targetHeight),
+      getTargetSize: (intrinsicWidth, intrinsicHeight) {
+        final widthScale = (targetWidth != null && intrinsicWidth > 0)
+            ? targetWidth! / intrinsicWidth
+            : null;
+        final heightScale = (targetHeight != null && intrinsicHeight > 0)
+            ? targetHeight! / intrinsicHeight
+            : null;
+        final double scale;
+        if (widthScale != null && heightScale != null) {
+          scale = math.max(widthScale, heightScale);
+        } else {
+          scale = widthScale ?? heightScale!;
+        }
+        final clampedScale = math.min(scale, 1.0);
+        return ui.TargetImageSize(
+          width: (intrinsicWidth * clampedScale).round(),
+          height: (intrinsicHeight * clampedScale).round(),
+        );
+      },
     );
   }
 
