@@ -436,10 +436,10 @@ fn psk_continuity() {
 
         // An existing member runs a normal APQ membership change and Bob processes it: the
         // external-joined state is a valid basis for later combiner operations.
-        let carol = new_client("Carol", mode);
+        let charlie = new_client("Charlie", mode);
         let bundle = alice_group
             .commit_builder()
-            .propose_adds([carol.generate_key_package(mode.default_ciphersuite())])
+            .propose_adds([charlie.generate_key_package(mode.default_ciphersuite())])
             .finalize(&alice.provider, &alice.signer, |_| true, |_| true)
             .unwrap();
         alice_group.merge_pending_commit(&alice.provider).unwrap();
@@ -463,18 +463,18 @@ fn parked_self_remove_via_with_proposals() {
     for mode in TEST_MODES {
         let alice = new_client("Alice", mode);
         let bob = new_client("Bob", mode);
-        let carol = new_client("Carol", mode);
+        let charlie = new_client("Charlie", mode);
         let mut alice_group = create_group(&alice, mode);
-        let mut groups = add_members(&alice, &mut alice_group, &[&bob, &carol], mode);
-        let carol_group = groups.pop().unwrap();
+        let mut groups = add_members(&alice, &mut alice_group, &[&bob, &charlie], mode);
+        let charlie_group = groups.pop().unwrap();
 
-        // Carol parks a self-remove proposal in both groups.
-        let (mut carol_t_group, mut carol_pq_group) = carol_group.into_groups();
-        let t_proposal = carol_t_group
-            .leave_group_via_self_remove(&carol.provider, carol.signer.t_signer())
+        // Charlie parks a self-remove proposal in both groups.
+        let (mut charlie_t_group, mut charlie_pq_group) = charlie_group.into_groups();
+        let t_proposal = charlie_t_group
+            .leave_group_via_self_remove(&charlie.provider, charlie.signer.t_signer())
             .unwrap();
-        let pq_proposal = carol_pq_group
-            .leave_group_via_self_remove(&carol.provider, carol.signer.pq_signer())
+        let pq_proposal = charlie_pq_group
+            .leave_group_via_self_remove(&charlie.provider, charlie.signer.pq_signer())
             .unwrap();
 
         // Alice processes and stores the parked proposals per leg, so she can resolve them by
@@ -525,10 +525,10 @@ fn parked_self_remove_via_with_proposals() {
         process_and_merge(&alice, &mut alice_group, bundle.commit);
         assert_groups_eq(&mut alice_group, &mut new_bob_group);
 
-        // Carol is gone from *both* groups (catches T/PQ half mis-routing); Bob's old leaf was
+        // Charlie is gone from *both* groups (catches T/PQ half misrouting): Bob's old leaf was
         // replaced, so two members remain.
-        let carol_t_credential = &carol.credential_with_key.t_credential.credential;
-        let carol_pq_credential = &carol.credential_with_key.pq_credential.credential;
+        let charlie_t_credential = &charlie.credential_with_key.t_credential.credential;
+        let charlie_pq_credential = &charlie.credential_with_key.pq_credential.credential;
         for group in [&alice_group, &new_bob_group] {
             assert_eq!(group.t_group.members().count(), 2);
             assert_eq!(group.pq_group().members().count(), 2);
@@ -536,13 +536,13 @@ fn parked_self_remove_via_with_proposals() {
                 group
                     .t_group
                     .members()
-                    .all(|member| member.credential != *carol_t_credential)
+                    .all(|member| member.credential != *charlie_t_credential)
             );
             assert!(
                 group
                     .pq_group()
                     .members()
-                    .all(|member| member.credential != *carol_pq_credential)
+                    .all(|member| member.credential != *charlie_pq_credential)
             );
         }
     }
