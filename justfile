@@ -170,7 +170,8 @@ update-goldens-ci pr='':
 
 # Start the app in debug mode.
 [working-directory: 'app']
-run-app *args='': (flutter "run {{args}}")
+run-app *args='':
+    just flutter run {{args}}
 
 # Start the server.
 run-server:
