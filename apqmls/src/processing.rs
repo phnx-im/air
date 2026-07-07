@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::fmt::Debug;
+use std::{collections::BTreeSet, fmt::Debug};
 
 use openmls::{
     component::ComponentData,
@@ -224,7 +224,8 @@ impl<F: Fn(&Credential, &Credential) -> bool> PartialEq for MessageType<F> {
 struct CommitContent<F: Fn(&Credential, &Credential) -> bool> {
     path_credential: Option<Credential>,
     adds: Vec<Credential>,
-    removes: Vec<LeafNodeIndex>,
+    // A set, because the staged commit yields the remove proposals in no particular order.
+    removes: BTreeSet<LeafNodeIndex>,
     updates: Vec<Credential>,
     compare: F,
 }

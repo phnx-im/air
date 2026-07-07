@@ -1346,6 +1346,65 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         }))
     }
 
+    async fn apq_delete_group(
+        &self,
+        request: Request<SignedRequest<ApqDeleteGroupRequest>>,
+    ) -> Result<Response<ApqDeleteGroupResponse>, Status> {
+        let request = request.into_inner();
+
+        request
+            .inner()
+            .signature
+            .as_ref()
+            .ok_or_missing_field("signature")?;
+
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
+
+        let timestamp: TimeStamp = self
+            .update_apq_group_state(request, async |verification_data| {
+                let ApqVerificationData::<'_, ApqDeleteGroupPayload> {
+                    payload: _,
+                    t_group_state,
+                    pq_group_state,
+                    t_message,
+                    pq_message,
+                    t_sender_index,
+                    ear_key: _,
+                } = verification_data;
+                let destination_clients: Vec<_> = t_group_state
+                    .other_destination_clients(t_sender_index)
+                    .collect();
+
+                let pq_serialized = pq_group_state.delete_pq_group(pq_message)?;
+                let t_serialized = t_group_state.delete_group(t_message)?;
+
+                t_group_state.proposals.clear();
+                pq_group_state.proposals.clear();
+
+                let timestamp = TimeStamp::now();
+                let serialized_apq_message =
+                    SerializedMlsMessage::combine_apq(t_serialized, pq_serialized);
+                let apq_payload =
+                    QsQueueMessagePayload::apq_mls_message(timestamp, serialized_apq_message);
+
+                Ok(ApqFanOut {
+                    broadcast: (apq_payload, destination_clients),
+                    individual: Default::default(),
+                    value: timestamp,
+                })
+            })
+            .await?;
+
+        Ok(Response::new(ApqDeleteGroupResponse {
+            fanout_timestamp: Some(timestamp.into()),
+        }))
+    }
+
     async fn group_operation(
         &self,
         request: Request<SignedRequest<GroupOperationRequest>>,
@@ -2021,6 +2080,12 @@ impl WithGroupStateEarKey for DeleteGroupRequest {
     }
 }
 
+impl WithGroupStateEarKey for ApqDeleteGroupRequest {
+    fn ear_key_proto(&self) -> Option<&v1::GroupStateEarKey> {
+        self.payload.as_ref()?.group_state_ear_key.as_ref()
+    }
+}
+
 impl WithGroupStateEarKey for GroupOperationRequest {
     fn ear_key_proto(&self) -> Option<&v1::GroupStateEarKey> {
         self.payload.as_ref()?.group_state_ear_key.as_ref()
@@ -2189,6 +2254,22 @@ impl WithApqMessage for ApqSelfRemoveRequest {
 }
 
 impl WithApqMessage for ApqGroupOperationRequest {
+    fn apq_message(&self) -> Result<(AssistedMessageIn, AssistedMessageIn), Status> {
+        let payload = self.payload.as_ref().ok_or_missing_field("payload")?;
+        let commit = payload.commit.as_ref().ok_or_missing_field("commit")?;
+        let t_message = commit.t_message.as_ref().ok_or_missing_field("t_message")?;
+        let pq_message = commit
+            .pq_message
+            .as_ref()
+            .ok_or_missing_field("pq_message")?;
+        Ok((
+            t_message.try_ref_into().invalid_tls("t_message")?,
+            pq_message.try_ref_into().invalid_tls("pq_message")?,
+        ))
+    }
+}
+
+impl WithApqMessage for ApqDeleteGroupRequest {
     fn apq_message(&self) -> Result<(AssistedMessageIn, AssistedMessageIn), Status> {
         let payload = self.payload.as_ref().ok_or_missing_field("payload")?;
         let commit = payload.commit.as_ref().ok_or_missing_field("commit")?;

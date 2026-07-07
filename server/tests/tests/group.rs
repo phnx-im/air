@@ -1239,3 +1239,89 @@ async fn apq_leave_removes_member_from_both_t_and_pq() {
         "Alice's chat must be inactive after being removed from the APQ group"
     );
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn apq_delete_removes_member_from_both_t_and_pq() {
+    let mut setup = TestBackend::single().await;
+
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let charlie = setup.add_user().await;
+
+    setup.connect_users(&alice, &bob).await;
+    setup.connect_users(&alice, &charlie).await;
+
+    let chat_id = setup.create_apq_group(&alice).await;
+    setup.invite_to_group(chat_id, &alice, vec![&bob]).await;
+    setup.invite_to_group(chat_id, &alice, vec![&charlie]).await;
+
+    let alice_user = &setup.get_user(&alice).user;
+    let bob_user = &setup.get_user(&bob).user;
+    let charlie_user = &setup.get_user(&charlie).user;
+
+    // Snapshot the PQ epoch before the delete so we can assert it advanced.
+    let pq_epoch_before = alice_user
+        .chat_debug_info(chat_id)
+        .await
+        .unwrap()
+        .pq
+        .expect("APQ group must have a PQ group")
+        .epoch;
+
+    // Alice deletes the APQ group. This commits a removal of every other member
+    // on both the T and the PQ group.
+    alice_user.delete_chat(chat_id).await.unwrap();
+
+    // Alice must have committed the removal on both groups: only her own leaf is
+    // left, nothing stays pending, and the PQ epoch advanced.
+    let debug_info = alice_user.chat_debug_info(chat_id).await.unwrap();
+    let pq = debug_info.pq.expect("APQ group must have a PQ group");
+
+    assert_eq!(
+        debug_info.members.len(),
+        1,
+        "deleter's T group must have every other member removed"
+    );
+    assert_eq!(
+        debug_info.pending_proposals, 0,
+        "deleter's T group must have no pending proposals after the delete commit"
+    );
+    assert!(
+        !debug_info.has_pending_commit,
+        "deleter's T group must have merged the delete commit"
+    );
+    assert_eq!(
+        pq.pending_proposals, 0,
+        "deleter's PQ group must have no pending proposals after the delete commit"
+    );
+    assert!(
+        !pq.has_pending_commit,
+        "deleter's PQ group must have merged the delete commit"
+    );
+    assert!(
+        pq.epoch > pq_epoch_before,
+        "deleter's PQ group must advance its epoch by committing the delete"
+    );
+
+    // Alice's chat is now inactive.
+    let alice_chat = alice_user.chat(&chat_id).await.unwrap();
+    assert!(
+        matches!(alice_chat.status(), ChatStatus::Inactive(_)),
+        "deleter's chat must be inactive after deleting the APQ group"
+    );
+
+    // Bob and Charlie pick up the delete commit and their chats go inactive.
+    for (label, user) in [("Bob", bob_user), ("Charlie", charlie_user)] {
+        let qs_messages = user.qs_fetch_messages().await.unwrap();
+        let result = user.fully_process_qs_messages(qs_messages).await;
+        assert!(
+            result.errors.is_empty(),
+            "{label} should process the APQ delete commit without errors"
+        );
+        let chat = user.chat(&chat_id).await.unwrap();
+        assert!(
+            matches!(chat.status(), ChatStatus::Inactive(_)),
+            "{label}'s chat must be inactive after the APQ group was deleted"
+        );
+    }
+}
