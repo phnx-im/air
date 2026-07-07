@@ -1289,4 +1289,18 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
+
+  @override
+  String get messageList_reactions_react => 'React';
+
+  @override
+  String get messageList_reactions_remove => 'Remove';
+
+  @override
+  String get messageList_reactions_you => 'You';
+
+  @override
+  String messageList_reactions_all(Object total) {
+    return 'All · $total';
+  }
 }

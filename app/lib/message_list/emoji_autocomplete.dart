@@ -4,6 +4,7 @@
 
 import 'dart:async';
 
+import 'package:air/emojis/generated.dart';
 import 'package:air/message_list/emoji_repository.dart';
 import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/foundations/themes.dart';
@@ -12,12 +13,9 @@ import 'package:air/message_list/widgets/suggestion_overlay.dart';
 import 'package:air/message_list/widgets/text_autocomplete.dart';
 import 'package:flutter/material.dart';
 
-class EmojiAutocompleteStrategy
-    implements TextAutocompleteStrategy<EmojiEntry> {
+class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
   static const int suggestionLimit = 5;
-  EmojiRepository? _emojiRepository;
-  bool _loadingRepository = false;
-  final Map<EmojiEntry, String> _displayShortcodes = {};
+  final Map<Emoji, String> _displayShortcodes = {};
 
   /// Returns a trigger when the caret sits after a valid colon shortcode.
   @override
@@ -56,13 +54,8 @@ class EmojiAutocompleteStrategy
 
   /// Fetch suggestions for a shortcode from the emoji repository.
   @override
-  FutureOr<List<EmojiEntry>> suggestionsFor(String query) async {
-    await _ensureRepositoryLoaded();
-    final repo = _emojiRepository;
-    if (repo == null) {
-      return const [];
-    }
-    final results = repo.search(query, limit: suggestionLimit);
+  FutureOr<List<Emoji>> suggestionsFor(String query) async {
+    final results = EmojiRepository.search(query, limit: suggestionLimit);
     _displayShortcodes
       ..clear()
       ..addEntries(
@@ -78,7 +71,7 @@ class EmojiAutocompleteStrategy
   TextEditingValue applySuggestion(
     TextEditingValue value,
     AutocompleteTrigger trigger,
-    EmojiEntry suggestion,
+    Emoji suggestion,
   ) {
     final newText = value.text.replaceRange(
       trigger.start,
@@ -106,7 +99,7 @@ class EmojiAutocompleteStrategy
   @override
   Widget buildSuggestionItem(
     BuildContext context,
-    EmojiEntry suggestion,
+    Emoji suggestion,
     bool isHighlighted,
   ) {
     final scheme = CustomColorScheme.of(context);
@@ -128,7 +121,7 @@ class EmojiAutocompleteStrategy
           const SizedBox(width: Spacing.px8),
           Expanded(
             child: Text(
-              ':${_displayShortcodes[suggestion] ?? suggestion.shortcodes.first}:',
+              ':${_displayShortcodes[suggestion]}:',
               style: TextStyle(
                 fontSize: BodyFontSize.base.size,
                 color: scheme.text.primary,
@@ -148,19 +141,6 @@ class EmojiAutocompleteStrategy
     return RegExp(r'^[a-zA-Z0-9_\-\+]+$').hasMatch(query);
   }
 
-  /// Lazily load the emoji repository from bundled assets.
-  Future<void> _ensureRepositoryLoaded() async {
-    if (_emojiRepository != null || _loadingRepository) {
-      return;
-    }
-    _loadingRepository = true;
-    try {
-      _emojiRepository = await EmojiRepository.load();
-    } finally {
-      _loadingRepository = false;
-    }
-  }
-
   @override
   bool shouldCommitImmediately(
     TextEditingValue value,
@@ -175,18 +155,12 @@ class EmojiAutocompleteStrategy
   }
 
   @override
-  bool matchesQuery(EmojiEntry suggestion, String query) {
-    final normalized = query.toLowerCase();
-    return suggestion.shortcodes.any((code) => code == normalized);
+  bool matchesQuery(Emoji suggestion, String query) {
+    return EmojiRepository.byShortcode(query)?.emoji == suggestion.emoji;
   }
 
   @override
-  FutureOr<EmojiEntry?> directMatch(String query) async {
-    await _ensureRepositoryLoaded();
-    final repo = _emojiRepository;
-    if (repo == null) {
-      return null;
-    }
-    return repo.byShortcode(query);
+  FutureOr<Emoji?> directMatch(String query) async {
+    return EmojiRepository.byShortcode(query);
   }
 }

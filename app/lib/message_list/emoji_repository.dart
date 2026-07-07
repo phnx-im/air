@@ -2,92 +2,109 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:convert';
+import 'package:air/emojis/generated.dart' as data;
 
-import 'package:flutter/services.dart' show rootBundle;
+enum EmojiSkinVariation {
+  none(''),
+  light('\u{1F3FB}'),
+  mediumLight('\u{1F3FC}'),
+  medium('\u{1F3FD}'),
+  mediumDark('\u{1F3FE}'),
+  dark('\u{1F3FF}');
 
-class EmojiEntry {
-  const EmojiEntry({
-    required this.shortcodes,
-    required this.emoji,
-    required this.supportsSkinTone,
-  });
+  const EmojiSkinVariation(this.modifier);
 
-  factory EmojiEntry.fromJson(Map<String, dynamic> json) {
-    return EmojiEntry(
-      shortcodes: (json['s'] as List<dynamic>)
-          .map((value) => (value as String).toLowerCase())
-          .toList(),
-      emoji: json['e'] as String,
-      supportsSkinTone: (json['t'] as num?) == 1,
-    );
+  /// The Unicode skintone modifier appended to a skinnable base emoji.
+  final String modifier;
+}
+
+extension EmojiExtension on data.Emoji {
+  /// Applies [variation] to [entry] using its precomputed skin-tone variant, falling
+  /// back to the base emoji when the tone is [EmojiSkinVariation.none] or the variant
+  /// is missing. Using the variant table (rather than appending the modifier)
+  /// keeps ZWJ and multi-code-point emojis correct.
+  String applySkinVariation(EmojiSkinVariation variation) {
+    if (variation == .none) {
+      return emoji;
+    }
+    return skinVariations[variation.modifier] ?? emoji;
   }
-
-  final List<String> shortcodes;
-  final String emoji;
-  final bool supportsSkinTone;
 }
 
 class EmojiRepository {
-  EmojiRepository._(this._entries, this._index);
-
-  final List<EmojiEntry> _entries;
-  final Map<String, EmojiEntry> _index;
-
-  static Future<EmojiRepository> load() async {
-    final raw = await rootBundle.loadString('assets/emoji/emoji.json');
-    final parsed = (jsonDecode(raw) as List<dynamic>)
-        .cast<Map<String, dynamic>>()
-        .map(EmojiEntry.fromJson)
-        .toList();
-    final index = <String, EmojiEntry>{};
-    for (final entry in parsed) {
-      for (final shortcode in entry.shortcodes) {
-        index[shortcode] = entry;
-      }
-    }
-    return EmojiRepository._(parsed, index);
-  }
-
-  List<EmojiEntry> top({int limit = 10}) {
-    return _entries.take(limit).toList();
-  }
-
-  List<EmojiSearchResult> search(String query, {int limit = 20}) {
-    final normalized = query.toLowerCase();
+  /// All entries whose shortcodes contain [query] (case-insensitive). Returns
+  /// the full set when [query] is empty. Unlike [search], this is unbounded and
+  /// intended to back the emoji picker grid.
+  static List<(String, List<data.Emoji>)> filter(String query) {
+    final normalized = query.trim().toLowerCase();
     if (normalized.isEmpty) {
-      return top(limit: limit)
-          .map(
-            (entry) => EmojiSearchResult(
-              entry: entry,
-              matchedShortcode: entry.shortcodes.first,
-            ),
-          )
-          .toList();
+      return data.emojisByCategory;
     }
+    final matches = data.shortcodeToIndex.entries
+        .where((e) => e.key.contains(normalized))
+        .map((e) => e.value)
+        .toSet();
 
-    final List<EmojiSearchResult> results = [];
-    for (final entry in _entries) {
-      final match = entry.shortcodes.firstWhere(
-        (code) => code.contains(normalized),
-        orElse: () => '',
-      );
-      if (match.isEmpty) {
+    return data.emojisByCategory.indexed
+        .map((entry) {
+          final (catId, (category, emojis)) = entry;
+          return (
+            category,
+            emojis.indexed
+                .where((e) => matches.contains((catId, e.$1)))
+                .map((e) => e.$2)
+                .toList(),
+          );
+        })
+        .where((category) => category.$2.isNotEmpty)
+        .toList();
+  }
+
+  /// Up to [limit] emojis whose shortcode contains [query] (case-insensitive),
+  /// each paired with the matched shortcode. Results are deduped to one entry
+  /// per emoji (keeping its primary/first matching shortcode). An empty [query]
+  /// returns the first [limit] emojis in canonical order.
+  static List<EmojiSearchResult> search(String query, {int limit = 20}) {
+    final normalized = query.toLowerCase();
+    final seen = <(int, int)>{};
+    final results = <EmojiSearchResult>[];
+    // `shortcodeToIndex` is ordered by emoji, primary shortcode first, so the
+    // first surviving entry per emoji carries its best-matching shortcode.
+    for (final entry in data.shortcodeToIndex.entries) {
+      if (normalized.isNotEmpty && !entry.key.contains(normalized)) {
         continue;
       }
-      results.add(EmojiSearchResult(entry: entry, matchedShortcode: match));
+      if (!seen.add(entry.value)) {
+        continue;
+      }
+      final (catId, index) = entry.value;
+      results.add(
+        EmojiSearchResult(
+          entry: data.emojisByCategory[catId].$2[index],
+          matchedShortcode: entry.key,
+        ),
+      );
+      // Empty query keeps canonical order, so we can stop once full.
+      if (normalized.isEmpty && results.length >= limit) {
+        break;
+      }
     }
 
-    results.sort((a, b) => a.matchedShortcode.compareTo(b.matchedShortcode));
-
-    if (results.length > limit) {
-      return results.sublist(0, limit);
+    if (normalized.isNotEmpty) {
+      results.sort((a, b) => a.matchedShortcode.compareTo(b.matchedShortcode));
     }
-    return results;
+
+    return results.length > limit ? results.sublist(0, limit) : results;
   }
 
-  EmojiEntry? byShortcode(String shortcode) {
-    return _index[shortcode.toLowerCase()];
+  static data.Emoji? byShortcode(String shortcode) {
+    final emojiRef = data.shortcodeToIndex[shortcode.toLowerCase()];
+    if (emojiRef == null) {
+      return null;
+    }
+
+    final (category, emojis) = data.emojisByCategory[emojiRef.$1];
+    return emojis[emojiRef.$2];
   }
 }
 
@@ -97,6 +114,6 @@ class EmojiSearchResult {
     required this.matchedShortcode,
   });
 
-  final EmojiEntry entry;
+  final data.Emoji entry;
   final String matchedShortcode;
 }

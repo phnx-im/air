@@ -10,6 +10,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/message_list.dart';
 import 'package:air/user/user.dart';
+import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -20,7 +21,7 @@ import '../helpers.dart';
 import '../mocks.dart';
 
 // NB: do not forget to adjust this, when you add more content to render
-const highTestSize = Size(1080, 4100);
+const highTestSize = Size(1080, 4300);
 
 final chatId = 1.chatId();
 
@@ -319,6 +320,57 @@ final messages = [
     position: UiFlightPosition.single,
     status: UiMessageStatus.read,
     reactions: [],
+  ),
+  // Medium-sized message with three reactions (2+1)
+  UiChatMessage(
+    id: 14.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-02T00:05:07.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 2.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          topicId: Uint8List(0),
+          plainBody: "I love this app!",
+          content: simpleMessage("I love this app!"),
+          attachments: [],
+        ),
+      ),
+    ),
+    position: UiFlightPosition.single,
+    status: UiMessageStatus.read,
+    reactions: [
+      UiReaction(emoji: "🫪", users: [1.userId(), 3.userId()]),
+      UiReaction(emoji: "💖", users: [4.userId()]),
+    ],
+  ),
+  // Very short message with many reactions, to show the overflow pill
+  UiChatMessage(
+    id: 15.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-02T00:05:07.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 2.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          topicId: Uint8List(0),
+          plainBody: "OK",
+          content: simpleMessage("OK"),
+          attachments: [],
+        ),
+      ),
+    ),
+    position: UiFlightPosition.single,
+    status: UiMessageStatus.read,
+    reactions: [
+      UiReaction(emoji: "👍", users: [1.userId()]),
+      UiReaction(emoji: "🤯", users: [5.userId()]),
+      UiReaction(emoji: "🤨", users: [4.userId()]),
+    ],
   ),
 ];
 
@@ -1288,6 +1340,28 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/message_list_with_replies.png'),
+      );
+    });
+
+    testWidgets('opens the who-reacted sheet when tapping a reaction chip', (
+      tester,
+    ) async {
+      tester.view.physicalSize = highTestSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      messageListCubit.setState(messages);
+
+      await tester.pumpWidget(buildSubject());
+
+      await tester.tap(find.text('🫪'));
+      await tester.pump(kDoubleTapTimeout);
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/message_list_who_reacted_sheet.png'),
       );
     });
   });

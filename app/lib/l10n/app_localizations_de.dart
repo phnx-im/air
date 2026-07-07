@@ -501,7 +501,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get linkingDevicesScreen_error_sessionNotFound =>
-      'The code you provided is incorrect.';
+      'Der eingegebene Code ist ungültig.';
 
   @override
   String get linkingDevicesScreen_error_dismiss => 'Erneut versuchen';
@@ -1310,5 +1310,19 @@ class AppLocalizationsDe extends AppLocalizations {
       one: '$count neue Nachricht',
     );
     return '$_temp0';
+  }
+
+  @override
+  String get messageList_reactions_react => 'Reagieren';
+
+  @override
+  String get messageList_reactions_remove => 'Entfernen';
+
+  @override
+  String get messageList_reactions_you => 'Du';
+
+  @override
+  String messageList_reactions_all(Object total) {
+    return 'Alle · $total';
   }
 }
