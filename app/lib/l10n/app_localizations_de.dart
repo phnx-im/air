@@ -1313,6 +1313,9 @@ class AppLocalizationsDe extends AppLocalizations {
   }
 
   @override
+  String get messageList_reactions_react => 'Reagieren';
+
+  @override
   String get messageList_reactions_remove => 'Entfernen';
 
   @override

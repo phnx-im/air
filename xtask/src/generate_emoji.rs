@@ -25,6 +25,7 @@ const EXCLUDED_CATEGORIES: &[&str] = &["Component"];
 #[derive(Args, Debug)]
 pub(crate) struct GenerateEmojiArgs {
     /// Path to the source `emoji_pretty.json` (emoji-data dataset).
+    /// You can obtain a copy of this file from https://github.com/iamcal/emoji-data/blob/v16.0.0/emoji_pretty.json
     input: Utf8PathBuf,
     /// Destination Dart file. Relative paths resolve against the workspace root.
     #[arg(long, default_value = DEFAULT_OUTPUT)]

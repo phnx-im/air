@@ -52,7 +52,7 @@ const double reactionChipSpacing = Spacing.px4;
 const double reactionChipHeight = 36;
 
 /// How far the chips overlap the bottom border of the message bubble
-const double reactionsMessageBubbleOverlap = Spacing.px4;
+const double reactionsMessageBubbleOverlap = Spacing.px8;
 
 /// Gap below the chips before the timestamp / next message.
 const double reactionsGapBelow = Spacing.px8;

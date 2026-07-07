@@ -420,6 +420,7 @@
   "homeTab_chats": "Chattar",
   "homeTab_profile": "Du",
   "messageList_newMessages": "{count, plural, one {{count} nytt meddelande} other {{count} nya meddelanden}}",
+  "messageList_reactions_react": "Reagera",
   "messageList_reactions_remove": "Ta bort",
   "messageList_reactions_you": "Du",
   "messageList_reactions_all": "Alla · {total}"

@@ -421,6 +421,7 @@
   "homeTab_chats": "Discussions",
   "homeTab_profile": "Profil",
   "messageList_newMessages": "{count, plural, one {{count} nouveau message} other {{count} nouveaux messages}}",
+  "messageList_reactions_react": "Réagir",
   "messageList_reactions_remove": "Supprimer",
   "messageList_reactions_you": "Vous",
   "messageList_reactions_all": "Toutes · {total}"

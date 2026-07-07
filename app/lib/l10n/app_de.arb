@@ -422,6 +422,7 @@
   "homeTab_chats": "Chats",
   "homeTab_profile": "Du",
   "messageList_newMessages": "{count, plural, one {{count} neue Nachricht} other {{count} neue Nachrichten}}",
+  "messageList_reactions_react": "Reagieren",
   "messageList_reactions_remove": "Entfernen",
   "messageList_reactions_you": "Du",
   "messageList_reactions_all": "Alle · {total}"

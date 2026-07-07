@@ -519,10 +519,9 @@ class _MessageView extends HookWidget {
 
     final menuItems = <ContextMenuEntry>[];
     if (isReplyable) {
-      // TODO(l10n): localize "React".
       menuItems.add(
         ContextMenuItem(
-          label: 'React',
+          label: loc.messageList_reactions_react,
           leading: const AppIcon.smilePlus(size: iconSize),
           onPressed: openReactionMenu,
         ),

@@ -1301,6 +1301,9 @@ class AppLocalizationsSv extends AppLocalizations {
   }
 
   @override
+  String get messageList_reactions_react => 'Reagera';
+
+  @override
   String get messageList_reactions_remove => 'Ta bort';
 
   @override
