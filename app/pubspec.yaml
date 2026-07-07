@@ -30,13 +30,11 @@ dependencies:
   flutter_localizations:
     sdk: flutter
   convert: ^3.0.0
-  flutter_rust_bridge: 2.12.0
+  flutter_rust_bridge: 2.13.0-beta.4
   freezed_annotation: ^3.0.0
   path_provider: ^2.1.1
   image_picker: ^1.0.7
   collection: any
-  airapplogic:
-    path: rust_builder
   intl: ^0.20.2
   uuid: ^4.5.3
   provider: ^6.1.2
@@ -57,6 +55,7 @@ dependencies:
 
 dev_dependencies:
   args: ^2.5.0
+  flutter_rust_bridge_hooks: 2.13.0-beta.2
   flutter_lints: ^6.0.0
   flutter_test:
     sdk: flutter

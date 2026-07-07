@@ -26,6 +26,7 @@ on:
 
 env:
   CARGO_TERM_COLOR: always
+  CARGO_NET_RETRY: 5
   CARGO_INCREMENTAL: 0
   SQLX_OFFLINE: true
   RUSTFLAGS: "-D warnings"
