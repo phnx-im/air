@@ -26,6 +26,8 @@ service DeliveryService {
 
   rpc Resync(ResyncRequest) returns (ResyncResponse);
 
+  rpc ApqResync(ApqResyncRequest) returns (ApqResyncResponse);
+
   rpc SelfRemove(SelfRemoveRequest) returns (SelfRemoveResponse);
 
   rpc ApqSelfRemove(ApqSelfRemoveRequest) returns (ApqSelfRemoveResponse);
@@ -285,6 +287,24 @@ message ResyncPayload {
 }
 
 message ResyncResponse {
+  common.v1.Timestamp fanout_timestamp = 1;
+}
+
+// apq resync
+
+message ApqResyncRequest {
+  ApqResyncPayload payload = 1;
+  common.v1.Signature signature = 2;
+}
+
+message ApqResyncPayload {
+  common.v1.ClientMetadata client_metadata = 1;
+  GroupStateEarKey group_state_ear_key = 2;
+  ApqAssistedMlsMessage external_commit = 3;
+  LeafNodeIndex sender = 4;
+}
+
+message ApqResyncResponse {
   common.v1.Timestamp fanout_timestamp = 1;
 }
 
