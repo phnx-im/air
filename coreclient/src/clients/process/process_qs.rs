@@ -57,8 +57,9 @@ use crate::{
     contacts::{PartialContact, PartialContactType},
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
-        DecryptedProfileInfos, Group, VerifiedGroup, client_auth_info::StorableClientCredential,
-        process::ProcessMessageResult,
+        DecryptedProfileInfos, Group, GroupDataBytes, VerifiedGroup,
+        client_auth_info::StorableClientCredential,
+        process::{ProcessMessageProcessed, ProcessMessageResult},
     },
     job::{JobContext, JobContextDb, pending_chat_operation::PendingChatOperation},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
@@ -237,31 +238,64 @@ impl CoreUser {
             .await?
             .context("Can't find chat for commit response")?;
 
+        self.finalize_own_commit(
+            txn,
+            &group,
+            &mut chat,
+            group_data_bytes,
+            &mut group_messages,
+            timestamp,
+        )
+        .await?;
+
+        CoreUser::store_new_messages(&mut *txn, chat.id(), group_messages).await?;
+
+        Ok(ProcessQsMessageResult::None)
+    }
+
+    /// Applies the side effects of merging one of our own commits: any group
+    /// data change carried by the commit (currently the chat title) is applied
+    /// to `chat`, appending the corresponding system messages to
+    /// `group_messages`, and the pending chat operation is deleted.
+    ///
+    /// Shared by the `DsCommitResponse` and `OwnPendingCommit` paths, which
+    /// race to merge our own commit: the DS both responds directly and echoes
+    /// the commit back via fanout, so whichever arrives first must run these
+    /// side effects (the loser bails early on the now-stale epoch). The caller
+    /// is responsible for storing `group_messages`.
+    async fn finalize_own_commit(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+        group: &Group,
+        chat: &mut Chat,
+        group_data_bytes: Option<GroupDataBytes>,
+        group_messages: &mut Vec<TimestampedMessage>,
+        ds_timestamp: TimeStamp,
+    ) -> anyhow::Result<()> {
         // Update group data in chat attributes if present
         if let Some(group_data_bytes) = group_data_bytes {
             let group_data = GroupData::decode(&group_data_bytes)?;
             let (chat_title, _external_group_profile) =
                 group_data.into_parts(group.identity_link_wrapper_key());
-            // No need to fetch the group profile: this is our own commit response, so the
+            // No need to fetch the group profile: this is our own commit, so the
             // profile data is already available locally.
             if let Some(title) = chat_title {
                 update_chat_title(
                     &mut *txn,
-                    &mut chat,
+                    chat,
                     self.user_id(),
                     title,
-                    timestamp,
-                    &mut group_messages,
+                    ds_timestamp,
+                    group_messages,
                 )
                 .await?;
             }
         }
-        CoreUser::store_new_messages(&mut *txn, chat.id(), group_messages).await?;
 
         // Delete the pending chat operation
-        PendingChatOperation::delete(txn, &group_id).await?;
+        PendingChatOperation::delete(txn, group.group_id()).await?;
 
-        Ok(ProcessQsMessageResult::None)
+        Ok(())
     }
 
     async fn handle_welcome_bundle(
@@ -428,24 +462,28 @@ impl CoreUser {
             .ok_or_else(|| anyhow!("No group found for group ID {:?}", group_id))?;
 
         // MLSMessage Phase 2: Process the message
-        let Some(ProcessMessageResult {
-            processed_message, ..
-        }) = group
+        let processed_message = match group
             .group_mut()
             .process_message(&mut *txn, &self.inner.api_clients, protocol_message)
             .await?
-        else {
-            // TODO: Once we have a UX for resyncs, we should schedule one
-            // here and re-enable the resync test in integration.rs
-            let _resync = Resync {
-                chat_id: chat.id(),
-                group_id: group.group_id().clone(),
-                group_state_ear_key: group.group_state_ear_key().clone(),
-                identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
-                original_leaf_index: group.own_index(),
-            };
-            group.group_mut().mark_commit_failed(&mut *txn).await?;
-            return Ok(ProcessQsMessageResult::None);
+        {
+            ProcessMessageResult::Processed(ProcessMessageProcessed {
+                processed_message, ..
+            }) => processed_message,
+            ProcessMessageResult::Ignored => return Ok(ProcessQsMessageResult::None),
+            ProcessMessageResult::TooDistant => {
+                // TODO: Once we have a UX for resyncs, we should schedule one
+                // here and re-enable the resync test in integration.rs
+                let _resync = Resync {
+                    chat_id: chat.id(),
+                    group_id: group.group_id().clone(),
+                    group_state_ear_key: group.group_state_ear_key().clone(),
+                    identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
+                    original_leaf_index: group.own_index(),
+                };
+                group.group_mut().mark_commit_failed(&mut *txn).await?;
+                return Ok(ProcessQsMessageResult::None);
+            }
         };
 
         let Sender::Member(sender_index) = processed_message.sender() else {
@@ -520,22 +558,26 @@ impl CoreUser {
 
         // MLSMessage Phase 2: Process the message
 
-        let Some(process_message_result) = group
+        let process_message_result = match group
             .group_mut()
             .process_message(&mut *txn, &self.inner.api_clients, protocol_message)
             .await?
-        else {
-            // TODO: Once we have a UX for resyncs, we should schedule one
-            // here and re-enable the resync test in integration.rs
-            let _resync = Resync {
-                chat_id,
-                group_id: group.group_id().clone(),
-                group_state_ear_key: group.group_state_ear_key().clone(),
-                identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
-                original_leaf_index: group.own_index(),
-            };
-            group.group_mut().mark_commit_failed(&mut *txn).await?;
-            return Ok(ProcessQsMessageResult::None);
+        {
+            ProcessMessageResult::Processed(process_message_result) => process_message_result,
+            ProcessMessageResult::Ignored => return Ok(ProcessQsMessageResult::None),
+            ProcessMessageResult::TooDistant => {
+                // TODO: Once we have a UX for resyncs, we should schedule one
+                // here and re-enable the resync test in integration.rs
+                let _resync = Resync {
+                    chat_id,
+                    group_id: group.group_id().clone(),
+                    group_state_ear_key: group.group_state_ear_key().clone(),
+                    identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
+                    original_leaf_index: group.own_index(),
+                };
+                group.group_mut().mark_commit_failed(&mut *txn).await?;
+                return Ok(ProcessQsMessageResult::None);
+            }
         };
 
         self.finalize_handle_message(
@@ -547,6 +589,23 @@ impl CoreUser {
             process_message_result,
         )
         .await
+    }
+
+    /// Test-only: drive an incoming MLS message (e.g. the DS echo of our own
+    /// commit) through the same processing path the QS queue uses, so tests can
+    /// exercise the `OwnPendingCommit` merge without a live server.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub async fn process_incoming_mls_message(
+        &self,
+        mls_message_bytes: &[u8],
+    ) -> Result<ProcessQsMessageResult> {
+        let mls_message = MlsMessageIn::tls_deserialize_exact_bytes(mls_message_bytes)?;
+        let ds_timestamp = TimeStamp::now();
+        self.db()
+            .with_write_transaction(async |txn| {
+                Box::pin(self.handle_mls_message(txn, mls_message, ds_timestamp, false)).await
+            })
+            .await
     }
 
     async fn handle_apq_mls_message(
@@ -573,22 +632,26 @@ impl CoreUser {
             .with_context(|| format!("No group found for APQ group ID: {apq_group_id:?}"))?;
 
         // MLSMessage Phase 2: Process the message
-        let Some(process_message_result) = group
+        let processed_message = match group
             .group_mut()
             .process_apq_message(txn, self.api_clients(), protocol_message)
             .await?
-        else {
-            // TODO: Once we have a UX for resyncs, we should schedule one
-            // here and re-enable the resync test in integration.rs
-            let _resync = Resync {
-                chat_id,
-                group_id: group.group_id().clone(),
-                group_state_ear_key: group.group_state_ear_key().clone(),
-                identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
-                original_leaf_index: group.own_index(),
-            };
-            group.group_mut().mark_commit_failed(&mut *txn).await?;
-            return Ok(ProcessQsMessageResult::None);
+        {
+            ProcessMessageResult::Processed(processed) => processed,
+            ProcessMessageResult::Ignored => return Ok(ProcessQsMessageResult::None),
+            ProcessMessageResult::TooDistant => {
+                // TODO: Once we have a UX for resyncs, we should schedule one
+                // here and re-enable the resync test in integration.rs
+                let _resync = Resync {
+                    chat_id,
+                    group_id: group.group_id().clone(),
+                    group_state_ear_key: group.group_state_ear_key().clone(),
+                    identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
+                    original_leaf_index: group.own_index(),
+                };
+                group.group_mut().mark_commit_failed(&mut *txn).await?;
+                return Ok(ProcessQsMessageResult::None);
+            }
         };
 
         self.finalize_handle_message(
@@ -597,7 +660,7 @@ impl CoreUser {
             read_receipts_enabled,
             chat,
             group,
-            process_message_result,
+            processed_message,
         )
         .await
     }
@@ -607,15 +670,15 @@ impl CoreUser {
         txn: &mut WriteDbTransaction<'_>,
         ds_timestamp: TimeStamp,
         read_receipts_enabled: bool,
-        chat: Chat,
+        mut chat: Chat,
         mut group: VerifiedGroup,
-        process_message_result: ProcessMessageResult,
+        processed_message: ProcessMessageProcessed,
     ) -> anyhow::Result<ProcessQsMessageResult> {
-        let ProcessMessageResult {
+        let ProcessMessageProcessed {
             processed_message,
             we_were_removed,
             profile_infos,
-        } = process_message_result;
+        } = processed_message;
 
         let sender = processed_message.sender().clone();
         let sender_user_id =
@@ -696,6 +759,28 @@ impl CoreUser {
                 ProcessedMessageContent::ExternalJoinProposalMessage(_) => {
                     let (new_messages, updated) = self.handle_external_join_proposal_message()?;
                     (new_messages, Vec::new(), updated, Vec::new())
+                }
+                ProcessedMessageContent::OwnPendingCommit => {
+                    // Our own commit was echoed back before the matching
+                    // `DsCommitResponse` arrived, so we merge it here and run
+                    // the same side effects the response would have.
+                    let (mut group_messages, group_data_bytes) = group
+                        .merge_pending_commit(&mut *txn, None, ds_timestamp)
+                        .await?;
+                    group
+                        .group_mut()
+                        .store_update(&mut *txn, Some(ds_timestamp), None)
+                        .await?;
+                    self.finalize_own_commit(
+                        &mut *txn,
+                        &group,
+                        &mut chat,
+                        group_data_bytes,
+                        &mut group_messages,
+                        ds_timestamp,
+                    )
+                    .await?;
+                    (group_messages, Vec::new(), true, Vec::new())
                 }
             };
 

@@ -1059,7 +1059,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                             .try_into()?,
                     };
 
+                    // Destination clients do not contain self yet, TODO: will need to be adjusted with virtual clients
                     let destination_clients: Vec<_> = group_state.destination_clients().collect();
+
                     let group_message = group_state.join_connection_group(params)?;
 
                     group_state.proposals.clear();
@@ -1567,7 +1569,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     let (t_add_users_info, pq_add_users_info) =
                         add_users_info.map(|info| info.split()).unzip();
 
-                    // Collect destination clients before processing the commit so that new invitees (added by
+                    // Make sure you collect destination clients before processing the commit so that new invitees (added by
                     // this commit) don't receive the commit message before their welcome bundle.
                     let destination_clients: Vec<_> = t_group_state
                         .other_destination_clients(t_sender_index)
@@ -1869,6 +1871,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .payload
             .as_ref()
             .ok_or_missing_field("payload")?;
+
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let sender_index: LeafNodeIndex = payload.sender.ok_or_missing_field("sender")?.into();
@@ -1896,7 +1899,19 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .ok_or_else(|| Status::invalid_argument("unknown sender"))?
             .signature_key()
             .into();
-        let _: TargetedMessagePayload = request.verify(verifying_key).map_err(InvalidSignature)?;
+        let payload: TargetedMessagePayload =
+            request.verify(verifying_key).map_err(InvalidSignature)?;
+
+        if let Some(tags) = payload.collision_tags {
+            let msg_epoch = message.epoch().as_u64();
+            super::collision_tags::check_and_insert(
+                &self.ds.db_pool,
+                qgid.group_uuid(),
+                msg_epoch as i64,
+                tags,
+            )
+            .await?;
+        }
 
         let destination_client = group_state
             .qs_client_ref_by_index(recipient_index)

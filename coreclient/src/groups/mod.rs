@@ -94,9 +94,10 @@ use crate::{
 
 use openmls::{
     component::ComponentType,
+    components::vc_derivation_info::GenerationId,
     group::{
         CreateCommitError, ExportSecretError, ExternalCommitBuilder, GroupEpoch, JoinBuilder,
-        ProcessedWelcome, ProposalValidationError,
+        ProcessedWelcome, ProposalValidationError, UnconfirmedMessage,
     },
     key_packages::KeyPackageBundle,
     prelude::{
@@ -251,12 +252,12 @@ trait GenerateCollisionTag {
     fn collision_tag(&self, key: &SendMessageCollisionKey) -> SendMessageCollisionTag;
 }
 
-impl GenerateCollisionTag for u32 {
-    fn collision_tag(&self, key: &SendMessageCollisionKey) -> SendMessageCollisionTag {
-        let generation = self.to_le_bytes();
-        let tag = key.derive_collision_tag("seq", &generation);
-        SendMessageCollisionTag::Generation(tag)
-    }
+fn generation_id_to_collision_tag(generation_id: &GenerationId) -> CollisionTag {
+    let mut buf = [0u8; 8];
+    let slice = generation_id.as_slice();
+    let n = slice.len().min(8);
+    buf[..n].copy_from_slice(&slice[..n]);
+    CollisionTag::new(i64::from_le_bytes(buf))
 }
 
 impl GenerateCollisionTag for PerMessageStatus {
@@ -1600,35 +1601,38 @@ impl Group {
         content: MimiContent,
         message_status_report: Option<MessageStatusReport>,
     ) -> Result<SendMessageParamsOut, GroupOperationError> {
-        let generation = self.mls_group.own_application_message_generation();
-        let mls_message = self
+        let UnconfirmedMessage {
+            message,
+            generation,
+            generation_id,
+        } = self
             .mls_group
-            .create_message(provider, signer, &content.serialize()?)?;
+            .create_unconfirmed_message(provider, signer, &content.serialize()?)?;
 
-        self.ensure_collision_key(provider)?;
+        let mut collision_tags = Vec::new();
+        if let Some(generation_id) = generation_id {
+            collision_tags.push(SendMessageCollisionTag::Generation(
+                generation_id_to_collision_tag(&generation_id),
+            ));
 
-        let collision_tags = self
-            .send_message_collision_key
-            .as_ref()
-            .map(|key| {
-                let mut tags = Vec::new();
-                tags.push(generation.collision_tag(key));
-                if let Some(message_status_report) = message_status_report {
+            if let Some(message_status_report) = message_status_report {
+                self.ensure_collision_key(provider)?;
+                if let Some(key) = self.send_message_collision_key.as_ref() {
                     for pms in message_status_report.statuses {
-                        tags.push(pms.collision_tag(key));
+                        collision_tags.push(pms.collision_tag(key));
                     }
                 }
-                tags
-            })
-            .unwrap_or_default();
+            }
+        }
 
-        let message = AssistedMessageOut::new(mls_message, None);
+        let message = AssistedMessageOut::new(message, None);
         let suppress_notifications = suppress_notifications(&content);
 
         let send_message_params = SendMessageParamsOut {
             sender: self.mls_group.own_leaf_index(),
             message,
             suppress_notifications,
+            generation,
             collision_tags,
         };
 
@@ -1644,11 +1648,22 @@ impl Group {
         content: TargetedMessageContent,
     ) -> Result<TargetedMessageParamsOut, GroupOperationError> {
         let content_bytes = content.tls_serialize_detached()?;
-        let mls_message = self
+        let UnconfirmedMessage {
+            message,
+            generation,
+            generation_id,
+        } = self
             .mls_group
-            .create_message(provider, signer, &content_bytes)?;
+            .create_unconfirmed_message(provider, signer, &content_bytes)?;
 
-        let message = AssistedMessageOut::new(mls_message, None);
+        let mut collision_tags = Vec::new();
+        if let Some(generation_id) = generation_id {
+            collision_tags.push(SendMessageCollisionTag::Generation(
+                generation_id_to_collision_tag(&generation_id),
+            ));
+        }
+
+        let message = AssistedMessageOut::new(message, None);
 
         let recipient_index = self
             .mls_group()
@@ -1666,6 +1681,8 @@ impl Group {
 
         let params = TargetedMessageParamsOut {
             sender: self.mls_group.own_leaf_index(),
+            generation,
+            collision_tags,
             message_type: TargetedMessageType::ApplicationMessage {
                 message,
                 recipient: recipient_index,
@@ -1673,6 +1690,17 @@ impl Group {
         };
 
         Ok(params)
+    }
+
+    /// Mark the message sent at this generation as confirmed (accepted by DS).
+    pub(crate) fn confirm_message(
+        &mut self,
+        provider: &AirOpenMlsProvider<'_>,
+        generation: u32,
+    ) -> Result<(), GroupOperationError> {
+        self.mls_group
+            .confirm_message(provider.storage(), generation)
+            .map_err(Into::into)
     }
 
     /// Get a reference to the group's group id.

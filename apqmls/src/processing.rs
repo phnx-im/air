@@ -94,6 +94,7 @@ pub enum ApqProcessMessageValidationError {
 enum MessageType<F: Fn(&Credential, &Credential) -> bool> {
     Proposal(ProposalContent<F>),
     Commit(CommitContent<F>),
+    OwnPendingCommit,
 }
 
 impl<F: Fn(&Credential, &Credential) -> bool> Debug for MessageType<F> {
@@ -111,6 +112,7 @@ impl<F: Fn(&Credential, &Credential) -> bool> Debug for MessageType<F> {
                 .field("removes", &commit.removes)
                 .field("updates", &commit.updates)
                 .finish(),
+            MessageType::OwnPendingCommit => f.debug_struct("OwnPendingCommit").finish(),
         }
     }
 }
@@ -185,6 +187,10 @@ impl<F: Fn(&Credential, &Credential) -> bool> MessageType<F> {
                     compare,
                 }))
             }
+            // Our own commit echoed back. There is no content to inspect; we
+            // only record that this is an own-pending-commit so the T/PQ
+            // consistency check can confirm both groups agree.
+            ProcessedMessageContent::OwnPendingCommit => Some(MessageType::OwnPendingCommit),
         }
     }
 }
@@ -215,6 +221,7 @@ impl<F: Fn(&Credential, &Credential) -> bool> PartialEq for MessageType<F> {
         match (self, other) {
             (MessageType::Proposal(a), MessageType::Proposal(b)) => a == b,
             (MessageType::Commit(a), MessageType::Commit(b)) => a == b,
+            (MessageType::OwnPendingCommit, MessageType::OwnPendingCommit) => true,
             _ => false,
         }
     }

@@ -440,6 +440,7 @@ message TargetedMessagePayload {
   common.v1.ClientMetadata client_metadata = 4;
   GroupStateEarKey group_state_ear_key = 1;
   LeafNodeIndex sender = 2;
+  SendMessageCollisionTags collision_tags = 5;
   oneof targeted_message_type {
     TargetedApplicationMessage application_message = 3;
   }

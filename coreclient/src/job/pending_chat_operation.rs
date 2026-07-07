@@ -1167,6 +1167,18 @@ pub mod test_utils {
             job.store(txn).await?;
             Ok(job)
         }
+
+        /// Serialized bytes of the staged commit's MLS message, i.e. the
+        /// message the DS echoes back to the committer via fanout. Feed this
+        /// back through the QS processing path to exercise the
+        /// `OwnPendingCommit` merge path.
+        pub(crate) fn staged_commit_message_bytes(&self) -> anyhow::Result<Vec<u8>> {
+            use openmls::prelude::tls_codec::Serialize as _;
+            let OperationType::Other { params, .. } = &self.operation else {
+                bail!("not a group operation carrying a commit");
+            };
+            Ok(params.commit.mls_message().tls_serialize_detached()?)
+        }
     }
 }
 

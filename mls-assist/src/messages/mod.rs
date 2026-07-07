@@ -67,6 +67,12 @@ impl AssistedMessageOut {
         }
     }
 
+    /// The wrapped [`MlsMessageOut`], i.e. the message the DS fans out to the
+    /// other group members (without the assisted group info).
+    pub fn mls_message(&self) -> &MlsMessageOut {
+        &self.mls_message
+    }
+
     /// Get the epoch of the MLS message, if it is a PublicMessage or
     /// PrivateMessage.
     pub fn epoch(&self) -> Option<GroupEpoch> {

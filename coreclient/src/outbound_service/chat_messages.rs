@@ -6,8 +6,8 @@ use anyhow::anyhow;
 use anyhow::{Context, ensure};
 use mimi_content::MessageStatus;
 use tokio_util::sync::CancellationToken;
-use tracing::debug;
 use tracing::warn;
+use tracing::{debug, error};
 use uuid::Uuid;
 
 use crate::db::access::WriteDbTransaction;
@@ -148,7 +148,7 @@ impl OutboundServiceContext {
                     );
                 }
                 Err(e) => {
-                    warn!(%e, ?message_id, "Failed to send chat message");
+                    warn!(error = ?e, ?message_id, "Failed to send chat message");
                     // If the message fails, we mark it and all other queued
                     // messages as "failed" and delete them from the queue.
                     self.db
@@ -210,6 +210,7 @@ impl OutboundServiceContext {
             .new_mls_message(&chat, content.content().clone(), None)
             .await?;
         let sent_tags = params.collision_tags.clone();
+        let generation = params.generation;
 
         // send MLS message to DS
         let ds_timestamp = match api_client
@@ -234,9 +235,15 @@ impl OutboundServiceContext {
                 if !ds_error.process_tag_collisions(&sent_tags).is_empty() {
                     return Ok(SendOutcome::Collided);
                 }
-                return Err(ds_error.into());
+                return Err(anyhow::Error::from(ds_error).context("DS rejected message"));
             }
         };
+
+        // message accepted by DS, confirm.
+        self.confirm_mls_message(&chat, generation)
+            .await
+            .inspect_err(|error| error!(%error, "failed to confirm MLS message"))
+            .ok();
 
         // post-processing:
         self.db

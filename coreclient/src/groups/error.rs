@@ -4,7 +4,8 @@
 
 use aircommon::crypto::errors::DecryptionError;
 use openmls::group::{
-    CreateMessageError, ExportSecretError, MlsGroupStateError, ProcessMessageError,
+    ConfirmMessageError, CreateMessageError, ExportSecretError, MlsGroupStateError,
+    ProcessMessageError,
 };
 use thiserror::Error;
 
@@ -14,7 +15,9 @@ pub enum GroupOperationError {
     #[error(transparent)]
     MlsGroupStateError(#[from] MlsGroupStateError),
     #[error(transparent)]
-    CreateMessageError(#[from] CreateMessageError),
+    CreateMessageError(#[from] CreateMessageError<sqlx::Error>),
+    #[error(transparent)]
+    ConfirmMessageError(#[from] ConfirmMessageError<sqlx::Error>),
     #[error(transparent)]
     ProcessMessageError(#[from] ProcessMessageError<sqlx::Error>),
     #[error("Missing key package in key store")]

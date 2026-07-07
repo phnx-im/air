@@ -581,13 +581,17 @@ impl ApiClient {
             message: Some(params.message.try_ref_into()?),
             sender: Some(params.sender.into()),
             suppress_notifications: Some(params.suppress_notifications),
-            collision_tags: Some(SendMessageCollisionTags {
-                tags: params
-                    .collision_tags
-                    .into_iter()
-                    .map(|t| t.value())
-                    .collect(),
-            }),
+            collision_tags: if params.collision_tags.is_empty() {
+                None
+            } else {
+                Some(SendMessageCollisionTags {
+                    tags: params
+                        .collision_tags
+                        .into_iter()
+                        .map(|t| t.value())
+                        .collect(),
+                })
+            },
         };
         let request = payload.sign(signing_key)?;
         let response = self
@@ -612,6 +616,17 @@ impl ApiClient {
             client_metadata: Some(self.metadata().clone()),
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
             sender: Some(params.sender.into()),
+            collision_tags: if params.collision_tags.is_empty() {
+                None
+            } else {
+                Some(SendMessageCollisionTags {
+                    tags: params
+                        .collision_tags
+                        .into_iter()
+                        .map(|t| t.value())
+                        .collect(),
+                })
+            },
             targeted_message_type: Some(params.message_type.try_ref_into()?),
         };
         let request = payload.sign(signing_key)?;

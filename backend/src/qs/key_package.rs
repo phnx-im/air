@@ -195,10 +195,7 @@ impl StorableKeyPackage<'_> for ApqKeyPackage {
     type BlobDecoded = StoredApqKeyPackage;
 
     fn decoded(decoded: Self::BlobDecoded) -> sqlx::Result<Self> {
-        decoded
-            .0
-            .unwrap_verified()
-            .map_err(|e| sqlx::Error::Decode(Box::new(e)))
+        Ok(decoded.0.unwrap_verified())
     }
 }
 

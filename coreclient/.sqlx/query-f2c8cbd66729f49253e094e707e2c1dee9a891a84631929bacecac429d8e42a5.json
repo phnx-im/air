@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO vc_retained_key_package_material (key_package_ref, epoch_id, record)\n            VALUES (?1, ?2, ?3)\n            ON CONFLICT(key_package_ref) DO UPDATE SET\n                epoch_id = excluded.epoch_id,\n                record = excluded.record",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "f2c8cbd66729f49253e094e707e2c1dee9a891a84631929bacecac429d8e42a5"
+}

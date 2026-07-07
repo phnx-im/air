@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO vc_emulation_group_secret\n                (epoch_id, secret_type, vc_secret)\n            VALUES (?1, ?2, ?3)\n            ON CONFLICT(epoch_id, secret_type) DO UPDATE SET\n                vc_secret = excluded.vc_secret",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "0219c8df4b27de143a1daa25e875f0736ed61bf5e45098affd855859418a652e"
+}
