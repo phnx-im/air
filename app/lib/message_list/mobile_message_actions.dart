@@ -242,6 +242,7 @@ class _MobileMessageActionView extends StatelessWidget {
                   opacity: animation,
                   child: QuickReactionBar(
                     skinTone: reactionSkinTone,
+                    showShadow: false,
                     onReact: (emoji) {
                       Navigator.of(context).pop();
                       onReact!(emoji);

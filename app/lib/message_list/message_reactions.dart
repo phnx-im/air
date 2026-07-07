@@ -291,11 +291,13 @@ class QuickReactionBar extends StatelessWidget {
     required this.onReact,
     required this.onMore,
     this.skinTone = EmojiSkinVariation.none,
+    this.showShadow = true,
   });
 
   final void Function(String emoji) onReact;
   final VoidCallback onMore;
   final EmojiSkinVariation skinTone;
+  final bool showShadow;
 
   @override
   Widget build(BuildContext context) {
@@ -521,16 +523,12 @@ class _ReactionChip extends StatelessWidget {
   final int? extras;
   final VoidCallback? onTap;
 
-  static TextStyle textStyle({CustomColorScheme? colors}) => TextStyle(
-    fontSize: BodyFontSize.base.size,
-    height: 1.0,
-    color: colors?.text.tertiary,
-  );
+  static TextStyle textStyle({Color? color}) =>
+      TextStyle(fontSize: BodyFontSize.base.size, height: 1.0, color: color);
 
   @override
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
-    final chipTextStyle = textStyle(colors: colors);
     final count = reaction.users.length;
 
     return MouseRegion(
@@ -552,10 +550,10 @@ class _ReactionChip extends StatelessWidget {
             mainAxisSize: .min,
             crossAxisAlignment: .center,
             children: [
-              Text(reaction.emoji, style: chipTextStyle),
+              Text(reaction.emoji, style: textStyle()),
               if (count >= 2) ...[
                 const SizedBox(width: Spacing.px4),
-                Text('$count', style: chipTextStyle),
+                Text('$count', style: textStyle(color: colors.text.tertiary)),
               ],
             ],
           ),
@@ -604,7 +602,7 @@ class _OverflowChip extends StatelessWidget {
           child: Text(
             '+$count',
             textAlign: TextAlign.center,
-            style: _ReactionChip.textStyle(colors: colors),
+            style: _ReactionChip.textStyle(color: colors.text.tertiary),
           ),
         ),
       ),
