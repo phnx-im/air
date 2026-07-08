@@ -33,6 +33,7 @@ pub mod authentication;
 pub mod commit_builder;
 mod export;
 pub mod extension;
+pub mod external_commit_builder;
 pub mod group_builder;
 pub mod key_package;
 mod merging;

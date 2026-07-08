@@ -7,7 +7,7 @@ use apqmls::{
     authentication::{ApqCredentialWithKey, ApqSignatureKeyPair, ApqSignatureScheme},
     messages::ApqKeyPackage,
 };
-use openmls::storage::OpenMlsProvider;
+use openmls::{prelude::Capabilities, storage::OpenMlsProvider};
 
 pub struct Client<Provider> {
     pub signer: ApqSignatureKeyPair,
@@ -29,6 +29,25 @@ impl<Provider: OpenMlsProvider> Client<Provider> {
 
     pub fn generate_key_package(&self, ciphersuite: ApqCiphersuite) -> ApqKeyPackage {
         ApqKeyPackage::builder()
+            .build(
+                &self.provider,
+                ciphersuite,
+                &self.signer,
+                self.credential_with_key.clone(),
+            )
+            .unwrap()
+            .into_key_package()
+    }
+
+    // Used in some tests
+    #[allow(dead_code)]
+    pub fn generate_key_package_with_capabilities(
+        &self,
+        ciphersuite: ApqCiphersuite,
+        capabilities: Capabilities,
+    ) -> ApqKeyPackage {
+        ApqKeyPackage::builder()
+            .leaf_node_capabilities(capabilities)
             .build(
                 &self.provider,
                 ciphersuite,
