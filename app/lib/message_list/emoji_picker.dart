@@ -384,7 +384,7 @@ class _EmojiGlyphPainter extends CustomPainter {
 ///
 /// Cache entries are keyed by the final emoji string (including the skin-tone
 /// variant). Entries are kept for the lifetime of the app: measured cost is ~1
-/// KiB per glyph, abour ~2 MB for the base set and ~4 MB with all skin tones
+/// KiB per glyph, about ~2 MB for the base set and ~4 MB with all skin tones
 /// warmed.
 class _EmojiPainters {
   static const _warmUpChunkSize = 50;
