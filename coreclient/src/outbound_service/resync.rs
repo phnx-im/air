@@ -9,6 +9,7 @@ use aircommon::{
     messages::{client_ds::AadPayload, client_ds_out::ExternalCommitInfoIn},
 };
 use anyhow::{Context, Result};
+use apqmls::commit_builder::ApqCommitMessageBundle;
 use openmls::{
     group::GroupId,
     prelude::{LeafNodeIndex, MlsMessageOut},
@@ -32,6 +33,7 @@ use crate::{
 pub(crate) struct Resync {
     pub(crate) chat_id: ChatId,
     pub(crate) group_id: GroupId,
+    pub(crate) pq_group_id: Option<GroupId>,
     pub(crate) group_state_ear_key: GroupStateEarKey,
     pub(crate) identity_link_wrapper_key: IdentityLinkWrapperKey,
     pub(crate) original_leaf_index: LeafNodeIndex,
@@ -43,14 +45,10 @@ impl CoreUser {
             .await?
             .context("group not found")?;
 
-        // Resync is disabled for APQ groups for now.
-        if group.is_apq() {
-            anyhow::bail!("Resync is not supported for APQ groups");
-        }
-
         let resync = Resync {
             chat_id,
             group_id: group.group_id().clone(),
+            pq_group_id: group.pq().map(|pq| pq.group_id().clone()),
             group_state_ear_key: group.group_state_ear_key().clone(),
             identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
             original_leaf_index: group.own_index(),
@@ -165,7 +163,7 @@ impl Resync {
             .begin()
             .await
             .map_err(OutboundServiceError::recoverable)?;
-        let (group, commit, group_info, member_profile_infos) = self
+        let (group, commit, member_profile_infos) = self
             .create_commit(&mut txn, api_clients, signer, external_commit_info)
             .await
             .map_err(OutboundServiceError::fatal)?;
@@ -173,15 +171,7 @@ impl Resync {
             .await
             .map_err(OutboundServiceError::recoverable)?;
 
-        Self::send_commit(
-            api_clients,
-            signer,
-            &group,
-            commit,
-            group_info,
-            original_leaf_index,
-        )
-        .await?;
+        Self::send_commit(api_clients, signer, &group, commit, original_leaf_index).await?;
 
         Ok(member_profile_infos)
     }
@@ -198,12 +188,14 @@ impl Resync {
         let api_client = api_clients
             .get(qgid.owning_domain())
             .map_err(OutboundServiceError::fatal)?;
-        let external_commit_info = api_client
-            .ds_external_commit_info(self.group_id.clone(), &self.group_state_ear_key)
+        api_client
+            .ds_external_commit_info(
+                self.group_id.clone(),
+                self.pq_group_id.clone(),
+                &self.group_state_ear_key,
+            )
             .await
-            .map_err(classify_ds_error)?;
-
-        Ok(external_commit_info)
+            .map_err(classify_ds_error)
     }
 
     async fn create_commit(
@@ -213,7 +205,7 @@ impl Resync {
         api_clients: &ApiClients,
         signer: &ClientSigningKey,
         external_commit_info: ExternalCommitInfoIn,
-    ) -> Result<(Group, MlsMessageOut, MlsMessageOut, DecryptedProfileInfos)> {
+    ) -> Result<(Group, ResyncCommit, DecryptedProfileInfos)> {
         // TODO: We should somehow mark the chat as "resyncing" in the DB and
         // reflect that in the UI.
 
@@ -221,25 +213,44 @@ impl Resync {
         Group::delete_from_db(txn, &self.group_id).await?;
 
         let aad = AadPayload::Resync.into();
-        Ok(Group::join_group_externally(
-            txn,
-            api_clients,
-            external_commit_info,
-            signer,
-            self.group_state_ear_key,
-            self.identity_link_wrapper_key,
-            aad,
-            None, // This is not in response to a connection offer.
-        )
-        .await??)
+        if self.pq_group_id.is_some() {
+            // APQ group
+            let (group, bundle, member_profile_infos) = Group::join_apq_group_externally(
+                txn,
+                api_clients,
+                external_commit_info,
+                signer,
+                self.group_state_ear_key,
+                self.identity_link_wrapper_key,
+                aad,
+            )
+            .await??;
+            Ok((group, ResyncCommit::PQ(bundle), member_profile_infos))
+        } else {
+            let (group, commit, group_info, member_profile_infos) = Group::join_group_externally(
+                txn,
+                api_clients,
+                external_commit_info,
+                signer,
+                self.group_state_ear_key,
+                self.identity_link_wrapper_key,
+                aad,
+                None, // This is not in response to a connection offer.
+            )
+            .await??;
+            Ok((
+                group,
+                ResyncCommit::T((commit, group_info)),
+                member_profile_infos,
+            ))
+        }
     }
 
     async fn send_commit(
         api_clients: &ApiClients,
         signer: &ClientSigningKey,
         group: &Group,
-        commit: MlsMessageOut,
-        group_info: MlsMessageOut,
+        commit: ResyncCommit,
         original_leaf_index: LeafNodeIndex,
     ) -> Result<(), OutboundServiceError> {
         let qgid: QualifiedGroupId = group
@@ -250,16 +261,31 @@ impl Resync {
             .get(qgid.owning_domain())
             .map_err(OutboundServiceError::fatal)?;
 
-        api_client
-            .ds_resync(
-                commit,
-                group_info,
-                signer,
-                group.group_state_ear_key(),
-                original_leaf_index,
-            )
-            .await
-            .map_err(classify_ds_error)?;
+        let response = match commit {
+            ResyncCommit::T((commit, group_info)) => {
+                api_client
+                    .ds_resync(
+                        commit,
+                        group_info,
+                        signer,
+                        group.group_state_ear_key(),
+                        original_leaf_index,
+                    )
+                    .await
+            }
+            ResyncCommit::PQ(bundle) => {
+                api_client
+                    .ds_apq_resync(
+                        bundle,
+                        signer,
+                        group.group_state_ear_key(),
+                        original_leaf_index,
+                    )
+                    .await
+            }
+        };
+
+        response.map_err(classify_ds_error)?;
         Ok(())
     }
 }
@@ -273,6 +299,7 @@ mod persistence {
     use crate::{
         ChatId,
         db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
+        utils::persistence::{GroupIdRefWrapper, GroupIdWrapper},
     };
 
     use super::*;
@@ -288,14 +315,22 @@ mod persistence {
                 "Enqueueing resync"
             );
 
-            let group_id_bytes = self.group_id.as_slice();
+            let group_id = GroupIdRefWrapper::from(&self.group_id);
+            let pq_group_id = self.pq_group_id.as_ref().map(GroupIdRefWrapper::from);
             let original_leaf_index = self.original_leaf_index.u32() as i32;
             query!(
-                "INSERT INTO resync_queue
-                    (group_id, chat_id,  group_state_ear_key, identity_link_wrapper_key, original_leaf_index)
-                VALUES (?1, ?2, ?3, ?4, ?5)
+                "INSERT INTO resync_queue (
+                    group_id,
+                    pq_group_id,
+                    chat_id,
+                    group_state_ear_key,
+                    identity_link_wrapper_key,
+                    original_leaf_index
+                )
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6)
                 ON CONFLICT DO NOTHING",
-                group_id_bytes,
+                group_id,
+                pq_group_id,
                 self.chat_id,
                 self.group_state_ear_key,
                 self.identity_link_wrapper_key,
@@ -314,7 +349,8 @@ mod persistence {
         ) -> anyhow::Result<Option<Resync>> {
             struct ResyncRecord {
                 chat_id: ChatId,
-                group_id: Vec<u8>,
+                group_id: GroupIdWrapper,
+                pq_group_id: Option<GroupIdWrapper>,
                 group_state_ear_key: GroupStateEarKey,
                 identity_link_wrapper_key: IdentityLinkWrapperKey,
                 original_leaf_index: i32,
@@ -343,6 +379,7 @@ mod persistence {
                 RETURNING
                     chat_id AS "chat_id: _",
                     group_id AS "group_id: _",
+                    pq_group_id AS "pq_group_id: _",
                     group_state_ear_key AS "group_state_ear_key: _",
                     identity_link_wrapper_key AS "identity_link_wrapper_key: _",
                     original_leaf_index AS "original_leaf_index: _"
@@ -354,7 +391,8 @@ mod persistence {
             .await?
             .map(|record| Resync {
                 chat_id: record.chat_id,
-                group_id: GroupId::from_slice(&record.group_id),
+                group_id: record.group_id.0,
+                pq_group_id: record.pq_group_id.map(|id| id.0),
                 group_state_ear_key: record.group_state_ear_key,
                 identity_link_wrapper_key: record.identity_link_wrapper_key,
                 original_leaf_index: LeafNodeIndex::new(record.original_leaf_index as u32),
@@ -390,4 +428,9 @@ mod persistence {
             Ok(())
         }
     }
+}
+
+enum ResyncCommit {
+    T((MlsMessageOut, MlsMessageOut)),
+    PQ(ApqCommitMessageBundle),
 }

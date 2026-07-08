@@ -177,6 +177,32 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .await
     }
 
+    /// Loads the T group state and, if `pq_qgid` is given, also the PQ group state, both from
+    /// the same DB transaction (with the shared `ear_key`) so that external-commit callers see
+    /// a consistent snapshot across both legs of an APQ group.
+    async fn load_group_state_immutable_pair(
+        &self,
+        qgid: &QualifiedGroupId,
+        pq_qgid: Option<&QualifiedGroupId>,
+        ear_key: &GroupStateEarKey,
+    ) -> Result<(DsGroupState, Option<DsGroupState>), LoadGroupStateError> {
+        let mut txn = self.ds.db_pool.begin().await.map_err(|error| {
+            error!(%error, "Failed to start transaction");
+            Status::internal("Failed to start transaction")
+        })?;
+        let (_, group_state) = self.load_group_state::<false>(&mut txn, qgid, ear_key).await?;
+        let pq_group_state = match pq_qgid {
+            Some(pq_qgid) => {
+                let (_, pq_group_state) = self
+                    .load_group_state::<false>(&mut txn, pq_qgid, ear_key)
+                    .await?;
+                Some(pq_group_state)
+            }
+            None => None,
+        };
+        Ok((group_state, pq_group_state))
+    }
+
     /// Fans out a message to the given clients (concurrently).
     ///
     /// The parallelism is limited by a constant. Logs failures but does not
@@ -932,13 +958,19 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .group_state_ear_key
             .ok_or_missing_field("group_state_ear_key")?
             .try_ref_into()?;
+        let pq_qgid = request
+            .pq_qgid
+            .as_ref()
+            .map(TryRefInto::try_ref_into)
+            .transpose()?;
 
-        let (_, group_state) = self
-            .load_group_state_immutable(&qgid, &ear_key)
+        let (group_state, pq_group_state) = self
+            .load_group_state_immutable_pair(&qgid, pq_qgid.as_ref(), &ear_key)
             .await
             .map_err(to_status)?;
 
         let commit_info = group_state.external_commit_info();
+        let pq_commit_info = pq_group_state.as_ref().map(DsGroupState::external_commit_info);
 
         Ok(Response::new(ExternalCommitInfoResponse {
             group_info: Some(
@@ -974,6 +1006,19 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     encrypted_user_profile_key: Some(profile.encrypted_user_profile_key.into()),
                 })
                 .collect(),
+            pq_group_info: pq_commit_info
+                .as_ref()
+                .map(|info| info.group_info.clone().try_into())
+                .transpose()
+                .invalid_tls("pq_group_info")?,
+            pq_ratchet_tree: pq_commit_info
+                .as_ref()
+                .map(|info| info.ratchet_tree.try_ref_into())
+                .transpose()
+                .invalid_tls("pq_ratchet_tree")?,
+            pq_proposals: pq_commit_info
+                .map(|info| info.proposals.into_iter().map(From::from).collect())
+                .unwrap_or_default(),
         }))
     }
 

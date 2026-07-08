@@ -225,6 +225,8 @@ message ExternalCommitInfoRequest {
   common.v1.ClientMetadata client_metadata = 3;
   common.v1.QualifiedGroupId qgid = 1;
   GroupStateEarKey group_state_ear_key = 2;
+  // Present iff joining an APQ group
+  common.v1.QualifiedGroupId pq_qgid = 4;
 }
 
 message ExternalCommitInfoResponse {
@@ -234,6 +236,10 @@ message ExternalCommitInfoResponse {
   RoomState room_state = 5;
   repeated MlsMessage proposals = 6;
   repeated IndexedEncryptedUserProfileKey indexed_encrypted_user_profile_keys = 7;
+  // Present iff the request carried a `pq_qgid`.
+  GroupInfo pq_group_info = 8;
+  RatchetTree pq_ratchet_tree = 9;
+  repeated MlsMessage pq_proposals = 10;
 }
 
 message GroupInfo {
