@@ -163,10 +163,10 @@ impl Resync {
             .begin()
             .await
             .map_err(OutboundServiceError::recoverable)?;
-        let (group, commit, member_profile_infos) = self
-            .create_commit(&mut txn, api_clients, signer, external_commit_info)
-            .await
-            .map_err(OutboundServiceError::fatal)?;
+        let (group, commit, member_profile_infos) =
+            Box::pin(self.create_commit(&mut txn, api_clients, signer, external_commit_info))
+                .await
+                .map_err(OutboundServiceError::fatal)?;
         txn.commit()
             .await
             .map_err(OutboundServiceError::recoverable)?;
@@ -225,7 +225,11 @@ impl Resync {
                 aad,
             )
             .await??;
-            Ok((group, ResyncCommit::PQ(bundle), member_profile_infos))
+            Ok((
+                group,
+                ResyncCommit::PQ(Box::new(bundle)),
+                member_profile_infos,
+            ))
         } else {
             let (group, commit, group_info, member_profile_infos) = Group::join_group_externally(
                 txn,
@@ -240,7 +244,7 @@ impl Resync {
             .await??;
             Ok((
                 group,
-                ResyncCommit::T((commit, group_info)),
+                ResyncCommit::T(Box::new(ResyncTCommit { commit, group_info })),
                 member_profile_infos,
             ))
         }
@@ -262,11 +266,11 @@ impl Resync {
             .map_err(OutboundServiceError::fatal)?;
 
         let response = match commit {
-            ResyncCommit::T((commit, group_info)) => {
+            ResyncCommit::T(commit) => {
                 api_client
                     .ds_resync(
-                        commit,
-                        group_info,
+                        commit.commit,
+                        commit.group_info,
                         signer,
                         group.group_state_ear_key(),
                         original_leaf_index,
@@ -276,7 +280,7 @@ impl Resync {
             ResyncCommit::PQ(bundle) => {
                 api_client
                     .ds_apq_resync(
-                        bundle,
+                        *bundle,
                         signer,
                         group.group_state_ear_key(),
                         original_leaf_index,
@@ -431,6 +435,11 @@ mod persistence {
 }
 
 enum ResyncCommit {
-    T((MlsMessageOut, MlsMessageOut)),
-    PQ(ApqCommitMessageBundle),
+    T(Box<ResyncTCommit>),
+    PQ(Box<ApqCommitMessageBundle>),
+}
+
+struct ResyncTCommit {
+    commit: MlsMessageOut,
+    group_info: MlsMessageOut,
 }

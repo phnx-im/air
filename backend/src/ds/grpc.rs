@@ -186,10 +186,15 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         pq_qgid: Option<&QualifiedGroupId>,
         ear_key: &GroupStateEarKey,
     ) -> Result<(DsGroupState, Option<DsGroupState>), LoadGroupStateError> {
-        let mut txn = self.ds.db_pool.begin().await.map_err(|error| {
-            error!(%error, "Failed to start transaction");
-            Status::internal("Failed to start transaction")
-        })?;
+        let mut txn = self
+            .ds
+            .db_pool
+            .begin_with("BEGIN ISOLATION LEVEL REPEATABLE READ")
+            .await
+            .map_err(|error| {
+                error!(%error, "Failed to start transaction");
+                Status::internal("Failed to start transaction")
+            })?;
         let (_, group_state) = self
             .load_group_state::<false>(&mut txn, qgid, ear_key)
             .await?;
