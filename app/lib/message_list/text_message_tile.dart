@@ -375,7 +375,10 @@ class _MessageView extends HookWidget {
       );
     }
 
-    Future<void> openFullEmojiPicker() async {
+    // With [withBarrier] false the picker draws no barrier of its own; used
+    // when it opens on top of the quick-reaction strip, whose barrier stays
+    // alive underneath so the dim doesn't flicker.
+    Future<void> openFullEmojiPicker({bool withBarrier = true}) async {
       // Capture cubits before the await so the picker can persist tone changes.
       final settings = context.read<UserSettingsCubit>();
       final userCubit = context.read<UserCubit>();
@@ -388,16 +391,19 @@ class _MessageView extends HookWidget {
         );
       }
 
+      final barrierColor = withBarrier ? null : Colors.transparent;
       final emoji = isMobilePlatform
           ? await showEmojiPickerSheet(
               context: context,
               initialSkinTone: skinTone,
               onSkinToneChanged: onSkinToneChanged,
+              barrierColor: barrierColor,
             )
           : await showEmojiPickerPopover(
               context: context,
               initialSkinTone: skinTone,
               onSkinToneChanged: onSkinToneChanged,
+              barrierColor: barrierColor,
             );
       if (emoji != null && context.mounted) {
         sendReaction(emoji);
@@ -420,7 +426,7 @@ class _MessageView extends HookWidget {
           anchorRect: anchorRect,
           skinTone: skinTone,
           onReact: sendReaction,
-          onMore: () => unawaited(openFullEmojiPicker()),
+          onMore: () => openFullEmojiPicker(withBarrier: false),
         ),
       );
     }
