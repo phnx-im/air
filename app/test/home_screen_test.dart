@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -40,10 +39,6 @@ void main() {
     late MockUserSettingsCubit userSettingsCubit;
 
     setUp(() async {
-      // These goldens exercise the desktop layout, so the message tiles must
-      // render their desktop path.
-      debugDefaultTargetPlatformOverride = desktopTargetPlatform();
-
       navigationCubit = MockNavigationCubit();
       userCubit = MockUserCubit();
       usersCubit = MockUsersCubit();
@@ -71,10 +66,6 @@ void main() {
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
     });
 
-    tearDown(() {
-      debugDefaultTargetPlatformOverride = null;
-    });
-
     Widget buildSubject() => MultiRepositoryProvider(
       providers: [
         RepositoryProvider<ChatsRepository>.value(value: MockChatsRepository()),
@@ -97,7 +88,9 @@ void main() {
             builder: (context) {
               return MaterialApp(
                 debugShowCheckedModeBanner: false,
-                theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+                theme: testThemeData(
+                  MediaQuery.platformBrightnessOf(context),
+                ).copyWith(platform: desktopTargetPlatform()),
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
                 home: HomeScreenDesktopLayout(
                   chatList: ChatListView(
