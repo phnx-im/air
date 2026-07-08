@@ -74,10 +74,14 @@ Widget _withTrailingAffordance({
   Widget? affordance,
 }) {
   if (affordance == null) return child;
+  // The child must be Flexible so the Row hands it a bounded width.
+  final flexibleChild = Flexible(child: child);
   return Row(
     mainAxisSize: MainAxisSize.min,
     crossAxisAlignment: CrossAxisAlignment.center,
-    children: isSender ? [affordance, child] : [child, affordance],
+    children: isSender
+        ? [affordance, flexibleChild]
+        : [flexibleChild, affordance],
   );
 }
 
