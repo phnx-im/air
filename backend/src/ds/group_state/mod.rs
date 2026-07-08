@@ -18,6 +18,7 @@ use aircommon::{
     messages::client_ds::WelcomeInfoParams,
     time::TimeStamp,
 };
+use apqmls::extension::ApqInfo;
 use mimi_room_policy::{MimiProposal, RoleIndex, VerifiedRoomState};
 use mls_assist::{
     MlsAssistRustCrypto,
@@ -129,6 +130,13 @@ impl DsGroupState {
         VerifiableClientCredential::from_basic_credential(leaf.credential())
             .map_err(|error| error!(%error, "Credential is invalid"))
             .ok()
+    }
+
+    /// Returns true if the group context carries the APQMLS component, i.e. this group is a leg of
+    /// an APQ group.
+    pub(crate) fn is_apq(&self) -> bool {
+        let extensions = self.group().group_info().group_context().extensions();
+        ApqInfo::from_extensions(extensions).is_ok_and(|info| info.is_some())
     }
 
     /// Get a reference to the public group state.

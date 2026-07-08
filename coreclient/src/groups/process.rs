@@ -32,7 +32,7 @@ use openmls::{
 };
 use openmls_traits::OpenMlsProvider;
 use tls_codec::DeserializeBytes as TlsDeserializeBytes;
-use tracing::{debug, instrument};
+use tracing::{debug, instrument, warn};
 
 use crate::{
     clients::api_clients::ApiClients, db::access::WriteDbTransaction,
@@ -46,7 +46,9 @@ pub(crate) enum ProcessMessageResult {
     Processed(ProcessMessageProcessed),
     /// This message was skipped because we have processed it (or its side-effect) already.
     Ignored,
-    /// We got a message that's too far in the future, and there's nothing we can do about it.
+    /// We got a message that we can't process from our current group state, e.g. because it's too
+    /// far in the future or because the local PQ group state is missing. Only a resync can recover
+    /// the group.
     TooDistant,
 }
 
@@ -670,6 +672,15 @@ impl Group {
         api_clients: &ApiClients,
         message: impl Into<ApqProtocolMessage>,
     ) -> Result<ProcessMessageResult> {
+        if self.pq.is_none() {
+            // The local PQ group state is missing, e.g. because a legacy
+            // T-only resync dropped it. We can't process any APQ message in
+            // this state, but a resync restores both legs, so report the
+            // message as too distant instead of failing.
+            warn!("No local PQ group state; a resync is required");
+            return Ok(ProcessMessageResult::TooDistant);
+        }
+
         let message: ApqProtocolMessage = message.into();
         let message_t_epoch = message.t_epoch();
         let current_t_epoch = self.mls_group.epoch();
