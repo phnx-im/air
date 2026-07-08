@@ -190,7 +190,9 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             error!(%error, "Failed to start transaction");
             Status::internal("Failed to start transaction")
         })?;
-        let (_, group_state) = self.load_group_state::<false>(&mut txn, qgid, ear_key).await?;
+        let (_, group_state) = self
+            .load_group_state::<false>(&mut txn, qgid, ear_key)
+            .await?;
         let pq_group_state = match pq_qgid {
             Some(pq_qgid) => {
                 let (_, pq_group_state) = self
@@ -970,7 +972,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .map_err(to_status)?;
 
         let commit_info = group_state.external_commit_info();
-        let pq_commit_info = pq_group_state.as_ref().map(DsGroupState::external_commit_info);
+        let pq_commit_info = pq_group_state
+            .as_ref()
+            .map(DsGroupState::external_commit_info);
 
         Ok(Response::new(ExternalCommitInfoResponse {
             group_info: Some(

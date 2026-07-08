@@ -375,8 +375,7 @@ impl ApiClient {
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<ExternalCommitInfoIn, DsRequestError> {
         let qgid: QualifiedGroupId = group_id.try_into()?;
-        let pq_qgid: Option<QualifiedGroupId> =
-            pq_group_id.map(|id| id.try_into()).transpose()?;
+        let pq_qgid: Option<QualifiedGroupId> = pq_group_id.map(|id| id.try_into()).transpose()?;
         let request = ExternalCommitInfoRequest {
             client_metadata: Some(self.metadata().clone()),
             qgid: Some(qgid.ref_into()),
