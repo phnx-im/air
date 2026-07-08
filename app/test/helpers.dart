@@ -21,6 +21,15 @@ ThemeData testThemeData(Brightness brightness) {
 final ThemeData testLightTheme = testThemeData(Brightness.light);
 final ThemeData testDarkTheme = testThemeData(Brightness.dark);
 
+/// Maps the host OS to the matching desktop [TargetPlatform] so widget goldens
+/// render the same desktop code path the app ships on that OS, keeping the
+/// per-platform golden variants consistent with their host.
+TargetPlatform desktopTargetPlatform() {
+  if (Platform.isMacOS) return TargetPlatform.macOS;
+  if (Platform.isWindows) return TargetPlatform.windows;
+  return TargetPlatform.linux;
+}
+
 extension IntTestExtension on int {
   ChatId chatId() => ChatId(uuid: _intToUuidValue(this));
 

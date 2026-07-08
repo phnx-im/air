@@ -76,7 +76,7 @@ dependencies = [
 
 [[package]]
 name = "airapiclient"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "aircommon",
  "airprotos",
@@ -99,7 +99,7 @@ dependencies = [
 
 [[package]]
 name = "airapplogic"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "aircommon",
  "aircoreclient",
@@ -152,7 +152,7 @@ dependencies = [
 
 [[package]]
 name = "airbackend"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "aircommon",
  "airprotos",
@@ -198,7 +198,7 @@ dependencies = [
 
 [[package]]
 name = "aircommon"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "aes-gcm",
  "apqmls",
@@ -238,7 +238,7 @@ dependencies = [
 
 [[package]]
 name = "aircoreclient"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "airapiclient",
  "airbackend",
@@ -293,7 +293,7 @@ dependencies = [
 
 [[package]]
 name = "airmacros"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "minicbor",
  "minicbor-serde",
@@ -306,7 +306,7 @@ dependencies = [
 
 [[package]]
 name = "airprotos"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "aircommon",
  "airmacros",
@@ -337,7 +337,7 @@ dependencies = [
 
 [[package]]
 name = "airserver"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "airapiclient",
  "airbackend",
@@ -391,7 +391,7 @@ dependencies = [
 
 [[package]]
 name = "airserver_test_harness"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "airbackend",
  "aircommon",
@@ -557,7 +557,7 @@ checksum = "2a4385e2e34eb35d6b3efe798b9eb88096925d87726c0798709bf56d9ed84af3"
 
 [[package]]
 name = "apqmls"
-version = "0.1.0"
+version = "0.19.0"
 dependencies = [
  "openmls",
  "openmls_basic_credential",
@@ -646,6 +646,59 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "516b6b4f0e40d50dcda9365d53964ec74560ad4284da2e7fc97122cd83174516"
 dependencies = [
  "stable_deref_trait",
+]
+
+[[package]]
+name = "askama"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f1bf825125edd887a019d0a3a837dcc5499a68b0d034cc3eb594070c3e18addc"
+dependencies = [
+ "askama_macros",
+ "itoa",
+ "percent-encoding",
+ "serde",
+ "serde_json",
+]
+
+[[package]]
+name = "askama_derive"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "e1c7065972a130eafa84215f21352ae15b4a7393da48c1f5e103904490736738"
+dependencies = [
+ "askama_parser",
+ "basic-toml",
+ "glob",
+ "memchr",
+ "proc-macro2",
+ "quote",
+ "rustc-hash",
+ "serde",
+ "serde_derive",
+ "syn",
+]
+
+[[package]]
+name = "askama_macros"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "0e23b1d2c4bd39a41971f6124cef4cc6fd0540913ecb90919b69ab3bbe44ae1a"
+dependencies = [
+ "askama_derive",
+]
+
+[[package]]
+name = "askama_parser"
+version = "0.16.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "7db09fde9143e7ac4513358fb32ee32847125b63b18ea715afd487956da715da"
+dependencies = [
+ "rustc-hash",
+ "serde",
+ "serde_derive",
+ "unicode-ident",
+ "winnow 1.0.0",
 ]
 
 [[package]]
@@ -1328,6 +1381,15 @@ name = "base64ct"
 version = "1.8.3"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2af50177e190e07a26ab74f8b1efbfe2ef87da2116221318cb1c2e82baf7de06"
+
+[[package]]
+name = "basic-toml"
+version = "0.1.10"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ba62675e8242a4c4e806d12f11d136e626e6c8361d6b829310732241652a178a"
+dependencies = [
+ "serde",
+]
 
 [[package]]
 name = "bigdecimal"
@@ -4687,7 +4749,7 @@ dependencies = [
 
 [[package]]
 name = "mls-assist"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "apqmls",
  "chrono",
@@ -8976,15 +9038,17 @@ checksum = "32ac00cd3f8ec9c1d33fb3e7958a82df6989c42d747bd326c822b1d625283547"
 
 [[package]]
 name = "xtask"
-version = "0.18.0"
+version = "0.19.0"
 dependencies = [
  "anyhow",
+ "askama",
  "camino",
  "cargo_metadata",
  "clap",
  "ignore",
  "regex",
  "semver",
+ "serde",
  "serde_json",
  "xshell",
 ]

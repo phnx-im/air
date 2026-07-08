@@ -148,6 +148,7 @@
   "linkingDeviceScreen_error_codesExpired_reload": "Neu laden",
   "linkingDevicesScreen_error_title": "Verknüpfung fehlgeschlagen",
   "linkingDevicesScreen_error_generic": "Ein unbekannter Fehler ist aufgetreten.",
+  "linkingDevicesScreen_error_sessionNotFound": "Der eingegebene Code ist ungültig.",
   "linkingDevicesScreen_error_dismiss": "Erneut versuchen",
 
   "linkedDevicesScreen_title": "Geräte",
@@ -420,5 +421,9 @@
   "memberSelectionList_client_not_supported": "Dieser Kontakt hat eine veraltete App, die aktualisiert werden muss.",
   "homeTab_chats": "Chats",
   "homeTab_profile": "Du",
-  "messageList_newMessages": "{count, plural, one {{count} neue Nachricht} other {{count} neue Nachrichten}}"
+  "messageList_newMessages": "{count, plural, one {{count} neue Nachricht} other {{count} neue Nachrichten}}",
+  "messageList_reactions_react": "Reagieren",
+  "messageList_reactions_remove": "Entfernen",
+  "messageList_reactions_you": "Du",
+  "messageList_reactions_all": "Alle · {total}"
 }

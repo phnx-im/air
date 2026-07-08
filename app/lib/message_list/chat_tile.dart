@@ -38,6 +38,7 @@ class ChatTile extends StatelessWidget {
       timestamp,
       position,
       status,
+      reactions,
     ) = context.select(
       (MessageCubit cubit) => (
         cubit.state.message.id,
@@ -46,6 +47,7 @@ class ChatTile extends StatelessWidget {
         cubit.state.message.timestamp,
         cubit.state.message.position,
         cubit.state.message.status,
+        cubit.state.message.reactions,
       ),
     );
     final isSender = switch (message) {
@@ -76,6 +78,8 @@ class ChatTile extends StatelessWidget {
             status: adjustedStatus,
             isSender: isSender,
             showSender: !isConnectionChat,
+            reactions: reactions,
+            ownUserId: userId,
           ),
           UiMessage_Display(field0: final display) => DisplayMessageTile(
             display,

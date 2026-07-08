@@ -1961,10 +1961,23 @@ impl Group {
         .tls_serialize_detached()?;
         self.mls_group.set_aad(aad);
 
+        let t_own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
+        let t_leaf_node_parameters =
+            Self::update_leaf_node_extensions(t_own_leaf_node.extensions())?;
+        let pq_own_leaf_node = self
+            .pq()
+            .context("No PQ group found")?
+            .mls_group
+            .own_leaf_node()
+            .context("No own PQ leaf node")?;
+        let pq_leaf_node_parameters =
+            Self::update_leaf_node_extensions(pq_own_leaf_node.extensions())?;
+
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
         let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
             .force_self_update(true)
+            .leaf_node_parameters(t_leaf_node_parameters, pq_leaf_node_parameters)
             .create_group_info(true)
             .finalize(&provider, signer, |_| true, |_| true)?;
 

@@ -14,8 +14,8 @@ import 'user_cubit.dart';
 part 'user_settings_cubit.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `f64_decode`, `f64_encode`, `subscribe`
-// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `InterfaceScaleSetting`, `LocaleSetting`, `SendOnEnterSetting`, `SidebarWidthSetting`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `decode`, `decode`, `decode`, `decode`, `encode`, `encode`, `encode`, `encode`, `fmt`
+// These types are ignored because they are neither used by any `pub` functions nor (for structs and enums) marked `#[frb(unignore)]`: `DefaultEmojiSkinToneSetting`, `InterfaceScaleSetting`, `LocaleSetting`, `SendOnEnterSetting`, `SidebarWidthSetting`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `clone`, `decode`, `decode`, `decode`, `decode`, `decode`, `encode`, `encode`, `encode`, `encode`, `encode`, `fmt`
 // These functions are ignored (category: IgnoreBecauseExplicitAttribute): `default`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<UserSettingsCubitBase>>
@@ -30,6 +30,11 @@ abstract class UserSettingsCubitBase implements RustOpaqueInterface {
       RustLib.instance.api.crateApiUserSettingsCubitUserSettingsCubitBaseNew();
 
   Future<void> reset();
+
+  Future<void> setDefaultEmojiSkinTone({
+    required UserCubitBase userCubit,
+    required int value,
+  });
 
   Future<void> setInterfaceScale({
     required UserCubitBase userCubit,
@@ -69,5 +74,6 @@ sealed class UserSettings with _$UserSettings {
     @Default(false) bool sendOnEnter,
     @Default(true) bool readReceipts,
     @Default(false) bool isDeveloper,
+    @Default(0) int defaultEmojiSkinTone,
   }) = _UserSettings;
 }

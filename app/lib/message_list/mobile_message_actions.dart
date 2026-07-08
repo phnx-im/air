@@ -10,6 +10,9 @@ import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/components/context_menu/context_menu_item_ui.dart';
 import 'package:air/ds/components/context_menu/context_menu_ui.dart';
 
+import 'emoji_repository.dart';
+import 'message_reactions.dart';
+
 const double _mobileActionRowHeight = 56.0;
 
 class MessageAction {
@@ -34,6 +37,9 @@ Future<void> showMobileMessageActions({
   required List<MessageAction> actions,
   required Widget messageContent,
   required bool alignEnd,
+  EmojiSkinVariation reactionSkinTone = EmojiSkinVariation.none,
+  void Function(String emoji)? onReact,
+  VoidCallback? onReactMore,
 }) {
   return showGeneralDialog(
     context: context,
@@ -55,6 +61,9 @@ Future<void> showMobileMessageActions({
         actions: actions,
         messageContent: messageContent,
         alignEnd: alignEnd,
+        reactionSkinTone: reactionSkinTone,
+        onReact: onReact,
+        onReactMore: onReactMore,
       );
       final defaultTextStyle = DefaultTextStyle.of(context);
       return DefaultTextStyle(
@@ -76,6 +85,9 @@ class _MobileMessageActionView extends StatelessWidget {
     required this.actions,
     required this.messageContent,
     required this.alignEnd,
+    required this.reactionSkinTone,
+    required this.onReact,
+    required this.onReactMore,
   });
 
   final Animation<double> animation;
@@ -83,6 +95,9 @@ class _MobileMessageActionView extends StatelessWidget {
   final List<MessageAction> actions;
   final Widget messageContent;
   final bool alignEnd;
+  final EmojiSkinVariation reactionSkinTone;
+  final void Function(String emoji)? onReact;
+  final VoidCallback? onReactMore;
 
   @override
   Widget build(BuildContext context) {
@@ -217,6 +232,28 @@ class _MobileMessageActionView extends StatelessWidget {
                 child: child!,
               ),
             ),
+            if (onReact != null)
+              Positioned(
+                left: alignEnd ? null : left,
+                right: alignEnd ? (size.width - (left + width)) : null,
+                top: (top - quickReactionMenuGap - quickReactionBarHeight)
+                    .clamp(safeTop, size.height),
+                child: FadeTransition(
+                  opacity: animation,
+                  child: QuickReactionBar(
+                    skinTone: reactionSkinTone,
+                    showShadow: false,
+                    onReact: (emoji) {
+                      Navigator.of(context).pop();
+                      onReact!(emoji);
+                    },
+                    onMore: () {
+                      Navigator.of(context).pop();
+                      onReactMore?.call();
+                    },
+                  ),
+                ),
+              ),
             if (sheetHeight > 0)
               Positioned(
                 left: alignEnd ? null : Spacing.px24,

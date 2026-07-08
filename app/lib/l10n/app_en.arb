@@ -486,5 +486,10 @@
         "type": "int"
       }
     }
-  }
+  },
+
+  "messageList_reactions_react": "React",
+  "messageList_reactions_remove": "Remove",
+  "messageList_reactions_you": "You",
+  "messageList_reactions_all": "All · {total}"
 }

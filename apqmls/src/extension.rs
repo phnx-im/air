@@ -7,13 +7,16 @@ use openmls::{
     group::{GroupContext, GroupEpoch, GroupId},
     prelude::{
         AppDataDictionary, AppDataDictionaryExtension, Capabilities, Ciphersuite, Extension,
-        ExtensionType, Extensions, LeafNode, ProposalType,
+        ExtensionType, Extensions, LeafNode, LeafNodeParameters, ProposalType,
     },
 };
 use tap::Pipe;
 use tls_codec::{Deserialize as _, Serialize as _, TlsDeserialize, TlsSerialize, TlsSize};
 
-use crate::{ApqCiphersuite, ApqGroupId, ApqMlsGroup, ApqMlsGroupMut};
+use crate::{
+    ApqCiphersuite, ApqGroupId, ApqMlsGroup, ApqMlsGroupMut,
+    key_package::ensure_ciphersuite_support,
+};
 
 /// The component ID of the APQMLS component.
 ///
@@ -153,6 +156,32 @@ pub(super) fn ensure_leaf_node_component_support(
         .add_or_replace(extension)
         .expect("logic error: extension is valid");
     Ok(extensions)
+}
+
+/// Augments the capabilities and extensions of the given leaf node parameters with the support
+/// required in an APQMLS group.
+pub(super) fn ensure_leaf_node_parameters(
+    params: &LeafNodeParameters,
+    apq_ciphersuite: ApqCiphersuite,
+) -> Result<LeafNodeParameters, tls_codec::Error> {
+    let capabilities = params
+        .capabilities()
+        .cloned()
+        .unwrap_or_default()
+        .pipe(ensure_extension_support)?
+        .pipe(|c| ensure_ciphersuite_support(c, apq_ciphersuite))?;
+    let ln_extensions = params
+        .extensions()
+        .cloned()
+        .unwrap_or_default()
+        .pipe(ensure_leaf_node_component_support)?;
+    let mut builder = LeafNodeParameters::builder()
+        .with_capabilities(capabilities)
+        .with_extensions(ln_extensions);
+    if let Some(credential_with_key) = params.credential_with_key() {
+        builder = builder.with_credential_with_key(credential_with_key.clone());
+    };
+    Ok(builder.build())
 }
 
 impl ApqMlsGroup {

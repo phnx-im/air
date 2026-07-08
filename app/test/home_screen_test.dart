@@ -88,7 +88,9 @@ void main() {
             builder: (context) {
               return MaterialApp(
                 debugShowCheckedModeBanner: false,
-                theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+                theme: testThemeData(
+                  MediaQuery.platformBrightnessOf(context),
+                ).copyWith(platform: desktopTargetPlatform()),
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
                 home: HomeScreenDesktopLayout(
                   chatList: ChatListView(

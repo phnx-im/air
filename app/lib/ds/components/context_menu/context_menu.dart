@@ -134,6 +134,7 @@ class _ContextMenuState extends State<ContextMenu> {
   final LayerLink _layerLink = LayerLink();
   final GlobalKey _targetKey = GlobalKey();
   final GlobalKey _menuKey = GlobalKey();
+
   ValueListenable<Offset?>? _attachedCursorPosition;
   VoidCallback? _cursorPositionListener;
   Size? _menuSize;
