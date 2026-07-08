@@ -198,6 +198,27 @@ impl DsGroupState {
             return Err(ResyncClientError::InvalidMessage);
         };
 
+        // Bind the two legs at the new leaf: the T and PQ update paths must be signed with the same
+        // signature key.
+        let t_new_leaf_key = t_staged_commit
+            .update_path_leaf_node()
+            .ok_or_else(|| {
+                error!("T update path leaf node not found");
+                ResyncClientError::InvalidMessage
+            })?
+            .signature_key();
+        let pq_new_leaf_key = pq_staged_commit
+            .update_path_leaf_node()
+            .ok_or_else(|| {
+                error!("PQ update path leaf node not found");
+                ResyncClientError::InvalidMessage
+            })?
+            .signature_key();
+        if t_new_leaf_key != pq_new_leaf_key {
+            error!("T and PQ update path signature keys do not match");
+            return Err(ResyncClientError::InvalidMessage);
+        }
+
         let t_sender = VerifiableClientCredential::from_basic_credential(
             t_group_state
                 .group
