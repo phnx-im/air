@@ -21,7 +21,7 @@ import '../helpers.dart';
 import '../mocks.dart';
 
 // NB: do not forget to adjust this, when you add more content to render
-const highTestSize = Size(1080, 4300);
+const highTestSize = Size(1080, 4500);
 
 final chatId = 1.chatId();
 
@@ -371,6 +371,37 @@ final messages = [
       UiReaction(emoji: "🤯", users: [5.userId()]),
       UiReaction(emoji: "🤨", users: [4.userId()]),
     ],
+  ),
+  // Own message with a long single line (including an unbreakable URL) that
+  // must wrap inside the bubble. Guards against the bubble losing its width
+  // constraint on desktop, where the hover react affordance wraps it in a Row.
+  UiChatMessage(
+    id: 16.messageId(),
+    chatId: chatId,
+    timestamp: DateTime.parse('2023-01-02T00:06:00.000Z'),
+    message: UiMessage_Content(
+      UiContentMessage(
+        sender: 1.userId(),
+        sent: true,
+        edited: false,
+        content: UiMimiContent(
+          topicId: Uint8List(0),
+          plainBody:
+              'Here is a really long single line without any hard breaks that '
+              'has to wrap onto multiple lines inside the bubble instead of '
+              'overflowing https://example.com/some/really/long/path/that/keeps/going',
+          content: simpleMessage(
+            'Here is a really long single line without any hard breaks that '
+            'has to wrap onto multiple lines inside the bubble instead of '
+            'overflowing https://example.com/some/really/long/path/that/keeps/going',
+          ),
+          attachments: [],
+        ),
+      ),
+    ),
+    position: UiFlightPosition.single,
+    status: UiMessageStatus.read,
+    reactions: [],
   ),
 ];
 
