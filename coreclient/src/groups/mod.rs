@@ -115,7 +115,7 @@ use openmls::{
         UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
     },
     schedule::{ExternalPsk, PreSharedKeyId, Psk},
-    treesync::{RatchetTree, errors::LeafNodeValidationError},
+    treesync::{RatchetTree, RatchetTreeIn, errors::LeafNodeValidationError},
 };
 
 use self::{client_auth_info::StorableClientCredential, diff::StagedGroupDiff};
@@ -925,6 +925,58 @@ impl Group {
         }
     }
 
+    /// Build the positional fallback map (user id -> encrypted profile key).
+    ///
+    /// Used when the commit info carries no indexed keys. Credentials are verified later, so
+    /// undecodable leaves are simply skipped here.
+    fn encrypted_profile_keys_fallback(
+        ratchet_tree: &RatchetTreeIn,
+        encrypted_user_profile_keys: Vec<EncryptedUserProfileKey>,
+        indexed_encrypted_user_profile_keys: &HashMap<LeafNodeIndex, EncryptedUserProfileKey>,
+    ) -> HashMap<UserId, EncryptedUserProfileKey> {
+        if !indexed_encrypted_user_profile_keys.is_empty() {
+            return HashMap::new();
+        }
+        ratchet_tree
+            .leaves()
+            .zip(encrypted_user_profile_keys)
+            .filter_map(|(leaf_node, profile_key)| {
+                let cred =
+                    VerifiableClientCredential::from_basic_credential(leaf_node.credential())
+                        .ok()?;
+                Some((cred.user_id().clone(), profile_key))
+            })
+            .collect()
+    }
+
+    /// Persist a freshly joined group after an external commit.
+    ///
+    /// Replace any prior group with the same id, store the client credentials, and decrypt the
+    /// member profile keys.
+    async fn store_after_external_join(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+        credentials: Vec<StorableClientCredential>,
+        indexed_encrypted_user_profile_keys: HashMap<LeafNodeIndex, EncryptedUserProfileKey>,
+        encrypted_profile_keys_fallback: HashMap<UserId, EncryptedUserProfileKey>,
+        own_user_id: &UserId,
+    ) -> anyhow::Result<DecryptedProfileInfos> {
+        // If the group previously existed, delete it first.
+        Group::delete_from_db(txn, self.group_id()).await?;
+        self.store(&mut *txn).await?;
+
+        for credential in &credentials {
+            credential.store(&mut *txn).await?;
+        }
+
+        Ok(self.decrypt_member_profile_keys(
+            credentials,
+            indexed_encrypted_user_profile_keys,
+            encrypted_profile_keys_fallback,
+            own_user_id,
+        ))
+    }
+
     /// Join a group using an external commit.
     #[expect(clippy::too_many_arguments)]
     pub(super) async fn join_group_externally(
@@ -995,23 +1047,11 @@ impl Group {
                 .with_extensions(default_leaf_node_extensions::<AirComponent>())
                 .build();
 
-            let encrypted_profile_keys_fallback = if indexed_encrypted_user_profile_keys.is_empty()
-            {
-                ratchet_tree_in
-                    .leaves()
-                    .zip(encrypted_user_profile_keys)
-                    .filter_map(|(leaf_node, profile_key)| {
-                        let cred = VerifiableClientCredential::from_basic_credential(
-                            leaf_node.credential(),
-                        )
-                        .ok()?;
-                        // Credentials will be verified below
-                        Some((cred.user_id().clone(), profile_key))
-                    })
-                    .collect()
-            } else {
-                Default::default()
-            };
+            let encrypted_profile_keys_fallback = Self::encrypted_profile_keys_fallback(
+                &ratchet_tree_in,
+                encrypted_user_profile_keys,
+                &indexed_encrypted_user_profile_keys,
+            );
 
             let mut builder = ExternalCommitBuilder::new()
                 .with_proposals(proposals)
@@ -1062,20 +1102,15 @@ impl Group {
         };
 
         // Phase 4: Store the group and client auth info.
-        // If the group previously existed, delete it first.
-        Group::delete_from_db(txn, group.group_id()).await?;
-        group.store(&mut *txn).await?;
-
-        for credential in &credentials {
-            credential.store(&mut *txn).await?;
-        }
-
-        let member_profile_info = group.decrypt_member_profile_keys(
-            credentials,
-            indexed_encrypted_user_profile_keys,
-            encrypted_profile_keys_fallback,
-            signer.credential().user_id(),
-        );
+        let member_profile_info = group
+            .store_after_external_join(
+                txn,
+                credentials,
+                indexed_encrypted_user_profile_keys,
+                encrypted_profile_keys_fallback,
+                signer.credential().user_id(),
+            )
+            .await?;
 
         Ok(Ok((group, commit, group_info.into(), member_profile_info)))
     }
@@ -1148,23 +1183,11 @@ impl Group {
 
         let group_info = VerifiableApqGroupInfo::new(t_group_info, pq_group_info);
 
-        let encrypted_profile_keys_fallback: HashMap<_, _> = if indexed_encrypted_user_profile_keys
-            .is_empty()
-        {
-            t_ratchet_tree
-                .leaves()
-                .zip(encrypted_user_profile_keys)
-                .filter_map(|(leaf_node, profile_key)| {
-                    let cred =
-                        VerifiableClientCredential::from_basic_credential(leaf_node.credential())
-                            .ok()?;
-                    // Credentials will be verified below
-                    Some((cred.user_id().clone(), profile_key))
-                })
-                .collect()
-        } else {
-            Default::default()
-        };
+        let encrypted_profile_keys_fallback = Self::encrypted_profile_keys_fallback(
+            &t_ratchet_tree,
+            encrypted_user_profile_keys,
+            &indexed_encrypted_user_profile_keys,
+        );
 
         let ratchet_tree = ApqRatchetTreeIn::new(t_ratchet_tree, pq_ratchet_tree);
 
@@ -1214,20 +1237,15 @@ impl Group {
             send_message_collision_key: None,
         };
 
-        // If the group previously existed, delete it first.
-        Group::delete_from_db(txn, group.group_id()).await?;
-        group.store(&mut *txn).await?;
-
-        for credential in &credentials {
-            credential.store(&mut *txn).await?;
-        }
-
-        let member_profile_info = group.decrypt_member_profile_keys(
-            credentials,
-            indexed_encrypted_user_profile_keys,
-            encrypted_profile_keys_fallback,
-            signer.credential().user_id(),
-        );
+        let member_profile_info = group
+            .store_after_external_join(
+                txn,
+                credentials,
+                indexed_encrypted_user_profile_keys,
+                encrypted_profile_keys_fallback,
+                signer.credential().user_id(),
+            )
+            .await?;
 
         Ok(Ok((group, commit_bundle, member_profile_info)))
     }

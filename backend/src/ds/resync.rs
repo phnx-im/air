@@ -23,6 +23,42 @@ use super::process::USER_EXPIRATION_DAYS;
 use super::group_state::DsGroupState;
 
 impl DsGroupState {
+    /// Change the room-state role of every removed client to `Outsider`, using `sender` as the
+    /// acting party.
+    fn change_removed_roles_to_outsider(
+        &mut self,
+        sender: &VerifiableClientCredential,
+        removed_indices: &[LeafNodeIndex],
+    ) -> Result<(), ResyncClientError> {
+        for &removed_index in removed_indices {
+            let removed = self
+                .leaf_credential(removed_index)
+                .ok_or(ResyncClientError::InvalidMessage)?;
+            self.room_state_change_role(sender.user_id(), removed.user_id(), RoleIndex::Outsider)
+                .ok_or_else(|| {
+                    error!(%removed_index, "Failed to change role of removed client");
+                    ResyncClientError::InvalidMessage
+                })?;
+        }
+        Ok(())
+    }
+
+    /// An external commit re-adds the client at the leftmost blank leaf. If it differs from the
+    /// original leaf index, re-key the member profile accordingly, so that fan-out exclusion and QS
+    /// references stay correct.
+    fn rekey_sender_profile(&mut self, old_index: LeafNodeIndex, new_index: LeafNodeIndex) {
+        if new_index != old_index
+            && let Some(mut profile) = self.member_profiles.remove(&old_index)
+        {
+            profile.leaf_index = new_index;
+            // The external committer joins at the leftmost blank leaf. At this point all profiles
+            // of clients removed by this commit (including the sender's old entry) have been
+            // removed, so the new index is guaranteed to be vacant.
+            debug_assert!(!self.member_profiles.contains_key(&new_index));
+            self.member_profiles.insert(new_index, profile);
+        }
+    }
+
     pub(crate) fn resync_client(
         &mut self,
         external_commit: AssistedMessageIn,
@@ -68,19 +104,9 @@ impl DsGroupState {
             return Err(ResyncClientError::InvalidMessage);
         }
 
-        let sender = VerifiableClientCredential::from_basic_credential(
-            self.group
-                .leaf(sender_index)
-                .ok_or_else(|| {
-                    error!(%sender_index, "Leaf node for sender not found");
-                    ResyncClientError::InvalidMessage
-                })?
-                .credential(),
-        )
-        .map_err(|error| {
-            error!(%error, "Credential of sender is invalid");
-            ResyncClientError::InvalidMessage
-        })?;
+        let sender = self
+            .leaf_credential(sender_index)
+            .ok_or(ResyncClientError::InvalidMessage)?;
 
         // Collect all removed clients except the sender.
         let mut removed_indices = removed_clients(staged_commit_message);
@@ -94,26 +120,7 @@ impl DsGroupState {
         removed_indices.swap_remove(sender_index_pos);
 
         // Change room state roles of removed clients to outsider.
-        for &removed_index in &removed_indices {
-            let removed = VerifiableClientCredential::from_basic_credential(
-                self.group()
-                    .leaf(removed_index)
-                    .ok_or_else(|| {
-                        error!(%removed_index, "Leaf node for removed client not found");
-                        ResyncClientError::InvalidMessage
-                    })?
-                    .credential(),
-            )
-            .map_err(|error| {
-                error!(%error, "Credential of removed user is invalid");
-                ResyncClientError::InvalidMessage
-            })?;
-            self.room_state_change_role(sender.user_id(), removed.user_id(), RoleIndex::Outsider)
-                .ok_or_else(|| {
-                    error!(%removed_index, "Failed to change role of removed client");
-                    ResyncClientError::InvalidMessage
-                })?;
-        }
+        self.change_removed_roles_to_outsider(&sender, &removed_indices)?;
 
         // Everything seems to be okay.
         // Now we have to update the group state and distribute.
@@ -135,19 +142,7 @@ impl DsGroupState {
 
         self.remove_profiles(removed_indices);
 
-        // An external commit re-adds the client at the leftmost blank leaf. If it differs from the
-        // original leaf index, we need to re-key the member profile accordingly, so that fan-out
-        // exclusion and QS references stay correct.
-        if new_sender_index != sender_index
-            && let Some(mut profile) = self.member_profiles.remove(&sender_index)
-        {
-            profile.leaf_index = new_sender_index;
-            // The external committer joins at the leftmost blank leaf. At this point all profiles
-            // of clients removed by this commit (including the sender's old entry) have been
-            // removed, so the new index is guaranteed to be vacant.
-            debug_assert!(!self.member_profiles.contains_key(&new_sender_index));
-            self.member_profiles.insert(new_sender_index, profile);
-        }
+        self.rekey_sender_profile(sender_index, new_sender_index);
 
         Ok(processed_assisted_message_plus.serialized_mls_message)
     }
@@ -219,20 +214,9 @@ impl DsGroupState {
             return Err(ResyncClientError::InvalidMessage);
         }
 
-        let t_sender = VerifiableClientCredential::from_basic_credential(
-            t_group_state
-                .group
-                .leaf(t_sender_index)
-                .ok_or_else(|| {
-                    error!(%t_sender_index, "Leaf node for sender not found");
-                    ResyncClientError::InvalidMessage
-                })?
-                .credential(),
-        )
-        .map_err(|error| {
-            error!(%error, "Credential of sender is invalid");
-            ResyncClientError::InvalidMessage
-        })?;
+        let t_sender = t_group_state
+            .leaf_credential(t_sender_index)
+            .ok_or(ResyncClientError::InvalidMessage)?;
 
         // Collect all removed clients except the sender
         let mut t_removed_indices = removed_clients(t_staged_commit);
@@ -253,28 +237,7 @@ impl DsGroupState {
         t_removed_indices.swap_remove(sender_index_pos);
 
         // Change room state roles of removed clients to outsider (in T group)
-        for &removed_index in &t_removed_indices {
-            let removed = VerifiableClientCredential::from_basic_credential(
-                t_group_state
-                    .group
-                    .leaf(removed_index)
-                    .ok_or_else(|| {
-                        error!(%removed_index, "Leaf node for removed client not found");
-                        ResyncClientError::InvalidMessage
-                    })?
-                    .credential(),
-            )
-            .map_err(|error| {
-                error!(%error, "Credential of removed user is invalid");
-                ResyncClientError::InvalidMessage
-            })?;
-            t_group_state
-                .room_state_change_role(t_sender.user_id(), removed.user_id(), RoleIndex::Outsider)
-                .ok_or_else(|| {
-                    error!(%removed_index, "Failed to change role of removed client");
-                    ResyncClientError::InvalidMessage
-                })?;
-        }
+        t_group_state.change_removed_roles_to_outsider(&t_sender, &t_removed_indices)?;
 
         let t_new_sender_index = t_group_state
             .group
@@ -308,25 +271,7 @@ impl DsGroupState {
 
         t_group_state.remove_profiles(t_removed_indices);
 
-        // An external commit re-adds the client at the leftmost blank leaf. If it differs from the
-        // original leaf index, we need to re-key the member profile accordingly, so that fan-out
-        // exclusion and QS references stay correct.
-        if t_new_sender_index != t_sender_index
-            && let Some(mut profile) = t_group_state.member_profiles.remove(&t_sender_index)
-        {
-            profile.leaf_index = t_new_sender_index;
-            // The external committer joins at the leftmost blank leaf. At this point all profiles
-            // of clients removed by this commit (including the sender's old entry) have been
-            // removed, so the new index is guaranteed to be vacant.
-            debug_assert!(
-                !t_group_state
-                    .member_profiles
-                    .contains_key(&t_new_sender_index)
-            );
-            t_group_state
-                .member_profiles
-                .insert(t_new_sender_index, profile);
-        }
+        t_group_state.rekey_sender_profile(t_sender_index, t_new_sender_index);
         // Profiles are never maintained in PQ group state
 
         Ok(processed_assisted_message_plus.serialized_apq_message)
