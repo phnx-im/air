@@ -172,7 +172,13 @@ impl Group {
         };
 
         // Check that the signature keys of the sender match
-        self.verify_pq_signature_key_at(post_process_state.sender_index)?;
+        //
+        // Skip this check for external-commit senders (resync, join connection group). Their leaf
+        // is not visible in the live tree until the commit is merged. This check is in
+        // `verify_pq_update_path_signature_key` instead.
+        if !matches!(processed_message.sender(), Sender::NewMemberCommit) {
+            self.verify_pq_signature_key_at(post_process_state.sender_index)?;
+        }
 
         // Decrypt any user profile keys
         let profile_infos = post_process_state
