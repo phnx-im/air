@@ -95,6 +95,14 @@ impl_signed_payload!(
 );
 
 impl_signed_payload!(
+    request = super::v1::ApqResyncRequest,
+    payload = super::v1::ApqResyncPayload,
+    key_type = ClientKeyType,
+    label = "ApqResyncPayload",
+    seal = private_mod::Seal,
+);
+
+impl_signed_payload!(
     request = super::v1::UpdateProfileKeyRequest,
     payload = super::v1::UpdateProfileKeyPayload,
     key_type = ClientKeyType,

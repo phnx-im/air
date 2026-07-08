@@ -33,6 +33,14 @@ pub struct ExternalCommitInfoIn {
     pub room_state: VerifiedRoomState,
     pub proposals: Vec<Vec<u8>>,
     pub indexed_encrypted_user_profile_keys: HashMap<LeafNodeIndex, EncryptedUserProfileKey>,
+    /// Present iff the request carried a `pq_qgid`, i.e. the caller is joining an APQ group.
+    pub pq: Option<PqExternalCommitInfoIn>,
+}
+
+pub struct PqExternalCommitInfoIn {
+    pub group_info: VerifiableGroupInfo,
+    pub ratchet_tree: RatchetTreeIn,
+    pub proposals: Vec<Vec<u8>>,
 }
 
 #[derive(Debug)]

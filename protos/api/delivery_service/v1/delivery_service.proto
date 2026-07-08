@@ -26,6 +26,8 @@ service DeliveryService {
 
   rpc Resync(ResyncRequest) returns (ResyncResponse);
 
+  rpc ApqResync(ApqResyncRequest) returns (ApqResyncResponse);
+
   rpc SelfRemove(SelfRemoveRequest) returns (SelfRemoveResponse);
 
   rpc ApqSelfRemove(ApqSelfRemoveRequest) returns (ApqSelfRemoveResponse);
@@ -223,6 +225,8 @@ message ExternalCommitInfoRequest {
   common.v1.ClientMetadata client_metadata = 3;
   common.v1.QualifiedGroupId qgid = 1;
   GroupStateEarKey group_state_ear_key = 2;
+  // Present iff joining an APQ group
+  common.v1.QualifiedGroupId pq_qgid = 4;
 }
 
 message ExternalCommitInfoResponse {
@@ -232,6 +236,10 @@ message ExternalCommitInfoResponse {
   RoomState room_state = 5;
   repeated MlsMessage proposals = 6;
   repeated IndexedEncryptedUserProfileKey indexed_encrypted_user_profile_keys = 7;
+  // Present iff the request carried a `pq_qgid`.
+  GroupInfo pq_group_info = 8;
+  RatchetTree pq_ratchet_tree = 9;
+  repeated MlsMessage pq_proposals = 10;
 }
 
 message GroupInfo {
@@ -273,8 +281,7 @@ message JoinConnectionGroupResponse {
 message ResyncRequest {
   ResyncPayload payload = 1;
   common.v1.Signature signature = 2;
-  // Index of the sender before processing the commit
-  LeafNodeIndex sender_index = 3;
+  reserved 3;
 }
 
 message ResyncPayload {
@@ -285,6 +292,24 @@ message ResyncPayload {
 }
 
 message ResyncResponse {
+  common.v1.Timestamp fanout_timestamp = 1;
+}
+
+// apq resync
+
+message ApqResyncRequest {
+  ApqResyncPayload payload = 1;
+  common.v1.Signature signature = 2;
+}
+
+message ApqResyncPayload {
+  common.v1.ClientMetadata client_metadata = 1;
+  GroupStateEarKey group_state_ear_key = 2;
+  ApqAssistedMlsMessage external_commit = 3;
+  LeafNodeIndex sender = 4;
+}
+
+message ApqResyncResponse {
   common.v1.Timestamp fanout_timestamp = 1;
 }
 

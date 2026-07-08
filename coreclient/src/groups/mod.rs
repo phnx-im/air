@@ -14,7 +14,12 @@ pub(crate) mod openmls_provider;
 pub(crate) mod persistence;
 pub(crate) mod process;
 
-use apqmls::commit_builder::ApqCommitMessageBundle;
+use apqmls::{
+    authentication::ApqCredentialWithKey,
+    commit_builder::ApqCommitMessageBundle,
+    external_commit_builder::{ApqExternalCommitBuilder, ApqExternalCommitBuilderError},
+    messages::{ApqProposalIn, ApqRatchetTreeIn, VerifiableApqGroupInfo},
+};
 pub(crate) use error::*;
 pub(crate) use persistence::VerifiedGroup;
 
@@ -46,8 +51,9 @@ use aircommon::{
         client_ds_out::{
             AddUsersInfoOut, ApqGroupOperationParamsOut, CollisionTag, CreateGroupParamsOut,
             CreatePqGroupParamsOut, DeleteGroupParamsOut, ExternalCommitInfoIn,
-            GroupOperationParamsOut, SelfRemoveParamsOut, SendMessageCollisionTag,
-            SendMessageParamsOut, TargetedMessageParamsOut, TargetedMessageType, WelcomeInfoIn,
+            GroupOperationParamsOut, PqExternalCommitInfoIn, SelfRemoveParamsOut,
+            SendMessageCollisionTag, SendMessageParamsOut, TargetedMessageParamsOut,
+            TargetedMessageType, WelcomeInfoIn,
         },
         welcome_attribution_info::{
             WelcomeAttributionInfo, WelcomeAttributionInfoPayload, WelcomeAttributionInfoTbs,
@@ -101,15 +107,15 @@ use openmls::{
     },
     key_packages::KeyPackageBundle,
     prelude::{
-        AppDataDictionaryExtension, BasicCredentialError, CredentialWithKey, Extension, Extensions,
-        GroupId, LeafNode, LeafNodeIndex, LeafNodeParameters, MlsGroup, MlsMessageBodyIn,
-        MlsMessageIn, MlsMessageOut, OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY,
-        PreSharedKeyProposal, Proposal, ProposalType, ProtocolVersion, QueuedProposal, Sender,
-        SignaturePublicKey, StagedCommit, UnknownExtension,
-        tls_codec::Serialize as TlsSerializeTrait,
+        AppDataDictionaryExtension, BasicCredentialError, Credential, CredentialType,
+        CredentialWithKey, Extension, Extensions, GroupId, LeafNode, LeafNodeIndex,
+        LeafNodeParameters, MlsGroup, MlsMessageBodyIn, MlsMessageIn, MlsMessageOut,
+        OpenMlsProvider, PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal,
+        ProposalType, ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
+        UnknownExtension, tls_codec::Serialize as TlsSerializeTrait,
     },
     schedule::{ExternalPsk, PreSharedKeyId, Psk},
-    treesync::{RatchetTree, errors::LeafNodeValidationError},
+    treesync::{RatchetTree, RatchetTreeIn, errors::LeafNodeValidationError},
 };
 
 use self::{client_auth_info::StorableClientCredential, diff::StagedGroupDiff};
@@ -919,8 +925,60 @@ impl Group {
         }
     }
 
+    /// Build the positional fallback map (user id -> encrypted profile key).
+    ///
+    /// Used when the commit info carries no indexed keys. Credentials are verified later, so
+    /// undecodable leaves are simply skipped here.
+    fn encrypted_profile_keys_fallback(
+        ratchet_tree: &RatchetTreeIn,
+        encrypted_user_profile_keys: Vec<EncryptedUserProfileKey>,
+        indexed_encrypted_user_profile_keys: &HashMap<LeafNodeIndex, EncryptedUserProfileKey>,
+    ) -> HashMap<UserId, EncryptedUserProfileKey> {
+        if !indexed_encrypted_user_profile_keys.is_empty() {
+            return HashMap::new();
+        }
+        ratchet_tree
+            .leaves()
+            .zip(encrypted_user_profile_keys)
+            .filter_map(|(leaf_node, profile_key)| {
+                let cred =
+                    VerifiableClientCredential::from_basic_credential(leaf_node.credential())
+                        .ok()?;
+                Some((cred.user_id().clone(), profile_key))
+            })
+            .collect()
+    }
+
+    /// Persist a freshly joined group after an external commit.
+    ///
+    /// Replace any prior group with the same id, store the client credentials, and decrypt the
+    /// member profile keys.
+    async fn store_after_external_join(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+        credentials: Vec<StorableClientCredential>,
+        indexed_encrypted_user_profile_keys: HashMap<LeafNodeIndex, EncryptedUserProfileKey>,
+        encrypted_profile_keys_fallback: HashMap<UserId, EncryptedUserProfileKey>,
+        own_user_id: &UserId,
+    ) -> anyhow::Result<DecryptedProfileInfos> {
+        // If the group previously existed, delete it first.
+        Group::delete_from_db(txn, self.group_id()).await?;
+        self.store(&mut *txn).await?;
+
+        for credential in &credentials {
+            credential.store(&mut *txn).await?;
+        }
+
+        Ok(self.decrypt_member_profile_keys(
+            credentials,
+            indexed_encrypted_user_profile_keys,
+            encrypted_profile_keys_fallback,
+            own_user_id,
+        ))
+    }
+
     /// Join a group using an external commit.
-    #[allow(clippy::too_many_arguments)]
+    #[expect(clippy::too_many_arguments)]
     pub(super) async fn join_group_externally(
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
@@ -949,7 +1007,10 @@ impl Group {
             indexed_encrypted_user_profile_keys,
             room_state,
             proposals,
+            pq,
         } = external_commit_info;
+
+        ensure!(pq.is_none(), "APQ group in non-APQ stage_invite");
 
         let proposals: Vec<_> = proposals
             .iter()
@@ -986,23 +1047,11 @@ impl Group {
                 .with_extensions(default_leaf_node_extensions::<AirComponent>())
                 .build();
 
-            let encrypted_profile_keys_fallback = if indexed_encrypted_user_profile_keys.is_empty()
-            {
-                ratchet_tree_in
-                    .leaves()
-                    .zip(encrypted_user_profile_keys)
-                    .filter_map(|(leaf_node, profile_key)| {
-                        let cred = VerifiableClientCredential::from_basic_credential(
-                            leaf_node.credential(),
-                        )
-                        .ok()?;
-                        // Credentials will be verified below
-                        Some((cred.user_id().clone(), profile_key))
-                    })
-                    .collect()
-            } else {
-                Default::default()
-            };
+            let encrypted_profile_keys_fallback = Self::encrypted_profile_keys_fallback(
+                &ratchet_tree_in,
+                encrypted_user_profile_keys,
+                &indexed_encrypted_user_profile_keys,
+            );
 
             let mut builder = ExternalCommitBuilder::new()
                 .with_proposals(proposals)
@@ -1053,22 +1102,152 @@ impl Group {
         };
 
         // Phase 4: Store the group and client auth info.
-        // If the group previously existed, delete it first.
-        Group::delete_from_db(txn, group.group_id()).await?;
-        group.store(&mut *txn).await?;
-
-        for credential in &credentials {
-            credential.store(&mut *txn).await?;
-        }
-
-        let member_profile_info = group.decrypt_member_profile_keys(
-            credentials,
-            indexed_encrypted_user_profile_keys,
-            encrypted_profile_keys_fallback,
-            signer.credential().user_id(),
-        );
+        let member_profile_info = group
+            .store_after_external_join(
+                txn,
+                credentials,
+                indexed_encrypted_user_profile_keys,
+                encrypted_profile_keys_fallback,
+                signer.credential().user_id(),
+            )
+            .await?;
 
         Ok(Ok((group, commit, group_info.into(), member_profile_info)))
+    }
+
+    /// Join an APQ group using an external commit.
+    pub(super) async fn join_apq_group_externally(
+        txn: &mut WriteDbTransaction<'_>,
+        api_clients: &ApiClients,
+        external_commit_info: ExternalCommitInfoIn,
+        signer: &ClientSigningKey,
+        group_state_ear_key: GroupStateEarKey,
+        identity_link_wrapper_key: IdentityLinkWrapperKey,
+        aad: AadMessage,
+    ) -> anyhow::Result<
+        Result<(Self, ApqCommitMessageBundle, DecryptedProfileInfos), LeafNodeValidationError>,
+    > {
+        // Prepare credentials
+        let t_credential = CredentialWithKey {
+            credential: signer.credential().try_into()?,
+            signature_key: signer.credential().verifying_key().clone().into(),
+        };
+        // Skip storing the same credential twice
+        let pq_credential = CredentialWithKey {
+            credential: Credential::new(CredentialType::Basic, Vec::new()),
+            signature_key: signer.credential().verifying_key().clone().into(),
+        };
+        let credential_with_key = ApqCredentialWithKey {
+            t_credential,
+            pq_credential,
+        };
+
+        // Unpack the external commit info
+        let ExternalCommitInfoIn {
+            verifiable_group_info: t_group_info,
+            ratchet_tree_in: t_ratchet_tree,
+            encrypted_user_profile_keys,
+            indexed_encrypted_user_profile_keys,
+            room_state,
+            proposals: t_proposals,
+            pq:
+                Some(PqExternalCommitInfoIn {
+                    group_info: pq_group_info,
+                    ratchet_tree: pq_ratchet_tree,
+                    proposals: pq_proposals,
+                }),
+        } = external_commit_info
+        else {
+            bail!("Non-APQ group in APQ join");
+        };
+
+        ensure!(
+            t_proposals.len() == pq_proposals.len(),
+            "Invalid number of proposals"
+        );
+        let proposals: Vec<ApqProposalIn> = t_proposals
+            .into_iter()
+            .zip(pq_proposals)
+            .filter_map(|(t, pq)| {
+                // Invalid proposals are filtered out
+                let t_mls_message = MlsMessageIn::tls_deserialize_exact_bytes(&t).ok()?;
+                let pq_mls_message = MlsMessageIn::tls_deserialize_exact_bytes(&pq).ok()?;
+                match (t_mls_message.extract(), pq_mls_message.extract()) {
+                    (MlsMessageBodyIn::PublicMessage(t), MlsMessageBodyIn::PublicMessage(pq)) => {
+                        Some(ApqProposalIn::new(t, pq))
+                    }
+                    _ => None,
+                }
+            })
+            .collect();
+
+        let group_info = VerifiableApqGroupInfo::new(t_group_info, pq_group_info);
+
+        let encrypted_profile_keys_fallback = Self::encrypted_profile_keys_fallback(
+            &t_ratchet_tree,
+            encrypted_user_profile_keys,
+            &indexed_encrypted_user_profile_keys,
+        );
+
+        let ratchet_tree = ApqRatchetTreeIn::new(t_ratchet_tree, pq_ratchet_tree);
+
+        // Build the group
+        let mls_group_config = default_mls_group_join_config();
+        let leaf_node_params = LeafNodeParameters::builder()
+            .with_capabilities(default_leaf_node_capabilities())
+            .with_extensions(default_leaf_node_extensions::<AirComponent>())
+            .build();
+
+        let provider = AirOpenMlsProvider::new(txn.as_mut());
+        let res = ApqExternalCommitBuilder::new()
+            .with_ratchet_tree(ratchet_tree)
+            .with_proposals(proposals)
+            .with_aad(aad.tls_serialize_detached()?)
+            .with_config(mls_group_config)
+            .skip_lifetime_validation()
+            .leaf_node_parameters(leaf_node_params.clone(), leaf_node_params)
+            .create_group_info(true)
+            .build(&provider, signer, credential_with_key, group_info);
+        let (apq_mls_group, commit_bundle) = match res {
+            Ok(built) => built,
+            Err(ApqExternalCommitBuilderError::BuildCommit(error)) => {
+                return Ok(Err(to_capabilities_mismatch(error)?));
+            }
+            Err(error) => return Err(error.into()),
+        };
+        let (t_group, pq_group) = apq_mls_group.into_groups();
+
+        // Verify credentials (T only)
+        let credentials = verify_member_credentials(&mut *txn, api_clients, &t_group).await?;
+
+        // Store the group, credentials and member profile infos
+        let now = TimeStamp::now();
+        let group = Self {
+            mls_group: t_group,
+            identity_link_wrapper_key,
+            group_state_ear_key,
+            pending_diff: None,
+            room_state,
+            self_updated_at: Some(now),
+            pq: Some(PqGroup {
+                mls_group: pq_group,
+                self_updated_at: Some(now),
+            }),
+            pending_commit_failed: false,
+            send_message_collision_key: None,
+        };
+
+        let member_profile_info = group
+            .store_after_external_join(
+                txn,
+                credentials,
+                indexed_encrypted_user_profile_keys,
+                encrypted_profile_keys_fallback,
+                signer.credential().user_id(),
+            )
+            .await?;
+
+        Ok(Ok((group, commit_bundle, member_profile_info)))
     }
 
     /// Invite the given list of contacts to join the group.

@@ -123,19 +123,9 @@ impl DsGroupState {
             }
         };
 
-        let sender = VerifiableClientCredential::from_basic_credential(
-            self.group
-                .leaf(sender_index.leaf_index())
-                .ok_or_else(|| {
-                    error!("Leaf of sender not found");
-                    GroupOperationError::InvalidMessage
-                })?
-                .credential(),
-        )
-        .map_err(|e| {
-            error!(%e, "Credential in leaf of sender is invalid");
-            GroupOperationError::InvalidMessage
-        })?;
+        let sender = self
+            .leaf_credential(sender_index.leaf_index())
+            .ok_or(GroupOperationError::InvalidMessage)?;
 
         // Check if the operation adds a user.
         let adds_users = staged_commit.add_proposals().count() != 0;

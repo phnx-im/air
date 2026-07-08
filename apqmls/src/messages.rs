@@ -319,6 +319,13 @@ pub struct VerifiableApqGroupInfo {
 }
 
 impl VerifiableApqGroupInfo {
+    pub fn new(t_group_info: VerifiableGroupInfo, pq_group_info: VerifiableGroupInfo) -> Self {
+        Self {
+            t_group_info,
+            pq_group_info,
+        }
+    }
+
     /// Verifies the group info and returns the contained [`ApqGroupInfo`].
     pub fn verify(
         self,

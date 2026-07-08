@@ -172,7 +172,13 @@ impl Group {
         };
 
         // Check that the signature keys of the sender match
-        self.verify_pq_signature_key_at(post_process_state.sender_index)?;
+        //
+        // Skip this check for external-commit senders (resync, join connection group). Their leaf
+        // is not visible in the live tree until the commit is merged; `post_process_staged_commit`
+        // checks the update-path leaf keys instead.
+        if !matches!(processed_message.sender(), Sender::NewMemberCommit) {
+            self.verify_pq_signature_key_at(post_process_state.sender_index)?;
+        }
 
         // Decrypt any user profile keys
         let profile_infos = post_process_state
@@ -206,6 +212,17 @@ impl Group {
 
         let staged_commit = expect_staged_commit(processed_message)?;
         let pq_staged_commit = pq_processed_message.map(expect_staged_commit).transpose()?;
+
+        // For an external commit (resync, join connection group), the sender's new leaf lives in
+        // the commit's update path and is not visible in the live tree until the commit is merged.
+        // Bind the T and PQ legs here, regardless of which AAD payload the commit carries.
+        if let Sender::NewMemberCommit = processed_message.sender() {
+            let t_leaf_key = staged_commit
+                .update_path_leaf_node()
+                .context("Could not find sender leaf node")?
+                .signature_key();
+            verify_pq_update_path_signature_key(t_leaf_key, pq_staged_commit)?;
+        }
 
         let sender_index = match processed_message.sender() {
             Sender::Member(index) => index.to_owned(),
@@ -283,7 +300,6 @@ impl Group {
                         txn,
                         api_clients,
                         processed_message,
-                        pq_staged_commit,
                         join_connection_group_payload,
                     )
                     .await?;
@@ -293,7 +309,7 @@ impl Group {
                 }
             }
             AadPayload::Resync => {
-                self.process_resync_aad(txn, api_clients, processed_message, pq_staged_commit)
+                self.process_resync_aad(txn, api_clients, processed_message)
                     .await?;
                 PostProcessAadResult {
                     we_were_removed: false,
@@ -412,7 +428,6 @@ impl Group {
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         processed_message: &ProcessedMessage,
-        pq_staged_commit: Option<&StagedCommit>,
         join_connection_group_payload: JoinConnectionGroupParamsAad,
     ) -> Result<(ClientCredential, EncryptedUserProfileKey)> {
         let staged_commit = expect_staged_commit(processed_message)?;
@@ -428,9 +443,6 @@ impl Group {
         // JoinConnectionGroup Phase 1: Decrypt and verify the
         // client credential of the joiner
         let (sender_credential, sender_leaf_key) = update_path_leaf_node_info(staged_commit)?;
-
-        // Verify that T/PQ signature keys match
-        verify_pq_update_path_signature_key(sender_leaf_key, pq_staged_commit)?;
 
         let as_credentials = AsCredentials::fetch_for_verification(
             &mut *txn,
@@ -463,7 +475,6 @@ impl Group {
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         processed_message: &ProcessedMessage,
-        pq_staged_commit: Option<&StagedCommit>,
     ) -> Result<()> {
         let staged_commit = expect_staged_commit(processed_message)?;
 
@@ -475,9 +486,6 @@ impl Group {
         );
 
         let (sender_credential, sender_leaf_key) = update_path_leaf_node_info(staged_commit)?;
-
-        // Verify that T/PQ signature keys match
-        verify_pq_update_path_signature_key(sender_leaf_key, pq_staged_commit)?;
 
         let removed_index = staged_commit
             .remove_proposals()
