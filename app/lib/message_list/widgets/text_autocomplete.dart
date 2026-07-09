@@ -62,7 +62,6 @@ abstract class TextAutocompleteStrategy<T> {
     T suggestion,
     bool isHighlighted,
   );
-
 }
 
 /// Drives autocompletion for a text field using a pluggable strategy.
