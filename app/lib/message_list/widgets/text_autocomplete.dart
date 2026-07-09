@@ -62,24 +62,6 @@ abstract class TextAutocompleteStrategy<T> {
     T suggestion,
     bool isHighlighted,
   );
-
-  /// Determine if the trigger should auto-commit without showing suggestions.
-  bool shouldCommitImmediately(
-    TextEditingValue value,
-    AutocompleteTrigger trigger,
-  ) {
-    return false;
-  }
-
-  /// Return true when the suggestion represents an exact match for the query.
-  bool matchesQuery(T suggestion, String query) {
-    return false;
-  }
-
-  /// Optionally provide a suggestion that can be applied immediately.
-  FutureOr<T?> directMatch(String query) {
-    return null;
-  }
 }
 
 /// Drives autocompletion for a text field using a pluggable strategy.
@@ -190,7 +172,7 @@ class TextAutocompleteController<T> {
       unawaited(_overlayController.dismiss());
       return;
     }
-    _loadSuggestions(trigger, valueSnapshot);
+    _loadSuggestions(trigger);
   }
 
   /// Hide the overlay, returning immediately.
@@ -199,10 +181,7 @@ class TextAutocompleteController<T> {
   }
 
   /// Fetch strategy suggestions for the current trigger and show the overlay.
-  Future<void> _loadSuggestions(
-    AutocompleteTrigger trigger,
-    TextEditingValue sourceValue,
-  ) async {
+  Future<void> _loadSuggestions(AutocompleteTrigger trigger) async {
     // Increment the request token so stale async responses can be ignored.
     final requestId = ++_requestToken;
     final results = await Future<List<T>>.value(
@@ -213,18 +192,6 @@ class TextAutocompleteController<T> {
       return;
     }
     if (results.isEmpty) {
-      _activeTrigger = null;
-      await _overlayController.dismiss();
-      return;
-    }
-    if (_strategy.shouldCommitImmediately(sourceValue, trigger)) {
-      final direct = await Future.sync(
-        () => _strategy.directMatch(trigger.query),
-      );
-      if (direct != null) {
-        _applySuggestion(direct);
-        return;
-      }
       _activeTrigger = null;
       await _overlayController.dismiss();
       return;
