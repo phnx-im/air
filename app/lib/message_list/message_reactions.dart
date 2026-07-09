@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:async';
+
 import 'package:air/ds/components/button/glass_circle_button.dart';
 import 'package:air/ds/foundations/elevation.dart';
 import 'package:air/l10n/l10n.dart';
@@ -339,13 +341,21 @@ class QuickReactionBar extends StatelessWidget {
 /// Shows the [QuickReactionBar] as a small popover centered horizontally on
 /// [anchorRect] and placed just above it, falling back to below it when there
 /// isn't room above.
+///
+/// [onMore] opens the full picker on top of this dialog (with a transparent
+/// barrier, see `openFullEmojiPicker`); this dialog stays alive underneath so
+/// the barrier dim doesn't flicker, and pops once the picker resolves.
 Future<void> showQuickReactionMenu({
   required BuildContext context,
   required Rect anchorRect,
   required EmojiSkinVariation skinTone,
   required void Function(String emoji) onReact,
-  required VoidCallback onMore,
+  required Future<void> Function() onMore,
 }) {
+  // Once the full picker has been opened the bar stays hidden for good;
+  // otherwise it would fade back in while this route pops (the picker's
+  // dismissal reverses [secondaryAnimation] concurrently with the pop).
+  var handedOff = false;
   return showGeneralDialog(
     context: context,
     barrierDismissible: true,
@@ -360,18 +370,30 @@ Future<void> showQuickReactionMenu({
         curve: Curves.easeOutCubic,
         reverseCurve: Curves.easeInCubic,
       );
-      return _QuickReactionMenuOverlay(
-        animation: curved,
-        anchorRect: anchorRect,
-        skinTone: skinTone,
-        onReact: (emoji) {
-          Navigator.of(dialogContext).pop();
-          onReact(emoji);
-        },
-        onMore: () {
-          Navigator.of(dialogContext).pop();
-          onMore();
-        },
+      // The bar fades out while the full picker covers this route.
+      return FadeTransition(
+        opacity: handedOff
+            ? const AlwaysStoppedAnimation(0.0)
+            : ReverseAnimation(secondaryAnimation),
+        child: _QuickReactionMenuOverlay(
+          animation: curved,
+          anchorRect: anchorRect,
+          skinTone: skinTone,
+          onReact: (emoji) {
+            Navigator.of(dialogContext).pop();
+            onReact(emoji);
+          },
+          onMore: () {
+            handedOff = true;
+            unawaited(
+              onMore().whenComplete(() {
+                if (dialogContext.mounted) {
+                  Navigator.of(dialogContext).pop();
+                }
+              }),
+            );
+          },
+        ),
       );
     },
   );
