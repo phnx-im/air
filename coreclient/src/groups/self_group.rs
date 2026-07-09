@@ -116,8 +116,6 @@ impl CoreUser {
 mod tests {
     use airserver_test_harness::utils::setup::TestBackend;
 
-    use super::*;
-
     #[tokio::test(flavor = "multi_thread")]
     async fn ensure_self_group_creates_apq_group() -> anyhow::Result<()> {
         let mut setup = TestBackend::single().await;
