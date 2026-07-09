@@ -19,6 +19,57 @@ service QueueService {
   rpc DeleteClient(DeleteClientRequest) returns (DeleteClientResponse);
 
   rpc PublishKeyPackages(PublishKeyPackagesRequest) returns (PublishKeyPackagesResponse);
+
+  // Stage a batch of key package (traditional and/or APQ) identified by
+  // (user_id, epoch_id, random).
+  //
+  // The key packages are staged on the server but are not yet visible to other
+  // users. The batch is promoted to live by the DS when the group operation
+  // committing the batch is successfully committed and distributed in the
+  // emulation group of the virtual client.
+  //
+  // The operation is idempotent when the batch is exactly the same as the
+  // staged batch (the order of key packages *matters*).
+  //
+  // ## Full Protocol
+  //
+  // ```
+  //  Emulator A           QS                DS              Emulator B
+  //     │                 │                 │                 │
+  //     │ Stage(          │                 │                 │
+  //     │ client_id,      │                 │                 │
+  //     │ epoch_id,       │                 │                 │
+  //     │ random, KPs)    │                 │                 │
+  //     │ ───────────────►│ store staging   │                 │
+  //     │                 │ row             │                 │
+  //     │ GroupOperation  │                 │                 │
+  //     │ (commit with    │                 │                 │
+  //     │ (epoch_id,      │                 │                 │
+  //     │ random) in      │                 │                 │
+  //     │ SafeAAD)        │                 │                 │
+  //     │ ─────────────────────────────────►│ validate,       │
+  //     │                 │                 │ totally-order,  │
+  //     │                 │                 │ extract SafeAAD │
+  //     │                 │ DsFanOutMsg     │ fan out to      │
+  //     │                 │ with Virtual    │ emulation-      │
+  //     │                 │ ClientAction    │ group members   │
+  //     │                 │◄────────────────│                 │
+  //     │                 │ promote         │                 │
+  //     │                 │ staging:        │                 │
+  //     │                 │ live KPs ←      │                 │
+  //     │                 │ staged KPs      │                 │
+  //     │                 │ delete row      │                 │
+  //     │                 │ enqueue commit  │                 │
+  //     │                 │ ─────────────────────────────────►│ decrypt
+  //     │                 │                 │                 │ commit;
+  //     │                 │                 │                 │ derive KPs
+  //     │                 │                 │                 │ from
+  //     │                 │                 │                 │ (epoch_id,
+  //     │                 │                 │                 │ random);
+  //     │                 │                 │                 │ verify QS
+  // ```
+  rpc StageKeyPackages(StageKeyPackagesRequest) returns (StageKeyPackagesResponse);
+
   rpc KeyPackage(KeyPackageRequest) returns (KeyPackageResponse);
 
   rpc PublishApqKeyPackages(PublishApqKeyPackagesRequest) returns (PublishApqKeyPackagesResponse);
@@ -200,6 +251,24 @@ message KeyPackage {
 }
 
 message PublishKeyPackagesResponse {}
+
+// stage key packages
+
+message StageKeyPackagesRequest {
+  StageKeyPackagesPayload payload = 1;
+  common.v1.Signature signature = 2;
+}
+
+message StageKeyPackagesPayload {
+  common.v1.ClientMetadata client_metadata = 1;
+  QsClientId client_id = 2;
+  bytes epoch_id = 3;
+  bytes random = 4;
+  repeated KeyPackage key_packages = 5;
+  repeated ApqKeyPackage apq_key_packages = 6;
+}
+
+message StageKeyPackagesResponse {}
 
 // key package
 

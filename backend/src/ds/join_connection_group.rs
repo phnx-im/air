@@ -64,7 +64,7 @@ impl DsGroupState {
             return Err(JoinConnectionGroupError::InvalidMessage);
         };
 
-        let aad_message = AadMessage::tls_deserialize_exact_bytes(processed_message.aad())
+        let aad_message = AadMessage::tls_deserialize_exact_bytes(processed_message.tail_aad())
             .map_err(|_| {
                 tracing::warn!("Invalid message: Failed to deserialize AAD.");
                 JoinConnectionGroupError::InvalidMessage

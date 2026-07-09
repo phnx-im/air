@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "WITH lr AS (\n                SELECT\n                    coalesce(bool_or(is_last_resort)\n                        FILTER (WHERE is_apq = true), false) AS has\n                FROM qs_staged_key_package\n                WHERE batch_id = $1\n            )\n            DELETE FROM apq_key_package\n            WHERE client_id IN (\n                SELECT client_id FROM qs_client_record\n                    WHERE user_id = $2 AND deleted_at IS NULL\n                )\n                AND (NOT is_last_resort OR (SELECT has FROM lr))\n            ",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Int4",
+        "Uuid"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "678c91ba03cf43c478c831a23761529e9244e13b26c139e73aeac0622f7d9ba0"
+}

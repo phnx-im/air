@@ -689,7 +689,7 @@ impl CoreUser {
                 .user_id()
                 .clone();
 
-        let aad = processed_message.aad().to_vec();
+        let aad = processed_message.tail_aad().to_vec();
 
         let chat_id = chat.id();
 

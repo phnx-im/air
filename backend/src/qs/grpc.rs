@@ -392,6 +392,35 @@ impl QueueService for GrpcQs {
         Ok(Response::new(PublishKeyPackagesResponse {}))
     }
 
+    async fn stage_key_packages(
+        &self,
+        request: Request<SignedRequest<StageKeyPackagesRequest, 1>>,
+    ) -> Result<Response<StageKeyPackagesResponse>, Status> {
+        let request = request.into_inner();
+        self.verify_client_version(
+            request
+                .inner()
+                .payload
+                .as_ref()
+                .and_then(|p| p.client_metadata.as_ref()),
+        )?;
+        let StageKeyPackagesPayload {
+            client_metadata: _,
+            client_id,
+            epoch_id,
+            random,
+            key_packages,
+            apq_key_packages,
+        } = self.verify_client_auth(request).await?;
+
+        let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
+        self.qs
+            .qs_stage_key_packages(client_id, epoch_id, random, key_packages, apq_key_packages)
+            .await?;
+
+        Ok(Response::new(StageKeyPackagesResponse {}))
+    }
+
     async fn key_package(
         &self,
         request: Request<KeyPackageRequest>,

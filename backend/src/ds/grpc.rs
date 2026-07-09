@@ -47,7 +47,10 @@ use tracing::{error, warn};
 
 use crate::{
     auth_service::AsConnector,
-    ds::{attachments::ProvisionObjectError, group_state::MemberProfile, process::Provider},
+    ds::{
+        attachments::ProvisionObjectError, group_operation::ProcessedApqGroupOperation,
+        group_state::MemberProfile, process::Provider,
+    },
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload},
     qs::QsConnector,
     rate_limiter::{RateLimiter, RlConfig, RlKey, provider::RlPostgresStorage},
@@ -239,6 +242,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
                 payload: fan_out_payload.clone(),
                 client_reference,
                 suppress_notifications: suppress_notifications.into(),
+                virtual_client_action: None,
             }));
         }
 
@@ -1598,15 +1602,18 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .other_destination_clients(sender_index)
                     .collect();
 
-                let (group_message, mut individual_fan_out_messages) =
+                let (group_message, mut individual_fan_out_messages, virtual_client_action) =
                     group_state.group_operation(params, ear_key).await?;
 
                 group_state.proposals.clear();
 
                 let fan_out_payload: DsFanOutPayload = group_message.into();
 
-                let commit_response = group_state
-                    .create_commit_response(sender_index, fan_out_payload.timestamp())?;
+                let commit_response = group_state.create_commit_response(
+                    sender_index,
+                    fan_out_payload.timestamp(),
+                    virtual_client_action,
+                )?;
                 individual_fan_out_messages.push(commit_response);
 
                 Ok((
@@ -1707,21 +1714,25 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         .other_destination_clients(t_sender_index)
                         .collect();
 
-                    let (serialized_apq_message, t_add_users_state, pq_welcome) =
-                        DsGroupState::process_apq_group_operation(
-                            t_group_state,
-                            pq_group_state,
-                            t_message,
-                            pq_message,
-                            t_add_users_info,
-                            pq_add_users_info,
-                        )?;
+                    let ProcessedApqGroupOperation {
+                        serialized_message,
+                        t_add_users_state,
+                        pq_welcome,
+                        virtual_client_action,
+                    } = DsGroupState::process_apq_group_operation(
+                        t_group_state,
+                        pq_group_state,
+                        t_message,
+                        pq_message,
+                        t_add_users_info,
+                        pq_add_users_info,
+                    )?;
 
                     // Fan out the commit message to the destination clients
                     let timestamp = TimeStamp::now();
 
                     let apq_payload =
-                        QsQueueMessagePayload::apq_mls_message(timestamp, serialized_apq_message);
+                        QsQueueMessagePayload::apq_mls_message(timestamp, serialized_message);
 
                     // Generate welcome bundles for new members
                     let mut individual_fan_out_messages = match (t_add_users_state, pq_welcome) {
@@ -1749,8 +1760,11 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     t_group_state.proposals.clear();
                     pq_group_state.proposals.clear();
 
-                    let commit_response =
-                        t_group_state.create_commit_response(t_sender_index, timestamp)?;
+                    let commit_response = t_group_state.create_commit_response(
+                        t_sender_index,
+                        timestamp,
+                        virtual_client_action,
+                    )?;
                     individual_fan_out_messages.push(commit_response);
 
                     Ok(ApqFanOut {
@@ -2058,6 +2072,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 .into(),
             client_reference: destination_client,
             suppress_notifications: suppress_notifications.into(),
+            virtual_client_action: None,
         };
 
         let timestamp = fan_out_message.payload.timestamp();
