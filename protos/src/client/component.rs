@@ -24,6 +24,12 @@ pub struct AirComponent {
     /// package).
     #[tag(1)]
     pub features: AirFeatures,
+    /// Whether the group this component is attached to is a self-group, i.e. a group used by a
+    /// single user to sync data between their own clients.
+    ///
+    /// Only meaningful in the group context; always `false` in leaf nodes and key packages.
+    #[tag(2)]
+    pub is_self_group: bool,
 }
 
 /// List of features supported by the client.
@@ -47,17 +53,6 @@ pub struct AirFeatures {
 }
 
 impl AirComponent {
-    /// Creates a new air component with all supported features to be stored in a leaf node or a
-    /// key package.
-    ///
-    /// Note: This is *not* the default implementation of `AirComponent::default`. It contains all
-    /// supported features of the current version of the client.
-    pub fn default_leaf_or_key_package_component() -> Self {
-        Self {
-            features: AirFeatures::default_leaf_or_key_package_features(),
-        }
-    }
-
     pub fn to_bytes(&self) -> Result<Vec<u8>, codec::Error> {
         PersistenceCodec::to_vec(self)
     }
@@ -85,7 +80,17 @@ impl AppComponent for AirComponent {
     const COMPONENT_ID: ComponentId = AIR_COMPONENT_ID;
 
     fn default_for_leaf_or_key_package() -> Self {
-        Self::default_leaf_or_key_package_component()
+        Self {
+            features: AirFeatures::default_leaf_or_key_package_features(),
+            is_self_group: false,
+        }
+    }
+
+    fn default_for_self_group() -> Self {
+        Self {
+            features: AirFeatures::default_leaf_or_key_package_features(),
+            is_self_group: true,
+        }
     }
 
     fn to_bytes(&self) -> Vec<u8> {
