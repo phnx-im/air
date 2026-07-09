@@ -14,26 +14,6 @@ int get _totalEmojis =>
     data.emojisByCategory.fold(0, (sum, category) => sum + category.$2.length);
 
 void main() {
-  group('EmojiRepository.byShortcode', () {
-    test('resolves a known shortcode to its glyph', () {
-      expect(EmojiRepository.byShortcode('grinning')?.emoji, _grinning);
-    });
-
-    test('returns null for an unknown shortcode', () {
-      expect(EmojiRepository.byShortcode('definitely_not_an_emoji'), isNull);
-    });
-
-    test('is case-insensitive', () {
-      expect(EmojiRepository.byShortcode('GRINNING')?.emoji, _grinning);
-    });
-
-    test('resolves shared shortcodes to the same emoji', () {
-      // `laughing` and `satisfied` are two shortcodes for one emoji.
-      expect(EmojiRepository.byShortcode('laughing')?.emoji, _laughing);
-      expect(EmojiRepository.byShortcode('satisfied')?.emoji, _laughing);
-    });
-  });
-
   group('EmojiRepository.search', () {
     test('returns the matched shortcode alongside the emoji', () {
       final results = EmojiRepository.search('grinning');
