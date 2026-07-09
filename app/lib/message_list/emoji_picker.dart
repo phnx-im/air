@@ -361,7 +361,7 @@ Future<String?> showEmojiPickerSheet({
   );
 }
 
-/// Paints a cached , pre-laid-out emoji glyph centered in the cell.
+/// Paints a cached, pre-laid-out emoji glyph centered in the cell.
 class _EmojiGlyphPainter extends CustomPainter {
   const _EmojiGlyphPainter(this.glyph);
 
