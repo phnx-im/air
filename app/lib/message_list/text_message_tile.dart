@@ -375,10 +375,10 @@ class _MessageView extends HookWidget {
       );
     }
 
-    // With [withBarrier] false the picker draws no barrier of its own; used
-    // when it opens on top of the quick-reaction strip, whose barrier stays
-    // alive underneath so the dim doesn't flicker.
-    Future<void> openFullEmojiPicker({bool withBarrier = true}) async {
+    // Pass [barrierColor] transparent when the picker opens on top of the
+    // quick-reaction strip, whose barrier stays alive underneath so the dim
+    // doesn't flicker.
+    Future<void> openFullEmojiPicker({Color? barrierColor}) async {
       // Capture cubits before the await so the picker can persist tone changes.
       final settings = context.read<UserSettingsCubit>();
       final userCubit = context.read<UserCubit>();
@@ -391,7 +391,6 @@ class _MessageView extends HookWidget {
         );
       }
 
-      final barrierColor = withBarrier ? null : Colors.transparent;
       final emoji = isMobilePlatform
           ? await showEmojiPickerSheet(
               context: context,
@@ -426,7 +425,7 @@ class _MessageView extends HookWidget {
           anchorRect: anchorRect,
           skinTone: skinTone,
           onReact: sendReaction,
-          onMore: () => openFullEmojiPicker(withBarrier: false),
+          onMore: () => openFullEmojiPicker(barrierColor: Colors.transparent),
         ),
       );
     }
