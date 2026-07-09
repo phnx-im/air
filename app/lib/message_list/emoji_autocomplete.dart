@@ -28,14 +28,23 @@ class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
     if (caret <= 0 || caret > value.text.length) {
       return null;
     }
-    // Search back from the caret for the most recent colon.
+    // Only trigger on a colon shortcode immediately left of the caret, with
+    // no space inside it. The colon must sit at the start of the text or be
+    // preceded by whitespace, so mid-word colons (e.g. "std::unix::signal")
+    // don't match.
     final untilCaret = value.text.substring(0, caret);
-    final match = RegExp(r':[A-Za-z0-9_\-\+]*:?$').firstMatch(untilCaret);
-    if (match == null || match.start == match.end) {
+    final match = RegExp(
+      r'(^|\s)(:[a-zA-Z0-9_\-\+]+:?)$',
+    ).firstMatch(untilCaret);
+    final shortcode = match?.group(2);
+    if (shortcode == null) {
       return null;
     }
-    final start = match.start;
-    final fragment = untilCaret.substring(match.start + 1);
+
+    // Group 2 is anchored to the end of untilCaret, so its start is
+    // derivable from the whole match's end without a per-group offset.
+    final start = match!.end - shortcode.length;
+    final fragment = shortcode.substring(1);
     final trimmed = fragment.endsWith(':')
         ? fragment.substring(0, fragment.length - 1)
         : fragment;
@@ -139,28 +148,5 @@ class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
       return false;
     }
     return RegExp(r'^[a-zA-Z0-9_\-\+]+$').hasMatch(query);
-  }
-
-  @override
-  bool shouldCommitImmediately(
-    TextEditingValue value,
-    AutocompleteTrigger trigger,
-  ) {
-    if (trigger.end <= trigger.start || trigger.end > value.text.length) {
-      return false;
-    }
-    final closingChar = value.text[trigger.end - 1];
-    final openingChar = value.text[trigger.start];
-    return closingChar == ':' && openingChar == ':' && trigger.query.isNotEmpty;
-  }
-
-  @override
-  bool matchesQuery(Emoji suggestion, String query) {
-    return EmojiRepository.byShortcode(query)?.emoji == suggestion.emoji;
-  }
-
-  @override
-  FutureOr<Emoji?> directMatch(String query) async {
-    return EmojiRepository.byShortcode(query);
   }
 }

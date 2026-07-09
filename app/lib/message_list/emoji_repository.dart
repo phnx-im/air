@@ -96,16 +96,6 @@ class EmojiRepository {
 
     return results.length > limit ? results.sublist(0, limit) : results;
   }
-
-  static data.Emoji? byShortcode(String shortcode) {
-    final emojiRef = data.shortcodeToIndex[shortcode.toLowerCase()];
-    if (emojiRef == null) {
-      return null;
-    }
-
-    final (category, emojis) = data.emojisByCategory[emojiRef.$1];
-    return emojis[emojiRef.$2];
-  }
 }
 
 class EmojiSearchResult {
