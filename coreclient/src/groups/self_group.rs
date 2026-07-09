@@ -6,10 +6,7 @@ use aircommon::{
     crypto::{aead::keys::IdentityLinkWrapperKey, indexed_aead::keys::UserProfileKey},
     mls_group_config::AppComponent,
 };
-use airprotos::client::{
-    component::AirComponent, group::GroupData,
-    virtual_client::VIRTUAL_CLIENT_KP_UPLOAD_COMPONENT_ID,
-};
+use airprotos::client::{component::AirComponent, group::GroupData};
 use anyhow::Context;
 use tracing::{debug, warn};
 
@@ -67,7 +64,7 @@ impl CoreUser {
         let (group, partial_params, user_profile_key) = self
             .db()
             .with_write_transaction(async move |txn| -> anyhow::Result<_> {
-                let safe_aad_components = Some(vec![VIRTUAL_CLIENT_KP_UPLOAD_COMPONENT_ID]);
+                let safe_aad_components = None;
                 let (group, partial_params) = Group::create_apq_group(
                     &mut *txn,
                     &key_store.signing_key,
