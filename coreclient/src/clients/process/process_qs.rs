@@ -471,7 +471,7 @@ impl CoreUser {
                 processed_message, ..
             }) => processed_message,
             ProcessMessageResult::Ignored => return Ok(ProcessQsMessageResult::None),
-            ProcessMessageResult::TooDistant => {
+            ProcessMessageResult::ResyncRequired => {
                 // TODO: Once we have a UX for resyncs, we should schedule one
                 // here and re-enable the resync test in integration.rs
                 let _resync = Resync {
@@ -566,7 +566,7 @@ impl CoreUser {
         {
             ProcessMessageResult::Processed(process_message_result) => process_message_result,
             ProcessMessageResult::Ignored => return Ok(ProcessQsMessageResult::None),
-            ProcessMessageResult::TooDistant => {
+            ProcessMessageResult::ResyncRequired => {
                 // TODO: Once we have a UX for resyncs, we should schedule one
                 // here and re-enable the resync test in integration.rs
                 let _resync = Resync {
@@ -641,7 +641,7 @@ impl CoreUser {
         {
             ProcessMessageResult::Processed(processed) => processed,
             ProcessMessageResult::Ignored => return Ok(ProcessQsMessageResult::None),
-            ProcessMessageResult::TooDistant => {
+            ProcessMessageResult::ResyncRequired => {
                 // TODO: Once we have a UX for resyncs, we should schedule one
                 // here and re-enable the resync test in integration.rs
                 let _resync = Resync {

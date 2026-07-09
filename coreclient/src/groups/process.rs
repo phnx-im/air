@@ -49,7 +49,7 @@ pub(crate) enum ProcessMessageResult {
     /// We got a message that we can't process from our current group state, e.g. because it's too
     /// far in the future or because the local PQ group state is missing. Only a resync can recover
     /// the group.
-    TooDistant,
+    ResyncRequired,
 }
 
 pub(crate) struct ProcessMessageProcessed {
@@ -106,7 +106,7 @@ impl Group {
                     }
                     // If the message epoch is in the future, we need to re-join
                     // the group.
-                    return Ok(ProcessMessageResult::TooDistant);
+                    return Ok(ProcessMessageResult::ResyncRequired);
                 }
                 Err(e) => {
                     bail!("Could not process message: {e:?}");
@@ -678,7 +678,7 @@ impl Group {
             // this state, but a resync restores both legs, so report the
             // message as too distant instead of failing.
             warn!("No local PQ group state; a resync is required");
-            return Ok(ProcessMessageResult::TooDistant);
+            return Ok(ProcessMessageResult::ResyncRequired);
         }
 
         let message: ApqProtocolMessage = message.into();
@@ -713,7 +713,7 @@ impl Group {
                 }
                 // A future-epoch message means we are behind and the caller
                 // must trigger a resync.
-                return Ok(ProcessMessageResult::TooDistant);
+                return Ok(ProcessMessageResult::ResyncRequired);
             }
             Err(e) => {
                 return Err(e).context("Failed to process APQ message");
