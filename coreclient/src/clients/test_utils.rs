@@ -109,7 +109,7 @@ impl CoreUser {
         let resync = Resync {
             chat_id,
             group_id: fake_group_id,
-            pq_group_id: group.pq().map(|pq| pq.group_id().clone()),
+            pq_group_id: group.pq_group_id(),
             group_state_ear_key: group.group_state_ear_key().clone(),
             identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
             original_leaf_index: group.own_index(),

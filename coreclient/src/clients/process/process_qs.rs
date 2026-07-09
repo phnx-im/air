@@ -471,13 +471,13 @@ impl CoreUser {
                 processed_message, ..
             }) => processed_message,
             ProcessMessageResult::Ignored => return Ok(ProcessQsMessageResult::None),
-            ProcessMessageResult::TooDistant => {
+            ProcessMessageResult::ResyncRequired => {
                 // TODO: Once we have a UX for resyncs, we should schedule one
                 // here and re-enable the resync test in integration.rs
                 let _resync = Resync {
                     chat_id: chat.id(),
                     group_id: group.group_id().clone(),
-                    pq_group_id: group.pq().map(|pq| pq.group_id().clone()),
+                    pq_group_id: group.pq_group_id(),
                     group_state_ear_key: group.group_state_ear_key().clone(),
                     identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
                     original_leaf_index: group.own_index(),
@@ -566,13 +566,13 @@ impl CoreUser {
         {
             ProcessMessageResult::Processed(process_message_result) => process_message_result,
             ProcessMessageResult::Ignored => return Ok(ProcessQsMessageResult::None),
-            ProcessMessageResult::TooDistant => {
+            ProcessMessageResult::ResyncRequired => {
                 // TODO: Once we have a UX for resyncs, we should schedule one
                 // here and re-enable the resync test in integration.rs
                 let _resync = Resync {
                     chat_id,
                     group_id: group.group_id().clone(),
-                    pq_group_id: group.pq().map(|pq| pq.group_id().clone()),
+                    pq_group_id: group.pq_group_id(),
                     group_state_ear_key: group.group_state_ear_key().clone(),
                     identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
                     original_leaf_index: group.own_index(),
@@ -641,13 +641,13 @@ impl CoreUser {
         {
             ProcessMessageResult::Processed(processed) => processed,
             ProcessMessageResult::Ignored => return Ok(ProcessQsMessageResult::None),
-            ProcessMessageResult::TooDistant => {
+            ProcessMessageResult::ResyncRequired => {
                 // TODO: Once we have a UX for resyncs, we should schedule one
                 // here and re-enable the resync test in integration.rs
                 let _resync = Resync {
                     chat_id,
                     group_id: group.group_id().clone(),
-                    pq_group_id: group.pq().map(|pq| pq.group_id().clone()),
+                    pq_group_id: group.pq_group_id(),
                     group_state_ear_key: group.group_state_ear_key().clone(),
                     identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
                     original_leaf_index: group.own_index(),

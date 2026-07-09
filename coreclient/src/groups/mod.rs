@@ -18,6 +18,7 @@ pub(crate) mod self_group;
 use apqmls::{
     authentication::ApqCredentialWithKey,
     commit_builder::ApqCommitMessageBundle,
+    extension::ApqInfo,
     external_commit_builder::{ApqExternalCommitBuilder, ApqExternalCommitBuilderError},
     messages::{ApqProposalIn, ApqRatchetTreeIn, VerifiableApqGroupInfo},
 };
@@ -319,6 +320,17 @@ impl Group {
 
     pub(crate) fn pq(&self) -> Option<&PqGroup> {
         self.pq.as_ref()
+    }
+
+    /// Returns the PQ group ID of this group, if it is an APQ group.
+    ///
+    /// The ID is read from the APQMLS component in the T group's context extensions, so it is
+    /// available even when the local PQ group state is missing (e.g. after a legacy T-only resync).
+    pub(crate) fn pq_group_id(&self) -> Option<GroupId> {
+        let info = ApqInfo::from_extensions(self.mls_group.extensions())
+            .inspect_err(|error| error!(%error, "Failed to parse APQMLS component"))
+            .ok()??;
+        Some(info.pq_session_group_id)
     }
 
     pub(crate) fn pq_mut(&mut self) -> Option<&mut PqGroup> {

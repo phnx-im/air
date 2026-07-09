@@ -1163,6 +1163,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     ..
                 } = verified_data;
 
+                // A T-only resync of an APQ group would leave the PQ group with a stale leaf and
+                // strip the sender's local PQ state.
+                if group_state.is_apq() {
+                    return Err(Status::failed_precondition(
+                        "APQ group requires an APQ resync",
+                    ));
+                }
+
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
                     .collect();
