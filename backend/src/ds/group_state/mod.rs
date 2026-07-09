@@ -25,6 +25,7 @@ use mls_assist::{
     MlsAssistRustCrypto,
     group::Group,
     openmls::{
+        components::vc_derivation_info::VC_COMPONENT_ID,
         group::GroupId,
         prelude::{GroupEpoch, LeafNodeIndex, StagedCommit},
         treesync::RatchetTree,
@@ -209,10 +210,11 @@ impl DsGroupState {
         &self,
         sender_index: LeafNodeIndex,
     ) -> impl Iterator<Item = QsReference> {
+        let is_sender_virtual_client = self.leaf_is_virtual_client(sender_index);
         self.member_profiles
             .iter()
             .filter_map(move |(client_index, client_profile)| {
-                if client_index != &sender_index {
+                if client_index != &sender_index || is_sender_virtual_client {
                     Some(client_profile.client_queue_config.clone())
                 } else {
                     None
@@ -247,6 +249,14 @@ impl DsGroupState {
         let current_extensions = self.group().group_info().group_context().extensions();
         AirComponent::is_self_group_context(staged_commit.group_context().extensions())
             == AirComponent::is_self_group_context(current_extensions)
+    }
+
+    /// Returns `true` if the leaf declares a `VC_COMPONENT_ID` entry in its `AppDataDictionary` extension.
+    fn leaf_is_virtual_client(&self, leaf_index: LeafNodeIndex) -> bool {
+        self.group()
+            .leaf(leaf_index)
+            .and_then(|leaf| leaf.extensions().app_data_dictionary())
+            .is_some_and(|dict| dict.dictionary().contains(&VC_COMPONENT_ID))
     }
 
     pub(crate) fn qs_client_ref_by_index(

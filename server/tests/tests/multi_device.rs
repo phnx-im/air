@@ -216,6 +216,22 @@ async fn multi_device_linking_session() {
         "hello back from the new device",
     )
     .await;
+
+    // Messages sent into one of the existing groups are seen by both devices.
+    send_and_receive(
+        old_device,
+        &new_device,
+        group_chat_id_1,
+        "hello from the old device",
+    )
+    .await;
+    send_and_receive(
+        &new_device,
+        old_device,
+        group_chat_id_1,
+        "hello back from the new device",
+    )
+    .await;
 }
 
 // Linking with a session ID that was never registered returns an error.
