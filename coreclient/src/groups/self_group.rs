@@ -34,7 +34,10 @@ impl CoreUser {
                     warn!("Self-group not found, recreating it");
                 }
             }
+        } else {
+            drop(read);
         }
+
         self.create_self_group().await?;
         Ok(())
     }
@@ -106,5 +109,29 @@ impl CoreUser {
         OwnClientInfo::set_self_group_id(self.db().write().await?, group.group_id()).await?;
 
         Ok(group)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use airserver_test_harness::utils::setup::TestBackend;
+
+    use super::*;
+
+    #[tokio::test(flavor = "multi_thread")]
+    async fn ensure_self_group_creates_apq_group() -> anyhow::Result<()> {
+        let mut setup = TestBackend::single().await;
+        let user_id = setup.add_user().await;
+        let user = &setup.get_user(&user_id).user;
+
+        user.ensure_self_group().await?;
+
+        let is_apq = user
+            .self_group_is_apq()
+            .await?
+            .expect("self group should be persisted");
+        assert!(is_apq, "self-group must be an APQ (T+PQ) group");
+
+        Ok(())
     }
 }
