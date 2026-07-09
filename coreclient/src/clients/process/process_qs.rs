@@ -477,6 +477,7 @@ impl CoreUser {
                 let _resync = Resync {
                     chat_id: chat.id(),
                     group_id: group.group_id().clone(),
+                    pq_group_id: group.pq().map(|pq| pq.group_id().clone()),
                     group_state_ear_key: group.group_state_ear_key().clone(),
                     identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
                     original_leaf_index: group.own_index(),
@@ -571,6 +572,7 @@ impl CoreUser {
                 let _resync = Resync {
                     chat_id,
                     group_id: group.group_id().clone(),
+                    pq_group_id: group.pq().map(|pq| pq.group_id().clone()),
                     group_state_ear_key: group.group_state_ear_key().clone(),
                     identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
                     original_leaf_index: group.own_index(),
@@ -645,6 +647,7 @@ impl CoreUser {
                 let _resync = Resync {
                     chat_id,
                     group_id: group.group_id().clone(),
+                    pq_group_id: group.pq().map(|pq| pq.group_id().clone()),
                     group_state_ear_key: group.group_state_ear_key().clone(),
                     identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
                     original_leaf_index: group.own_index(),

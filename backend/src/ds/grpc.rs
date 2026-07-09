@@ -177,6 +177,39 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .await
     }
 
+    /// Loads the T group state and, if `pq_qgid` is given, also the PQ group state, both from
+    /// the same DB transaction (with the shared `ear_key`) so that external-commit callers see
+    /// a consistent snapshot across both legs of an APQ group.
+    async fn load_group_state_immutable_pair(
+        &self,
+        qgid: &QualifiedGroupId,
+        pq_qgid: Option<&QualifiedGroupId>,
+        ear_key: &GroupStateEarKey,
+    ) -> Result<(DsGroupState, Option<DsGroupState>), LoadGroupStateError> {
+        let mut txn = self
+            .ds
+            .db_pool
+            .begin_with("BEGIN ISOLATION LEVEL REPEATABLE READ")
+            .await
+            .map_err(|error| {
+                error!(%error, "Failed to start transaction");
+                Status::internal("Failed to start transaction")
+            })?;
+        let (_, group_state) = self
+            .load_group_state::<false>(&mut txn, qgid, ear_key)
+            .await?;
+        let pq_group_state = match pq_qgid {
+            Some(pq_qgid) => {
+                let (_, pq_group_state) = self
+                    .load_group_state::<false>(&mut txn, pq_qgid, ear_key)
+                    .await?;
+                Some(pq_group_state)
+            }
+            None => None,
+        };
+        Ok((group_state, pq_group_state))
+    }
+
     /// Fans out a message to the given clients (concurrently).
     ///
     /// The parallelism is limited by a constant. Logs failures but does not
@@ -370,6 +403,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     async fn update_apq_group_state<R, P, T: Send, const TAG: u32>(
         &self,
         request: SignedRequest<R, TAG>,
+        sender_index: Option<LeafNodeIndex>,
         f: impl AsyncFnOnce(ApqVerificationData<'_, P>) -> Result<ApqFanOut<T>, Status>,
     ) -> Result<T, Status>
     where
@@ -391,18 +425,23 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
             .load_for_update_or_not_found(txn, &t_qgid, &ear_key)
             .await?;
         let (payload, t_sender_index) =
-            resolve_and_verify(request, &t_message, &t_group_state, None)?;
+            resolve_and_verify(request, &t_message, &t_group_state, sender_index)?;
 
         let (mut txn, mut pq_group_state, pq_group_data) = self
             .load_for_update_or_not_found(txn, &pq_qgid, &ear_key)
             .await?;
 
         // Check that the T/PQ indices and signature keys match
-        let Sender::Member(pq_sender_index) = *pq_message.sender().ok_or_missing_field("sender")?
-        else {
-            return Err(Status::invalid_argument(
-                "unexpected pq sender: expected member",
-            ));
+        let pq_sender_index = match sender_index {
+            Some(index) => index,
+            None => match pq_message.sender().ok_or_missing_field("sender")? {
+                Sender::Member(index) => *index,
+                _ => {
+                    return Err(Status::invalid_argument(
+                        "unexpected pq sender: expected member",
+                    ));
+                }
+            },
         };
         if t_sender_index != pq_sender_index {
             return Err(Status::invalid_argument(
@@ -926,13 +965,21 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .group_state_ear_key
             .ok_or_missing_field("group_state_ear_key")?
             .try_ref_into()?;
+        let pq_qgid = request
+            .pq_qgid
+            .as_ref()
+            .map(TryRefInto::try_ref_into)
+            .transpose()?;
 
-        let (_, group_state) = self
-            .load_group_state_immutable(&qgid, &ear_key)
+        let (group_state, pq_group_state) = self
+            .load_group_state_immutable_pair(&qgid, pq_qgid.as_ref(), &ear_key)
             .await
             .map_err(to_status)?;
 
         let commit_info = group_state.external_commit_info();
+        let pq_commit_info = pq_group_state
+            .as_ref()
+            .map(DsGroupState::external_commit_info);
 
         Ok(Response::new(ExternalCommitInfoResponse {
             group_info: Some(
@@ -968,6 +1015,19 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     encrypted_user_profile_key: Some(profile.encrypted_user_profile_key.into()),
                 })
                 .collect(),
+            pq_group_info: pq_commit_info
+                .as_ref()
+                .map(|info| info.group_info.clone().try_into())
+                .transpose()
+                .invalid_tls("pq_group_info")?,
+            pq_ratchet_tree: pq_commit_info
+                .as_ref()
+                .map(|info| info.ratchet_tree.try_ref_into())
+                .transpose()
+                .invalid_tls("pq_ratchet_tree")?,
+            pq_proposals: pq_commit_info
+                .map(|info| info.proposals.into_iter().map(From::from).collect())
+                .unwrap_or_default(),
         }))
     }
 
@@ -1123,6 +1183,68 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         }))
     }
 
+    async fn apq_resync(
+        &self,
+        request: Request<SignedRequest<ApqResyncRequest>>,
+    ) -> Result<Response<ApqResyncResponse>, Status> {
+        let request = request.into_inner();
+
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
+        self.verify_client_version(payload.client_metadata.as_ref())?;
+
+        let sender_index: LeafNodeIndex = payload.sender.ok_or_missing_field("sender")?.into();
+
+        let fanout_timestamp: TimeStamp = self
+            .update_apq_group_state(
+                request,
+                Some(sender_index),
+                async |ApqVerificationData {
+                           payload: _,
+                           t_group_state,
+                           pq_group_state,
+                           t_message: t_external_commit,
+                           pq_message: pq_external_commit,
+                           t_sender_index,
+                           ear_key: _,
+                       }: ApqVerificationData<'_, ApqResyncPayload>| {
+                    // Collect destination clients *before* the commit is accepted.
+                    let destination_clients: Vec<_> = t_group_state
+                        .other_destination_clients(t_sender_index)
+                        .collect();
+
+                    let serialized_apq_message = DsGroupState::apq_resync_client(
+                        t_group_state,
+                        pq_group_state,
+                        t_external_commit,
+                        pq_external_commit,
+                        t_sender_index,
+                    )?;
+
+                    t_group_state.proposals.clear();
+                    pq_group_state.proposals.clear();
+
+                    let timestamp = TimeStamp::now();
+                    let apq_payload =
+                        QsQueueMessagePayload::apq_mls_message(timestamp, serialized_apq_message);
+
+                    Ok(ApqFanOut {
+                        broadcast: (apq_payload, destination_clients),
+                        individual: Default::default(),
+                        value: timestamp,
+                    })
+                },
+            )
+            .await?;
+
+        Ok(Response::new(ApqResyncResponse {
+            fanout_timestamp: Some(fanout_timestamp.into()),
+        }))
+    }
+
     async fn self_remove(
         &self,
         request: Request<SignedRequest<SelfRemoveRequest, 2>>,
@@ -1192,6 +1314,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let fanout_timestamp = self
             .update_apq_group_state(
                 request,
+                None,
                 async |ApqVerificationData {
                            payload: _,
                            t_group_state,
@@ -1368,7 +1491,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
         let timestamp: TimeStamp = self
-            .update_apq_group_state(request, async |verification_data| {
+            .update_apq_group_state(request, None, async |verification_data| {
                 let ApqVerificationData::<'_, ApqDeleteGroupPayload> {
                     payload: _,
                     t_group_state,
@@ -1532,6 +1655,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let fanout_timestamp = self
             .update_apq_group_state(
                 request,
+                None,
                 async |ApqVerificationData {
                            payload,
                            t_group_state,
@@ -2137,6 +2261,12 @@ impl WithGroupStateEarKey for ResyncRequest {
     }
 }
 
+impl WithGroupStateEarKey for ApqResyncRequest {
+    fn ear_key_proto(&self) -> Option<&v1::GroupStateEarKey> {
+        self.payload.as_ref()?.group_state_ear_key.as_ref()
+    }
+}
+
 impl WithGroupStateEarKey for UpdateProfileKeyRequest {
     fn ear_key_proto(&self) -> Option<&v1::GroupStateEarKey> {
         self.payload.as_ref()?.group_state_ear_key.as_ref()
@@ -2290,6 +2420,28 @@ impl WithApqMessage for ApqDeleteGroupRequest {
         let commit = payload.commit.as_ref().ok_or_missing_field("commit")?;
         let t_message = commit.t_message.as_ref().ok_or_missing_field("t_message")?;
         let pq_message = commit
+            .pq_message
+            .as_ref()
+            .ok_or_missing_field("pq_message")?;
+        Ok((
+            t_message.try_ref_into().invalid_tls("t_message")?,
+            pq_message.try_ref_into().invalid_tls("pq_message")?,
+        ))
+    }
+}
+
+impl WithApqMessage for ApqResyncRequest {
+    fn apq_message(&self) -> Result<(AssistedMessageIn, AssistedMessageIn), Status> {
+        let payload = self.payload.as_ref().ok_or_missing_field("payload")?;
+        let external_commit = payload
+            .external_commit
+            .as_ref()
+            .ok_or_missing_field("external_commit")?;
+        let t_message = external_commit
+            .t_message
+            .as_ref()
+            .ok_or_missing_field("t_message")?;
+        let pq_message = external_commit
             .pq_message
             .as_ref()
             .ok_or_missing_field("pq_message")?;

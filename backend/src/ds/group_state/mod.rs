@@ -115,6 +115,22 @@ impl DsGroupState {
         }
     }
 
+    /// Extract and parse the client credential of the leaf at `index`.
+    ///
+    /// Returns `None` (and logs) if the leaf is missing or its credential is invalid.
+    pub(crate) fn leaf_credential(
+        &self,
+        index: LeafNodeIndex,
+    ) -> Option<VerifiableClientCredential> {
+        let leaf = self.group().leaf(index).or_else(|| {
+            error!(%index, "Leaf node not found");
+            None
+        })?;
+        VerifiableClientCredential::from_basic_credential(leaf.credential())
+            .map_err(|error| error!(%error, "Credential is invalid"))
+            .ok()
+    }
+
     /// Get a reference to the public group state.
     pub(crate) fn group(&self) -> &Group {
         &self.group
