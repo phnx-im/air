@@ -1,0 +1,15 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "UPDATE qs_staged_key_package_batch SET created_at = $1 WHERE generation = $2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Left": [
+        "Timestamptz",
+        "Int8"
+      ]
+    },
+    "nullable": []
+  },
+  "hash": "952bdca11885d5f7c46e113daa7438e9843e530c8cdb11f894006b91e741dc93"
+}

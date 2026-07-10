@@ -242,7 +242,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
                 payload: fan_out_payload.clone(),
                 client_reference,
                 suppress_notifications: suppress_notifications.into(),
-                virtual_client_action: None,
+                virtual_client_hint: None,
             }));
         }
 
@@ -1602,7 +1602,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .other_destination_clients(sender_index)
                     .collect();
 
-                let (group_message, mut individual_fan_out_messages, virtual_client_action) =
+                let (group_message, mut individual_fan_out_messages, virtual_client_hint) =
                     group_state.group_operation(params, ear_key).await?;
 
                 group_state.proposals.clear();
@@ -1612,7 +1612,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 let commit_response = group_state.create_commit_response(
                     sender_index,
                     fan_out_payload.timestamp(),
-                    virtual_client_action,
+                    virtual_client_hint,
                 )?;
                 individual_fan_out_messages.push(commit_response);
 
@@ -1718,7 +1718,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         serialized_message,
                         t_add_users_state,
                         pq_welcome,
-                        virtual_client_action,
+                        virtual_client_hint,
                     } = DsGroupState::process_apq_group_operation(
                         t_group_state,
                         pq_group_state,
@@ -1763,7 +1763,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     let commit_response = t_group_state.create_commit_response(
                         t_sender_index,
                         timestamp,
-                        virtual_client_action,
+                        virtual_client_hint,
                     )?;
                     individual_fan_out_messages.push(commit_response);
 
@@ -2072,7 +2072,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 .into(),
             client_reference: destination_client,
             suppress_notifications: suppress_notifications.into(),
-            virtual_client_action: None,
+            virtual_client_hint: None,
         };
 
         let timestamp = fan_out_message.payload.timestamp();

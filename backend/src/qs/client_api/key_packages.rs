@@ -10,6 +10,7 @@ use aircommon::{
             EncryptionKeyResponse, KeyPackageParams, KeyPackageResponse, PublishKeyPackagesParams,
         },
     },
+    virtual_client::KeyPackageBatchId,
 };
 use airprotos::queue_service;
 use apqmls::messages::{ApqKeyPackage, ApqKeyPackageIn};
@@ -115,8 +116,7 @@ impl Qs {
     pub(crate) async fn qs_stage_key_packages(
         &self,
         client_id: QsClientId,
-        epoch_id: Vec<u8>,
-        random: Vec<u8>,
+        batch_id: KeyPackageBatchId,
         key_packages_proto: Vec<queue_service::v1::KeyPackage>,
         apq_key_packages_proto: Vec<queue_service::v1::ApqKeyPackage>,
     ) -> Result<(), QsStageKeyPackagesError> {
@@ -162,8 +162,7 @@ impl Qs {
 
         let batch = StagedKeyPackages {
             user_id,
-            epoch_id,
-            random,
+            batch_id,
             key_packages,
             apq_key_packages,
         };

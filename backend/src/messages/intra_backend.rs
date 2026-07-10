@@ -10,7 +10,11 @@ use aircommon::{
     messages::client_ds::{DsEventMessage, QsQueueMessagePayload},
     time::TimeStamp,
 };
-use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
+use mls_assist::openmls::{
+    components::vc_derivation_info::{EpochId, KeyPackageUpload},
+    prelude::LeafNodeIndex,
+};
+use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 // === DS to QS ===
 
@@ -40,7 +44,7 @@ pub struct DsFanOutMessage {
     pub payload: DsFanOutPayload,
     pub client_reference: QsReference,
     pub suppress_notifications: TlsBool,
-    pub virtual_client_action: Option<VirtualClientAction>,
+    pub virtual_client_hint: Option<QsVirtualClientHint>,
 }
 
 #[derive(Clone, TlsSerialize, TlsDeserializeBytes, TlsSize)]
@@ -67,11 +71,25 @@ impl<T: Into<QsQueueMessagePayload>> From<T> for DsFanOutPayload {
 
 #[derive(Clone, TlsSerialize, TlsDeserializeBytes, TlsSize)]
 #[repr(u8)]
-pub enum VirtualClientAction {
-    /// Per [Draft] §5.5.1
+pub enum QsVirtualClientHint {
+    /// DS -> QS hint to promote a staged batch of key packages to live.
     ///
-    /// [Draft]: https://datatracker.ietf.org/doc/draft-kohbrok-mls-virtual-clients/
+    /// This is a backend-internal hint, distinct from the draft's client-to-client
+    /// `VirtualClientAction` SafeAAD struct.
     #[tls_codec(discriminant = 1)]
-    PromoteStagedKeyPackages { epoch_id: VLBytes, random: VLBytes },
-    // Future: ExternalJoin { group_id: VLBytes } per draft §5.5.2  (discriminant = 2)
+    PromoteStagedKeyPackages {
+        epoch_id: EpochId,
+        leaf_index: LeafNodeIndex,
+        generation: u32,
+    },
+}
+
+impl From<KeyPackageUpload> for QsVirtualClientHint {
+    fn from(value: KeyPackageUpload) -> Self {
+        Self::PromoteStagedKeyPackages {
+            epoch_id: value.epoch_id,
+            leaf_index: value.leaf_index,
+            generation: value.generation,
+        }
+    }
 }

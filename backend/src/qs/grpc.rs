@@ -20,8 +20,10 @@ use aircommon::{
     },
     time::TimeStamp,
     utils::CancellableStream,
+    virtual_client::{EpochIdExt, KeyPackageBatchId},
 };
 use displaydoc::Display;
+use mls_assist::openmls::prelude::LeafNodeIndex;
 use prost::Message;
 use semver::Version;
 use tokio::sync::mpsc;
@@ -408,14 +410,24 @@ impl QueueService for GrpcQs {
             client_metadata: _,
             client_id,
             epoch_id,
-            random,
+            leaf_index,
+            generation,
             key_packages,
             apq_key_packages,
         } = self.verify_client_auth(request).await?;
 
         let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
         self.qs
-            .qs_stage_key_packages(client_id, epoch_id, random, key_packages, apq_key_packages)
+            .qs_stage_key_packages(
+                client_id,
+                KeyPackageBatchId {
+                    epoch_id: EpochIdExt::from_bytes(&epoch_id),
+                    leaf_index: LeafNodeIndex::new(leaf_index),
+                    generation,
+                },
+                key_packages,
+                apq_key_packages,
+            )
             .await?;
 
         Ok(Response::new(StageKeyPackagesResponse {}))

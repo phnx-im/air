@@ -4,7 +4,10 @@
 
 use std::time::Duration;
 
-use aircommon::identifiers::QsUserId;
+use aircommon::{
+    identifiers::QsUserId,
+    virtual_client::{EpochIdExt, KeyPackageBatchId},
+};
 use apqmls::messages::ApqKeyPackage;
 use chrono::{DateTime, Utc};
 use mls_assist::openmls::key_packages::KeyPackage;
@@ -21,8 +24,7 @@ const STAGED_KEY_PACKAGES_BATCH_TTL: chrono::Duration = chrono::Duration::minute
 /// A batch of key packages to be staged.
 pub(super) struct StagedKeyPackages {
     pub user_id: QsUserId,
-    pub epoch_id: Vec<u8>,
-    pub random: Vec<u8>,
+    pub batch_id: KeyPackageBatchId,
     /// Traditional key packages incl. their TLS bytes
     pub key_packages: Vec<(KeyPackage, Vec<u8>)>,
     /// APQ key packages incl. their TLS bytes
@@ -30,23 +32,25 @@ pub(super) struct StagedKeyPackages {
 }
 
 impl StagedKeyPackages {
-    /// Stages key packages for the given `(user, epoch, random)` triple.
+    /// Stages key packages for the given `(user, epoch, leaf_index, generation)` tuple.
     ///
     /// This function is idempotent in the following sense: if the batch already exists for the
-    /// given triple, it is checked that the key packages are exactly the same (the order of the key
+    /// given tuple, it is checked that the key packages are exactly the same (the order of the key
     /// packages is *important*). If the key packages are different, an error is returned.
     pub(super) async fn stage(
         &self,
         txn: &mut PgTransaction<'_>,
     ) -> Result<(), StageKeyPackageError> {
+        let epoch_id_bytes = self.batch_id.epoch_id.to_bytes();
         let batch_id = query_scalar!(
-            "INSERT INTO qs_staged_key_package_batch (user_id, epoch_id, random)
-            VALUES ($1, $2, $3)
-            ON CONFLICT (user_id, epoch_id, random) DO NOTHING
+            "INSERT INTO qs_staged_key_package_batch (user_id, epoch_id, leaf_index, generation)
+            VALUES ($1, $2, $3, $4)
+            ON CONFLICT (user_id, epoch_id, leaf_index, generation) DO NOTHING
             RETURNING id",
             self.user_id as _,
-            self.epoch_id,
-            self.random,
+            epoch_id_bytes,
+            self.batch_id.leaf_index.u32() as i64,
+            self.batch_id.generation as i64,
         )
         .fetch_optional(txn.as_mut())
         .await?;
@@ -84,12 +88,14 @@ impl StagedKeyPackages {
                 .await?;
             }
         } else {
-            let batch_id = query_scalar!(
+            let epoch_id_bytes = self.batch_id.epoch_id.to_bytes();
+            let local_batch_id = query_scalar!(
                 "SELECT id FROM qs_staged_key_package_batch
-                WHERE user_id = $1 AND epoch_id = $2 AND random = $3",
+                WHERE user_id = $1 AND epoch_id = $2 AND leaf_index = $3 AND generation = $4",
                 self.user_id as _,
-                self.epoch_id,
-                self.random,
+                epoch_id_bytes,
+                self.batch_id.leaf_index.u32() as i64,
+                self.batch_id.generation as i64,
             )
             .fetch_one(txn.as_mut())
             .await?;
@@ -107,7 +113,7 @@ impl StagedKeyPackages {
                 FROM qs_staged_key_package
                 WHERE batch_id = $1
                 ORDER BY id ASC",
-                batch_id
+                local_batch_id
             )
             .fetch(txn.as_mut());
 
@@ -163,17 +169,19 @@ impl StagedKeyPackages {
     pub(crate) async fn promote(
         txn: &mut PgTransaction<'_>,
         user_id: &QsUserId,
-        epoch_id: &[u8],
-        random: &[u8],
+        batch_id: &KeyPackageBatchId,
     ) -> sqlx::Result<()> {
         // Get the batch ID and lock it for update.
+
+        let epoch_id_bytes = batch_id.epoch_id.to_bytes();
         let Some(batch_id) = query_scalar!(
             "SELECT id FROM qs_staged_key_package_batch
-            where user_id = $1 and epoch_id = $2 and random = $3
+            where user_id = $1 and epoch_id = $2 and leaf_index = $3 and generation = $4
             FOR UPDATE",
             user_id as _,
-            epoch_id,
-            random
+            epoch_id_bytes,
+            batch_id.leaf_index.u32() as i64,
+            batch_id.generation as i64,
         )
         .fetch_optional(txn.as_mut())
         .await?
@@ -300,7 +308,7 @@ mod tests {
         authentication::{ApqCredentialWithKey, ApqSignatureKeyPair, ApqSignatureScheme},
     };
     use chrono::Duration;
-    use mls_assist::openmls_rust_crypto::OpenMlsRustCrypto;
+    use mls_assist::{openmls::prelude::LeafNodeIndex, openmls_rust_crypto::OpenMlsRustCrypto};
     use sqlx::PgPool;
     use tls_codec::Serialize;
 
@@ -310,6 +318,87 @@ mod tests {
     };
 
     use super::*;
+
+    #[test]
+    fn measure_build_stack() {
+        let kb: usize = std::env::var("PROBE_STACK_KB").unwrap().parse().unwrap();
+        std::thread::Builder::new()
+            .stack_size(kb * 1024)
+            .spawn(|| {
+                let _ = build_apq_key_package(false);
+                println!("BUILD_APQ stack={}KB ok", kb);
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
+
+    #[test]
+    fn measure_future_sizes() {
+        // Run on a large stack so that merely *constructing* the futures for
+        // measurement cannot overflow, and inside a current-thread runtime so we can
+        // build the (async) txn-bearing futures.
+        std::thread::Builder::new()
+            .stack_size(512 * 1024 * 1024)
+            .spawn(|| {
+                let rt = tokio::runtime::Builder::new_current_thread()
+                    .enable_all()
+                    .build()
+                    .unwrap();
+                rt.block_on(async {
+                    let url = std::env::var("DATABASE_URL").unwrap();
+                    let pool = PgPool::connect(&url).await.unwrap();
+
+                    // A single query future (built, not run).
+                    let one_scalar = query_scalar!(
+                        "SELECT id FROM qs_staged_key_package_batch WHERE id = $1",
+                        0i32
+                    )
+                    .fetch_optional(&pool);
+                    println!("ONE_QUERY_SCALAR={}", std::mem::size_of_val(&one_scalar));
+                    drop(one_scalar);
+
+                    let one_exec = query!(
+                        "INSERT INTO qs_staged_key_package
+                            (batch_id, key_package, is_last_resort, is_apq)
+                         VALUES ($1, $2, $3, false)",
+                        0i32,
+                        &b"x"[..],
+                        false,
+                    )
+                    .execute(&pool);
+                    println!("ONE_QUERY_EXEC={}", std::mem::size_of_val(&one_exec));
+                    drop(one_exec);
+
+                    let skp = staged(
+                        QsUserId::from(uuid::Uuid::nil()),
+                        1,
+                        vec![],
+                        vec![],
+                    );
+                    let mut txn = pool.begin().await.unwrap();
+
+                    let stage_fut = skp.stage(&mut txn);
+                    println!("STAGE_FUTURE={}", std::mem::size_of_val(&stage_fut));
+                    drop(stage_fut);
+
+                    let user_id = QsUserId::from(uuid::Uuid::nil());
+                    let batch_id = KeyPackageBatchId {
+                        epoch_id: EpochIdExt::from_bytes(b"epoch-1"),
+                        leaf_index: LeafNodeIndex::new(0),
+                        generation: 1,
+                    };
+                    let promote_fut = StagedKeyPackages::promote(&mut txn, &user_id, &batch_id);
+                    println!("PROMOTE_FUTURE={}", std::mem::size_of_val(&promote_fut));
+                    drop(promote_fut);
+
+                    txn.rollback().await.unwrap();
+                });
+            })
+            .unwrap()
+            .join()
+            .unwrap();
+    }
 
     fn build_apq_key_package(last_resort: bool) -> ApqKeyPackage {
         let provider = OpenMlsRustCrypto::default();
@@ -334,14 +423,17 @@ mod tests {
 
     fn staged(
         user_id: QsUserId,
-        random: &[u8],
+        generation: u32,
         key_packages: Vec<KeyPackage>,
         apq_key_packages: Vec<ApqKeyPackage>,
     ) -> StagedKeyPackages {
         StagedKeyPackages {
             user_id,
-            epoch_id: b"epoch-1".to_vec(),
-            random: random.to_vec(),
+            batch_id: KeyPackageBatchId {
+                epoch_id: EpochIdExt::from_bytes(b"epoch-1"),
+                leaf_index: LeafNodeIndex::new(0),
+                generation,
+            },
             key_packages: key_packages
                 .into_iter()
                 .map(|key_package| {
@@ -387,7 +479,7 @@ mod tests {
         let user = store_random_user_record(&pool).await?;
         let skp = staged(
             user.user_id,
-            b"r1",
+            1,
             vec![build_key_package(false), build_key_package(true)],
             vec![build_apq_key_package(false)],
         );
@@ -406,7 +498,7 @@ mod tests {
         let user = store_random_user_record(&pool).await?;
         let skp = staged(
             user.user_id,
-            b"r1",
+            1,
             vec![build_key_package(false), build_key_package(true)],
             vec![build_apq_key_package(true), build_apq_key_package(false)],
         );
@@ -426,13 +518,13 @@ mod tests {
     async fn restage_different_rejects(pool: PgPool) -> anyhow::Result<()> {
         let user = store_random_user_record(&pool).await?;
 
-        let first = staged(user.user_id, b"r1", vec![build_key_package(false)], vec![]);
+        let first = staged(user.user_id, 1, vec![build_key_package(false)], vec![]);
         let mut txn = pool.begin().await?;
         first.stage(&mut txn).await?;
         txn.commit().await?;
 
-        // Same (user, epoch, random), but a different key package => reject.
-        let second = staged(user.user_id, b"r1", vec![build_key_package(false)], vec![]);
+        // Same (user, epoch, leaf_index, generation), but a different key package => reject.
+        let second = staged(user.user_id, 1, vec![build_key_package(false)], vec![]);
         let mut txn = pool.begin().await?;
         let result = second.stage(&mut txn).await;
         assert!(matches!(
@@ -449,7 +541,7 @@ mod tests {
 
         let first = staged(
             user.user_id,
-            b"r1",
+            1,
             vec![kp.clone(), build_key_package(false)],
             vec![],
         );
@@ -458,7 +550,7 @@ mod tests {
         txn.commit().await?;
 
         // Same leading package, but the re-staged batch is shorter => reject.
-        let second = staged(user.user_id, b"r1", vec![kp], vec![]);
+        let second = staged(user.user_id, 1, vec![kp], vec![]);
         let mut txn = pool.begin().await?;
         let result = second.stage(&mut txn).await;
         assert!(matches!(
@@ -474,16 +566,11 @@ mod tests {
 
         let old = staged(
             user.user_id,
-            b"old",
+            1,
             vec![build_key_package(false)],
             vec![build_apq_key_package(false)],
         );
-        let fresh = staged(
-            user.user_id,
-            b"fresh",
-            vec![build_key_package(false)],
-            vec![],
-        );
+        let fresh = staged(user.user_id, 2, vec![build_key_package(false)], vec![]);
 
         let mut txn = pool.begin().await?;
         old.stage(&mut txn).await?;
@@ -492,9 +579,9 @@ mod tests {
 
         // Backdate the "old" batch past the TTL.
         sqlx::query!(
-            "UPDATE qs_staged_key_package_batch SET created_at = $1 WHERE random = $2",
+            "UPDATE qs_staged_key_package_batch SET created_at = $1 WHERE generation = $2",
             Utc::now() - Duration::hours(1),
-            b"old".as_slice(),
+            old.batch_id.generation as i64,
         )
         .execute(&pool)
         .await?;
@@ -534,8 +621,7 @@ mod tests {
         txn.commit().await?;
 
         let mut txn = pool.begin().await?;
-        StagedKeyPackages::promote(&mut txn, &batch.user_id, &batch.epoch_id, &batch.random)
-            .await?;
+        StagedKeyPackages::promote(&mut txn, &batch.user_id, &batch.batch_id).await?;
         txn.commit().await?;
         Ok(())
     }
@@ -548,7 +634,7 @@ mod tests {
 
         let batch = staged(
             user.user_id,
-            b"r1",
+            1,
             vec![build_key_package(false)],
             vec![build_apq_key_package(false)],
         );
@@ -568,14 +654,14 @@ mod tests {
 
         let first = staged(
             user.user_id,
-            b"r1",
+            1,
             vec![build_key_package(false), build_key_package(false)],
             vec![],
         );
         stage_and_promote(&pool, &first).await?;
         assert_eq!(live_counts(&pool).await?, (2, 0));
 
-        let second = staged(user.user_id, b"r2", vec![build_key_package(false)], vec![]);
+        let second = staged(user.user_id, 2, vec![build_key_package(false)], vec![]);
         stage_and_promote(&pool, &second).await?;
 
         // The two from `first` were replaced by the single one from `second`.
@@ -591,17 +677,12 @@ mod tests {
         // Batch 1 brings a non-last-resort and a last-resort.
         let lr = build_key_package(true);
         let lr_tls = lr.tls_serialize_detached()?;
-        let first = staged(
-            user.user_id,
-            b"r1",
-            vec![build_key_package(false), lr],
-            vec![],
-        );
+        let first = staged(user.user_id, 1, vec![build_key_package(false), lr], vec![]);
         stage_and_promote(&pool, &first).await?;
         assert_eq!(live_counts(&pool).await?, (2, 0));
 
         // Batch 2 has no last-resort: it replaces the non-last-resort but keeps the last-resort.
-        let second = staged(user.user_id, b"r2", vec![build_key_package(false)], vec![]);
+        let second = staged(user.user_id, 2, vec![build_key_package(false)], vec![]);
         stage_and_promote(&pool, &second).await?;
 
         // One fresh non-last-resort + the surviving last-resort from batch 1.
@@ -615,12 +696,12 @@ mod tests {
         let user = store_random_user_record(&pool).await?;
         store_random_client_record(&pool, user.user_id).await?;
 
-        let first = staged(user.user_id, b"r1", vec![build_key_package(true)], vec![]);
+        let first = staged(user.user_id, 1, vec![build_key_package(true)], vec![]);
         stage_and_promote(&pool, &first).await?;
 
         let new_lr = build_key_package(true);
         let new_lr_tls = new_lr.tls_serialize_detached()?;
-        let second = staged(user.user_id, b"r2", vec![new_lr], vec![]);
+        let second = staged(user.user_id, 2, vec![new_lr], vec![]);
         stage_and_promote(&pool, &second).await?;
 
         // Exactly one last-resort remains, and it's the one from batch 2.
@@ -634,9 +715,14 @@ mod tests {
         let user = store_random_user_record(&pool).await?;
         store_random_client_record(&pool, user.user_id).await?;
 
-        // No batch staged for this (epoch, random): replayed/stale hint => no-op.
+        // No batch staged for this (epoch, leaf_index, generation): replayed/stale hint => no-op.
         let mut txn = pool.begin().await?;
-        StagedKeyPackages::promote(&mut txn, &user.user_id, b"epoch-1", b"nope").await?;
+        let batch_id = KeyPackageBatchId {
+            epoch_id: EpochIdExt::from_bytes(b"epoch-1"),
+            leaf_index: LeafNodeIndex::new(0),
+            generation: 999,
+        };
+        StagedKeyPackages::promote(&mut txn, &user.user_id, &batch_id).await?;
         txn.commit().await?;
 
         assert_eq!(live_counts(&pool).await?, (0, 0));

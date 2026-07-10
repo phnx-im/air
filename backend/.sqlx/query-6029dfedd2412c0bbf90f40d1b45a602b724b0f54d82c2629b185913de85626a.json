@@ -1,6 +1,6 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT id FROM qs_staged_key_package_batch\n                WHERE user_id = $1 AND epoch_id = $2 AND random = $3",
+  "query": "SELECT id FROM qs_staged_key_package_batch\n                WHERE user_id = $1 AND epoch_id = $2 AND leaf_index = $3 AND generation = $4",
   "describe": {
     "columns": [
       {
@@ -19,12 +19,13 @@
       "Left": [
         "Uuid",
         "Bytea",
-        "Bytea"
+        "Int8",
+        "Int8"
       ]
     },
     "nullable": [
       false
     ]
   },
-  "hash": "3318ee21100e008ba9693215a35d7eeb0a2e9e925070ca2c521e27ae9e6bb378"
+  "hash": "6029dfedd2412c0bbf90f40d1b45a602b724b0f54d82c2629b185913de85626a"
 }

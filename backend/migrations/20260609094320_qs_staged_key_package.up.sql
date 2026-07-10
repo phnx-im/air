@@ -9,9 +9,10 @@ CREATE TABLE qs_staged_key_package_batch (
     id INTEGER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
     user_id uuid NOT NULL,
     epoch_id BYTEA NOT NULL,
-    random BYTEA NOT NULL,
+    leaf_index BIGINT NOT NULL,
+    generation BIGINT NOT NULL,
     created_at timestamptz NOT NULL DEFAULT now (),
-    UNIQUE (user_id, epoch_id, random),
+    UNIQUE (user_id, epoch_id, leaf_index, generation),
     FOREIGN KEY (user_id) REFERENCES qs_user_record (user_id) ON DELETE CASCADE
 );
 

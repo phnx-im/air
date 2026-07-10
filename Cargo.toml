@@ -83,7 +83,7 @@ minicbor-serde = { version = "0.6", features = ["std"] }
 mockall = "0.13.1"
 mockito = "1.7.0"
 openmls = { version = "0.8.1", features = ["draft-ietf-mls-pq-ciphersuites", "unchecked-conversions", "0-8-1-storage-format", "virtual-clients-draft"] }
-openmls_basic_credential = { version = "0.5.0", features = ["clonable"] }
+openmls_basic_credential = { version = "0.5.0", features = ["clonable", "draft-ietf-mls-pq-ciphersuites"] }
 openmls_memory_storage = { version = "0.5.0", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
 openmls_rust_crypto = { version = "0.5.1", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }
 openmls_sqlite_storage = { version = "0.2.0", features = ["draft-ietf-mls-pq-ciphersuites", "virtual-clients-draft"] }

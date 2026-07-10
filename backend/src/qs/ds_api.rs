@@ -6,6 +6,7 @@ use aircommon::{
     crypto::hpke::HpkeDecryptable,
     identifiers::{ClientConfig, QsClientId},
     messages::AirProtocolVersion,
+    virtual_client::KeyPackageBatchId,
 };
 use thiserror::Error;
 use tls_codec::Serialize;
@@ -13,7 +14,7 @@ use tracing::error;
 
 use crate::{
     messages::{
-        intra_backend::{DsFanOutMessage, VirtualClientAction},
+        intra_backend::{DsFanOutMessage, QsVirtualClientHint},
         qs_qs::{QsToQsMessage, QsToQsPayload},
     },
     qs::{errors::EnqueueError, staged_key_package::StagedKeyPackages},
@@ -118,13 +119,19 @@ impl Qs {
                 }
             }
 
-            if let Some(VirtualClientAction::PromoteStagedKeyPackages { epoch_id, random }) =
-                message.virtual_client_action
+            if let Some(QsVirtualClientHint::PromoteStagedKeyPackages {
+                epoch_id,
+                leaf_index,
+                generation,
+            }) = message.virtual_client_hint
             {
                 self.promote_staged_key_packages(
                     &client_config.client_id,
-                    epoch_id.as_slice(),
-                    random.as_slice(),
+                    &KeyPackageBatchId {
+                        epoch_id,
+                        leaf_index,
+                        generation,
+                    },
                 )
                 .await
             }
@@ -135,11 +142,10 @@ impl Qs {
     async fn promote_staged_key_packages(
         &self,
         client_id: &QsClientId,
-        epoch_id: &[u8],
-        random: &[u8],
+        batch_id: &KeyPackageBatchId,
     ) {
         if let Err(error) = self
-            .try_promote_staged_key_packages(client_id, epoch_id, random)
+            .try_promote_staged_key_packages(client_id, batch_id)
             .await
         {
             error!(%error, "Failed to promote staged key packages");
@@ -149,14 +155,13 @@ impl Qs {
     async fn try_promote_staged_key_packages(
         &self,
         client_id: &QsClientId,
-        epoch_id: &[u8],
-        random: &[u8],
+        batch_id: &KeyPackageBatchId,
     ) -> Result<(), PromoteStagedKeyPackagesError> {
         let mut txn = self.db_pool.begin().await?;
         let user_id = QsClientRecord::load_user_id(&mut *txn, client_id)
             .await?
             .ok_or(PromoteStagedKeyPackagesError::ClientNotFound)?;
-        StagedKeyPackages::promote(&mut txn, &user_id, epoch_id, random).await?;
+        StagedKeyPackages::promote(&mut txn, &user_id, batch_id).await?;
         txn.commit().await?;
         Ok(())
     }
@@ -255,7 +260,7 @@ mod tests {
                 sealed_reference,
             },
             suppress_notifications: false.into(),
-            virtual_client_action: None,
+            virtual_client_hint: None,
         };
 
         qs.enqueue_message(
