@@ -319,92 +319,20 @@ mod tests {
 
     use super::*;
 
-    #[test]
-    fn measure_build_stack() {
-        let kb: usize = std::env::var("PROBE_STACK_KB").unwrap().parse().unwrap();
-        std::thread::Builder::new()
-            .stack_size(kb * 1024)
-            .spawn(|| {
-                let _ = build_apq_key_package(false);
-                println!("BUILD_APQ stack={}KB ok", kb);
-            })
-            .unwrap()
-            .join()
-            .unwrap();
-    }
-
-    #[test]
-    fn measure_future_sizes() {
-        // Run on a large stack so that merely *constructing* the futures for
-        // measurement cannot overflow, and inside a current-thread runtime so we can
-        // build the (async) txn-bearing futures.
-        std::thread::Builder::new()
-            .stack_size(512 * 1024 * 1024)
-            .spawn(|| {
-                let rt = tokio::runtime::Builder::new_current_thread()
-                    .enable_all()
-                    .build()
-                    .unwrap();
-                rt.block_on(async {
-                    let url = std::env::var("DATABASE_URL").unwrap();
-                    let pool = PgPool::connect(&url).await.unwrap();
-
-                    // A single query future (built, not run).
-                    let one_scalar = query_scalar!(
-                        "SELECT id FROM qs_staged_key_package_batch WHERE id = $1",
-                        0i32
-                    )
-                    .fetch_optional(&pool);
-                    println!("ONE_QUERY_SCALAR={}", std::mem::size_of_val(&one_scalar));
-                    drop(one_scalar);
-
-                    let one_exec = query!(
-                        "INSERT INTO qs_staged_key_package
-                            (batch_id, key_package, is_last_resort, is_apq)
-                         VALUES ($1, $2, $3, false)",
-                        0i32,
-                        &b"x"[..],
-                        false,
-                    )
-                    .execute(&pool);
-                    println!("ONE_QUERY_EXEC={}", std::mem::size_of_val(&one_exec));
-                    drop(one_exec);
-
-                    let skp = staged(
-                        QsUserId::from(uuid::Uuid::nil()),
-                        1,
-                        vec![],
-                        vec![],
-                    );
-                    let mut txn = pool.begin().await.unwrap();
-
-                    let stage_fut = skp.stage(&mut txn);
-                    println!("STAGE_FUTURE={}", std::mem::size_of_val(&stage_fut));
-                    drop(stage_fut);
-
-                    let user_id = QsUserId::from(uuid::Uuid::nil());
-                    let batch_id = KeyPackageBatchId {
-                        epoch_id: EpochIdExt::from_bytes(b"epoch-1"),
-                        leaf_index: LeafNodeIndex::new(0),
-                        generation: 1,
-                    };
-                    let promote_fut = StagedKeyPackages::promote(&mut txn, &user_id, &batch_id);
-                    println!("PROMOTE_FUTURE={}", std::mem::size_of_val(&promote_fut));
-                    drop(promote_fut);
-
-                    txn.rollback().await.unwrap();
-                });
-            })
-            .unwrap()
-            .join()
-            .unwrap();
-    }
-
     fn build_apq_key_package(last_resort: bool) -> ApqKeyPackage {
         let provider = OpenMlsRustCrypto::default();
         let ciphersuite = ApqCiphersuite::default_pq_conf_and_auth();
         let scheme = ApqSignatureScheme::from(ciphersuite);
-        let signer = ApqSignatureKeyPair::new(scheme).unwrap();
+
+        // Generating a PQ signature explodes the stack because it needs about 2 MiB.
+        // The exact problem is in `ml_dsa::SigningKey::<MlDsa87>::generate())`.
+        let signer = std::thread::Builder::new()
+            .stack_size(4 * 1024 * 1024)
+            .spawn(move || ApqSignatureKeyPair::new(scheme).unwrap())
+            .unwrap()
+            .join()
+            .unwrap();
+
         let credential = ApqCredentialWithKey::new(b"test-client", &signer);
         let mut builder = ApqKeyPackage::builder();
         if last_resort {
