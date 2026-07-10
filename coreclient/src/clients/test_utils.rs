@@ -24,7 +24,6 @@ use super::*;
 impl CoreUser {
     /// The same as [`Self::new()`], except that databases are ephemeral and are
     /// dropped together with this instance of [`CoreUser`].
-    #[cfg(any(test, feature = "test_utils"))]
     pub async fn new_ephemeral(
         user_id: UserId,
         server_url: Url,
@@ -58,6 +57,21 @@ impl CoreUser {
             invitation_code,
         )
         .await
+    }
+
+    /// Returns whether the user has a persisted self-group that is an APQ
+    /// (T+PQ) group. `None` if there is no self-group yet, or it is not
+    /// persisted.
+    pub async fn self_group_is_apq(&self) -> anyhow::Result<Option<bool>> {
+        let mut read = self.db().read().await?;
+        let own_client_info = OwnClientInfo::load(&mut read).await?;
+        let Some(group_id) = own_client_info.self_group_id else {
+            return Ok(None);
+        };
+        let Some(group) = Group::load(read, &group_id).await? else {
+            return Ok(None);
+        };
+        Ok(Some(group.is_apq() && group.pq().is_some()))
     }
 
     pub async fn mls_members(&self, chat_id: ChatId) -> Result<Option<Vec<Member>>> {
@@ -232,7 +246,6 @@ impl CoreUser {
     /// Send a message to the DS using the given collision tags instead of
     /// auto-derived ones. Used in tests to simulate a second emulator client
     /// sending with the same generation.
-    #[cfg(any(test, feature = "test_utils"))]
     pub async fn send_message_with_fixed_collision_tags(
         &self,
         chat_id: ChatId,

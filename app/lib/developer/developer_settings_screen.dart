@@ -142,6 +142,11 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                       );
                     },
                   ),
+                  ListTile(
+                    title: const Text("Ensure self-group"),
+                    trailing: const AppIcon.checkCheck(),
+                    onTap: () => context.read<UserCubit>().ensureSelfGroup(),
+                  ),
                   if (isMobile) ...[
                     const _SectionHeader("Mobile Device"),
                     ListTile(

@@ -547,6 +547,7 @@ async fn erase_connection_group_data_mixed_feature_support() {
             empty_connection_group_attributes: false,
             pq_groups: setup.apq_groups,
         },
+        is_self_group: false,
     };
     bob_user
         .set_group_air_component(chat_id, old_air_component)
@@ -620,6 +621,7 @@ async fn erase_connection_group_data_mixed_feature_support() {
             empty_connection_group_attributes: true,
             pq_groups: setup.apq_groups,
         },
+        is_self_group: false,
     };
     bob_user
         .set_group_air_component(chat_id, new_air_component)

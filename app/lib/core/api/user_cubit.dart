@@ -84,6 +84,8 @@ abstract class UserCubitBase implements RustOpaqueInterface {
   /// Used for development purposes.
   Future<void> devEraseChat(ChatId chatId);
 
+  Future<void> ensureSelfGroup();
+
   bool get isClosed;
 
   Future<void> leaveChat(ChatId chatId);

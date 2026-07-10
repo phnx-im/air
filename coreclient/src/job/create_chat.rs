@@ -7,8 +7,10 @@ use std::convert::Infallible;
 use aircommon::{
     crypto::{aead::keys::IdentityLinkWrapperKey, indexed_aead::keys::UserProfileKey},
     identifiers::QsReference,
+    mls_group_config::AppComponent,
     time::TimeStamp,
 };
+use airprotos::client::component::AirComponent;
 use airprotos::client::group::{EncryptedGroupTitle, GroupData, GroupProfile};
 use anyhow::Context;
 use tracing::error;
@@ -139,6 +141,7 @@ impl CreateChat {
             .await?
             .with_transaction(async |txn| -> anyhow::Result<_> {
                 let (group, partial_params) = if is_apq {
+                    let disable_safe_aad = None;
                     Group::create_apq_group(
                         &mut *txn,
                         &key_store.signing_key,
@@ -146,6 +149,8 @@ impl CreateChat {
                         group_id,
                         pq_group_id.context("Missing PQ group ID")?,
                         group_data_bytes.clone(),
+                        disable_safe_aad,
+                        AirComponent::default_for_leaf_or_key_package(),
                     )?
                 } else {
                     Group::create_group(

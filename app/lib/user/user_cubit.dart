@@ -116,6 +116,10 @@ class UserCubit implements StateStreamableSource<UiUser> {
     return _impl.uploadLogs(cacheDir: cacheDir);
   }
 
+  Future<void> ensureSelfGroup() async {
+    return _impl.ensureSelfGroup();
+  }
+
   /// Drives the acceptor side of linking. Connects to the relay, emits
   /// [MultiDeviceLinkEvent_AwaitingConfirmation] once connected, then completes
   /// the handshake after the user approves via [confirmation].

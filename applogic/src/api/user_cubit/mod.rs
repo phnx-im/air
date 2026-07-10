@@ -494,6 +494,11 @@ impl UserCubitBase {
 
         Ok(log_browse_url.to_string())
     }
+
+    pub async fn ensure_self_group(&self) -> anyhow::Result<()> {
+        self.core_user().ensure_self_group().await?;
+        Ok(())
+    }
 }
 
 impl Drop for UserCubitBase {

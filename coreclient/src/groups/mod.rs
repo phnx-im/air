@@ -13,6 +13,7 @@ pub(crate) mod error;
 pub(crate) mod openmls_provider;
 pub(crate) mod persistence;
 pub(crate) mod process;
+pub(crate) mod self_group;
 
 use apqmls::{
     authentication::ApqCredentialWithKey,
@@ -61,10 +62,10 @@ use aircommon::{
         },
     },
     mls_group_config::{
-        GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS, default_app_data_dictionary_extension,
-        default_group_required_extensions, default_leaf_node_capabilities,
-        default_leaf_node_extensions, default_mls_group_join_config,
-        default_sender_ratchet_configuration,
+        AppComponent, GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS,
+        default_app_data_dictionary_extension, default_group_required_extensions,
+        default_leaf_node_capabilities, default_leaf_node_extensions,
+        default_mls_group_join_config, default_sender_ratchet_configuration,
     },
     time::TimeStamp,
     utils::removed_client,
@@ -2081,7 +2082,7 @@ impl Group {
                 // Add air component to the app data dictionary.
                 updated_dict.get_or_insert_with(|| dict.clone()).insert(
                     AIR_COMPONENT_ID,
-                    AirComponent::default_leaf_or_key_package_component()
+                    AirComponent::default_for_leaf_or_key_package()
                         .to_bytes()
                         .expect("invalid Air component"),
                 );
