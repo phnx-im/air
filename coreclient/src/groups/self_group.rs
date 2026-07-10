@@ -2,23 +2,45 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::ops::Deref;
+
 use aircommon::{
+    credentials::keys::ClientSigningKey,
     crypto::{aead::keys::IdentityLinkWrapperKey, indexed_aead::keys::UserProfileKey},
+    messages::{
+        client_ds::{AadMessage, AadPayload, GroupOperationParamsAad},
+        client_ds_out::ApqGroupOperationParamsOut,
+    },
     mls_group_config::AppComponent,
 };
 use airprotos::client::{
     component::AirComponent, group::GroupData,
     virtual_client::VIRTUAL_CLIENT_KP_UPLOAD_COMPONENT_ID,
 };
-use anyhow::Context;
+use anyhow::{Context, ensure};
+use openmls::{components::vc_derivation_info::KeyPackageUpload, framing::SafeAadItem};
+use tls_codec::Serialize;
 use tracing::{debug, warn};
 
 use crate::{
     chats::GroupDataExt,
     clients::{CoreUser, own_client_info::OwnClientInfo},
-    groups::Group,
+    db::access::WriteConnection,
+    groups::{Group, openmls_provider::AirOpenMlsProvider},
     key_stores::indexed_keys::StorableIndexedKey,
 };
+
+pub(crate) struct SelfGroup {
+    group: Group,
+}
+
+impl Deref for SelfGroup {
+    type Target = Group;
+
+    fn deref(&self) -> &Self::Target {
+        &self.group
+    }
+}
 
 impl CoreUser {
     pub async fn ensure_self_group(&self) -> anyhow::Result<()> {
@@ -42,7 +64,7 @@ impl CoreUser {
         Ok(())
     }
 
-    async fn create_self_group(&self) -> anyhow::Result<Group> {
+    async fn create_self_group(&self) -> anyhow::Result<SelfGroup> {
         let api_client = self.api_client()?;
 
         // Request group IDs
@@ -108,7 +130,53 @@ impl CoreUser {
         // Assign the group to the own client info
         OwnClientInfo::set_self_group_id(self.db().write().await?, group.group_id()).await?;
 
-        Ok(group)
+        Ok(SelfGroup { group })
+    }
+}
+
+impl SelfGroup {
+    /// Stages an empty self-update commit on the self-group carrying a [`KeyPackageUpload`] in its
+    /// SafeAAD.
+    ///
+    /// The DS extracts the hint from the T commit and asks the QS to promote the previously staged
+    /// key packages.
+    pub(crate) fn stage_key_package_upload(
+        &mut self,
+        mut connection: impl WriteConnection,
+        signer: &ClientSigningKey,
+        upload: KeyPackageUpload,
+    ) -> anyhow::Result<ApqGroupOperationParamsOut> {
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
+        let (t_mls_group, pq_mls_group) = self.group.apq_mls_groups_mut()?;
+
+        // SafeAAD hint the DS extracts from the T commit to trigger promotion.
+        let upload_bytes = upload.tls_serialize_detached()?;
+        t_mls_group.set_safe_aad(vec![SafeAadItem::new(
+            VIRTUAL_CLIENT_KP_UPLOAD_COMPONENT_ID,
+            upload_bytes,
+        )])?;
+
+        // Regular AAD tail (required by DS commit validation)
+        let aad_payload = AadPayload::GroupOperation(GroupOperationParamsAad {
+            new_encrypted_user_profile_keys: Vec::new(),
+        });
+        let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
+        t_mls_group.set_aad(aad);
+
+        let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
+            .force_self_update(true)
+            .create_group_info(true)
+            .finalize(&provider, signer, |_| true, |_| true)?;
+
+        ensure!(
+            bundle.group_info.is_some(),
+            "No group info in APQMLS bundle"
+        );
+
+        Ok(ApqGroupOperationParamsOut {
+            bundle,
+            encrypted_welcome_attribution_infos: Default::default(),
+        })
     }
 }
 

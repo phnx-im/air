@@ -9,15 +9,19 @@ use aircommon::{
     identifiers::{ClientConfig, QsClientId, QsReference},
     mls_group_config::{
         APQ_CIPHERSUITE, QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_key_package_extensions,
-        default_leaf_node_capabilities, default_leaf_node_extensions,
+        default_leaf_node_capabilities, default_leaf_node_extensions, vc_leaf_node_extensions,
     },
 };
 use airprotos::client::component::AirComponent;
 use anyhow::Result;
 use apqmls::{authentication::ApqCredentialWithKey, messages::ApqKeyPackage};
-use openmls::prelude::{
-    Credential, CredentialType, CredentialWithKey, Extension, KeyPackage, KeyPackageRef,
-    LastResortExtension, OpenMlsProvider, SignaturePublicKey, UnknownExtension,
+use openmls::{
+    components::vc_derivation_info::EpochId,
+    prelude::{
+        Credential, CredentialType, CredentialWithKey, Extension, KeyPackage, KeyPackageRef,
+        LastResortExtension, OpenMlsProvider, SignaturePublicKey, UnknownExtension,
+        VcKeyPackageBatch,
+    },
 };
 use openmls_traits::storage::StorageProvider;
 use tls_codec::Serialize as TlsSerializeTrait;
@@ -78,6 +82,53 @@ impl MemoryUserKeyStore {
             client_homeserver_domain: self.signing_key.credential().user_id().domain().clone(),
             sealed_reference,
         }
+    }
+
+    pub(crate) fn generate_vc_key_package(
+        &self,
+        mut connection: impl WriteConnection,
+        qs_client_id: &QsClientId,
+        last_resort: bool,
+        epoch_id: EpochId,
+        count: u32,
+    ) -> Result<VcKeyPackageBatch> {
+        let credential_with_key = CredentialWithKey {
+            credential: self.signing_key.credential().try_into()?,
+            signature_key: SignaturePublicKey::from(
+                self.signing_key.credential().verifying_key().clone(),
+            ),
+        };
+
+        let mut leaf_node_extensions = vc_leaf_node_extensions::<AirComponent>();
+
+        let client_reference = self.create_own_client_reference(qs_client_id);
+        let client_ref_extension = Extension::Unknown(
+            QS_CLIENT_REFERENCE_EXTENSION_TYPE,
+            UnknownExtension(client_reference.tls_serialize_detached()?),
+        );
+        leaf_node_extensions.add(client_ref_extension)?;
+
+        let mut key_package_extensions = default_key_package_extensions::<AirComponent>();
+        if last_resort {
+            let last_resort_extension = Extension::LastResort(LastResortExtension::new());
+            key_package_extensions.add(last_resort_extension)?;
+        };
+
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
+
+        let vc_batch = KeyPackage::builder()
+            .key_package_extensions(key_package_extensions)
+            .leaf_node_capabilities(default_leaf_node_capabilities())
+            .leaf_node_extensions(leaf_node_extensions)
+            .build_vc_batch(
+                CIPHERSUITE,
+                &provider,
+                &self.signing_key,
+                credential_with_key,
+                epoch_id,
+                count,
+            )?;
+        Ok(vc_batch)
     }
 
     pub(crate) fn generate_key_package(

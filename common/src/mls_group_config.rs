@@ -9,6 +9,7 @@ use mls_assist::{
     components::ComponentsList,
     openmls::{
         component::{ComponentId, ComponentType},
+        components::vc_derivation_info::VC_COMPONENT_ID,
         group::{MlsGroupJoinConfig, PURE_PLAINTEXT_WIRE_FORMAT_POLICY},
         prelude::{
             AppDataDictionary, AppDataDictionaryExtension, Capabilities, Ciphersuite,
@@ -202,6 +203,34 @@ pub fn default_app_data_dictionary_extension<C: AppComponent>() -> Extension {
     );
 
     Extension::AppDataDictionary(AppDataDictionaryExtension::new(app_data_dictionary))
+}
+
+/// Leaf-node extensions for a virtual-client key package.
+///
+/// Identical to [`default_leaf_node_extensions`] except `AppComponents` advertisement additionally
+/// lists [`VC_COMPONENT_ID`].
+pub fn vc_leaf_node_extensions<C: AppComponent>() -> Extensions<LeafNode> {
+    let mut app_data_dictionary = AppDataDictionary::new();
+
+    // Advertise both `C` and the virtual-client component.
+    app_data_dictionary.insert(
+        ComponentType::AppComponents.into(),
+        ComponentsList {
+            component_ids: vec![C::COMPONENT_ID, VC_COMPONENT_ID],
+        }
+        .tls_serialize_detached()
+        .expect("invalid component list"),
+    );
+
+    // Add `C`'s body so the key package stays valid for regular groups.
+    app_data_dictionary.insert(
+        C::COMPONENT_ID,
+        C::default_for_leaf_or_key_package().to_bytes(),
+    );
+
+    let extension =
+        Extension::AppDataDictionary(AppDataDictionaryExtension::new(app_data_dictionary));
+    Extensions::from_vec(vec![extension]).expect("invalid extensions")
 }
 
 #[cfg(test)]
