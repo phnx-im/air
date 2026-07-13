@@ -36,7 +36,7 @@ impl User {
                 };
                 let Some(body) = message
                     .message()
-                    .string_representation(&self.user, chat.chat_type())
+                    .string_representation(&self.user, chat.chat_type(), true)
                     .await
                 else {
                     continue;
@@ -78,7 +78,7 @@ impl User {
                 let Some(original_message_body) = reaction
                     .original_chat_message
                     .message()
-                    .string_representation(&self.user, chat.chat_type())
+                    .string_representation(&self.user, chat.chat_type(), false)
                     .await
                 else {
                     continue;
