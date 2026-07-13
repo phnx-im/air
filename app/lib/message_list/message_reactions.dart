@@ -701,10 +701,8 @@ Future<void> showWhoReactedSheet({
     return showBottomSheetModal<void>(
       context: context,
       barrierColor: barrierColor,
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(Spacing.px16),
-        child: SizedBox(height: whoReactedPanelSize.height, child: sheet),
-      ),
+      builder: (context) =>
+          SizedBox(height: whoReactedPanelSize.height, child: sheet),
     );
   }
   return showGeneralDialog<void>(
