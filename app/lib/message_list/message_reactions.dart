@@ -9,6 +9,7 @@ import 'package:air/ds/foundations/elevation.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/user/users_cubit.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:air/core/core.dart';
 import 'package:air/ds/components/modal/bottom_sheet_modal.dart';
@@ -209,7 +210,8 @@ class MessageReactions extends StatelessWidget {
         }
 
         final List<Widget> chips;
-        if (!maxWidth.isFinite || fullWidth <= maxWidth) {
+        // A single reaction always renders as its emoji chip
+        if (!maxWidth.isFinite || fullWidth <= maxWidth || count == 1) {
           chips = [for (final reaction in ordered) chipFor(reaction)];
         } else {
           // Reserve room for the overflow chip ("+N" upper bound).
@@ -266,7 +268,7 @@ class MessageReactions extends StatelessWidget {
           child: OverflowBox(
             minWidth: 0,
             maxWidth: double.infinity,
-            alignment: isSender ? Alignment.centerLeft : Alignment.centerRight,
+            alignment: Alignment.centerLeft,
             child: Row(mainAxisSize: MainAxisSize.min, children: children),
           ),
         );
@@ -370,29 +372,43 @@ Future<void> showQuickReactionMenu({
         curve: Curves.easeOutCubic,
         reverseCurve: Curves.easeInCubic,
       );
-      // The bar fades out while the full picker covers this route.
-      return FadeTransition(
-        opacity: handedOff
-            ? const AlwaysStoppedAnimation(0.0)
-            : ReverseAnimation(secondaryAnimation),
-        child: _QuickReactionMenuOverlay(
-          animation: curved,
-          anchorRect: anchorRect,
-          skinTone: skinTone,
-          onReact: (emoji) {
-            Navigator.of(dialogContext).pop();
-            onReact(emoji);
-          },
-          onMore: () {
-            handedOff = true;
-            unawaited(
-              onMore().whenComplete(() {
-                if (dialogContext.mounted) {
-                  Navigator.of(dialogContext).pop();
-                }
-              }),
-            );
-          },
+      // Own the focus and Escape handling explicitly. When opened from the
+      // context menu, closing that menu tears down its focus node and reverts
+      // focus to the page underneath.
+      return Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.escape) {
+            Navigator.of(dialogContext).maybePop();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        // The bar fades out while the full picker covers this route.
+        child: FadeTransition(
+          opacity: handedOff
+              ? const AlwaysStoppedAnimation(0.0)
+              : ReverseAnimation(secondaryAnimation),
+          child: _QuickReactionMenuOverlay(
+            animation: curved,
+            anchorRect: anchorRect,
+            skinTone: skinTone,
+            onReact: (emoji) {
+              Navigator.of(dialogContext).pop();
+              onReact(emoji);
+            },
+            onMore: () {
+              handedOff = true;
+              unawaited(
+                onMore().whenComplete(() {
+                  if (dialogContext.mounted) {
+                    Navigator.of(dialogContext).pop();
+                  }
+                }),
+              );
+            },
+          ),
         ),
       );
     },

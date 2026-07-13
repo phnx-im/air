@@ -75,7 +75,18 @@ impl User {
                     ChatType::Group(attrs) => attrs.title().to_owned(),
                 };
                 let reactor = self.user.user_profile(&reaction.reactor).await.display_name;
-                let body = format!("{reactor} reacted {} to your message", reaction.emoji);
+                let Some(original_message_body) = reaction
+                    .original_chat_message
+                    .message()
+                    .string_representation(&self.user, chat.chat_type())
+                    .await
+                else {
+                    continue;
+                };
+                let body = format!(
+                    "{reactor} reacted {} to {original_message_body}",
+                    reaction.emoji
+                );
                 notifications.push(NotificationContent {
                     identifier: NotificationId::random(),
                     title,
