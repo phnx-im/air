@@ -785,6 +785,12 @@ impl CoreUser {
                     .await?;
                     (group_messages, Vec::new(), true, Vec::new())
                 }
+                ProcessedMessageContent::OwnPrivateMessage => {
+                    bail!("Unexpected OwnPrivateMessage, should have been ignored");
+                }
+                ProcessedMessageContent::UnresolvedAppDataCommit(_) => {
+                    bail!("Unexpected UnresolvedAppDataCommit, should have been resolved before")
+                }
             };
 
         let mut messages = Self::store_new_messages(&mut *txn, chat_id, new_messages).await?;

@@ -32,7 +32,7 @@ use openmls::{
 };
 use openmls_traits::OpenMlsProvider;
 use tls_codec::DeserializeBytes as TlsDeserializeBytes;
-use tracing::{debug, instrument, warn};
+use tracing::{debug, error, instrument, warn};
 
 use crate::{
     clients::api_clients::ApiClients, db::access::WriteDbTransaction,
@@ -170,6 +170,16 @@ impl Group {
                     we_were_removed: false,
                     encrypted_profile_infos: Vec::new(),
                 }
+            }
+            ProcessedMessageContent::OwnPrivateMessage => {
+                return Ok(ProcessMessageResult::Ignored);
+            }
+            ProcessedMessageContent::UnresolvedAppDataCommit(_) => {
+                error!(
+                    "Unexpected UnresolvedAppDataCommit in commit message, \
+                    should have been resolved before"
+                );
+                return Ok(ProcessMessageResult::Ignored);
             }
         };
 
