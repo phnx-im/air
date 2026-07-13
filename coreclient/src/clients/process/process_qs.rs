@@ -49,6 +49,7 @@ use crate::{
         QsListenResponder,
         attachment::AttachmentRecord,
         block_contact::{BlockedContact, BlockedContactError},
+        own_client_info::OwnClientInfo,
         process::process_as::{ConnectionInfoSource, TargetedMessageSource},
         targeted_message::TargetedMessageContent,
         update_key::{update_chat_attributes, update_chat_title},
@@ -229,14 +230,28 @@ impl CoreUser {
         // If yes, merge the commit and store the updated group
         let (mut group_messages, group_data_bytes) =
             group.merge_pending_commit(txn, None, timestamp).await?;
+
+        let Some(mut chat) = Chat::load_by_group_id(&mut *txn, &group_id).await? else {
+            // The only chat-less group is the self-group. The commit response is the echo that
+            // confirms a self-group key package upload.
+            let own_client_info = OwnClientInfo::load(&mut *txn).await?;
+            ensure!(
+                own_client_info.self_group_id.as_ref() == Some(&group_id),
+                "Can't find chat for commit response"
+            );
+            debug_assert!(group_messages.is_empty());
+            group
+                .group_mut()
+                .store_update(&mut *txn, Some(timestamp), Some(timestamp))
+                .await?;
+            PendingChatOperation::finalize_self_group_key_package_upload(txn, &group_id).await?;
+            return Ok(ProcessQsMessageResult::None);
+        };
+
         group
             .group_mut()
             .store_update(&mut *txn, Some(timestamp), None)
             .await?;
-
-        let mut chat = Chat::load_by_group_id(&mut *txn, &group_id)
-            .await?
-            .context("Can't find chat for commit response")?;
 
         self.finalize_own_commit(
             txn,

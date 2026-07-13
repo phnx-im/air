@@ -18,7 +18,7 @@ use anyhow::{Context as _, anyhow, bail};
 use apqmls::commit_builder::ApqCommitMessageBundle;
 use chrono::{DateTime, Duration, Utc};
 use mimi_room_policy::RoleIndex;
-use openmls::group::GroupId;
+use openmls::{group::GroupId, prelude::KeyPackageRef};
 use serde::{Deserialize, Serialize};
 use sqlx::{query, query_as, query_scalar};
 use tracing::{debug, error, info};
@@ -26,7 +26,10 @@ use tracing::{debug, error, info};
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
     chats::{GroupDataExt, messages::TimestampedMessage},
-    clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
+    clients::{
+        CoreUser, api_clients::ApiClients, own_client_info::OwnClientInfo,
+        update_key::update_chat_attributes,
+    },
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
         Group, GroupDataBytes, PreparedInvitee, VerifiedGroup,
@@ -35,7 +38,7 @@ use crate::{
     job::{
         Job, JobContext, JobContextReadConnection, JobError, chat_operation::ChatOperationError,
     },
-    key_stores::indexed_keys::StorableIndexedKey,
+    key_stores::{indexed_keys::StorableIndexedKey, key_package_refs::mark_key_packages_as_live},
 };
 
 // Having separate retry intervals for test and non-test is a hack until we can
@@ -71,6 +74,11 @@ pub(super) enum OperationType {
         #[serde(with = "serde_bytes")]
         new_chat_picture: Option<Vec<u8>>,
     },
+    SelfGroupKeyPackageUpload {
+        params: Box<ApqGroupOperationParamsOut>,
+        plain_refs: Vec<KeyPackageRef>,
+        apq_refs: Vec<KeyPackageRef>,
+    },
 }
 
 impl std::fmt::Display for OperationType {
@@ -81,6 +89,7 @@ impl std::fmt::Display for OperationType {
             OperationType::ApqDelete { .. } => "apq_delete",
             OperationType::Other { .. } => "other",
             OperationType::ApqOther { .. } => "apq_other",
+            OperationType::SelfGroupKeyPackageUpload { .. } => "self_group_kp_upload",
         };
         f.write_str(label)
     }
@@ -115,13 +124,27 @@ impl OperationType {
         }
     }
 
+    #[allow(dead_code)]
+    fn self_group_key_package_upload(
+        params: ApqGroupOperationParamsOut,
+        plain_refs: Vec<KeyPackageRef>,
+        apq_refs: Vec<KeyPackageRef>,
+    ) -> Self {
+        Self::SelfGroupKeyPackageUpload {
+            params: Box::new(params),
+            plain_refs,
+            apq_refs,
+        }
+    }
+
     fn is_commit(&self) -> bool {
         match self {
             OperationType::Leave(_) => false,
             OperationType::Delete(_)
             | OperationType::ApqDelete { .. }
             | OperationType::Other { .. }
-            | OperationType::ApqOther { .. } => true,
+            | OperationType::ApqOther { .. }
+            | OperationType::SelfGroupKeyPackageUpload { .. } => true,
         }
     }
 
@@ -237,6 +260,12 @@ impl PendingChatOperation {
         context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         if let PendingChatOperationStatus::WaitingForQueueResponse = self.status {
+            // TODO: A self-group key package upload parks here until the DS
+            // echoes the commit back via the queue. If that echo is lost (the
+            // DS dispatches it best-effort), the job is stuck forever and
+            // blocks all further uploads. Eventual backstop: time out the
+            // waiting state, tear down the self-group and let
+            // ensure_self_group recreate it.
             info!(
                 group_id = ?self.group.group_id(),
                 "Failed to execute PendingChatOperation for group because
@@ -359,6 +388,21 @@ impl PendingChatOperation {
                     )
                     .await
             }
+            OperationType::SelfGroupKeyPackageUpload { params, .. } => {
+                let own_qs_client_reference = key_store.create_own_client_reference(qs_client_id);
+                let own_encrypted_user_profile_key =
+                    encrypt_user_profile_key(db.read().await?).await?;
+
+                api_client
+                    .ds_apq_group_operation(
+                        *params,
+                        signer,
+                        self.group.group_state_ear_key(),
+                        own_qs_client_reference,
+                        own_encrypted_user_profile_key,
+                    )
+                    .await
+            }
         };
 
         let mut ds_has_confirmed_leave = true;
@@ -385,6 +429,14 @@ impl PendingChatOperation {
                 TimeStamp::now()
             }
         };
+
+        if let OperationType::SelfGroupKeyPackageUpload { .. } = &self.operation {
+            // Mark the operation as waiting for the queue response as we only accept this operation
+            // as done when we are getting an echo via the queue.
+            self.mark_as_waiting_for_queue_response(db.write().await?)
+                .await?;
+            return Ok(Vec::new());
+        }
 
         // If any of the following fails, something is very wrong.
         let messages = db
@@ -791,6 +843,64 @@ impl PendingChatOperation {
             })
             .await
     }
+
+    pub(crate) async fn create_self_group_key_package_upload(
+        mut txn: &mut WriteDbTransaction<'_>,
+        params: ApqGroupOperationParamsOut,
+        plain_refs: Vec<KeyPackageRef>,
+        apq_refs: Vec<KeyPackageRef>,
+    ) -> anyhow::Result<Self> {
+        let own_client_info = OwnClientInfo::load(&mut txn).await?;
+        let group_id = own_client_info
+            .self_group_id
+            .context("Self-group not found")?;
+        let group = Group::load_verified(&mut txn, &group_id)
+            .await?
+            .context("Self-group not found")?;
+
+        let operation_type =
+            OperationType::self_group_key_package_upload(params, plain_refs, apq_refs);
+
+        let job = Self::new(group, operation_type);
+        job.store(txn).await?;
+        Ok(job)
+    }
+
+    /// Finalizes a pending self-group key package upload after the DS echoed
+    /// the commit back via the queue.
+    ///
+    /// Called from the QS processing path after the commit has been merged.
+    /// A missing job or a different operation type means the echo is stale
+    /// (e.g. a replay), so this is a no-op then.
+    pub(crate) async fn finalize_self_group_key_package_upload(
+        txn: &mut WriteDbTransaction<'_>,
+        group_id: &GroupId,
+    ) -> anyhow::Result<()> {
+        let Some(job) = Self::load_by_group_id(&mut *txn, group_id).await? else {
+            return Ok(());
+        };
+        let OperationType::SelfGroupKeyPackageUpload {
+            plain_refs,
+            apq_refs,
+            ..
+        } = job.operation
+        else {
+            return Ok(());
+        };
+
+        // The echo proves the QS ran the promote (hint and echo travel in the
+        // same fan-out message), but not that the promote found the staging
+        // row: it may have TTL-evicted if the DS accepted a late retry. In
+        // that case the QS keeps serving the previous batch, whose private
+        // keys the *next* mark-live call deletes, making in-flight welcomes
+        // undecryptable. Detecting this needs the QS live key package
+        // self-query, which does not exist yet.
+        mark_key_packages_as_live(&mut *txn, &plain_refs, false).await?;
+        mark_key_packages_as_live(&mut *txn, &apq_refs, true).await?;
+
+        Self::delete(txn, group_id).await?;
+        Ok(())
+    }
 }
 
 mod persistence {
@@ -898,7 +1008,7 @@ mod persistence {
     }
 
     impl PendingChatOperation {
-        pub(super) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
+        pub(crate) async fn store(&self, mut connection: impl WriteConnection) -> sqlx::Result<()> {
             let operation_data = BlobEncoded(&self.operation);
             let group_id = self.group.group_id().as_slice();
             let operation_string = self.operation.to_string();
@@ -1030,6 +1140,24 @@ mod persistence {
             JOIN chat c ON pco.group_id = c.group_id
             WHERE c.chat_id = ? LIMIT 1) AS row_exists",
                 chat_id,
+            )
+            .fetch_one(connection.as_mut())
+            .await?;
+            Ok(record.row_exists == 1)
+        }
+
+        pub(crate) async fn is_pending_for_group(
+            mut connection: impl ReadConnection,
+            group_id: &GroupId,
+        ) -> sqlx::Result<bool> {
+            let group_id = group_id.as_slice();
+            let record = query!(
+                r#"
+                    SELECT EXISTS(SELECT 1
+                    FROM pending_chat_operation
+                    WHERE group_id = ?) AS row_exists
+                "#,
+                group_id,
             )
             .fetch_one(connection.as_mut())
             .await?;

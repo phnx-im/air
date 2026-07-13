@@ -318,6 +318,10 @@ impl Group {
         &self.mls_group
     }
 
+    pub(crate) fn mls_group_mut(&mut self) -> &mut MlsGroup {
+        &mut self.mls_group
+    }
+
     pub(crate) fn pq(&self) -> Option<&PqGroup> {
         self.pq.as_ref()
     }

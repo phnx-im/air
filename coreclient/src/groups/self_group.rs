@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::ops::Deref;
+use std::ops::{Deref, DerefMut};
 
 use aircommon::{
     credentials::keys::ClientSigningKey,
@@ -25,7 +25,7 @@ use tracing::{debug, warn};
 use crate::{
     chats::GroupDataExt,
     clients::{CoreUser, own_client_info::OwnClientInfo},
-    db::access::WriteConnection,
+    db::access::{ReadConnection, WriteConnection},
     groups::{Group, openmls_provider::AirOpenMlsProvider},
     key_stores::indexed_keys::StorableIndexedKey,
 };
@@ -39,6 +39,12 @@ impl Deref for SelfGroup {
 
     fn deref(&self) -> &Self::Target {
         &self.group
+    }
+}
+
+impl DerefMut for SelfGroup {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut self.group
     }
 }
 
@@ -135,11 +141,21 @@ impl CoreUser {
 }
 
 impl SelfGroup {
+    pub(crate) async fn load(mut read: impl ReadConnection) -> anyhow::Result<Option<Self>> {
+        let own_client_info = OwnClientInfo::load(&mut read).await?;
+        let Some(group_id) = own_client_info.self_group_id else {
+            return Ok(None);
+        };
+        let group = Group::load(read, &group_id).await?;
+        Ok(group.map(|group| Self { group }))
+    }
+
     /// Stages an empty self-update commit on the self-group carrying a [`KeyPackageUpload`] in its
     /// SafeAAD.
     ///
     /// The DS extracts the hint from the T commit and asks the QS to promote the previously staged
     /// key packages.
+    #[allow(dead_code)]
     pub(crate) fn stage_key_package_upload(
         &mut self,
         mut connection: impl WriteConnection,
