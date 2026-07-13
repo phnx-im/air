@@ -48,11 +48,11 @@ const double quickReactionBarHeight = quickReactionBarTapSize + Spacing.px8;
 /// Extra vertical space between the hit point and where the reaction bar opens
 const double quickReactionMenuGap = Spacing.px12;
 
-/// Compact reaction chip metrics
-const double reactionChipSpacing = Spacing.px4;
+/// Compact reaction chip metrics (excluding border thickness)
+const double reactionChipSpacing = 1;
 
 /// Fixed height of a reaction chip
-const double reactionChipHeight = 36;
+const double reactionChipHeight = 28;
 
 /// How far the chips overlap the bottom border of the message bubble
 const double reactionsMessageBubbleOverlap = Spacing.px8;
@@ -538,6 +538,9 @@ class _QuickReactionButton extends StatelessWidget {
                 decoration: TextDecoration.none,
                 height: 1.0,
               ),
+              textHeightBehavior: const TextHeightBehavior(
+                leadingDistribution: .even,
+              ),
             ),
           ),
         ),
@@ -576,22 +579,40 @@ class _ReactionChip extends StatelessWidget {
         onTap: onTap,
         child: Container(
           height: reactionChipHeight,
-          padding: const EdgeInsets.symmetric(horizontal: Spacing.px12),
+          padding: const EdgeInsets.symmetric(
+            horizontal: Spacing.px8,
+            vertical: Spacing.px4,
+          ),
           decoration: BoxDecoration(
             color: isMine
                 ? colors.message.selfBackground
                 : colors.message.otherBackground,
             borderRadius: BorderRadius.circular(reactionChipHeight / 2),
-            border: Border.all(color: colors.backgroundBase.primary),
+            border: Border.all(
+              color: colors.backgroundBase.primary,
+              width: 1.5,
+            ),
           ),
           child: Row(
             mainAxisSize: .min,
             crossAxisAlignment: .center,
             children: [
-              Text(reaction.emoji, style: textStyle()),
+              Text(
+                reaction.emoji,
+                style: textStyle(),
+                textHeightBehavior: const TextHeightBehavior(
+                  leadingDistribution: .even,
+                ),
+              ),
               if (count >= 2) ...[
                 const SizedBox(width: Spacing.px4),
-                Text('$count', style: textStyle(color: colors.text.tertiary)),
+                Text(
+                  '$count',
+                  style: textStyle(color: colors.text.tertiary),
+                  textHeightBehavior: const TextHeightBehavior(
+                    leadingDistribution: .even,
+                  ),
+                ),
               ],
             ],
           ),
@@ -626,7 +647,7 @@ class _OverflowChip extends StatelessWidget {
         child: Container(
           height: reactionChipHeight,
           padding: const EdgeInsets.symmetric(
-            horizontal: Spacing.px12,
+            horizontal: Spacing.px8,
             vertical: Spacing.px4,
           ),
           decoration: BoxDecoration(
