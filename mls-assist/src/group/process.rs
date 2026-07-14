@@ -6,7 +6,12 @@ use apqmls::{
     messages::{ApqGroupInfo, ApqProtocolMessage},
     public_group::ApqPublicGroupMut,
 };
-use openmls::prelude::{ContentType, Credential, OpenMlsCrypto, ProtocolMessage, Verifiable};
+use openmls::{
+    component::ComponentData,
+    group::{AppDataDictionaryUpdater, AppDataUpdates, ResolveAppDataCommitError},
+    messages::proposals::{AppDataUpdateOperation, AppDataUpdateProposal},
+    prelude::{ContentType, Credential, OpenMlsCrypto, ProtocolMessage, Verifiable},
+};
 
 use crate::group::{apq::ApqGroupRef, errors::ProcessApqAssistedMessageError};
 
@@ -41,9 +46,12 @@ impl Group {
                         // Proposals are fed to the PublicGroup s.t. they are
                         // put into the ProposalStore. Otherwise we don't do
                         // anything with them.
-                        let processed_message = self
-                            .public_group
-                            .process_message_with_app_data_updates(provider, *pm)?;
+                        let processed_message = self.public_group.process_message(provider, *pm)?;
+                        let processed_message = resolve_app_data_commit_public(
+                            &self.public_group,
+                            provider,
+                            processed_message,
+                        )?;
                         let processed_assisted_message =
                             ProcessedAssistedMessage::NonCommit(processed_message);
                         let message_plus = ProcessedAssistedMessagePlus {
@@ -67,10 +75,11 @@ impl Group {
         };
         // First process the message, then verify that the group info
         // checks out.
-        let processed_message = self.public_group.process_message_with_app_data_updates(
-            provider,
-            ProtocolMessage::PublicMessage(commit.clone()),
-        )?;
+        let processed_message = self
+            .public_group
+            .process_message(provider, ProtocolMessage::PublicMessage(commit.clone()))?;
+        let processed_message =
+            resolve_app_data_commit_public(&self.public_group, provider, processed_message)?;
         let confirmation_tag = commit
             .confirmation_tag()
             .ok_or(LibraryError::LibraryError)?
@@ -305,4 +314,42 @@ pub enum GroupInfoValidationError {
     InvalidGroupInfoSignature,
     #[error("Group context is inconsistent between assisted group info and staged commit")]
     InconsistentGroupContext,
+}
+
+/// Resolves an [`UnresolvedAppDataCommit`] into a [`ProcessedMessage`].
+fn resolve_app_data_commit_public<Crypto: OpenMlsCrypto>(
+    group: &PublicGroup,
+    crypto: &Crypto,
+    message: ProcessedMessage,
+) -> Result<ProcessedMessage, ResolveAppDataCommitError> {
+    let ProcessedMessageContent::UnresolvedAppDataCommit(unresolved) = message.content() else {
+        return Ok(message);
+    };
+    let updates = compute_app_data_updates(
+        group.app_data_dictionary_updater(),
+        unresolved.app_data_update_proposals(),
+    );
+    group.resolve_app_data_commit(crypto, message, updates)
+}
+
+fn compute_app_data_updates<'a>(
+    mut updater: AppDataDictionaryUpdater<'a>,
+    proposals: impl Iterator<Item = &'a AppDataUpdateProposal>,
+) -> Option<AppDataUpdates> {
+    let mut updated = false;
+    for proposal in proposals {
+        match proposal.operation() {
+            AppDataUpdateOperation::Update(data) => {
+                updater.set(ComponentData::from_parts(
+                    proposal.component_id(),
+                    data.clone(),
+                ));
+            }
+            AppDataUpdateOperation::Remove => {
+                updater.remove(&proposal.component_id());
+            }
+        }
+        updated = true;
+    }
+    updated.then(|| updater.changes()).flatten()
 }
