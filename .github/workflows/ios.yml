@@ -45,7 +45,7 @@ jobs:
           fetch-depth: 0
           # Don't download historical file contents (blobs)
           filter: blob:none
-          # Explicitely forward the secret token
+          # Explicitly forward the secret token
           token: ${{ secrets.GITHUB_TOKEN }}
           # Update local git config with credentials
           persist-credentials: true
