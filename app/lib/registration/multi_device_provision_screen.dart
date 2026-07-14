@@ -42,8 +42,7 @@ class _Linking extends _LinkingPhase {
 
 /// The existing device connected and linking completed.
 class _Linked extends _LinkingPhase {
-  _Linked({required this.answer});
-  final String answer;
+  const _Linked();
 }
 
 /// The session failed or expired.
@@ -56,16 +55,41 @@ class _Failed extends _LinkingPhase {
 /// Defaults to the real Rust-bridge [multiDeviceProvisionClient] but made
 /// injectable so tests can drive the screen through each phase.
 typedef MultiDeviceProvisionClientFactory =
-    Stream<MultiDeviceProvisionEvent> Function({required String domain});
+    Stream<MultiDeviceProvisionEvent> Function({
+      required String domain,
+      required String dbPath,
+      required MultiDeviceProvisionedUser provisionedUser,
+    });
+
+/// Wires a freshly linked user into the running app, the same way
+/// [RegistrationCubit.signUp] does. Setting [CoreClient.user] cascades
+/// through [LoadableUserCubitProvider], which builds the user-scoped cubits
+/// and navigates to the chat list.
+void _linkUser(User user) => CoreClient().user = user;
 
 class MultiDeviceProvisionScreen extends HookWidget {
   const MultiDeviceProvisionScreen({
     super.key,
     this.provisionClient = multiDeviceProvisionClient,
+    this.dbPathResolver = dbPath,
+    this.provisionedUserFactory = MultiDeviceProvisionedUser.new,
+    this.onLinked = _linkUser,
   });
 
   /// The provisioning event source. Overridden in tests.
   final MultiDeviceProvisionClientFactory provisionClient;
+
+  /// Resolves the database location for the freshly linked device. Overridden
+  /// in tests (the default hits `path_provider`, which needs a real platform).
+  final Future<String> Function() dbPathResolver;
+
+  /// Constructs the handle used to claim the bootstrapped user once linking
+  /// succeeds. Overridden in tests to avoid the real Rust bridge.
+  final MultiDeviceProvisionedUser Function() provisionedUserFactory;
+
+  /// Handles the freshly linked user. Overridden in tests to avoid touching
+  /// the real (global) [CoreClient].
+  final void Function(User user) onLinked;
 
   @override
   Widget build(BuildContext context) {
@@ -89,37 +113,55 @@ class MultiDeviceProvisionScreen extends HookWidget {
       lastVisiblePhase.value = phase.value;
     }
 
+    // The fresh device needs a database location to bootstrap into.
+    final dbPathSnapshot = useFuture(useMemoized(dbPathResolver, const []));
+    final resolvedDbPath = dbPathSnapshot.data;
+
     useEffect(() {
+      // Wait until the database path is resolved before starting a session.
+      if (resolvedDbPath == null) {
+        return null;
+      }
       phase.value = const _Connecting();
-      final subscription = provisionClient(domain: domain).listen(
-        (event) {
-          switch (event) {
-            case MultiDeviceProvisionEvent_Code(:final code, :final qrcodeSvg):
-              phase.value = _AwaitingLink(code: code, qrcodeSvg: qrcodeSvg);
-            case MultiDeviceProvisionEvent_Linking():
-              phase.value = _Linking();
-            case MultiDeviceProvisionEvent_Linked(:final field0):
-              phase.value = _Linked(answer: field0);
-            case MultiDeviceProvisionEvent_Failed(:final field0):
-              phase.value = _Failed(message: field0);
-          }
-        },
-        onError: (Object error) {
-          phase.value = _Failed(
-            message: loc.linkingDevicesScreen_error_generic,
+      final provisionedUser = provisionedUserFactory();
+      final subscription =
+          provisionClient(
+            domain: domain,
+            dbPath: resolvedDbPath,
+            provisionedUser: provisionedUser,
+          ).listen(
+            (event) {
+              switch (event) {
+                case MultiDeviceProvisionEvent_Code(
+                  :final code,
+                  :final qrcodeSvg,
+                ):
+                  phase.value = _AwaitingLink(code: code, qrcodeSvg: qrcodeSvg);
+                case MultiDeviceProvisionEvent_Linking():
+                  phase.value = _Linking();
+                case MultiDeviceProvisionEvent_Linked():
+                  onLinked(provisionedUser.take()!);
+                  phase.value = const _Linked();
+                case MultiDeviceProvisionEvent_Failed(:final field0):
+                  phase.value = _Failed(message: field0);
+              }
+            },
+            onError: (Object error) {
+              phase.value = _Failed(
+                message: loc.linkingDevicesScreen_error_generic,
+              );
+            },
+            onDone: () {
+              // the stream has been closed from the Rust side (i.e. timeout)
+              if (phase.value is! _Linked) {
+                phase.value = _Failed(
+                  message: loc.linkingDeviceScreen_error_codesExpired_message,
+                );
+              }
+            },
           );
-        },
-        onDone: () {
-          // the stream has been closed from the Rust side (i.e. timeout)
-          if (phase.value is! _Linked) {
-            phase.value = _Failed(
-              message: loc.linkingDeviceScreen_error_codesExpired_message,
-            );
-          }
-        },
-      );
       return subscription.cancel;
-    }, [domain, attempt.value]);
+    }, [domain, attempt.value, resolvedDbPath]);
 
     void reload() => attempt.value++;
 
@@ -169,14 +211,14 @@ class MultiDeviceProvisionScreen extends HookWidget {
                 _AwaitingLink(:final code, :final qrcodeSvg) =>
                   _AwaitingLinkView(code: code, qrcodeSvg: qrcodeSvg),
                 _Linking() => const _LinkingView(),
-                _Linked() => const _LinkedView(),
+                _Linked() => const SizedBox.shrink(),
                 // The failure itself is shown as a modal, we want to
                 // keep the last visible view painted behind it.
                 _Failed() => switch (lastVisiblePhase.value) {
                   _AwaitingLink(:final code, :final qrcodeSvg) =>
                     _AwaitingLinkView(code: code, qrcodeSvg: qrcodeSvg),
                   _Linking() => const _LinkingView(),
-                  _Linked() => const _LinkedView(),
+                  _Linked() => const SizedBox.shrink(),
                   _ => const _ConnectingView(),
                 },
               },
@@ -478,33 +520,6 @@ class _LinkingView extends StatelessWidget {
           ),
         ),
         const CircularProgressIndicator(),
-      ],
-    );
-  }
-}
-
-// TODO: this should not exist and will be a loading chat list instead?
-class _LinkedView extends StatelessWidget {
-  const _LinkedView();
-
-  @override
-  Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
-
-    return Column(
-      mainAxisAlignment: .center,
-      spacing: Spacing.px16,
-      children: [
-        Icon(Icons.check_circle, size: 48, color: colors.accent.primary),
-        Text(
-          loc.linkingDeviceScreen_linked,
-          style: TextStyle(
-            fontSize: BodyFontSize.base.size,
-            fontWeight: FontWeight.bold,
-            color: colors.text.primary,
-          ),
-        ),
       ],
     );
   }

@@ -33,10 +33,13 @@ void main() {
   group('MultiDeviceProvisionScreen', () {
     late MockRegistrationCubit registrationCubit;
     late MockNavigationCubit navigationCubit;
+    late MockMultiDeviceProvisionedUser provisionedUser;
 
     setUp(() {
       registrationCubit = MockRegistrationCubit();
       navigationCubit = MockNavigationCubit();
+      provisionedUser = MockMultiDeviceProvisionedUser();
+      when(() => provisionedUser.take()).thenReturn(MockUser());
       when(
         () => registrationCubit.state,
       ).thenReturn(const RegistrationState(domain: 'example.com'));
@@ -55,7 +58,15 @@ void main() {
                 theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
                 home: MultiDeviceProvisionScreen(
-                  provisionClient: ({required String domain}) => stream,
+                  provisionClient:
+                      ({
+                        required String domain,
+                        required String dbPath,
+                        required MultiDeviceProvisionedUser provisionedUser,
+                      }) => stream,
+                  dbPathResolver: () async => '/tmp/test-link-db',
+                  provisionedUserFactory: () => provisionedUser,
+                  onLinked: (_) {},
                 ),
               );
             },
@@ -110,7 +121,7 @@ void main() {
       final controller = setUpView(tester);
 
       await tester.pumpWidget(buildSubject(controller.stream));
-      controller.add(const MultiDeviceProvisionEvent.linked('answer'));
+      controller.add(const MultiDeviceProvisionEvent.linked());
       await tester.pumpAndSettle();
 
       await expectLater(
@@ -123,6 +134,9 @@ void main() {
       final controller = setUpView(tester);
 
       await tester.pumpWidget(buildSubject(controller.stream));
+      // Let the (async) db-path resolve so the provisioning stream is attached
+      // before we push an event into it.
+      await tester.pump();
       controller.add(
         const MultiDeviceProvisionEvent.failed('The linking codes expired.'),
       );

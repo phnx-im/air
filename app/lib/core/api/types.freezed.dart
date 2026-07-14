@@ -14,7 +14,7 @@ T _$identity<T>(T value) => value;
 /// @nodoc
 mixin _$AirComponent {
 
- AirFeatures get features; bool get isSelfGroup;
+ AirFeatures get features;
 /// Create a copy of AirComponent
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -25,16 +25,16 @@ $AirComponentCopyWith<AirComponent> get copyWith => _$AirComponentCopyWithImpl<A
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is AirComponent&&(identical(other.features, features) || other.features == features)&&(identical(other.isSelfGroup, isSelfGroup) || other.isSelfGroup == isSelfGroup));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is AirComponent&&(identical(other.features, features) || other.features == features));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,features,isSelfGroup);
+int get hashCode => Object.hash(runtimeType,features);
 
 @override
 String toString() {
-  return 'AirComponent(features: $features, isSelfGroup: $isSelfGroup)';
+  return 'AirComponent(features: $features)';
 }
 
 
@@ -45,7 +45,7 @@ abstract mixin class $AirComponentCopyWith<$Res>  {
   factory $AirComponentCopyWith(AirComponent value, $Res Function(AirComponent) _then) = _$AirComponentCopyWithImpl;
 @useResult
 $Res call({
- AirFeatures features, bool isSelfGroup
+ AirFeatures features
 });
 
 
@@ -62,11 +62,10 @@ class _$AirComponentCopyWithImpl<$Res>
 
 /// Create a copy of AirComponent
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? features = null,Object? isSelfGroup = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? features = null,}) {
   return _then(_self.copyWith(
 features: null == features ? _self.features : features // ignore: cast_nullable_to_non_nullable
-as AirFeatures,isSelfGroup: null == isSelfGroup ? _self.isSelfGroup : isSelfGroup // ignore: cast_nullable_to_non_nullable
-as bool,
+as AirFeatures,
   ));
 }
 /// Create a copy of AirComponent
@@ -87,11 +86,10 @@ $AirFeaturesCopyWith<$Res> get features {
 
 
 class _AirComponent implements AirComponent {
-  const _AirComponent({required this.features, required this.isSelfGroup});
+  const _AirComponent({required this.features});
   
 
 @override final  AirFeatures features;
-@override final  bool isSelfGroup;
 
 /// Create a copy of AirComponent
 /// with the given fields replaced by the non-null parameter values.
@@ -103,16 +101,16 @@ _$AirComponentCopyWith<_AirComponent> get copyWith => __$AirComponentCopyWithImp
 
 @override
 bool operator ==(Object other) {
-  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AirComponent&&(identical(other.features, features) || other.features == features)&&(identical(other.isSelfGroup, isSelfGroup) || other.isSelfGroup == isSelfGroup));
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is _AirComponent&&(identical(other.features, features) || other.features == features));
 }
 
 
 @override
-int get hashCode => Object.hash(runtimeType,features,isSelfGroup);
+int get hashCode => Object.hash(runtimeType,features);
 
 @override
 String toString() {
-  return 'AirComponent(features: $features, isSelfGroup: $isSelfGroup)';
+  return 'AirComponent(features: $features)';
 }
 
 
@@ -123,7 +121,7 @@ abstract mixin class _$AirComponentCopyWith<$Res> implements $AirComponentCopyWi
   factory _$AirComponentCopyWith(_AirComponent value, $Res Function(_AirComponent) _then) = __$AirComponentCopyWithImpl;
 @override @useResult
 $Res call({
- AirFeatures features, bool isSelfGroup
+ AirFeatures features
 });
 
 
@@ -140,11 +138,10 @@ class __$AirComponentCopyWithImpl<$Res>
 
 /// Create a copy of AirComponent
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? features = null,Object? isSelfGroup = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? features = null,}) {
   return _then(_AirComponent(
 features: null == features ? _self.features : features // ignore: cast_nullable_to_non_nullable
-as AirFeatures,isSelfGroup: null == isSelfGroup ? _self.isSelfGroup : isSelfGroup // ignore: cast_nullable_to_non_nullable
-as bool,
+as AirFeatures,
   ));
 }
 

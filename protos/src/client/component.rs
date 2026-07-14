@@ -24,12 +24,6 @@ pub struct AirComponent {
     /// package).
     #[tag(1)]
     pub features: AirFeatures,
-    /// Whether the group this component is attached to is a self-group, i.e. a group used by a
-    /// single user to sync data between their own clients.
-    ///
-    /// Only meaningful in the group context; always `false` in leaf nodes and key packages.
-    #[tag(2)]
-    pub is_self_group: bool,
 }
 
 /// List of features supported by the client.
@@ -82,14 +76,12 @@ impl AppComponent for AirComponent {
     fn default_for_leaf_or_key_package() -> Self {
         Self {
             features: AirFeatures::default_leaf_or_key_package_features(),
-            is_self_group: false,
         }
     }
 
     fn default_for_self_group() -> Self {
         Self {
             features: AirFeatures::default_leaf_or_key_package_features(),
-            is_self_group: true,
         }
     }
 

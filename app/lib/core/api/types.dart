@@ -23,10 +23,7 @@ enum AddUsernameContactError { usernameNotFound, duplicateRequest, ownUsername }
 
 @freezed
 sealed class AirComponent with _$AirComponent {
-  const factory AirComponent({
-    required AirFeatures features,
-    required bool isSelfGroup,
-  }) = _AirComponent;
+  const factory AirComponent({required AirFeatures features}) = _AirComponent;
 }
 
 @freezed

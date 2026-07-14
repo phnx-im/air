@@ -151,6 +151,7 @@ impl CreateChat {
                         group_data_bytes.clone(),
                         disable_safe_aad,
                         AirComponent::default_for_leaf_or_key_package(),
+                        None,
                     )?
                 } else {
                     Group::create_group(

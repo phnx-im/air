@@ -212,11 +212,10 @@ impl DsGroupState {
         &self,
         sender_index: LeafNodeIndex,
     ) -> impl Iterator<Item = QsReference> {
-        let is_sender_virtual_client = self.leaf_is_virtual_client(sender_index);
         self.member_profiles
             .iter()
             .filter_map(move |(client_index, client_profile)| {
-                if client_index != &sender_index || is_sender_virtual_client {
+                if client_index != &sender_index {
                     Some(client_profile.client_queue_config.clone())
                 } else {
                     None
@@ -224,12 +223,14 @@ impl DsGroupState {
             })
     }
 
-    /// Returns `true` if the leaf declares a `VC_COMPONENT_ID` entry in its `AppDataDictionary` extension.
-    pub(crate) fn leaf_is_virtual_client(&self, leaf_index: LeafNodeIndex) -> bool {
-        self.group()
-            .leaf(leaf_index)
+    pub(crate) fn broadcast_to_all_client_queues(&self, sender_index: LeafNodeIndex) -> bool {
+        let is_self_group = self
+            .group()
+            .leaf(sender_index)
             .and_then(|leaf| leaf.extensions().app_data_dictionary())
-            .is_some_and(|dict| dict.dictionary().contains(&VC_COMPONENT_ID))
+            .is_some_and(|dict| dict.dictionary().contains(&VC_COMPONENT_ID));
+
+        !is_self_group
     }
 
     pub(crate) fn qs_client_ref_by_index(

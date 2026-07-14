@@ -7,7 +7,6 @@ use aircommon::{
     crypto::{
         aead::keys::GroupStateEarKey,
         signatures::{
-            keys::LeafVerifyingKeyRef,
             private_keys::SignatureVerificationError,
             signable::{Verifiable, VerifiedStruct},
         },
@@ -219,6 +218,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         fan_out_payload: impl Into<DsFanOutPayload>,
         destination_clients: impl IntoIterator<Item = identifiers::QsReference>,
         suppress_notifications: bool,
+        broadcast_to_all_client_queues: bool,
     ) -> TimeStamp {
         let fan_out_payload = fan_out_payload.into();
         let timestamp = fan_out_payload.timestamp();
@@ -239,6 +239,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
                 payload: fan_out_payload.clone(),
                 client_reference,
                 suppress_notifications: suppress_notifications.into(),
+                broadcast_to_all_client_queues: broadcast_to_all_client_queues.into(),
             }));
         }
 
@@ -262,9 +263,15 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         &self,
         fan_out_payload: impl Into<DsFanOutPayload>,
         destination_clients: impl IntoIterator<Item = identifiers::QsReference>,
+        broadcast_to_all_client_queues: bool,
     ) -> TimeStamp {
-        self.fan_out_message(fan_out_payload, destination_clients, true)
-            .await
+        self.fan_out_message(
+            fan_out_payload,
+            destination_clients,
+            true,
+            broadcast_to_all_client_queues,
+        )
+        .await
     }
 
     async fn encrypt_and_persist(
@@ -461,6 +468,8 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
                 "t and pq credentials do not match",
             ));
         }
+        let broadcast_to_all_client_queues =
+            t_group_state.broadcast_to_all_client_queues(t_sender_index);
 
         // Process group operation
         let ApqFanOut {
@@ -490,8 +499,12 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         })?;
 
         // Fan out
-        self.fan_out_message_without_notifications(qs_payload, destination_clients)
-            .await;
+        self.fan_out_message_without_notifications(
+            qs_payload,
+            destination_clients,
+            broadcast_to_all_client_queues,
+        )
+        .await;
         for message in individual {
             if let Err(error) = self
                 .qs_connector
@@ -562,14 +575,23 @@ where
             )),
         }
     })?;
-    let verifying_key: LeafVerifyingKeyRef = group_state
+    let sender_credential = sender_client_credential(group_state, sender_index)?;
+    let payload: P = request
+        .verify(sender_credential.verifying_key())
+        .map_err(InvalidSignature)?;
+    Ok((payload, sender_index))
+}
+
+fn sender_client_credential(
+    group_state: &DsGroupState,
+    sender_index: LeafNodeIndex,
+) -> Result<ClientCredential, Status> {
+    let leaf = group_state
         .group()
         .leaf(sender_index)
-        .ok_or(Status::invalid_argument("unknown sender"))?
-        .signature_key()
-        .into();
-    let payload: P = request.verify(verifying_key).map_err(InvalidSignature)?;
-    Ok((payload, sender_index))
+        .ok_or_else(|| Status::invalid_argument("unknown sender"))?;
+    ClientCredential::tls_deserialize_exact_bytes(leaf.credential().serialized_content())
+        .map_err(|_| Status::invalid_argument("invalid credential"))
 }
 
 /// Extracted data in leaf verification
@@ -847,7 +869,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         )?;
 
         // Check that the t and pq client signature keys match
-        Self::verify_signing_key(&pq_group_state.group, t_client_credential.verifying_key())?;
+        Self::verify_signing_key(&t_group_state.group, &pq_group_state.group)?;
 
         // Encrypt and store group state
         let t_reserved_group_id = self
@@ -1127,7 +1149,11 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     group_state.proposals.clear();
 
                     let timestamp = self
-                        .fan_out_message_without_notifications(group_message, destination_clients)
+                        .fan_out_message_without_notifications(
+                            group_message,
+                            destination_clients,
+                            true,
+                        )
                         .await;
                     Ok(timestamp)
                 },
@@ -1174,13 +1200,19 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
                     .collect();
+                let broadcast_to_all_client_queues =
+                    group_state.broadcast_to_all_client_queues(sender_index);
 
                 let group_message = group_state.resync_client(external_commit, sender_index)?;
 
                 group_state.proposals.clear();
 
                 let timestamp = self
-                    .fan_out_message_without_notifications(group_message, destination_clients)
+                    .fan_out_message_without_notifications(
+                        group_message,
+                        destination_clients,
+                        broadcast_to_all_client_queues,
+                    )
                     .await;
                 Ok(timestamp)
             })
@@ -1284,11 +1316,17 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
                     .collect();
+                let broadcast_to_all_client_queues =
+                    group_state.broadcast_to_all_client_queues(sender_index);
 
                 let group_message = group_state.self_remove_client(remove_proposal)?;
 
                 let timestamp = self
-                    .fan_out_message_without_notifications(group_message, destination_clients)
+                    .fan_out_message_without_notifications(
+                        group_message,
+                        destination_clients,
+                        broadcast_to_all_client_queues,
+                    )
                     .await;
                 Ok(timestamp)
             })
@@ -1393,14 +1431,10 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .map_err(to_status)?;
 
         // verify signature
-        let verifying_key: LeafVerifyingKeyRef = group_state
-            .group()
-            .leaf(sender_index)
-            .ok_or_else(|| Status::invalid_argument("unknown sender"))?
-            .signature_key()
-            .into();
-        let payload: SendMessagePayload =
-            request.verify(verifying_key).map_err(InvalidSignature)?;
+        let sender_credential = sender_client_credential(&group_state, sender_index)?;
+        let payload: SendMessagePayload = request
+            .verify(sender_credential.verifying_key())
+            .map_err(InvalidSignature)?;
 
         if let Some(tags) = payload.collision_tags {
             let msg_epoch = message.epoch().as_u64();
@@ -1414,6 +1448,8 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         }
 
         let destination_clients = group_state.other_destination_clients(sender_index);
+        let broadcast_to_all_client_queues =
+            group_state.broadcast_to_all_client_queues(sender_index);
 
         // Messages from legacy clients won't have this field set. Default to false.
         let suppress_notifications = payload.suppress_notifications.unwrap_or(false);
@@ -1423,6 +1459,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 message.into_serialized_mls_message(),
                 destination_clients,
                 suppress_notifications,
+                broadcast_to_all_client_queues,
             )
             .await;
 
@@ -1462,13 +1499,19 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
                     .collect();
+                let broadcast_to_all_client_queues =
+                    group_state.broadcast_to_all_client_queues(sender_index);
 
                 let group_message = group_state.delete_group(commit)?;
 
                 group_state.proposals.clear();
 
                 let timestamp = self
-                    .fan_out_message_without_notifications(group_message, destination_clients)
+                    .fan_out_message_without_notifications(
+                        group_message,
+                        destination_clients,
+                        broadcast_to_all_client_queues,
+                    )
                     .await;
                 Ok(timestamp)
             })
@@ -1557,7 +1600,12 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
 
-        let (destination_clients, fan_out_payload, individual_fan_out_messages) = self
+        let (
+            destination_clients,
+            fan_out_payload,
+            individual_fan_out_messages,
+            broadcast_to_all_client_queues,
+        ) = self
             .update_group_state(request, None, async |verification_data| {
                 let LeafVerificationData::<'_, GroupOperationPayload, true> {
                     ear_key,
@@ -1597,6 +1645,8 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
                     .collect();
+                let broadcast_to_all_client_queues =
+                    group_state.broadcast_to_all_client_queues(sender_index);
 
                 let (group_message, mut individual_fan_out_messages) =
                     group_state.group_operation(params, ear_key).await?;
@@ -1613,13 +1663,18 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     destination_clients,
                     fan_out_payload,
                     individual_fan_out_messages,
+                    broadcast_to_all_client_queues,
                 ))
             })
             .await?;
 
         // Fan out the commit message to existing members
         let timestamp = self
-            .fan_out_message_without_notifications(fan_out_payload, destination_clients)
+            .fan_out_message_without_notifications(
+                fan_out_payload,
+                destination_clients,
+                broadcast_to_all_client_queues,
+            )
             .await;
 
         // Dispatch individual fan out messages to new members
@@ -1795,14 +1850,10 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             &ear_key,
             async |group_state, _group_data| {
                 // verify signature
-                let verifying_key: LeafVerifyingKeyRef = group_state
-                    .group()
-                    .leaf(sender_index)
-                    .ok_or_else(|| Status::invalid_argument("unknown sender"))?
-                    .signature_key()
-                    .into();
-                let payload: UpdateProfileKeyPayload =
-                    request.verify(verifying_key).map_err(InvalidSignature)?;
+                let sender_credential = sender_client_credential(group_state, sender_index)?;
+                let payload: UpdateProfileKeyPayload = request
+                    .verify(sender_credential.verifying_key())
+                    .map_err(InvalidSignature)?;
 
                 let user_profile_key = payload
                     .encrypted_user_profile_key
@@ -1822,9 +1873,15 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
                     .collect();
+                let broadcast_to_all_client_queues =
+                    group_state.broadcast_to_all_client_queues(sender_index);
 
-                self.fan_out_message_without_notifications(fan_out_payload, destination_clients)
-                    .await;
+                self.fan_out_message_without_notifications(
+                    fan_out_payload,
+                    destination_clients,
+                    broadcast_to_all_client_queues,
+                )
+                .await;
                 Ok(())
             },
         )
@@ -1867,14 +1924,11 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .await
                     .map_err(to_status)?;
 
-                let verifying_key: LeafVerifyingKeyRef = group_state
-                    .group()
-                    .leaf(sender_index)
-                    .ok_or_else(|| Status::invalid_argument("unknown sender"))?
-                    .signature_key()
-                    .into();
+                let sender_credential = sender_client_credential(&group_state, sender_index)?;
 
-                request.verify(verifying_key).map_err(InvalidSignature)?
+                request
+                    .verify(sender_credential.verifying_key())
+                    .map_err(InvalidSignature)?
             }
             StorageObjectType::DebugLogs => {
                 let user_id = payload
@@ -1949,14 +2003,11 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .await
                     .map_err(to_status)?;
 
-                let verifying_key: LeafVerifyingKeyRef = group_state
-                    .group()
-                    .leaf(sender_index)
-                    .ok_or_else(|| Status::invalid_argument("unknown sender"))?
-                    .signature_key()
-                    .into();
+                let sender_credential = sender_client_credential(&group_state, sender_index)?;
 
-                request.verify(verifying_key).map_err(InvalidSignature)?
+                request
+                    .verify(sender_credential.verifying_key())
+                    .map_err(InvalidSignature)?
             }
             StorageObjectType::DebugLogs => {
                 let user_id = payload
@@ -2025,14 +2076,10 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .map_err(to_status)?;
 
         // verify signature
-        let verifying_key: LeafVerifyingKeyRef = group_state
-            .group()
-            .leaf(sender_index)
-            .ok_or_else(|| Status::invalid_argument("unknown sender"))?
-            .signature_key()
-            .into();
-        let payload: TargetedMessagePayload =
-            request.verify(verifying_key).map_err(InvalidSignature)?;
+        let sender_credential = sender_client_credential(&group_state, sender_index)?;
+        let payload: TargetedMessagePayload = request
+            .verify(sender_credential.verifying_key())
+            .map_err(InvalidSignature)?;
 
         if let Some(tags) = payload.collision_tags {
             let msg_epoch = message.epoch().as_u64();
@@ -2048,6 +2095,8 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let destination_client = group_state
             .qs_client_ref_by_index(recipient_index)
             .ok_or_else(|| Status::invalid_argument("unknown recipient"))?;
+        let broadcast_to_all_client_queues =
+            group_state.broadcast_to_all_client_queues(recipient_index);
 
         // Messages from legacy clients won't have this field set. Default to false.
         let suppress_notifications = false;
@@ -2058,6 +2107,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 .into(),
             client_reference: destination_client,
             suppress_notifications: suppress_notifications.into(),
+            broadcast_to_all_client_queues: broadcast_to_all_client_queues.into(),
         };
 
         let timestamp = fan_out_message.payload.timestamp();

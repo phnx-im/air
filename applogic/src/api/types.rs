@@ -855,7 +855,6 @@ impl From<Username> for UiUsername {
 #[frb(dart_metadata = ("freezed"))]
 struct _AirComponent {
     pub features: AirFeatures,
-    pub is_self_group: bool,
 }
 
 #[frb(unignore)]
