@@ -142,12 +142,12 @@ zeroize = "1.8.2"
 
 [patch.crates-io]
 # Use unreleased post-quantum and virtual-clients features of openmls after the 0.8.1 release
-openmls = { git = "https://github.com/openmls/openmls", rev = "ea3f1c82b1a1e8949636e419bc298d606c7eb5c1" }
-openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "ea3f1c82b1a1e8949636e419bc298d606c7eb5c1" }
-openmls_traits = { git = "https://github.com/openmls/openmls", rev = "ea3f1c82b1a1e8949636e419bc298d606c7eb5c1" }
-openmls_memory_storage = { git = "https://github.com/openmls/openmls", rev = "ea3f1c82b1a1e8949636e419bc298d606c7eb5c1" }
-openmls_basic_credential = { git = "https://github.com/openmls/openmls", rev = "ea3f1c82b1a1e8949636e419bc298d606c7eb5c1" }
-openmls_sqlite_storage = { git = "https://github.com/openmls/openmls", rev = "ea3f1c82b1a1e8949636e419bc298d606c7eb5c1" }
+openmls = { git = "https://github.com/openmls/openmls", rev = "4b6183a3e12009a219c59212def1d1bd5117db1f" }
+openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "4b6183a3e12009a219c59212def1d1bd5117db1f" }
+openmls_traits = { git = "https://github.com/openmls/openmls", rev = "4b6183a3e12009a219c59212def1d1bd5117db1f" }
+openmls_memory_storage = { git = "https://github.com/openmls/openmls", rev = "4b6183a3e12009a219c59212def1d1bd5117db1f" }
+openmls_basic_credential = { git = "https://github.com/openmls/openmls", rev = "4b6183a3e12009a219c59212def1d1bd5117db1f" }
+openmls_sqlite_storage = { git = "https://github.com/openmls/openmls", rev = "4b6183a3e12009a219c59212def1d1bd5117db1f" }
 # openmls = { path = "../openmls/openmls" }
 # openmls_rust_crypto = { path = "../openmls/openmls_rust_crypto" }
 # openmls_traits = { path = "../openmls/traits" }

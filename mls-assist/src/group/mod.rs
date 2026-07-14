@@ -146,6 +146,14 @@ impl Group {
             ProcessedMessageContent::OwnPendingCommit => Vec::new(),
             ProcessedMessageContent::ApplicationMessage(_)
             | ProcessedMessageContent::ExternalJoinProposalMessage(_) => todo!(),
+            ProcessedMessageContent::OwnPrivateMessage => Vec::new(),
+            ProcessedMessageContent::UnresolvedAppDataCommit(_) => {
+                debug_assert!(
+                    false,
+                    "Unexpected UnresolvedAppDataCommit, should have been resolved before"
+                );
+                Vec::new()
+            }
         };
         // Check if any potential joiners were added.
         self.past_group_states.add_state(
