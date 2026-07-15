@@ -468,8 +468,7 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
                 "t and pq credentials do not match",
             ));
         }
-        let broadcast_to_all_client_queues =
-            t_group_state.broadcast_to_all_client_queues(t_sender_index);
+        let broadcast_to_all_client_queues = t_group_state.broadcast_to_all_client_queues();
 
         // Process group operation
         let ApqFanOut {
@@ -1200,8 +1199,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
                     .collect();
-                let broadcast_to_all_client_queues =
-                    group_state.broadcast_to_all_client_queues(sender_index);
+                let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
                 let group_message = group_state.resync_client(external_commit, sender_index)?;
 
@@ -1316,8 +1314,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
                     .collect();
-                let broadcast_to_all_client_queues =
-                    group_state.broadcast_to_all_client_queues(sender_index);
+                let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
                 let group_message = group_state.self_remove_client(remove_proposal)?;
 
@@ -1448,8 +1445,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         }
 
         let destination_clients = group_state.other_destination_clients(sender_index);
-        let broadcast_to_all_client_queues =
-            group_state.broadcast_to_all_client_queues(sender_index);
+        let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
         // Messages from legacy clients won't have this field set. Default to false.
         let suppress_notifications = payload.suppress_notifications.unwrap_or(false);
@@ -1499,8 +1495,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
                     .collect();
-                let broadcast_to_all_client_queues =
-                    group_state.broadcast_to_all_client_queues(sender_index);
+                let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
                 let group_message = group_state.delete_group(commit)?;
 
@@ -1645,8 +1640,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
                     .collect();
-                let broadcast_to_all_client_queues =
-                    group_state.broadcast_to_all_client_queues(sender_index);
+                let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
                 let (group_message, mut individual_fan_out_messages) =
                     group_state.group_operation(params, ear_key).await?;
@@ -1873,8 +1867,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 let destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
                     .collect();
-                let broadcast_to_all_client_queues =
-                    group_state.broadcast_to_all_client_queues(sender_index);
+                let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
                 self.fan_out_message_without_notifications(
                     fan_out_payload,
@@ -2095,8 +2088,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         let destination_client = group_state
             .qs_client_ref_by_index(recipient_index)
             .ok_or_else(|| Status::invalid_argument("unknown recipient"))?;
-        let broadcast_to_all_client_queues =
-            group_state.broadcast_to_all_client_queues(recipient_index);
+        let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
         // Messages from legacy clients won't have this field set. Default to false.
         let suppress_notifications = false;

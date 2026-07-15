@@ -9111,6 +9111,7 @@ const _: fn() = || {
     {
         let AirComponent = None::<crate::api::types::AirComponent>.unwrap();
         let _: crate::api::types::AirFeatures = AirComponent.features;
+        let _: bool = AirComponent.is_self_group;
     }
     {
         let AirFeatures = None::<crate::api::types::AirFeatures>.unwrap();
@@ -10169,8 +10170,10 @@ impl SseDecode for crate::api::types::AirComponent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_features = <crate::api::types::AirFeatures>::sse_decode(deserializer);
+        let mut var_isSelfGroup = <bool>::sse_decode(deserializer);
         return crate::api::types::AirComponent {
             features: var_features,
+            is_self_group: var_isSelfGroup,
         };
     }
 }
@@ -13457,7 +13460,11 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::types::AddUsername
 // Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart for FrbWrapper<crate::api::types::AirComponent> {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
-        [self.0.features.into_into_dart().into_dart()].into_dart()
+        [
+            self.0.features.into_into_dart().into_dart(),
+            self.0.is_self_group.into_into_dart().into_dart(),
+        ]
+        .into_dart()
     }
 }
 impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
@@ -16263,6 +16270,7 @@ impl SseEncode for crate::api::types::AirComponent {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <crate::api::types::AirFeatures>::sse_encode(self.features, serializer);
+        <bool>::sse_encode(self.is_self_group, serializer);
     }
 }
 

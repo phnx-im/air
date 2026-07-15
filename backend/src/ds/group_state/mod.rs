@@ -18,26 +18,22 @@ use aircommon::{
     messages::client_ds::WelcomeInfoParams,
     time::TimeStamp,
 };
+use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent};
 use apqmls::extension::ApqInfo;
 use mimi_room_policy::{MimiProposal, RoleIndex, VerifiedRoomState};
 use mls_assist::{
     MlsAssistRustCrypto,
-    components::ComponentsList,
     group::Group,
     openmls::{
-        component::{ComponentId, ComponentType},
-        components::vc_derivation_info::VC_COMPONENT_ID,
         group::GroupId,
-        prelude::{GroupEpoch, LeafNode, LeafNodeIndex},
+        prelude::{GroupEpoch, LeafNodeIndex},
         treesync::RatchetTree,
     },
     provider_traits::MlsAssistProvider,
 };
 use sqlx::PgExecutor;
 use thiserror::Error;
-use tls_codec::{
-    DeserializeBytes as _, Serialize as _, TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes,
-};
+use tls_codec::{Serialize as _, TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
 use tracing::error;
 use uuid::Uuid;
 
@@ -46,18 +42,6 @@ use crate::errors::{CborMlsAssistStorage, StorageError};
 use super::{GROUP_STATE_EXPIRATION, ReservedGroupId, process::ExternalCommitInfo};
 
 pub(super) mod persistence;
-
-/// Checks if the leaf advertises the virtual-clients component (set on self-groups)
-pub(crate) fn leaf_signals_virtual_client(leaf: &LeafNode) -> bool {
-    leaf.extensions()
-        .app_data_dictionary()
-        .and_then(|ext| {
-            ext.dictionary()
-                .get(&ComponentId::from(ComponentType::AppComponents))
-        })
-        .and_then(|value| ComponentsList::tls_deserialize_exact_bytes(value).ok())
-        .is_some_and(|list| list.component_ids.contains(&VC_COMPONENT_ID))
-}
 
 #[derive(Debug, TlsSize, TlsDeserializeBytes, TlsSerialize)]
 pub(super) struct MemberProfile {
@@ -239,11 +223,22 @@ impl DsGroupState {
             })
     }
 
-    pub(crate) fn broadcast_to_all_client_queues(&self, sender_index: LeafNodeIndex) -> bool {
+    /// If the group context's [`AirComponent`] marks this group
+    /// as a virtual-client self-group, disable virtual-client broadcasting.
+    pub(crate) fn broadcast_to_all_client_queues(&self) -> bool {
         let is_self_group = self
             .group()
-            .leaf(sender_index)
-            .is_some_and(leaf_signals_virtual_client);
+            .group_info()
+            .group_context()
+            .extensions()
+            .app_data_dictionary()
+            .and_then(|ext| ext.dictionary().get(&AIR_COMPONENT_ID))
+            .and_then(|data| {
+                AirComponent::from_bytes(data)
+                    .inspect_err(|error| error!(%error, "Failed to deserialize air component"))
+                    .ok()
+            })
+            .is_some_and(|component| component.is_self_group);
 
         !is_self_group
     }

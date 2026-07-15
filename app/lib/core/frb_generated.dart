@@ -8967,9 +8967,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   AirComponent dco_decode_air_component(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 1)
-      throw Exception('unexpected arr length: expect 1 but see ${arr.length}');
-    return AirComponent(features: dco_decode_air_features(arr[0]));
+    if (arr.length != 2)
+      throw Exception('unexpected arr length: expect 2 but see ${arr.length}');
+    return AirComponent(
+      features: dco_decode_air_features(arr[0]),
+      isSelfGroup: dco_decode_bool(arr[1]),
+    );
   }
 
   @protected
@@ -12072,7 +12075,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   AirComponent sse_decode_air_component(SseDeserializer deserializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_features = sse_decode_air_features(deserializer);
-    return AirComponent(features: var_features);
+    var var_isSelfGroup = sse_decode_bool(deserializer);
+    return AirComponent(features: var_features, isSelfGroup: var_isSelfGroup);
   }
 
   @protected
@@ -15998,6 +16002,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_air_component(AirComponent self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_air_features(self.features, serializer);
+    sse_encode_bool(self.isSelfGroup, serializer);
   }
 
   @protected

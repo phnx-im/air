@@ -43,7 +43,6 @@ use tls_codec::DeserializeBytes;
 use tracing::{error, warn};
 
 use crate::{
-    ds::group_state::leaf_signals_virtual_client,
     errors::GroupOperationError,
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload},
 };
@@ -573,7 +572,6 @@ impl DsGroupState {
             // A self-group Welcome targets one specific device queue; a
             // regular-group Welcome targets a virtual client and must fan out
             // to all of the user's device queues.
-            let is_self_group_leaf = leaf_signals_virtual_client(key_package.leaf_node());
             let fan_out_message = DsFanOutMessage {
                 payload: DsFanOutPayload::QueueMessage(
                     welcome_bundle
@@ -582,7 +580,7 @@ impl DsGroupState {
                 ),
                 client_reference: client_queue_config,
                 suppress_notifications: false.into(),
-                broadcast_to_all_client_queues: (!is_self_group_leaf).into(),
+                broadcast_to_all_client_queues: self.broadcast_to_all_client_queues().into(),
             };
             fan_out_messages.push(fan_out_message);
         }
@@ -629,8 +627,7 @@ impl DsGroupState {
                 encrypted_joiner_info,
             };
             // See `generate_fan_out_messages`: broadcast only for
-            // regular-group (virtual client) Welcomes.
-            let is_self_group_leaf = leaf_signals_virtual_client(t_key_package.leaf_node());
+            // regular-group Welcomes.
             let fan_out_message = DsFanOutMessage {
                 payload: DsFanOutPayload::QueueMessage(
                     welcome_bundle
@@ -639,7 +636,7 @@ impl DsGroupState {
                 ),
                 client_reference: client_queue_config,
                 suppress_notifications: false.into(),
-                broadcast_to_all_client_queues: (!is_self_group_leaf).into(),
+                broadcast_to_all_client_queues: self.broadcast_to_all_client_queues().into(),
             };
             fan_out_messages.push(fan_out_message);
         }
@@ -680,9 +677,7 @@ impl DsGroupState {
             payload,
             client_reference: sender_client_reference,
             suppress_notifications: true.into(),
-            broadcast_to_all_client_queues: self
-                .broadcast_to_all_client_queues(sender_index)
-                .into(),
+            broadcast_to_all_client_queues: self.broadcast_to_all_client_queues().into(),
         };
         Ok(response)
     }

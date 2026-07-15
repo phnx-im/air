@@ -5,7 +5,7 @@
 use aircommon::{
     credentials::keys::{ClientSigningKey, PreliminaryClientSigningKey},
     crypto::{aead::keys::IdentityLinkWrapperKey, indexed_aead::keys::UserProfileKey},
-    mls_group_config::{AppComponent, self_group_leaf_node_extensions},
+    mls_group_config::{AppComponent, default_leaf_node_extensions},
 };
 use airprotos::client::{
     component::AirComponent,
@@ -95,7 +95,7 @@ impl CoreUser {
         .encode()?;
 
         // Advertise the virtual-clients component in this group's leaves
-        let vc_leaf_extensions = self_group_leaf_node_extensions::<AirComponent>();
+        let vc_leaf_extensions = default_leaf_node_extensions::<AirComponent>();
 
         // The client signing-key is shared among all emulators, and we use it to sign all request
         // as well as leaves in high-level groups. The self-group leaves are signed with a freshly

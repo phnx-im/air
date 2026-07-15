@@ -20,7 +20,7 @@ use aircommon::identifiers::{Fqdn, QsClientId, QsUserId, UserId};
 use aircommon::messages::{FriendshipToken, QueueMessage};
 use aircommon::mls_group_config::{
     APQ_CIPHERSUITE, QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_key_package_extensions,
-    default_leaf_node_capabilities, self_group_leaf_node_extensions,
+    default_leaf_node_capabilities, default_leaf_node_extensions,
 };
 use airprotos::client::component::AirComponent;
 use airprotos::relay_service::v1::{LinkingSessionId, RelayFrame};
@@ -466,7 +466,7 @@ impl CoreUser {
             },
         };
 
-        let mut leaf_node_extensions = self_group_leaf_node_extensions::<AirComponent>();
+        let mut leaf_node_extensions = default_leaf_node_extensions::<AirComponent>();
         let client_reference = self.create_own_client_reference();
         // TODO: don't use Extension::Unknown
         leaf_node_extensions.add(Extension::Unknown(
