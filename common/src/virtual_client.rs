@@ -30,4 +30,3 @@ impl KeyPackageBatchId {
             && self.generation == upload.generation
     }
 }
-
