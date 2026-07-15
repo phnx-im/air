@@ -38,7 +38,10 @@ use crate::{
     job::{
         Job, JobContext, JobContextReadConnection, JobError, chat_operation::ChatOperationError,
     },
-    key_stores::{indexed_keys::StorableIndexedKey, key_package_refs::mark_key_packages_as_live},
+    key_stores::{
+        indexed_keys::StorableIndexedKey,
+        key_package_refs::{delete_orphaned_key_packages, mark_key_packages_as_live},
+    },
 };
 
 // Having separate retry intervals for test and non-test is a hack until we can
@@ -897,6 +900,7 @@ impl PendingChatOperation {
         // self-query, which does not exist yet.
         mark_key_packages_as_live(&mut *txn, &plain_refs, false).await?;
         mark_key_packages_as_live(&mut *txn, &apq_refs, true).await?;
+        delete_orphaned_key_packages(&mut *txn).await?;
 
         Self::delete(txn, group_id).await?;
         Ok(())

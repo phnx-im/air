@@ -5,7 +5,10 @@
 use openmls::prelude::KeyPackageRef;
 use sqlx::{AssertSqlSafe, QueryBuilder};
 
-use crate::{db::access::WriteDbTransaction, groups::openmls_provider::KeyRefWrapper};
+use crate::{
+    db::access::{WriteConnection, WriteDbTransaction},
+    groups::openmls_provider::KeyRefWrapper,
+};
 
 pub(crate) async fn mark_key_packages_as_live(
     txn: &mut WriteDbTransaction<'_>,
@@ -59,18 +62,27 @@ async fn mark_key_packages_as_live_impl(
     }
     qb.build().execute(txn.as_mut()).await?;
 
-    // Delete orphaned key packages (usually this is a no-op).
-    // Must check both tables so regular and APQ key packages don't clobber each other.
-    sqlx::query(
-        "DELETE FROM key_package WHERE key_package_ref NOT IN (
-                SELECT key_package_ref FROM key_package_refs
-                UNION
-                SELECT key_package_ref FROM apq_key_package_refs
-            )",
-    )
-    .execute(txn.as_mut())
-    .await?;
+    Ok(())
+}
 
+/// Delete key packages not referenced in either refs table (usually a no-op).
+///
+/// Must only run after *both* the regular and the APQ refs of a batch are
+/// inserted: key package bundles are written to storage at generation time,
+/// before their refs are registered, so an early sweep would delete the not
+/// yet referenced half of the batch.
+pub(crate) async fn delete_orphaned_key_packages(
+    mut write: impl WriteConnection,
+) -> anyhow::Result<()> {
+    sqlx::query!(
+        "DELETE FROM key_package WHERE key_package_ref NOT IN (
+            SELECT key_package_ref FROM key_package_refs
+            UNION
+            SELECT key_package_ref FROM apq_key_package_refs
+        )",
+    )
+    .execute(write.as_mut())
+    .await?;
     Ok(())
 }
 

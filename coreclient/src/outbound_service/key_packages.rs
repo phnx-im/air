@@ -20,7 +20,7 @@ use crate::{
     job::pending_chat_operation::PendingChatOperation,
     key_stores::{
         HeterogeneousVcKeyPackageBatch, MemoryUserKeyStore, VcKeyPackageBatchConfig,
-        key_package_refs::mark_key_packages_as_live,
+        key_package_refs::{delete_orphaned_key_packages, mark_key_packages_as_live},
     },
     outbound_service::{APQ_KEY_PACKAGES, KEY_PACKAGES, OutboundServiceContext},
 };
@@ -87,6 +87,7 @@ impl OutboundServiceContext {
         self.db
             .with_write_transaction(async |txn| -> anyhow::Result<()> {
                 mark_key_packages_as_live(txn, key_package_refs.apq.iter(), true).await?;
+                delete_orphaned_key_packages(txn).await?;
                 Ok(())
             })
             .await?;
