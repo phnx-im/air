@@ -165,7 +165,7 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
             .or_default()
             .push(OutEmoji {
                 escape: to_dart_escape(&entry.unified),
-                short_name: entry.short_name.replace("_", "-"),
+                short_name: normalize_shortcode(&entry.short_name),
                 short_names,
                 sort_order: entry.sort_order,
                 skin_variations: entry
@@ -208,7 +208,17 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
     let mut duplicate_refs = 0usize;
     for (category_id, (_, group)) in categories.iter().enumerate() {
         for (index, emoji) in group.iter().enumerate() {
+            // Insert the full emoji shortcode to match when typed entirely
+            let refs = shortcode_refs
+                .entry(emoji.short_name.clone())
+                .or_insert_with(|| {
+                    shortcode_order.push(emoji.short_name.clone());
+                    Vec::new()
+                });
+            refs.push((category_id, index));
+
             for name in &emoji.short_names {
+                // Split the shortcodes so search can find words
                 for word in split_shortcode(name.clone()) {
                     let refs = shortcode_refs.entry(word.clone()).or_insert_with(|| {
                         shortcode_order.push(word.clone());
@@ -324,6 +334,12 @@ fn unified_key(glyph: &str) -> String {
         .map(|c| format!("{:04X}", c as u32))
         .collect::<Vec<_>>()
         .join("-")
+}
+
+/// Convert dashes into underscores, but avoid replacing shortcodes like :+1: or :-1:
+fn normalize_shortcode(code: &str) -> String {
+    let (first, rest) = code.split_at(1);
+    first.to_string() + &rest.replace("-", "_")
 }
 
 /// Splits a shortcode into its constituent lowercase words on '-' and '_',
