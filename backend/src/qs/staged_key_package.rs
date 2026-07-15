@@ -307,7 +307,10 @@ mod tests {
     };
     use chrono::Duration;
     use mls_assist::{
-        openmls::{components::vc_derivation_info::EpochId, prelude::LeafNodeIndex},
+        openmls::{
+            components::vc_derivation_info::EpochId,
+            prelude::{Ciphersuite, LeafNodeIndex},
+        },
         openmls_rust_crypto::OpenMlsRustCrypto,
     };
     use sqlx::PgPool;
@@ -322,17 +325,15 @@ mod tests {
 
     fn build_apq_key_package(last_resort: bool) -> ApqKeyPackage {
         let provider = OpenMlsRustCrypto::default();
-        let ciphersuite = ApqCiphersuite::default_pq_conf_and_auth();
+        // The T and PQ ciphersuites have different hash sizes (SHA256 vs
+        // SHA384) to exercise the cross-suite KDF path. Both use Ed25519
+        // signatures; ML-DSA key generation would overflow the test stack.
+        let ciphersuite = ApqCiphersuite::new(
+            Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519,
+            Ciphersuite::MLS_128_MLKEM768_AES256GCM_SHA384_Ed25519,
+        );
         let scheme = ApqSignatureScheme::from(ciphersuite);
-
-        // Generating a PQ signature explodes the stack because it needs about 2 MiB.
-        // The exact problem is in `ml_dsa::SigningKey::<MlDsa87>::generate())`.
-        let signer = std::thread::Builder::new()
-            .stack_size(4 * 1024 * 1024)
-            .spawn(move || ApqSignatureKeyPair::new(scheme).unwrap())
-            .unwrap()
-            .join()
-            .unwrap();
+        let signer = ApqSignatureKeyPair::new(scheme).unwrap();
 
         let credential = ApqCredentialWithKey::new(b"test-client", &signer);
         let mut builder = ApqKeyPackage::builder();
