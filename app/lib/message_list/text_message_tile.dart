@@ -4,6 +4,7 @@
 
 import 'dart:async' show Timer, unawaited;
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:air/attachments/attachments.dart';
 import 'package:air/chat/chat_details.dart';
@@ -54,6 +55,9 @@ const double _bubbleMaxWidthFactor = 5 / 6;
 final double _hoverReactSize =
     BodyFontSize.base.size * BodyFontSize.lineHeight +
     messageVerticalPadding * 2;
+// Width the hover affordance occupies beside the bubble: the reply and react
+// buttons, the gap between them, and the gap to the bubble.
+final double _hoverAffordanceWidth = 2 * _hoverReactSize + 2 * Spacing.px8;
 const double largeCornerRadius = Spacing.px20;
 const double smallCornerRadius = Spacing.px8;
 const double messageHorizontalPadding = Spacing.px16;
@@ -92,10 +96,17 @@ class WrapWithBubbleWidth extends StatelessWidget {
   const WrapWithBubbleWidth({
     super.key,
     required this.isSender,
+    this.affordanceWidth = 0,
     required this.child,
   });
 
   final bool isSender;
+
+  /// Width reserved by the hover affordance beside the bubble. Granted on top
+  /// of the bubble width factor so the affordance lives in the free margin,
+  /// the bubble only shrinks when the row is too narrow to fit both.
+  final double affordanceWidth;
+
   final Widget child;
 
   @override
@@ -104,7 +115,10 @@ class WrapWithBubbleWidth extends StatelessWidget {
       builder: (context, constraints) {
         final hasFiniteWidth = constraints.maxWidth.isFinite;
         final double maxWidth = hasFiniteWidth
-            ? constraints.maxWidth * _bubbleMaxWidthFactor
+            ? math.min(
+                constraints.maxWidth,
+                constraints.maxWidth * _bubbleMaxWidthFactor + affordanceWidth,
+              )
             : double.infinity;
         final alignment = isSender
             ? Alignment.centerRight
@@ -806,6 +820,7 @@ class _MessageView extends HookWidget {
 
     return WrapWithBubbleWidth(
       isSender: isSender,
+      affordanceWidth: isReplyable ? _hoverAffordanceWidth : 0,
       child: MouseRegion(
         onEnter: (_) => isHovered.value = true,
         onExit: (_) => isHovered.value = false,
