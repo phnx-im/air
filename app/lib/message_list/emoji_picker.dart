@@ -145,6 +145,7 @@ class _SearchField extends StatelessWidget {
       height: _searchHeight,
       child: TextField(
         controller: controller,
+        autofocus: true,
         textInputAction: TextInputAction.search,
         style: TextStyle(
           fontSize: FontSizes.base.size,
