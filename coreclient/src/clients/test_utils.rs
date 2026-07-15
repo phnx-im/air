@@ -4,7 +4,7 @@
 
 #[cfg(any(test, feature = "test_utils"))]
 use aircommon::messages::client_ds_out::SendMessageCollisionTag;
-use openmls::group::Member;
+use openmls::group::{GroupEpoch, Member};
 
 use aircommon::{codec::PersistenceCodec, identifiers::QualifiedGroupId};
 use openmls::prelude::GroupId;
@@ -59,9 +59,8 @@ impl CoreUser {
         .await
     }
 
-    /// Returns whether the user has a persisted self-group that is an APQ
-    /// (T+PQ) group. `None` if there is no self-group yet, or it is not
-    /// persisted.
+    /// Returns whether the user has a persisted self-group that is an APQ (T+PQ) group. `None` if
+    /// there is no self-group yet, or it is not persisted.
     pub async fn self_group_is_apq(&self) -> anyhow::Result<Option<bool>> {
         let mut read = self.db().read().await?;
         let own_client_info = OwnClientInfo::load(&mut read).await?;
@@ -72,6 +71,53 @@ impl CoreUser {
             return Ok(None);
         };
         Ok(Some(group.is_apq() && group.pq().is_some()))
+    }
+
+    /// Returns the (T, PQ) epochs of the self-group, or `None` if there is no persisted self-group.
+    pub async fn self_group_epochs(
+        &self,
+    ) -> anyhow::Result<Option<(GroupEpoch, Option<GroupEpoch>)>> {
+        let mut read = self.db().read().await?;
+        let own_client_info = OwnClientInfo::load(&mut read).await?;
+        let Some(group_id) = own_client_info.self_group_id else {
+            return Ok(None);
+        };
+        let Some(group) = Group::load(read, &group_id).await? else {
+            return Ok(None);
+        };
+        let t_epoch = group.mls_group().epoch();
+        let pq_epoch = group.pq().map(|pq| pq.mls_group.epoch());
+        Ok(Some((t_epoch, pq_epoch)))
+    }
+
+    /// Returns the pending chat operation info for the self-group, if any.
+    pub async fn self_group_pending_operation_info(
+        &self,
+    ) -> anyhow::Result<Option<PendingChatOperationInfo>> {
+        let mut read = self.db().read().await?;
+        let own_client_info = OwnClientInfo::load(&mut read).await?;
+        let Some(group_id) = own_client_info.self_group_id else {
+            return Ok(None);
+        };
+        PendingChatOperationInfo::load_by_group_id(read, &group_id).await
+    }
+
+    /// Returns the raw (plain, APQ) key package refs currently marked as live, sorted for stable
+    /// comparison.
+    pub async fn live_key_package_refs(&self) -> anyhow::Result<(Vec<Vec<u8>>, Vec<Vec<u8>>)> {
+        let mut read = self.db().read().await?;
+        let mut plain: Vec<Vec<u8>> =
+            sqlx::query_scalar("SELECT key_package_ref FROM key_package_refs WHERE is_live = 1")
+                .fetch_all(read.as_mut())
+                .await?;
+        let mut apq: Vec<Vec<u8>> = sqlx::query_scalar(
+            "SELECT key_package_ref FROM apq_key_package_refs WHERE is_live = 1",
+        )
+        .fetch_all(read.as_mut())
+        .await?;
+        plain.sort_unstable();
+        apq.sort_unstable();
+        Ok((plain, apq))
     }
 
     pub async fn mls_members(&self, chat_id: ChatId) -> Result<Option<Vec<Member>>> {
