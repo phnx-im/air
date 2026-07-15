@@ -22,61 +22,112 @@ const DEFAULT_OUTPUT: &str = "app/lib/emojis/generated.dart";
 /// standalone skin-tone / hair modifiers, which aren't pickable emojis.
 const EXCLUDED_CATEGORIES: &[&str] = &["Component"];
 
+/// Category names in `group` id order. This is the canonical Unicode emoji
+/// group ordering (see `emoji-test.txt`), which the source dataset's `group`
+/// field indexes into.
+const GROUP_NAMES: &[&str] = &[
+    "Smileys & Emotion",
+    "People & Body",
+    "Component",
+    "Animals & Nature",
+    "Food & Drink",
+    "Travel & Places",
+    "Activities",
+    "Objects",
+    "Symbols",
+    "Flags",
+];
+
+/// Skin-tone modifier code points, in `tone` id order (1-based in the source
+/// data, so index with `tone - 1`).
+const TONE_MODIFIERS: [&str; 5] = ["1F3FB", "1F3FC", "1F3FD", "1F3FE", "1F3FF"];
+
 #[derive(Args, Debug)]
 pub(crate) struct GenerateEmojiArgs {
-    /// Path to the source `emoji_pretty.json` (emoji-data dataset).
-    /// You can obtain a copy of this file from https://github.com/iamcal/emoji-data/blob/v16.0.0/emoji_pretty.json
+    /// Path to the source emoji dataset JSON.
+    /// You can get a copy from https://github.com/milesj/emojibase/blob/emojibase-data%4017.0.0/packages/data/en/data.raw.json
     #[arg(long)]
     emoji_data_path: Utf8PathBuf,
-    /// You can obtain a copy of the file from https://github.com/unicode-org/cldr-json/blob/48.2.1/cldr-json/cldr-annotations-full/annotations/en/annotations.json
+    /// Path to the shortcodes JSON, keyed by the same `hexcode` format as
+    /// `emoji_data_path`. You can get a copy from https://github.com/milesj/emojibase/blob/emojibase-data%4017.0.0/packages/data/en/shortcodes/emojibase.raw.json
     #[arg(long)]
-    unicode_cldr_annotations_path: Utf8PathBuf,
+    shortcodes_path: Utf8PathBuf,
     /// Destination Dart file. Relative paths resolve against the workspace root.
     #[arg(long, default_value = DEFAULT_OUTPUT)]
     output: Utf8PathBuf,
 }
 
-/// A single entry from `emoji_pretty.json`. Only the fields we emit are kept;
+/// A single entry from the source dataset. Only the fields we emit are kept;
 /// the rest of the (large) schema is ignored by serde.
 #[derive(Debug, Deserialize)]
 struct SourceEmoji {
     /// Hyphen-separated hex code points, e.g. `0023-FE0F-20E3`.
-    unified: String,
-    short_name: String,
-    short_names: Vec<String>,
-    category: String,
-    /// Canonical ordering across the whole dataset.
-    sort_order: u32,
-    /// Skin-tone variants, keyed by the tone modifier code(s) — a single tone
-    /// (`1F3FB`) or a pair for two-person emojis (`1F3FB-1F3FC`). Absent for
-    /// emojis that don't support skin tones. BTreeMap keeps key order stable.
+    hexcode: String,
+    /// Id into [`GROUP_NAMES`]. Absent for building-block entries (e.g. the
+    /// regional-indicator letters flags are composed from), which aren't
+    /// pickable emojis.
     #[serde(default)]
-    skin_variations: BTreeMap<String, SourceVariation>,
+    group: Option<u32>,
+    /// Canonical ordering across the whole dataset. Always present alongside
+    /// `group`.
+    #[serde(default)]
+    order: Option<u32>,
+    /// Extra search keywords.
+    #[serde(default)]
+    tags: Vec<String>,
+    /// Skin-tone variants. Empty for emojis that don't support skin tones.
+    #[serde(default)]
+    skins: Vec<SourceVariation>,
 }
 
 #[derive(Debug, Deserialize)]
 struct SourceVariation {
     /// Full code-point sequence of this variant, e.g. `1F385-1F3FB`.
-    unified: String,
+    hexcode: String,
+    /// Skin-tone modifier id(s): a single tone, or a pair for two-person
+    /// emojis with mismatched tones.
+    tone: Tone,
 }
 
-/// Top-level shape of a CLDR `annotations.json` file.
-#[derive(Debug, Deserialize)]
-struct CldrRoot {
-    annotations: CldrAnnotationsSection,
+/// Maps a `hexcode` to its canonical shortcode plus any aliases.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum Shortcodes {
+    One(String),
+    Many(Vec<String>),
+}
+
+impl Shortcodes {
+    fn into_vec(self) -> Vec<String> {
+        match self {
+            Shortcodes::One(code) => vec![code],
+            Shortcodes::Many(codes) => codes,
+        }
+    }
 }
 
 #[derive(Debug, Deserialize)]
-struct CldrAnnotationsSection {
-    /// Emoji glyph (as a literal string, not code points) -> annotation.
-    annotations: BTreeMap<String, CldrAnnotation>,
+#[serde(untagged)]
+enum Tone {
+    Single(u8),
+    Multiple(Vec<u8>),
 }
 
-#[derive(Debug, Deserialize)]
-struct CldrAnnotation {
-    /// Extra search keywords for the emoji, e.g. `["face", "grin", ...]`.
-    #[serde(default)]
-    default: Vec<String>,
+impl Tone {
+    /// Hyphen-separated hex modifier code point(s), e.g. `1F3FB` or
+    /// `1F3FB-1F3FC`, matching the format used as the skin-variation key in
+    /// the generated Dart map.
+    fn hex_key(&self) -> String {
+        let modifier = |tone: u8| TONE_MODIFIERS[usize::from(tone - 1)];
+        match self {
+            Tone::Single(tone) => modifier(*tone).to_string(),
+            Tone::Multiple(tones) => tones
+                .iter()
+                .map(|t| modifier(*t))
+                .collect::<Vec<_>>()
+                .join("-"),
+        }
+    }
 }
 
 /// What we emit per emoji.
@@ -85,8 +136,8 @@ struct OutEmoji {
     escape: String,
     short_name: String,
     short_names: HashSet<String>,
-    sort_order: u32,
-    /// `(tone-modifier escape, variant glyph escape)` pairs, in key order.
+    order: u32,
+    /// `(tone-modifier escape, variant glyph escape)` pairs, in source order.
     skin_variations: Vec<(String, String)>,
 }
 
@@ -132,69 +183,79 @@ struct TemplateRef {
 pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
     let raw = fs::read_to_string(&args.emoji_data_path)
         .with_context(|| format!("reading emoji source {}", args.emoji_data_path))?;
-    let source: Vec<SourceEmoji> =
-        serde_json::from_str(&raw).context("parsing emoji_pretty.json")?;
+    let source: Vec<SourceEmoji> = serde_json::from_str(&raw).context("parsing emoji dataset")?;
 
-    let cldr_keywords = load_cldr_keywords(&args.unicode_cldr_annotations_path)?;
-    let mut original_short_names = 0usize;
-    let mut cldr_matched = 0usize;
+    let raw = fs::read_to_string(&args.shortcodes_path)
+        .with_context(|| format!("reading shortcodes {}", args.shortcodes_path))?;
+    let shortcode_map: BTreeMap<String, Shortcodes> =
+        serde_json::from_str(&raw).context("parsing shortcodes")?;
 
     // Group by category. BTreeMap keeps a stable iteration order while we
-    // collect; categories are re-ordered below by their canonical sort_order.
+    // collect; categories are re-ordered below by their canonical order.
     let mut by_category: BTreeMap<String, Vec<OutEmoji>> = BTreeMap::new();
     for entry in source {
-        if EXCLUDED_CATEGORIES.contains(&entry.category.as_str()) {
+        // Entries without a group (e.g. the regional-indicator letters flags
+        // are built from) aren't standalone pickable emojis.
+        let Some(group) = entry.group else {
+            continue;
+        };
+        let category = GROUP_NAMES
+            .get(group as usize)
+            .with_context(|| format!("unknown group id {group} for {}", entry.hexcode))?;
+        if EXCLUDED_CATEGORIES.contains(category) {
             continue;
         }
-        let mut short_names: HashSet<String> = entry
-            .short_names
-            .into_iter()
-            .flat_map(|s| split_shortcode(s))
+        let order = entry
+            .order
+            .with_context(|| format!("emoji {} has a group but no order", entry.hexcode))?;
+        let mut shortcodes = shortcode_map
+            .get(&entry.hexcode)
+            .with_context(|| format!("no shortcodes for {}", entry.hexcode))?
+            .clone()
+            .into_vec()
+            .into_iter();
+        let canonical = shortcodes
+            .next()
+            .with_context(|| format!("emoji {} has no shortcode", entry.hexcode))?;
+        let short_name = normalize_shortcode(&canonical);
+        let mut short_names: HashSet<String> = std::iter::once(canonical)
+            .chain(shortcodes)
+            .flat_map(split_shortcode)
             .collect();
-        original_short_names += short_names.len();
-        if let Some(extra) = cldr_keywords.get(&entry.unified) {
-            cldr_matched += 1;
-            for keyword in extra {
-                if !short_names.iter().any(|s| s.eq_ignore_ascii_case(keyword)) {
-                    short_names.insert(keyword.clone());
-                }
+        for tag in &entry.tags {
+            let tag = tag.to_lowercase();
+            if !short_names.iter().any(|s| s.eq_ignore_ascii_case(&tag)) {
+                short_names.insert(tag);
             }
         }
         by_category
-            .entry(entry.category)
+            .entry(category.to_string())
             .or_default()
             .push(OutEmoji {
-                escape: to_dart_escape(&entry.unified),
-                short_name: normalize_shortcode(&entry.short_name),
+                escape: to_dart_escape(&entry.hexcode),
+                short_name,
                 short_names,
-                sort_order: entry.sort_order,
+                order,
                 skin_variations: entry
-                    .skin_variations
+                    .skins
                     .iter()
-                    .map(|(tone, variation)| {
-                        (to_dart_escape(tone), to_dart_escape(&variation.unified))
+                    .map(|skin| {
+                        (
+                            to_dart_escape(&skin.tone.hex_key()),
+                            to_dart_escape(&skin.hexcode),
+                        )
                     })
                     .collect(),
             });
     }
-    println!(
-        "Matched {} emojis against unicode-data shortnames and {} against CLDR annotations",
-        original_short_names, cldr_matched,
-    );
 
     // Sort emojis within each category, and order the categories themselves by
-    // the smallest sort_order they contain (the dataset's natural grouping).
+    // the smallest order they contain (the dataset's natural grouping).
     let mut categories: Vec<(String, Vec<OutEmoji>)> = by_category.into_iter().collect();
     for (_, emojis) in &mut categories {
-        emojis.sort_by_key(|e| e.sort_order);
+        emojis.sort_by_key(|e| e.order);
     }
-    categories.sort_by_key(|(_, emojis)| {
-        emojis
-            .iter()
-            .map(|e| e.sort_order)
-            .min()
-            .unwrap_or(u32::MAX)
-    });
+    categories.sort_by_key(|(_, emojis)| emojis.iter().map(|e| e.order).min().unwrap_or(u32::MAX));
 
     // Word -> every (category id, index) whose shortcode contains that word.
     // Shortcodes are split on '-' and '_' (e.g. "keycap_star", "medium-light")
@@ -290,35 +351,6 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
     cmd!(shell, "dart format {output}").run()?;
 
     Ok(())
-}
-
-/// Loads the CLDR `annotations.json` file and returns its `default` keyword
-/// lists, keyed by the same hyphen-separated hex code-point format as
-/// `SourceEmoji::unified` (e.g. `1F972`), so entries can be looked up
-/// directly by `entry.unified`.
-fn load_cldr_keywords(path: &Utf8PathBuf) -> Result<BTreeMap<String, Vec<String>>> {
-    let raw =
-        fs::read_to_string(path).with_context(|| format!("reading CLDR annotations {path}"))?;
-    let root: CldrRoot = serde_json::from_str(&raw).context("parsing CLDR annotations.json")?;
-
-    Ok(root
-        .annotations
-        .annotations
-        .into_iter()
-        .filter(|(_, annotation)| !annotation.default.is_empty())
-        .map(|(glyph, annotation)| (unified_key(&glyph), annotation.default))
-        .collect())
-}
-
-/// Converts an emoji glyph (e.g. `"🥲"`) into the same hyphen-separated,
-/// zero-padded hex code-point format used by `SourceEmoji::unified` (e.g.
-/// `"1F972"`), so it can be matched against entries from `emoji_pretty.json`.
-fn unified_key(glyph: &str) -> String {
-    glyph
-        .chars()
-        .map(|c| format!("{:04X}", c as u32))
-        .collect::<Vec<_>>()
-        .join("-")
 }
 
 /// Convert dashes into underscores, but avoid replacing shortcodes like :+1: or :-1:
