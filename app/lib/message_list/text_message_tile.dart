@@ -711,33 +711,59 @@ class _MessageView extends HookWidget {
           : wrappedBubble;
     }
 
+    // Reveal-on-hover actions beside the bubble: react stays adjacent to the
+    // bubble, reply sits on the outer edge, evenly spaced from react and the
+    // bubble.
+    final hoverReactButton = GlassCircleButton(
+      key: reactButtonKey,
+      size: _hoverReactSize,
+      color: isSender
+          ? colors.message.selfBackground
+          : colors.message.otherBackground,
+      icon: AppIcon.smilePlus(size: 18, color: colors.text.secondary),
+      onPressed: () => openReactionMenu(anchorKey: reactButtonKey),
+      shadows: const [],
+    );
+    final hoverReplyButton = GlassCircleButton(
+      size: _hoverReactSize,
+      color: isSender
+          ? colors.message.selfBackground
+          : colors.message.otherBackground,
+      icon: AppIcon.cornerLeft(size: 18, color: colors.text.secondary),
+      onPressed: () {
+        context.read<ChatDetailsCubit>().replyToMessage(messageId: messageId);
+      },
+      shadows: const [],
+    );
+
     // Padded at the bottom by the chip reserve so the trailing-affordance Row
     // centers it on the bubble itself (not the bubble + reaction chips).
     final hoverAffordance = Padding(
       padding: EdgeInsets.only(
         bottom: reactionsReservedBelow(reactions.isNotEmpty),
+        left: isSender ? 0 : Spacing.px8,
+        right: isSender ? Spacing.px8 : 0,
       ),
-      child: SizedBox(
-        width: _hoverReactSize + Spacing.px8,
-        child: Center(
-          child: ValueListenableBuilder(
-            valueListenable: isHovered,
-            child: GlassCircleButton(
-              key: reactButtonKey,
-              size: _hoverReactSize,
-              color: isSender
-                  ? colors.message.selfBackground
-                  : colors.message.otherBackground,
-              icon: AppIcon.smilePlus(size: 18, color: colors.text.secondary),
-              onPressed: () => openReactionMenu(anchorKey: reactButtonKey),
-              shadows: const [],
-            ),
-            builder: (context, hovered, child) => AnimatedOpacity(
-              opacity: hovered ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 120),
-              child: IgnorePointer(ignoring: !hovered, child: child),
-            ),
-          ),
+      child: ValueListenableBuilder(
+        valueListenable: isHovered,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: isSender
+              ? [
+                  hoverReplyButton,
+                  const SizedBox(width: Spacing.px8),
+                  hoverReactButton,
+                ]
+              : [
+                  hoverReactButton,
+                  const SizedBox(width: Spacing.px8),
+                  hoverReplyButton,
+                ],
+        ),
+        builder: (context, hovered, child) => AnimatedOpacity(
+          opacity: hovered ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 120),
+          child: IgnorePointer(ignoring: !hovered, child: child),
         ),
       ),
     );
