@@ -21,8 +21,7 @@ use tokio_stream::StreamExt;
 use crate::groups::openmls_provider::{
     StorableEmulationBindingRef, StorableOperationTreeRef, StorableRegisteredVcEmulationEpochRef,
     StorableRetainedKeyPackageMaterialRef, StorableVcEpochIdRef, StorableVcSecretRef,
-    StorableVcSecretType,
-    encryption_key_pairs::StorableEncryptionKeyPairRef,
+    StorableVcSecretType, encryption_key_pairs::StorableEncryptionKeyPairRef,
 };
 
 use super::{

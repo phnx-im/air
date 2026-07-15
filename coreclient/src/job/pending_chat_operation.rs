@@ -943,8 +943,10 @@ impl PendingChatOperation {
                     }
                 };
                 if confirmed {
-                    Self::confirm_self_group_key_package_upload(txn, group_id, plain_refs, apq_refs)
-                        .await?;
+                    Self::confirm_self_group_key_package_upload(
+                        txn, group_id, plain_refs, apq_refs,
+                    )
+                    .await?;
                 } else {
                     error!(
                         ?group_id,
@@ -1446,11 +1448,13 @@ pub mod test_utils {
 
             let operation_data = BlobEncoded(&job.operation);
             let group_id = group_id.as_slice();
-            sqlx::query("UPDATE pending_chat_operation SET operation_data = ?1 WHERE group_id = ?2")
-                .bind(operation_data)
-                .bind(group_id)
-                .execute(txn.as_mut())
-                .await?;
+            sqlx::query(
+                "UPDATE pending_chat_operation SET operation_data = ?1 WHERE group_id = ?2",
+            )
+            .bind(operation_data)
+            .bind(group_id)
+            .execute(txn.as_mut())
+            .await?;
             Ok(())
         }
     }
