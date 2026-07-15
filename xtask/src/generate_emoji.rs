@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::{
-    collections::{BTreeMap, HashMap, HashSet},
+    collections::{BTreeMap, HashSet},
     fs,
 };
 
@@ -199,31 +199,23 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
     // Word -> every (category id, index) whose shortcode contains that word.
     // Shortcodes are split on '-' and '_' (e.g. "keycap_star", "medium-light")
     // so each constituent word is independently searchable, and a word can
-    // resolve to several emojis. `shortcode_order` records each word's first
-    // appearance in categories/emoji traversal order (an emoji's canonical
-    // position), which callers rely on for the empty-query "canonical order"
-    // fast path.
-    let mut shortcode_order: Vec<String> = Vec::new();
-    let mut shortcode_refs: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
+    // resolve to several emojis.
+    let mut shortcode_refs: BTreeMap<String, Vec<(usize, usize)>> = Default::default();
     let mut duplicate_refs = 0usize;
     for (category_id, (_, group)) in categories.iter().enumerate() {
         for (index, emoji) in group.iter().enumerate() {
             // Insert the full emoji shortcode to match when typed entirely
             let refs = shortcode_refs
                 .entry(emoji.short_name.clone())
-                .or_insert_with(|| {
-                    shortcode_order.push(emoji.short_name.clone());
-                    Vec::new()
-                });
+                .or_insert_with(|| Vec::new());
             refs.push((category_id, index));
 
             for name in &emoji.short_names {
                 // Split the shortcodes so search can find words
                 for word in split_shortcode(name.clone()) {
-                    let refs = shortcode_refs.entry(word.clone()).or_insert_with(|| {
-                        shortcode_order.push(word.clone());
-                        Vec::new()
-                    });
+                    let refs = shortcode_refs
+                        .entry(word.clone())
+                        .or_insert_with(|| Vec::new());
                     if refs.contains(&(category_id, index)) {
                         duplicate_refs += 1;
                     } else {
@@ -233,13 +225,6 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
             }
         }
     }
-    let shortcodes: Vec<(String, Vec<(usize, usize)>)> = shortcode_order
-        .into_iter()
-        .map(|word| {
-            let refs = shortcode_refs.remove(&word).unwrap();
-            (word, refs)
-        })
-        .collect();
 
     let template = EmojiDataTemplate {
         categories: categories
@@ -263,7 +248,7 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
                     .collect(),
             })
             .collect(),
-        shortcodes: shortcodes
+        shortcodes: shortcode_refs
             .iter()
             .map(|(code, refs)| TemplateShortcode {
                 code: dart_string(code),
@@ -298,7 +283,7 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
         "Wrote {emoji_count} emojis across {} categories, {} shortcodes \
          ({duplicate_refs} duplicate refs skipped) to {output}",
         categories.len(),
-        shortcodes.len(),
+        shortcode_refs.len(),
     );
 
     let shell = Shell::new()?;
