@@ -245,8 +245,15 @@ impl CoreUser {
         .context("create group")?;
 
         let (_commit, welcome, _group_info) = group
-            .add_members(&provider, &signature_keys, &[candidate_key_package])
-            .context("add_members")?;
+            .commit_builder()
+            .propose_adds([candidate_key_package])
+            .load_psks(provider.storage())?
+            .build(provider.rand(), provider.crypto(), &signature_keys, |_| {
+                true
+            })?
+            .stage_commit(&provider)?
+            .into_messages();
+        let welcome = welcome.context("no welcome after add")?;
 
         group
             .merge_pending_commit(&provider)
