@@ -19,8 +19,7 @@ use openmls::{
     component::ComponentId,
     group::{GroupId, MlsGroup, PURE_PLAINTEXT_WIRE_FORMAT_POLICY},
     prelude::{
-        Credential, CredentialType, CredentialWithKey, Extension, Extensions, LeafNode,
-        UnknownExtension,
+        Credential, CredentialType, CredentialWithKey, Extension, Extensions, UnknownExtension,
     },
 };
 use openmls_traits::OpenMlsProvider;
@@ -60,7 +59,6 @@ impl Group {
         group_data_bytes: GroupDataBytes,
         safe_aad_components: Option<Vec<ComponentId>>,
         air_component: AirComponent,
-        leaf_node_extensions: Option<Extensions<LeafNode>>,
     ) -> anyhow::Result<(Self, PartialCreateGroupParams)> {
         let provider = AirOpenMlsProvider::new(connection.as_mut());
 
@@ -99,21 +97,14 @@ impl Group {
             pq_credential,
         };
 
-        let mut group_builder = ApqMlsGroup::builder()
+        let (t_group, pq_group) = ApqMlsGroup::builder()
             .with_group_ids(t_group_id, pq_group_id)
             .with_ciphersuite(APQ_CIPHERSUITE)
             .with_capabilities(default_leaf_node_capabilities())
             .with_group_context_extensions(gc_extensions.clone(), gc_extensions)?
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
-            .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY);
-
-        if let Some(leaf_node_extensions) = leaf_node_extensions {
-            group_builder = group_builder
-                .with_leaf_node_extensions(leaf_node_extensions.clone(), leaf_node_extensions)?;
-        }
-
-        let (t_group, pq_group) = group_builder
+            .with_wire_format_policy(PURE_PLAINTEXT_WIRE_FORMAT_POLICY)
             .build(&provider, signer, apq_credential_with_key)?
             .into_groups();
 
