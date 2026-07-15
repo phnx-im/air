@@ -53,6 +53,8 @@ enum BodyFontSize {
   final FontSizes ref;
   const BodyFontSize(this.ref);
   double get size => ref.size;
+
+  static const double lineHeight = 1.3;
 }
 
 enum HeaderFontSize {
