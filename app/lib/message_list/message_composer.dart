@@ -271,13 +271,20 @@ class _MessageComposerState extends State<MessageComposer>
                 )
               : plusButton;
 
-          // Right: confirm (✓) when editing, scroll-down when
-          // scrolled back, send (↑) when has text, none otherwise
+          // Right: confirm (✓) when editing, send (↑) when has text,
+          // scroll-down when scrolled back, none otherwise
           final Widget? rightButton;
           if (isEditing) {
             rightButton = composerButton(
               icon: const AppIcon.check(size: _iconSize),
               onPressed: !_inputIsEmpty && isConfirmedChat
+                  ? () => _submitMessage(context.read())
+                  : null,
+            );
+          } else if (!_inputIsEmpty) {
+            rightButton = composerButton(
+              icon: const AppIcon.arrowUp(size: _iconSize),
+              onPressed: isConfirmedChat
                   ? () => _submitMessage(context.read())
                   : null,
             );
@@ -287,13 +294,6 @@ class _MessageComposerState extends State<MessageComposer>
               onPressed: () {
                 widget.scrollToBottomController?.scrollToBottom();
               },
-            );
-          } else if (!_inputIsEmpty) {
-            rightButton = composerButton(
-              icon: const AppIcon.arrowUp(size: _iconSize),
-              onPressed: isConfirmedChat
-                  ? () => _submitMessage(context.read())
-                  : null,
             );
           } else {
             rightButton = null;
