@@ -136,7 +136,12 @@ mod tests {
 
         own_client_info.store(pool.write().await?).await?;
 
-        OwnClientInfo::load(pool.read().await?).await?;
+        let loaded = OwnClientInfo::load(pool.read().await?).await?;
+        assert_eq!(loaded.qs_user_id, own_client_info.qs_user_id);
+        assert_eq!(loaded.qs_client_id, own_client_info.qs_client_id);
+        assert_eq!(loaded.user_id, own_client_info.user_id);
+        assert_eq!(loaded.self_group_id, own_client_info.self_group_id);
+        assert!(loaded.self_group_signing_key.is_none());
 
         Ok(())
     }

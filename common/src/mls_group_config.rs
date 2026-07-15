@@ -9,6 +9,7 @@ use mls_assist::{
     components::ComponentsList,
     openmls::{
         component::{ComponentId, ComponentType},
+        components::vc_derivation_info::VC_COMPONENT_ID,
         group::{MlsGroupJoinConfig, PURE_PLAINTEXT_WIRE_FORMAT_POLICY},
         prelude::{
             AppDataDictionary, AppDataDictionaryExtension, Capabilities, Ciphersuite,
@@ -127,6 +128,21 @@ pub fn default_leaf_node_extensions<C: AppComponent>() -> Extensions<LeafNode> {
     default_extensions::<LeafNode, C>()
 }
 
+/// Extensions used in the leaf nodes/key packages of the self group.
+///
+/// Like [`default_leaf_node_extensions`], but the `AppComponents` entry
+/// additionally lists the virtual-clients component. The DS relies on this
+/// advertisement to recognize self-group leaves when deciding queue fan-out,
+/// and OpenMLS requires it on leaves that take part in virtual-client
+/// commits.
+pub fn self_group_leaf_node_extensions<C: AppComponent>() -> Extensions<LeafNode> {
+    Extensions::from_vec(vec![app_data_dictionary_extension::<C>(vec![
+        C::COMPONENT_ID,
+        VC_COMPONENT_ID,
+    ])])
+    .expect("invalid extensions")
+}
+
 /// Extension used in the key package.
 pub fn default_key_package_extensions<C: AppComponent>() -> Extensions<KeyPackage> {
     default_extensions::<KeyPackage, C>()
@@ -183,16 +199,20 @@ pub fn default_group_context_app_data_dictionary_extension<C: AppComponent>(
 
 /// Extension which contains the default app data dictionary for the leaf node/key package.
 pub fn default_app_data_dictionary_extension<C: AppComponent>() -> Extension {
+    app_data_dictionary_extension::<C>(vec![C::COMPONENT_ID])
+}
+
+/// App data dictionary for a leaf node/key package which embeds the default
+/// component and advertises `component_ids` via the `AppComponents` entry.
+fn app_data_dictionary_extension<C: AppComponent>(component_ids: Vec<ComponentId>) -> Extension {
     let mut app_data_dictionary = AppDataDictionary::new();
 
-    // Advertise that we support the component in the app data dictionary.
+    // Advertise the supported components in the app data dictionary.
     app_data_dictionary.insert(
         ComponentType::AppComponents.into(),
-        ComponentsList {
-            component_ids: vec![C::COMPONENT_ID],
-        }
-        .tls_serialize_detached()
-        .expect("invalid component list"),
+        ComponentsList { component_ids }
+            .tls_serialize_detached()
+            .expect("invalid component list"),
     );
 
     // Add the component to the app data dictionary.
@@ -283,6 +303,33 @@ mod test {
             .unwrap();
         let list: ComponentsList = tls_codec::Deserialize::tls_deserialize_exact(value).unwrap();
         assert!(list.component_ids.contains(&TestComponent::COMPONENT_ID));
+
+        // The component itself is embedded in the dictionary.
+        assert_eq!(
+            dictionary.get(&TestComponent::COMPONENT_ID).unwrap(),
+            TestComponent.to_bytes()
+        );
+    }
+
+    /// The DS recognizes self-group leaves by finding `VC_COMPONENT_ID` in the
+    /// `AppComponents` list of the leaf's app data dictionary. This pins that
+    /// the self-group leaf extensions advertise it alongside the app
+    /// component; a missing advertisement compiles and runs, but silently
+    /// breaks the self-group queue fan-out.
+    #[test]
+    fn self_group_leaf_dictionary_advertises_virtual_clients() {
+        let extensions = self_group_leaf_node_extensions::<TestComponent>();
+        let dictionary = extensions
+            .app_data_dictionary()
+            .expect("missing app data dictionary")
+            .dictionary();
+
+        let value = dictionary
+            .get(&ComponentId::from(ComponentType::AppComponents))
+            .unwrap();
+        let list: ComponentsList = tls_codec::Deserialize::tls_deserialize_exact(value).unwrap();
+        assert!(list.component_ids.contains(&TestComponent::COMPONENT_ID));
+        assert!(list.component_ids.contains(&VC_COMPONENT_ID));
 
         // The component itself is embedded in the dictionary.
         assert_eq!(

@@ -22,18 +22,22 @@ use apqmls::extension::ApqInfo;
 use mimi_room_policy::{MimiProposal, RoleIndex, VerifiedRoomState};
 use mls_assist::{
     MlsAssistRustCrypto,
+    components::ComponentsList,
     group::Group,
     openmls::{
+        component::{ComponentId, ComponentType},
         components::vc_derivation_info::VC_COMPONENT_ID,
         group::GroupId,
-        prelude::{GroupEpoch, LeafNodeIndex},
+        prelude::{GroupEpoch, LeafNode, LeafNodeIndex},
         treesync::RatchetTree,
     },
     provider_traits::MlsAssistProvider,
 };
 use sqlx::PgExecutor;
 use thiserror::Error;
-use tls_codec::{Serialize as _, TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
+use tls_codec::{
+    DeserializeBytes as _, Serialize as _, TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes,
+};
 use tracing::error;
 use uuid::Uuid;
 
@@ -42,6 +46,18 @@ use crate::errors::{CborMlsAssistStorage, StorageError};
 use super::{GROUP_STATE_EXPIRATION, ReservedGroupId, process::ExternalCommitInfo};
 
 pub(super) mod persistence;
+
+/// Checks if the leaf advertises the virtual-clients component (set on self-groups)
+pub(crate) fn leaf_signals_virtual_client(leaf: &LeafNode) -> bool {
+    leaf.extensions()
+        .app_data_dictionary()
+        .and_then(|ext| {
+            ext.dictionary()
+                .get(&ComponentId::from(ComponentType::AppComponents))
+        })
+        .and_then(|value| ComponentsList::tls_deserialize_exact_bytes(value).ok())
+        .is_some_and(|list| list.component_ids.contains(&VC_COMPONENT_ID))
+}
 
 #[derive(Debug, TlsSize, TlsDeserializeBytes, TlsSerialize)]
 pub(super) struct MemberProfile {
@@ -227,8 +243,7 @@ impl DsGroupState {
         let is_self_group = self
             .group()
             .leaf(sender_index)
-            .and_then(|leaf| leaf.extensions().app_data_dictionary())
-            .is_some_and(|dict| dict.dictionary().contains(&VC_COMPONENT_ID));
+            .is_some_and(leaf_signals_virtual_client);
 
         !is_self_group
     }

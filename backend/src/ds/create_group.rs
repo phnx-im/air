@@ -96,6 +96,21 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         }
     }
 
+    /// Return the signature key of a group that is expected to have exactly one
+    /// member (i.e. a freshly created group).
+    fn sole_member_signature_key(group: &Group) -> Result<Vec<u8>, Status> {
+        let mut members = group.members().fuse();
+        match (members.next(), members.next()) {
+            (Some(member), None) => Ok(member.signature_key),
+            _ => {
+                error!("group must have exactly one member");
+                Err(Status::invalid_argument(
+                    "group must have exactly one member",
+                ))
+            }
+        }
+    }
+
     /// Ensure the T and PQ groups' single leaves share the same signature key.
     ///
     /// We compare the two leaf keys directly rather than against the client
@@ -103,13 +118,14 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
     /// with a freshly minted key that intentionally differs from the credential
     /// key.
     pub(super) fn verify_signing_key(t_group: &Group, pq_group: &Group) -> Result<(), Status> {
-        for (t_member, p_member) in t_group.members().zip(pq_group.members()) {
-            if t_member.signature_key != p_member.signature_key {
-                return Err(Status::invalid_argument(
-                    "t and pq client signature keys do not match",
-                ));
-            }
+        let t_member_signature_key = Self::sole_member_signature_key(t_group)?;
+        let pq_member_signature_key = Self::sole_member_signature_key(pq_group)?;
+        if t_member_signature_key != pq_member_signature_key {
+            Err(Status::invalid_argument(
+                "t and pq client signature keys do not match",
+            ))
+        } else {
+            Ok(())
         }
-        Ok(())
     }
 }

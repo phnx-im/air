@@ -5,20 +5,14 @@
 use aircommon::{
     credentials::keys::{ClientSigningKey, PreliminaryClientSigningKey},
     crypto::{aead::keys::IdentityLinkWrapperKey, indexed_aead::keys::UserProfileKey},
-    mls_group_config::AppComponent,
+    mls_group_config::{AppComponent, self_group_leaf_node_extensions},
 };
 use airprotos::client::{
     component::AirComponent,
     group::{EncryptedGroupTitle, GroupData},
 };
 use anyhow::Context;
-use openmls::{
-    component::ComponentType,
-    components::vc_derivation_info::VC_COMPONENT_ID,
-    group::GroupId,
-    prelude::{AppDataDictionary, AppDataDictionaryExtension, Extension, Extensions},
-};
-use tls_codec::Serialize;
+use openmls::group::GroupId;
 use tracing::debug;
 
 use crate::{
@@ -100,17 +94,8 @@ impl CoreUser {
         }
         .encode()?;
 
-        // Enable virtual-client extension in all new leaves of this group
-        let vc_leaf_extensions = {
-            let supported_components: Vec<u16> = vec![VC_COMPONENT_ID];
-            let app_components_body = supported_components
-                .tls_serialize_detached()
-                .expect("serialize AppComponents body");
-            let mut dictionary = AppDataDictionary::new();
-            dictionary.insert(ComponentType::AppComponents.into(), app_components_body);
-            let ext = Extension::AppDataDictionary(AppDataDictionaryExtension::new(dictionary));
-            Extensions::from_vec(vec![ext]).expect("build leaf-node Extensions")
-        };
+        // Advertise the virtual-clients component in this group's leaves
+        let vc_leaf_extensions = self_group_leaf_node_extensions::<AirComponent>();
 
         // The client signing-key is shared among all emulators, and we use it to sign all request
         // as well as leaves in high-level groups. The self-group leaves are signed with a freshly
