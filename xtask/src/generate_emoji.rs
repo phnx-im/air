@@ -26,7 +26,11 @@ const EXCLUDED_CATEGORIES: &[&str] = &["Component"];
 pub(crate) struct GenerateEmojiArgs {
     /// Path to the source `emoji_pretty.json` (emoji-data dataset).
     /// You can obtain a copy of this file from https://github.com/iamcal/emoji-data/blob/v16.0.0/emoji_pretty.json
-    input: Utf8PathBuf,
+    #[arg(long)]
+    emoji_data_path: Utf8PathBuf,
+    /// You can obtain a copy of the file from https://github.com/unicode-org/cldr-json/blob/48.2.1/cldr-json/cldr-annotations-full/annotations/en/annotations.json
+    #[arg(long)]
+    unicode_cldr_annotations_path: Utf8PathBuf,
     /// Destination Dart file. Relative paths resolve against the workspace root.
     #[arg(long, default_value = DEFAULT_OUTPUT)]
     output: Utf8PathBuf,
@@ -53,6 +57,25 @@ struct SourceEmoji {
 struct SourceVariation {
     /// Full code-point sequence of this variant, e.g. `1F385-1F3FB`.
     unified: String,
+}
+
+/// Top-level shape of a CLDR `annotations.json` file.
+#[derive(Debug, Deserialize)]
+struct CldrRoot {
+    annotations: CldrAnnotationsSection,
+}
+
+#[derive(Debug, Deserialize)]
+struct CldrAnnotationsSection {
+    /// Emoji glyph (as a literal string, not code points) -> annotation.
+    annotations: BTreeMap<String, CldrAnnotation>,
+}
+
+#[derive(Debug, Deserialize)]
+struct CldrAnnotation {
+    /// Extra search keywords for the emoji, e.g. `["face", "grin", ...]`.
+    #[serde(default)]
+    default: Vec<String>,
 }
 
 /// What we emit per emoji.
@@ -100,10 +123,13 @@ struct TemplateShortcode {
 }
 
 pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
-    let raw = fs::read_to_string(&args.input)
-        .with_context(|| format!("reading emoji source {}", args.input))?;
+    let raw = fs::read_to_string(&args.emoji_data_path)
+        .with_context(|| format!("reading emoji source {}", args.emoji_data_path))?;
     let source: Vec<SourceEmoji> =
         serde_json::from_str(&raw).context("parsing emoji_pretty.json")?;
+
+    let cldr_keywords = load_cldr_keywords(&args.unicode_cldr_annotations_path)?;
+    let mut cldr_matched = 0usize;
 
     // Group by category. BTreeMap keeps a stable iteration order while we
     // collect; categories are re-ordered below by their canonical sort_order.
@@ -112,12 +138,21 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
         if EXCLUDED_CATEGORIES.contains(&entry.category.as_str()) {
             continue;
         }
+        let mut short_names = entry.short_names;
+        if let Some(extra) = cldr_keywords.get(&entry.unified) {
+            cldr_matched += 1;
+            for keyword in extra {
+                if !short_names.iter().any(|s| s.eq_ignore_ascii_case(keyword)) {
+                    short_names.push(keyword.clone());
+                }
+            }
+        }
         by_category
             .entry(entry.category)
             .or_default()
             .push(OutEmoji {
                 escape: to_dart_escape(&entry.unified),
-                short_names: entry.short_names,
+                short_names,
                 sort_order: entry.sort_order,
                 skin_variations: entry
                     .skin_variations
@@ -128,6 +163,10 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
                     .collect(),
             });
     }
+    println!(
+        "Matched {cldr_matched}/{} emojis against CLDR annotations",
+        cldr_keywords.len()
+    );
 
     // Sort emojis within each category, and order the categories themselves by
     // the smallest sort_order they contain (the dataset's natural grouping).
@@ -220,6 +259,35 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
     cmd!(shell, "dart format {output}").run()?;
 
     Ok(())
+}
+
+/// Loads the CLDR `annotations.json` file and returns its `default` keyword
+/// lists, keyed by the same hyphen-separated hex code-point format as
+/// `SourceEmoji::unified` (e.g. `1F972`), so entries can be looked up
+/// directly by `entry.unified`.
+fn load_cldr_keywords(path: &Utf8PathBuf) -> Result<BTreeMap<String, Vec<String>>> {
+    let raw = fs::read_to_string(path)
+        .with_context(|| format!("reading CLDR annotations {path}"))?;
+    let root: CldrRoot = serde_json::from_str(&raw).context("parsing CLDR annotations.json")?;
+
+    Ok(root
+        .annotations
+        .annotations
+        .into_iter()
+        .filter(|(_, annotation)| !annotation.default.is_empty())
+        .map(|(glyph, annotation)| (unified_key(&glyph), annotation.default))
+        .collect())
+}
+
+/// Converts an emoji glyph (e.g. `"🥲"`) into the same hyphen-separated,
+/// zero-padded hex code-point format used by `SourceEmoji::unified` (e.g.
+/// `"1F972"`), so it can be matched against entries from `emoji_pretty.json`.
+fn unified_key(glyph: &str) -> String {
+    glyph
+        .chars()
+        .map(|c| format!("{:04X}", c as u32))
+        .collect::<Vec<_>>()
+        .join("-")
 }
 
 /// Converts `0023-FE0F-20E3` into `\u{0023}\u{FE0F}\u{20E3}`.
