@@ -13,9 +13,10 @@ typedef EmojiRef = (int category, int index);
 /// A single emoji: its rendered glyph and its skin-tone variants, keyed by the
 /// tone modifier glyph(s) (empty when unsupported).
 class Emoji {
-  const Emoji(this.emoji, [this.skinVariations = const {}]);
+  const Emoji(this.emoji, this.shortName, [this.skinVariations = const {}]);
 
   final String emoji;
+  final String shortName;
   final Map<String, String> skinVariations;
 
   bool get supportsSkinTone => skinVariations.isNotEmpty;
@@ -28,9 +29,9 @@ const List<(String, List<Emoji>)> emojisByCategory = [
   ({{ category.name }}, [
   {%- for emoji in category.emojis %}
   {%- if emoji.variations.is_empty() %}
-    Emoji('{{ emoji.escape }}'),
+    Emoji('{{ emoji.escape }}', '{{ emoji.short_name }}'),
   {%- else %}
-    Emoji('{{ emoji.escape }}', {
+    Emoji('{{ emoji.escape }}', '{{ emoji.short_name}}', {
     {%- for variation in emoji.variations %}
       '{{ variation.tone }}': '{{ variation.glyph }}',
     {%- endfor %}

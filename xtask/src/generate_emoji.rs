@@ -42,7 +42,7 @@ pub(crate) struct GenerateEmojiArgs {
 struct SourceEmoji {
     /// Hyphen-separated hex code points, e.g. `0023-FE0F-20E3`.
     unified: String,
-    short_names: Vec<String>,
+    short_name: String,
     category: String,
     /// Canonical ordering across the whole dataset.
     sort_order: u32,
@@ -82,6 +82,7 @@ struct CldrAnnotation {
 struct OutEmoji {
     /// Dart escape sequence for the code points, e.g. `\u{0023}\u{FE0F}\u{20E3}`.
     escape: String,
+    short_name: String,
     short_names: Vec<String>,
     sort_order: u32,
     /// `(tone-modifier escape, variant glyph escape)` pairs, in key order.
@@ -105,6 +106,7 @@ struct TemplateCategory {
 struct TemplateEmoji {
     /// Dart escape sequence for the glyph (no surrounding quotes).
     escape: String,
+    short_name: String,
     variations: Vec<TemplateVariation>,
 }
 
@@ -138,7 +140,7 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
         if EXCLUDED_CATEGORIES.contains(&entry.category.as_str()) {
             continue;
         }
-        let mut short_names = entry.short_names;
+        let mut short_names: Vec<String> = Vec::new();
         if let Some(extra) = cldr_keywords.get(&entry.unified) {
             cldr_matched += 1;
             for keyword in extra {
@@ -152,6 +154,7 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
             .or_default()
             .push(OutEmoji {
                 escape: to_dart_escape(&entry.unified),
+                short_name: entry.short_name,
                 short_names,
                 sort_order: entry.sort_order,
                 skin_variations: entry
@@ -210,6 +213,7 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
                     .iter()
                     .map(|emoji| TemplateEmoji {
                         escape: emoji.escape.clone(),
+                        short_name: emoji.short_name.clone(),
                         variations: emoji
                             .skin_variations
                             .iter()
@@ -266,8 +270,8 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
 /// `SourceEmoji::unified` (e.g. `1F972`), so entries can be looked up
 /// directly by `entry.unified`.
 fn load_cldr_keywords(path: &Utf8PathBuf) -> Result<BTreeMap<String, Vec<String>>> {
-    let raw = fs::read_to_string(path)
-        .with_context(|| format!("reading CLDR annotations {path}"))?;
+    let raw =
+        fs::read_to_string(path).with_context(|| format!("reading CLDR annotations {path}"))?;
     let root: CldrRoot = serde_json::from_str(&raw).context("parsing CLDR annotations.json")?;
 
     Ok(root
