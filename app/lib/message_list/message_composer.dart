@@ -42,11 +42,10 @@ import 'message_renderer.dart';
 import 'text_message_tile.dart' show messageHorizontalPadding;
 
 final _log = Logger("MessageComposer");
-const double _composerLineHeight = 1.3;
 final double _composerFontSize = BodyFontSize.base.size;
 const double _inputVerticalPadding = Spacing.px12;
 final double _composerButtonSize =
-    _composerFontSize * _composerLineHeight + 2 * _inputVerticalPadding;
+    _composerFontSize * BodyFontSize.lineHeight + 2 * _inputVerticalPadding;
 
 class MessageComposer extends StatefulWidget {
   const MessageComposer({
@@ -271,13 +270,20 @@ class _MessageComposerState extends State<MessageComposer>
                 )
               : plusButton;
 
-          // Right: confirm (✓) when editing, scroll-down when
-          // scrolled back, send (↑) when has text, none otherwise
+          // Right: confirm (✓) when editing, send (↑) when has text,
+          // scroll-down when scrolled back, none otherwise
           final Widget? rightButton;
           if (isEditing) {
             rightButton = composerButton(
               icon: const AppIcon.check(size: _iconSize),
               onPressed: !_inputIsEmpty && isConfirmedChat
+                  ? () => _submitMessage(context.read())
+                  : null,
+            );
+          } else if (!_inputIsEmpty) {
+            rightButton = composerButton(
+              icon: const AppIcon.arrowUp(size: _iconSize),
+              onPressed: isConfirmedChat
                   ? () => _submitMessage(context.read())
                   : null,
             );
@@ -287,13 +293,6 @@ class _MessageComposerState extends State<MessageComposer>
               onPressed: () {
                 widget.scrollToBottomController?.scrollToBottom();
               },
-            );
-          } else if (!_inputIsEmpty) {
-            rightButton = composerButton(
-              icon: const AppIcon.arrowUp(size: _iconSize),
-              onPressed: isConfirmedChat
-                  ? () => _submitMessage(context.read())
-                  : null,
             );
           } else {
             rightButton = null;
@@ -771,7 +770,7 @@ class _MessageInput extends StatelessWidget {
             controller: _controller,
             style: TextStyle(
               fontSize: _composerFontSize,
-              height: _composerLineHeight,
+              height: BodyFontSize.lineHeight,
               leadingDistribution: TextLeadingDistribution.even,
               color: color.text.primary,
             ),

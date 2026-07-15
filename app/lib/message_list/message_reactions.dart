@@ -9,6 +9,7 @@ import 'package:air/ds/foundations/elevation.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/user/users_cubit.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import 'package:air/core/core.dart';
 import 'package:air/ds/components/modal/bottom_sheet_modal.dart';
@@ -47,11 +48,18 @@ const double quickReactionBarHeight = quickReactionBarTapSize + Spacing.px8;
 /// Extra vertical space between the hit point and where the reaction bar opens
 const double quickReactionMenuGap = Spacing.px12;
 
-/// Compact reaction chip metrics
-const double reactionChipSpacing = Spacing.px4;
+/// Compact reaction chip metrics (excluding border thickness)
+const double reactionChipSpacing = 1;
 
 /// Fixed height of a reaction chip
-const double reactionChipHeight = 36;
+const double reactionChipHeight = 28;
+
+/// Inner padding of a reaction chip
+const double reactionChipHorizontalPadding = Spacing.px8;
+const double reactionChipVerticalPadding = Spacing.px4;
+
+/// Border thickness of a reaction chip
+const double reactionChipBorderWidth = 1.5;
 
 /// How far the chips overlap the bottom border of the message bubble
 const double reactionsMessageBubbleOverlap = Spacing.px8;
@@ -175,7 +183,8 @@ class MessageReactions extends StatelessWidget {
 
     // Horizontal chrome of a chip: padding (both sides) + border (both sides).
     // Must match the padding used by _ReactionChip/_OverflowChip below.
-    const chipChrome = Spacing.px12 * 2 + 2;
+    const chipChrome =
+        reactionChipHorizontalPadding * 2 + reactionChipBorderWidth * 2;
     double chipWidth(UiReaction reaction) {
       var width = chipChrome + measure(reaction.emoji, chipTextStyle);
       if (reaction.users.length >= 2) {
@@ -209,7 +218,8 @@ class MessageReactions extends StatelessWidget {
         }
 
         final List<Widget> chips;
-        if (!maxWidth.isFinite || fullWidth <= maxWidth) {
+        // A single reaction always renders as its emoji chip
+        if (!maxWidth.isFinite || fullWidth <= maxWidth || count == 1) {
           chips = [for (final reaction in ordered) chipFor(reaction)];
         } else {
           // Reserve room for the overflow chip ("+N" upper bound).
@@ -266,7 +276,7 @@ class MessageReactions extends StatelessWidget {
           child: OverflowBox(
             minWidth: 0,
             maxWidth: double.infinity,
-            alignment: isSender ? Alignment.centerLeft : Alignment.centerRight,
+            alignment: Alignment.centerLeft,
             child: Row(mainAxisSize: MainAxisSize.min, children: children),
           ),
         );
@@ -370,29 +380,43 @@ Future<void> showQuickReactionMenu({
         curve: Curves.easeOutCubic,
         reverseCurve: Curves.easeInCubic,
       );
-      // The bar fades out while the full picker covers this route.
-      return FadeTransition(
-        opacity: handedOff
-            ? const AlwaysStoppedAnimation(0.0)
-            : ReverseAnimation(secondaryAnimation),
-        child: _QuickReactionMenuOverlay(
-          animation: curved,
-          anchorRect: anchorRect,
-          skinTone: skinTone,
-          onReact: (emoji) {
-            Navigator.of(dialogContext).pop();
-            onReact(emoji);
-          },
-          onMore: () {
-            handedOff = true;
-            unawaited(
-              onMore().whenComplete(() {
-                if (dialogContext.mounted) {
-                  Navigator.of(dialogContext).pop();
-                }
-              }),
-            );
-          },
+      // Own the focus and Escape handling explicitly. When opened from the
+      // context menu, closing that menu tears down its focus node and reverts
+      // focus to the page underneath.
+      return Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event is KeyDownEvent &&
+              event.logicalKey == LogicalKeyboardKey.escape) {
+            Navigator.of(dialogContext).maybePop();
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        // The bar fades out while the full picker covers this route.
+        child: FadeTransition(
+          opacity: handedOff
+              ? const AlwaysStoppedAnimation(0.0)
+              : ReverseAnimation(secondaryAnimation),
+          child: _QuickReactionMenuOverlay(
+            animation: curved,
+            anchorRect: anchorRect,
+            skinTone: skinTone,
+            onReact: (emoji) {
+              Navigator.of(dialogContext).pop();
+              onReact(emoji);
+            },
+            onMore: () {
+              handedOff = true;
+              unawaited(
+                onMore().whenComplete(() {
+                  if (dialogContext.mounted) {
+                    Navigator.of(dialogContext).pop();
+                  }
+                }),
+              );
+            },
+          ),
         ),
       );
     },
@@ -522,6 +546,9 @@ class _QuickReactionButton extends StatelessWidget {
                 decoration: TextDecoration.none,
                 height: 1.0,
               ),
+              textHeightBehavior: const TextHeightBehavior(
+                leadingDistribution: .even,
+              ),
             ),
           ),
         ),
@@ -560,22 +587,40 @@ class _ReactionChip extends StatelessWidget {
         onTap: onTap,
         child: Container(
           height: reactionChipHeight,
-          padding: const EdgeInsets.symmetric(horizontal: Spacing.px12),
+          padding: const EdgeInsets.symmetric(
+            horizontal: reactionChipHorizontalPadding,
+            vertical: reactionChipVerticalPadding,
+          ),
           decoration: BoxDecoration(
             color: isMine
                 ? colors.message.selfBackground
                 : colors.message.otherBackground,
             borderRadius: BorderRadius.circular(reactionChipHeight / 2),
-            border: Border.all(color: colors.backgroundBase.primary),
+            border: Border.all(
+              color: colors.backgroundBase.primary,
+              width: reactionChipBorderWidth,
+            ),
           ),
           child: Row(
             mainAxisSize: .min,
             crossAxisAlignment: .center,
             children: [
-              Text(reaction.emoji, style: textStyle()),
+              Text(
+                reaction.emoji,
+                style: textStyle(),
+                textHeightBehavior: const TextHeightBehavior(
+                  leadingDistribution: .even,
+                ),
+              ),
               if (count >= 2) ...[
                 const SizedBox(width: Spacing.px4),
-                Text('$count', style: textStyle(color: colors.text.tertiary)),
+                Text(
+                  '$count',
+                  style: textStyle(color: colors.text.tertiary),
+                  textHeightBehavior: const TextHeightBehavior(
+                    leadingDistribution: .even,
+                  ),
+                ),
               ],
             ],
           ),
@@ -610,8 +655,8 @@ class _OverflowChip extends StatelessWidget {
         child: Container(
           height: reactionChipHeight,
           padding: const EdgeInsets.symmetric(
-            horizontal: Spacing.px12,
-            vertical: Spacing.px4,
+            horizontal: reactionChipHorizontalPadding,
+            vertical: reactionChipVerticalPadding,
           ),
           decoration: BoxDecoration(
             color: isSender
@@ -664,10 +709,8 @@ Future<void> showWhoReactedSheet({
     return showBottomSheetModal<void>(
       context: context,
       barrierColor: barrierColor,
-      builder: (context) => Padding(
-        padding: const EdgeInsets.all(Spacing.px16),
-        child: SizedBox(height: whoReactedPanelSize.height, child: sheet),
-      ),
+      builder: (context) =>
+          SizedBox(height: whoReactedPanelSize.height, child: sheet),
     );
   }
   return showGeneralDialog<void>(
