@@ -54,6 +54,13 @@ const double reactionChipSpacing = 1;
 /// Fixed height of a reaction chip
 const double reactionChipHeight = 28;
 
+/// Inner padding of a reaction chip
+const double reactionChipHorizontalPadding = Spacing.px8;
+const double reactionChipVerticalPadding = Spacing.px4;
+
+/// Border thickness of a reaction chip
+const double reactionChipBorderWidth = 1.5;
+
 /// How far the chips overlap the bottom border of the message bubble
 const double reactionsMessageBubbleOverlap = Spacing.px8;
 
@@ -176,7 +183,8 @@ class MessageReactions extends StatelessWidget {
 
     // Horizontal chrome of a chip: padding (both sides) + border (both sides).
     // Must match the padding used by _ReactionChip/_OverflowChip below.
-    const chipChrome = Spacing.px12 * 2 + 2;
+    const chipChrome =
+        reactionChipHorizontalPadding * 2 + reactionChipBorderWidth * 2;
     double chipWidth(UiReaction reaction) {
       var width = chipChrome + measure(reaction.emoji, chipTextStyle);
       if (reaction.users.length >= 2) {
@@ -580,8 +588,8 @@ class _ReactionChip extends StatelessWidget {
         child: Container(
           height: reactionChipHeight,
           padding: const EdgeInsets.symmetric(
-            horizontal: Spacing.px8,
-            vertical: Spacing.px4,
+            horizontal: reactionChipHorizontalPadding,
+            vertical: reactionChipVerticalPadding,
           ),
           decoration: BoxDecoration(
             color: isMine
@@ -590,7 +598,7 @@ class _ReactionChip extends StatelessWidget {
             borderRadius: BorderRadius.circular(reactionChipHeight / 2),
             border: Border.all(
               color: colors.backgroundBase.primary,
-              width: 1.5,
+              width: reactionChipBorderWidth,
             ),
           ),
           child: Row(
@@ -647,8 +655,8 @@ class _OverflowChip extends StatelessWidget {
         child: Container(
           height: reactionChipHeight,
           padding: const EdgeInsets.symmetric(
-            horizontal: Spacing.px8,
-            vertical: Spacing.px4,
+            horizontal: reactionChipHorizontalPadding,
+            vertical: reactionChipVerticalPadding,
           ),
           decoration: BoxDecoration(
             color: isSender

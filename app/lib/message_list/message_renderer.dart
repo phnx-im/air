@@ -39,7 +39,7 @@ Widget buildBlockElement(
             fontSize: jumbo
                 ? BodyFontSize.base.size * jumboEmojiScale
                 : BodyFontSize.base.size,
-            height: jumbo ? 1.1 : 1.3,
+            height: jumbo ? 1.1 : BodyFontSize.lineHeight,
           ),
         ),
         softWrap: true,
@@ -102,7 +102,7 @@ Widget buildBlockElement(
                         ? CustomColorScheme.of(context).message.selfListPrefix
                         : CustomColorScheme.of(context).message.otherListPrefix,
                     fontSize: BodyFontSize.base.size,
-                    height: 1.3,
+                    height: BodyFontSize.lineHeight,
                   ),
                 ),
                 Flexible(
@@ -147,7 +147,7 @@ Widget buildBlockElement(
                                 context,
                               ).message.otherListPrefix,
                         fontSize: BodyFontSize.base.size,
-                        height: 1.3,
+                        height: BodyFontSize.lineHeight,
                       ),
                     ),
                   ),

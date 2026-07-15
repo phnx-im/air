@@ -50,11 +50,10 @@ import 'swipe_to_reply.dart';
 final _log = Logger('MessageTile');
 
 const double _bubbleMaxWidthFactor = 5 / 6;
-// Line-height multiplier applied to body text (see message_renderer.dart).
-const double _bodyLineHeight = 1.3;
 // Match the hover react button to a single-line message bubble.
 final double _hoverReactSize =
-    BodyFontSize.base.size * _bodyLineHeight + messageVerticalPadding * 2;
+    BodyFontSize.base.size * BodyFontSize.lineHeight +
+    messageVerticalPadding * 2;
 const double largeCornerRadius = Spacing.px20;
 const double smallCornerRadius = Spacing.px8;
 const double messageHorizontalPadding = Spacing.px16;
