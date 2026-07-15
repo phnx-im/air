@@ -5,6 +5,7 @@
 import 'dart:collection';
 
 import 'package:air/emojis/generated.dart' as data;
+import 'package:flutter/foundation.dart';
 
 enum EmojiSkinVariation {
   none(''),
@@ -72,18 +73,29 @@ class EmojiRepository {
     }
 
     final seen = <(int, int)>{};
-    final results = SplayTreeSet<data.Emoji>(
+    final matchingShortcodes = SplayTreeSet<data.Emoji>(
       (a, b) => a.shortName.compareTo(b.shortName),
     );
-    for (final category in data.emojisByCategory) {
-      for (final emoji in category.$2) {
+    for (final (catId, category) in data.emojisByCategory.indexed) {
+      for (final (index, emoji) in category.$2.indexed) {
         if (!emoji.shortName.startsWith(normalized)) {
           continue;
         }
+        if (!seen.add((catId, index))) {
+          continue;
+        }
 
-        results.add(emoji);
+        matchingShortcodes.add(emoji);
+
+        if (matchingShortcodes.length >= limit) {
+          return matchingShortcodes.toList();
+        }
       }
     }
+
+    final matchingTags = SplayTreeSet<data.Emoji>(
+      (a, b) => a.shortName.compareTo(b.shortName),
+    );
     for (final entry in data.tagsToIndex.entries) {
       if (!entry.key.startsWith(normalized)) {
         continue;
@@ -93,14 +105,15 @@ class EmojiRepository {
           continue;
         }
         final (catId, index) = ref;
-        results.add(data.emojisByCategory[catId].$2[index]);
+        matchingTags.add(data.emojisByCategory[catId].$2[index]);
       }
-      // Empty query keeps canonical order, so we can stop once full.
-      if (normalized.isEmpty && results.length >= limit) {
+
+      if ((matchingShortcodes.length + matchingTags.length) >= limit) {
         break;
       }
     }
 
-    return results.take(limit).toList();
+    return matchingShortcodes.toList() +
+        matchingTags.take(limit - matchingShortcodes.length).toList();
   }
 }

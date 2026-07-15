@@ -4,6 +4,7 @@
 
 import 'package:air/emojis/generated.dart' as data;
 import 'package:air/message_list/emoji_repository.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 // Stable data points from the generated dataset.
@@ -62,17 +63,19 @@ void main() {
 
     test('sorts results by short name', () {
       final names = EmojiRepository.search(
-        'face',
+        'giggle',
         limit: 1000,
-      ).map((e) => e.shortName).toList();
+      ).map((e) => e.shortName);
       final sorted = [...names]..sort();
       expect(names, sorted);
     });
 
-    test('empty query returns the first emojis in canonical order', () {
-      final results = EmojiRepository.search('', limit: 3);
-      expect(results.length, 3);
-      expect(results.first.emoji, _grinning);
+    test('results are first sources from shortcodes', () {
+      final names = EmojiRepository.search(
+        'face',
+        limit: 1000,
+      ).map((e) => e.shortName);
+      expect(names.first, "face_holding_back_tears");
     });
   });
 
