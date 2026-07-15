@@ -13,7 +13,7 @@ use aircommon::{
     },
 };
 use airprotos::client::component::AirComponent;
-use anyhow::Result;
+use anyhow::{Context, Result, ensure};
 use apqmls::{
     authentication::ApqCredentialWithKey, key_package::ApqKeyPackageBuilder,
     messages::ApqKeyPackage,
@@ -392,4 +392,109 @@ pub(crate) struct HeterogeneousVcKeyPackageBatch {
     pub(crate) key_packages: Vec<KeyPackage>,
     pub(crate) apq_key_packages: Vec<ApqKeyPackage>,
     pub(crate) infos: Vec<KeyPackageInfo>,
+}
+
+impl HeterogeneousVcKeyPackageBatch {
+    pub(crate) fn split_vc_batch_refs(
+        infos: &[KeyPackageInfo],
+    ) -> anyhow::Result<(Vec<KeyPackageRef>, Vec<KeyPackageRef>)> {
+        let mut infos: Vec<&KeyPackageInfo> = infos.iter().collect();
+        // Don't trust the data from the DS
+        infos.sort_unstable_by_key(|info| info.key_package_index);
+        let plain_end = infos
+            .iter()
+            .position(|info| info.cipher_suite == APQ_CIPHERSUITE.pq_ciphersuite())
+            .map(|index| index.checked_sub(1).context("APQ packages are not paired"))
+            .transpose()?
+            .unwrap_or(infos.len());
+        ensure!(
+            (infos.len() - plain_end).is_multiple_of(2),
+            "APQ packages are not paired",
+        );
+        let plain_refs = infos[..plain_end]
+            .iter()
+            .map(|info| info.key_package_ref.clone())
+            .collect();
+        let apq_refs = infos[plain_end..]
+            .iter()
+            .map(|info| info.key_package_ref.clone())
+            .collect();
+        Ok((plain_refs, apq_refs))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use openmls::prelude::Ciphersuite;
+
+    use super::*;
+
+    fn info(index: u32, cipher_suite: Ciphersuite) -> KeyPackageInfo {
+        KeyPackageInfo {
+            key_package_ref: KeyPackageRef::from_slice(&[index as u8; 16]),
+            cipher_suite,
+            key_package_index: index,
+        }
+    }
+
+    fn refs(indices: impl IntoIterator<Item = u32>) -> Vec<KeyPackageRef> {
+        indices
+            .into_iter()
+            .map(|index| KeyPackageRef::from_slice(&[index as u8; 16]))
+            .collect()
+    }
+
+    #[test]
+    fn split_vc_batch_refs_splits_plain_block_and_apq_pairs() {
+        let t = APQ_CIPHERSUITE.t_ciphersuite();
+        let pq = APQ_CIPHERSUITE.pq_ciphersuite();
+        // Batch layout: plain block (0..3), then adjacent T/PQ pairs. Shuffled
+        // on the wire: the splitter must order by key_package_index.
+        let infos = [
+            info(3, t),
+            info(6, pq),
+            info(0, CIPHERSUITE),
+            info(4, pq),
+            info(2, CIPHERSUITE),
+            info(5, t),
+            info(1, CIPHERSUITE),
+        ];
+        let (plain, apq) = HeterogeneousVcKeyPackageBatch::split_vc_batch_refs(&infos).unwrap();
+        assert_eq!(plain, refs(0..3));
+        assert_eq!(apq, refs(3..7));
+    }
+
+    #[test]
+    fn split_vc_batch_refs_handles_all_plain_batch() {
+        let infos = [info(0, CIPHERSUITE), info(1, CIPHERSUITE)];
+        let (plain, apq) = HeterogeneousVcKeyPackageBatch::split_vc_batch_refs(&infos).unwrap();
+        assert_eq!(plain, refs(0..2));
+        assert!(apq.is_empty());
+    }
+
+    #[test]
+    fn split_vc_batch_refs_handles_empty_batch() {
+        let (plain, apq) = HeterogeneousVcKeyPackageBatch::split_vc_batch_refs(&[]).unwrap();
+        assert!(plain.is_empty());
+        assert!(apq.is_empty());
+    }
+
+    #[test]
+    fn split_vc_batch_refs_rejects_leading_pq_package() {
+        let t = APQ_CIPHERSUITE.t_ciphersuite();
+        let pq = APQ_CIPHERSUITE.pq_ciphersuite();
+        // A PQ leg at index 0 has no preceding T leg to pair with.
+        let infos = [info(0, pq), info(1, t)];
+        assert!(HeterogeneousVcKeyPackageBatch::split_vc_batch_refs(&infos).is_err());
+    }
+
+    #[test]
+    fn split_vc_batch_refs_rejects_odd_pair_block() {
+        let t = APQ_CIPHERSUITE.t_ciphersuite();
+        let pq = APQ_CIPHERSUITE.pq_ciphersuite();
+        // Pair block of odd length: [t, pq, pq] leaves the trailing PQ leg
+        // unpaired.
+        let infos = [info(0, t), info(1, pq), info(2, pq)];
+        assert!(HeterogeneousVcKeyPackageBatch::split_vc_batch_refs(&infos).is_err());
+    }
 }

@@ -247,6 +247,17 @@ impl Group {
         self.discard_pending_commit_and_operations(txn, &group_id, staged_commit)
             .await?;
 
+        // Process a sibling's key package upload announcement (self-group
+        // only), if any. Errors are logged and swallowed: the commit itself
+        // is valid and must be merged, otherwise the group falls permanently
+        // behind the DS.
+        if let Err(error) = self
+            .process_vc_key_package_upload_aad(txn, processed_message, sender_index)
+            .await
+        {
+            error!(%error, "Failed to process sibling key package upload");
+        }
+
         let sender_credential =
             VerifiableClientCredential::from_basic_credential(processed_message.credential())?;
 
@@ -549,7 +560,7 @@ impl Group {
                     && proposal_sender_index == &self.mls_group().own_leaf_index()
             });
             if !pending_chat_operation.is_leave() || commit_contains_our_self_remove {
-                PendingChatOperation::delete(&mut *txn, group_id).await?;
+                pending_chat_operation.discard(txn).await?;
             }
         }
         Ok(())

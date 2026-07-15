@@ -4,13 +4,12 @@
 
 use std::collections::HashSet;
 
-use airprotos::client::virtual_client::VIRTUAL_CLIENT_KP_UPLOAD_COMPONENT_ID;
+use airprotos::client::virtual_client::extract_key_package_upload;
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::{ApqProcessedAssistedMessagePlus, ProcessedAssistedMessage, apq::ApqGroupRef},
     messages::{AssistedMessageIn, AssistedWelcome, SerializedMlsMessage},
     openmls::{
-        components::vc_derivation_info::KeyPackageUpload,
         group::StagedCommit,
         prelude::{
             Extension, KeyPackage, LeafNodeIndex, OpenMlsProvider, ProcessedMessage,
@@ -714,19 +713,12 @@ impl DsGroupState {
 fn extract_virtual_client_hint(
     processed_message: &ProcessedMessage,
 ) -> Result<Option<QsVirtualClientHint>, GroupOperationError> {
-    processed_message
-        .safe_aad_item(VIRTUAL_CLIENT_KP_UPLOAD_COMPONENT_ID)
-        .map(
-            |bytes| -> Result<QsVirtualClientHint, GroupOperationError> {
-                let key_package_upload = KeyPackageUpload::tls_deserialize_exact_bytes(bytes)
-                    .map_err(|_| {
-                        error!("Failed to deserialize KeyPackageUpload");
-                        GroupOperationError::InvalidMessage
-                    })?;
-                Ok(key_package_upload.into())
-            },
-        )
-        .transpose()
+    extract_key_package_upload(processed_message)
+        .map_err(|error| {
+            error!(%error, "Failed to extract KeyPackageUpload from safe AAD");
+            GroupOperationError::InvalidMessage
+        })
+        .map(|upload| upload.map(From::from))
 }
 
 pub(crate) type AddedUserInfo = (KeyPackage, EncryptedUserProfileKey);

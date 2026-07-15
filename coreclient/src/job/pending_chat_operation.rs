@@ -12,13 +12,16 @@ use aircommon::{
         SelfRemoveParamsOut,
     },
     time::TimeStamp,
+    virtual_client::KeyPackageBatchId,
 };
 use airprotos::client::group::GroupData;
 use anyhow::{Context as _, anyhow, bail};
 use apqmls::commit_builder::ApqCommitMessageBundle;
 use chrono::{DateTime, Duration, Utc};
 use mimi_room_policy::RoleIndex;
-use openmls::{group::GroupId, prelude::KeyPackageRef};
+use openmls::{
+    components::vc_derivation_info::KeyPackageUpload, group::GroupId, prelude::KeyPackageRef,
+};
 use serde::{Deserialize, Serialize};
 use sqlx::{query, query_as, query_scalar};
 use tracing::{debug, error, info};
@@ -79,6 +82,7 @@ pub(super) enum OperationType {
     },
     SelfGroupKeyPackageUpload {
         params: Box<ApqGroupOperationParamsOut>,
+        batch_id: KeyPackageBatchId,
         plain_refs: Vec<KeyPackageRef>,
         apq_refs: Vec<KeyPackageRef>,
     },
@@ -127,14 +131,15 @@ impl OperationType {
         }
     }
 
-    #[allow(dead_code)]
     fn self_group_key_package_upload(
         params: ApqGroupOperationParamsOut,
+        batch_id: KeyPackageBatchId,
         plain_refs: Vec<KeyPackageRef>,
         apq_refs: Vec<KeyPackageRef>,
     ) -> Self {
         Self::SelfGroupKeyPackageUpload {
             params: Box::new(params),
+            batch_id,
             plain_refs,
             apq_refs,
         }
@@ -157,6 +162,18 @@ impl OperationType {
             OperationType::Delete(_) | OperationType::ApqDelete { .. }
         )
     }
+}
+
+/// Queue-delivered proof that one of our own commits was accepted by the DS.
+///
+/// See [`PendingChatOperation::complete_own_commit`].
+pub(crate) enum OwnCommitSignal<'a> {
+    /// A `DsCommitResponse`: proves acceptance of the staged commit, carries
+    /// no content.
+    Echo,
+    /// Our own commit delivered back through the queue, with the SafeAAD
+    /// [`KeyPackageUpload`] it carries, if any.
+    EchoedCommit(Option<&'a KeyPackageUpload>),
 }
 
 #[derive(Debug)]
@@ -850,6 +867,7 @@ impl PendingChatOperation {
     pub(crate) async fn create_self_group_key_package_upload(
         mut txn: &mut WriteDbTransaction<'_>,
         params: ApqGroupOperationParamsOut,
+        batch_id: KeyPackageBatchId,
         plain_refs: Vec<KeyPackageRef>,
         apq_refs: Vec<KeyPackageRef>,
     ) -> anyhow::Result<Self> {
@@ -862,47 +880,114 @@ impl PendingChatOperation {
             .context("Self-group not found")?;
 
         let operation_type =
-            OperationType::self_group_key_package_upload(params, plain_refs, apq_refs);
+            OperationType::self_group_key_package_upload(params, batch_id, plain_refs, apq_refs);
 
         let job = Self::new(group, operation_type);
         job.store(txn).await?;
         Ok(job)
     }
 
-    /// Finalizes a pending self-group key package upload after the DS echoed
-    /// the commit back via the queue.
+    /// Deletes this job after a foreign commit superseded it: its own staged
+    /// commit is dead at the DS, so its side effects must not be applied.
     ///
-    /// Called from the QS processing path after the commit has been merged.
-    /// A missing job or a different operation type means the echo is stale
-    /// (e.g. a replay), so this is a no-op then.
-    pub(crate) async fn finalize_self_group_key_package_upload(
+    /// For a self-group key package upload this also sweeps the batch's
+    /// generated key packages: their refs exist only in this job's row, so
+    /// they become orphans the moment the row is gone.
+    pub(crate) async fn discard(&self, txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<()> {
+        Self::delete(&mut *txn, self.group.group_id()).await?;
+        if matches!(
+            self.operation,
+            OperationType::SelfGroupKeyPackageUpload { .. }
+        ) {
+            delete_orphaned_key_packages(txn).await?;
+        }
+        Ok(())
+    }
+
+    /// Completes the pending job after the queue proved that our own commit
+    /// on `group_id` was accepted by the DS.
+    ///
+    /// For regular operations this just deletes the job. For a self-group key
+    /// package upload the signal also decides the fate of the batch:
+    ///
+    /// - [`OwnCommitSignal::Echo`]: the `DsCommitResponse` echo carries no
+    ///   content, but it can only confirm the group's staged commit, which by
+    ///   invariant is the job's staging commit (job and commit are created in
+    ///   one transaction, and only queue-delivered signals may clear a
+    ///   waiting job). The QS promote ran atomically with the enqueue of the
+    ///   echo, so the batch is marked live.
+    /// - [`OwnCommitSignal::EchoedCommit`]: our own commit arrived through
+    ///   the queue; its SafeAAD [`KeyPackageUpload`] must match the job's
+    ///   batch id. A mismatch means local state has forked from the queue's
+    ///   view; the job is abandoned without touching liveness (the fork is
+    ///   detectable, but not repairable).
+    pub(crate) async fn complete_own_commit(
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
+        signal: OwnCommitSignal<'_>,
     ) -> anyhow::Result<()> {
         let Some(job) = Self::load_by_group_id(&mut *txn, group_id).await? else {
             return Ok(());
         };
-        let OperationType::SelfGroupKeyPackageUpload {
-            plain_refs,
-            apq_refs,
-            ..
-        } = job.operation
-        else {
-            return Ok(());
-        };
+        match &job.operation {
+            OperationType::SelfGroupKeyPackageUpload {
+                batch_id,
+                plain_refs,
+                apq_refs,
+                ..
+            } => {
+                let confirmed = match signal {
+                    OwnCommitSignal::Echo => true,
+                    OwnCommitSignal::EchoedCommit(upload) => {
+                        upload.is_some_and(|upload| batch_id.matches_upload(upload))
+                    }
+                };
+                if confirmed {
+                    Self::confirm_self_group_key_package_upload(txn, group_id, plain_refs, apq_refs)
+                        .await?;
+                } else {
+                    error!(
+                        ?group_id,
+                        "Own self-group commit does not carry the pending upload; abandoning job"
+                    );
+                    Self::abandon_self_group_key_package_upload(txn, group_id).await?;
+                }
+            }
+            _ => {
+                Self::delete(txn, group_id).await?;
+            }
+        }
+        Ok(())
+    }
 
-        // The echo proves the QS ran the promote (hint and echo travel in the
-        // same fan-out message), but not that the promote found the staging
-        // row: it may have TTL-evicted if the DS accepted a late retry. In
-        // that case the QS keeps serving the previous batch, whose private
-        // keys the *next* mark-live call deletes, making in-flight welcomes
-        // undecryptable. Detecting this needs the QS live key package
-        // self-query, which does not exist yet.
-        mark_key_packages_as_live(&mut *txn, &plain_refs, false).await?;
-        mark_key_packages_as_live(&mut *txn, &apq_refs, true).await?;
+    /// Confirms a pending self-group key package upload.
+    ///
+    /// Given refs are marked as live. The pending job for the group is deleted. Additionally,
+    /// removes orphaned key packages.
+    pub(crate) async fn confirm_self_group_key_package_upload(
+        txn: &mut WriteDbTransaction<'_>,
+        group_id: &GroupId,
+        plain_refs: &[KeyPackageRef],
+        apq_refs: &[KeyPackageRef],
+    ) -> anyhow::Result<()> {
+        mark_key_packages_as_live(txn, plain_refs, false).await?;
+        mark_key_packages_as_live(txn, apq_refs, true).await?;
         delete_orphaned_key_packages(&mut *txn).await?;
-
         Self::delete(txn, group_id).await?;
+        Ok(())
+    }
+
+    /// Abandons a pending self-group key package upload.
+    ///
+    /// The pending job for the group is deleted. Additionally, removes orphaned key packages.
+    ///
+    /// Idempotent: a missing job is a no-op.
+    pub(crate) async fn abandon_self_group_key_package_upload(
+        txn: &mut WriteDbTransaction<'_>,
+        group_id: &GroupId,
+    ) -> anyhow::Result<()> {
+        Self::delete(&mut *txn, group_id).await?;
+        delete_orphaned_key_packages(txn).await?;
         Ok(())
     }
 }

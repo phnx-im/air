@@ -14,20 +14,30 @@ use aircommon::{
     mls_group_config::AppComponent,
 };
 use airprotos::client::{
-    component::AirComponent, group::GroupData,
-    virtual_client::VIRTUAL_CLIENT_KP_UPLOAD_COMPONENT_ID,
+    component::AirComponent,
+    group::GroupData,
+    virtual_client::{VIRTUAL_CLIENT_KP_UPLOAD_COMPONENT_ID, extract_key_package_upload},
 };
 use anyhow::{Context, ensure};
-use openmls::{components::vc_derivation_info::KeyPackageUpload, framing::SafeAadItem};
+use openmls::{
+    components::vc_derivation_info::{KeyPackageUpload, process_vc_key_package_upload},
+    framing::SafeAadItem,
+    prelude::{LeafNodeIndex, ProcessedMessage},
+};
+use openmls_traits::OpenMlsProvider;
 use tls_codec::Serialize;
 use tracing::{debug, warn};
 
 use crate::{
     chats::GroupDataExt,
     clients::{CoreUser, own_client_info::OwnClientInfo},
-    db::access::{ReadConnection, WriteConnection},
+    db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
     groups::{Group, openmls_provider::AirOpenMlsProvider},
-    key_stores::indexed_keys::StorableIndexedKey,
+    key_stores::{
+        HeterogeneousVcKeyPackageBatch,
+        indexed_keys::StorableIndexedKey,
+        key_package_refs::{delete_orphaned_key_packages, mark_key_packages_as_live},
+    },
 };
 
 pub(crate) struct SelfGroup {
@@ -155,7 +165,6 @@ impl SelfGroup {
     ///
     /// The DS extracts the hint from the T commit and asks the QS to promote the previously staged
     /// key packages.
-    #[allow(dead_code)]
     pub(crate) fn stage_key_package_upload(
         &mut self,
         mut connection: impl WriteConnection,
@@ -193,5 +202,64 @@ impl SelfGroup {
             bundle,
             encrypted_welcome_attribution_infos: Default::default(),
         })
+    }
+}
+
+impl Group {
+    /// Processes a sibling's [`KeyPackageUpload`] announced in the SafeAAD of
+    /// a self-group commit: derives the sibling's key package material from
+    /// the shared operation tree and marks the announced refs as the new live
+    /// set.
+    ///
+    /// A no-op for commits without the component. Only the self-group may
+    /// carry it.
+    pub(crate) async fn process_vc_key_package_upload_aad(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        processed_message: &ProcessedMessage,
+        sender_index: LeafNodeIndex,
+    ) -> anyhow::Result<()> {
+        let Some(upload) = extract_key_package_upload(processed_message)? else {
+            return Ok(());
+        };
+
+        let own_client_info = OwnClientInfo::load(&mut *txn).await?;
+        ensure!(
+            own_client_info.self_group_id.as_ref() == Some(self.group_id()),
+            "KeyPackageUpload component outside the self-group"
+        );
+        ensure!(
+            upload.leaf_index == sender_index,
+            "KeyPackageUpload for a leaf other than the sender"
+        );
+        ensure!(
+            upload.leaf_index != self.mls_group().own_leaf_index(),
+            "Sibling KeyPackageUpload from own leaf"
+        );
+
+        {
+            let provider = AirOpenMlsProvider::new(txn.as_mut());
+            // A passive sibling may not have registered this epoch's
+            // operation tree yet. Registration is idempotent and must happen
+            // at the pre-merge epoch, which is the epoch the upload
+            // references.
+            let epoch_id = self
+                .mls_group_mut()
+                .register_vc_emulation_epoch(provider.crypto(), provider.storage())?;
+            ensure!(
+                epoch_id == upload.epoch_id,
+                "KeyPackageUpload references a foreign emulation epoch"
+            );
+            process_vc_key_package_upload(&provider, &upload)?;
+        }
+
+        // The sibling's batch replaces the served set; track it as live.
+        let (plain_refs, apq_refs) =
+            HeterogeneousVcKeyPackageBatch::split_vc_batch_refs(&upload.key_package_info)?;
+        mark_key_packages_as_live(&mut *txn, &plain_refs, false).await?;
+        mark_key_packages_as_live(&mut *txn, &apq_refs, true).await?;
+        delete_orphaned_key_packages(&mut *txn).await?;
+
+        Ok(())
     }
 }

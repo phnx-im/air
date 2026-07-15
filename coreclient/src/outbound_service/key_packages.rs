@@ -169,14 +169,14 @@ impl OutboundServiceContext {
 
         let api_client = self.api_clients.default_client()?;
         let batch_id = KeyPackageBatchId {
-            epoch_id: epoch_id.clone(),
+            epoch_id,
             leaf_index,
             generation,
         };
         if let Err(error) = api_client
             .qs_stage_key_packages(
                 self.qs_client_id,
-                batch_id,
+                batch_id.clone(),
                 batch.plain,
                 batch.apq,
                 &self.key_store.qs_client_signing_key,
@@ -198,15 +198,16 @@ impl OutboundServiceContext {
                         &mut *txn,
                         self.signing_key(),
                         KeyPackageUpload {
-                            epoch_id,
-                            leaf_index,
-                            generation,
+                            epoch_id: batch_id.epoch_id.clone(),
+                            leaf_index: batch_id.leaf_index,
+                            generation: batch_id.generation,
                             key_package_info: infos,
                         },
                     )?;
                     PendingChatOperation::create_self_group_key_package_upload(
                         txn,
                         params,
+                        batch_id,
                         key_package_refs.plain,
                         key_package_refs.apq,
                     )

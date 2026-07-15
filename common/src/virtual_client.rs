@@ -2,14 +2,18 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use mls_assist::openmls::{components::vc_derivation_info::EpochId, prelude::LeafNodeIndex};
-use tls_codec::{DeserializeBytes, Serialize, VLByteSlice, VLBytes};
+use mls_assist::openmls::{
+    components::vc_derivation_info::{EpochId, KeyPackageUpload},
+    prelude::LeafNodeIndex,
+};
+use serde::{Deserialize, Serialize};
+use tls_codec::{DeserializeBytes as _, Serialize as _, VLByteSlice, VLBytes};
 
 /// Identifier of a key package batch
 ///
 /// Identifies a batch of key packages that can be used by any emulation client that belongs to a
 /// virtual client.
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct KeyPackageBatchId {
     /// Epoch ID in the virtual client self-group
     pub epoch_id: EpochId,
@@ -17,6 +21,15 @@ pub struct KeyPackageBatchId {
     pub leaf_index: LeafNodeIndex,
     /// Generation in the key package ratchet of the client who created the batch
     pub generation: u32,
+}
+
+impl KeyPackageBatchId {
+    /// Returns `true` if the batch ID matches the given upload, otherwise `false`.
+    pub fn matches_upload(&self, upload: &KeyPackageUpload) -> bool {
+        self.epoch_id == upload.epoch_id
+            && self.leaf_index == upload.leaf_index
+            && self.generation == upload.generation
+    }
 }
 
 pub trait EpochIdExt {
