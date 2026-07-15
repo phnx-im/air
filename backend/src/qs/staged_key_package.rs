@@ -4,10 +4,7 @@
 
 use std::time::Duration;
 
-use aircommon::{
-    identifiers::QsUserId,
-    virtual_client::{EpochIdExt, KeyPackageBatchId},
-};
+use aircommon::{identifiers::QsUserId, virtual_client::KeyPackageBatchId};
 use apqmls::messages::ApqKeyPackage;
 use chrono::{DateTime, Utc};
 use mls_assist::openmls::key_packages::KeyPackage;
@@ -41,14 +38,14 @@ impl StagedKeyPackages {
         &self,
         txn: &mut PgTransaction<'_>,
     ) -> Result<(), StageKeyPackageError> {
-        let epoch_id_bytes = self.batch_id.epoch_id.to_bytes();
+        let epoch_id = self.batch_id.epoch_id.as_bytes();
         let batch_id = query_scalar!(
             "INSERT INTO qs_staged_key_package_batch (user_id, epoch_id, leaf_index, generation)
             VALUES ($1, $2, $3, $4)
             ON CONFLICT (user_id, epoch_id, leaf_index, generation) DO NOTHING
             RETURNING id",
             self.user_id as _,
-            epoch_id_bytes,
+            epoch_id,
             self.batch_id.leaf_index.u32() as i64,
             self.batch_id.generation as i64,
         )
@@ -88,12 +85,12 @@ impl StagedKeyPackages {
                 .await?;
             }
         } else {
-            let epoch_id_bytes = self.batch_id.epoch_id.to_bytes();
+            let epoch_id = self.batch_id.epoch_id.as_bytes();
             let local_batch_id = query_scalar!(
                 "SELECT id FROM qs_staged_key_package_batch
                 WHERE user_id = $1 AND epoch_id = $2 AND leaf_index = $3 AND generation = $4",
                 self.user_id as _,
-                epoch_id_bytes,
+                epoch_id,
                 self.batch_id.leaf_index.u32() as i64,
                 self.batch_id.generation as i64,
             )
@@ -173,13 +170,13 @@ impl StagedKeyPackages {
     ) -> sqlx::Result<()> {
         // Get the batch ID and lock it for update.
 
-        let epoch_id_bytes = batch_id.epoch_id.to_bytes();
+        let epoch_id = batch_id.epoch_id.as_bytes();
         let Some(batch_id) = query_scalar!(
             "SELECT id FROM qs_staged_key_package_batch
             where user_id = $1 and epoch_id = $2 and leaf_index = $3 and generation = $4
             FOR UPDATE",
             user_id as _,
-            epoch_id_bytes,
+            epoch_id,
             batch_id.leaf_index.u32() as i64,
             batch_id.generation as i64,
         )
@@ -309,7 +306,10 @@ mod tests {
         authentication::{ApqCredentialWithKey, ApqSignatureKeyPair, ApqSignatureScheme},
     };
     use chrono::Duration;
-    use mls_assist::{openmls::prelude::LeafNodeIndex, openmls_rust_crypto::OpenMlsRustCrypto};
+    use mls_assist::{
+        openmls::{components::vc_derivation_info::EpochId, prelude::LeafNodeIndex},
+        openmls_rust_crypto::OpenMlsRustCrypto,
+    };
     use sqlx::PgPool;
     use tls_codec::Serialize;
 
@@ -359,7 +359,7 @@ mod tests {
         StagedKeyPackages {
             user_id,
             batch_id: KeyPackageBatchId {
-                epoch_id: EpochIdExt::from_bytes(b"epoch-1"),
+                epoch_id: EpochId::new(b"epoch-1".to_vec()),
                 leaf_index: LeafNodeIndex::new(0),
                 generation,
             },
@@ -691,7 +691,7 @@ mod tests {
         // No batch staged for this (epoch, leaf_index, generation): replayed/stale hint => no-op.
         let mut txn = pool.begin().await?;
         let batch_id = KeyPackageBatchId {
-            epoch_id: EpochIdExt::from_bytes(b"epoch-1"),
+            epoch_id: EpochId::new(b"epoch-1".to_vec()),
             leaf_index: LeafNodeIndex::new(0),
             generation: 999,
         };

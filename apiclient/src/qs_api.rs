@@ -24,7 +24,7 @@ use aircommon::{
         push_token::EncryptedPushToken,
     },
     utils::{CancellableStream, CancellingStream},
-    virtual_client::{EpochIdExt, KeyPackageBatchId},
+    virtual_client::KeyPackageBatchId,
 };
 use airprotos::{
     common::v1::{StatusDetails, StatusDetailsCode},
@@ -271,7 +271,7 @@ impl ApiClient {
     pub async fn qs_stage_key_packages(
         &self,
         client_id: QsClientId,
-        batch_id: KeyPackageBatchId,
+        batch_id: &KeyPackageBatchId,
         key_packages: Vec<KeyPackage>,
         apq_key_packages: Vec<ApqKeyPackage>,
         signing_key: &QsClientSigningKey,
@@ -279,7 +279,7 @@ impl ApiClient {
         let payload = StageKeyPackagesPayload {
             client_metadata: Some(self.metadata().clone()),
             client_id: Some(client_id.into()),
-            epoch_id: batch_id.epoch_id.to_bytes(),
+            epoch_id: batch_id.epoch_id.as_bytes().to_vec(),
             leaf_index: batch_id.leaf_index.u32(),
             generation: batch_id.generation,
             key_packages: key_packages

@@ -20,10 +20,10 @@ use aircommon::{
     },
     time::TimeStamp,
     utils::CancellableStream,
-    virtual_client::{EpochIdExt, KeyPackageBatchId},
+    virtual_client::KeyPackageBatchId,
 };
 use displaydoc::Display;
-use mls_assist::openmls::prelude::LeafNodeIndex;
+use mls_assist::openmls::{components::vc_derivation_info::EpochId, prelude::LeafNodeIndex};
 use prost::Message;
 use semver::Version;
 use tokio::sync::mpsc;
@@ -421,7 +421,7 @@ impl QueueService for GrpcQs {
             .qs_stage_key_packages(
                 client_id,
                 KeyPackageBatchId {
-                    epoch_id: EpochIdExt::from_bytes(&epoch_id),
+                    epoch_id: EpochId::new(epoch_id),
                     leaf_index: LeafNodeIndex::new(leaf_index),
                     generation,
                 },

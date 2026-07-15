@@ -7,7 +7,6 @@ use mls_assist::openmls::{
     prelude::LeafNodeIndex,
 };
 use serde::{Deserialize, Serialize};
-use tls_codec::{DeserializeBytes as _, Serialize as _, VLByteSlice, VLBytes};
 
 /// Identifier of a key package batch
 ///
@@ -32,21 +31,3 @@ impl KeyPackageBatchId {
     }
 }
 
-pub trait EpochIdExt {
-    fn from_bytes(bytes: &[u8]) -> Self;
-    fn to_bytes(&self) -> Vec<u8>;
-}
-
-impl EpochIdExt for EpochId {
-    fn from_bytes(bytes: &[u8]) -> Self {
-        // TODO: This is a temporary workaround for the lack of epoch ID bytes getter.
-        let bytes = VLByteSlice(bytes).tls_serialize_detached().unwrap();
-        EpochId::tls_deserialize_exact_bytes(&bytes).unwrap()
-    }
-
-    fn to_bytes(&self) -> Vec<u8> {
-        // TODO: This is a temporary workaround for the lack of epoch ID bytes getter.
-        let bytes = EpochId::tls_serialize_detached(self).unwrap();
-        VLBytes::tls_deserialize_exact_bytes(&bytes).unwrap().into()
-    }
-}

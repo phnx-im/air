@@ -176,7 +176,7 @@ impl OutboundServiceContext {
         if let Err(error) = api_client
             .qs_stage_key_packages(
                 self.qs_client_id,
-                batch_id.clone(),
+                &batch_id,
                 batch.plain,
                 batch.apq,
                 &self.key_store.qs_client_signing_key,

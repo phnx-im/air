@@ -124,7 +124,7 @@ impl Qs {
         let crypto = OpenMlsRustCrypto::default();
         let protocol_version = ProtocolVersion::default();
 
-        // Note: There is an assymetry how packages are stored in the database. The T key packages
+        // Note: There is an asymmetry how packages are stored in the database. The T key packages
         // are stored as serialized blob via the persistence codec, apq key packages on the other
         // hand are stored as concatenated TLS bytes: T TLS || PQ TLS.
 
