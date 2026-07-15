@@ -97,6 +97,7 @@ pub struct ReactionNotification {
     pub chat_id: ChatId,
     pub reactor: UserId,
     pub emoji: String,
+    pub original_chat_message: ChatMessage,
 }
 
 impl ProcessedQsMessages {
@@ -1001,6 +1002,7 @@ impl CoreUser {
             chat_id,
             reactor: sender.clone(),
             emoji,
+            original_chat_message: target,
         }))
     }
 
