@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use std::{
-    collections::{BTreeMap, HashSet},
+    collections::{BTreeMap, HashMap, HashSet},
     fs,
 };
 
@@ -43,6 +43,7 @@ struct SourceEmoji {
     /// Hyphen-separated hex code points, e.g. `0023-FE0F-20E3`.
     unified: String,
     short_name: String,
+    short_names: Vec<String>,
     category: String,
     /// Canonical ordering across the whole dataset.
     sort_order: u32,
@@ -83,7 +84,7 @@ struct OutEmoji {
     /// Dart escape sequence for the code points, e.g. `\u{0023}\u{FE0F}\u{20E3}`.
     escape: String,
     short_name: String,
-    short_names: Vec<String>,
+    short_names: HashSet<String>,
     sort_order: u32,
     /// `(tone-modifier escape, variant glyph escape)` pairs, in key order.
     skin_variations: Vec<(String, String)>,
@@ -120,6 +121,10 @@ struct TemplateVariation {
 struct TemplateShortcode {
     /// Dart string literal for the short code, e.g. `'grinning'`.
     code: String,
+    refs: Vec<TemplateRef>,
+}
+
+struct TemplateRef {
     category_id: usize,
     index: usize,
 }
@@ -131,6 +136,7 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
         serde_json::from_str(&raw).context("parsing emoji_pretty.json")?;
 
     let cldr_keywords = load_cldr_keywords(&args.unicode_cldr_annotations_path)?;
+    let mut original_short_names = 0usize;
     let mut cldr_matched = 0usize;
 
     // Group by category. BTreeMap keeps a stable iteration order while we
@@ -140,12 +146,17 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
         if EXCLUDED_CATEGORIES.contains(&entry.category.as_str()) {
             continue;
         }
-        let mut short_names: Vec<String> = Vec::new();
+        let mut short_names: HashSet<String> = entry
+            .short_names
+            .into_iter()
+            .flat_map(|s| split_shortcode(s))
+            .collect();
+        original_short_names += short_names.len();
         if let Some(extra) = cldr_keywords.get(&entry.unified) {
             cldr_matched += 1;
             for keyword in extra {
                 if !short_names.iter().any(|s| s.eq_ignore_ascii_case(keyword)) {
-                    short_names.push(keyword.clone());
+                    short_names.insert(keyword.clone());
                 }
             }
         }
@@ -154,7 +165,7 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
             .or_default()
             .push(OutEmoji {
                 escape: to_dart_escape(&entry.unified),
-                short_name: entry.short_name,
+                short_name: entry.short_name.replace("_", "-"),
                 short_names,
                 sort_order: entry.sort_order,
                 skin_variations: entry
@@ -167,8 +178,8 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
             });
     }
     println!(
-        "Matched {cldr_matched}/{} emojis against CLDR annotations",
-        cldr_keywords.len()
+        "Matched {} emojis against unicode-data shortnames and {} against CLDR annotations",
+        original_short_names, cldr_matched,
     );
 
     // Sort emojis within each category, and order the categories themselves by
@@ -185,24 +196,40 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
             .unwrap_or(u32::MAX)
     });
 
-    // Short code -> (category id, index within that category). Category ids are
-    // the position in `categories`. First occurrence wins so the mapping is
-    // stable; duplicates across emojis are skipped (and counted).
-    let mut shortcodes: Vec<(String, usize, usize)> = Vec::new();
-    let mut seen: HashSet<String> = HashSet::new();
-    let mut duplicate_shortcodes = 0usize;
+    // Word -> every (category id, index) whose shortcode contains that word.
+    // Shortcodes are split on '-' and '_' (e.g. "keycap_star", "medium-light")
+    // so each constituent word is independently searchable, and a word can
+    // resolve to several emojis. `shortcode_order` records each word's first
+    // appearance in categories/emoji traversal order (an emoji's canonical
+    // position), which callers rely on for the empty-query "canonical order"
+    // fast path.
+    let mut shortcode_order: Vec<String> = Vec::new();
+    let mut shortcode_refs: HashMap<String, Vec<(usize, usize)>> = HashMap::new();
+    let mut duplicate_refs = 0usize;
     for (category_id, (_, group)) in categories.iter().enumerate() {
         for (index, emoji) in group.iter().enumerate() {
             for name in &emoji.short_names {
-                let key = name.to_lowercase();
-                if seen.insert(key.clone()) {
-                    shortcodes.push((key, category_id, index));
-                } else {
-                    duplicate_shortcodes += 1;
+                for word in split_shortcode(name.clone()) {
+                    let refs = shortcode_refs.entry(word.clone()).or_insert_with(|| {
+                        shortcode_order.push(word.clone());
+                        Vec::new()
+                    });
+                    if refs.contains(&(category_id, index)) {
+                        duplicate_refs += 1;
+                    } else {
+                        refs.push((category_id, index));
+                    }
                 }
             }
         }
     }
+    let shortcodes: Vec<(String, Vec<(usize, usize)>)> = shortcode_order
+        .into_iter()
+        .map(|word| {
+            let refs = shortcode_refs.remove(&word).unwrap();
+            (word, refs)
+        })
+        .collect();
 
     let template = EmojiDataTemplate {
         categories: categories
@@ -228,10 +255,15 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
             .collect(),
         shortcodes: shortcodes
             .iter()
-            .map(|(code, category_id, index)| TemplateShortcode {
+            .map(|(code, refs)| TemplateShortcode {
                 code: dart_string(code),
-                category_id: *category_id,
-                index: *index,
+                refs: refs
+                    .iter()
+                    .map(|(category_id, index)| TemplateRef {
+                        category_id: *category_id,
+                        index: *index,
+                    })
+                    .collect(),
             })
             .collect(),
     };
@@ -254,7 +286,7 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
     let emoji_count: usize = categories.iter().map(|(_, g)| g.len()).sum();
     println!(
         "Wrote {emoji_count} emojis across {} categories, {} shortcodes \
-         ({duplicate_shortcodes} duplicates skipped) to {output}",
+         ({duplicate_refs} duplicate refs skipped) to {output}",
         categories.len(),
         shortcodes.len(),
     );
@@ -292,6 +324,16 @@ fn unified_key(glyph: &str) -> String {
         .map(|c| format!("{:04X}", c as u32))
         .collect::<Vec<_>>()
         .join("-")
+}
+
+/// Splits a shortcode into its constituent lowercase words on '-' and '_',
+/// e.g. `"keycap_star"` -> `["keycap", "star"]`, so each word is
+/// independently searchable.
+fn split_shortcode(name: String) -> Vec<String> {
+    name.split(['-', '_'])
+        .filter(|word| !word.is_empty())
+        .map(|word| word.to_lowercase())
+        .collect()
 }
 
 /// Converts `0023-FE0F-20E3` into `\u{0023}\u{FE0F}\u{20E3}`.

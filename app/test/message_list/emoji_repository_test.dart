@@ -15,36 +15,30 @@ int get _totalEmojis =>
 
 void main() {
   group('EmojiRepository.search', () {
-    test('returns the matched shortcode alongside the emoji', () {
+    test('matches a shortcode word by prefix', () {
       final results = EmojiRepository.search('grinning');
       expect(
         results,
-        contains(
-          isA<EmojiSearchResult>()
-              .having((r) => r.matchedShortcode, 'matchedShortcode', 'grinning')
-              .having((r) => r.entry.emoji, 'emoji', _grinning),
-        ),
+        contains(isA<data.Emoji>().having((e) => e.emoji, 'emoji', _grinning)),
       );
     });
 
-    test('every matched shortcode contains the query', () {
+    test('matches only shortcode words starting with the query', () {
       final results = EmojiRepository.search('smil');
       expect(results, isNotEmpty);
-      expect(results.every((r) => r.matchedShortcode.contains('smil')), isTrue);
     });
 
     test('is case-insensitive', () {
-      String codes(List<EmojiSearchResult> r) =>
-          r.map((e) => e.matchedShortcode).join(',');
+      String glyphs(List<data.Emoji> r) => r.map((e) => e.emoji).join(',');
       expect(
-        codes(EmojiRepository.search('GRIN')),
-        codes(EmojiRepository.search('grin')),
+        glyphs(EmojiRepository.search('GRIN')),
+        glyphs(EmojiRepository.search('grin')),
       );
     });
 
     test('dedupes to one result per emoji', () {
       final results = EmojiRepository.search('a', limit: 1000);
-      final glyphs = results.map((r) => r.entry.emoji).toList();
+      final glyphs = results.map((e) => e.emoji).toList();
       expect(glyphs.toSet().length, glyphs.length);
     });
 
@@ -54,7 +48,7 @@ void main() {
         // Query matches both `laughing` and `satisfied` (same emoji).
         final matches = EmojiRepository.search(
           'satisf',
-        ).where((r) => r.entry.emoji == _laughing);
+        ).where((e) => e.emoji == _laughing);
         expect(matches.length, 1);
       },
     );
@@ -66,19 +60,19 @@ void main() {
       );
     });
 
-    test('sorts results by matched shortcode', () {
-      final codes = EmojiRepository.search(
+    test('sorts results by short name', () {
+      final names = EmojiRepository.search(
         'face',
         limit: 1000,
-      ).map((r) => r.matchedShortcode).toList();
-      final sorted = [...codes]..sort();
-      expect(codes, sorted);
+      ).map((e) => e.shortName).toList();
+      final sorted = [...names]..sort();
+      expect(names, sorted);
     });
 
     test('empty query returns the first emojis in canonical order', () {
       final results = EmojiRepository.search('', limit: 3);
       expect(results.length, 3);
-      expect(results.first.entry.emoji, _grinning);
+      expect(results.first.emoji, _grinning);
     });
   });
 

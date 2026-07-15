@@ -32,17 +32,17 @@ extension EmojiExtension on data.Emoji {
 }
 
 class EmojiRepository {
-  /// All entries whose shortcodes contain [query] (case-insensitive). Returns
-  /// the full set when [query] is empty. Unlike [search], this is unbounded and
-  /// intended to back the emoji picker grid.
+  /// All entries whose shortcode words start with [query] (case-insensitive).
+  /// Returns the full set when [query] is empty. Unlike [search], this is
+  /// unbounded and intended to back the emoji picker grid.
   static List<(String, List<data.Emoji>)> filter(String query) {
     final normalized = query.trim().toLowerCase();
     if (normalized.isEmpty) {
       return data.emojisByCategory;
     }
     final matches = data.shortcodeToIndex.entries
-        .where((e) => e.key.contains(normalized))
-        .map((e) => e.value)
+        .where((e) => e.key.startsWith(normalized))
+        .expand((e) => e.value)
         .toSet();
 
     return data.emojisByCategory.indexed
@@ -60,30 +60,24 @@ class EmojiRepository {
         .toList();
   }
 
-  /// Up to [limit] emojis whose shortcode contains [query] (case-insensitive),
-  /// each paired with the matched shortcode. Results are deduped to one entry
-  /// per emoji (keeping its primary/first matching shortcode). An empty [query]
-  /// returns the first [limit] emojis in canonical order.
-  static List<EmojiSearchResult> search(String query, {int limit = 20}) {
+  /// Up to [limit] emojis whose shortcode words start with [query]
+  /// (case-insensitive). Results are deduped to one entry per emoji. An empty
+  /// [query] returns the first [limit] emojis in canonical order.
+  static List<data.Emoji> search(String query, {int limit = 20}) {
     final normalized = query.toLowerCase();
     final seen = <(int, int)>{};
-    final results = <EmojiSearchResult>[];
-    // `shortcodeToIndex` is ordered by emoji, primary shortcode first, so the
-    // first surviving entry per emoji carries its best-matching shortcode.
+    final results = <data.Emoji>[];
     for (final entry in data.shortcodeToIndex.entries) {
-      if (normalized.isNotEmpty && !entry.key.contains(normalized)) {
+      if (normalized.isNotEmpty && !entry.key.startsWith(normalized)) {
         continue;
       }
-      if (!seen.add(entry.value)) {
-        continue;
+      for (final ref in entry.value) {
+        if (!seen.add(ref)) {
+          continue;
+        }
+        final (catId, index) = ref;
+        results.add(data.emojisByCategory[catId].$2[index]);
       }
-      final (catId, index) = entry.value;
-      results.add(
-        EmojiSearchResult(
-          entry: data.emojisByCategory[catId].$2[index],
-          matchedShortcode: entry.key,
-        ),
-      );
       // Empty query keeps canonical order, so we can stop once full.
       if (normalized.isEmpty && results.length >= limit) {
         break;
@@ -91,19 +85,9 @@ class EmojiRepository {
     }
 
     if (normalized.isNotEmpty) {
-      results.sort((a, b) => a.matchedShortcode.compareTo(b.matchedShortcode));
+      results.sort((a, b) => a.shortName.compareTo(b.shortName));
     }
 
     return results.length > limit ? results.sublist(0, limit) : results;
   }
-}
-
-class EmojiSearchResult {
-  const EmojiSearchResult({
-    required this.entry,
-    required this.matchedShortcode,
-  });
-
-  final data.Emoji entry;
-  final String matchedShortcode;
 }
