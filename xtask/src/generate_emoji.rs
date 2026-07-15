@@ -2,10 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{
-    collections::{BTreeMap, HashSet},
-    fs,
-};
+use std::{collections::BTreeMap, fs};
 
 use anyhow::{Context, Result};
 use askama::Template;
@@ -134,8 +131,8 @@ impl Tone {
 struct OutEmoji {
     /// Dart escape sequence for the code points, e.g. `\u{0023}\u{FE0F}\u{20E3}`.
     escape: String,
-    short_name: String,
-    short_names: HashSet<String>,
+    shortcode: String,
+    search_tags: Vec<String>,
     order: u32,
     /// `(tone-modifier escape, variant glyph escape)` pairs, in source order.
     skin_variations: Vec<(String, String)>,
@@ -208,22 +205,22 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
         let order = entry
             .order
             .with_context(|| format!("emoji {} has a group but no order", entry.hexcode))?;
-        let mut shortcodes = shortcode_map
+        let shortcodes = shortcode_map
             .get(&entry.hexcode)
             .with_context(|| format!("no shortcodes for {}", entry.hexcode))?
             .clone()
-            .into_vec()
-            .into_iter();
-        let canonical = shortcodes
-            .next()
-            .with_context(|| format!("emoji {} has no shortcode", entry.hexcode))?;
-        let short_name = normalize_shortcode(&canonical);
-        let mut short_names: HashSet<String> =
-            std::iter::once(canonical).chain(shortcodes).collect();
+            .into_vec();
+        let canonical_shortcode = normalize_shortcode(
+            shortcodes
+                .first()
+                .with_context(|| format!("emoji {} has no shortcode", entry.hexcode))?,
+        );
+
+        let mut search_tags = shortcodes;
         for tag in &entry.tags {
             let tag = tag.to_lowercase();
-            if !short_names.iter().any(|s| s.eq_ignore_ascii_case(&tag)) {
-                short_names.insert(tag);
+            if !search_tags.iter().any(|s| s.eq_ignore_ascii_case(&tag)) {
+                search_tags.push(tag);
             }
         }
         by_category
@@ -231,8 +228,8 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
             .or_default()
             .push(OutEmoji {
                 escape: to_dart_escape(&entry.hexcode),
-                short_name,
-                short_names,
+                shortcode: canonical_shortcode,
+                search_tags,
                 order,
                 skin_variations: entry
                     .skins
@@ -263,7 +260,7 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
     let mut duplicate_refs = 0usize;
     for (category_id, (_, group)) in categories.iter().enumerate() {
         for (index, emoji) in group.iter().enumerate() {
-            for name in &emoji.short_names {
+            for name in &emoji.search_tags {
                 for word in split_shortcode(name.clone()) {
                     let refs = shortcode_refs.entry(word.clone()).or_default();
                     if refs.contains(&(category_id, index)) {
@@ -285,7 +282,7 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
                     .iter()
                     .map(|emoji| TemplateEmoji {
                         escape: emoji.escape.clone(),
-                        short_name: emoji.short_name.clone(),
+                        short_name: emoji.shortcode.clone(),
                         variations: emoji
                             .skin_variations
                             .iter()
