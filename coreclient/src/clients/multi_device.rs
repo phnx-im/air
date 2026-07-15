@@ -559,9 +559,20 @@ impl CoreUser {
             )
             .await?;
 
-        // Merge the pending commit if the DS accepted it.
+        // Merge the pending commit if the DS accepted it. The queue handler
+        // runs concurrently and may have already merged it while processing
+        // the DS commit response, so we might also skip it here.
         self.db()
             .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                let stored_epoch = Group::load(&mut *txn, group.group_id())
+                    .await?
+                    .context("self group not found")?
+                    .mls_group()
+                    .epoch();
+                if stored_epoch > group.mls_group().epoch() {
+                    debug!("self-group add commit already merged by the queue handler");
+                    return Ok(());
+                }
                 group.merge_pending_commit(txn, None, ds_timestamp).await?;
                 group
                     .group_mut()
@@ -574,6 +585,8 @@ impl CoreUser {
         // Now that the new device is a member, register the VC emulation epoch
         // at this (post-Add) self-group epoch. The joining device registers at
         // the same epoch, so both siblings derive the same EpochId.
+        //
+        // NB(gabriel): this is currently just a sanity check, since we don't need the [`EpochId`] here
         self.register_self_group_vc_emulation_epoch().await?;
 
         Ok(())
