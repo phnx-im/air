@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:collection';
+
 import 'package:air/emojis/generated.dart' as data;
 
 enum EmojiSkinVariation {
@@ -40,7 +42,7 @@ class EmojiRepository {
     if (normalized.isEmpty) {
       return data.emojisByCategory;
     }
-    final matches = data.shortcodeToIndex.entries
+    final matches = data.tagsToIndex.entries
         .where((e) => e.key.startsWith(normalized))
         .expand((e) => e.value)
         .toSet();
@@ -65,10 +67,25 @@ class EmojiRepository {
   /// [query] returns the first [limit] emojis in canonical order.
   static List<data.Emoji> search(String query, {int limit = 20}) {
     final normalized = query.toLowerCase();
+    if (normalized.isEmpty) {
+      return [];
+    }
+
     final seen = <(int, int)>{};
-    final results = <data.Emoji>[];
-    for (final entry in data.shortcodeToIndex.entries) {
-      if (normalized.isNotEmpty && !entry.key.startsWith(normalized)) {
+    final results = SplayTreeSet<data.Emoji>(
+      (a, b) => a.shortName.compareTo(b.shortName),
+    );
+    for (final category in data.emojisByCategory) {
+      for (final emoji in category.$2) {
+        if (!emoji.shortName.startsWith(normalized)) {
+          continue;
+        }
+
+        results.add(emoji);
+      }
+    }
+    for (final entry in data.tagsToIndex.entries) {
+      if (!entry.key.startsWith(normalized)) {
         continue;
       }
       for (final ref in entry.value) {
@@ -84,10 +101,6 @@ class EmojiRepository {
       }
     }
 
-    if (normalized.isNotEmpty) {
-      results.sort((a, b) => a.shortName.compareTo(b.shortName));
-    }
-
-    return results.length > limit ? results.sublist(0, limit) : results;
+    return results.take(limit).toList();
   }
 }

@@ -44,7 +44,7 @@ const List<(String, List<Emoji>)> emojisByCategory = [
 
 /// Word -> every matching emoji's ref into [emojisByCategory]. Shortcodes are
 /// split on '-' and '_' into words, so a word can resolve to several emojis.
-const Map<String, List<EmojiRef>> shortcodeToIndex = {
+const Map<String, List<EmojiRef>> tagsToIndex = {
 {%- for shortcode in shortcodes %}
   {{ shortcode.code }}: [
   {%- for r in shortcode.refs %}

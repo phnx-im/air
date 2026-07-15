@@ -218,10 +218,8 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
             .next()
             .with_context(|| format!("emoji {} has no shortcode", entry.hexcode))?;
         let short_name = normalize_shortcode(&canonical);
-        let mut short_names: HashSet<String> = std::iter::once(canonical)
-            .chain(shortcodes)
-            .flat_map(split_shortcode)
-            .collect();
+        let mut short_names: HashSet<String> =
+            std::iter::once(canonical).chain(shortcodes).collect();
         for tag in &entry.tags {
             let tag = tag.to_lowercase();
             if !short_names.iter().any(|s| s.eq_ignore_ascii_case(&tag)) {
@@ -265,12 +263,7 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
     let mut duplicate_refs = 0usize;
     for (category_id, (_, group)) in categories.iter().enumerate() {
         for (index, emoji) in group.iter().enumerate() {
-            // Insert the full emoji shortcode to match when typed entirely
-            let refs = shortcode_refs.entry(emoji.short_name.clone()).or_default();
-            refs.push((category_id, index));
-
             for name in &emoji.short_names {
-                // Split the shortcodes so search can find words
                 for word in split_shortcode(name.clone()) {
                     let refs = shortcode_refs.entry(word.clone()).or_default();
                     if refs.contains(&(category_id, index)) {
