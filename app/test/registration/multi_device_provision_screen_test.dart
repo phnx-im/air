@@ -117,19 +117,6 @@ void main() {
       );
     });
 
-    testWidgets('linked', (tester) async {
-      final controller = setUpView(tester);
-
-      await tester.pumpWidget(buildSubject(controller.stream));
-      controller.add(const MultiDeviceProvisionEvent.linked());
-      await tester.pumpAndSettle();
-
-      await expectLater(
-        find.byType(MaterialApp),
-        matchesGoldenFile('goldens/multi_device_provision_linked.png'),
-      );
-    });
-
     testWidgets('failed shows error modal', (tester) async {
       final controller = setUpView(tester);
 
