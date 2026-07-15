@@ -5,7 +5,6 @@
 import 'dart:collection';
 
 import 'package:air/emojis/generated.dart' as data;
-import 'package:flutter/foundation.dart';
 
 enum EmojiSkinVariation {
   none(''),
