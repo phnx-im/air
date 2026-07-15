@@ -49,6 +49,7 @@ use tokio_stream::StreamExt;
 use tracing::{debug, error, info, warn};
 use url::Url;
 
+use crate::groups::self_group::SelfGroup;
 use crate::{
     clients::{
         CIPHERSUITE, CoreUser,
@@ -442,7 +443,7 @@ impl CoreUser {
 
     /// The signing key used for this client's leaf in the self group.
     async fn self_group_signature_key(&self) -> anyhow::Result<ClientSigningKey> {
-        let stored = OwnClientInfo::load(self.db().read().await?).await?;
+        let stored: OwnClientInfo = OwnClientInfo::load(self.db().read().await?).await?;
         stored
             .self_group_signing_key
             .context("self-group signer was not initialized")
@@ -500,9 +501,8 @@ impl CoreUser {
         let (mut group, params, group_state_ear_key, encrypted_user_profile_key) = self
             .db()
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                let self_group_id = OwnClientInfo::load(&mut *txn)
+                let self_group_id = OwnClientInfo::load_self_group_id(&mut *txn)
                     .await?
-                    .self_group_id
                     .context("no self group")?;
                 let mut group = Group::load_clean_verified(&mut *txn, &self_group_id)
                     .await?
@@ -594,16 +594,12 @@ impl CoreUser {
 
     /// Register a virtual-clients emulation epoch on the self group.
     async fn register_self_group_vc_emulation_epoch(&self) -> anyhow::Result<EpochId> {
-        let self_group_id = OwnClientInfo::load(self.db().read().await?)
-            .await?
-            .self_group_id
-            .context("no self group id")?;
         self.db()
             .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                let mut group = Group::load(&mut *txn, &self_group_id)
+                let mut self_group = SelfGroup::load(&mut *txn)
                     .await?
                     .context("self group not found")?;
-                let epoch_id = group.register_vc_emulation_epoch(&mut *txn)?;
+                let epoch_id = self_group.register_vc_emulation_epoch(&mut *txn)?;
                 debug!(?epoch_id, "registered self-group VC emulation epoch");
                 Ok(epoch_id)
             })
@@ -612,9 +608,8 @@ impl CoreUser {
 
     /// Poll our QS queue until the self-group Welcome arrives.
     async fn join_self_group_from_queue(&self) -> anyhow::Result<()> {
-        let self_group_id = OwnClientInfo::load(self.db().read().await?)
+        let self_group_id = OwnClientInfo::load_self_group_id(self.db().read().await?)
             .await?
-            .self_group_id
             .context("no self group id")?;
 
         for _ in 0..500 {

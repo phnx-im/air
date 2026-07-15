@@ -7,7 +7,7 @@ use aircommon::{
     identifiers::{Fqdn, QsClientId, QsUserId, UserId},
 };
 use openmls::group::GroupId;
-use sqlx::query;
+use sqlx::{query, query_scalar};
 use uuid::Uuid;
 
 use crate::{
@@ -75,11 +75,22 @@ impl OwnClientInfo {
         })
     }
 
+    /// Returns the `self_group_id`.
+    pub(crate) async fn load_self_group_id(
+        mut connection: impl ReadConnection,
+    ) -> sqlx::Result<Option<GroupId>> {
+        let self_group_id: Option<GroupIdWrapper> =
+            query_scalar!(r#"SELECT self_group_id AS "self_group_id: _" FROM own_client_info"#)
+                .fetch_one(connection.as_mut())
+                .await?;
+        Ok(self_group_id.map(From::from))
+    }
+
     /// Returns `true` if `group_id` is the user's own self group.
     pub(crate) async fn is_own_self_group(
         mut connection: impl ReadConnection,
         group_id: &GroupId,
-    ) -> Result<bool, sqlx::Error> {
+    ) -> sqlx::Result<bool> {
         let group_id = GroupIdRefWrapper::from(group_id);
         let found = query!(
             "SELECT 1 AS found FROM own_client_info WHERE self_group_id = ?",

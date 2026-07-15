@@ -13,12 +13,10 @@ use aircommon::{
     time::TimeStamp,
 };
 use airprotos::client::component::AirComponent;
-use anyhow::Context;
 use apqmls::{ApqMlsGroup, authentication::ApqCredentialWithKey};
 use mimi_room_policy::{RoomPolicy, VerifiedRoomState};
 use openmls::{
     component::ComponentId,
-    components::vc_derivation_info::EpochId,
     group::{GroupId, MlsGroup, PURE_PLAINTEXT_WIRE_FORMAT_POLICY},
     prelude::{
         Credential, CredentialType, CredentialWithKey, Extension, Extensions, LeafNode,
@@ -154,22 +152,5 @@ impl Group {
         };
 
         Ok((group, params))
-    }
-
-    /// Register a virtual-clients emulation epoch on both the classical and
-    /// post-quantum groups.
-    ///
-    /// TODO(gabriel): since this method can only be called on the self-group
-    /// we should most likely introduce a new type for it.
-    pub(crate) fn register_vc_emulation_epoch(
-        &mut self,
-        mut connection: impl WriteConnection,
-    ) -> anyhow::Result<EpochId> {
-        let provider = AirOpenMlsProvider::new(connection.as_mut());
-        let (t_group, _) = self.apq_mls_groups_mut()?;
-        let t_epoch_id = t_group
-            .register_vc_emulation_epoch(provider.crypto(), provider.storage())
-            .context("register VC emulation epoch (t)")?;
-        Ok(t_epoch_id)
     }
 }

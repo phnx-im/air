@@ -12,15 +12,16 @@ use airprotos::client::{
     group::{EncryptedGroupTitle, GroupData},
 };
 use anyhow::Context;
-use openmls::group::GroupId;
+use openmls::{components::vc_derivation_info::EpochId, group::GroupId};
+use openmls_traits::OpenMlsProvider;
 use tracing::debug;
 
 use crate::{
     Chat,
     chats::{ChatAttributes, GroupDataExt},
     clients::{CoreUser, own_client_info::OwnClientInfo},
-    db::access::ReadConnection,
-    groups::Group,
+    db::access::{ReadConnection, WriteConnection},
+    groups::{Group, openmls_provider::AirOpenMlsProvider},
     key_stores::indexed_keys::StorableIndexedKey,
 };
 
@@ -34,8 +35,7 @@ pub struct SelfGroup {
 
 impl SelfGroup {
     pub(crate) async fn load(mut connection: impl ReadConnection) -> sqlx::Result<Option<Self>> {
-        let own_client_info = OwnClientInfo::load(&mut connection).await?;
-        if let Some(group_id) = own_client_info.self_group_id {
+        if let Some(group_id) = OwnClientInfo::load_self_group_id(&mut connection).await? {
             match Group::load(connection, &group_id).await? {
                 Some(group) => {
                     debug!("Self-group found");
@@ -54,6 +54,20 @@ impl SelfGroup {
 
     pub(crate) fn identity_link_wrapper_key(&self) -> &IdentityLinkWrapperKey {
         self.group.identity_link_wrapper_key()
+    }
+
+    /// Register a virtual-clients emulation epoch on both the classical and
+    /// post-quantum groups.
+    pub(crate) fn register_vc_emulation_epoch(
+        &mut self,
+        mut connection: impl WriteConnection,
+    ) -> anyhow::Result<EpochId> {
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
+        let (t_group, _) = self.group.apq_mls_groups_mut()?;
+        let t_epoch_id = t_group
+            .register_vc_emulation_epoch(provider.crypto(), provider.storage())
+            .context("register VC emulation epoch (t)")?;
+        Ok(t_epoch_id)
     }
 }
 
