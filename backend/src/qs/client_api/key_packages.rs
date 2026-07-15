@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
+    codec::PersistenceCodec,
     identifiers::QsClientId,
     messages::{
         FriendshipToken,
@@ -123,7 +124,11 @@ impl Qs {
         let crypto = OpenMlsRustCrypto::default();
         let protocol_version = ProtocolVersion::default();
 
-        // Validated T key packages with their TLS bytes
+        // Note: There is an assymetry how packages are stored in the database. The T key packages
+        // are stored as serialized blob via the persistence codec, apq key packages on the other
+        // hand are stored as concatenated TLS bytes: T TLS || PQ TLS.
+
+        // Validated T key packages with their storage bytes
         let key_packages: Vec<(KeyPackage, Vec<u8>)> = key_packages_proto
             .into_iter()
             .map(|proto| {
@@ -133,7 +138,8 @@ impl Qs {
                 let key_package: KeyPackage = key_package_in
                     .validate(crypto.crypto(), protocol_version)
                     .map_err(|_| QsStageKeyPackagesError::InvalidKeyPackage)?;
-                Ok((key_package, proto.tls))
+                let encoded = PersistenceCodec::to_vec(&key_package)?;
+                Ok((key_package, encoded))
             })
             .collect::<Result<_, QsStageKeyPackagesError>>()?;
         // Validated APQ key packages with their TLS bytes

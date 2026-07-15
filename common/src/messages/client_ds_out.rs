@@ -14,6 +14,7 @@ use mimi_room_policy::VerifiedRoomState;
 use mls_assist::{
     messages::AssistedMessageOut,
     openmls::{
+        group::GroupEpoch,
         prelude::{
             GroupId, LeafNodeIndex, MlsMessageOut, RatchetTreeIn, group_info::VerifiableGroupInfo,
         },
@@ -144,6 +145,7 @@ pub struct SendMessageParamsOut {
     pub message: AssistedMessageOut,
     pub sender: LeafNodeIndex,
     pub suppress_notifications: bool,
+    pub epoch: GroupEpoch,
     pub generation: u32,
     pub collision_tags: Vec<SendMessageCollisionTag>,
 }

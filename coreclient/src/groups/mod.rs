@@ -1797,6 +1797,7 @@ impl Group {
     ) -> Result<SendMessageParamsOut, GroupOperationError> {
         let UnconfirmedMessage {
             message,
+            epoch,
             generation,
             generation_id,
         } = self
@@ -1826,6 +1827,7 @@ impl Group {
             sender: self.mls_group.own_leaf_index(),
             message,
             suppress_notifications,
+            epoch,
             generation,
             collision_tags,
         };
@@ -1846,6 +1848,7 @@ impl Group {
             message,
             generation,
             generation_id,
+            epoch: _,
         } = self
             .mls_group
             .create_unconfirmed_message(provider, signer, &content_bytes)?;
@@ -1887,13 +1890,14 @@ impl Group {
     }
 
     /// Mark the message sent at this generation as confirmed (accepted by DS).
-    pub(crate) fn confirm_message(
+    pub(crate) fn confirm_application_message(
         &mut self,
         provider: &AirOpenMlsProvider<'_>,
+        epoch: GroupEpoch,
         generation: u32,
     ) -> Result<(), GroupOperationError> {
         self.mls_group
-            .confirm_message(provider.storage(), generation)
+            .confirm_application_message(provider.storage(), epoch, generation)
             .map_err(Into::into)
     }
 

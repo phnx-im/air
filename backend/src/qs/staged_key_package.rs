@@ -25,7 +25,7 @@ const STAGED_KEY_PACKAGES_BATCH_TTL: chrono::Duration = chrono::Duration::minute
 pub(super) struct StagedKeyPackages {
     pub user_id: QsUserId,
     pub batch_id: KeyPackageBatchId,
-    /// Traditional key packages incl. their TLS bytes
+    /// Traditional key packages incl. their storage bytes
     pub key_packages: Vec<(KeyPackage, Vec<u8>)>,
     /// APQ key packages incl. their TLS bytes
     pub apq_key_packages: Vec<(ApqKeyPackage, Vec<u8>)>,
@@ -303,6 +303,7 @@ pub(crate) enum StageKeyPackageError {
 
 #[cfg(test)]
 mod tests {
+    use aircommon::codec::PersistenceCodec;
     use apqmls::{
         ApqCiphersuite,
         authentication::{ApqCredentialWithKey, ApqSignatureKeyPair, ApqSignatureScheme},
@@ -314,7 +315,7 @@ mod tests {
 
     use crate::qs::{
         client_record::persistence::tests::store_random_client_record,
-        user_record::persistence::tests::store_random_user_record,
+        key_package::StorableKeyPackage, user_record::persistence::tests::store_random_user_record,
     };
 
     use super::*;
@@ -365,8 +366,8 @@ mod tests {
             key_packages: key_packages
                 .into_iter()
                 .map(|key_package| {
-                    let tls = key_package.tls_serialize_detached().unwrap();
-                    (key_package, tls)
+                    let encoded = PersistenceCodec::to_vec(&key_package).unwrap();
+                    (key_package, encoded)
                 })
                 .collect(),
             apq_key_packages: apq_key_packages
@@ -534,7 +535,7 @@ mod tests {
         Ok((plain, apq))
     }
 
-    /// TLS bytes of all live (plain) last-resort key packages.
+    /// Storage bytes of all live (plain) last-resort key packages.
     async fn live_last_resort(pool: &PgPool) -> anyhow::Result<Vec<Vec<u8>>> {
         Ok(
             sqlx::query_scalar!("SELECT key_package FROM key_package WHERE is_last_resort = true")
@@ -576,6 +577,50 @@ mod tests {
     }
 
     #[sqlx::test]
+    async fn promoted_packages_are_servable(pool: PgPool) -> anyhow::Result<()> {
+        let user = store_random_user_record(&pool).await?;
+        store_random_client_record(&pool, user.user_id).await?;
+
+        let key_package = build_key_package(false);
+        let apq_key_package = build_apq_key_package(false);
+        let batch = staged(
+            user.user_id,
+            1,
+            vec![key_package.clone()],
+            vec![apq_key_package.clone()],
+        );
+        stage_and_promote(&pool, &batch).await?;
+
+        // Promoted packages must round-trip through the same load path that
+        // serves published packages.
+        let loaded = KeyPackage::load_user_key_package(
+            pool.acquire().await?.as_mut(),
+            &user.friendship_token,
+        )
+        .await?;
+        assert_eq!(
+            loaded.tls_serialize_detached()?,
+            key_package.tls_serialize_detached()?
+        );
+
+        let loaded = ApqKeyPackage::load_user_key_package(
+            pool.acquire().await?.as_mut(),
+            &user.friendship_token,
+        )
+        .await?;
+        assert_eq!(
+            loaded.t_key_package().tls_serialize_detached()?,
+            apq_key_package.t_key_package().tls_serialize_detached()?
+        );
+        assert_eq!(
+            loaded.pq_key_package().tls_serialize_detached()?,
+            apq_key_package.pq_key_package().tls_serialize_detached()?
+        );
+
+        Ok(())
+    }
+
+    #[sqlx::test]
     async fn promote_replaces_non_last_resort(pool: PgPool) -> anyhow::Result<()> {
         let user = store_random_user_record(&pool).await?;
         store_random_client_record(&pool, user.user_id).await?;
@@ -604,7 +649,7 @@ mod tests {
 
         // Batch 1 brings a non-last-resort and a last-resort.
         let lr = build_key_package(true);
-        let lr_tls = lr.tls_serialize_detached()?;
+        let lr_encoded = PersistenceCodec::to_vec(&lr)?;
         let first = staged(user.user_id, 1, vec![build_key_package(false), lr], vec![]);
         stage_and_promote(&pool, &first).await?;
         assert_eq!(live_counts(&pool).await?, (2, 0));
@@ -615,7 +660,7 @@ mod tests {
 
         // One fresh non-last-resort + the surviving last-resort from batch 1.
         assert_eq!(live_counts(&pool).await?, (2, 0));
-        assert_eq!(live_last_resort(&pool).await?, vec![lr_tls]);
+        assert_eq!(live_last_resort(&pool).await?, vec![lr_encoded]);
         Ok(())
     }
 
@@ -628,13 +673,13 @@ mod tests {
         stage_and_promote(&pool, &first).await?;
 
         let new_lr = build_key_package(true);
-        let new_lr_tls = new_lr.tls_serialize_detached()?;
+        let new_lr_encoded = PersistenceCodec::to_vec(&new_lr)?;
         let second = staged(user.user_id, 2, vec![new_lr], vec![]);
         stage_and_promote(&pool, &second).await?;
 
         // Exactly one last-resort remains, and it's the one from batch 2.
         assert_eq!(live_counts(&pool).await?, (1, 0));
-        assert_eq!(live_last_resort(&pool).await?, vec![new_lr_tls]);
+        assert_eq!(live_last_resort(&pool).await?, vec![new_lr_encoded]);
         Ok(())
     }
 

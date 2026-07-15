@@ -127,6 +127,8 @@ pub(crate) enum QsStageKeyPackagesError {
     Sqlx(#[from] sqlx::Error),
     #[error(transparent)]
     Stage(#[from] StageKeyPackageError),
+    #[error(transparent)]
+    Codec(#[from] aircommon::codec::Error),
 }
 
 impl From<QsStageKeyPackagesError> for Status {
@@ -142,6 +144,10 @@ impl From<QsStageKeyPackagesError> for Status {
             QsStageKeyPackagesError::Sqlx(error)
             | QsStageKeyPackagesError::Stage(StageKeyPackageError::Sqlx(error)) => {
                 error!(%error, "Failed to stage key packages");
+                Status::internal("Storage error")
+            }
+            QsStageKeyPackagesError::Codec(error) => {
+                error!(%error, "Failed to encode key package");
                 Status::internal("Storage error")
             }
         }

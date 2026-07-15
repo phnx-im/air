@@ -14,6 +14,7 @@ use anyhow::Context;
 use mimi_content::{
     Disposition, MessageStatus, MessageStatusReport, MimiContent, NestedPart, PerMessageStatus,
 };
+use openmls::group::GroupEpoch;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
 use uuid::Uuid;
@@ -170,6 +171,7 @@ impl OutboundServiceContext {
             )
             .await
             .map_err(OutboundServiceError::fatal)?;
+        let epoch = params.epoch;
         let sent_tags = params.collision_tags.clone();
         let generation = params.generation;
 
@@ -224,7 +226,7 @@ impl OutboundServiceContext {
         }
 
         // message accepted by DS, confirm.
-        self.confirm_mls_message(&chat, generation)
+        self.confirm_mls_message(&chat, epoch, generation)
             .await
             .inspect_err(|error| error!(%error, "failed to confirm MLS message"))
             .ok();
@@ -280,6 +282,7 @@ impl OutboundServiceContext {
     pub(super) async fn confirm_mls_message(
         &self,
         chat: &Chat,
+        epoch: GroupEpoch,
         generation: u32,
     ) -> anyhow::Result<()> {
         self.db
@@ -289,7 +292,7 @@ impl OutboundServiceContext {
                     .await?
                     .with_context(|| format!("Can't find group with id {group_id:?}"))?;
                 let provider = AirOpenMlsProvider::new(txn.as_mut());
-                group.confirm_message(&provider, generation)?;
+                group.confirm_application_message(&provider, epoch, generation)?;
                 Ok(())
             })
             .await

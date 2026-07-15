@@ -1264,6 +1264,21 @@ pub mod test_utils {
 
             Ok(pco)
         }
+
+        pub(crate) async fn load_by_group_id(
+            connection: impl ReadConnection,
+            group_id: &GroupId,
+        ) -> anyhow::Result<Option<Self>> {
+            let pco = PendingChatOperation::load_by_group_id(connection, group_id)
+                .await?
+                .map(|pco| PendingChatOperationInfo {
+                    operation_type: pco.operation.to_string(),
+                    request_status: pco.status.to_string(),
+                    number_of_attempts: pco.number_of_attempts,
+                });
+
+            Ok(pco)
+        }
     }
 
     impl PendingChatOperation {
