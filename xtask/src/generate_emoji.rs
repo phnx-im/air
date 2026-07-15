@@ -266,17 +266,13 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
     for (category_id, (_, group)) in categories.iter().enumerate() {
         for (index, emoji) in group.iter().enumerate() {
             // Insert the full emoji shortcode to match when typed entirely
-            let refs = shortcode_refs
-                .entry(emoji.short_name.clone())
-                .or_insert_with(|| Vec::new());
+            let refs = shortcode_refs.entry(emoji.short_name.clone()).or_default();
             refs.push((category_id, index));
 
             for name in &emoji.short_names {
                 // Split the shortcodes so search can find words
                 for word in split_shortcode(name.clone()) {
-                    let refs = shortcode_refs
-                        .entry(word.clone())
-                        .or_insert_with(|| Vec::new());
+                    let refs = shortcode_refs.entry(word.clone()).or_default();
                     if refs.contains(&(category_id, index)) {
                         duplicate_refs += 1;
                     } else {
