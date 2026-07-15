@@ -633,6 +633,25 @@ impl CoreUser {
             .await
     }
 
+    /// Test-only: drive an incoming APQ MLS message (e.g. the DS echo of our
+    /// own self-group commit) through the same processing path the QS queue
+    /// uses, so tests can exercise the chat-less `OwnPendingCommit` path
+    /// without a live queue.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub async fn process_incoming_apq_mls_message(
+        &self,
+        apq_mls_message_bytes: &[u8],
+    ) -> Result<ProcessQsMessageResult> {
+        let apq_mls_message = ApqMlsMessageIn::tls_deserialize_exact_bytes(apq_mls_message_bytes)?;
+        let ds_timestamp = TimeStamp::now();
+        self.db()
+            .with_write_transaction(async |txn| {
+                Box::pin(self.handle_apq_mls_message(txn, apq_mls_message, ds_timestamp, false))
+                    .await
+            })
+            .await
+    }
+
     async fn handle_apq_mls_message(
         &self,
         txn: &mut WriteDbTransaction<'_>,
@@ -672,11 +691,6 @@ impl CoreUser {
             ProcessMessageResult::ResyncRequired => {
                 // TODO: Once we have a UX for resyncs, we should schedule one
                 // here and re-enable the resync test in integration.rs
-                //
-                // TODO: The self-group must never be resynced: a resync would
-                // orphan the emulation epoch state. Handle its future-epoch
-                // case via reconciliation instead (see the virtual client key
-                // package upload plan).
                 if let Some(chat) = &chat {
                     let _resync = Resync {
                         chat_id: chat.id(),
@@ -1514,7 +1528,6 @@ impl CoreUser {
 
         Ok(())
     }
-
 }
 
 async fn handle_message_edit(

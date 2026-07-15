@@ -426,22 +426,26 @@ impl HeterogeneousVcKeyPackageBatch {
 #[cfg(test)]
 mod tests {
     use openmls::prelude::Ciphersuite;
+    use openmls_rust_crypto::OpenMlsRustCrypto;
+    use openmls_traits::OpenMlsProvider as _;
 
     use super::*;
 
+    fn test_ref(index: u32) -> KeyPackageRef {
+        let crypto = OpenMlsRustCrypto::default();
+        KeyPackageRef::new(&index.to_be_bytes(), CIPHERSUITE, crypto.crypto(), b"test").unwrap()
+    }
+
     fn info(index: u32, cipher_suite: Ciphersuite) -> KeyPackageInfo {
         KeyPackageInfo {
-            key_package_ref: KeyPackageRef::from_slice(&[index as u8; 16]),
+            key_package_ref: test_ref(index),
             cipher_suite,
             key_package_index: index,
         }
     }
 
     fn refs(indices: impl IntoIterator<Item = u32>) -> Vec<KeyPackageRef> {
-        indices
-            .into_iter()
-            .map(|index| KeyPackageRef::from_slice(&[index as u8; 16]))
-            .collect()
+        indices.into_iter().map(test_ref).collect()
     }
 
     #[test]

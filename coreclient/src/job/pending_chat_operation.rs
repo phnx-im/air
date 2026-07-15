@@ -1411,6 +1411,48 @@ pub mod test_utils {
             };
             Ok(params.commit.mls_message().tls_serialize_detached()?)
         }
+
+        /// Serialized bytes of a self-group key package upload job's staged
+        /// APQ commit message, i.e. the message the DS echoes back to the
+        /// committer via fanout. Feed this to
+        /// `CoreUser::process_incoming_apq_mls_message` to exercise the
+        /// self-group `OwnPendingCommit` path.
+        pub(crate) fn staged_apq_commit_message_bytes(&self) -> anyhow::Result<Vec<u8>> {
+            use openmls::prelude::tls_codec::Serialize as _;
+            let OperationType::SelfGroupKeyPackageUpload { params, .. } = &self.operation else {
+                bail!("not a self-group key package upload");
+            };
+            Ok(params.bundle.commit.tls_serialize_detached()?)
+        }
+
+        /// Corrupts the persisted batch id of a self-group key package upload
+        /// job by bumping its generation, so the delivered commit's SafeAAD
+        /// no longer matches the job. Simulates a state fork between the job
+        /// and the commit the DS accepted.
+        pub(crate) async fn corrupt_self_group_upload_batch_id(
+            txn: &mut WriteDbTransaction<'_>,
+            group_id: &GroupId,
+        ) -> anyhow::Result<()> {
+            use aircommon::codec::BlobEncoded;
+
+            let mut job = Self::load_by_group_id(&mut *txn, group_id)
+                .await?
+                .context("no pending operation")?;
+            let OperationType::SelfGroupKeyPackageUpload { batch_id, .. } = &mut job.operation
+            else {
+                bail!("not a self-group key package upload");
+            };
+            batch_id.generation = batch_id.generation.wrapping_add(1);
+
+            let operation_data = BlobEncoded(&job.operation);
+            let group_id = group_id.as_slice();
+            sqlx::query("UPDATE pending_chat_operation SET operation_data = ?1 WHERE group_id = ?2")
+                .bind(operation_data)
+                .bind(group_id)
+                .execute(txn.as_mut())
+                .await?;
+            Ok(())
+        }
     }
 }
 
