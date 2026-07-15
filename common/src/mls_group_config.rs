@@ -183,20 +183,16 @@ pub fn default_group_context_app_data_dictionary_extension<C: AppComponent>(
 
 /// Extension which contains the default app data dictionary for the leaf node/key package.
 pub fn default_app_data_dictionary_extension<C: AppComponent>() -> Extension {
-    app_data_dictionary_extension::<C>(vec![C::COMPONENT_ID])
-}
-
-/// App data dictionary for a leaf node/key package which embeds the default
-/// component and advertises `component_ids` via the `AppComponents` entry.
-fn app_data_dictionary_extension<C: AppComponent>(component_ids: Vec<ComponentId>) -> Extension {
     let mut app_data_dictionary = AppDataDictionary::new();
 
-    // Advertise the supported components in the app data dictionary.
+    // Advertise that we support the component in the app data dictionary.
     app_data_dictionary.insert(
         ComponentType::AppComponents.into(),
-        ComponentsList { component_ids }
-            .tls_serialize_detached()
-            .expect("invalid component list"),
+        ComponentsList {
+            component_ids: vec![C::COMPONENT_ID],
+        }
+        .tls_serialize_detached()
+        .expect("invalid component list"),
     );
 
     // Add the component to the app data dictionary.
