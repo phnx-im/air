@@ -68,7 +68,10 @@ class EmojiRepository {
   static List<data.Emoji> search(String query, {int limit = 20}) {
     final normalized = query.toLowerCase();
     if (normalized.isEmpty) {
-      return [];
+      return data.emojisByCategory
+          .expand((category) => category.$2)
+          .take(limit)
+          .toList();
     }
 
     final seen = <(int, int)>{};
@@ -85,10 +88,6 @@ class EmojiRepository {
         }
 
         matchingShortcodes.add(emoji);
-
-        if (matchingShortcodes.length >= limit) {
-          return matchingShortcodes.toList();
-        }
       }
     }
 
@@ -106,13 +105,10 @@ class EmojiRepository {
         final (catId, index) = ref;
         matchingTags.add(data.emojisByCategory[catId].$2[index]);
       }
-
-      if ((matchingShortcodes.length + matchingTags.length) >= limit) {
-        break;
-      }
     }
 
-    return matchingShortcodes.toList() +
-        matchingTags.take(limit - matchingShortcodes.length).toList();
+    final matching = matchingShortcodes.take(limit).toList();
+    matching.addAll(matchingTags.take(limit - matching.length));
+    return matching;
   }
 }

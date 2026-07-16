@@ -341,6 +341,9 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
 
 /// Convert dashes into underscores, but avoid replacing shortcodes like :+1: or :-1:
 fn normalize_shortcode(code: &str) -> String {
+    if code.is_empty() {
+        return code.to_owned();
+    }
     let (first, rest) = code.split_at(1);
     first.to_string() + &rest.replace("-", "_")
 }

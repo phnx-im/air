@@ -69,12 +69,18 @@ void main() {
       expect(names, sorted);
     });
 
-    test('results are first sources from shortcodes', () {
+    test('results are first sourced from shortcodes', () {
       final names = EmojiRepository.search(
         'face',
         limit: 1000,
       ).map((e) => e.shortName);
       expect(names.first, "face_holding_back_tears");
+    });
+
+    test('empty query returns the first emojis in canonical order', () {
+      final results = EmojiRepository.search('', limit: 3);
+      expect(results.length, 3);
+      expect(results.first.emoji, _grinning);
     });
   });
 
