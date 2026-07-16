@@ -61,7 +61,6 @@ double reactionChipHeightOf(BuildContext context) =>
 
 /// Inner padding of a reaction chip
 const double reactionChipHorizontalPadding = Spacing.px8;
-const double reactionChipVerticalPadding = Spacing.px4;
 
 /// Border thickness of a reaction chip
 const double reactionChipBorderWidth = 1.5;
@@ -582,7 +581,7 @@ class _ReactionChip extends StatelessWidget {
   final VoidCallback? onTap;
 
   static TextStyle textStyle({Color? color}) =>
-      TextStyle(fontSize: BodyFontSize.base.size, height: 1.0, color: color);
+      TextStyle(fontSize: BodyFontSize.base.size, color: color);
 
   @override
   Widget build(BuildContext context) {
@@ -597,9 +596,11 @@ class _ReactionChip extends StatelessWidget {
         onTap: onTap,
         child: Container(
           height: chipHeight,
+          // Horizontal padding only because forcing `height: 1.0` shifts
+          // emoji glyphs on iOS, which then makes it taller than the inner 
+          // box.
           padding: const EdgeInsets.symmetric(
             horizontal: reactionChipHorizontalPadding,
-            vertical: reactionChipVerticalPadding,
           ),
           decoration: BoxDecoration(
             color: isMine
@@ -611,6 +612,7 @@ class _ReactionChip extends StatelessWidget {
               width: reactionChipBorderWidth,
             ),
           ),
+          alignment: Alignment.center,
           child: Row(
             mainAxisSize: .min,
             crossAxisAlignment: .center,
@@ -665,9 +667,9 @@ class _OverflowChip extends StatelessWidget {
         onTap: onTap,
         child: Container(
           height: chipHeight,
+          // Horizontal padding only: see _ReactionChip.
           padding: const EdgeInsets.symmetric(
             horizontal: reactionChipHorizontalPadding,
-            vertical: reactionChipVerticalPadding,
           ),
           decoration: BoxDecoration(
             color: isSender

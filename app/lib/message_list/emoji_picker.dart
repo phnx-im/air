@@ -202,7 +202,10 @@ class _EmojiComponentButton extends StatelessWidget {
       shadows: const [],
       icon: Text(
         '\u{270B}${component.modifier}',
-        style: const TextStyle(fontSize: 20, height: 1.0),
+        style: const TextStyle(fontSize: 20),
+        textHeightBehavior: const TextHeightBehavior(
+          leadingDistribution: .even,
+        ),
       ),
     );
   }
@@ -232,9 +235,9 @@ class _SkinToneStrip extends StatelessWidget {
                     : Colors.transparent,
                 icon: Text(
                   '\u{270B}${tone.modifier}',
-                  style: const TextStyle(
-                    fontSize: _emojiGlyphSize,
-                    height: 1.0,
+                  style: const TextStyle(fontSize: _emojiGlyphSize),
+                  textHeightBehavior: const TextHeightBehavior(
+                    leadingDistribution: .even,
                   ),
                 ),
               ),
@@ -397,9 +400,12 @@ class _EmojiPainters {
     () => TextPainter(
       text: TextSpan(
         text: emoji,
-        style: const TextStyle(fontSize: _emojiGlyphSize, height: 1.0),
+        style: const TextStyle(fontSize: _emojiGlyphSize),
       ),
       textDirection: TextDirection.ltr,
+      textHeightBehavior: const TextHeightBehavior(
+        leadingDistribution: .even,
+      ),
     )..layout(),
   );
 
