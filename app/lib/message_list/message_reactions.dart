@@ -553,8 +553,7 @@ class _QuickReactionButton extends StatelessWidget {
               emoji,
               style: const TextStyle(
                 fontSize: quickReactionBarGlyphSize,
-                decoration: TextDecoration.none,
-                height: 1.0,
+                decoration: .none,
               ),
               textHeightBehavior: const TextHeightBehavior(
                 leadingDistribution: .even,
