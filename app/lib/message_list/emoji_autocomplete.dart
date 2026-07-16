@@ -14,7 +14,7 @@ import 'package:air/message_list/widgets/text_autocomplete.dart';
 import 'package:flutter/material.dart';
 
 class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
-  static const int suggestionLimit = 5;
+  static const int suggestionLimit = 50;
   final Map<Emoji, String> _displayShortcodes = {};
 
   /// Returns a trigger when the caret sits after a valid colon shortcode.
@@ -101,6 +101,7 @@ class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
       borderRadius: BorderRadius.circular(Spacing.px16),
       elevation: 8,
       maxWidth: 320,
+      maxHeight: 240,
     );
   }
 
