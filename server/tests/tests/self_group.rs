@@ -22,10 +22,10 @@ async fn ensure_self_group_creates_apq_group() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// Key packages uploaded via the self-group only go live after the DS echoes the confirmation
-/// commit back through the queue (echo-gating).
+/// Key packages uploaded via the self-group only go live after the `DsCommitResponse` carrying
+/// the batch id arrives through the queue.
 #[tokio::test(flavor = "multi_thread")]
-async fn key_package_upload_via_self_group_waits_for_echo() -> anyhow::Result<()> {
+async fn key_package_upload_via_self_group_waits_for_commit_response() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
     let user_id = setup.add_user().await;
     let test_user = setup.get_user(&user_id);
@@ -42,13 +42,14 @@ async fn key_package_upload_via_self_group_waits_for_echo() -> anyhow::Result<()
     let pq_epoch = pq_epoch.expect("self-group must be APQ");
 
     // Trigger the key package upload: stages at QS, commits via the self-group, and leaves the job
-    // waiting for the queue echo.
+    // waiting for the queue-delivered commit response.
     user.outbound_service()
         .schedule_key_package_upload(Utc::now())
         .await?;
     user.outbound_service().run_once().await;
 
-    // After the DS ack, the job must wait for the echo: commit unmerged, no refs flipped.
+    // After the DS ack, the job must wait for the commit response: commit
+    // unmerged, no refs flipped.
     let info = user
         .self_group_pending_operation_info()
         .await?
@@ -58,19 +59,20 @@ async fn key_package_upload_via_self_group_waits_for_echo() -> anyhow::Result<()
     assert_eq!(
         user.live_key_package_refs().await?,
         live_before,
-        "refs must not go live before the echo"
+        "refs must not go live before the commit response"
     );
     assert_eq!(
         user.self_group_epochs().await?,
         Some((t_epoch, Some(pq_epoch))),
-        "commit must not be merged before the echo"
+        "commit must not be merged before the commit response"
     );
 
-    // Process the DsCommitResponse echo
+    // Process the DsCommitResponse
     let processed = test_user.fetch_and_process_qs_messages().await;
-    assert!(processed >= 1, "expected at least the commit response echo");
+    assert!(processed >= 1, "expected at least the commit response");
 
-    // The echo finalizes the upload: job gone, commit merged in both groups, new batch live.
+    // The response finalizes the upload: job gone, commit merged in both
+    // groups, new batch live.
     assert!(
         user.self_group_pending_operation_info().await?.is_none(),
         "job should be deleted after the echo"
@@ -212,7 +214,7 @@ async fn key_package_upload_backs_off_while_pending() -> anyhow::Result<()> {
 
     user.ensure_self_group().await?;
 
-    // First upload: job ends up waiting for the echo
+    // First upload: job ends up waiting for the commit response
     user.outbound_service()
         .schedule_key_package_upload(Utc::now())
         .await?;
@@ -238,7 +240,7 @@ async fn key_package_upload_backs_off_while_pending() -> anyhow::Result<()> {
     assert_eq!(info_after.number_of_attempts, info.number_of_attempts);
     assert_eq!(user.self_group_epochs().await?, epochs);
 
-    // The echo completes the first upload despite the interleaved run
+    // The commit response completes the first upload despite the interleaved run
     test_user.fetch_and_process_qs_messages().await;
     assert!(user.self_group_pending_operation_info().await?.is_none());
     let live_first = user.live_key_package_refs().await?;
@@ -258,58 +260,9 @@ async fn key_package_upload_backs_off_while_pending() -> anyhow::Result<()> {
     Ok(())
 }
 
-/// The upload is also confirmed when the commit itself arrives through the queue
-/// (`OwnPendingCommit`) before the `DsCommitResponse` echo. Confirmation requires the delivered
-/// commit's SafeAAD `KeyPackageUpload` to match the job's batch id.
-#[tokio::test(flavor = "multi_thread")]
-async fn key_package_upload_confirmed_by_own_commit_via_queue() -> anyhow::Result<()> {
-    let mut setup = TestBackend::single().await;
-    let user_id = setup.add_user().await;
-    let test_user = setup.get_user(&user_id);
-    let user = &test_user.user;
-
-    user.ensure_self_group().await?;
-    let live_before = user.live_key_package_refs().await?;
-    let (t_epoch, _) = user
-        .self_group_epochs()
-        .await?
-        .expect("self-group should be persisted");
-
-    user.outbound_service()
-        .schedule_key_package_upload(Utc::now())
-        .await?;
-    user.outbound_service().run_once().await;
-
-    // The job is parked waiting for a queue signal; deliver the commit itself
-    // instead of the echo, as the DS fan-out would.
-    let commit_bytes = user.self_group_upload_commit_bytes().await?;
-    user.process_incoming_apq_mls_message(&commit_bytes).await?;
-
-    // The commit confirms the upload: job gone, commit merged, batch live.
-    assert!(
-        user.self_group_pending_operation_info().await?.is_none(),
-        "job should be deleted after the commit arrived via the queue"
-    );
-    let (new_t_epoch, _) = user.self_group_epochs().await?.unwrap();
-    assert_eq!(new_t_epoch.as_u64(), t_epoch.as_u64() + 1);
-    assert_ne!(
-        user.live_key_package_refs().await?,
-        live_before,
-        "the batch should be live"
-    );
-
-    // The real echo still arrives afterwards and must be a stale no-op.
-    let live_after = user.live_key_package_refs().await?;
-    test_user.fetch_and_process_qs_messages().await;
-    assert!(user.self_group_pending_operation_info().await?.is_none());
-    assert_eq!(user.live_key_package_refs().await?, live_after);
-
-    Ok(())
-}
-
-/// A delivered own commit whose SafeAAD `KeyPackageUpload` does not match the pending upload job
-/// (state fork) abandons the job: the commit is merged and the job deleted, but the batch does
-/// NOT go live and the previous batch keeps serving.
+/// A `DsCommitResponse` whose batch id does not match the pending upload job (state fork)
+/// abandons the job: the commit is merged and the job deleted, but the batch does NOT go live
+/// and the previous batch keeps serving.
 #[tokio::test(flavor = "multi_thread")]
 async fn mismatched_upload_commit_abandons_job() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
@@ -329,10 +282,10 @@ async fn mismatched_upload_commit_abandons_job() -> anyhow::Result<()> {
         .await?;
     user.outbound_service().run_once().await;
 
-    let commit_bytes = user.self_group_upload_commit_bytes().await?;
-    // Fork the local job state from the commit the DS accepted.
+    // Fork the local job state from the commit the DS accepted, then let the
+    // real `DsCommitResponse` arrive through the queue.
     user.corrupt_self_group_upload_batch_id().await?;
-    user.process_incoming_apq_mls_message(&commit_bytes).await?;
+    test_user.fetch_and_process_qs_messages().await;
 
     // The commit is merged (the group must not fall behind the DS), but the
     // job is abandoned without marking the batch live.

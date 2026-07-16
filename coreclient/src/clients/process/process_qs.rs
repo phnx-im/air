@@ -18,9 +18,10 @@ use aircommon::{
     },
     time::TimeStamp,
     utils::removed_client,
+    virtual_client::KeyPackageBatchId,
 };
 use airprotos::{
-    client::{group::GroupData, virtual_client::extract_key_package_upload},
+    client::group::GroupData,
     queue_service::v1::{ListenResponse, listen_response},
 };
 use anyhow::{Context, Result, bail, ensure};
@@ -62,10 +63,7 @@ use crate::{
         client_auth_info::StorableClientCredential,
         process::{ProcessMessageProcessed, ProcessMessageResult},
     },
-    job::{
-        JobContext, JobContextDb,
-        pending_chat_operation::{OwnCommitSignal, PendingChatOperation},
-    },
+    job::{JobContext, JobContextDb, pending_chat_operation::PendingChatOperation},
     key_stores::{indexed_keys::StorableIndexedKey, queue_ratchets::StorableQsQueueRatchet},
     outbound_service::resync::Resync,
 };
@@ -211,6 +209,7 @@ impl CoreUser {
             group_id,
             epoch,
             timestamp,
+            key_package_batch,
         } = commit_response;
 
         // Load the group by group_id
@@ -235,17 +234,9 @@ impl CoreUser {
         let (mut group_messages, group_data_bytes) =
             group.merge_pending_commit(txn, None, timestamp).await?;
 
-        let mut chat = Chat::load_by_group_id(&mut *txn, &group_id).await?;
-        if chat.is_none() {
-            // The only chat-less group is the self-group. The commit response
-            // is the echo that confirms a self-group key package upload.
-            let own_client_info = OwnClientInfo::load(&mut *txn).await?;
-            ensure!(
-                own_client_info.self_group_id.as_ref() == Some(&group_id),
-                "Can't find chat for commit response"
-            );
-            debug_assert!(group_messages.is_empty());
-        }
+        let mut chat = Chat::load_by_group_id(&mut *txn, &group_id)
+            .await?
+            .context("Can't find chat for commit response")?;
 
         let pq_updated_at = group.is_apq().then_some(timestamp);
         group
@@ -256,47 +247,44 @@ impl CoreUser {
         self.finalize_own_commit(
             txn,
             &group,
-            chat.as_mut(),
+            &mut chat,
             group_data_bytes,
             &mut group_messages,
             timestamp,
-            OwnCommitSignal::Echo,
+            key_package_batch.as_ref(),
         )
         .await?;
 
-        if let Some(chat) = &chat {
-            CoreUser::store_new_messages(&mut *txn, chat.id(), group_messages).await?;
-        }
+        CoreUser::store_new_messages(&mut *txn, chat.id(), group_messages).await?;
 
         Ok(ProcessQsMessageResult::None)
     }
 
     /// Applies the side effects of merging one of our own commits: any group
     /// data change carried by the commit (currently the chat title) is applied
-    /// to `chat` (if any), appending the corresponding system messages to
-    /// `group_messages`, and the pending chat operation is completed according
-    /// to `signal`.
+    /// to `chat`, appending the corresponding system messages to
+    /// `group_messages`, and the pending chat operation is completed with
+    /// `key_package_batch` (the batch id carried by the `DsCommitResponse`).
     ///
-    /// Shared by the `DsCommitResponse` and `OwnPendingCommit` paths, which
-    /// race to merge our own commit: the DS both responds directly and echoes
-    /// the commit back via fanout, so whichever arrives first must run these
-    /// side effects (the loser bails early on the now-stale epoch). The caller
-    /// is responsible for storing `group_messages`.
+    /// Shared by the `DsCommitResponse` path and the `OwnPendingCommit`
+    /// leftover: the DS no longer echoes own commits back through the queue,
+    /// so the response is the only production signal; a replayed or stale
+    /// delivery of our own commit still merges it here, but carries no batch
+    /// id and thus never marks an upload live. The caller is responsible for
+    /// storing `group_messages`.
     #[expect(clippy::too_many_arguments)]
     async fn finalize_own_commit(
         &self,
         txn: &mut WriteDbTransaction<'_>,
         group: &Group,
-        chat: Option<&mut Chat>,
+        chat: &mut Chat,
         group_data_bytes: Option<GroupDataBytes>,
         group_messages: &mut Vec<TimestampedMessage>,
         ds_timestamp: TimeStamp,
-        signal: OwnCommitSignal<'_>,
+        key_package_batch: Option<&KeyPackageBatchId>,
     ) -> anyhow::Result<()> {
         // Update group data in chat attributes if present
-        if let Some(chat) = chat
-            && let Some(group_data_bytes) = group_data_bytes
-        {
+        if let Some(group_data_bytes) = group_data_bytes {
             let group_data = GroupData::decode(&group_data_bytes)?;
             let (chat_title, _external_group_profile) =
                 group_data.into_parts(group.identity_link_wrapper_key());
@@ -316,7 +304,7 @@ impl CoreUser {
         }
 
         // Complete the pending chat operation
-        PendingChatOperation::complete_own_commit(txn, group.group_id(), signal).await?;
+        PendingChatOperation::complete_own_commit(txn, group.group_id(), key_package_batch).await?;
 
         Ok(())
     }
@@ -632,16 +620,17 @@ impl CoreUser {
             txn,
             ds_timestamp,
             read_receipts_enabled,
-            Some(chat),
+            chat,
             group,
             process_message_result,
         )
         .await
     }
 
-    /// Test-only: drive an incoming MLS message (e.g. the DS echo of our own
-    /// commit) through the same processing path the QS queue uses, so tests can
-    /// exercise the `OwnPendingCommit` merge without a live server.
+    /// Test-only: drive an incoming MLS message (e.g. a replayed or stale
+    /// delivery of our own commit) through the same processing path the QS
+    /// queue uses, so tests can exercise the `OwnPendingCommit` merge without
+    /// a live server.
     #[cfg(any(test, feature = "test_utils"))]
     pub async fn process_incoming_mls_message(
         &self,
@@ -652,25 +641,6 @@ impl CoreUser {
         self.db()
             .with_write_transaction(async |txn| {
                 Box::pin(self.handle_mls_message(txn, mls_message, ds_timestamp, false)).await
-            })
-            .await
-    }
-
-    /// Test-only: drive an incoming APQ MLS message (e.g. the DS echo of our
-    /// own self-group commit) through the same processing path the QS queue
-    /// uses, so tests can exercise the chat-less `OwnPendingCommit` path
-    /// without a live queue.
-    #[cfg(any(test, feature = "test_utils"))]
-    pub async fn process_incoming_apq_mls_message(
-        &self,
-        apq_mls_message_bytes: &[u8],
-    ) -> Result<ProcessQsMessageResult> {
-        let apq_mls_message = ApqMlsMessageIn::tls_deserialize_exact_bytes(apq_mls_message_bytes)?;
-        let ds_timestamp = TimeStamp::now();
-        self.db()
-            .with_write_transaction(async |txn| {
-                Box::pin(self.handle_apq_mls_message(txn, apq_mls_message, ds_timestamp, false))
-                    .await
             })
             .await
     }
@@ -688,15 +658,10 @@ impl CoreUser {
 
         // MLSMessage Phase 1: Load the chat and the group.
         let apq_group_id = protocol_message.group_id();
-        let chat = Chat::load_by_group_id(&mut *txn, apq_group_id.t_group_id()).await?;
-        if chat.is_none() {
-            // The only chat-less group is the self-group.
-            let own_client_info = OwnClientInfo::load(&mut *txn).await?;
-            ensure!(
-                own_client_info.self_group_id.as_ref() == Some(apq_group_id.t_group_id()),
-                "No chat found for APQ group ID: {apq_group_id:?}"
-            );
-        }
+        let chat = Chat::load_by_group_id(&mut *txn, apq_group_id.t_group_id())
+            .await?
+            .with_context(|| format!("No chat found for APQ group ID: {apq_group_id:?}"))?;
+        let chat_id = chat.id();
 
         // Load the group regardless of whether it has a pending commit or not.
         let mut group = Group::load_verified(&mut *txn, apq_group_id.t_group_id())
@@ -714,16 +679,14 @@ impl CoreUser {
             ProcessMessageResult::ResyncRequired => {
                 // TODO: Once we have a UX for resyncs, we should schedule one
                 // here and re-enable the resync test in integration.rs
-                if let Some(chat) = &chat {
-                    let _resync = Resync {
-                        chat_id: chat.id(),
-                        group_id: group.group_id().clone(),
-                        pq_group_id: group.pq_group_id(),
-                        group_state_ear_key: group.group_state_ear_key().clone(),
-                        identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
-                        original_leaf_index: group.own_index(),
-                    };
-                }
+                let _resync = Resync {
+                    chat_id,
+                    group_id: group.group_id().clone(),
+                    pq_group_id: group.pq_group_id(),
+                    group_state_ear_key: group.group_state_ear_key().clone(),
+                    identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
+                    original_leaf_index: group.own_index(),
+                };
                 group.group_mut().mark_commit_failed(&mut *txn).await?;
                 return Ok(ProcessQsMessageResult::None);
             }
@@ -745,7 +708,7 @@ impl CoreUser {
         txn: &mut WriteDbTransaction<'_>,
         ds_timestamp: TimeStamp,
         read_receipts_enabled: bool,
-        mut chat: Option<Chat>,
+        mut chat: Chat,
         mut group: VerifiedGroup,
         processed_message: ProcessMessageProcessed,
     ) -> anyhow::Result<ProcessQsMessageResult> {
@@ -762,21 +725,13 @@ impl CoreUser {
                 .clone();
 
         let aad = processed_message.tail_aad().to_vec();
-        // SafeAAD KeyPackageUpload, present on self-group upload commits
-        let upload = extract_key_package_upload(&processed_message)?;
 
-        let chat_id = chat.as_ref().map(|chat| chat.id());
+        let chat_id = chat.id();
 
         // `chat_changed` indicates whether the state of the chat was updated
         let (new_messages, updated_messages, chat_changed, reaction_notifications) =
             match processed_message.into_content() {
                 ProcessedMessageContent::ApplicationMessage(application_message) => {
-                    let Some(chat) = &chat else {
-                        // Siblings can send application messages into the
-                        // self-group, but no payload is defined for them yet.
-                        warn!("Unhandled application message in self-group; dropping");
-                        return Ok(ProcessQsMessageResult::None);
-                    };
                     // Drop messages in 1:1 blocked chats Note: In group chats, messages
                     // from blocked users are still received and processed.
                     if chat.status() == &ChatStatus::Blocked {
@@ -844,9 +799,12 @@ impl CoreUser {
                     (new_messages, Vec::new(), updated, Vec::new())
                 }
                 ProcessedMessageContent::OwnPendingCommit => {
-                    // Our own commit was echoed back before the matching
-                    // `DsCommitResponse` arrived, so we merge it here and run
-                    // the same side effects the response would have.
+                    // The DS does not echo own commits back through the
+                    // queue, so this is a replayed or stale delivery of our
+                    // own commit. Merge it and run the same side effects the
+                    // `DsCommitResponse` would have, except that without a
+                    // batch id a pending key-package upload is abandoned
+                    // rather than marked live.
                     let (mut group_messages, group_data_bytes) = group
                         .merge_pending_commit(&mut *txn, None, ds_timestamp)
                         .await?;
@@ -858,11 +816,11 @@ impl CoreUser {
                     self.finalize_own_commit(
                         &mut *txn,
                         &group,
-                        chat.as_mut(),
+                        &mut chat,
                         group_data_bytes,
                         &mut group_messages,
                         ds_timestamp,
-                        OwnCommitSignal::EchoedCommit(upload.as_ref()),
+                        None,
                     )
                     .await?;
                     (group_messages, Vec::new(), true, Vec::new())
@@ -874,16 +832,6 @@ impl CoreUser {
                     bail!("Unexpected UnresolvedAppDataCommit, should have been resolved before")
                 }
             };
-
-        // MLSMessage Phase 4: Fetch user profiles of new clients and store them.
-        for profile_info in profile_infos {
-            Self::schedule_fetch_user_profile(&mut *txn, profile_info).await?;
-        }
-
-        let Some(chat_id) = chat_id else {
-            // Self-group: there is no chat to store messages in or notify.
-            return Ok(ProcessQsMessageResult::None);
-        };
 
         let mut messages = Self::store_new_messages(&mut *txn, chat_id, new_messages).await?;
         for updated_message in updated_messages {
@@ -914,6 +862,11 @@ impl CoreUser {
             }
             (messages, false) => ProcessQsMessageResult::Messages(messages, reaction_notifications),
         };
+
+        // MLSMessage Phase 4: Fetch user profiles of new clients and store them.
+        for profile_info in profile_infos {
+            Self::schedule_fetch_user_profile(&mut *txn, profile_info).await?;
+        }
 
         Ok(res)
     }
@@ -1154,7 +1107,7 @@ impl CoreUser {
         &self,
         txn: &mut WriteDbTransaction<'_>,
         group: &mut VerifiedGroup,
-        mut chat: Option<Chat>,
+        mut chat: Chat,
         staged_commit: StagedCommit,
         aad: Vec<u8>,
         ds_timestamp: TimeStamp,
@@ -1167,28 +1120,27 @@ impl CoreUser {
 
         // StagedCommitMessage Phase 1: Confirm the chat if unconfirmed
 
-        let (chat_changed, mut group_messages) = match &mut chat {
-            Some(chat) if chat.is_unconfirmed() => {
-                let group_messages = self
-                    .handle_unconfirmed_chat(
-                        txn,
-                        aad,
-                        ds_timestamp,
-                        sender,
-                        sender_client_credential,
-                        chat,
-                        group.group_mut(),
-                    )
-                    .await?;
-                (true, vec![group_messages])
-            }
-            _ => (false, vec![]),
+        let (chat_changed, mut group_messages) = if chat.is_unconfirmed() {
+            let group_messages = self
+                .handle_unconfirmed_chat(
+                    txn,
+                    aad,
+                    ds_timestamp,
+                    sender,
+                    sender_client_credential,
+                    &mut chat,
+                    group.group_mut(),
+                )
+                .await?;
+            (true, vec![group_messages])
+        } else {
+            (false, vec![])
         };
 
         // StagedCommitMessage Phase 2: Merge the staged commit into the group.
 
         // If we were removed, we set the group to inactive.
-        if we_were_removed && let Some(chat) = &mut chat {
+        if we_were_removed {
             let past_members = group.members().collect();
             chat.set_inactive(&mut *txn, past_members).await?;
         }
@@ -1198,9 +1150,7 @@ impl CoreUser {
 
         group_messages.extend(messages_from_commit);
 
-        if let Some(chat) = &mut chat
-            && let Some(group_data_bytes) = group_data_bytes
-        {
+        if let Some(group_data_bytes) = group_data_bytes {
             let group_data = GroupData::decode(&group_data_bytes)?;
             let (chat_title, group_profile_part) =
                 group_data.into_parts(group.identity_link_wrapper_key());
@@ -1225,7 +1175,7 @@ impl CoreUser {
                 (Some(title), Some(picture)) => {
                     update_chat_attributes(
                         txn,
-                        chat,
+                        &mut chat,
                         sender_client_credential.user_id(),
                         ChatAttributes {
                             title,
@@ -1239,7 +1189,7 @@ impl CoreUser {
                 (Some(title), None) => {
                     update_chat_title(
                         txn,
-                        chat,
+                        &mut chat,
                         sender_client_credential.user_id(),
                         title,
                         ds_timestamp,

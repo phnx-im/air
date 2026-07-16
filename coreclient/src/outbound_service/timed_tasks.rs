@@ -13,6 +13,7 @@ use uuid::Uuid;
 use crate::{
     Chat, ChatAttributes, ChatId,
     chats::{GroupDataExt, GroupDataProfilePart},
+    clients::own_client_info::OwnClientInfo,
     groups::Group,
     job::{
         JobError,
@@ -460,6 +461,13 @@ impl OutboundServiceContext {
                 );
                 return Ok(false);
             };
+
+            // The self-group rotates its leaf via the key-package upload cycle and its leaves are
+            // signed with a dedicated key, so the regular self-update task skips it.
+            if OwnClientInfo::is_own_self_group(&mut read_txn, group.group_id()).await? {
+                return Ok(false);
+            }
+
             if group.mls_group().pending_commit().is_some()
                 || group
                     .pq()

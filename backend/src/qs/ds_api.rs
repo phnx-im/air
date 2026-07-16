@@ -124,21 +124,11 @@ impl Qs {
                 }
             }
 
-            if let Some(QsVirtualClientHint::PromoteStagedKeyPackages {
-                epoch_id,
-                leaf_index,
-                generation,
-            }) = message.virtual_client_hint
+            if let Some(QsVirtualClientHint::PromoteStagedKeyPackages(batch_id)) =
+                message.virtual_client_hint
             {
-                self.promote_staged_key_packages(
-                    &client_config.client_id,
-                    &KeyPackageBatchId {
-                        epoch_id,
-                        leaf_index,
-                        generation,
-                    },
-                )
-                .await
+                self.promote_staged_key_packages(&client_config.client_id, &batch_id)
+                    .await
             }
         }
         Ok(())

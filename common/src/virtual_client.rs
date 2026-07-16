@@ -7,12 +7,15 @@ use mls_assist::openmls::{
     prelude::LeafNodeIndex,
 };
 use serde::{Deserialize, Serialize};
+use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 /// Identifier of a key package batch
 ///
 /// Identifies a batch of key packages that can be used by any emulation client that belongs to a
 /// virtual client.
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(
+    Debug, Clone, PartialEq, Eq, Serialize, Deserialize, TlsSerialize, TlsDeserializeBytes, TlsSize,
+)]
 pub struct KeyPackageBatchId {
     /// Epoch ID in the virtual client self-group
     pub epoch_id: EpochId,

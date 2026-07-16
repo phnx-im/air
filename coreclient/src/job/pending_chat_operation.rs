@@ -19,9 +19,7 @@ use anyhow::{Context as _, anyhow, bail};
 use apqmls::commit_builder::ApqCommitMessageBundle;
 use chrono::{DateTime, Duration, Utc};
 use mimi_room_policy::RoleIndex;
-use openmls::{
-    components::vc_derivation_info::KeyPackageUpload, group::GroupId, prelude::KeyPackageRef,
-};
+use openmls::{group::GroupId, prelude::KeyPackageRef};
 use serde::{Deserialize, Serialize};
 use sqlx::{query, query_as, query_scalar};
 use tracing::{debug, error, info};
@@ -164,18 +162,6 @@ impl OperationType {
     }
 }
 
-/// Queue-delivered proof that one of our own commits was accepted by the DS.
-///
-/// See [`PendingChatOperation::complete_own_commit`].
-pub(crate) enum OwnCommitSignal<'a> {
-    /// A `DsCommitResponse`: proves acceptance of the staged commit, carries
-    /// no content.
-    Echo,
-    /// Our own commit delivered back through the queue, with the SafeAAD
-    /// [`KeyPackageUpload`] it carries, if any.
-    EchoedCommit(Option<&'a KeyPackageUpload>),
-}
-
 #[derive(Debug)]
 enum PendingChatOperationStatus {
     ReadyToRetry,
@@ -280,11 +266,11 @@ impl PendingChatOperation {
         context: &mut JobContext<'_, '_>,
     ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
         if let PendingChatOperationStatus::WaitingForQueueResponse = self.status {
-            // TODO: A self-group key package upload parks here until the DS
-            // echoes the commit back via the queue. If that echo is lost (the
-            // DS dispatches it best-effort), the job is stuck forever and
-            // blocks all further uploads. Eventual backstop: time out the
-            // waiting state, tear down the self-group and let
+            // TODO: A self-group key package upload parks here until the
+            // `DsCommitResponse` arrives via the queue. If that response is
+            // lost (the DS dispatches it best-effort), the job is stuck
+            // forever and blocks all further uploads. Eventual backstop:
+            // time out the waiting state, tear down the self-group and let
             // ensure_self_group recreate it.
             info!(
                 group_id = ?self.group.group_id(),
@@ -907,24 +893,19 @@ impl PendingChatOperation {
     /// Completes the pending job after the queue proved that our own commit
     /// on `group_id` was accepted by the DS.
     ///
-    /// For regular operations this just deletes the job. For a self-group key
-    /// package upload the signal also decides the fate of the batch:
-    ///
-    /// - [`OwnCommitSignal::Echo`]: the `DsCommitResponse` echo carries no
-    ///   content, but it can only confirm the group's staged commit, which by
-    ///   invariant is the job's staging commit (job and commit are created in
-    ///   one transaction, and only queue-delivered signals may clear a
-    ///   waiting job). The QS promote ran atomically with the enqueue of the
-    ///   echo, so the batch is marked live.
-    /// - [`OwnCommitSignal::EchoedCommit`]: our own commit arrived through
-    ///   the queue; its SafeAAD [`KeyPackageUpload`] must match the job's
-    ///   batch id. A mismatch means local state has forked from the queue's
-    ///   view; the job is abandoned without touching liveness (the fork is
-    ///   detectable, but not repairable).
+    /// `key_package_batch` is the batch id carried by the `DsCommitResponse`,
+    /// which the DS extracted from the confirmed commit's SafeAAD. For
+    /// regular operations this just deletes the job. For a self-group key
+    /// package upload it decides the fate of the batch: the QS promote ran
+    /// atomically with the enqueue of the response, so a batch id matching
+    /// the job proves the job's batch is live. A missing or mismatched batch
+    /// id carries no proof the promote ran (the DS confirmed some other
+    /// commit, or local state forked); the job is abandoned without touching
+    /// liveness.
     pub(crate) async fn complete_own_commit(
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
-        signal: OwnCommitSignal<'_>,
+        key_package_batch: Option<&KeyPackageBatchId>,
     ) -> anyhow::Result<()> {
         let Some(job) = Self::load_by_group_id(&mut *txn, group_id).await? else {
             return Ok(());
@@ -936,13 +917,7 @@ impl PendingChatOperation {
                 apq_refs,
                 ..
             } => {
-                let confirmed = match signal {
-                    OwnCommitSignal::Echo => true,
-                    OwnCommitSignal::EchoedCommit(upload) => {
-                        upload.is_some_and(|upload| batch_id.matches_upload(upload))
-                    }
-                };
-                if confirmed {
+                if key_package_batch == Some(batch_id) {
                     Self::confirm_self_group_key_package_upload(
                         txn, group_id, plain_refs, apq_refs,
                     )
@@ -1402,10 +1377,10 @@ pub mod test_utils {
             Ok(job)
         }
 
-        /// Serialized bytes of the staged commit's MLS message, i.e. the
-        /// message the DS echoes back to the committer via fanout. Feed this
-        /// back through the QS processing path to exercise the
-        /// `OwnPendingCommit` merge path.
+        /// Serialized bytes of the staged commit's MLS message. Feed this
+        /// back through the QS processing path (as a replayed or stale
+        /// delivery would arrive) to exercise the `OwnPendingCommit` merge
+        /// path.
         pub(crate) fn staged_commit_message_bytes(&self) -> anyhow::Result<Vec<u8>> {
             use openmls::prelude::tls_codec::Serialize as _;
             let OperationType::Other { params, .. } = &self.operation else {
@@ -1414,23 +1389,10 @@ pub mod test_utils {
             Ok(params.commit.mls_message().tls_serialize_detached()?)
         }
 
-        /// Serialized bytes of a self-group key package upload job's staged
-        /// APQ commit message, i.e. the message the DS echoes back to the
-        /// committer via fanout. Feed this to
-        /// `CoreUser::process_incoming_apq_mls_message` to exercise the
-        /// self-group `OwnPendingCommit` path.
-        pub(crate) fn staged_apq_commit_message_bytes(&self) -> anyhow::Result<Vec<u8>> {
-            use openmls::prelude::tls_codec::Serialize as _;
-            let OperationType::SelfGroupKeyPackageUpload { params, .. } = &self.operation else {
-                bail!("not a self-group key package upload");
-            };
-            Ok(params.bundle.commit.tls_serialize_detached()?)
-        }
-
         /// Corrupts the persisted batch id of a self-group key package upload
-        /// job by bumping its generation, so the delivered commit's SafeAAD
-        /// no longer matches the job. Simulates a state fork between the job
-        /// and the commit the DS accepted.
+        /// job by bumping its generation, so the batch id delivered in the
+        /// `DsCommitResponse` no longer matches the job. Simulates a state
+        /// fork between the job and the commit the DS accepted.
         pub(crate) async fn corrupt_self_group_upload_batch_id(
             txn: &mut WriteDbTransaction<'_>,
             group_id: &GroupId,

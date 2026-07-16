@@ -9,11 +9,9 @@ use aircommon::{
     identifiers::QsReference,
     messages::client_ds::{DsEventMessage, QsQueueMessagePayload},
     time::TimeStamp,
+    virtual_client::KeyPackageBatchId,
 };
-use mls_assist::openmls::{
-    components::vc_derivation_info::{EpochId, KeyPackageUpload},
-    prelude::LeafNodeIndex,
-};
+use mls_assist::openmls::components::vc_derivation_info::KeyPackageUpload;
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 // === DS to QS ===
@@ -78,19 +76,15 @@ pub enum QsVirtualClientHint {
     /// This is a backend-internal hint, distinct from the draft's client-to-client
     /// `VirtualClientAction` SafeAAD struct.
     #[tls_codec(discriminant = 1)]
-    PromoteStagedKeyPackages {
-        epoch_id: EpochId,
-        leaf_index: LeafNodeIndex,
-        generation: u32,
-    },
+    PromoteStagedKeyPackages(KeyPackageBatchId),
 }
 
 impl From<KeyPackageUpload> for QsVirtualClientHint {
     fn from(value: KeyPackageUpload) -> Self {
-        Self::PromoteStagedKeyPackages {
+        Self::PromoteStagedKeyPackages(KeyPackageBatchId {
             epoch_id: value.epoch_id,
             leaf_index: value.leaf_index,
             generation: value.generation,
-        }
+        })
     }
 }

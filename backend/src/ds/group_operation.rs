@@ -689,11 +689,15 @@ impl DsGroupState {
         timestamp: TimeStamp,
         virtual_client_hint: Option<QsVirtualClientHint>,
     ) -> Result<DsFanOutMessage, GroupOperationError> {
-        // Fan the response to this commit out into the sender's queue.
+        // Key packages batch to promote on QS if any
+        let key_package_batch = virtual_client_hint
+            .as_ref()
+            .map(|QsVirtualClientHint::PromoteStagedKeyPackages(batch_id)| batch_id.clone());
         let commit_response = QsQueueMessagePayload::ds_commit_response(
             self.group.group_info().group_context().group_id().clone(),
             (self.group.epoch().as_u64() - 1).into(),
             timestamp,
+            key_package_batch,
         )
         .map_err(|e| {
             warn!(error = %e, "Error serializing commit response");

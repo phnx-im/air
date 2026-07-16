@@ -15,6 +15,7 @@ use openmls_traits::OpenMlsProvider;
 use tracing::{error, info};
 
 use crate::{
+    clients::own_client_info::OwnClientInfo,
     db::access::DbAccess,
     groups::{openmls_provider::AirOpenMlsProvider, self_group::SelfGroup},
     job::pending_chat_operation::PendingChatOperation,
@@ -193,13 +194,19 @@ impl OutboundServiceContext {
             return Err(error.into());
         }
 
-        // Send commit to confirm uploaded key packages
+        // Send commit to confirm uploaded key packages. The self-group's
+        // leaves are signed with the dedicated self-group signing key, not
+        // the shared client key.
         let job = Box::pin(
             self.db
                 .with_write_transaction(async move |txn| -> anyhow::Result<_> {
+                    let signer = OwnClientInfo::load(&mut *txn)
+                        .await?
+                        .self_group_signing_key
+                        .context("self-group signer was not initialized")?;
                     let params = self_group.stage_key_package_upload(
                         &mut *txn,
-                        self.signing_key(),
+                        &signer,
                         KeyPackageUpload {
                             epoch_id: batch_id.epoch_id.clone(),
                             leaf_index: batch_id.leaf_index,

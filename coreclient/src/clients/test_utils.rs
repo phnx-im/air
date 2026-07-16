@@ -137,21 +137,6 @@ impl CoreUser {
         PendingChatOperationInfo::load_by_group_id(read, &group_id).await
     }
 
-    /// Returns the serialized APQ commit message of the pending self-group
-    /// key package upload job, i.e. the message the DS echoes back to the
-    /// committer's queue. Feed it to
-    /// [`CoreUser::process_incoming_apq_mls_message`] to drive the chat-less
-    /// `OwnPendingCommit` path.
-    pub async fn self_group_upload_commit_bytes(&self) -> anyhow::Result<Vec<u8>> {
-        let mut read = self.db().read().await?;
-        let own_client_info = OwnClientInfo::load(&mut read).await?;
-        let group_id = own_client_info.self_group_id.context("no self-group")?;
-        let job = PendingChatOperation::load_by_group_id(read, &group_id)
-            .await?
-            .context("no pending operation for the self-group")?;
-        job.staged_apq_commit_message_bytes()
-    }
-
     /// Corrupts the batch id of the pending self-group upload job (bumps the
     /// generation), simulating a state fork between the job and the commit
     /// the DS accepted.
