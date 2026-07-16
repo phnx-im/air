@@ -6,12 +6,15 @@
 //! symmetric encryption. See the individual submodules for details.
 
 pub mod keys;
+mod padded;
 mod trait_impls;
 mod traits;
 
 use std::marker::PhantomData;
 
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
+
+pub use padded::{PaddedAeadDecryptable, PaddedAeadEncryptable};
 pub use traits::{AeadDecryptable, AeadEncryptable, AeadKey};
 
 use aes_gcm::Aes256Gcm;
