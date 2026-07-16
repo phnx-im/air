@@ -101,7 +101,7 @@ impl CoreUser {
             EncryptedGroupTitle::encrypt(&chat_attributes.title, &identity_link_wrapper_key)
                 .context("Failed to encrypt self-group title")?;
         let group_data_bytes = GroupData {
-            legacy_title: Some(chat_attributes.title.clone()),
+            legacy_title: None,
             legacy_picture: None,
             encrypted_title: Some(encrypted_title),
             external_group_profile: None,
