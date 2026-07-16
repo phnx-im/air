@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
+    codec::PersistenceCodec,
     identifiers::QsClientId,
     messages::{
         FriendshipToken,
@@ -10,18 +11,25 @@ use aircommon::{
             EncryptionKeyResponse, KeyPackageParams, KeyPackageResponse, PublishKeyPackagesParams,
         },
     },
+    virtual_client::KeyPackageBatchId,
 };
+use airprotos::queue_service;
 use apqmls::messages::{ApqKeyPackage, ApqKeyPackageIn};
 use mls_assist::{
-    openmls::prelude::{KeyPackage, OpenMlsProvider, ProtocolVersion},
+    openmls::{
+        key_packages::KeyPackageIn,
+        prelude::{KeyPackage, OpenMlsProvider, ProtocolVersion},
+    },
     openmls_rust_crypto::OpenMlsRustCrypto,
 };
 
 use crate::{
-    errors::qs::{QsEncryptionKeyError, QsKeyPackageError, QsPublishKeyPackagesError},
+    errors::qs::{
+        QsEncryptionKeyError, QsKeyPackageError, QsPublishKeyPackagesError, QsStageKeyPackagesError,
+    },
     qs::{
-        Qs, client_id_decryption_key::StorableClientIdDecryptionKey,
-        key_package::StorableKeyPackage,
+        Qs, client_id_decryption_key::StorableClientIdDecryptionKey, client_record::QsClientRecord,
+        key_package::StorableKeyPackage, staged_key_package::StagedKeyPackages,
     },
 };
 
@@ -99,6 +107,74 @@ impl Qs {
                 .await?;
         }
         ApqKeyPackage::replace_multiple(&mut txn, &sender, &verified_key_packages).await?;
+        txn.commit().await?;
+
+        Ok(())
+    }
+
+    /// Stage key packages for a given client.
+    #[tracing::instrument(skip_all, err)]
+    pub(crate) async fn qs_stage_key_packages(
+        &self,
+        client_id: QsClientId,
+        batch_id: KeyPackageBatchId,
+        key_packages_proto: Vec<queue_service::v1::KeyPackage>,
+        apq_key_packages_proto: Vec<queue_service::v1::ApqKeyPackage>,
+    ) -> Result<(), QsStageKeyPackagesError> {
+        let crypto = OpenMlsRustCrypto::default();
+        let protocol_version = ProtocolVersion::default();
+
+        // Note: There is an asymmetry how packages are stored in the database. The T key packages
+        // are stored as serialized blob via the persistence codec, apq key packages on the other
+        // hand are stored as concatenated TLS bytes: T TLS || PQ TLS.
+
+        // Validated T key packages with their storage bytes
+        let key_packages: Vec<(KeyPackage, Vec<u8>)> = key_packages_proto
+            .into_iter()
+            .map(|proto| {
+                let key_package_in: KeyPackageIn = (&proto)
+                    .try_into()
+                    .map_err(|_| QsStageKeyPackagesError::InvalidKeyPackageTls)?;
+                let key_package: KeyPackage = key_package_in
+                    .validate(crypto.crypto(), protocol_version)
+                    .map_err(|_| QsStageKeyPackagesError::InvalidKeyPackage)?;
+                let encoded = PersistenceCodec::to_vec(&key_package)?;
+                Ok((key_package, encoded))
+            })
+            .collect::<Result<_, QsStageKeyPackagesError>>()?;
+        // Validated APQ key packages with their TLS bytes
+        let apq_key_packages: Vec<(ApqKeyPackage, Vec<u8>)> = apq_key_packages_proto
+            .into_iter()
+            .map(|proto| {
+                let key_package_in: ApqKeyPackageIn = (&proto)
+                    .try_into()
+                    .map_err(|_| QsStageKeyPackagesError::InvalidKeyPackageTls)?;
+                let key_package: ApqKeyPackage = key_package_in
+                    .validate(crypto.crypto())
+                    .map_err(|_| QsStageKeyPackagesError::InvalidKeyPackage)?;
+                let mut tls = proto.t_key_package_tls;
+                tls.extend_from_slice(&proto.pq_key_package_tls);
+                Ok((key_package, tls))
+            })
+            .collect::<Result<_, QsStageKeyPackagesError>>()?;
+
+        if key_packages.is_empty() && apq_key_packages.is_empty() {
+            return Err(QsStageKeyPackagesError::EmptyBatch);
+        }
+
+        let user_id = QsClientRecord::load_user_id(&self.db_pool, &client_id)
+            .await?
+            .ok_or(QsStageKeyPackagesError::UnknownClient)?;
+
+        let batch = StagedKeyPackages {
+            user_id,
+            batch_id,
+            key_packages,
+            apq_key_packages,
+        };
+
+        let mut txn = self.db_pool.begin().await?;
+        batch.stage(&mut txn).await?;
         txn.commit().await?;
 
         Ok(())

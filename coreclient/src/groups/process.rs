@@ -91,11 +91,11 @@ impl Group {
                 Err(ProcessMessageError::<sqlx::Error>::ValidationError(
                     ValidationError::WrongEpoch,
                 )) => {
-                    // If the message epoch is in the past, we can just ignore
-                    // it. This is expected on every commit: the DS echoes our
-                    // own commit back, but we usually merge our pending commit
-                    // via the `DsCommitResponse` first, leaving the echo one
-                    // epoch behind. So skip quietly rather than logging an error.
+                    // If the message epoch is in the past, we can just
+                    // ignore it: our pending commit was already merged via
+                    // the `DsCommitResponse`, so a replayed or stale delivery
+                    // is one epoch behind. Skip quietly rather than logging
+                    // an error.
                     if self.mls_group.epoch() > message_epoch {
                         debug!(
                             ?message_epoch,
@@ -247,6 +247,17 @@ impl Group {
         self.discard_pending_commit_and_operations(txn, &group_id, staged_commit)
             .await?;
 
+        // Process a sibling's key package upload announcement (self-group
+        // only), if any. Errors are logged and swallowed: the commit itself
+        // is valid and must be merged, otherwise the group falls permanently
+        // behind the DS.
+        if let Err(error) = self
+            .process_vc_key_package_upload_aad(txn, processed_message, sender_index)
+            .await
+        {
+            error!(%error, "Failed to process sibling key package upload");
+        }
+
         let sender_credential =
             VerifiableClientCredential::from_basic_credential(processed_message.credential())?;
 
@@ -288,7 +299,7 @@ impl Group {
     ) -> Result<PostProcessAadResult> {
         // Let's figure out which operation this is meant to be.
         let aad_payload =
-            AadMessage::tls_deserialize_exact_bytes(processed_message.aad())?.into_payload();
+            AadMessage::tls_deserialize_exact_bytes(processed_message.tail_aad())?.into_payload();
         let result = match aad_payload {
             AadPayload::GroupOperation(group_operation_payload) => {
                 let encrypted_profile_infos = self
@@ -549,7 +560,7 @@ impl Group {
                     && proposal_sender_index == &self.mls_group().own_leaf_index()
             });
             if !pending_chat_operation.is_leave() || commit_contains_our_self_remove {
-                PendingChatOperation::delete(&mut *txn, group_id).await?;
+                pending_chat_operation.discard(txn).await?;
             }
         }
         Ok(())
@@ -709,10 +720,9 @@ impl Group {
                 ValidationError::WrongEpoch,
             ))) => {
                 // A past-epoch message is one we already moved past, so we
-                // ignore it. This is expected on every commit: the DS echoes
-                // our own commit back, but we usually merge our pending commit
-                // via the `DsCommitResponse` first, leaving the echo one epoch
-                // behind. So skip quietly rather than logging an error.
+                // ignore it: our pending commit was already merged via the
+                // `DsCommitResponse`, so a replayed or stale delivery is one
+                // epoch behind. Skip quietly rather than logging an error.
                 if current_t_epoch > message_t_epoch {
                     debug!(
                         %message_t_epoch,

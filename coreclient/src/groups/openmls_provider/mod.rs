@@ -54,6 +54,11 @@ struct StorableEmulationBindingRef<'a, VcEmulationBindings: Entity<CURRENT_VERSI
     pub &'a VcEmulationBindings,
 );
 
+struct StorableRegisteredVcEmulationEpochRef<
+    'a,
+    RegisteredVcEmulationEpoch: Entity<CURRENT_VERSION>,
+>(pub &'a RegisteredVcEmulationEpoch);
+
 struct StorableOperationTreeRef<'a, VcOperationTree: Entity<CURRENT_VERSION>>(
     pub &'a VcOperationTree,
 );

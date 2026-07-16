@@ -72,6 +72,14 @@ impl ApqCiphersuite {
             pq_ciphersuite: Ciphersuite::MLS_192_MLKEM1024_AES256GCM_SHA384_P384,
         }
     }
+
+    pub fn t_ciphersuite(&self) -> Ciphersuite {
+        self.t_ciphersuite
+    }
+
+    pub fn pq_ciphersuite(&self) -> Ciphersuite {
+        self.pq_ciphersuite
+    }
 }
 
 /// The group ID of a [`ApqMlsGroup`].

@@ -47,6 +47,14 @@ impl_signed_payload!(
 );
 
 impl_signed_payload!(
+    request = super::v1::StageKeyPackagesRequest,
+    payload = super::v1::StageKeyPackagesPayload,
+    key_type = QsClientVerifyingKeyType,
+    label = "StageKeyPackagesPayload",
+    seal = private::Seal,
+);
+
+impl_signed_payload!(
     request = super::v1::PublishKeyPackagesRequest,
     payload = super::v1::PublishKeyPackagesPayload,
     key_type = QsClientVerifyingKeyType,

@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM key_package WHERE key_package_ref NOT IN (\n            SELECT key_package_ref FROM key_package_refs\n            UNION\n            SELECT key_package_ref FROM apq_key_package_refs\n        )",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": []
+  },
+  "hash": "0664efa3913294bd3da2f96945efd109a219f13cddc4e5f0d7dcea8123a3659d"
+}

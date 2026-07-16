@@ -123,6 +123,7 @@ const SIGNED_REQUESTS: &[(Service, &str)] = &[
     (Service::Qs, "CreateClientRequest"),
     (Service::Qs, "UpdateClientRequest"),
     (Service::Qs, "DeleteClientRequest"),
+    (Service::Qs, "StageKeyPackagesRequest"),
     (Service::Qs, "PublishKeyPackagesRequest"),
     (Service::Qs, "PublishApqKeyPackagesRequest"),
 ];

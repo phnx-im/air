@@ -33,6 +33,7 @@ pub use timed_tasks::{APQ_KEY_PACKAGES, KEY_PACKAGES};
 mod chat_message_queue;
 mod chat_messages;
 mod error;
+mod key_packages;
 mod profile;
 mod push_tokens;
 mod reaction_queue;
@@ -74,7 +75,7 @@ pub trait OutboundServiceWork: Clone + Send + 'static {
 
 impl OutboundServiceWork for OutboundServiceContext {
     async fn work(&self, run_token: CancellationToken) {
-        OutboundServiceContext::work(self, run_token).await;
+        Box::pin(OutboundServiceContext::work(self, run_token)).await;
     }
 }
 
@@ -291,7 +292,7 @@ impl OutboundServiceContext {
         if let Err(error) = self.send_pending_push_token_updates(&run_token).await {
             error!(%error, "Failed to send push token update");
         }
-        if let Err(error) = self.execute_timed_tasks(&run_token).await {
+        if let Err(error) = Box::pin(self.execute_timed_tasks(&run_token)).await {
             error!(%error, "Failed to execute timed tasks");
         }
 

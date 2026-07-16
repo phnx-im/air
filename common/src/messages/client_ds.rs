@@ -30,6 +30,7 @@ use crate::{
     },
     identifiers::QsReference,
     time::TimeStamp,
+    virtual_client::KeyPackageBatchId,
 };
 
 use super::{
@@ -142,6 +143,12 @@ pub struct DsCommitResponse {
     pub group_id: GroupId,
     pub epoch: GroupEpoch,
     pub timestamp: TimeStamp,
+    /// Key packages batch ID announced in the confirmed commit's SafeAAD, if any.
+    ///
+    /// * The QS promotes staged key packages when receiving this response.
+    /// * The committer accepts the batch as live when receiving this response, if it matches it
+    ///   pending batch upload.
+    pub key_package_batch: Option<KeyPackageBatchId>,
 }
 
 #[derive(Debug)]
@@ -178,11 +185,13 @@ impl QsQueueMessagePayload {
         group_id: GroupId,
         epoch: GroupEpoch,
         timestamp: TimeStamp,
+        key_package_batch: Option<KeyPackageBatchId>,
     ) -> Result<Self, tls_codec::Error> {
         let response = DsCommitResponse {
             group_id,
             epoch,
             timestamp,
+            key_package_batch,
         };
         let payload = response.tls_serialize_detached()?;
         Ok(Self {

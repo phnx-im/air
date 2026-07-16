@@ -9,7 +9,9 @@ use aircommon::{
     identifiers::QsReference,
     messages::client_ds::{DsEventMessage, QsQueueMessagePayload},
     time::TimeStamp,
+    virtual_client::KeyPackageBatchId,
 };
+use mls_assist::openmls::components::vc_derivation_info::KeyPackageUpload;
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 // === DS to QS ===
@@ -41,6 +43,7 @@ pub struct DsFanOutMessage {
     pub client_reference: QsReference,
     pub suppress_notifications: TlsBool,
     pub broadcast_to_all_client_queues: TlsBool,
+    pub virtual_client_hint: Option<QsVirtualClientHint>,
 }
 
 #[derive(Clone, TlsSerialize, TlsDeserializeBytes, TlsSize)]
@@ -62,5 +65,26 @@ impl DsFanOutPayload {
 impl<T: Into<QsQueueMessagePayload>> From<T> for DsFanOutPayload {
     fn from(value: T) -> Self {
         Self::QueueMessage(value.into())
+    }
+}
+
+#[derive(Clone, TlsSerialize, TlsDeserializeBytes, TlsSize)]
+#[repr(u8)]
+pub enum QsVirtualClientHint {
+    /// DS -> QS hint to promote a staged batch of key packages to live.
+    ///
+    /// This is a backend-internal hint, distinct from the draft's client-to-client
+    /// `VirtualClientAction` SafeAAD struct.
+    #[tls_codec(discriminant = 1)]
+    PromoteStagedKeyPackages(KeyPackageBatchId),
+}
+
+impl From<KeyPackageUpload> for QsVirtualClientHint {
+    fn from(value: KeyPackageUpload) -> Self {
+        Self::PromoteStagedKeyPackages(KeyPackageBatchId {
+            epoch_id: value.epoch_id,
+            leaf_index: value.leaf_index,
+            generation: value.generation,
+        })
     }
 }

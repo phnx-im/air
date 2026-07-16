@@ -5,8 +5,6 @@
 use aircommon::identifiers::USERNAME_REFRESH_THRESHOLD;
 use airprotos::{auth_service::v1::OperationType, client::group::GroupData};
 use chrono::{DateTime, Duration, Utc};
-use openmls::prelude::OpenMlsProvider;
-use openmls_rust_crypto::OpenMlsRustCrypto;
 use serde::{Deserialize, Serialize};
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error, info, warn};
@@ -15,6 +13,7 @@ use uuid::Uuid;
 use crate::{
     Chat, ChatAttributes, ChatId,
     chats::{GroupDataExt, GroupDataProfilePart},
+    clients::own_client_info::OwnClientInfo,
     groups::Group,
     job::{
         JobError,
@@ -70,7 +69,6 @@ impl OperationData for TimedTask {
         id.extend_from_slice(b"timed_task");
         match self.kind {
             TimedTaskKind::KeyPackageUpload => id.push(0),
-            TimedTaskKind::ApqKeyPackageUpload => id.push(4),
             TimedTaskKind::UsernameRefresh => id.push(1),
             TimedTaskKind::SelfUpdate => id.push(2),
             TimedTaskKind::TokenReplenishment { operation_type } => {
@@ -85,7 +83,7 @@ impl OperationData for TimedTask {
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Serialize, Deserialize)]
 pub(crate) enum TimedTaskKind {
     KeyPackageUpload,
-    ApqKeyPackageUpload,
+    // reserved 4 = removed ApqKeyPackageUpload
     #[serde(alias = "HandleRefresh")]
     UsernameRefresh,
     SelfUpdate,
@@ -99,7 +97,6 @@ impl TimedTaskKind {
     pub(super) fn default_retry_interval(&self) -> Duration {
         match self {
             TimedTaskKind::KeyPackageUpload => Duration::minutes(5),
-            TimedTaskKind::ApqKeyPackageUpload => Duration::minutes(5),
             TimedTaskKind::UsernameRefresh => Duration::minutes(5),
             TimedTaskKind::SelfUpdate => Duration::minutes(5),
             TimedTaskKind::TokenReplenishment { operation_type } => match operation_type {
@@ -199,9 +196,8 @@ impl OutboundServiceContext {
             let task_kind = op.data.kind;
             debug!(?task_kind, "dequeued task");
 
-            let res = self
-                .handle_task(run_token, task_kind, &mut timed_task_context)
-                .await;
+            let res =
+                Box::pin(self.handle_task(run_token, task_kind, &mut timed_task_context)).await;
 
             let interval = match res {
                 Ok(interval) => interval,
@@ -222,10 +218,7 @@ impl OutboundServiceContext {
             .into_operation()
             .enqueue_if_not_exists(self.db.write().await?)
             .await?;
-        TimedTask::new(TimedTaskKind::ApqKeyPackageUpload)
-            .into_operation()
-            .enqueue_if_not_exists(self.db.write().await?)
-            .await?;
+        // TODO delete old apq key packages upload task
         TimedTask::new(TimedTaskKind::UsernameRefresh)
             .into_operation()
             .enqueue_if_not_exists(self.db.write().await?)
@@ -253,8 +246,7 @@ impl OutboundServiceContext {
         debug!(?task_kind, "handling task");
 
         match task_kind {
-            TimedTaskKind::KeyPackageUpload => self.upload_key_packages().await,
-            TimedTaskKind::ApqKeyPackageUpload => self.upload_apq_key_packages().await,
+            TimedTaskKind::KeyPackageUpload => Box::pin(self.upload_key_packages()).await,
             TimedTaskKind::UsernameRefresh => self.refresh_usernames().await,
             TimedTaskKind::SelfUpdate => self.self_update(run_token).await,
             TimedTaskKind::TokenReplenishment { operation_type } => {
@@ -419,145 +411,6 @@ impl OutboundServiceContext {
         }
     }
 
-    /// This function does the following:
-    /// 1. Generate a number of new key packages
-    /// 2. Upload them to the QS (and clean up on failure)
-    /// 3. Delete key packages that are marked stale
-    /// 4. Mark key packages stale that were previously marked live
-    /// 5. Marks the uploaded key packages as live in the database
-    async fn upload_key_packages(&self) -> anyhow::Result<Duration> {
-        let key_packages = self
-            .db
-            .with_write_transaction(async |txn| {
-                let mut key_packages = Vec::with_capacity(KEY_PACKAGES + 1);
-                for _ in 0..KEY_PACKAGES {
-                    let kp = self.key_store.generate_key_package(
-                        &mut *txn,
-                        &self.qs_client_id,
-                        false,
-                    )?;
-                    key_packages.push(kp);
-                }
-
-                let last_resort_kp =
-                    self.key_store
-                        .generate_key_package(txn, &self.qs_client_id, true)?;
-                key_packages.push(last_resort_kp);
-
-                Ok::<_, anyhow::Error>(key_packages)
-            })
-            .await?;
-
-        let crypto_provider = OpenMlsRustCrypto::default();
-        let key_package_refs = key_packages
-            .iter()
-            .map(|kp| kp.hash_ref(crypto_provider.crypto()))
-            .collect::<Result<Vec<_>, _>>()?;
-
-        info!(n = key_packages.len(), "Uploading key packages");
-        if let Err(error) = self
-            .api_clients
-            .default_client()?
-            .qs_publish_key_packages(
-                self.qs_client_id,
-                key_packages,
-                &self.key_store.qs_client_signing_key,
-            )
-            .await
-        {
-            error!(%error, "Failed to upload key packages");
-            // Clean up previously created key packages
-            for key_package_ref in key_package_refs {
-                if let Err(error) = self
-                    .key_store
-                    .delete_key_package(self.db.write().await?, key_package_ref)
-                {
-                    error!(%error, "Failed to delete key package after upload failure");
-                }
-            }
-
-            return Err(error.into());
-        }
-        info!("Uploaded key packages");
-
-        // If the upload was successful, we mark the uploaded ones as live and
-        // mark the others as stale.
-        self.db
-            .with_write_transaction(async |txn| {
-                let is_apq = false;
-                persistence::mark_key_packages_as_live(txn, &key_package_refs, is_apq).await
-            })
-            .await?;
-
-        Ok(Duration::weeks(1))
-    }
-
-    /// Same as [`Self::upload_key_packages`], but for APQ key packages.
-    ///
-    /// For now, we only upload one last resort APQ key package.
-    async fn upload_apq_key_packages(&self) -> anyhow::Result<Duration> {
-        let last_resort_key_package = self
-            .db
-            .with_write_transaction(async |txn| {
-                self.key_store
-                    .generate_apq_key_package(&mut *txn, &self.qs_client_id, true)
-            })
-            .await?;
-        let key_packages = vec![last_resort_key_package];
-
-        let crypto_provider = OpenMlsRustCrypto::default();
-        let key_package_refs = key_packages
-            .iter()
-            .map(|kp| {
-                let t_ref = kp.t_key_package().hash_ref(crypto_provider.crypto())?;
-                let pq_ref = kp.pq_key_package().hash_ref(crypto_provider.crypto())?;
-                Ok([t_ref, pq_ref])
-            })
-            .collect::<anyhow::Result<Vec<_>>>()?;
-
-        info!(n = key_packages.len(), "Uploading key packages");
-        if let Err(error) = self
-            .api_clients
-            .default_client()?
-            .qs_publish_apq_key_packages(
-                self.qs_client_id,
-                key_packages,
-                &self.key_store.qs_client_signing_key,
-            )
-            .await
-        {
-            error!(%error, "Failed to upload key packages");
-            // Clean up previously created key packages
-            for key_package_ref in key_package_refs.into_iter().flatten() {
-                if let Err(error) = self
-                    .key_store
-                    .delete_key_package(self.db.write().await?, key_package_ref)
-                {
-                    error!(%error, "Failed to delete key package after upload failure");
-                }
-            }
-
-            return Err(error.into());
-        }
-        info!("Uploaded key packages");
-
-        // If the upload was successful, we mark the uploaded ones as live and
-        // mark the others as stale.
-        self.db
-            .with_write_transaction(async |txn| {
-                let is_apq = true;
-                persistence::mark_key_packages_as_live(
-                    txn,
-                    key_package_refs.iter().flatten(),
-                    is_apq,
-                )
-                .await
-            })
-            .await?;
-
-        Ok(Duration::weeks(1))
-    }
-
     async fn self_update(&self, run_token: &CancellationToken) -> anyhow::Result<Duration> {
         const PARTIAL_UPDATE_INTERVAL: Duration = Duration::minutes(5);
         const BATCH_SIZE: usize = 5;
@@ -608,6 +461,13 @@ impl OutboundServiceContext {
                 );
                 return Ok(false);
             };
+
+            // The self-group rotates its leaf via the key-package upload cycle and its leaves are
+            // signed with a dedicated key, so the regular self-update task skips it.
+            if OwnClientInfo::is_own_self_group(&mut read_txn, group.group_id()).await? {
+                return Ok(false);
+            }
+
             if group.mls_group().pending_commit().is_some()
                 || group
                     .pq()
@@ -738,191 +598,4 @@ fn legacy_group_data_migration(
         _ => None,
     };
     Some(ChatAttributes::new(title, legacy_picture))
-}
-
-mod persistence {
-    use openmls::prelude::KeyPackageRef;
-    use sqlx::{AssertSqlSafe, QueryBuilder};
-
-    use crate::{db::access::WriteDbTransaction, groups::openmls_provider::KeyRefWrapper};
-
-    pub(super) async fn mark_key_packages_as_live(
-        txn: &mut WriteDbTransaction<'_>,
-        key_package_refs: impl IntoIterator<Item = &KeyPackageRef>,
-        is_apq: bool,
-    ) -> anyhow::Result<()> {
-        let refs_table = if is_apq {
-            "apq_key_package_refs"
-        } else {
-            "key_package_refs"
-        };
-        mark_key_packages_as_live_impl(txn, refs_table, key_package_refs).await
-    }
-
-    async fn mark_key_packages_as_live_impl(
-        txn: &mut WriteDbTransaction<'_>,
-        refs_table: &'static str,
-        key_package_refs: impl IntoIterator<Item = &KeyPackageRef>,
-    ) -> anyhow::Result<()> {
-        // Delete all key packages that are not marked as live
-        sqlx::query(AssertSqlSafe(format!(
-            "DELETE FROM key_package
-            WHERE key_package_ref IN (
-              SELECT key_package_ref
-              FROM {refs_table}
-              WHERE is_live = 0
-            )"
-        )))
-        .execute(txn.as_mut())
-        .await?;
-
-        // Mark all key packages as stale
-        sqlx::query(AssertSqlSafe(format!(
-            "UPDATE {refs_table}
-            SET is_live = 0
-            WHERE is_live = 1",
-        )))
-        .execute(txn.as_mut())
-        .await?;
-
-        // Add the newly uploaded ones as 'live'.
-        let mut qb = QueryBuilder::new(format!(
-            "INSERT INTO {refs_table} (key_package_ref, is_live) VALUES "
-        ));
-        let mut vals = qb.separated(", ");
-        for r in key_package_refs {
-            let r = KeyRefWrapper(r);
-            vals.push("(")
-                .push_bind_unseparated(r)
-                .push_unseparated(", 1)");
-        }
-        qb.build().execute(txn.as_mut()).await?;
-
-        // Delete orphaned key packages (usually this is a no-op).
-        // Must check both tables so regular and APQ key packages don't clobber each other.
-        sqlx::query(
-            "DELETE FROM key_package WHERE key_package_ref NOT IN (
-                SELECT key_package_ref FROM key_package_refs
-                UNION
-                SELECT key_package_ref FROM apq_key_package_refs
-            )",
-        )
-        .execute(txn.as_mut())
-        .await?;
-
-        Ok(())
-    }
-
-    #[cfg(test)]
-    mod test {
-        use aircommon::{
-            codec::PersistenceCodec, credentials::test_utils::create_test_credentials,
-            identifiers::UserId,
-        };
-        use openmls::prelude::{CredentialWithKey, KeyPackage, SignaturePublicKey};
-        use openmls_traits::OpenMlsProvider;
-        use sqlx::{Row, SqlitePool, query, query_scalar};
-        use url::Host;
-
-        use crate::{
-            clients::CIPHERSUITE, db::access::DbAccess,
-            groups::openmls_provider::AirOpenMlsProvider,
-        };
-
-        use super::*;
-
-        #[tokio::test(flavor = "multi_thread")]
-        async fn test_mark_key_packages_as_live() -> anyhow::Result<()> {
-            // Note: We don't use `sqlx::test` and instead create manually a pool, because we must
-            // run on a multi-threaded flavor of tokio runtime, because `AirOpenMlsProvider` blocks
-            // the current thread.
-            let pool = SqlitePool::connect("sqlite://:memory:").await?;
-            sqlx::migrate!("./migrations").run(&pool).await?;
-
-            let pool = DbAccess::for_tests(pool);
-
-            let mut connection = pool.write().await?;
-            let provider = AirOpenMlsProvider::new(connection.as_mut());
-
-            let user_id = UserId::random(Host::Domain("example.com".to_string()).into());
-            let (_aic_sk, client_sk) = create_test_credentials(user_id);
-
-            let credential_with_key = CredentialWithKey {
-                credential: client_sk.credential().try_into().unwrap(),
-                signature_key: SignaturePublicKey::from(
-                    client_sk.credential().verifying_key().clone(),
-                ),
-            };
-
-            let key_packages: Vec<KeyPackage> = (0..3)
-                .map(|_| {
-                    let bundle = KeyPackage::builder()
-                        .build(
-                            CIPHERSUITE,
-                            &provider,
-                            &client_sk,
-                            credential_with_key.clone(),
-                        )
-                        .unwrap();
-                    bundle.key_package().clone()
-                })
-                .collect();
-
-            let live_key_package_ref = key_packages[0].hash_ref(provider.crypto())?;
-            let stale_key_package_ref = key_packages[1].hash_ref(provider.crypto())?;
-            let new_key_package_ref = key_packages[2].hash_ref(provider.crypto())?;
-
-            query("INSERT INTO key_package_refs (key_package_ref, is_live) VALUES (?1, 1)")
-                .bind(KeyRefWrapper(&live_key_package_ref))
-                .execute(pool.write().await?.as_mut())
-                .await?;
-            query("INSERT INTO key_package_refs (key_package_ref, is_live) VALUES (?1, 0)")
-                .bind(KeyRefWrapper(&stale_key_package_ref))
-                .execute(pool.write().await?.as_mut())
-                .await?;
-
-            pool.with_write_transaction(async |txn| {
-                let is_apq = false;
-                mark_key_packages_as_live(txn, [&new_key_package_ref], is_apq).await
-            })
-            .await?;
-
-            let rows = query(
-                "SELECT key_package_ref, is_live \
-                FROM key_package kp \
-                LEFT JOIN key_package_refs kpr USING (key_package_ref)
-                ORDER BY is_live ASC",
-            )
-            .fetch_all(pool.read().await?.as_mut())
-            .await?;
-
-            let key_packages: Vec<(KeyPackageRef, Option<bool>)> = rows
-                .into_iter()
-                .map(|row| {
-                    let bytes: Vec<u8> = row.get(0);
-                    let key_package_ref: KeyPackageRef =
-                        PersistenceCodec::from_slice(&bytes).unwrap();
-                    let is_live: Option<bool> = row.get(1);
-                    (key_package_ref, is_live)
-                })
-                .collect();
-
-            assert_eq!(key_packages.len(), 2); // stale key package is deleted
-
-            let (key_package_ref, is_live) = &key_packages[0];
-            assert_eq!(key_package_ref, &live_key_package_ref);
-            assert_eq!(is_live, &Some(false));
-
-            let (key_package_ref, is_live) = &key_packages[1];
-            assert_eq!(key_package_ref, &new_key_package_ref);
-            assert_eq!(is_live, &Some(true));
-
-            let num_refs: i32 = query_scalar("SELECT COUNT(*) FROM key_package_refs")
-                .fetch_one(pool.read().await?.as_mut())
-                .await?;
-            assert_eq!(num_refs, 2);
-
-            Ok(())
-        }
-    }
 }

@@ -18,6 +18,7 @@ use aircommon::{
     },
     time::TimeStamp,
     utils::removed_client,
+    virtual_client::KeyPackageBatchId,
 };
 use airprotos::{
     client::group::GroupData,
@@ -208,6 +209,7 @@ impl CoreUser {
             group_id,
             epoch,
             timestamp,
+            key_package_batch,
         } = commit_response;
 
         // Load the group by group_id
@@ -231,14 +233,16 @@ impl CoreUser {
         // If yes, merge the commit and store the updated group
         let (mut group_messages, group_data_bytes) =
             group.merge_pending_commit(txn, None, timestamp).await?;
-        group
-            .group_mut()
-            .store_update(&mut *txn, Some(timestamp), None)
-            .await?;
 
         let mut chat = Chat::load_by_group_id(&mut *txn, &group_id)
             .await?
             .context("Can't find chat for commit response")?;
+
+        let pq_updated_at = group.is_apq().then_some(timestamp);
+        group
+            .group_mut()
+            .store_update(&mut *txn, Some(timestamp), pq_updated_at)
+            .await?;
 
         self.finalize_own_commit(
             txn,
@@ -247,6 +251,7 @@ impl CoreUser {
             group_data_bytes,
             &mut group_messages,
             timestamp,
+            key_package_batch.as_ref(),
         )
         .await?;
 
@@ -258,13 +263,16 @@ impl CoreUser {
     /// Applies the side effects of merging one of our own commits: any group
     /// data change carried by the commit (currently the chat title) is applied
     /// to `chat`, appending the corresponding system messages to
-    /// `group_messages`, and the pending chat operation is deleted.
+    /// `group_messages`, and the pending chat operation is completed with
+    /// `key_package_batch` (the batch id carried by the `DsCommitResponse`).
     ///
-    /// Shared by the `DsCommitResponse` and `OwnPendingCommit` paths, which
-    /// race to merge our own commit: the DS both responds directly and echoes
-    /// the commit back via fanout, so whichever arrives first must run these
-    /// side effects (the loser bails early on the now-stale epoch). The caller
-    /// is responsible for storing `group_messages`.
+    /// Shared by the `DsCommitResponse` path and the `OwnPendingCommit`
+    /// leftover: the DS no longer echoes own commits back through the queue,
+    /// so the response is the only production signal; a replayed or stale
+    /// delivery of our own commit still merges it here, but carries no batch
+    /// id and thus never marks an upload live. The caller is responsible for
+    /// storing `group_messages`.
+    #[expect(clippy::too_many_arguments)]
     async fn finalize_own_commit(
         &self,
         txn: &mut WriteDbTransaction<'_>,
@@ -273,6 +281,7 @@ impl CoreUser {
         group_data_bytes: Option<GroupDataBytes>,
         group_messages: &mut Vec<TimestampedMessage>,
         ds_timestamp: TimeStamp,
+        key_package_batch: Option<&KeyPackageBatchId>,
     ) -> anyhow::Result<()> {
         // Update group data in chat attributes if present
         if let Some(group_data_bytes) = group_data_bytes {
@@ -294,8 +303,8 @@ impl CoreUser {
             }
         }
 
-        // Delete the pending chat operation
-        PendingChatOperation::delete(txn, group.group_id()).await?;
+        // Complete the pending chat operation
+        PendingChatOperation::complete_own_commit(txn, group.group_id(), key_package_batch).await?;
 
         Ok(())
     }
@@ -618,9 +627,10 @@ impl CoreUser {
         .await
     }
 
-    /// Test-only: drive an incoming MLS message (e.g. the DS echo of our own
-    /// commit) through the same processing path the QS queue uses, so tests can
-    /// exercise the `OwnPendingCommit` merge without a live server.
+    /// Test-only: drive an incoming MLS message (e.g. a replayed or stale
+    /// delivery of our own commit) through the same processing path the QS
+    /// queue uses, so tests can exercise the `OwnPendingCommit` merge without
+    /// a live server.
     #[cfg(any(test, feature = "test_utils"))]
     pub async fn process_incoming_mls_message(
         &self,
@@ -714,7 +724,7 @@ impl CoreUser {
                 .user_id()
                 .clone();
 
-        let aad = processed_message.aad().to_vec();
+        let aad = processed_message.tail_aad().to_vec();
 
         let chat_id = chat.id();
 
@@ -789,15 +799,19 @@ impl CoreUser {
                     (new_messages, Vec::new(), updated, Vec::new())
                 }
                 ProcessedMessageContent::OwnPendingCommit => {
-                    // Our own commit was echoed back before the matching
-                    // `DsCommitResponse` arrived, so we merge it here and run
-                    // the same side effects the response would have.
+                    // The DS does not echo own commits back through the
+                    // queue, so this is a replayed or stale delivery of our
+                    // own commit. Merge it and run the same side effects the
+                    // `DsCommitResponse` would have, except that without a
+                    // batch id a pending key-package upload is abandoned
+                    // rather than marked live.
                     let (mut group_messages, group_data_bytes) = group
                         .merge_pending_commit(&mut *txn, None, ds_timestamp)
                         .await?;
+                    let pq_updated_at = group.is_apq().then_some(ds_timestamp);
                     group
                         .group_mut()
-                        .store_update(&mut *txn, Some(ds_timestamp), None)
+                        .store_update(&mut *txn, Some(ds_timestamp), pq_updated_at)
                         .await?;
                     self.finalize_own_commit(
                         &mut *txn,
@@ -806,6 +820,7 @@ impl CoreUser {
                         group_data_bytes,
                         &mut group_messages,
                         ds_timestamp,
+                        None,
                     )
                     .await?;
                     (group_messages, Vec::new(), true, Vec::new())

@@ -1,0 +1,31 @@
+{
+  "db_name": "PostgreSQL",
+  "query": "SELECT id FROM qs_staged_key_package_batch\n            where user_id = $1 and epoch_id = $2 and leaf_index = $3 and generation = $4\n            FOR UPDATE",
+  "describe": {
+    "columns": [
+      {
+        "ordinal": 0,
+        "name": "id",
+        "type_info": "Int4",
+        "origin": {
+          "Table": {
+            "table": "qs_staged_key_package_batch",
+            "name": "id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Left": [
+        "Uuid",
+        "Bytea",
+        "Int8",
+        "Int8"
+      ]
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "96e11874c428836fc2bf08f838420782fb37abfb57d317665b9ad8e8c1df9e13"
+}

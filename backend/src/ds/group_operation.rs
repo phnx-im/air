@@ -4,6 +4,7 @@
 
 use std::collections::HashSet;
 
+use airprotos::client::virtual_client::extract_key_package_upload;
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::{ApqProcessedAssistedMessagePlus, ProcessedAssistedMessage, apq::ApqGroupRef},
@@ -44,7 +45,7 @@ use tracing::{error, warn};
 
 use crate::{
     errors::GroupOperationError,
-    messages::intra_backend::{DsFanOutMessage, DsFanOutPayload},
+    messages::intra_backend::{DsFanOutMessage, DsFanOutPayload, QsVirtualClientHint},
 };
 
 use super::{group_state::MemberProfile, process::USER_EXPIRATION_DAYS};
@@ -73,6 +74,19 @@ struct TCommitValidation {
     removed_clients: Vec<LeafNodeIndex>,
 }
 
+pub(crate) struct ProcessedGroupOperation {
+    pub serialized_message: SerializedMlsMessage,
+    pub added_users_state: Option<AddUsersState>,
+    pub virtual_client_hint: Option<QsVirtualClientHint>,
+}
+
+pub(crate) struct ProcessedApqGroupOperation {
+    pub serialized_message: SerializedMlsMessage,
+    pub t_add_users_state: Option<AddUsersState>,
+    pub pq_welcome: Option<AssistedWelcome>,
+    pub virtual_client_hint: Option<QsVirtualClientHint>,
+}
+
 impl DsGroupState {
     /// Perform DS-level validation
     fn validate_t_commit(
@@ -83,7 +97,7 @@ impl DsGroupState {
         pq_staged_commit: Option<&StagedCommit>,
     ) -> Result<TCommitValidation, GroupOperationError> {
         // Validate that the AAD includes enough encrypted credential chains
-        let aad_message = AadMessage::tls_deserialize_exact_bytes(processed_message.aad())
+        let aad_message = AadMessage::tls_deserialize_exact_bytes(processed_message.tail_aad())
             .map_err(|e| {
                 warn!(%e, "Error deserializing AAD message");
                 GroupOperationError::InvalidMessage
@@ -284,7 +298,7 @@ impl DsGroupState {
     pub(crate) async fn process_group_operation(
         &mut self,
         params: GroupOperationParams,
-    ) -> Result<(SerializedMlsMessage, Option<AddUsersState>), GroupOperationError> {
+    ) -> Result<ProcessedGroupOperation, GroupOperationError> {
         // Process message (but don't apply it yet). This performs mls-assist-level validations.
         let processed_assisted_message_plus = self
             .group
@@ -298,6 +312,9 @@ impl DsGroupState {
             warn!("Group operation is not a commit");
             return Err(GroupOperationError::InvalidMessage);
         };
+
+        // Extract the virtual client hint if present
+        let virtual_client_hint = extract_virtual_client_hint(processed_message)?;
 
         let TCommitValidation {
             sender_index,
@@ -338,10 +355,11 @@ impl DsGroupState {
                 .insert(sender_index.leaf_index(), client_profile);
         }
 
-        Ok((
-            processed_assisted_message_plus.serialized_mls_message,
+        Ok(ProcessedGroupOperation {
+            serialized_message: processed_assisted_message_plus.serialized_mls_message,
             added_users_state,
-        ))
+            virtual_client_hint,
+        })
     }
 
     /// Returns (serialized message, T added users state, PQ welcome info)
@@ -352,14 +370,7 @@ impl DsGroupState {
         pq_message: AssistedMessageIn,
         t_add_users_info: Option<AddUsersInfo>,
         pq_add_users_info: Option<AddUsersInfo>,
-    ) -> Result<
-        (
-            SerializedMlsMessage,
-            Option<AddUsersState>,
-            Option<AssistedWelcome>,
-        ),
-        GroupOperationError,
-    > {
+    ) -> Result<ProcessedApqGroupOperation, GroupOperationError> {
         let crypto = t_group_state.provider.crypto();
         let ApqProcessedAssistedMessagePlus {
             processed_assisted_message,
@@ -426,6 +437,10 @@ impl DsGroupState {
             Some(pq_staged_commit),
         )?;
 
+        // Extract the virtual client hint if present
+        let virtual_client_hint =
+            extract_virtual_client_hint(&processed_assisted_message.processed_message.t_message)?;
+
         // Everything seems to be okay.
         // Now we have to update the group state and distribute.
 
@@ -461,30 +476,45 @@ impl DsGroupState {
                 .insert(t_sender_index.leaf_index(), client_profile);
         }
 
-        Ok((serialized_apq_message, t_add_users_state, pq_welcome))
+        Ok(ProcessedApqGroupOperation {
+            serialized_message: serialized_apq_message,
+            t_add_users_state,
+            pq_welcome,
+            virtual_client_hint,
+        })
     }
 
     pub(crate) async fn group_operation(
         &mut self,
         params: GroupOperationParams,
         group_state_ear_key: &GroupStateEarKey,
-    ) -> Result<(SerializedMlsMessage, Vec<DsFanOutMessage>), GroupOperationError> {
-        let (serialized_message, added_users_state) = self.process_group_operation(params).await?;
+    ) -> Result<
+        (
+            SerializedMlsMessage,
+            Vec<DsFanOutMessage>,
+            Option<QsVirtualClientHint>,
+        ),
+        GroupOperationError,
+    > {
+        let ProcessedGroupOperation {
+            serialized_message,
+            added_users_state,
+            virtual_client_hint,
+        } = self.process_group_operation(params).await?;
 
-        let mut fan_out_messages: Vec<DsFanOutMessage> = vec![];
-        if let Some(AddUsersState {
-            added_users,
-            welcome,
-        }) = added_users_state
-        {
-            fan_out_messages.extend(self.generate_fan_out_messages(
-                added_users,
-                group_state_ear_key,
-                &welcome,
-            )?);
-        }
+        let fan_out_messages = added_users_state
+            .map(
+                |AddUsersState {
+                     added_users,
+                     welcome,
+                 }| {
+                    self.generate_fan_out_messages(added_users, group_state_ear_key, &welcome)
+                },
+            )
+            .transpose()?
+            .unwrap_or_default();
 
-        Ok((serialized_message, fan_out_messages))
+        Ok((serialized_message, fan_out_messages, virtual_client_hint))
     }
 
     /// Updates client and user profiles based on the added users.
@@ -581,6 +611,7 @@ impl DsGroupState {
                 client_reference: client_queue_config,
                 suppress_notifications: false.into(),
                 broadcast_to_all_client_queues: self.broadcast_to_all_client_queues().into(),
+                virtual_client_hint: None,
             };
             fan_out_messages.push(fan_out_message);
         }
@@ -637,6 +668,7 @@ impl DsGroupState {
                 client_reference: client_queue_config,
                 suppress_notifications: false.into(),
                 broadcast_to_all_client_queues: self.broadcast_to_all_client_queues().into(),
+                virtual_client_hint: None,
             };
             fan_out_messages.push(fan_out_message);
         }
@@ -655,12 +687,17 @@ impl DsGroupState {
         &self,
         sender_index: LeafNodeIndex,
         timestamp: TimeStamp,
+        virtual_client_hint: Option<QsVirtualClientHint>,
     ) -> Result<DsFanOutMessage, GroupOperationError> {
-        // Fan the response to this commit out into the sender's queue.
+        // Key packages batch to promote on QS if any
+        let key_package_batch = virtual_client_hint
+            .as_ref()
+            .map(|QsVirtualClientHint::PromoteStagedKeyPackages(batch_id)| batch_id.clone());
         let commit_response = QsQueueMessagePayload::ds_commit_response(
             self.group.group_info().group_context().group_id().clone(),
             (self.group.epoch().as_u64() - 1).into(),
             timestamp,
+            key_package_batch,
         )
         .map_err(|e| {
             warn!(error = %e, "Error serializing commit response");
@@ -678,9 +715,22 @@ impl DsGroupState {
             client_reference: sender_client_reference,
             suppress_notifications: true.into(),
             broadcast_to_all_client_queues: self.broadcast_to_all_client_queues().into(),
+            virtual_client_hint,
         };
         Ok(response)
     }
+}
+
+/// Extract the virtual client hint if present from the Safe AAD part of the message.
+fn extract_virtual_client_hint(
+    processed_message: &ProcessedMessage,
+) -> Result<Option<QsVirtualClientHint>, GroupOperationError> {
+    extract_key_package_upload(processed_message)
+        .map_err(|error| {
+            error!(%error, "Failed to extract KeyPackageUpload from safe AAD");
+            GroupOperationError::InvalidMessage
+        })
+        .map(|upload| upload.map(From::from))
 }
 
 pub(crate) type AddedUserInfo = (KeyPackage, EncryptedUserProfileKey);
