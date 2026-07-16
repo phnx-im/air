@@ -76,7 +76,7 @@ lru = "0.16.2"
 memmap2 = "0.9.5"
 metrics = "0.24.2"
 metrics-exporter-prometheus = { version = "0.17.2", default-features = false }
-mimi-room-policy = { git = "https://github.com/phnx-im/mimi-room-policy", rev = "6406e6d84c1219da3afcccb91007f2fdaaf61193" }
+mimi-room-policy = { git = "https://github.com/phnx-im/mimi-room-policy", rev = "603f3e07372119560ce9d60252e5df2f6cbd1e18" }
 mimi_content = { git = "https://github.com/phnx-im/mimi-content", rev = "c6e5ab7a7ede126906961332551c5e67c1081d3a", features = ["serde"] }
 minicbor = { version = "2.2.1", features = ["std"] }
 minicbor-serde = { version = "0.6", features = ["std"] }
@@ -118,7 +118,7 @@ tap = "1.0.1"
 tar = "0.4.44"
 tempfile = "3.23.0"
 thiserror = "2.0"
-tls_codec = { version = "0.4.1", features = ["derive", "serde", "mls"] }
+tls_codec = { version = "0.5.0", features = ["derive", "serde", "mls"] }
 tokio = { version = "1.18.2", features = ["macros"] }
 tokio-stream = { version = "0.1.17", features = ["sync"] }
 tokio-util = "0.7.13"
@@ -142,12 +142,12 @@ zeroize = "1.8.2"
 
 [patch.crates-io]
 # Use unreleased post-quantum and virtual-clients features of openmls after the 0.8.1 release
-openmls = { git = "https://github.com/boxdot/openmls", rev = "36ef45e4c7d48805d2ad706111c49a2baeb5b722" }
-openmls_rust_crypto = { git = "https://github.com/boxdot/openmls", rev = "36ef45e4c7d48805d2ad706111c49a2baeb5b722" }
-openmls_traits = { git = "https://github.com/boxdot/openmls", rev = "36ef45e4c7d48805d2ad706111c49a2baeb5b722" }
-openmls_memory_storage = { git = "https://github.com/boxdot/openmls", rev = "36ef45e4c7d48805d2ad706111c49a2baeb5b722" }
-openmls_basic_credential = { git = "https://github.com/boxdot/openmls", rev = "36ef45e4c7d48805d2ad706111c49a2baeb5b722" }
-openmls_sqlite_storage = { git = "https://github.com/boxdot/openmls", rev = "36ef45e4c7d48805d2ad706111c49a2baeb5b722" }
+openmls = { git = "https://github.com/openmls/openmls", rev = "65396d8ed3121506d1b9c7d0e6ec9fce1bed486d" }
+openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "65396d8ed3121506d1b9c7d0e6ec9fce1bed486d" }
+openmls_traits = { git = "https://github.com/openmls/openmls", rev = "65396d8ed3121506d1b9c7d0e6ec9fce1bed486d" }
+openmls_memory_storage = { git = "https://github.com/openmls/openmls", rev = "65396d8ed3121506d1b9c7d0e6ec9fce1bed486d" }
+openmls_basic_credential = { git = "https://github.com/openmls/openmls", rev = "65396d8ed3121506d1b9c7d0e6ec9fce1bed486d" }
+openmls_sqlite_storage = { git = "https://github.com/openmls/openmls", rev = "65396d8ed3121506d1b9c7d0e6ec9fce1bed486d" }
 # openmls = { path = "../openmls/openmls" }
 # openmls_rust_crypto = { path = "../openmls/openmls_rust_crypto" }
 # openmls_traits = { path = "../openmls/traits" }
@@ -155,18 +155,12 @@ openmls_sqlite_storage = { git = "https://github.com/boxdot/openmls", rev = "36e
 # openmls_sqlite_storage = { path = "../openmls/sqlite_storage" }
 # openmls_basic_credential = { path = "../openmls/basic_credential" }
 
-# feat: add p384 support
-# <https://github.com/cryspen/hpke-rs/pull/150>
-hpke-rs = { git = "https://github.com/cryspen/hpke-rs", rev = "42f9b421d499dec01dcb3fd80d639669d9669c73" }
-hpke-rs-crypto = { git = "https://github.com/cryspen/hpke-rs", rev = "42f9b421d499dec01dcb3fd80d639669d9669c73" }
-hpke-rs-rust-crypto = { git = "https://github.com/cryspen/hpke-rs", rev = "42f9b421d499dec01dcb3fd80d639669d9669c73" }
-# hpke-rs = { path = "../hpke-rs" }
-# hpke-rs-crypto = { path = "../hpke-rs/traits/" }
-# hpke-rs-rust-crypto = { path = "../hpke-rs/rust_crypto_provider/" }
-
 # v0.10.0-rc.18 with additional unreleased commit using `signature@0.3` instead of `3.0.0-rc.10`
 # This patch is needed to be compatible with dsa 0.1 which uses `signature@0.3`.
 rsa = { git = "https://github.com/RustCrypto/RSA", rev = "99f80888cdc838da78a48ad14f6e1f5c01be5c30" }
+
+# Not yet released > 0.2.0-pre.1
+privacypass = { git = "https://github.com/raphaelrobert/privacypass", rev = "90076fb853cc2a9dfef3513b8947edc33dc9569e" }
 
 
 [profile.release]

@@ -75,8 +75,6 @@ allow-git = [
     "https://github.com/openmls/openmls",
     "https://github.com/cryspen/hpke-rs",
     "https://github.com/RustCrypto/RSA",
-    # Working branch for vcpkgs bringing different unmerged PRs from openmls
-    "https://github.com/boxdot/openmls",
 ]
 
 [sources.allow-org]
