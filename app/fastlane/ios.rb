@@ -116,7 +116,8 @@ platform :ios do
     # and true otherwise
     skip_signing = !options[:with_signing]
 
-    build_number = sh("git rev-list --count HEAD").strip.to_i
+    build_number = sh("just build-number").strip.to_i
+    build_name = sh("just build-name").strip
 
     # Set up CI
     setup_ci()
@@ -125,7 +126,7 @@ platform :ios do
     sh "just flutter pub get"
 
     # Build the app with flutter first to create the necessary ephemeral files
-    sh "just flutter build ios --flavor production --config-only #{skip_signing ? '--debug --no-codesign' : '--release'} --build-number #{build_number}"
+    sh "just flutter build ios --flavor production --config-only #{skip_signing ? '--debug --no-codesign' : '--release'} --build-number #{build_number} --build-name #{build_name}"
 
     # Install CocoaPods dependencies
     cocoapods(
