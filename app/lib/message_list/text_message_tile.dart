@@ -4,6 +4,7 @@
 
 import 'dart:async' show Timer, unawaited;
 import 'dart:io';
+import 'dart:math' as math;
 
 import 'package:air/attachments/attachments.dart';
 import 'package:air/chat/chat_details.dart';
@@ -54,6 +55,9 @@ const double _bubbleMaxWidthFactor = 5 / 6;
 final double _hoverReactSize =
     BodyFontSize.base.size * BodyFontSize.lineHeight +
     messageVerticalPadding * 2;
+// Width the hover affordance occupies beside the bubble: the reply and react
+// buttons, the gap between them, and the gap to the bubble.
+final double _hoverAffordanceWidth = 2 * _hoverReactSize + 2 * Spacing.px8;
 const double largeCornerRadius = Spacing.px20;
 const double smallCornerRadius = Spacing.px8;
 const double messageHorizontalPadding = Spacing.px16;
@@ -92,10 +96,17 @@ class WrapWithBubbleWidth extends StatelessWidget {
   const WrapWithBubbleWidth({
     super.key,
     required this.isSender,
+    this.affordanceWidth = 0,
     required this.child,
   });
 
   final bool isSender;
+
+  /// Width reserved by the hover affordance beside the bubble. Granted on top
+  /// of the bubble width factor so the affordance lives in the free margin,
+  /// the bubble only shrinks when the row is too narrow to fit both.
+  final double affordanceWidth;
+
   final Widget child;
 
   @override
@@ -104,7 +115,10 @@ class WrapWithBubbleWidth extends StatelessWidget {
       builder: (context, constraints) {
         final hasFiniteWidth = constraints.maxWidth.isFinite;
         final double maxWidth = hasFiniteWidth
-            ? constraints.maxWidth * _bubbleMaxWidthFactor
+            ? math.min(
+                constraints.maxWidth,
+                constraints.maxWidth * _bubbleMaxWidthFactor + affordanceWidth,
+              )
             : double.infinity;
         final alignment = isSender
             ? Alignment.centerRight
@@ -719,33 +733,59 @@ class _MessageView extends HookWidget {
           : wrappedBubble;
     }
 
+    // Reveal-on-hover actions beside the bubble: react stays adjacent to the
+    // bubble, reply sits on the outer edge, evenly spaced from react and the
+    // bubble.
+    final hoverReactButton = GlassCircleButton(
+      key: reactButtonKey,
+      size: _hoverReactSize,
+      color: isSender
+          ? colors.message.selfBackground
+          : colors.message.otherBackground,
+      icon: AppIcon.smilePlus(size: 18, color: colors.text.secondary),
+      onPressed: () => openReactionMenu(anchorKey: reactButtonKey),
+      shadows: const [],
+    );
+    final hoverReplyButton = GlassCircleButton(
+      size: _hoverReactSize,
+      color: isSender
+          ? colors.message.selfBackground
+          : colors.message.otherBackground,
+      icon: AppIcon.cornerLeft(size: 18, color: colors.text.secondary),
+      onPressed: () {
+        context.read<ChatDetailsCubit>().replyToMessage(messageId: messageId);
+      },
+      shadows: const [],
+    );
+
     // Padded at the bottom by the chip reserve so the trailing-affordance Row
     // centers it on the bubble itself (not the bubble + reaction chips).
     final hoverAffordance = Padding(
       padding: EdgeInsets.only(
         bottom: reactionsReservedBelow(reactions.isNotEmpty),
+        left: isSender ? 0 : Spacing.px8,
+        right: isSender ? Spacing.px8 : 0,
       ),
-      child: SizedBox(
-        width: _hoverReactSize + Spacing.px16,
-        child: Center(
-          child: ValueListenableBuilder(
-            valueListenable: isHovered,
-            child: GlassCircleButton(
-              key: reactButtonKey,
-              size: _hoverReactSize,
-              color: isSender
-                  ? colors.message.selfBackground
-                  : colors.message.otherBackground,
-              icon: AppIcon.smilePlus(size: 18, color: colors.text.secondary),
-              onPressed: () => openReactionMenu(anchorKey: reactButtonKey),
-              shadows: const [],
-            ),
-            builder: (context, hovered, child) => AnimatedOpacity(
-              opacity: hovered ? 1.0 : 0.0,
-              duration: const Duration(milliseconds: 120),
-              child: IgnorePointer(ignoring: !hovered, child: child),
-            ),
-          ),
+      child: ValueListenableBuilder(
+        valueListenable: isHovered,
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: isSender
+              ? [
+                  hoverReplyButton,
+                  const SizedBox(width: Spacing.px8),
+                  hoverReactButton,
+                ]
+              : [
+                  hoverReactButton,
+                  const SizedBox(width: Spacing.px8),
+                  hoverReplyButton,
+                ],
+        ),
+        builder: (context, hovered, child) => AnimatedOpacity(
+          opacity: hovered ? 1.0 : 0.0,
+          duration: const Duration(milliseconds: 120),
+          child: IgnorePointer(ignoring: !hovered, child: child),
         ),
       ),
     );
@@ -780,6 +820,7 @@ class _MessageView extends HookWidget {
 
     return WrapWithBubbleWidth(
       isSender: isSender,
+      affordanceWidth: isReplyable ? _hoverAffordanceWidth : 0,
       child: MouseRegion(
         onEnter: (_) => isHovered.value = true,
         onExit: (_) => isHovered.value = false,
