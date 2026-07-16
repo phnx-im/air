@@ -50,7 +50,10 @@ import 'swipe_to_reply.dart';
 final _log = Logger('MessageTile');
 
 const double _bubbleMaxWidthFactor = 5 / 6;
-const double _hoverReactSize = 32;
+// Match the hover react button to a single-line message bubble.
+final double _hoverReactSize =
+    BodyFontSize.base.size * BodyFontSize.lineHeight +
+    messageVerticalPadding * 2;
 const double largeCornerRadius = Spacing.px20;
 const double smallCornerRadius = Spacing.px8;
 const double messageHorizontalPadding = Spacing.px16;
@@ -233,18 +236,23 @@ class _IncomingMessageTile extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            SizedBox(
-              width: senderAvatarSize,
-              child: showAvatar
-                  ? Transform.translate(
-                      offset: const Offset(0, -senderAvatarVerticalOffset),
-                      child: _SenderAvatar(
-                        sender: contentMessage.sender,
-                        onTap: openMemberDetails,
-                        size: senderAvatarSize,
-                      ),
-                    )
-                  : const SizedBox.shrink(),
+            Padding(
+              padding: EdgeInsets.only(
+                bottom: reactionsReservedBelow(reactions.isNotEmpty),
+              ),
+              child: SizedBox(
+                width: senderAvatarSize,
+                child: showAvatar
+                    ? Transform.translate(
+                        offset: const Offset(0, -senderAvatarVerticalOffset),
+                        child: _SenderAvatar(
+                          sender: contentMessage.sender,
+                          onTap: openMemberDetails,
+                          size: senderAvatarSize,
+                        ),
+                      )
+                    : const SizedBox.shrink(),
+              ),
             ),
             const SizedBox(width: Spacing.px12),
             Expanded(
@@ -718,7 +726,7 @@ class _MessageView extends HookWidget {
         bottom: reactionsReservedBelow(reactions.isNotEmpty),
       ),
       child: SizedBox(
-        width: _hoverReactSize + Spacing.px8,
+        width: _hoverReactSize + Spacing.px16,
         child: Center(
           child: ValueListenableBuilder(
             valueListenable: isHovered,
