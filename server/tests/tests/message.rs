@@ -7,7 +7,7 @@ use aircoreclient::{ChatId, ChatMessage, MimiContentExt, ReadReceiptsSetting, cl
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use indexmap::indexmap;
 use mimi_content::{MessageStatus, MimiContent};
-use rand::{Rng, distributions::Alphanumeric, rngs::OsRng};
+use rand::{RngExt, distr::Alphanumeric};
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Edit message", skip_all)]
@@ -233,7 +233,7 @@ async fn retrieve_chat_messages() {
     let number_of_messages = 10;
     let mut messages_sent = vec![];
     for _ in 0..number_of_messages {
-        let message: String = OsRng
+        let message: String = rand::rng()
             .sample_iter(&Alphanumeric)
             .take(32)
             .map(char::from)
@@ -277,7 +277,7 @@ async fn mark_as_read() {
     ) -> Vec<ChatMessage> {
         let mut messages_sent = vec![];
         for _ in 0..number_of_messages {
-            let message: String = OsRng
+            let message: String = rand::rng()
                 .sample_iter(&Alphanumeric)
                 .take(32)
                 .map(char::from)

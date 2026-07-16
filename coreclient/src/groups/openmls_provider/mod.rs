@@ -7,10 +7,7 @@ use openmls_traits::{
     random::OpenMlsRand,
     storage::{CURRENT_VERSION, Entity, Key},
 };
-use rand_chacha::{
-    ChaCha20Rng,
-    rand_core::{RngCore, SeedableRng},
-};
+use rand::TryRng;
 use storage_provider::SqliteStorageProvider;
 use thiserror::Error;
 
@@ -106,7 +103,7 @@ impl OpenMlsRand for AirOpenMlsProvider<'_> {
     type Error = RandomnessError;
 
     fn random_array<const N: usize>(&self) -> std::result::Result<[u8; N], Self::Error> {
-        let mut rng = ChaCha20Rng::from_entropy();
+        let mut rng = rand::rng();
         let mut out = [0u8; N];
         rng.try_fill_bytes(&mut out)
             .map_err(|_| Self::Error::NotEnoughRandomness)?;
@@ -114,7 +111,7 @@ impl OpenMlsRand for AirOpenMlsProvider<'_> {
     }
 
     fn random_vec(&self, len: usize) -> std::result::Result<Vec<u8>, Self::Error> {
-        let mut rng = ChaCha20Rng::from_entropy();
+        let mut rng = rand::rng();
         let mut out = vec![0u8; len];
         rng.try_fill_bytes(&mut out)
             .map_err(|_| Self::Error::NotEnoughRandomness)?;
