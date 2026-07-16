@@ -18,13 +18,13 @@ use aircommon::{
     messages::client_ds::WelcomeInfoParams,
     time::TimeStamp,
 };
+use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent};
 use apqmls::extension::ApqInfo;
 use mimi_room_policy::{MimiProposal, RoleIndex, VerifiedRoomState};
 use mls_assist::{
     MlsAssistRustCrypto,
     group::Group,
     openmls::{
-        components::vc_derivation_info::VC_COMPONENT_ID,
         group::GroupId,
         prelude::{GroupEpoch, LeafNodeIndex},
         treesync::RatchetTree,
@@ -212,11 +212,10 @@ impl DsGroupState {
         &self,
         sender_index: LeafNodeIndex,
     ) -> impl Iterator<Item = QsReference> {
-        let is_sender_virtual_client = self.leaf_is_virtual_client(sender_index);
         self.member_profiles
             .iter()
             .filter_map(move |(client_index, client_profile)| {
-                if client_index != &sender_index || is_sender_virtual_client {
+                if client_index != &sender_index {
                     Some(client_profile.client_queue_config.clone())
                 } else {
                     None
@@ -224,12 +223,24 @@ impl DsGroupState {
             })
     }
 
-    /// Returns `true` if the leaf declares a `VC_COMPONENT_ID` entry in its `AppDataDictionary` extension.
-    pub(crate) fn leaf_is_virtual_client(&self, leaf_index: LeafNodeIndex) -> bool {
-        self.group()
-            .leaf(leaf_index)
-            .and_then(|leaf| leaf.extensions().app_data_dictionary())
-            .is_some_and(|dict| dict.dictionary().contains(&VC_COMPONENT_ID))
+    /// If the group context's [`AirComponent`] marks this group
+    /// as a virtual-client self-group, disable virtual-client broadcasting.
+    pub(crate) fn broadcast_to_all_client_queues(&self) -> bool {
+        let is_self_group = self
+            .group()
+            .group_info()
+            .group_context()
+            .extensions()
+            .app_data_dictionary()
+            .and_then(|ext| ext.dictionary().get(&AIR_COMPONENT_ID))
+            .and_then(|data| {
+                AirComponent::from_bytes(data)
+                    .inspect_err(|error| error!(%error, "Failed to deserialize air component"))
+                    .ok()
+            })
+            .is_some_and(|component| component.is_self_group);
+
+        !is_self_group
     }
 
     pub(crate) fn qs_client_ref_by_index(

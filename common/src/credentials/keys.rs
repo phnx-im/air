@@ -17,6 +17,7 @@ use crate::{
     codec::PersistenceCodec,
     crypto::{
         RawKey,
+        errors::KeyGenerationError,
         signatures::{private_keys::Convertible, signable::Signature},
     },
 };
@@ -184,6 +185,7 @@ impl Deref for ClientSigningKey {
 impl Convertible<ClientKeyType> for PreliminaryClientKeyType {}
 
 impl ClientSigningKey {
+    /// Pair a signing key with a matching credential and validates it.
     pub fn from_prelim_key(
         prelim_key: PreliminaryClientSigningKey,
         credential: ClientCredential,
@@ -194,6 +196,19 @@ impl ClientSigningKey {
         }
         Ok(Self {
             signing_key: prelim_key,
+            credential,
+        })
+    }
+
+    /// Pair a freshly generated signing key with a credential that was issued
+    /// for a *different* key. This is used *only* in the context of the virtual
+    /// client self-group, where leaves are signed with a fresh signing key.
+    pub fn from_prelim_key_with_foreign_credential(
+        preliminary_client_signing_key: PreliminaryClientSigningKey,
+        credential: ClientCredential,
+    ) -> Result<Self, KeyGenerationError> {
+        Ok(Self {
+            signing_key: preliminary_client_signing_key.convert(),
             credential,
         })
     }

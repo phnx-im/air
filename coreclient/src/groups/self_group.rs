@@ -3,40 +3,82 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
+    credentials::keys::{ClientSigningKey, PreliminaryClientSigningKey},
     crypto::{aead::keys::IdentityLinkWrapperKey, indexed_aead::keys::UserProfileKey},
     mls_group_config::AppComponent,
 };
-use airprotos::client::{component::AirComponent, group::GroupData};
+use airprotos::client::{
+    component::AirComponent,
+    group::{EncryptedGroupTitle, GroupData},
+};
 use anyhow::Context;
-use tracing::{debug, warn};
+use openmls::{components::vc_derivation_info::EpochId, group::GroupId};
+use openmls_traits::OpenMlsProvider;
+use tracing::debug;
 
 use crate::{
-    chats::GroupDataExt,
+    Chat,
+    chats::{ChatAttributes, GroupDataExt},
     clients::{CoreUser, own_client_info::OwnClientInfo},
-    groups::Group,
+    db::access::{ReadConnection, WriteConnection},
+    groups::{Group, openmls_provider::AirOpenMlsProvider},
     key_stores::indexed_keys::StorableIndexedKey,
 };
 
-impl CoreUser {
-    pub async fn ensure_self_group(&self) -> anyhow::Result<()> {
-        let mut read = self.db().read().await?;
-        let own_client_info = OwnClientInfo::load(&mut read).await?;
-        if let Some(group_id) = own_client_info.self_group_id {
-            match Group::load(read, &group_id).await? {
-                Some(_group) => {
+/// Title of the per-user "self group" chat, as shown in the UI.
+pub(crate) const SELF_CHAT_TITLE: &str = "Notes to self";
+
+#[derive(Debug)]
+pub struct SelfGroup {
+    group: Group,
+}
+
+impl SelfGroup {
+    pub(crate) async fn load(mut connection: impl ReadConnection) -> sqlx::Result<Option<Self>> {
+        if let Some(group_id) = OwnClientInfo::load_self_group_id(&mut connection).await? {
+            match Group::load(connection, &group_id).await? {
+                Some(group) => {
                     debug!("Self-group found");
-                    return Ok(());
+                    Ok(Some(SelfGroup { group }))
                 }
-                None => {
-                    warn!("Self-group not found, recreating it");
-                }
+                None => Ok(None),
             }
         } else {
-            drop(read);
+            Ok(None)
+        }
+    }
+
+    pub fn group_id(&self) -> &GroupId {
+        self.group.group_id()
+    }
+
+    pub(crate) fn identity_link_wrapper_key(&self) -> &IdentityLinkWrapperKey {
+        self.group.identity_link_wrapper_key()
+    }
+
+    /// Register a virtual-clients emulation epoch on both the classical and
+    /// post-quantum groups.
+    pub(crate) fn register_vc_emulation_epoch(
+        &mut self,
+        mut connection: impl WriteConnection,
+    ) -> anyhow::Result<EpochId> {
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
+        let (t_group, _) = self.group.apq_mls_groups_mut()?;
+        let t_epoch_id = t_group
+            .register_vc_emulation_epoch(provider.crypto(), provider.storage())
+            .context("register VC emulation epoch (t)")?;
+        Ok(t_epoch_id)
+    }
+}
+
+impl CoreUser {
+    pub(crate) async fn ensure_self_group(&self) -> anyhow::Result<SelfGroup> {
+        if let Some(group) = SelfGroup::load(self.db().read().await?).await? {
+            return Ok(group);
         }
 
-        self.create_self_group().await?;
-        Ok(())
+        let group = self.create_self_group().await?;
+        Ok(SelfGroup { group })
     }
 
     async fn create_self_group(&self) -> anyhow::Result<Group> {
@@ -50,25 +92,40 @@ impl CoreUser {
             .await?;
         let pq_group_id = pq_group_id.context("Missing PQ group ID")?;
 
-        // Self group has empty group data
+        let identity_link_wrapper_key = IdentityLinkWrapperKey::random()?;
+        let chat_attributes = ChatAttributes {
+            title: SELF_CHAT_TITLE.to_owned(),
+            picture: None,
+        };
+        let encrypted_title =
+            EncryptedGroupTitle::encrypt(&chat_attributes.title, &identity_link_wrapper_key)
+                .context("Failed to encrypt self-group title")?;
         let group_data_bytes = GroupData {
             legacy_title: None,
             legacy_picture: None,
-            encrypted_title: None,
+            encrypted_title: Some(encrypted_title),
             external_group_profile: None,
         }
         .encode()?;
 
-        // Create group locally
+        // The client signing-key is shared among all emulators, and we use it to sign all request
+        // as well as leaves in high-level groups. The self-group leaves are signed with a freshly
+        // minted signing key.
         let key_store = self.key_store();
+        let self_group_signing_key = ClientSigningKey::from_prelim_key_with_foreign_credential(
+            PreliminaryClientSigningKey::generate()?,
+            key_store.signing_key.credential().clone(),
+        )?;
+
+        let group_signer = self_group_signing_key.clone();
         let (group, partial_params, user_profile_key) = self
             .db()
             .with_write_transaction(async move |txn| -> anyhow::Result<_> {
                 let safe_aad_components = None;
                 let (group, partial_params) = Group::create_apq_group(
                     &mut *txn,
-                    &key_store.signing_key,
-                    IdentityLinkWrapperKey::random()?,
+                    &group_signer,
+                    identity_link_wrapper_key,
                     group_id,
                     pq_group_id,
                     group_data_bytes,
@@ -78,12 +135,16 @@ impl CoreUser {
 
                 let user_profile_key = UserProfileKey::load_own(&mut *txn).await?;
 
-                group.store(txn).await?;
+                group.store(&mut *txn).await?;
+
+                // Create the "Notes to self" chat so the self group shows in the UI.
+                let chat = Chat::new_group_chat(group.group_id().clone(), chat_attributes);
+                chat.store(&mut *txn).await?;
+
                 Ok((group, partial_params, user_profile_key))
             })
             .await?;
 
-        // TODO: Technically, we don't have to provide neither of this information for a self-group.
         let client_reference = self.create_own_client_reference();
         let encrypted_user_profile_key =
             user_profile_key.encrypt(group.identity_link_wrapper_key(), self.user_id())?;
@@ -95,38 +156,25 @@ impl CoreUser {
             .await
         {
             self.db()
-                .with_write_transaction(async |txn| {
-                    Group::delete_from_db(txn, group.group_id()).await
+                .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                    Group::delete_from_db(&mut *txn, group.group_id()).await?;
+                    if let Ok(chat_id) = crate::ChatId::try_from(group.group_id()) {
+                        Chat::delete(txn, chat_id).await?;
+                    }
+                    Ok(())
                 })
                 .await?;
             return Err(error.into());
         }
 
-        // Assign the group to the own client info
-        OwnClientInfo::set_self_group_id(self.db().write().await?, group.group_id()).await?;
+        // Update the local reference
+        OwnClientInfo::set_self_group(
+            self.db().write().await?,
+            group.group_id(),
+            &self_group_signing_key,
+        )
+        .await?;
 
         Ok(group)
-    }
-}
-
-#[cfg(test)]
-mod tests {
-    use airserver_test_harness::utils::setup::TestBackend;
-
-    #[tokio::test(flavor = "multi_thread")]
-    async fn ensure_self_group_creates_apq_group() -> anyhow::Result<()> {
-        let mut setup = TestBackend::single().await;
-        let user_id = setup.add_user().await;
-        let user = &setup.get_user(&user_id).user;
-
-        user.ensure_self_group().await?;
-
-        let is_apq = user
-            .self_group_is_apq()
-            .await?
-            .expect("self group should be persisted");
-        assert!(is_apq, "self-group must be an APQ (T+PQ) group");
-
-        Ok(())
     }
 }

@@ -49,6 +49,7 @@ use crate::{
         QsListenResponder,
         attachment::AttachmentRecord,
         block_contact::{BlockedContact, BlockedContactError},
+        own_client_info::OwnClientInfo,
         process::process_as::{ConnectionInfoSource, TargetedMessageSource},
         targeted_message::TargetedMessageContent,
         update_key::{update_chat_attributes, update_chat_title},
@@ -333,14 +334,37 @@ impl CoreUser {
     ) -> anyhow::Result<ProcessQsMessageResult> {
         // WelcomeBundle Phase 1: Join the group. This might involve loading AS credentials or
         // fetching them from the AS.
+        let own_client_info = OwnClientInfo::load(&mut *txn).await?;
+        let signers =
+            if let Some(self_group_signer) = own_client_info.self_group_signing_key.as_ref() {
+                vec![self.signing_key(), self_group_signer]
+            } else {
+                vec![self.signing_key()]
+            };
+
         let (group, sender_user_id, member_profile_info) = Box::pin(Group::join_apq_group(
             welcome_bundle,
             &self.inner.key_store.wai_ear_key,
             txn,
             &self.inner.api_clients,
-            self.signing_key(),
+            &signers,
         ))
         .await?;
+
+        if own_client_info.self_group_id.as_ref() == Some(group.group_id()) {
+            debug!("joined self group as a linked device");
+            let group_data_bytes = group.group_data().context("self group has no group data")?;
+            let (title, _) =
+                GroupData::decode(&group_data_bytes)?.into_parts(group.identity_link_wrapper_key());
+            let attributes = ChatAttributes {
+                title: title.context("self group has no title")?,
+                picture: None,
+            };
+            let chat = Chat::new_group_chat(group.group_id().clone(), attributes);
+            chat.store(&mut *txn).await?;
+            return Ok(ProcessQsMessageResult::NewChat(chat.id(), vec![]));
+        }
+
         self.finalize_welcome(
             txn,
             ds_timestamp,

@@ -252,12 +252,17 @@ impl OutboundServiceContext {
     }
 
     /// Creates a new MLS message for the given chat.
+    /// The MLS content is signed by our leaf, which for the self group uses a
+    /// fresh key that differs from the shared client credential key. The DS
+    /// *request* envelope, in contrast, is signed by the caller with the shared
+    /// client key.
     pub(super) async fn new_mls_message(
         &self,
         chat: &Chat,
         mimi_content: MimiContent,
         message_status_report: Option<MessageStatusReport>,
     ) -> anyhow::Result<(GroupStateEarKey, SendMessageParamsOut)> {
+        let signer = self.signer_for_group(chat.group_id()).await?;
         self.db
             .with_write_transaction(async |txn| {
                 let group_id = chat.group_id();
@@ -267,7 +272,7 @@ impl OutboundServiceContext {
                 let provider = AirOpenMlsProvider::new(txn.as_mut());
                 let params = group.create_message(
                     &provider,
-                    self.signing_key(),
+                    &signer,
                     mimi_content,
                     message_status_report,
                 )?;
