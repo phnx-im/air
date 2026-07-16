@@ -4,25 +4,13 @@
 
 name: Build Linux app
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: true
-
 on:
-  pull_request:
-    branches: ["main"]
-  push:
-    branches:
-      - main
-    paths:
-      - "coreclient/**"
-      - "apiclient/**"
-      - "applogic/**"
-      - "common/**"
-      - "app/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-  merge_group:
+  workflow_call:
+    inputs:
+      upload:
+        description: "Publish the Linux packages"
+        type: boolean
+        default: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -30,7 +18,7 @@ env:
   SQLX_OFFLINE: true
   RUSTFLAGS: "-D warnings"
   # Unfortunately, flutter doesn't support flavors on Linux, so we do with env variables and CMake
-  APP_FLAVOR: "${{ github.ref == 'refs/heads/main' && 'production' || 'staging' }}"
+  APP_FLAVOR: "${{ inputs.upload && 'production' || 'staging' }}"
 
 jobs:
   linux-build:
@@ -42,7 +30,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          # Fetch all commit metadata (build number is derived from number of commits)
+          # Fetch all commit metadata (client build metadata is derived from git history)
           fetch-depth: 0
           # Don't download historical file contents (blobs)
           filter: blob:none
@@ -55,7 +43,7 @@ jobs:
 
       - name: Build app
         working-directory: app
-        run: flutter build linux -v --build-number=${{ steps.setup-buildenv.outputs.build-number }}
+        run: flutter build linux -v --build-number=${{ steps.setup-buildenv.outputs.build-number }} --build-name=${{ steps.setup-buildenv.outputs.build-name }}
 
       - name: Upload app bundle
         uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
@@ -80,8 +68,7 @@ jobs:
             glob: "air_*.deb"
             extra_apt_dependencies: apt-utils
 
-    # only run this job on the main branch
-    if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+    if: inputs.upload
 
     steps:
       - name: Checkout repository

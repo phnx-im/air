@@ -13,28 +13,54 @@ use xshell::{Shell, cmd};
 
 use crate::util::workspace_root;
 
-pub(crate) fn run() -> Result<()> {
+#[derive(clap::Args)]
+pub(crate) struct BumpArgs {
+    /// Bump the patch version instead of the minor version (for release
+    /// branch hotfixes).
+    #[arg(long)]
+    patch: bool,
+}
+
+#[derive(Clone, Copy)]
+pub(crate) enum Bump {
+    Major,
+    Minor,
+    Patch,
+}
+
+pub(crate) fn run(args: BumpArgs) -> Result<()> {
+    let bump = if args.patch { Bump::Patch } else { Bump::Minor };
+    run_bump(bump).map(|_| ())
+}
+
+pub(crate) fn run_bump(bump: Bump) -> Result<Version> {
+    let repo_root = workspace_root();
+    let current = determine_current_version(repo_root.as_ref())?;
+    let next = increment(&current, bump);
+    println!("Bumping version {} -> {}", current, next);
+    set_version(&next)?;
+    Ok(next)
+}
+
+/// Sets the given version in the Cargo workspace, Flutter and nFPM metadata.
+pub(crate) fn set_version(next: &Version) -> Result<()> {
     let repo_root = workspace_root();
     let shell = Shell::new()?;
     shell.change_dir(repo_root.as_std_path());
 
-    let current = determine_current_version(repo_root.as_ref())?;
-    let next = increment_minor(&current);
-    println!("Bumping version {} -> {}", current, next);
-
     let next_string = next.to_string();
     cmd!(shell, "cargo set-version {next_string}").run()?;
 
-    update_flutter_version(repo_root.as_ref(), &next)?;
+    update_flutter_version(repo_root.as_ref(), next)?;
     println!("Updated Flutter version to {}+1", next);
 
-    update_nfpm_version(repo_root.as_ref(), &next)?;
+    update_nfpm_version(repo_root.as_ref(), next)?;
     println!("Updated nFPM version to {}+1", next);
 
     Ok(())
 }
 
-fn determine_current_version(repo_root: &Utf8Path) -> Result<Version> {
+pub(crate) fn determine_current_version(repo_root: &Utf8Path) -> Result<Version> {
     let metadata = MetadataCommand::new()
         .current_dir(repo_root)
         .no_deps()
@@ -53,11 +79,16 @@ fn determine_current_version(repo_root: &Utf8Path) -> Result<Version> {
     Ok(package.version.clone())
 }
 
-fn increment_minor(current: &Version) -> Version {
+pub(crate) fn increment(current: &Version, bump: Bump) -> Version {
+    let (major, minor, patch) = match bump {
+        Bump::Major => (current.major + 1, 0, 0),
+        Bump::Minor => (current.major, current.minor + 1, 0),
+        Bump::Patch => (current.major, current.minor, current.patch + 1),
+    };
     Version {
-        major: current.major,
-        minor: current.minor + 1,
-        patch: 0,
+        major,
+        minor,
+        patch,
         pre: current.pre.clone(),
         build: current.build.clone(),
     }
