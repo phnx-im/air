@@ -2,10 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::{
-    collections::{BTreeMap, HashSet},
-    fs,
-};
+use std::{collections::BTreeMap, fs};
 
 use anyhow::{Context, Result};
 use askama::Template;
@@ -22,46 +19,122 @@ const DEFAULT_OUTPUT: &str = "app/lib/emojis/generated.dart";
 /// standalone skin-tone / hair modifiers, which aren't pickable emojis.
 const EXCLUDED_CATEGORIES: &[&str] = &["Component"];
 
+/// Category names in `group` id order. This is the canonical Unicode emoji
+/// group ordering (see `emoji-test.txt`), which the source dataset's `group`
+/// field indexes into.
+const GROUP_NAMES: &[&str] = &[
+    "Smileys & Emotion",
+    "People & Body",
+    "Component",
+    "Animals & Nature",
+    "Food & Drink",
+    "Travel & Places",
+    "Activities",
+    "Objects",
+    "Symbols",
+    "Flags",
+];
+
+/// Skin-tone modifier code points, in `tone` id order (1-based in the source
+/// data, so index with `tone - 1`).
+const TONE_MODIFIERS: [&str; 5] = ["1F3FB", "1F3FC", "1F3FD", "1F3FE", "1F3FF"];
+
 #[derive(Args, Debug)]
 pub(crate) struct GenerateEmojiArgs {
-    /// Path to the source `emoji_pretty.json` (emoji-data dataset).
-    /// You can obtain a copy of this file from https://github.com/iamcal/emoji-data/blob/v16.0.0/emoji_pretty.json
-    input: Utf8PathBuf,
+    /// Path to the source emoji dataset JSON.
+    /// You can get a copy from https://github.com/milesj/emojibase/blob/emojibase-data%4017.0.0/packages/data/en/data.raw.json
+    #[arg(long)]
+    emoji_data_path: Utf8PathBuf,
+    /// Path to the shortcodes JSON, keyed by the same `hexcode` format as
+    /// `emoji_data_path`. You can get a copy from https://github.com/milesj/emojibase/blob/emojibase-data%4017.0.0/packages/data/en/shortcodes/emojibase.raw.json
+    #[arg(long)]
+    shortcodes_path: Utf8PathBuf,
     /// Destination Dart file. Relative paths resolve against the workspace root.
     #[arg(long, default_value = DEFAULT_OUTPUT)]
     output: Utf8PathBuf,
 }
 
-/// A single entry from `emoji_pretty.json`. Only the fields we emit are kept;
+/// A single entry from the source dataset. Only the fields we emit are kept;
 /// the rest of the (large) schema is ignored by serde.
 #[derive(Debug, Deserialize)]
 struct SourceEmoji {
     /// Hyphen-separated hex code points, e.g. `0023-FE0F-20E3`.
-    unified: String,
-    short_names: Vec<String>,
-    category: String,
-    /// Canonical ordering across the whole dataset.
-    sort_order: u32,
-    /// Skin-tone variants, keyed by the tone modifier code(s) — a single tone
-    /// (`1F3FB`) or a pair for two-person emojis (`1F3FB-1F3FC`). Absent for
-    /// emojis that don't support skin tones. BTreeMap keeps key order stable.
+    hexcode: String,
+    /// Id into [`GROUP_NAMES`]. Absent for building-block entries (e.g. the
+    /// regional-indicator letters flags are composed from), which aren't
+    /// pickable emojis.
     #[serde(default)]
-    skin_variations: BTreeMap<String, SourceVariation>,
+    group: Option<u32>,
+    /// Canonical ordering across the whole dataset. Always present alongside
+    /// `group`.
+    #[serde(default)]
+    order: Option<u32>,
+    /// Extra search keywords.
+    #[serde(default)]
+    tags: Vec<String>,
+    /// Skin-tone variants. Empty for emojis that don't support skin tones.
+    #[serde(default)]
+    skins: Vec<SourceVariation>,
 }
 
 #[derive(Debug, Deserialize)]
 struct SourceVariation {
     /// Full code-point sequence of this variant, e.g. `1F385-1F3FB`.
-    unified: String,
+    hexcode: String,
+    /// Skin-tone modifier id(s): a single tone, or a pair for two-person
+    /// emojis with mismatched tones.
+    tone: Tone,
+}
+
+/// Maps a `hexcode` to its canonical shortcode plus any aliases.
+#[derive(Debug, Clone, Deserialize)]
+#[serde(untagged)]
+enum Shortcodes {
+    One(String),
+    Many(Vec<String>),
+}
+
+impl Shortcodes {
+    fn into_vec(self) -> Vec<String> {
+        match self {
+            Shortcodes::One(code) => vec![code],
+            Shortcodes::Many(codes) => codes,
+        }
+    }
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum Tone {
+    Single(u8),
+    Multiple(Vec<u8>),
+}
+
+impl Tone {
+    /// Hyphen-separated hex modifier code point(s), e.g. `1F3FB` or
+    /// `1F3FB-1F3FC`, matching the format used as the skin-variation key in
+    /// the generated Dart map.
+    fn hex_key(&self) -> String {
+        let modifier = |tone: u8| TONE_MODIFIERS[usize::from(tone - 1)];
+        match self {
+            Tone::Single(tone) => modifier(*tone).to_string(),
+            Tone::Multiple(tones) => tones
+                .iter()
+                .map(|t| modifier(*t))
+                .collect::<Vec<_>>()
+                .join("-"),
+        }
+    }
 }
 
 /// What we emit per emoji.
 struct OutEmoji {
     /// Dart escape sequence for the code points, e.g. `\u{0023}\u{FE0F}\u{20E3}`.
     escape: String,
-    short_names: Vec<String>,
-    sort_order: u32,
-    /// `(tone-modifier escape, variant glyph escape)` pairs, in key order.
+    shortcode: String,
+    search_tags: Vec<String>,
+    order: u32,
+    /// `(tone-modifier escape, variant glyph escape)` pairs, in source order.
     skin_variations: Vec<(String, String)>,
 }
 
@@ -82,6 +155,7 @@ struct TemplateCategory {
 struct TemplateEmoji {
     /// Dart escape sequence for the glyph (no surrounding quotes).
     escape: String,
+    short_name: String,
     variations: Vec<TemplateVariation>,
 }
 
@@ -95,68 +169,105 @@ struct TemplateVariation {
 struct TemplateShortcode {
     /// Dart string literal for the short code, e.g. `'grinning'`.
     code: String,
+    refs: Vec<TemplateRef>,
+}
+
+struct TemplateRef {
     category_id: usize,
     index: usize,
 }
 
 pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
-    let raw = fs::read_to_string(&args.input)
-        .with_context(|| format!("reading emoji source {}", args.input))?;
-    let source: Vec<SourceEmoji> =
-        serde_json::from_str(&raw).context("parsing emoji_pretty.json")?;
+    let raw = fs::read_to_string(&args.emoji_data_path)
+        .with_context(|| format!("reading emoji source {}", args.emoji_data_path))?;
+    let source: Vec<SourceEmoji> = serde_json::from_str(&raw).context("parsing emoji dataset")?;
+
+    let raw = fs::read_to_string(&args.shortcodes_path)
+        .with_context(|| format!("reading shortcodes {}", args.shortcodes_path))?;
+    let shortcode_map: BTreeMap<String, Shortcodes> =
+        serde_json::from_str(&raw).context("parsing shortcodes")?;
 
     // Group by category. BTreeMap keeps a stable iteration order while we
-    // collect; categories are re-ordered below by their canonical sort_order.
+    // collect; categories are re-ordered below by their canonical order.
     let mut by_category: BTreeMap<String, Vec<OutEmoji>> = BTreeMap::new();
     for entry in source {
-        if EXCLUDED_CATEGORIES.contains(&entry.category.as_str()) {
+        // Entries without a group (e.g. the regional-indicator letters flags
+        // are built from) aren't standalone pickable emojis.
+        let Some(group) = entry.group else {
+            continue;
+        };
+        let category = GROUP_NAMES
+            .get(group as usize)
+            .with_context(|| format!("unknown group id {group} for {}", entry.hexcode))?;
+        if EXCLUDED_CATEGORIES.contains(category) {
             continue;
         }
+        let order = entry
+            .order
+            .with_context(|| format!("emoji {} has a group but no order", entry.hexcode))?;
+        let shortcodes = shortcode_map
+            .get(&entry.hexcode)
+            .with_context(|| format!("no shortcodes for {}", entry.hexcode))?
+            .clone()
+            .into_vec();
+        let canonical_shortcode = normalize_shortcode(
+            shortcodes
+                .first()
+                .with_context(|| format!("emoji {} has no shortcode", entry.hexcode))?,
+        );
+
+        let mut search_tags = shortcodes;
+        for tag in &entry.tags {
+            let tag = tag.to_lowercase();
+            if !search_tags.iter().any(|s| s.eq_ignore_ascii_case(&tag)) {
+                search_tags.push(tag);
+            }
+        }
         by_category
-            .entry(entry.category)
+            .entry(category.to_string())
             .or_default()
             .push(OutEmoji {
-                escape: to_dart_escape(&entry.unified),
-                short_names: entry.short_names,
-                sort_order: entry.sort_order,
+                escape: to_dart_escape(&entry.hexcode),
+                shortcode: canonical_shortcode,
+                search_tags,
+                order,
                 skin_variations: entry
-                    .skin_variations
+                    .skins
                     .iter()
-                    .map(|(tone, variation)| {
-                        (to_dart_escape(tone), to_dart_escape(&variation.unified))
+                    .map(|skin| {
+                        (
+                            to_dart_escape(&skin.tone.hex_key()),
+                            to_dart_escape(&skin.hexcode),
+                        )
                     })
                     .collect(),
             });
     }
 
     // Sort emojis within each category, and order the categories themselves by
-    // the smallest sort_order they contain (the dataset's natural grouping).
+    // the smallest order they contain (the dataset's natural grouping).
     let mut categories: Vec<(String, Vec<OutEmoji>)> = by_category.into_iter().collect();
     for (_, emojis) in &mut categories {
-        emojis.sort_by_key(|e| e.sort_order);
+        emojis.sort_by_key(|e| e.order);
     }
-    categories.sort_by_key(|(_, emojis)| {
-        emojis
-            .iter()
-            .map(|e| e.sort_order)
-            .min()
-            .unwrap_or(u32::MAX)
-    });
+    categories.sort_by_key(|(_, emojis)| emojis.iter().map(|e| e.order).min().unwrap_or(u32::MAX));
 
-    // Short code -> (category id, index within that category). Category ids are
-    // the position in `categories`. First occurrence wins so the mapping is
-    // stable; duplicates across emojis are skipped (and counted).
-    let mut shortcodes: Vec<(String, usize, usize)> = Vec::new();
-    let mut seen: HashSet<String> = HashSet::new();
-    let mut duplicate_shortcodes = 0usize;
+    // Word -> every (category id, index) whose shortcode contains that word.
+    // Shortcodes are split on '-' and '_' (e.g. "keycap_star", "medium-light")
+    // so each constituent word is independently searchable, and a word can
+    // resolve to several emojis.
+    let mut shortcode_refs: BTreeMap<String, Vec<(usize, usize)>> = Default::default();
+    let mut duplicate_refs = 0usize;
     for (category_id, (_, group)) in categories.iter().enumerate() {
         for (index, emoji) in group.iter().enumerate() {
-            for name in &emoji.short_names {
-                let key = name.to_lowercase();
-                if seen.insert(key.clone()) {
-                    shortcodes.push((key, category_id, index));
-                } else {
-                    duplicate_shortcodes += 1;
+            for name in &emoji.search_tags {
+                for word in split_shortcode(name.clone()) {
+                    let refs = shortcode_refs.entry(word.clone()).or_default();
+                    if refs.contains(&(category_id, index)) {
+                        duplicate_refs += 1;
+                    } else {
+                        refs.push((category_id, index));
+                    }
                 }
             }
         }
@@ -171,6 +282,7 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
                     .iter()
                     .map(|emoji| TemplateEmoji {
                         escape: emoji.escape.clone(),
+                        short_name: emoji.shortcode.clone(),
                         variations: emoji
                             .skin_variations
                             .iter()
@@ -183,12 +295,17 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
                     .collect(),
             })
             .collect(),
-        shortcodes: shortcodes
+        shortcodes: shortcode_refs
             .iter()
-            .map(|(code, category_id, index)| TemplateShortcode {
+            .map(|(code, refs)| TemplateShortcode {
                 code: dart_string(code),
-                category_id: *category_id,
-                index: *index,
+                refs: refs
+                    .iter()
+                    .map(|(category_id, index)| TemplateRef {
+                        category_id: *category_id,
+                        index: *index,
+                    })
+                    .collect(),
             })
             .collect(),
     };
@@ -211,15 +328,34 @@ pub(crate) fn run(args: GenerateEmojiArgs) -> Result<()> {
     let emoji_count: usize = categories.iter().map(|(_, g)| g.len()).sum();
     println!(
         "Wrote {emoji_count} emojis across {} categories, {} shortcodes \
-         ({duplicate_shortcodes} duplicates skipped) to {output}",
+         ({duplicate_refs} duplicate refs skipped) to {output}",
         categories.len(),
-        shortcodes.len(),
+        shortcode_refs.len(),
     );
 
     let shell = Shell::new()?;
     cmd!(shell, "dart format {output}").run()?;
 
     Ok(())
+}
+
+/// Convert dashes into underscores, but avoid replacing shortcodes like :+1: or :-1:
+fn normalize_shortcode(code: &str) -> String {
+    if code.is_empty() {
+        return code.to_owned();
+    }
+    let (first, rest) = code.split_at(1);
+    first.to_string() + &rest.replace("-", "_")
+}
+
+/// Splits a shortcode into its constituent lowercase words on '-' and '_',
+/// e.g. `"keycap_star"` -> `["keycap", "star"]`, so each word is
+/// independently searchable.
+fn split_shortcode(name: String) -> Vec<String> {
+    name.split(['-', '_'])
+        .filter(|word| !word.is_empty())
+        .map(|word| word.to_lowercase())
+        .collect()
 }
 
 /// Converts `0023-FE0F-20E3` into `\u{0023}\u{FE0F}\u{20E3}`.

@@ -3,8 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 // Generated file. Do not edit.
-// Regenerate with `cargo xtask generate-emoji <emoji_pretty.json>`.
-// You can obtain a copy of this file from https://github.com/iamcal/emoji-data/blob/v16.0.0/emoji_pretty.json
+// Regenerate with `cargo xtask generate-emoji --emoji-data-path <data.json>
+// --shortcodes-path <shortcodes.json>`.
 
 /// Locates one emoji: `(category id, index within that category's list)`.
 /// Resolve with `emojisByCategory[ref.$1].$2[ref.$2]`.
@@ -13,9 +13,10 @@ typedef EmojiRef = (int category, int index);
 /// A single emoji: its rendered glyph and its skin-tone variants, keyed by the
 /// tone modifier glyph(s) (empty when unsupported).
 class Emoji {
-  const Emoji(this.emoji, [this.skinVariations = const {}]);
+  const Emoji(this.emoji, this.shortName, [this.skinVariations = const {}]);
 
   final String emoji;
+  final String shortName;
   final Map<String, String> skinVariations;
 
   bool get supportsSkinTone => skinVariations.isNotEmpty;
@@ -28,9 +29,9 @@ const List<(String, List<Emoji>)> emojisByCategory = [
   ({{ category.name }}, [
   {%- for emoji in category.emojis %}
   {%- if emoji.variations.is_empty() %}
-    Emoji('{{ emoji.escape }}'),
+    Emoji('{{ emoji.escape }}', '{{ emoji.short_name }}'),
   {%- else %}
-    Emoji('{{ emoji.escape }}', {
+    Emoji('{{ emoji.escape }}', '{{ emoji.short_name}}', {
     {%- for variation in emoji.variations %}
       '{{ variation.tone }}': '{{ variation.glyph }}',
     {%- endfor %}
@@ -41,10 +42,14 @@ const List<(String, List<Emoji>)> emojisByCategory = [
 {%- endfor %}
 ];
 
-/// Short code -> (category id, index) into [emojisByCategory] (first occurrence
-/// wins).
-const Map<String, EmojiRef> shortcodeToIndex = {
+/// Word -> every matching emoji's ref into [emojisByCategory]. Shortcodes are
+/// split on '-' and '_' into words, so a word can resolve to several emojis.
+const Map<String, List<EmojiRef>> tagsToIndex = {
 {%- for shortcode in shortcodes %}
-  {{ shortcode.code }}: ({{ shortcode.category_id }}, {{ shortcode.index }}),
+  {{ shortcode.code }}: [
+  {%- for r in shortcode.refs %}
+    ({{ r.category_id }}, {{ r.index }}),
+  {%- endfor %}
+  ],
 {%- endfor %}
 };
