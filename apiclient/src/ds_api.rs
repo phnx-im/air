@@ -332,7 +332,7 @@ impl ApiClient {
             client_metadata: Some(self.metadata().clone()),
             qgid: Some(qgid.ref_into()),
             group_state_ear_key: Some(group_state_ear_key.ref_into()),
-            sender: Some(signing_key.credential().verifying_key().clone().into()),
+            sender: Some(signing_key.verifying_key().clone().into()),
             epoch: Some(epoch.into()),
         };
         let request = payload.sign(signing_key)?;

@@ -846,7 +846,7 @@ impl PendingChatOperation {
                 } else {
                     let params = group
                         .group_mut()
-                        .stage_apq_invite(&mut *txn, signer, invitees)?
+                        .stage_apq_invite(&mut *txn, signer, signer, invitees)?
                         // Check if we got a leaf node validation error which is domain specific and should
                         // be propagated to the user.
                         .map_err(|validation| {

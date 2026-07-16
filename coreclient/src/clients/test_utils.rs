@@ -14,7 +14,7 @@ use airprotos::client::{component::AirComponent, group::GroupData};
 
 use crate::{
     chats::GroupDataExt,
-    groups::GroupDataBytes,
+    groups::{GroupDataBytes, self_group::SelfGroup},
     job::pending_chat_operation::{PendingChatOperation, test_utils::PendingChatOperationInfo},
     outbound_service::resync::Resync,
 };
@@ -57,6 +57,41 @@ impl CoreUser {
             invitation_code,
         )
         .await
+    }
+
+    pub fn qs_user_id(&self) -> aircommon::identifiers::QsUserId {
+        self.inner.qs_user_id
+    }
+
+    pub fn qs_client_id(&self) -> aircommon::identifiers::QsClientId {
+        self.inner.qs_client_id
+    }
+
+    pub async fn self_group(&self) -> anyhow::Result<Option<SelfGroup>> {
+        Ok(SelfGroup::load(self.db().read().await?).await?)
+    }
+
+    pub async fn self_chat_title(&self) -> anyhow::Result<Option<String>> {
+        let Some(group) = self.self_group().await? else {
+            return Ok(None);
+        };
+        let chat_id = crate::ChatId::try_from(group.group_id())?;
+        let chat = self
+            .db()
+            .with_read_transaction(async |txn| crate::Chat::load(txn, &chat_id).await)
+            .await?;
+        Ok(chat.and_then(|chat| chat.attributes().map(|attrs| attrs.title().to_owned())))
+    }
+
+    pub async fn self_group_member_count(&self) -> anyhow::Result<Option<usize>> {
+        let mut read = self.db().read().await?;
+        let Some(group_id) = OwnClientInfo::load(&mut read).await?.self_group_id else {
+            return Ok(None);
+        };
+        let Some(group) = Group::load(read, &group_id).await? else {
+            return Ok(None);
+        };
+        Ok(Some(group.mls_group().members().count()))
     }
 
     /// Returns whether the user has a persisted self-group that is an APQ (T+PQ) group. `None` if

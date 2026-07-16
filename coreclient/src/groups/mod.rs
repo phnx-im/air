@@ -91,6 +91,7 @@ use crate::{
     clients::{
         api_clients::ApiClients,
         block_contact::{BlockedContact, BlockedContactError},
+        own_client_info::OwnClientInfo,
         targeted_message::TargetedMessageContent,
     },
     contacts::{ContactAddInfos, ContactKeyPackage},
@@ -654,7 +655,8 @@ impl Group {
             )
         };
 
-        let credentials = verify_member_credentials(&mut *txn, api_clients, &mls_group).await?;
+        let credentials =
+            verify_member_credentials(&mut *txn, api_clients, &mls_group, false).await?;
 
         let group = Self {
             mls_group,
@@ -703,7 +705,11 @@ impl Group {
         welcome_attribution_info_ear_key: &WelcomeAttributionInfoEarKey,
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
-        signer: &ClientSigningKey,
+        // Candidate signing keys for the DS `welcome_info` lookups. We pick the
+        // one whose verifying key matches our joiner leaf below. This lets a
+        // freshly linked device use its fresh self-group key for the self-group
+        // welcome while regular groups keep using the shared client key.
+        signers: &[&ClientSigningKey],
     ) -> Result<(Self, UserId, DecryptedProfileInfos)> {
         // Phase 1: Serialize welcome and split
         let serialized_welcome = welcome_bundle.welcome.tls_serialize_detached()?;
@@ -721,6 +727,17 @@ impl Group {
                 provider.storage().key_package(&kp_hash).ok().flatten()
             })
             .ok_or(GroupOperationError::MissingKeyPackage)?;
+
+        // The DS keys `welcome_info` on the joiner's leaf signature key, so we
+        // must sign those requests with the matching signing key.
+        let joiner_signature_key = t_kpb.key_package().leaf_node().signature_key();
+        let signer = signers
+            .iter()
+            .copied()
+            .find(|candidate| {
+                &SignaturePublicKey::from(candidate.verifying_key().clone()) == joiner_signature_key
+            })
+            .context("no candidate signing key matches the joiner leaf")?;
 
         // DS joiner info is encrypted with the T-key package private key
         let private_key = t_kpb.init_private_key();
@@ -835,8 +852,17 @@ impl Group {
         let welcome_attribution_info: WelcomeAttributionInfoPayload =
             verifiable_attribution_info.verify(sender_client_credential.verifying_key())?;
 
-        // Phase 6: Construct and persist Group
-        let credentials = verify_member_credentials(txn, api_clients, &t_mls_group).await?;
+        // Phase 6: Construct and persist Group.
+        //
+        // If we are joining our own self group (a freshly linked device being
+        // added by an existing one), relax member-credential verification: our
+        // own leaf uses a self-signed basic credential for the MVP. See the
+        // device-linking plan.
+        let is_self_group = OwnClientInfo::is_own_self_group(&mut *txn, t_mls_group.group_id())
+            .await
+            .unwrap_or(false);
+        let credentials =
+            verify_member_credentials(txn, api_clients, &t_mls_group, is_self_group).await?;
         let self_updated_at = TimeStamp::now();
         let group = Self {
             identity_link_wrapper_key: welcome_attribution_info.identity_link_wrapper_key().clone(),
@@ -1103,8 +1129,13 @@ impl Group {
             )
         };
 
-        // Phase 3: Verify the client credentials
-        let credentials = verify_member_credentials(&mut *txn, api_clients, &mls_group).await?;
+        // Phase 3: Verify the client credentials. Relaxed for the self group:
+        // a linked device's leaf presents a foreign credential for the MVP.
+        let is_self_group = OwnClientInfo::is_own_self_group(&mut *txn, mls_group.group_id())
+            .await
+            .unwrap_or(false);
+        let credentials =
+            verify_member_credentials(&mut *txn, api_clients, &mls_group, is_self_group).await?;
 
         let group = Self {
             mls_group,
@@ -1234,8 +1265,13 @@ impl Group {
         };
         let (t_group, pq_group) = apq_mls_group.into_groups();
 
-        // Verify credentials (T only)
-        let credentials = verify_member_credentials(&mut *txn, api_clients, &t_group).await?;
+        // Verify credentials (T only). Relaxed for the self group: a linked
+        // device's leaf presents a foreign credential for the MVP.
+        let is_self_group = OwnClientInfo::is_own_self_group(&mut *txn, t_group.group_id())
+            .await
+            .unwrap_or(false);
+        let credentials =
+            verify_member_credentials(&mut *txn, api_clients, &t_group, is_self_group).await?;
 
         // Store the group, credentials and member profile infos
         let now = TimeStamp::now();
@@ -1374,10 +1410,16 @@ impl Group {
     ///
     /// Returns the [`ApqGroupOperationParamsOut`] as input for the pending chat operation
     /// processing.
+    /// `signer` signs the MLS commit (i.e. the committer's leaf), while
+    /// `wai_signer` signs the WelcomeAttributionInfo. They differ only for the
+    /// self group, where the leaf is signed with a fresh key but the WAI must be
+    /// signed with the real client credential key so the joiner can verify it
+    /// against the sender's client credential.
     pub(super) fn stage_apq_invite(
         &mut self,
         mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
+        wai_signer: &ClientSigningKey,
         invitees: Vec<PreparedInvitee>,
     ) -> anyhow::Result<Result<ApqGroupOperationParamsOut, LeafNodeValidationError>> {
         debug_assert!(self.is_apq(), "Non-APQ group in APQ stage_invite");
@@ -1452,7 +1494,7 @@ impl Group {
             .iter()
             .map(|wai_key| {
                 let wai_payload = WelcomeAttributionInfoPayload::new(
-                    signer.credential().user_id().clone(),
+                    wai_signer.credential().user_id().clone(),
                     self.identity_link_wrapper_key.clone(),
                 );
                 let wai = WelcomeAttributionInfoTbs {
@@ -1460,7 +1502,7 @@ impl Group {
                     group_id: self.group_id().clone(),
                     welcome: serialized_welcome.clone(),
                 }
-                .sign(signer)?;
+                .sign(wai_signer)?;
                 Ok(wai.encrypt(wai_key)?)
             })
             .collect::<anyhow::Result<Vec<_>>>()?;
@@ -2394,16 +2436,26 @@ async fn verify_member_credentials(
     txn: &mut WriteDbTransaction<'_>,
     api_clients: &ApiClients,
     mls_group: &MlsGroup,
+    // In `relaxed` mode (used for the user's own self group), members whose leaf
+    // credential is not a valid AS-issued client credential are skipped with a
+    // warning instead of failing the whole join. This is what lets a freshly
+    // linked device whose self-group leaf uses a self-signed basic credential
+    // be a member alongside AS-credentialed leaves.
+    relaxed: bool,
 ) -> anyhow::Result<Vec<StorableClientCredential>> {
-    let unverified_credentials = mls_group
-        .members()
-        .map(|m| {
-            Ok((
-                VerifiableClientCredential::from_basic_credential(&m.credential)?,
-                SignaturePublicKey::from(m.signature_key),
-            ))
-        })
-        .collect::<anyhow::Result<Vec<_>>>()?;
+    let mut unverified_credentials = Vec::new();
+    for member in mls_group.members() {
+        match VerifiableClientCredential::from_basic_credential(&member.credential) {
+            Ok(credential) => {
+                unverified_credentials
+                    .push((credential, SignaturePublicKey::from(member.signature_key)));
+            }
+            Err(error) if relaxed => {
+                warn!(%error, "skipping unparsable member credential in relaxed self-group join");
+            }
+            Err(error) => return Err(error.into()),
+        }
+    }
 
     let as_credentials = AsCredentials::fetch_for_verification(
         txn,
@@ -2412,17 +2464,22 @@ async fn verify_member_credentials(
     )
     .await?;
 
-    unverified_credentials
-        .into_iter()
-        .map(|(credential, leaf_verifying_key)| {
-            VerifiableClientCredential::verify_and_validate(
-                credential,
-                &leaf_verifying_key,
-                None,
-                &as_credentials,
-            )
-        })
-        .collect()
+    let mut verified = Vec::with_capacity(unverified_credentials.len());
+    for (credential, leaf_verifying_key) in unverified_credentials {
+        match VerifiableClientCredential::verify_and_validate(
+            credential,
+            &leaf_verifying_key,
+            None,
+            &as_credentials,
+        ) {
+            Ok(credential) => verified.push(credential),
+            Err(error) if relaxed => {
+                warn!(%error, "skipping member credential that failed verification in relaxed self-group join");
+            }
+            Err(error) => return Err(error),
+        }
+    }
+    Ok(verified)
 }
 
 /// Cleans up local state when the DS reports that a group no longer exists.

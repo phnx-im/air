@@ -9,16 +9,23 @@ import 'package:convert/convert.dart';
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:freezed_annotation/freezed_annotation.dart' hide protected;
+import 'user.dart';
 import 'user_cubit.dart';
 part 'multi_device.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `linking_code_from_url`, `multi_device_linking_url`, `take_receiver`
 
 /// Runs a multi-device provisioning session on a fresh device.
+///
+/// `db_path` is where the freshly linked client's databases are created.
 Stream<MultiDeviceProvisionEvent> multiDeviceProvisionClient({
   required String domain,
+  required String dbPath,
+  required MultiDeviceProvisionedUser provisionedUser,
 }) => RustLib.instance.api.crateApiMultiDeviceMultiDeviceProvisionClient(
   domain: domain,
+  dbPath: dbPath,
+  provisionedUser: provisionedUser,
 );
 
 /// Drives the acceptor (existing-device) side of multi-device linking.
@@ -41,6 +48,14 @@ abstract class MultiDeviceLinkConfirmation implements RustOpaqueInterface {
       RustLib.instance.api.crateApiMultiDeviceMultiDeviceLinkConfirmationNew();
 }
 
+// Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<MultiDeviceProvisionedUser>>
+abstract class MultiDeviceProvisionedUser implements RustOpaqueInterface {
+  factory MultiDeviceProvisionedUser() =>
+      RustLib.instance.api.crateApiMultiDeviceMultiDeviceProvisionedUserNew();
+
+  User? take();
+}
+
 @freezed
 sealed class MultiDeviceLinkEvent with _$MultiDeviceLinkEvent {
   const MultiDeviceLinkEvent._();
@@ -51,8 +66,7 @@ sealed class MultiDeviceLinkEvent with _$MultiDeviceLinkEvent {
       MultiDeviceLinkEvent_AwaitingConfirmation;
 
   /// Linking completed successfully.
-  const factory MultiDeviceLinkEvent.linked(String field0) =
-      MultiDeviceLinkEvent_Linked;
+  const factory MultiDeviceLinkEvent.linked() = MultiDeviceLinkEvent_Linked;
 
   /// Linking failed (e.g. the connection dropped or the session expired).
   const factory MultiDeviceLinkEvent.failed(String field0) =
@@ -75,8 +89,9 @@ sealed class MultiDeviceProvisionEvent with _$MultiDeviceProvisionEvent {
   const factory MultiDeviceProvisionEvent.linking() =
       MultiDeviceProvisionEvent_Linking;
 
-  /// The existing device connected and linking completed successfully.
-  const factory MultiDeviceProvisionEvent.linked(String field0) =
+  /// The existing device connected and linking completed successfully. The
+  /// bootstrapped user can be claimed via [`MultiDeviceProvisionedUser::take`].
+  const factory MultiDeviceProvisionEvent.linked() =
       MultiDeviceProvisionEvent_Linked;
 
   /// The session ended without linking.

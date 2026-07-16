@@ -44,6 +44,7 @@ pub struct DsFanOutMessage {
     pub payload: DsFanOutPayload,
     pub client_reference: QsReference,
     pub suppress_notifications: TlsBool,
+    pub broadcast_to_all_client_queues: TlsBool,
     pub virtual_client_hint: Option<QsVirtualClientHint>,
 }
 

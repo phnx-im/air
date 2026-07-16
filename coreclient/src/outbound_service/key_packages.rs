@@ -114,15 +114,18 @@ impl OutboundServiceContext {
 
                 // No pending chat operation => clear orphaned pending commits
                 self_group
+                    .group_mut()
                     .mls_group_mut()
                     .clear_pending_commit(provider.storage())?;
                 self_group
+                    .group_mut()
                     .pq_mut()
                     .context("Self-group is not APQ")?
                     .mls_group
                     .clear_pending_commit(provider.storage())?;
 
                 let epoch_id = self_group
+                    .group_mut()
                     .mls_group_mut()
                     .register_vc_emulation_epoch(provider.crypto(), provider.storage())?;
 
@@ -154,7 +157,7 @@ impl OutboundServiceContext {
             infos,
         } = generated;
 
-        let leaf_index = self_group.mls_group().own_leaf_index();
+        let leaf_index = self_group.group().mls_group().own_leaf_index();
         let batch = KeyPackageBatch {
             plain: key_packages,
             apq: apq_key_packages,

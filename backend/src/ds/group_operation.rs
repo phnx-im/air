@@ -599,6 +599,9 @@ impl DsGroupState {
                 encrypted_attribution_info: attribution_info.clone(),
                 encrypted_joiner_info,
             };
+            // A self-group Welcome targets one specific device queue; a
+            // regular-group Welcome targets a virtual client and must fan out
+            // to all of the user's device queues.
             let fan_out_message = DsFanOutMessage {
                 payload: DsFanOutPayload::QueueMessage(
                     welcome_bundle
@@ -607,6 +610,7 @@ impl DsGroupState {
                 ),
                 client_reference: client_queue_config,
                 suppress_notifications: false.into(),
+                broadcast_to_all_client_queues: self.broadcast_to_all_client_queues().into(),
                 virtual_client_hint: None,
             };
             fan_out_messages.push(fan_out_message);
@@ -653,6 +657,8 @@ impl DsGroupState {
                 encrypted_attribution_info: attribution_info,
                 encrypted_joiner_info,
             };
+            // See `generate_fan_out_messages`: broadcast only for
+            // regular-group Welcomes.
             let fan_out_message = DsFanOutMessage {
                 payload: DsFanOutPayload::QueueMessage(
                     welcome_bundle
@@ -661,6 +667,7 @@ impl DsGroupState {
                 ),
                 client_reference: client_queue_config,
                 suppress_notifications: false.into(),
+                broadcast_to_all_client_queues: self.broadcast_to_all_client_queues().into(),
                 virtual_client_hint: None,
             };
             fan_out_messages.push(fan_out_message);
@@ -703,6 +710,7 @@ impl DsGroupState {
             payload,
             client_reference: sender_client_reference,
             suppress_notifications: true.into(),
+            broadcast_to_all_client_queues: self.broadcast_to_all_client_queues().into(),
             virtual_client_hint,
         };
         Ok(response)

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT self_group_id AS \"self_group_id: _\" FROM own_client_info",
+  "describe": {
+    "columns": [
+      {
+        "name": "self_group_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "own_client_info",
+            "name": "self_group_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "9e8d3558cbd117caf3a150779a81a1612109e9d2169dd95e8d9066bc7f1e1e01"
+}
