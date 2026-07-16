@@ -15,12 +15,14 @@ class SuggestionOverlayStyle {
     required this.borderRadius,
     required this.elevation,
     required this.maxWidth,
+    required this.maxHeight,
   });
 
   final Color backgroundColor;
   final BorderRadius borderRadius;
   final double elevation;
   final double maxWidth;
+  final double maxHeight;
 }
 
 enum SuggestionOverlayAnimationPhase { none, entering, exiting }
@@ -323,17 +325,40 @@ class _SuggestionOverlayBody<T> extends StatelessWidget {
         borderRadius: style.borderRadius,
         clipBehavior: Clip.antiAlias,
         child: ConstrainedBox(
-          constraints: BoxConstraints(maxWidth: style.maxWidth),
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            children: List.generate(suggestions.length, (index) {
-              final item = suggestions[index];
-              final isHighlighted = index == controller.highlightIndex;
-              return InkWell(
-                onTap: () => controller.selectSuggestion(index),
-                child: itemBuilder(context, item, isHighlighted),
-              );
-            }),
+          constraints: BoxConstraints(
+            maxWidth: style.maxWidth,
+            maxHeight: style.maxHeight,
+          ),
+          child: SingleChildScrollView(
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: List.generate(suggestions.length, (index) {
+                final item = suggestions[index];
+                final isHighlighted = index == controller.highlightIndex;
+                final itemKey = GlobalObjectKey(index);
+                if (isHighlighted) {
+                  WidgetsBinding.instance.addPostFrameCallback((_) {
+                    final itemContext = itemKey.currentContext;
+                    if (itemContext != null) {
+                      unawaited(
+                        Scrollable.ensureVisible(
+                          itemContext,
+                          duration: const Duration(milliseconds: 100),
+                          curve: Curves.easeInOut,
+                        ),
+                      );
+                    }
+                  });
+                }
+                return KeyedSubtree(
+                  key: itemKey,
+                  child: InkWell(
+                    onTap: () => controller.selectSuggestion(index),
+                    child: itemBuilder(context, item, isHighlighted),
+                  ),
+                );
+              }),
+            ),
           ),
         ),
       ),
