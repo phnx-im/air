@@ -51,8 +51,13 @@ const double quickReactionMenuGap = Spacing.px12;
 /// Compact reaction chip metrics (excluding border thickness)
 const double reactionChipSpacing = 1;
 
-/// Fixed height of a reaction chip
+/// Fixed height of a reaction chip (at text scale 1.0)
 const double reactionChipHeight = 28;
+
+/// The chip text scales with the text scaler so the chip 
+/// must grow with it, otherwise emojis are clipped or shrunk.
+double reactionChipHeightOf(BuildContext context) =>
+    MediaQuery.textScalerOf(context).scale(reactionChipHeight);
 
 /// Inner padding of a reaction chip
 const double reactionChipHorizontalPadding = Spacing.px8;
@@ -72,8 +77,11 @@ const double reactionsHorizontalInset = Spacing.px8;
 
 /// Vertical space [BubbleWithReactions] reserves below the bubble for the chips
 /// that overlap its bottom edge.
-double reactionsReservedBelow(bool hasReactions) => hasReactions
-    ? reactionChipHeight - reactionsMessageBubbleOverlap + reactionsGapBelow
+double reactionsReservedBelow(BuildContext context, bool hasReactions) =>
+    hasReactions
+    ? reactionChipHeightOf(context) -
+          reactionsMessageBubbleOverlap +
+          reactionsGapBelow
     : 0;
 
 /// Default size of the reactor panel.
@@ -114,7 +122,9 @@ class BubbleWithReactions extends StatelessWidget {
       children: [
         Padding(
           // reactions is non-empty here, so reserve the chips' protrusion.
-          padding: EdgeInsets.only(bottom: reactionsReservedBelow(true)),
+          padding: EdgeInsets.only(
+            bottom: reactionsReservedBelow(context, true),
+          ),
           child: bubble,
         ),
         Positioned(
@@ -272,7 +282,7 @@ class MessageReactions extends StatelessWidget {
         // bubble. OverflowBox lets it grow past the bubble edge instead of
         // force-fitting into maxWidth and triggering a RenderFlex overflow.
         return SizedBox(
-          height: reactionChipHeight,
+          height: reactionChipHeightOf(context),
           child: OverflowBox(
             minWidth: 0,
             maxWidth: double.infinity,
@@ -579,6 +589,7 @@ class _ReactionChip extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
     final count = reaction.users.length;
+    final chipHeight = reactionChipHeightOf(context);
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -586,7 +597,7 @@ class _ReactionChip extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: Container(
-          height: reactionChipHeight,
+          height: chipHeight,
           padding: const EdgeInsets.symmetric(
             horizontal: reactionChipHorizontalPadding,
             vertical: reactionChipVerticalPadding,
@@ -595,7 +606,7 @@ class _ReactionChip extends StatelessWidget {
             color: isMine
                 ? colors.message.selfBackground
                 : colors.message.otherBackground,
-            borderRadius: BorderRadius.circular(reactionChipHeight / 2),
+            borderRadius: BorderRadius.circular(chipHeight / 2),
             border: Border.all(
               color: colors.backgroundBase.primary,
               width: reactionChipBorderWidth,
@@ -647,13 +658,14 @@ class _OverflowChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
+    final chipHeight = reactionChipHeightOf(context);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: Container(
-          height: reactionChipHeight,
+          height: chipHeight,
           padding: const EdgeInsets.symmetric(
             horizontal: reactionChipHorizontalPadding,
             vertical: reactionChipVerticalPadding,
@@ -662,7 +674,7 @@ class _OverflowChip extends StatelessWidget {
             color: isSender
                 ? colors.message.selfBackground
                 : colors.message.otherBackground,
-            borderRadius: BorderRadius.circular(reactionChipHeight / 2),
+            borderRadius: BorderRadius.circular(chipHeight / 2),
             border: Border.all(color: colors.backgroundBase.primary),
           ),
           alignment: Alignment.center,
