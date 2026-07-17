@@ -74,6 +74,8 @@ allow-git = [
     # unreleased post-quantum and virtual-clients features of openmls after the 0.8.1 release
     "https://github.com/openmls/openmls",
     "https://github.com/RustCrypto/RSA",
+    # includes an unreleased patch of ml-dsa
+    "https://github.com/RustCrypto/signatures",
 ]
 
 [sources.allow-org]
