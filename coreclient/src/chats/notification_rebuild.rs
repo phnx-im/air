@@ -32,7 +32,7 @@ pub struct NotificationReaction {
 #[derive(Debug, Clone, PartialEq)]
 pub enum ChatNotificationEntry {
     Message(Box<ChatMessage>),
-    Reaction(NotificationReaction),
+    Reaction(Box<NotificationReaction>),
 }
 
 impl ChatNotificationEntry {
@@ -117,12 +117,14 @@ impl Chat {
         for reaction in reactions {
             let target =
                 ChatMessage::load_by_mimi_id(&mut connection, &reaction.target_mimi_id).await?;
-            entries.push(ChatNotificationEntry::Reaction(NotificationReaction {
-                reactor: reaction.sender,
-                emoji: reaction.emoji,
-                created_at: reaction.created_at.into(),
-                target: target.filter(|message| !message.message().is_deleted()),
-            }))
+            entries.push(ChatNotificationEntry::Reaction(Box::new(
+                NotificationReaction {
+                    reactor: reaction.sender,
+                    emoji: reaction.emoji,
+                    created_at: reaction.created_at.into(),
+                    target: target.filter(|message| !message.message().is_deleted()),
+                },
+            )));
         }
 
         entries.sort_unstable_by_key(|entry| entry.timestamp());
