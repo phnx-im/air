@@ -38,3 +38,15 @@ pub(crate) struct NotificationBatch {
     removals: Vec<String>,
     additions: Vec<NotificationContent>,
 }
+
+/// Payload for the notification dismissal JNI entry point
+///
+/// The chat whose posted notification was dismissed, so its `notified_until` watermark can be
+/// updated.
+#[derive(Serialize, Deserialize)]
+#[serde(rename_all = "camelCase")]
+pub(crate) struct IncomingNotificationDismissal {
+    path: String,
+    log_file_path: String,
+    chat_id: String,
+}

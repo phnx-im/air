@@ -221,16 +221,45 @@ Future<void> endBackgroundTask(int? taskId) async {
 
 FutureOr<void> sendNotification(NotificationContent content) async {
   try {
+    final conversation = content.conversation;
     final arguments = <String, dynamic>{
       'identifier': content.identifier.field0.toString(),
       'title': content.title,
       'body': content.body,
       'chatId': content.chatId.uuid.toString(),
+      if (conversation != null) 'conversation': _conversationMap(conversation),
     };
     await platform.invokeMethod('sendNotification', arguments);
   } on PlatformException catch (e, stacktrace) {
     _log.severe("Failed to send notifications: '${e.message}'", e, stacktrace);
   }
+}
+
+Map<String, dynamic> _conversationMap(ConversationNotification conversation) {
+  return <String, dynamic>{
+    'chatTitle': conversation.chatTitle,
+    'isGroup': conversation.isGroup,
+    'ownDisplayName': conversation.ownDisplayName,
+    'participants': conversation.participants.map(_participantMap).toList(),
+    'messages': conversation.messages.map(_messageMap).toList(),
+  };
+}
+
+Map<String, dynamic> _participantMap(ConversationParticipant participant) {
+  return <String, dynamic>{
+    'uuid': participant.uuid.toString(),
+    'displayName': participant.displayName,
+    if (participant.avatar != null) 'avatar': participant.avatar,
+  };
+}
+
+Map<String, dynamic> _messageMap(ConversationMessage message) {
+  return <String, dynamic>{
+    'senderUuid': message.senderUuid.toString(),
+    'text': message.text,
+    'isReaction': message.isReaction,
+    'timestamp': message.timestamp.toInt(),
+  };
 }
 
 FutureOr<List<NotificationHandle>> getActiveNotifications() async {

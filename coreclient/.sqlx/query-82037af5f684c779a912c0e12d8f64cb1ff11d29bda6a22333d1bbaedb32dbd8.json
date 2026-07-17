@@ -1,0 +1,98 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                r.reaction_mimi_id AS \"reaction_mimi_id: _\",\n                r.target_mimi_id AS \"target_mimi_id: _\",\n                r.chat_id AS \"chat_id: _\",\n                r.sender_user_uuid AS \"sender_user_uuid: _\",\n                r.sender_user_domain AS \"sender_user_domain: _\",\n                r.emoji,\n                r.created_at AS \"created_at: _\"\n            FROM reaction r\n            INNER JOIN message m ON m.mimi_id = r.target_mimi_id\n            WHERE r.chat_id = ?1\n                AND (?2 IS NULL OR r.created_at > ?2)\n                AND m.sender_user_uuid = ?3\n                AND m.sender_user_domain = ?4\n            ORDER BY r.created_at DESC, r.reaction_mimi_id DESC\n            LIMIT ?5",
+  "describe": {
+    "columns": [
+      {
+        "name": "reaction_mimi_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "reaction_mimi_id"
+          }
+        }
+      },
+      {
+        "name": "target_mimi_id: _",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "target_mimi_id"
+          }
+        }
+      },
+      {
+        "name": "chat_id: _",
+        "ordinal": 2,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "chat_id"
+          }
+        }
+      },
+      {
+        "name": "sender_user_uuid: _",
+        "ordinal": 3,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "sender_user_uuid"
+          }
+        }
+      },
+      {
+        "name": "sender_user_domain: _",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "sender_user_domain"
+          }
+        }
+      },
+      {
+        "name": "emoji",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "emoji"
+          }
+        }
+      },
+      {
+        "name": "created_at: _",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "created_at"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false
+    ]
+  },
+  "hash": "82037af5f684c779a912c0e12d8f64cb1ff11d29bda6a22333d1bbaedb32dbd8"
+}

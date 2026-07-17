@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::identifiers::{Fqdn, MimiId, UserId};
+use chrono::{DateTime, Utc};
 use sqlx::{query, query_as, query_scalar};
 use uuid::Uuid;
 
@@ -134,6 +135,48 @@ impl Reaction {
         .await?
             != 0;
         Ok(exists)
+    }
+
+    /// Load all newest reactions on the messages of the own user in a chat.
+    ///
+    /// Only reactions with a `created_at > since` are loaded (all of them if since is `None`),
+    /// capped at `limit`, newest first.
+    pub(crate) async fn load_own_message_reactions_since(
+        mut connection: impl ReadConnection,
+        chat_id: ChatId,
+        own_user: &UserId,
+        since: Option<DateTime<Utc>>,
+        limit: u32,
+    ) -> sqlx::Result<Vec<Reaction>> {
+        let own_uuid = own_user.uuid();
+        let own_domain = own_user.domain();
+        query_as!(
+            SqlReaction,
+            r#"SELECT
+                r.reaction_mimi_id AS "reaction_mimi_id: _",
+                r.target_mimi_id AS "target_mimi_id: _",
+                r.chat_id AS "chat_id: _",
+                r.sender_user_uuid AS "sender_user_uuid: _",
+                r.sender_user_domain AS "sender_user_domain: _",
+                r.emoji,
+                r.created_at AS "created_at: _"
+            FROM reaction r
+            INNER JOIN message m ON m.mimi_id = r.target_mimi_id
+            WHERE r.chat_id = ?1
+                AND (?2 IS NULL OR r.created_at > ?2)
+                AND m.sender_user_uuid = ?3
+                AND m.sender_user_domain = ?4
+            ORDER BY r.created_at DESC, r.reaction_mimi_id DESC
+            LIMIT ?5"#,
+            chat_id,
+            since,
+            own_uuid,
+            own_domain,
+            limit,
+        )
+        .fetch_all(connection.as_mut())
+        .await
+        .map(|rows| rows.into_iter().map(Reaction::from).collect())
     }
 
     /// Load all reactions on a given message, oldest first.

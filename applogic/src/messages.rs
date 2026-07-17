@@ -11,11 +11,18 @@ use anyhow::Result;
 use tokio_stream::StreamExt;
 use tracing::{debug, error};
 
-use crate::{api::user::User, notifications::NotificationContent};
+use crate::{
+    api::user::User,
+    notifications::{ChatNotificationsBatch, NotificationContent},
+};
 
 #[derive(Debug, Default)]
 pub(crate) struct ProcessedMessages {
     pub(crate) notifications_content: Vec<NotificationContent>,
+    /// Chats whole notifications rebuild set came back empty
+    ///
+    /// Candidates for cancellation.
+    pub(crate) empty_chat_ids: Vec<ChatId>,
 }
 
 impl User {
@@ -81,6 +88,7 @@ impl User {
             processed: _,
             mut new_connections,
             reaction_notifications,
+            chats_with_changed_notifications,
         } = Box::pin(self.fetch_and_process_qs_messages())
             .await
             .map_err(|error| {
@@ -92,9 +100,18 @@ impl User {
             })?;
         self.new_chat_notifications(&new_chats, &mut notifications)
             .await;
-        self.new_message_notifications(&new_messages, &mut notifications)
+        let ChatNotificationsBatch {
+            additions,
+            empty_chats,
+        } = self
+            .message_and_reaction_notifications(
+                &new_messages,
+                &reaction_notifications,
+                &chats_with_changed_notifications,
+            )
             .await;
-        self.reaction_notifications(&reaction_notifications, &mut notifications)
+        notifications.extend(additions);
+        self.new_connection_request_notifications(&new_connections, &mut notifications)
             .await;
 
         // Fetch AS connection requests
@@ -110,6 +127,7 @@ impl User {
 
         Ok(ProcessedMessages {
             notifications_content: notifications,
+            empty_chat_ids: empty_chats,
         })
     }
 }

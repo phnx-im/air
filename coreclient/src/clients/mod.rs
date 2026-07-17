@@ -718,6 +718,22 @@ impl CoreUser {
             .await
     }
 
+    /// Advance the chat notification watermark.
+    ///
+    /// Called when user dismisses a notification.
+    pub async fn set_chat_notified_until(
+        &self,
+        chat_id: ChatId,
+        notified_until: DateTime<Utc>,
+    ) -> anyhow::Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| {
+                Chat::set_notified_until(txn, chat_id, notified_until).await?;
+                Ok(())
+            })
+            .await
+    }
+
     /// Schedules the client's push token update on the QS.
     pub async fn update_push_token(&self, push_token: Option<PushToken>) -> Result<()> {
         let should_notify =

@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                last_read AS \"last_read: _\",\n                notified_until AS \"notified_until: _\"\n            FROM chat\n            WHERE chat_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "last_read: _",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "last_read"
+          }
+        }
+      },
+      {
+        "name": "notified_until: _",
+        "ordinal": 1,
+        "type_info": "Datetime",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "notified_until"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      true
+    ]
+  },
+  "hash": "4f840468261e4263a0b4a8486c8be5a596ae94aa81b0501af90b20da9b879bde"
+}
