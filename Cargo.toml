@@ -156,6 +156,11 @@ openmls_sqlite_storage = { git = "https://github.com/openmls/openmls", rev = "65
 # This patch is needed to be compatible with dsa 0.1 which uses `signature@0.3`.
 rsa = { git = "https://github.com/RustCrypto/RSA", rev = "99f80888cdc838da78a48ad14f6e1f5c01be5c30" }
 
+# Pull in the unreleased patch of `ml-dsa` #1419 solving stack overflows due to
+# large signatures on the stack
+#
+# [#1419](https://github.com/RustCrypto/signatures/pull/1419)
+ml-dsa = { git = "https://github.com/RustCrypto/signatures", rev = "017ce322cdbdd66a702cc0c4ef676b38022e5cbb" }
 
 [profile.release]
 strip = true
