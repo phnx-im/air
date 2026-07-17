@@ -79,14 +79,18 @@ impl Group {
             default_group_context_app_data_dictionary_extension(air_component, safe_aad_components),
         ])?;
 
+        // The leaf signature key must be the signer's *own* verifying key, not
+        // the credential's. They coincide for regular groups, but for the
+        // self-group the signer is a freshly minted key paired with a foreign
+        // credential.
         let t_credential = CredentialWithKey {
             credential: signer.credential().try_into()?,
-            signature_key: signer.credential().verifying_key().clone().into(),
+            signature_key: signer.verifying_key().clone().into(),
         };
         // Skip storing the same credential twice
         let pq_credential = CredentialWithKey {
             credential: Credential::new(CredentialType::Basic, Vec::new()),
-            signature_key: signer.credential().verifying_key().clone().into(),
+            signature_key: signer.verifying_key().clone().into(),
         };
         let apq_credential_with_key = ApqCredentialWithKey {
             t_credential,

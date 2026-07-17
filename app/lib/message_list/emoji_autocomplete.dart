@@ -15,7 +15,6 @@ import 'package:flutter/material.dart';
 
 class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
   static const int suggestionLimit = 5;
-  final Map<Emoji, String> _displayShortcodes = {};
 
   /// Returns a trigger when the caret sits after a valid colon shortcode.
   @override
@@ -64,15 +63,7 @@ class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
   /// Fetch suggestions for a shortcode from the emoji repository.
   @override
   FutureOr<List<Emoji>> suggestionsFor(String query) async {
-    final results = EmojiRepository.search(query, limit: suggestionLimit);
-    _displayShortcodes
-      ..clear()
-      ..addEntries(
-        results.map(
-          (result) => MapEntry(result.entry, result.matchedShortcode),
-        ),
-      );
-    return results.map((result) => result.entry).toList();
+    return EmojiRepository.search(query, limit: suggestionLimit);
   }
 
   /// Replace the trigger text with the selected emoji character.
@@ -130,7 +121,7 @@ class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
           const SizedBox(width: Spacing.px8),
           Expanded(
             child: Text(
-              ':${_displayShortcodes[suggestion]}:',
+              ':${suggestion.shortName}:',
               style: TextStyle(
                 fontSize: BodyFontSize.base.size,
                 color: scheme.text.primary,

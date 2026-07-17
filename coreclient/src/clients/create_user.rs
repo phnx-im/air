@@ -9,7 +9,6 @@ use crate::{
         MemoryUserKeyStoreBase, as_credentials::AsCredentials, indexed_keys::StorableIndexedKey,
         queue_ratchets::StorableQsQueueRatchet,
     },
-    outbound_service,
     user_profiles::generate::NewUserProfile,
     utils::global_lock::GlobalLock,
 };
@@ -349,6 +348,20 @@ pub(crate) struct QsRegisteredUserState {
 }
 
 impl QsRegisteredUserState {
+    /// Builds this state directly from already-registered QS key material.
+    /// Used when a device is bootstrapped via multi-device linking.
+    pub(super) fn new(
+        key_store: MemoryUserKeyStore,
+        qs_user_id: QsUserId,
+        qs_client_id: QsClientId,
+    ) -> Self {
+        Self {
+            key_store,
+            qs_user_id,
+            qs_client_id,
+        }
+    }
+
     pub(super) async fn persist(self) -> Result<PersistedUserState> {
         Ok(PersistedUserState { state: self })
     }
@@ -379,8 +392,9 @@ impl PersistedUserState {
             qs_user_id,
             qs_client_id,
         } = self.state;
+
         let http_client = reqwest::Client::new();
-        let outbound_service = outbound_service::OutboundService::new(
+        let outbound_service = OutboundService::new(
             db.clone(),
             api_clients.clone(),
             http_client.clone(),

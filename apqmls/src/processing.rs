@@ -7,13 +7,13 @@ use std::{collections::BTreeSet, fmt::Debug};
 use openmls::{
     component::ComponentData,
     group::{
-        AppDataUpdates, GroupEpoch, GroupId, MlsGroup, ProcessMessageError, PublicGroup,
-        PublicProcessMessageError, StagedCommit,
+        AppDataDictionaryUpdater, AppDataUpdates, GroupEpoch, GroupId, MlsGroup,
+        ProcessMessageError, PublicGroup, PublicProcessMessageError, ResolveAppDataCommitError,
+        StagedCommit,
     },
     prelude::{
-        AppDataUpdateOperation, Ciphersuite, Credential, LeafNodeIndex, OpenMlsCrypto,
-        ProcessedMessage, ProcessedMessageContent, Proposal, ProposalIn, ProposalOrRefIn,
-        ProposalType, Sender, UnverifiedMessage,
+        AppDataUpdateOperation, AppDataUpdateProposal, Ciphersuite, Credential, LeafNodeIndex,
+        OpenMlsCrypto, ProcessedMessage, ProcessedMessageContent, Proposal, ProposalType, Sender,
     },
     schedule::{PreSharedKeyId, Psk, psk::ApplicationPsk},
     storage::OpenMlsProvider,
@@ -68,6 +68,8 @@ pub enum ApqProcessMessageError<StorageError> {
     Psk(#[from] ApqPskError<StorageError>),
     #[error(transparent)]
     Validation(#[from] ApqProcessMessageValidationError),
+    #[error(transparent)]
+    AppDataUpdate(#[from] ResolveAppDataCommitError),
 }
 
 #[derive(Debug, Error, PartialEq, Clone)]
@@ -76,6 +78,8 @@ pub enum ApqProcessPublicMessageError {
     Processing(#[from] PublicProcessMessageError),
     #[error(transparent)]
     Validation(#[from] ApqProcessMessageValidationError),
+    #[error(transparent)]
+    AppDataUpdate(#[from] ResolveAppDataCommitError),
 }
 
 #[derive(Debug, Error, PartialEq, Eq, Clone, Copy)]
@@ -191,6 +195,14 @@ impl<F: Fn(&Credential, &Credential) -> bool> MessageType<F> {
             // only record that this is an own-pending-commit so the T/PQ
             // consistency check can confirm both groups agree.
             ProcessedMessageContent::OwnPendingCommit => Some(MessageType::OwnPendingCommit),
+            ProcessedMessageContent::OwnPrivateMessage => None,
+            ProcessedMessageContent::UnresolvedAppDataCommit(_) => {
+                debug_assert!(
+                    false,
+                    "Unexpected UnresolvedAppDataCommit, should have been resolved before"
+                );
+                None
+            }
         }
     }
 }
@@ -334,18 +346,11 @@ impl ApqMlsGroupMut<'_> {
         F: Fn(&Credential, &Credential) -> bool,
     {
         let protocol_message: ApqProtocolMessage = message.into();
-        // We only export a PSK if we process a PQ message
-        let unverified_pq_message = self
+
+        let pq_message = self
             .pq_group
-            .unprotect_message(provider, protocol_message.pq_protocol_message)?;
-        let pq_updates = extract_app_data_updates(self.pq_group, &unverified_pq_message);
-        let mut pq_message = self
-            .pq_group
-            .process_unverified_message_with_app_data_updates(
-                provider,
-                unverified_pq_message,
-                pq_updates,
-            )?;
+            .process_message(provider, protocol_message.pq_protocol_message)?;
+        let mut pq_message = resolve_app_data_commit(self.pq_group, provider, pq_message)?;
 
         let pq_message_info = MessageInfo::new(
             pq_message.content(),
@@ -383,17 +388,10 @@ impl ApqMlsGroupMut<'_> {
             store_psk(provider, id, apq_psk.as_slice())?;
         }
 
-        let unverified_t_message = self
-            .t_group
-            .unprotect_message(provider, protocol_message.t_protocol_message)?;
-        let t_updates = extract_app_data_updates(self.t_group, &unverified_t_message);
         let t_message = self
             .t_group
-            .process_unverified_message_with_app_data_updates(
-                provider,
-                unverified_t_message,
-                t_updates,
-            )?;
+            .process_message(provider, protocol_message.t_protocol_message)?;
+        let t_message = resolve_app_data_commit(self.t_group, provider, t_message)?;
 
         let t_message_info = MessageInfo::new(
             t_message.content(),
@@ -435,7 +433,8 @@ impl ApqPublicGroupMut<'_> {
 
         let pq_message = self
             .pq_public_group
-            .process_message_with_app_data_updates(crypto, protocol_message.pq_protocol_message)?;
+            .process_message(crypto, protocol_message.pq_protocol_message)?;
+        let pq_message = resolve_app_data_commit_public(self.pq_public_group, crypto, pq_message)?;
         let pq_message_info = MessageInfo::new(
             pq_message.content(),
             pq_message.sender().clone(),
@@ -444,7 +443,8 @@ impl ApqPublicGroupMut<'_> {
 
         let t_message = self
             .t_public_group
-            .process_message_with_app_data_updates(crypto, protocol_message.t_protocol_message)?;
+            .process_message(crypto, protocol_message.t_protocol_message)?;
+        let t_message = resolve_app_data_commit_public(self.t_public_group, crypto, t_message)?;
         let t_message_info = MessageInfo::new(
             t_message.content(),
             t_message.sender().clone(),
@@ -547,26 +547,56 @@ impl<'a> ValidationParams<'a> {
     }
 }
 
-fn extract_app_data_updates(
+/// Resolves an [`UnresolvedAppDataCommit`] into a [`ProcessedMessage`].
+fn resolve_app_data_commit<Provider: OpenMlsProvider>(
     group: &MlsGroup,
-    unverified: &UnverifiedMessage,
+    provider: &Provider,
+    message: ProcessedMessage,
+) -> Result<ProcessedMessage, ResolveAppDataCommitError> {
+    let ProcessedMessageContent::UnresolvedAppDataCommit(unresolved) = message.content() else {
+        return Ok(message);
+    };
+    let updates = compute_app_data_updates(
+        group.app_data_dictionary_updater(),
+        unresolved.app_data_update_proposals(),
+    );
+    group.resolve_app_data_commit(provider, message, updates)
+}
+
+/// Same as [`resolve_app_data_commit`], but for public groups.
+fn resolve_app_data_commit_public<Crypto: OpenMlsCrypto>(
+    group: &PublicGroup,
+    crypto: &Crypto,
+    message: ProcessedMessage,
+) -> Result<ProcessedMessage, ResolveAppDataCommitError> {
+    let ProcessedMessageContent::UnresolvedAppDataCommit(unresolved) = message.content() else {
+        return Ok(message);
+    };
+    let updates = compute_app_data_updates(
+        group.app_data_dictionary_updater(),
+        unresolved.app_data_update_proposals(),
+    );
+    group.resolve_app_data_commit(crypto, message, updates)
+}
+
+fn compute_app_data_updates<'a>(
+    mut updater: AppDataDictionaryUpdater<'a>,
+    proposals: impl Iterator<Item = &'a AppDataUpdateProposal>,
 ) -> Option<AppDataUpdates> {
-    let mut updater = group.app_data_dictionary_updater();
     let mut updated = false;
-    for proposal in unverified.committed_proposals()? {
-        if let ProposalOrRefIn::Proposal(p) = proposal
-            && let ProposalIn::AppDataUpdate(p) = &**p
-        {
-            match p.operation() {
-                AppDataUpdateOperation::Update(data) => {
-                    updater.set(ComponentData::from_parts(p.component_id(), data.clone()));
-                }
-                AppDataUpdateOperation::Remove => {
-                    updater.remove(&p.component_id());
-                }
+    for proposal in proposals {
+        match proposal.operation() {
+            AppDataUpdateOperation::Update(data) => {
+                updater.set(ComponentData::from_parts(
+                    proposal.component_id(),
+                    data.clone(),
+                ));
             }
-            updated = true;
+            AppDataUpdateOperation::Remove => {
+                updater.remove(&proposal.component_id());
+            }
         }
+        updated = true;
     }
     updated.then(|| updater.changes()).flatten()
 }

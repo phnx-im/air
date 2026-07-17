@@ -23,7 +23,7 @@ if(APP_FLAVOR STREQUAL "production")
 elseif(APP_FLAVOR STREQUAL "staging")
   set(APPLICATION_ID "ms.air.dev")
 else()
-  message(FATAL_ERROR "Unrecognized APP_FLAVOR")
+  set(APPLICATION_ID "ms.air.${APP_FLAVOR}")
 endif()
 
 # Explicitly opt in to modern CMake behaviors to avoid warnings with recent

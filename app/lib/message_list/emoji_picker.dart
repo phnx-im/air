@@ -145,6 +145,7 @@ class _SearchField extends StatelessWidget {
       height: _searchHeight,
       child: TextField(
         controller: controller,
+        autofocus: true,
         textInputAction: TextInputAction.search,
         style: TextStyle(
           fontSize: FontSizes.base.size,
@@ -347,15 +348,13 @@ Future<String?> showEmojiPickerSheet({
   return showBottomSheetModal<String>(
     context: context,
     barrierColor: barrierColor,
-    builder: (context) => Padding(
-      padding: const EdgeInsets.all(_panelPadding),
-      child: SizedBox(
-        height: _emojiPickerPanelSize.height,
-        child: EmojiPicker(
-          onSelected: (emoji) => Navigator.of(context).pop(emoji),
-          initialSkinTone: initialSkinTone,
-          onSkinToneChanged: onSkinToneChanged,
-        ),
+    contentPadding: const EdgeInsets.all(_panelPadding),
+    builder: (context) => SizedBox(
+      height: _emojiPickerPanelSize.height,
+      child: EmojiPicker(
+        onSelected: (emoji) => Navigator.of(context).pop(emoji),
+        initialSkinTone: initialSkinTone,
+        onSkinToneChanged: onSkinToneChanged,
       ),
     ),
   );

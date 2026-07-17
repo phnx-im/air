@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::{ClientCredential, keys::ClientVerifyingKey},
+    credentials::ClientCredential,
     crypto::aead::keys::{EncryptedUserProfileKey, GroupStateEarKey},
     identifiers::{QsReference, QualifiedGroupId},
 };
@@ -96,27 +96,36 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         }
     }
 
-    pub(super) fn verify_signing_key(
-        group: &Group,
-        verifying_key: &ClientVerifyingKey,
-    ) -> Result<(), Status> {
+    /// Return the signature key of a group that is expected to have exactly one
+    /// member (i.e. a freshly created group).
+    fn sole_member_signature_key(group: &Group) -> Result<Vec<u8>, Status> {
         let mut members = group.members().fuse();
         match (members.next(), members.next()) {
-            (Some(member), None) => {
-                if member.signature_key != verifying_key.as_slice() {
-                    Err(Status::invalid_argument(
-                        "t and pq client signature keys do not match",
-                    ))
-                } else {
-                    Ok(())
-                }
-            }
+            (Some(member), None) => Ok(member.signature_key),
             _ => {
                 error!("group must have exactly one member");
                 Err(Status::invalid_argument(
                     "group must have exactly one member",
                 ))
             }
+        }
+    }
+
+    /// Ensure the T and PQ groups' single leaves share the same signature key.
+    ///
+    /// We compare the two leaf keys directly rather than against the client
+    /// credential's key: for the virtual-client self-group the leaves are signed
+    /// with a freshly minted key that intentionally differs from the credential
+    /// key.
+    pub(super) fn verify_signing_key(t_group: &Group, pq_group: &Group) -> Result<(), Status> {
+        let t_member_signature_key = Self::sole_member_signature_key(t_group)?;
+        let pq_member_signature_key = Self::sole_member_signature_key(pq_group)?;
+        if t_member_signature_key != pq_member_signature_key {
+            Err(Status::invalid_argument(
+                "t and pq client signature keys do not match",
+            ))
+        } else {
+            Ok(())
         }
     }
 }

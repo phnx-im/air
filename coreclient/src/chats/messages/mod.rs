@@ -335,6 +335,7 @@ impl Message {
         &self,
         core_user: &CoreUser,
         chat_type: &ChatType,
+        with_sender_name: bool,
     ) -> Option<String> {
         match self {
             Message::Content(content_message) => {
@@ -357,11 +358,15 @@ impl Message {
                 };
                 let repr = match chat_type {
                     ChatType::TargetedMessageConnection(_) | ChatType::Group(_) => {
-                        let display_name = core_user
-                            .user_profile(&content_message.sender)
-                            .await
-                            .display_name;
-                        format!("{display_name}: {content}")
+                        if with_sender_name {
+                            let display_name = core_user
+                                .user_profile(&content_message.sender)
+                                .await
+                                .display_name;
+                            format!("{display_name}: {content}")
+                        } else {
+                            content
+                        }
                     }
                     ChatType::HandleConnection(username) => {
                         format!("{username}: {content}", username = username.plaintext())

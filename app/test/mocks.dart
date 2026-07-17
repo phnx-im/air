@@ -257,6 +257,9 @@ class MockLoadableUserCubit extends MockCubit<LoadableUser>
 
 class MockUser extends Mock implements User {}
 
+class MockMultiDeviceProvisionedUser extends Mock
+    implements MultiDeviceProvisionedUser {}
+
 class MockRegistrationCubit extends MockCubit<RegistrationState>
     implements RegistrationCubit {}
 
