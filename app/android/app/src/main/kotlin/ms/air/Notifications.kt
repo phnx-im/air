@@ -66,7 +66,7 @@ data class ChatId(
     val uuid: String
 )
 
-// Structured payload for Anroid `MessagingStyle` conversation notifications
+// Structured payload for Android `MessagingStyle` conversation notifications
 @Serializable
 data class ConversationNotification(
     val chatTitle: String,

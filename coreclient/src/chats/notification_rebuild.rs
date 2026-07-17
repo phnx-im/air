@@ -47,7 +47,7 @@ impl ChatNotificationEntry {
 /// The rebuild set for one chat local notification
 ///
 /// The entries are chronologically ordered (ascending), capped at
-/// [`CHAT_NOTIFICATION_REBUILD_LIMIT`] newest entries accross both messages and reactions.
+/// [`CHAT_NOTIFICATION_REBUILD_LIMIT`] newest entries across both messages and reactions.
 #[derive(Debug, Default)]
 pub struct ChatNotificationRebuildSet {
     pub entries: Vec<ChatNotificationEntry>,
