@@ -10361,6 +10361,7 @@ impl SseDecode for crate::notifications::ConversationNotification {
         let mut var_messages =
             <Vec<crate::notifications::ConversationMessage>>::sse_decode(deserializer);
         let mut var_alert = <bool>::sse_decode(deserializer);
+        let mut var_chatAvatar = <Option<Vec<u8>>>::sse_decode(deserializer);
         return crate::notifications::ConversationNotification {
             chat_title: var_chatTitle,
             is_group: var_isGroup,
@@ -10368,6 +10369,7 @@ impl SseDecode for crate::notifications::ConversationNotification {
             participants: var_participants,
             messages: var_messages,
             alert: var_alert,
+            chat_avatar: var_chatAvatar,
         };
     }
 }
@@ -13801,6 +13803,7 @@ impl flutter_rust_bridge::IntoDart for crate::notifications::ConversationNotific
             self.participants.into_into_dart().into_dart(),
             self.messages.into_into_dart().into_dart(),
             self.alert.into_into_dart().into_dart(),
+            self.chat_avatar.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -16594,6 +16597,7 @@ impl SseEncode for crate::notifications::ConversationNotification {
         );
         <Vec<crate::notifications::ConversationMessage>>::sse_encode(self.messages, serializer);
         <bool>::sse_encode(self.alert, serializer);
+        <Option<Vec<u8>>>::sse_encode(self.chat_avatar, serializer);
     }
 }
 

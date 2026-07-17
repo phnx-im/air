@@ -74,7 +74,9 @@ data class ConversationNotification(
     val ownDisplayName: String,
     val participants: List<ConversationParticipant>,
     val messages: List<ConversationMessage>,
-    val alert: Boolean
+    val alert: Boolean,
+    // Base64 (standard alphabet, padded) on the JNI JSON path
+    val chatAvatar: String? = null
 )
 
 @Serializable
@@ -465,8 +467,8 @@ class Notifications {
                     decodeAvatarIcon(senderParticipant?.avatar, circular = true)
                         ?: IconCompat.createWithResource(context, R.mipmap.ic_launcher)
                 } else {
-                    // TODO: Use group avatar
-                    IconCompat.createWithResource(context, R.mipmap.ic_launcher)
+                    decodeAvatarIcon(conversation.chatAvatar, circular = true)
+                        ?: IconCompat.createWithResource(context, R.mipmap.ic_launcher)
                 }
 
                 // TODO: Do we have to set isGroup here?

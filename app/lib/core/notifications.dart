@@ -64,6 +64,11 @@ class ConversationNotification {
   /// `false` for silent rebuilds (delete/edit/retraction)
   final bool alert;
 
+  /// The group picture for group chats, absent for 1:1 chats
+  ///
+  /// Base64 on JNI JSON path
+  final Uint8List? chatAvatar;
+
   const ConversationNotification({
     required this.chatTitle,
     required this.isGroup,
@@ -71,6 +76,7 @@ class ConversationNotification {
     required this.participants,
     required this.messages,
     required this.alert,
+    this.chatAvatar,
   });
 
   @override
@@ -80,7 +86,8 @@ class ConversationNotification {
       ownDisplayName.hashCode ^
       participants.hashCode ^
       messages.hashCode ^
-      alert.hashCode;
+      alert.hashCode ^
+      chatAvatar.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -92,7 +99,8 @@ class ConversationNotification {
           ownDisplayName == other.ownDisplayName &&
           participants == other.participants &&
           messages == other.messages &&
-          alert == other.alert;
+          alert == other.alert &&
+          chatAvatar == other.chatAvatar;
 }
 
 class ConversationParticipant {

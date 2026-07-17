@@ -115,6 +115,11 @@ impl User {
             .filter_map(conversation_message)
             .collect();
 
+        let chat_avatar = match chat.chat_type() {
+            ChatType::Group(attrs) => attrs.picture().map(|bytes| bytes.to_vec()),
+            _ => None,
+        };
+
         let conversation = ConversationNotification {
             chat_title: title.clone(),
             is_group: matches!(chat.chat_type(), ChatType::Group(_)),
@@ -125,6 +130,7 @@ impl User {
                 AlertMode::Alert => true,
                 AlertMode::Silent => false,
             },
+            chat_avatar,
         };
 
         ChatNotificationsRebuildOutcome::Notifications(NotificationContent {
@@ -281,6 +287,15 @@ pub struct ConversationNotification {
     pub messages: Vec<ConversationMessage>,
     /// `false` for silent rebuilds (delete/edit/retraction)
     pub alert: bool,
+    /// The group picture for group chats, absent for 1:1 chats
+    ///
+    /// Base64 on JNI JSON path
+    #[serde(
+        default,
+        skip_serializing_if = "Option::is_none",
+        with = "base64_avatar"
+    )]
+    pub chat_avatar: Option<Vec<u8>>,
 }
 
 #[derive(Debug, Serialize, Deserialize)]
@@ -582,6 +597,7 @@ pub(crate) struct ChatNotificationsBatch {
 
 /// Outcome of rebuilding a single chat's notification
 #[derive(Debug)]
+#[expect(clippy::large_enum_variant)]
 enum ChatNotificationsRebuildOutcome {
     /// Chat has content to notify about
     /// => replace existing notification

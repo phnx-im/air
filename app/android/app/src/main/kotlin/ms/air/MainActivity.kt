@@ -98,6 +98,8 @@ class MainActivity : FlutterFragmentActivity() {
                 ?.mapNotNull { decodeParticipantsArgument(it) } ?: return null
             val messages = (map["messages"] as? List<*>)
                 ?.mapNotNull { decodeMessageArgument(it) } ?: return null
+            val chatAvatar =
+                (map["chatAvatar"] as? ByteArray)?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
 
             ConversationNotification(
                 chatTitle = chatTitle,
@@ -105,7 +107,8 @@ class MainActivity : FlutterFragmentActivity() {
                 ownDisplayName = ownDisplayName,
                 participants = participants,
                 messages = messages,
-                alert = alert
+                alert = alert,
+                chatAvatar = chatAvatar
             )
         } catch (e: Exception) {
             Log.w(TAG, "Failed to decode conversation notification argument", e)
