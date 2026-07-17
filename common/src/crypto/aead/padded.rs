@@ -30,9 +30,9 @@
 //!
 //! The padding is raw framing rather than a field of a CBOR wrapper struct on
 //! purpose: CBOR would encode the padding as a byte string whose header length
-//! grows with the padding length, which makes some target lengths unreachable —
-//! content lengths at those boundaries would stand out from their bucket. The
-//! raw prefix keeps the padded length byte-exact.
+//! grows with the padding length. This makes some target lengths unreachable,
+//! so content lengths at those boundaries would stand out from their bucket.
+//! The raw prefix keeps the padded length byte-exact.
 //!
 //! On decryption the leading `u32` is read to determine `pad_len`, the padding
 //! is skipped, and the remaining bytes are decoded via

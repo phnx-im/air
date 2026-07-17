@@ -555,7 +555,16 @@ pub fn derive_deserialize_tagged_map(input: TokenStream) -> TokenStream {
                         A: ::serde::de::MapAccess<'de>,
                     {
                         #(#var_decls)*
+                        let mut _seen_keys = ::std::collections::BTreeSet::new();
                         while let Some(_key) = _map.next_key::<u32>()? {
+                            if !_seen_keys.insert(_key) {
+                                return ::core::result::Result::Err(
+                                    <A::Error as ::serde::de::Error>::custom(::std::format!(
+                                        "duplicate tag {_key} for struct {}",
+                                        stringify!(#name)
+                                    ))
+                                );
+                            }
                             match _key {
                                 #(#match_arms)*
                                 _ => {
@@ -617,7 +626,15 @@ pub fn derive_serialize_tagged_union(input: TokenStream) -> TokenStream {
 
     let infos = extract_variant_infos(data);
 
-    let (impl_generics, ty_generics, where_clause) = input.generics.split_for_impl();
+    let mut generics = input.generics.clone();
+    let where_clause = generics.make_where_clause();
+    for vi in infos.iter().filter(|vi| !vi.is_unknown && !vi.is_bytes) {
+        let ty = vi.ty.as_ref().unwrap();
+        where_clause
+            .predicates
+            .push(syn::parse_quote!(#ty: ::serde::Serialize));
+    }
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
 
     let match_arms: Vec<TokenStream2> = infos
         .iter()
@@ -705,7 +722,7 @@ pub fn derive_deserialize_tagged_union(input: TokenStream) -> TokenStream {
 
     // Original generics (without 'de)
     let orig_generics = &input.generics;
-    let (_, ty_generics, orig_where_clause) = orig_generics.split_for_impl();
+    let (_, ty_generics, _) = orig_generics.split_for_impl();
 
     // Add 'de as a plain lifetime with no bounds on the enum's own lifetimes (see the
     // DeserializeTaggedMap derive for the rationale).
@@ -715,6 +732,13 @@ pub fn derive_deserialize_tagged_union(input: TokenStream) -> TokenStream {
     all_generics
         .params
         .insert(0, GenericParam::Lifetime(de_lt_param));
+    let where_clause = all_generics.make_where_clause();
+    for vi in infos.iter().filter(|vi| !vi.is_unknown && !vi.is_bytes) {
+        let ty = vi.ty.as_ref().unwrap();
+        where_clause
+            .predicates
+            .push(syn::parse_quote!(#ty: ::serde::Deserialize<'de>));
+    }
     let (all_impl_generics, all_ty_generics, all_where_clause) = all_generics.split_for_impl();
 
     // Match arms for the known tags, each producing the corresponding variant.
@@ -775,13 +799,13 @@ pub fn derive_deserialize_tagged_union(input: TokenStream) -> TokenStream {
 
     quote! {
         impl #all_impl_generics ::serde::Deserialize<'de> for #name #ty_generics
-            #orig_where_clause
+            #all_where_clause
         {
             fn deserialize<D>(deserializer: D) -> ::core::result::Result<Self, D::Error>
             where
                 D: ::serde::Deserializer<'de>,
             {
-                struct #visitor_name #all_ty_generics {
+                struct #visitor_name #all_generics {
                     marker: ::core::marker::PhantomData<#name #ty_generics>,
                     lifetime: ::core::marker::PhantomData<&'de ()>,
                 }

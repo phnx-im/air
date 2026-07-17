@@ -299,3 +299,17 @@ fn cow_and_array_payloads_roundtrip() {
     let fixed: WithCow<'_> = WithCow::Fixed([1, 2, 3, 4]);
     assert_eq!(cbor_roundtrip(&fixed), fixed);
 }
+
+#[derive(Debug, Clone, PartialEq, SerializeTaggedUnion, DeserializeTaggedUnion)]
+enum GenericPayload<T> {
+    #[tag(1)]
+    Value(T),
+    #[unknown]
+    Unknown,
+}
+
+#[test]
+fn generic_payload_roundtrips() {
+    let value = GenericPayload::Value(42u64);
+    assert_eq!(cbor_roundtrip(&value), value);
+}
