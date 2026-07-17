@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
+import 'dart:ui' as ui;
 
 import 'package:air/ds/components/button/glass_circle_button.dart';
 import 'package:air/ds/foundations/elevation.dart';
@@ -597,7 +598,7 @@ class _ReactionChip extends StatelessWidget {
         child: Container(
           height: chipHeight,
           // Horizontal padding only because forcing `height: 1.0` shifts
-          // emoji glyphs on iOS, which then makes it taller than the inner 
+          // emoji glyphs on iOS, which then makes it taller than the inner
           // box.
           padding: const EdgeInsets.symmetric(
             horizontal: reactionChipHorizontalPadding,
@@ -617,12 +618,15 @@ class _ReactionChip extends StatelessWidget {
             mainAxisSize: .min,
             crossAxisAlignment: .center,
             children: [
-              Text(
-                reaction.emoji,
+              // Paint the glyph centered in a box we control instead of a raw
+              // Text: on iOS the emoji glyph is not centered within its own
+              // text line box (even `leadingDistribution: .even` only evens the
+              // extra leading, not the font's asymmetric ascent/descent), so a
+              // Text ends up visually off-centre. This mirrors how the emoji
+              // picker paints its glyphs (see `_EmojiGlyphPainter`).
+              _CenteredEmoji(
+                emoji: reaction.emoji,
                 style: textStyle(),
-                textHeightBehavior: const TextHeightBehavior(
-                  leadingDistribution: .even,
-                ),
               ),
               if (count >= 2) ...[
                 const SizedBox(width: Spacing.px4),
@@ -640,6 +644,167 @@ class _ReactionChip extends StatelessWidget {
       ),
     );
   }
+}
+
+/// Renders a single emoji glyph visually centered within its own layout box.
+///
+/// A raw [Text] (and plain layout-box centering) only centers the glyph's
+/// *layout box*. That is enough on macOS, but on iOS the Apple Color Emoji
+/// glyph is not centered within its own layout box. To fix it we measure
+/// the glyph's *ink* (visual) bounding box once, cache the correction, and
+/// paint the glyph so its ink center lands at the box center. The surrounding
+/// [Row] then centers that box within the chip.
+///
+/// Measuring ink requires rasterizing the glyph, which is async, so the first
+/// frame falls back to layout-box centering and snaps into place once the
+/// correction is known. Corrections are cached process-wide.
+class _CenteredEmoji extends StatefulWidget {
+  const _CenteredEmoji({required this.emoji, required this.style});
+
+  final String emoji;
+  final TextStyle style;
+
+  @override
+  State<_CenteredEmoji> createState() => _CenteredEmojiState();
+}
+
+class _CenteredEmojiState extends State<_CenteredEmoji> {
+  /// Correction (logical px) to add so the glyph's ink center sits at the box
+  /// center. Keyed by emoji + font size + device pixel ratio.
+  static final Map<String, Offset> _corrections = {};
+  static final Map<String, Future<Offset>> _inFlight = {};
+
+  Offset _correction = Offset.zero;
+  String? _key;
+
+  @override
+  Widget build(BuildContext context) {
+    final scaler = MediaQuery.textScalerOf(context);
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    final glyph = TextPainter(
+      text: TextSpan(text: widget.emoji, style: widget.style),
+      textDirection: TextDirection.ltr,
+      textScaler: scaler,
+      textHeightBehavior: const TextHeightBehavior(
+        leadingDistribution: .even,
+      ),
+    )..layout();
+
+    final key = '${widget.emoji}|${widget.style.fontSize}|$dpr';
+    if (key != _key) {
+      _key = key;
+      final cached = _corrections[key];
+      if (cached != null) {
+        _correction = cached;
+      } else {
+        _correction = Offset.zero;
+        _measure(key, widget.emoji, widget.style, scaler, dpr);
+      }
+    }
+
+    return CustomPaint(
+      size: Size(glyph.width, glyph.height),
+      painter: _CenteredGlyphPainter(glyph, _correction),
+    );
+  }
+
+  void _measure(
+    String key,
+    String emoji,
+    TextStyle style,
+    TextScaler scaler,
+    double dpr,
+  ) {
+    // Share one measurement per key so every chip showing this emoji is
+    // notified, even if several mount before the raster completes.
+    final future = _inFlight.putIfAbsent(
+      key,
+      () => _emojiInkCorrection(emoji, style, scaler, dpr),
+    );
+    future.then((offset) {
+      _corrections[key] = offset;
+      _inFlight.remove(key);
+      if (mounted && _key == key) setState(() => _correction = offset);
+    });
+  }
+}
+
+/// Rasterizes [emoji] and returns the offset that moves its ink (visual) center
+/// onto its layout-box center.
+Future<Offset> _emojiInkCorrection(
+  String emoji,
+  TextStyle style,
+  TextScaler scaler,
+  double dpr,
+) async {
+  final glyph = TextPainter(
+    text: TextSpan(text: emoji, style: style),
+    textDirection: TextDirection.ltr,
+    textScaler: scaler,
+    textHeightBehavior: const TextHeightBehavior(leadingDistribution: .even),
+  )..layout();
+
+  final width = glyph.width;
+  final height = glyph.height;
+  final pw = (width * dpr).ceil();
+  final ph = (height * dpr).ceil();
+  if (pw <= 0 || ph <= 0) return Offset.zero;
+
+  final recorder = ui.PictureRecorder();
+  final canvas = Canvas(recorder);
+  canvas.scale(dpr);
+  glyph.paint(canvas, Offset.zero);
+  final picture = recorder.endRecording();
+  final image = await picture.toImage(pw, ph);
+  picture.dispose();
+  final data = await image.toByteData(format: ui.ImageByteFormat.rawRgba);
+  image.dispose();
+  if (data == null) return Offset.zero;
+
+  // Scan the alpha channel for the glyph's ink bounding box.
+  final bytes = data.buffer.asUint8List();
+  var minX = pw, minY = ph, maxX = -1, maxY = -1;
+  for (var y = 0; y < ph; y++) {
+    final rowOffset = y * pw * 4;
+    for (var x = 0; x < pw; x++) {
+      if (bytes[rowOffset + x * 4 + 3] != 0) {
+        if (x < minX) minX = x;
+        if (x > maxX) maxX = x;
+        if (y < minY) minY = y;
+        if (y > maxY) maxY = y;
+      }
+    }
+  }
+  if (maxX < minX || maxY < minY) return Offset.zero;
+
+  // Ink center in logical px, then the correction toward the layout center.
+  final inkCenterX = (minX + maxX + 1) / 2 / dpr;
+  final inkCenterY = (minY + maxY + 1) / 2 / dpr;
+  return Offset(width / 2 - inkCenterX, height / 2 - inkCenterY);
+}
+
+/// Paints [glyph] centered within the paint box, plus a [correction] that
+/// centers its ink rather than its layout box.
+class _CenteredGlyphPainter extends CustomPainter {
+  const _CenteredGlyphPainter(this.glyph, this.correction);
+
+  final TextPainter glyph;
+  final Offset correction;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    glyph.paint(
+      canvas,
+      Offset(
+        (size.width - glyph.width) / 2 + correction.dx,
+        (size.height - glyph.height) / 2 + correction.dy,
+      ),
+    );
+  }
+
+  @override
+  bool shouldRepaint(_CenteredGlyphPainter oldDelegate) =>
+      glyph != oldDelegate.glyph || correction != oldDelegate.correction;
 }
 
 /// A "+N" chip standing in for reactions that didn't fit a narrow bubble.
