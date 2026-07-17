@@ -14,6 +14,7 @@ pub(crate) mod openmls_provider;
 pub(crate) mod persistence;
 pub(crate) mod process;
 pub(crate) mod self_group;
+pub(crate) mod self_group_message_key;
 
 use apqmls::{
     authentication::ApqCredentialWithKey,
