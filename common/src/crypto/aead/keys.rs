@@ -9,7 +9,10 @@
 use crate::crypto::{
     RawKey,
     indexed_aead::keys::{Key, RandomlyGeneratable},
-    kdf::{KdfDerivable, keys::RatchetSecret},
+    kdf::{
+        KdfDerivable,
+        keys::{RatchetSecret, SelfGroupExporterSecret},
+    },
 };
 
 use super::{AEAD_KEY_SIZE, Ciphertext, traits::AeadKey};
@@ -125,3 +128,22 @@ pub type MultiDeviceLinkingKey = Key<MultiDeviceLinkingKeyType>;
 impl RandomlyGeneratable for MultiDeviceLinkingKeyType {}
 
 impl AeadKey for MultiDeviceLinkingKey {}
+
+// Self-group message key
+
+/// Key that encrypts `SelfGroupMessages` payloads carried in self-group
+/// commits.
+///
+/// It is derived per self-group epoch from the [`SelfGroupExporterSecret`],
+/// which is itself already scoped to group, epoch and component. Callers
+/// therefore pass an empty `Vec<u8>` as additional info to the derivation.
+#[derive(Debug)]
+pub struct SelfGroupMessageKeyType;
+
+pub type SelfGroupMessageKey = Key<SelfGroupMessageKeyType>;
+
+impl AeadKey for SelfGroupMessageKey {}
+
+impl KdfDerivable<SelfGroupExporterSecret, Vec<u8>, AEAD_KEY_SIZE> for SelfGroupMessageKey {
+    const LABEL: &'static str = "self group message key";
+}
