@@ -108,6 +108,7 @@ pub const SUPPORTED_PROPOSALS: &[ProposalType] = &[
     ProposalType::Custom(FRIENDSHIP_PACKAGE_PROPOSAL_TYPE), // Also in REQUIRED_PROPOSALS
     ProposalType::SelfRemove,                               // Also in REQUIRED_PROPOSALS
     ProposalType::AppDataUpdate,
+    ProposalType::AppEphemeral,
 ];
 pub const SUPPORTED_CREDENTIALS: &[CredentialType] = REQUIRED_CREDENTIALS;
 

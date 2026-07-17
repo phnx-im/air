@@ -6,3 +6,4 @@
 
 pub mod component;
 pub mod group;
+pub mod self_group;
