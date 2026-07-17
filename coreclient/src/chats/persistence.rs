@@ -1204,6 +1204,7 @@ pub mod tests {
 
         Ok(())
     }
+
     #[sqlx::test]
     async fn update_chat_status(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);

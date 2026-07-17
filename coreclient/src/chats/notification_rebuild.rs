@@ -19,11 +19,13 @@ use crate::{Chat, ChatId, ChatMessage, chats::reactions::Reaction, db::access::R
 pub(crate) const CHAT_NOTIFICATION_REBUILD_LIMIT: usize = 25;
 
 /// A single reaction line in a chat notification rebuild set
-#[derive(Debug, Clone, PartialEq, Eq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct NotificationReaction {
     pub reactor: UserId,
     pub emoji: String,
     pub created_at: DateTime<Utc>,
+    /// Target message, optional because it might have been deleted
+    pub target: Option<ChatMessage>,
 }
 
 /// A single chronological entry in a chat notification rebuild set
@@ -93,7 +95,7 @@ impl Chat {
         let messages =
             ChatMessage::load_newest_since(&mut connection, chat_id, messages_since, limit).await?;
         let reactions = Reaction::load_own_message_reactions_since(
-            connection,
+            &mut connection,
             chat_id,
             own_user,
             reactions_since,
@@ -111,16 +113,23 @@ impl Chat {
                 .map(Box::new)
                 .map(ChatNotificationEntry::Message),
         );
-        entries.extend(reactions.into_iter().map(|reaction| {
-            ChatNotificationEntry::Reaction(NotificationReaction {
+
+        for reaction in reactions {
+            let target =
+                ChatMessage::load_by_mimi_id(&mut connection, &reaction.target_mimi_id).await?;
+            entries.push(ChatNotificationEntry::Reaction(NotificationReaction {
                 reactor: reaction.sender,
                 emoji: reaction.emoji,
                 created_at: reaction.created_at.into(),
-            })
-        }));
+                target: target.filter(|message| !message.message().is_deleted()),
+            }))
+        }
 
         entries.sort_unstable_by_key(|entry| entry.timestamp());
-        entries.truncate(CHAT_NOTIFICATION_REBUILD_LIMIT);
+        let overflow = entries
+            .len()
+            .saturating_sub(CHAT_NOTIFICATION_REBUILD_LIMIT);
+        entries.drain(..overflow);
 
         Ok(ChatNotificationRebuildSet { entries })
     }

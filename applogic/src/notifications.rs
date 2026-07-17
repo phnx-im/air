@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::collections::{HashMap, hash_map::Entry};
+use std::{
+    borrow::Cow,
+    collections::{HashMap, hash_map::Entry},
+};
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{
@@ -128,7 +131,7 @@ impl User {
         };
 
         ChatNotificationsRebuildOutcome::Notifications(NotificationContent {
-            identifier: NotificationId::random(),
+            identifier: NotificationId::for_chat(chat.id()),
             title,
             body: truncate_notification_text(body),
             chat_id: chat.id(),
@@ -146,7 +149,7 @@ impl User {
             ChatNotificationEntry::Message(message) => {
                 message
                     .message()
-                    .string_representation(&self.user, chat.chat_type(), false)
+                    .string_representation(&self.user, chat.chat_type(), true)
                     .await
             }
             ChatNotificationEntry::Reaction(reaction) => {
@@ -154,10 +157,19 @@ impl User {
                     Some(profile) => &profile.display_name,
                     None => &UserProfile::from_user_id(&reaction.reactor).display_name,
                 };
-                // TODO: Should include the full message text here
+                let target_text = match &reaction.target {
+                    Some(message) => {
+                        message
+                            .message()
+                            .string_representation(&self.user, chat.chat_type(), true)
+                            .await
+                    }
+                    None => None,
+                };
+                let target_text = target_text.unwrap_or_else(|| "your message".to_owned());
                 // TODO: Localization
                 Some(format!(
-                    "{reactor} reacted {} to your message",
+                    "{reactor} reacted {} to {target_text}",
                     reaction.emoji
                 ))
             }
@@ -347,12 +359,16 @@ fn conversation_message(entry: &ChatNotificationEntry) -> Option<ConversationMes
             })
         }
         ChatNotificationEntry::Reaction(reaction) => {
+            let target_text = reaction
+                .target
+                .as_ref()
+                .and_then(|message| render_message_text(message.message().mimi_content()?));
+            let target_text = target_text.unwrap_or_else(|| "your message".to_owned());
             Some(ConversationMessage {
                 sender_uuid: reaction.reactor.uuid(),
-                // TODO: Should include the full message text here
                 // TODO: Localization
                 text: truncate_notification_text(format!(
-                    "Reacted {} to your message",
+                    "Reacted {} to {target_text}",
                     reaction.emoji
                 )),
                 is_reaction: true,

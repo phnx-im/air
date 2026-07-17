@@ -88,7 +88,7 @@ class MainActivity : FlutterFragmentActivity() {
     // Decoding is defensive: any missing or wrongly-typed field falls back to
     // no conversation (plain notification) rather then falling the whole call.
     private fun decodeConversationArgument(raw: Any?): ConversationNotification? {
-        val map = raw as? Map<*, *> ?: return null;
+        val map = raw as? Map<*, *> ?: return null
         return try {
             val chatTitle = map["chatTitle"] as? String ?: return null
             val isGroup = map["isGroup"] as? Boolean ?: return null
@@ -117,7 +117,6 @@ class MainActivity : FlutterFragmentActivity() {
         val map = raw as? Map<*, *> ?: return null
         val uuid = map["uuid"] as? String ?: return null
         val displayName = map["displayName"] as? String ?: return null
-        // WHY
         val avatar =
             (map["avatar"] as? ByteArray)?.let { Base64.encodeToString(it, Base64.NO_WRAP) }
         return ConversationParticipant(uuid = uuid, displayName = displayName, avatar = avatar)

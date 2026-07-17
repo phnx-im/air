@@ -111,8 +111,6 @@ impl User {
             )
             .await;
         notifications.extend(additions);
-        self.new_connection_request_notifications(&new_connections, &mut notifications)
-            .await;
 
         // Fetch AS connection requests
         debug!("fetch AS messages");

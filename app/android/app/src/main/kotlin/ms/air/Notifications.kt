@@ -410,9 +410,8 @@ class Notifications {
                     }
                 } else if (runStart < 0) {
                     runStart = index
-                } else {
-                    index += charCount
                 }
+                index += charCount
             }
             if (runStart >= 0) {
                 spannable.setSpan(
