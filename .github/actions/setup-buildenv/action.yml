@@ -20,6 +20,10 @@ inputs:
     description: "Whether to install Flutter"
     default: "true"
     required: false
+  flutter-sdk-cache:
+    description: "Whether to cache the Flutter SDK"
+    default: "true"
+    required: false
   cargo-binstall-default-tools:
     description: "Default tools to install with cargo-binstall"
     default: "just@1.48.1"
@@ -194,7 +198,7 @@ runs:
         channel: stable
         version: 3.44.0
         cache: true
-        cache-sdk: true
+        cache-sdk: ${{ inputs.flutter-sdk-cache }}
 
     - if: inputs.flutter == 'true' && runner.os == 'Linux'
       name: Install Linux Flutter build dependencies

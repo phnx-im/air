@@ -63,3 +63,78 @@ jobs:
         with:
           name: windows-app-x64
           path: app/build/windows/x64/runner/Release
+
+  # Experimental native arm64 build (Flutter >= 3.44.0 ships windows-arm64
+  # artifacts, but only for native builds on an arm64 host; see
+  # flutter/flutter#62597).
+  windows-arm64-build:
+    runs-on: windows-11-arm
+    continue-on-error: true
+    permissions:
+      contents: read
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
+        with:
+          fetch-depth: 0
+          filter: blob:none
+
+      # The arm64 runner image ships fewer tools than the x64 one so we make
+      # sure rustup/cargo are present before setup-buildenv invokes
+      # cargo-binstall.
+      - name: Install rustup if missing
+        shell: pwsh
+        run: |
+          if (!(Get-Command cargo -ErrorAction SilentlyContinue)) {
+            Invoke-WebRequest https://static.rust-lang.org/rustup/dist/aarch64-pc-windows-msvc/rustup-init.exe -OutFile rustup-init.exe
+            .\rustup-init.exe -y --default-toolchain none
+            Add-Content $env:GITHUB_PATH "$env:USERPROFILE\.cargo\bin"
+          }
+
+      # The Flutter setup action saves its SDK cache before we can switch the
+      # Dart SDK to arm64, so it would cache the x64 Dart SDK. Disable its SDK
+      # cache and manage our own, saved after the switch.
+      - name: Restore Flutter SDK cache
+        uses: actions/cache/restore@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ runner.tool_cache }}/flutter
+          key: flutter-sdk-arm64-dart-${{ hashFiles('.github/actions/setup-buildenv/action.yml', 'app/.fvmrc') }}
+
+      # sccache has no prebuilt aarch64-pc-windows-msvc binaries yet
+      - id: setup-buildenv
+        name: Setup build environment
+        uses: ./.github/actions/setup-buildenv
+        with:
+          flutter-sdk-cache: false
+
+      - name: Switch Flutter to the arm64 Dart SDK
+        shell: bash
+        run: |
+          # The Flutter SDK archive bundles the x64 Dart SDK. Removing the
+          # stamp forces a re-download, which picks the arm64 host build;
+          # precache then fetches the arm64 engine (flutter/flutter#62597).
+          # No-op when the cache restored an already-switched SDK.
+          if ! dart --version 2>&1 | grep -q windows_arm64; then
+            flutter_root="$(dirname "$(dirname "$(command -v flutter)")")"
+            rm -f "$flutter_root/bin/cache/engine-dart-sdk.stamp"
+            dart --version
+          fi
+          flutter precache --windows
+
+      - name: Save Flutter SDK cache
+        if: github.ref == 'refs/heads/main'
+        uses: actions/cache/save@caa296126883cff596d87d8935842f9db880ef25 # v5.1.0
+        with:
+          path: ${{ runner.tool_cache }}/flutter
+          key: flutter-sdk-arm64-dart-${{ hashFiles('.github/actions/setup-buildenv/action.yml', 'app/.fvmrc') }}
+
+      - name: Build Windows app (arm64)
+        working-directory: app
+        run: flutter build windows -v --build-number=${{ steps.setup-buildenv.outputs.build-number }}
+
+      - name: Upload Windows app
+        uses: actions/upload-artifact@b7c566a772e6b6bfb58ed0dc250532a479d7789f # v6
+        with:
+          name: windows-app-arm64
+          path: app/build/windows/arm64/runner/Release
