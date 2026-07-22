@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use flutter_rust_bridge::frb;
-use rand::Rng;
+use rand::RngExt;
 
 const MAX_USERNAME_LENGTH: usize = 63;
 const SUFFIX_LENGTH: usize = 5;
@@ -52,7 +52,7 @@ pub fn username_from_display(display: String) -> String {
     truncate_clean(&mut out, max_allowed_before_suffix);
 
     // append random 5-digit suffix
-    let suffix = rand::thread_rng().gen_range(10000..100000);
+    let suffix = rand::rng().random_range(10000..100000);
     out.push('-');
     out.push_str(&suffix.to_string());
 

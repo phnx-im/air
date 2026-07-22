@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "DELETE FROM vc_registered_emulation_epoch WHERE group_id = ?1",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": []
+  },
+  "hash": "fceed85f7ec5d2971147f6d56675a556c0e003b997dc16aab81a59787d4b0fdd"
+}

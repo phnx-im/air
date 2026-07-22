@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO vc_registered_emulation_epoch(group_id, registration)\n            VALUES (?1, ?2)\n            ON CONFLICT(group_id) DO UPDATE SET\n                registration = excluded.registration",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "9de41120e245bd8f5bd028d839e30ed28f40ef246b798012345bed3edfe3cdbb"
+}

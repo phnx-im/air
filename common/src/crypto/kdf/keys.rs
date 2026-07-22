@@ -32,3 +32,21 @@ impl KdfDerivable<RatchetSecret, Vec<u8>, KDF_KEY_SIZE> for RatchetSecret {
 pub struct ConnectionKeyType;
 
 impl RawKey for ConnectionKeyType {}
+
+/// Exporter secret for a self-group, scoped to a single group, epoch and
+/// component.
+///
+/// It holds the 32-byte output of the MLS safe exporter
+/// (`safe_export_secret(AIR_COMPONENT_ID)`) on the self-group's T group. The
+/// exporter secret itself is never used as an encryption key; it is only a KDF
+/// key from which the per-epoch [`crate::crypto::aead::keys::SelfGroupMessageKey`]
+/// is derived.
+#[derive(Debug)]
+pub struct SelfGroupExporterSecretType;
+pub type SelfGroupExporterSecret = Key<SelfGroupExporterSecretType>;
+
+impl RawKey for SelfGroupExporterSecretType {}
+
+impl KdfKey for SelfGroupExporterSecret {
+    const ADDITIONAL_LABEL: &'static str = "SelfGroupExporterSecret";
+}

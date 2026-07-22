@@ -70,7 +70,7 @@ pub const QS_CLIENT_REFERENCE_EXTENSION_TYPE: u16 = 0xff00;
 const DEFAULT_MLS_VERSION: ProtocolVersion = ProtocolVersion::Mls10;
 const DEFAULT_CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_DHKEMX25519_AES128GCM_SHA256_Ed25519;
 
-const PQ_CIPHERSUITE: Ciphersuite = Ciphersuite::AIR_128_MLKEM768_AES256GCM_SHA384_Ed25519;
+const PQ_CIPHERSUITE: Ciphersuite = Ciphersuite::MLS_128_MLKEM768_AES256GCM_SHA384_Ed25519;
 
 pub const APQ_CIPHERSUITE: ApqCiphersuite =
     ApqCiphersuite::new(DEFAULT_CIPHERSUITE, PQ_CIPHERSUITE);
@@ -108,6 +108,7 @@ pub const SUPPORTED_PROPOSALS: &[ProposalType] = &[
     ProposalType::Custom(FRIENDSHIP_PACKAGE_PROPOSAL_TYPE), // Also in REQUIRED_PROPOSALS
     ProposalType::SelfRemove,                               // Also in REQUIRED_PROPOSALS
     ProposalType::AppDataUpdate,
+    ProposalType::AppEphemeral,
 ];
 pub const SUPPORTED_CREDENTIALS: &[CredentialType] = REQUIRED_CREDENTIALS;
 

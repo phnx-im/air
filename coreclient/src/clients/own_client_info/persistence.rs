@@ -136,7 +136,7 @@ mod tests {
     #[sqlx::test]
     async fn store(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         let own_client_info = OwnClientInfo {
             qs_user_id: QsUserId::random(),
             qs_client_id: QsClientId::random(&mut rng),
