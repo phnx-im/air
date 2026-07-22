@@ -90,48 +90,53 @@ class IntroScreen extends HookWidget {
               Align(
                 alignment: Alignment.bottomCenter,
                 child: ConstrainedWidth(
-                  width: 500,
-                  child: Column(
-                    mainAxisSize: MainAxisSize.min,
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      _TermsOfUseText(loc: loc),
-                      const SizedBox(height: Spacing.px16),
-                      if (serverFieldVisible.value) ...[
-                        Text(
-                          loc.introScreen_serverLabel,
-                          style: Theme.of(context).textTheme.bodyMedium,
-                          textAlign: TextAlign.left,
+                  width: isSmallScreen(context) ? double.infinity : 320,
+                  child: Padding(
+                    padding: isSmallScreen(context)
+                        ? const EdgeInsets.symmetric(horizontal: Spacing.px16)
+                        : EdgeInsets.zero,
+                    child: Column(
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.center,
+                      children: [
+                        _TermsOfUseText(loc: loc),
+                        const SizedBox(height: Spacing.px16),
+                        if (serverFieldVisible.value) ...[
+                          Text(
+                            loc.introScreen_serverLabel,
+                            style: Theme.of(context).textTheme.bodyMedium,
+                            textAlign: TextAlign.left,
+                          ),
+                          const SizedBox(height: Spacing.px16),
+
+                          ConstrainedBox(
+                            constraints: textFormConstraints,
+                            child: _ServerTextField(
+                              onFieldSubmitted: openLinking,
+                            ),
+                          ),
+                        ],
+                        if (isDeveloper) ...[
+                          AppButton(
+                            type: .secondary,
+                            label: loc.introScreen_linkExisting,
+                            onPressed: openLinking,
+                            onLongPress: () => serverFieldVisible.value = true,
+                          ),
+                          const SizedBox(height: Spacing.px8),
+                        ],
+                        AppButton(
+                          type: .primary,
+                          label: loc.introScreen_signUp,
+                          onPressed: () async {
+                            await requestNotificationPermission();
+                            if (!context.mounted) return;
+                            context.read<NavigationCubit>().openSignUp();
+                          },
                         ),
                         const SizedBox(height: Spacing.px16),
-
-                        ConstrainedBox(
-                          constraints: textFormConstraints,
-                          child: _ServerTextField(
-                            onFieldSubmitted: openLinking,
-                          ),
-                        ),
                       ],
-                      if (isDeveloper) ...[
-                        AppButton(
-                          type: .secondary,
-                          label: loc.introScreen_linkExisting,
-                          onPressed: openLinking,
-                          onLongPress: () => serverFieldVisible.value = true,
-                        ),
-                        const SizedBox(height: Spacing.px8),
-                      ],
-                      AppButton(
-                        type: .primary,
-                        label: loc.introScreen_signUp,
-                        onPressed: () async {
-                          await requestNotificationPermission();
-                          if (!context.mounted) return;
-                          context.read<NavigationCubit>().openSignUp();
-                        },
-                      ),
-                      const SizedBox(height: Spacing.px16),
-                    ],
+                    ),
                   ),
                 ),
               ),
