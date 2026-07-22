@@ -28,7 +28,6 @@ minicbor-serde.workspace = true
 mls-assist.workspace = true
 pin-project.workspace = true
 rand.workspace = true
-rand_chacha.workspace = true
 secrecy = { workspace = true, features = ["serde"] }
 serde.workspace = true
 serde_bytes.workspace = true

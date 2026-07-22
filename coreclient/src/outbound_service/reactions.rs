@@ -147,6 +147,7 @@ impl OutboundServiceContext {
 
         // load group and create MLS message
         let (group_state_ear_key, params) = self.new_mls_message(&chat, content, None).await?;
+        let epoch = params.epoch;
         let sent_tags = params.collision_tags.clone();
         let generation = params.generation;
 
@@ -175,7 +176,7 @@ impl OutboundServiceContext {
         }
 
         // message accepted by DS, confirm.
-        self.confirm_mls_message(&chat, generation)
+        self.confirm_mls_message(&chat, epoch, generation)
             .await
             .inspect_err(|error| error!(%error, "failed to confirm MLS message"))
             .ok();

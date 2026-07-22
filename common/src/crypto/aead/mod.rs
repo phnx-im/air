@@ -114,12 +114,12 @@ impl AeadCiphertext {
     }
 
     pub fn random() -> Self {
-        use rand::Rng;
+        use rand::RngExt;
 
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         Self {
-            ciphertext: rng.r#gen::<[u8; 32]>().into(),
-            nonce: rng.r#gen::<[u8; AEAD_NONCE_SIZE]>(),
+            ciphertext: rng.random::<[u8; 32]>().into(),
+            nonce: rng.random::<[u8; AEAD_NONCE_SIZE]>(),
         }
     }
 
