@@ -2,12 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:math' as math;
-
 import 'package:air/ds/foundations/elevation.dart';
 import 'package:air/message_list/emoji_repository.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'package:air/ds/components/button/glass_circle_button.dart';
@@ -16,6 +13,8 @@ import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:air/ds/foundations/themes.dart';
 import 'package:air/ds/theme/theme.dart';
+
+import 'centered_emoji.dart';
 
 // Picker metrics.
 const double _emojiCellSize = 52;
@@ -64,7 +63,7 @@ class EmojiPicker extends HookWidget {
     }, [searchController]);
 
     useEffect(() {
-      _EmojiPainters.warmUp(skinTone.value);
+      _warmUpTone(context, skinTone.value);
       return null;
     }, [skinTone.value]);
 
@@ -200,9 +199,9 @@ class _EmojiComponentButton extends StatelessWidget {
       color: colors.fill.tertiary,
       enableBackdropBlur: false,
       shadows: const [],
-      icon: Text(
-        '\u{270B}${component.modifier}',
-        style: const TextStyle(fontSize: 20, height: 1.0),
+      icon: CenteredEmoji(
+        emoji: '\u{270B}${component.modifier}',
+        style: const TextStyle(fontSize: 20),
       ),
     );
   }
@@ -230,12 +229,9 @@ class _SkinToneStrip extends StatelessWidget {
                 color: tone == selected
                     ? colors.backgroundBase.secondary
                     : Colors.transparent,
-                icon: Text(
-                  '\u{270B}${tone.modifier}',
-                  style: const TextStyle(
-                    fontSize: _emojiGlyphSize,
-                    height: 1.0,
-                  ),
+                icon: CenteredEmoji(
+                  emoji: '\u{270B}${tone.modifier}',
+                  style: const TextStyle(fontSize: _emojiGlyphSize),
                 ),
               ),
             ),
@@ -258,8 +254,9 @@ class _EmojiCell extends StatelessWidget {
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
-        child: CustomPaint(
-          painter: _EmojiGlyphPainter(_EmojiPainters.of(emoji)),
+        child: CenteredEmoji(
+          emoji: emoji,
+          style: const TextStyle(fontSize: _emojiGlyphSize),
         ),
       ),
     );
@@ -360,69 +357,15 @@ Future<String?> showEmojiPickerSheet({
   );
 }
 
-/// Paints a cached, pre-laid-out emoji glyph centered in the cell.
-class _EmojiGlyphPainter extends CustomPainter {
-  const _EmojiGlyphPainter(this.glyph);
+final Set<EmojiSkinVariation> _warmedTones = {};
 
-  final TextPainter glyph;
+/// Shapes all picker glyphs for [tone] via [CenteredEmoji.warmUpGlyphs], once
+/// per tone.
+void _warmUpTone(BuildContext context, EmojiSkinVariation tone) {
+  if (!_warmedTones.add(tone)) return;
 
-  @override
-  void paint(Canvas canvas, Size size) {
-    glyph.paint(
-      canvas,
-      Offset((size.width - glyph.width) / 2, (size.height - glyph.height) / 2),
-    );
-  }
-
-  @override
-  bool shouldRepaint(_EmojiGlyphPainter oldDelegate) =>
-      glyph != oldDelegate.glyph;
-}
-
-/// Process-wide cache of laid-out [TextPainter]s for picker glyphs.
-///
-/// Cache entries are keyed by the final emoji string (including the skin-tone
-/// variant). Entries are kept for the lifetime of the app: measured cost is ~1
-/// KiB per glyph, about ~2 MB for the base set and ~4 MB with all skin tones
-/// warmed.
-class _EmojiPainters {
-  static const _warmUpChunkSize = 50;
-
-  static final Map<String, TextPainter> _painters = {};
-  static final Set<EmojiSkinVariation> _warmedTones = {};
-
-  /// The painter for [emoji], shaping and caching it on first use.
-  static TextPainter of(String emoji) => _painters.putIfAbsent(
-    emoji,
-    () => TextPainter(
-      text: TextSpan(
-        text: emoji,
-        style: const TextStyle(fontSize: _emojiGlyphSize, height: 1.0),
-      ),
-      textDirection: TextDirection.ltr,
-    )..layout(),
-  );
-
-  /// Shapes all picker glyphs for [tone] in idle-priority chunks.
-  static void warmUp(EmojiSkinVariation tone) {
-    if (!_warmedTones.add(tone)) return;
-
-    final pending = [
-      for (final (_, emojis) in EmojiRepository.filter(''))
-        for (final emoji in emojis) emoji.applySkinVariation(tone),
-    ];
-
-    var index = 0;
-    void chunk() {
-      final end = math.min(index + _warmUpChunkSize, pending.length);
-      for (; index < end; index++) {
-        of(pending[index]);
-      }
-      if (index < pending.length) {
-        SchedulerBinding.instance.scheduleTask(chunk, Priority.idle);
-      }
-    }
-
-    SchedulerBinding.instance.scheduleTask(chunk, Priority.idle);
-  }
+  CenteredEmoji.warmUpGlyphs(context, [
+    for (final (_, emojis) in EmojiRepository.filter(''))
+      for (final emoji in emojis) emoji.applySkinVariation(tone),
+  ], const TextStyle(fontSize: _emojiGlyphSize));
 }

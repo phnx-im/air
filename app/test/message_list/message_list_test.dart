@@ -1382,11 +1382,19 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
+      // The chip emoji is a painted glyph, not a Text, find it via semantics.
+      // The handle must be disposed before the end of the test body: an
+      // addTearDown callback runs too late for the framework's leak check.
+      final semantics = tester.ensureSemantics();
+
       messageListCubit.setState(messages);
 
       await tester.pumpWidget(buildSubject());
 
-      await tester.tap(find.text('🫪'));
+      // The chip merges the emoji and the reaction count ("🫪\n2") into one
+      // semantics node, so match on the emoji rather than the whole label.
+      await tester.tap(find.bySemanticsLabel(RegExp('🫪')));
+      semantics.dispose();
       await tester.pump(kDoubleTapTimeout);
       await tester.pumpAndSettle();
 
