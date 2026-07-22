@@ -252,7 +252,7 @@ class _IncomingMessageTile extends StatelessWidget {
           children: [
             Padding(
               padding: EdgeInsets.only(
-                bottom: reactionsReservedBelow(reactions.isNotEmpty),
+                bottom: reactionsReservedBelow(context, reactions.isNotEmpty),
               ),
               child: SizedBox(
                 width: senderAvatarSize,
@@ -762,7 +762,7 @@ class _MessageView extends HookWidget {
     // centers it on the bubble itself (not the bubble + reaction chips).
     final hoverAffordance = Padding(
       padding: EdgeInsets.only(
-        bottom: reactionsReservedBelow(reactions.isNotEmpty),
+        bottom: reactionsReservedBelow(context, reactions.isNotEmpty),
         left: isSender ? 0 : Spacing.px8,
         right: isSender ? Spacing.px8 : 0,
       ),

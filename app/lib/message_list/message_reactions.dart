@@ -21,6 +21,7 @@ import 'package:air/widgets/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
+import 'centered_emoji.dart';
 import 'emoji_repository.dart';
 
 /// The curated quick-reaction set shown in the [QuickReactionBar].
@@ -51,12 +52,16 @@ const double quickReactionMenuGap = Spacing.px12;
 /// Compact reaction chip metrics (excluding border thickness)
 const double reactionChipSpacing = 1;
 
-/// Fixed height of a reaction chip
+/// Fixed height of a reaction chip (at text scale 1.0)
 const double reactionChipHeight = 28;
+
+/// The chip text scales with the text scaler so the chip
+/// must grow with it, otherwise emojis are clipped or shrunk.
+double reactionChipHeightOf(BuildContext context) =>
+    MediaQuery.textScalerOf(context).scale(reactionChipHeight);
 
 /// Inner padding of a reaction chip
 const double reactionChipHorizontalPadding = Spacing.px8;
-const double reactionChipVerticalPadding = Spacing.px4;
 
 /// Border thickness of a reaction chip
 const double reactionChipBorderWidth = 1.5;
@@ -72,9 +77,22 @@ const double reactionsHorizontalInset = Spacing.px8;
 
 /// Vertical space [BubbleWithReactions] reserves below the bubble for the chips
 /// that overlap its bottom edge.
-double reactionsReservedBelow(bool hasReactions) => hasReactions
-    ? reactionChipHeight - reactionsMessageBubbleOverlap + reactionsGapBelow
+double reactionsReservedBelow(BuildContext context, bool hasReactions) =>
+    hasReactions
+    ? reactionChipHeightOf(context) -
+          reactionsMessageBubbleOverlap +
+          reactionsGapBelow
     : 0;
+
+/// Pre-measures the ink corrections for the quick-reaction emojis at chip
+/// size, so the chips of common reactions render centered on first frame
+/// instead of snapping into place (see [CenteredEmoji]). Chips for other
+/// emojis measure lazily, once per process.
+void warmUpReactionEmojis(BuildContext context) {
+  CenteredEmoji.warmUp(context, [
+    for (final item in quickReactionEmojis) item.emoji,
+  ], _ReactionChip.textStyle());
+}
 
 /// Default size of the reactor panel.
 const Size whoReactedPanelSize = Size(360, 380);
@@ -114,7 +132,9 @@ class BubbleWithReactions extends StatelessWidget {
       children: [
         Padding(
           // reactions is non-empty here, so reserve the chips' protrusion.
-          padding: EdgeInsets.only(bottom: reactionsReservedBelow(true)),
+          padding: EdgeInsets.only(
+            bottom: reactionsReservedBelow(context, true),
+          ),
           child: bubble,
         ),
         Positioned(
@@ -170,7 +190,11 @@ class MessageReactions extends StatelessWidget {
     final ordered = [for (final e in indexed) e.reaction];
 
     final scaler = MediaQuery.textScalerOf(context);
-    final chipTextStyle = _ReactionChip.textStyle();
+    // Merge with the ambient style like the chips' Text widgets do, so the
+    // widths are measured with the same font the chips render with.
+    final chipTextStyle = DefaultTextStyle.of(
+      context,
+    ).style.merge(_ReactionChip.textStyle());
 
     double measure(String text, TextStyle style) {
       final painter = TextPainter(
@@ -272,7 +296,7 @@ class MessageReactions extends StatelessWidget {
         // bubble. OverflowBox lets it grow past the bubble edge instead of
         // force-fitting into maxWidth and triggering a RenderFlex overflow.
         return SizedBox(
-          height: reactionChipHeight,
+          height: reactionChipHeightOf(context),
           child: OverflowBox(
             minWidth: 0,
             maxWidth: double.infinity,
@@ -314,6 +338,16 @@ class QuickReactionBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
+    final emojis = [
+      for (final item in quickReactionEmojis) _applyQuickTone(item, skinTone),
+    ];
+    // Kick the ink measurements now so the glyphs settle while the bar's
+    // open transition is still running.
+    CenteredEmoji.warmUp(
+      context,
+      emojis,
+      const TextStyle(fontSize: quickReactionBarGlyphSize),
+    );
     return Container(
       padding: const EdgeInsets.symmetric(
         horizontal: Spacing.px8,
@@ -329,9 +363,7 @@ class QuickReactionBar extends StatelessWidget {
       child: Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          for (final emoji in quickReactionEmojis.map(
-            (item) => _applyQuickTone(item, skinTone),
-          ))
+          for (final emoji in emojis)
             _QuickReactionButton(emoji: emoji, onTap: () => onReact(emoji)),
           GlassCircleButton(
             onPressed: onMore,
@@ -539,16 +571,9 @@ class _QuickReactionButton extends StatelessWidget {
           width: quickReactionBarTapSize,
           height: quickReactionBarTapSize,
           child: Center(
-            child: Text(
-              emoji,
-              style: const TextStyle(
-                fontSize: quickReactionBarGlyphSize,
-                decoration: TextDecoration.none,
-                height: 1.0,
-              ),
-              textHeightBehavior: const TextHeightBehavior(
-                leadingDistribution: .even,
-              ),
+            child: CenteredEmoji(
+              emoji: emoji,
+              style: const TextStyle(fontSize: quickReactionBarGlyphSize),
             ),
           ),
         ),
@@ -573,12 +598,13 @@ class _ReactionChip extends StatelessWidget {
   final VoidCallback? onTap;
 
   static TextStyle textStyle({Color? color}) =>
-      TextStyle(fontSize: BodyFontSize.base.size, height: 1.0, color: color);
+      TextStyle(fontSize: BodyFontSize.base.size, color: color);
 
   @override
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
     final count = reaction.users.length;
+    final chipHeight = reactionChipHeightOf(context);
 
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -586,32 +612,32 @@ class _ReactionChip extends StatelessWidget {
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: Container(
-          height: reactionChipHeight,
+          height: chipHeight,
+          // Horizontal padding only because forcing `height: 1.0` shifts
+          // emoji glyphs on iOS, which then makes it taller than the inner
+          // box.
           padding: const EdgeInsets.symmetric(
             horizontal: reactionChipHorizontalPadding,
-            vertical: reactionChipVerticalPadding,
           ),
           decoration: BoxDecoration(
             color: isMine
                 ? colors.message.selfBackground
                 : colors.message.otherBackground,
-            borderRadius: BorderRadius.circular(reactionChipHeight / 2),
+            borderRadius: BorderRadius.circular(chipHeight / 2),
             border: Border.all(
               color: colors.backgroundBase.primary,
               width: reactionChipBorderWidth,
             ),
           ),
+          alignment: Alignment.center,
           child: Row(
             mainAxisSize: .min,
             crossAxisAlignment: .center,
             children: [
-              Text(
-                reaction.emoji,
-                style: textStyle(),
-                textHeightBehavior: const TextHeightBehavior(
-                  leadingDistribution: .even,
-                ),
-              ),
+              // Ink-centered instead of a raw Text: on iOS the emoji glyph
+              // is not centered within its own text line box, see
+              // [CenteredEmoji].
+              CenteredEmoji(emoji: reaction.emoji, style: textStyle()),
               if (count >= 2) ...[
                 const SizedBox(width: Spacing.px4),
                 Text(
@@ -647,22 +673,23 @@ class _OverflowChip extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
+    final chipHeight = reactionChipHeightOf(context);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: Container(
-          height: reactionChipHeight,
+          height: chipHeight,
+          // Horizontal padding only: see _ReactionChip.
           padding: const EdgeInsets.symmetric(
             horizontal: reactionChipHorizontalPadding,
-            vertical: reactionChipVerticalPadding,
           ),
           decoration: BoxDecoration(
             color: isSender
                 ? colors.message.selfBackground
                 : colors.message.otherBackground,
-            borderRadius: BorderRadius.circular(reactionChipHeight / 2),
+            borderRadius: BorderRadius.circular(chipHeight / 2),
             border: Border.all(color: colors.backgroundBase.primary),
           ),
           alignment: Alignment.center,
