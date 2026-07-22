@@ -54,7 +54,6 @@ anyhow.workspace = true
 cbor-diag.workspace = true
 insta.workspace = true
 mockall.workspace = true
-rand_v10.workspace = true
 serde_json.workspace = true
 tracing-subscriber.workspace = true
 

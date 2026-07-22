@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use rand::Rng;
+use rand::RngExt;
 use sqlx::PgTransaction;
 
 use crate::auth_service::cli::InvitationCodeStats;
@@ -18,9 +18,9 @@ pub(crate) const CODES_PER_DAY: u64 = 1000;
 
 impl InvitationCodeRecord {
     fn generate_code(code: &mut String) {
-        let mut rng = rand::thread_rng();
+        let mut rng = rand::rng();
         for _ in 0..CODE_LEN {
-            code.push(ALPHABET[rng.gen_range(0..ALPHABET.len())] as char);
+            code.push(ALPHABET[rng.random_range(0..ALPHABET.len())] as char);
         }
     }
 
