@@ -24,7 +24,9 @@ use aircommon::codec::PersistenceCodec;
 use aircommon::{
     credentials::keys::ClientSigningKey,
     crypto::{
-        aead::{AEAD_KEY_SIZE, PaddedAeadEncryptable, keys::SelfGroupMessageKey},
+        aead::{
+            AEAD_KEY_SIZE, PaddedAeadDecryptable, PaddedAeadEncryptable, keys::SelfGroupMessageKey,
+        },
         kdf::{KdfDerivable, keys::SelfGroupExporterSecret},
     },
     messages::{
@@ -38,9 +40,11 @@ use airprotos::client::{
 };
 use anyhow::{Result, anyhow, ensure};
 use openmls::prelude::{
-    AppEphemeralProposal, Extensions, GroupContext, Proposal, tls_codec::Serialize as _,
+    AppEphemeralProposal, Extensions, GroupContext, Proposal, StagedCommit,
+    tls_codec::Serialize as _,
 };
 use openmls_traits::OpenMlsProvider;
+use tracing::{debug, warn};
 
 use crate::{
     db::access::WriteDbTransaction,
@@ -194,6 +198,91 @@ impl Group {
             encrypted_welcome_attribution_infos: Vec::new(),
         })
     }
+
+    /// Extracts the settings updates carried by a self-group commit.
+    ///
+    /// This runs on every self-group commit before merge. Content and crypto
+    /// problems must never fail commit processing, so it returns a plain Vec:
+    /// a malformed or undecryptable payload is logged and skipped rather than
+    /// propagated. Older and newer clients must interoperate, and a malformed
+    /// payload from a buggy sibling must never wedge the group.
+    ///
+    /// The self-group message key is derived lazily, at most once per call and
+    /// only when there is an encrypted payload to decrypt. If key derivation
+    /// fails, the remaining encrypted payloads are skipped.
+    pub(crate) async fn extract_settings_updates(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        staged_commit: &StagedCommit,
+    ) -> Vec<SettingsUpdate> {
+        let mut updates = Vec::new();
+        let mut key: Option<SelfGroupMessageKey> = None;
+
+        for proposal in staged_commit.queued_app_ephemeral_proposals() {
+            let proposal = proposal.app_ephemeral_proposal();
+            if proposal.component_id() != AIR_COMPONENT_ID {
+                debug!(
+                    component_id = ?proposal.component_id(),
+                    "Skipping app-ephemeral proposal for a foreign component id"
+                );
+                continue;
+            }
+
+            let payload = match PersistenceCodec::from_slice::<AppEphemeralPayload>(proposal.data())
+            {
+                Ok(payload) => payload,
+                Err(error) => {
+                    warn!(%error, "Failed to decode self-group app-ephemeral payload; skipping");
+                    continue;
+                }
+            };
+
+            let ciphertext = match payload {
+                AppEphemeralPayload::EncryptedSelfGroupMessages(ciphertext) => ciphertext,
+                // A payload kind added by a newer client. Nothing to do here.
+                AppEphemeralPayload::Unknown => {
+                    debug!("Skipping unknown self-group app-ephemeral payload");
+                    continue;
+                }
+            };
+
+            // Derive the key lazily on first need. If derivation fails there is
+            // no point retrying it for the remaining payloads in this commit.
+            if key.is_none() {
+                match self.self_group_message_key(txn).await {
+                    Ok(derived) => key = Some(derived),
+                    Err(error) => {
+                        warn!(
+                            %error,
+                            "Failed to derive self-group message key; skipping encrypted payloads"
+                        );
+                        break;
+                    }
+                }
+            }
+            let Some(message_key) = &key else {
+                break;
+            };
+
+            let messages = match SelfGroupMessages::decrypt_padded(message_key, &ciphertext) {
+                Ok(messages) => messages,
+                Err(error) => {
+                    warn!(%error, "Failed to decrypt self-group messages; skipping");
+                    continue;
+                }
+            };
+
+            for message in messages.0 {
+                match message {
+                    SelfGroupMessage::SettingsUpdate(update) => updates.push(update),
+                    // A message kind added by a newer client.
+                    SelfGroupMessage::Unknown => debug!("Skipping unknown self-group message"),
+                }
+            }
+        }
+
+        updates
+    }
 }
 
 mod persistence {
@@ -319,7 +408,13 @@ mod derivation_tests {
     use aircommon::{
         codec::PersistenceCodec,
         credentials::{keys::ClientSigningKey, test_utils::create_test_credentials},
-        crypto::aead::{PaddedAeadDecryptable, keys::IdentityLinkWrapperKey},
+        crypto::{
+            aead::{
+                PaddedAeadDecryptable, PaddedAeadEncryptable,
+                keys::{IdentityLinkWrapperKey, SelfGroupMessageKey},
+            },
+            kdf::{KdfDerivable, keys::SelfGroupExporterSecret},
+        },
         identifiers::{QualifiedGroupId, UserId},
         mls_group_config::{AppComponent, default_group_context_app_data_dictionary_extension},
     };
@@ -327,7 +422,7 @@ mod derivation_tests {
         component::{AIR_COMPONENT_ID, AirComponent},
         self_group::{AppEphemeralPayload, SelfGroupMessage, SelfGroupMessages, SettingsUpdate},
     };
-    use openmls::prelude::GroupId;
+    use openmls::prelude::{AppEphemeralProposal, GroupId, Proposal};
     use openmls_traits::OpenMlsProvider;
     use uuid::Uuid;
 
@@ -569,6 +664,107 @@ mod derivation_tests {
             !extensions_claim_self_group(staged.group_context().extensions()),
             "staged commit context drops the self-group flag"
         );
+
+        txn.commit().await?;
+        Ok(())
+    }
+
+    /// A staged settings update extracts back to the original update. The
+    /// receiver is a second handle to the same group, which mirrors the real
+    /// receive path (the staged commit comes from a processed message, not the
+    /// receiver's own pending commit) and derives the same per-epoch key from
+    /// the cache the sender populated.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn extract_settings_updates_roundtrip() -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let (_as_key, signer) = create_test_credentials(UserId::random("example.com".parse()?));
+
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+
+        let mut group = create_group(&mut txn, &signer, true)?;
+        group.store(&mut txn).await?;
+
+        let update = SettingsUpdate {
+            send_read_receipts: Some(true),
+        };
+        group
+            .stage_settings_update(&mut txn, &signer, &update)
+            .await?;
+
+        let mut receiver = Group::load(&mut txn, group.group_id())
+            .await?
+            .expect("group stored above");
+        let staged = group
+            .mls_group()
+            .pending_commit()
+            .expect("commit should be staged");
+        let extracted = receiver.extract_settings_updates(&mut txn, staged).await;
+
+        assert_eq!(extracted, vec![update]);
+
+        txn.commit().await?;
+        Ok(())
+    }
+
+    /// Extraction never fails commit processing: a proposal whose data is not
+    /// valid CBOR and a well-formed but undecryptable payload are both logged
+    /// and skipped, and extraction returns an empty Vec without panicking.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn extract_settings_updates_tolerates_bad_payloads() -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let (_as_key, signer) = create_test_credentials(UserId::random("example.com".parse()?));
+
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+
+        let mut group = create_group(&mut txn, &signer, true)?;
+        group.store(&mut txn).await?;
+
+        // Not valid PersistenceCodec CBOR.
+        let garbage = Proposal::AppEphemeral(Box::new(AppEphemeralProposal::new(
+            AIR_COMPONENT_ID,
+            vec![0xff, 0xff, 0xff, 0xff],
+        )));
+
+        // Well-formed payload, but encrypted under a key the receiver will
+        // never derive, so decryption fails.
+        let foreign_key = SelfGroupMessageKey::derive(
+            &SelfGroupExporterSecret::from_bytes([7u8; 32]),
+            &Vec::new(),
+        )?;
+        let ciphertext =
+            SelfGroupMessages(vec![SelfGroupMessage::SettingsUpdate(SettingsUpdate {
+                send_read_receipts: Some(true),
+            })])
+            .encrypt_padded(&foreign_key)?;
+        let undecryptable_bytes =
+            PersistenceCodec::to_vec(&AppEphemeralPayload::EncryptedSelfGroupMessages(ciphertext))?;
+        let undecryptable = Proposal::AppEphemeral(Box::new(AppEphemeralProposal::new(
+            AIR_COMPONENT_ID,
+            undecryptable_bytes,
+        )));
+
+        {
+            let provider = AirOpenMlsProvider::new(txn.as_mut());
+            let (t_mls_group, pq_mls_group) = group.apq_mls_groups_mut()?;
+            apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
+                .force_self_update(true)
+                .add_t_proposals([garbage, undecryptable])
+                .create_group_info(true)
+                .finalize(&provider, &signer, |_| true, |_| true)?;
+        }
+
+        let mut receiver = Group::load(&mut txn, group.group_id())
+            .await?
+            .expect("group stored above");
+        let staged = group
+            .mls_group()
+            .pending_commit()
+            .expect("commit should be staged");
+        let extracted = receiver.extract_settings_updates(&mut txn, staged).await;
+
+        assert!(extracted.is_empty());
 
         txn.commit().await?;
         Ok(())

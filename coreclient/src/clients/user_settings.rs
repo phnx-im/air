@@ -153,12 +153,20 @@ pub trait SyncedUserSetting: UserSetting {
 
 /// Runs a per-setting function once for every synced user setting.
 ///
-/// This is the single registry of synced settings: [`SettingsUpdate::collect`]
-/// and [`roll_back_settings`] are both expanded from it, so adding a setting
-/// here covers both directions.
+/// This is the single registry of synced settings. Every per-setting operation
+/// is expanded from it, so adding a setting here covers all of them:
+/// [`SettingsUpdate::collect`], [`roll_back_settings`], [`apply_settings_update`],
+/// [`merge_settings_update`], and [`reconcile_pending_update`].
+///
+/// The macro expands `$f::<T>($($args),*).await?` for each setting, so every
+/// per-setting helper is an `async fn` returning `anyhow::Result<()>`. The merge
+/// and reconcile helpers need neither a transaction nor async, but wearing that
+/// shape lets the single-arm macro stay the sole registry rather than growing a
+/// second arm that would duplicate the settings list. Call sites pass their own
+/// arguments, including a `&mut *txn` reborrow where a transaction is needed.
 macro_rules! for_each_synced_setting {
-    ($f:ident($txn:expr $(, $args:expr)*)) => {
-        $f::<ReadReceiptsSetting>(&mut *$txn $(, $args)*).await?;
+    ($f:ident($($args:expr),* $(,)?)) => {
+        $f::<ReadReceiptsSetting>($($args),*).await?;
     };
 }
 
@@ -177,7 +185,7 @@ pub(crate) trait SettingsUpdateExt: Sized {
 impl SettingsUpdateExt for SettingsUpdate {
     async fn collect(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<Self> {
         let mut update = SettingsUpdate::default();
-        for_each_synced_setting!(collect_setting(txn, &mut update));
+        for_each_synced_setting!(collect_setting(&mut *txn, &mut update));
         Ok(update)
     }
 }
@@ -204,7 +212,7 @@ pub(crate) async fn roll_back_settings(
     update: &SettingsUpdate,
     previous: &SettingsUpdate,
 ) -> anyhow::Result<()> {
-    for_each_synced_setting!(roll_back_setting(txn, update, previous));
+    for_each_synced_setting!(roll_back_setting(&mut *txn, update, previous));
     Ok(())
 }
 
@@ -235,6 +243,100 @@ async fn roll_back_setting<T: SyncedUserSetting>(
     txn.notifier()
         .update(DbEntityId::UserSetting(T::KEY.to_string()));
 
+    Ok(())
+}
+
+/// Applies an incoming settings update to the local database.
+///
+/// A settings update is a snapshot, not a diff. For each synced setting an
+/// absent field means the sender has no value for it, so the local value is
+/// left unchanged. A present field is stored only when it differs from the
+/// current value, and a settings-changed notification is emitted for each
+/// setting that actually changed so the UI can refresh.
+pub(crate) async fn apply_settings_update(
+    txn: &mut WriteDbTransaction<'_>,
+    update: &SettingsUpdate,
+) -> anyhow::Result<()> {
+    for_each_synced_setting!(apply_setting(&mut *txn, update));
+    Ok(())
+}
+
+async fn apply_setting<T: SyncedUserSetting>(
+    txn: &mut WriteDbTransaction<'_>,
+    update: &SettingsUpdate,
+) -> anyhow::Result<()> {
+    // Absent field: the sender has no value for this setting. Leave the local
+    // value unchanged.
+    let Some(value) = T::from_update(update) else {
+        return Ok(());
+    };
+
+    let new_bytes = value.encode()?;
+    let current_bytes = UserSettingRecord::load(&mut *txn, T::KEY).await?;
+
+    // The stored value already matches. Do nothing to avoid notification churn.
+    if current_bytes.as_deref() == Some(new_bytes.as_slice()) {
+        return Ok(());
+    }
+
+    UserSettingRecord::store(&mut *txn, T::KEY, new_bytes).await?;
+    txn.notifier()
+        .update(DbEntityId::UserSetting(T::KEY.to_string()));
+
+    Ok(())
+}
+
+/// Folds `other` into `acc` field by field.
+///
+/// For each synced setting present in `other`, the value overwrites `acc`. A
+/// setting absent from `other` leaves `acc` untouched. Both arguments are
+/// snapshots, so folding a sequence of updates yields the last-wins union.
+pub(crate) async fn merge_settings_update(
+    acc: &mut SettingsUpdate,
+    other: &SettingsUpdate,
+) -> anyhow::Result<()> {
+    for_each_synced_setting!(merge_setting(acc, other));
+    Ok(())
+}
+
+async fn merge_setting<T: SyncedUserSetting>(
+    acc: &mut SettingsUpdate,
+    other: &SettingsUpdate,
+) -> anyhow::Result<()> {
+    if let Some(value) = T::from_update(other) {
+        value.apply_to_update(acc);
+    }
+    Ok(())
+}
+
+/// Reconciles a still-pending settings update against an `incoming` snapshot
+/// that a sibling's accepted commit already carried.
+///
+/// For each synced setting present in `incoming`, the incoming value is written
+/// into both `update` and `previous`. A field the incoming snapshot covers is
+/// no longer our pending change. Making `update` and `previous` agree on it
+/// turns both the resend and a later rollback of that field into no-ops: the
+/// resend just re-asserts the value that already won, and rollback has nothing
+/// to revert to that differs. Fields the incoming snapshot does not cover are
+/// left alone, so our still-pending changes survive.
+pub(crate) async fn reconcile_pending_update(
+    update: &mut SettingsUpdate,
+    previous: &mut SettingsUpdate,
+    incoming: &SettingsUpdate,
+) -> anyhow::Result<()> {
+    for_each_synced_setting!(reconcile_setting(update, previous, incoming));
+    Ok(())
+}
+
+async fn reconcile_setting<T: SyncedUserSetting>(
+    update: &mut SettingsUpdate,
+    previous: &mut SettingsUpdate,
+    incoming: &SettingsUpdate,
+) -> anyhow::Result<()> {
+    if let Some(value) = T::from_update(incoming) {
+        value.apply_to_update(update);
+        value.apply_to_update(previous);
+    }
     Ok(())
 }
 
@@ -345,6 +447,47 @@ mod tests {
         Ok(bytes.map(|b| ReadReceiptsSetting::decode(b).unwrap().0))
     }
 
+    /// A notification for an update applied after subscribing but before the
+    /// stream is first polled is buffered and delivered, not lost. This is the
+    /// property the settings cubit relies on when it subscribes before its
+    /// initial reads: a change landing during those reads reaches the listener
+    /// task even though the task has not started polling yet.
+    #[sqlx::test]
+    async fn notification_buffered_between_subscribe_and_first_poll(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        use std::time::Duration;
+
+        use tokio_stream::StreamExt;
+
+        let pool = DbAccess::for_tests(pool);
+
+        // Subscribe first, like the cubit's load path does.
+        let mut notifications = std::pin::pin!(pool.notifier_tx.subscribe());
+
+        // The update lands while nobody is polling the stream yet.
+        pool.with_write_transaction(async |txn| {
+            apply_settings_update(txn, &read_receipts_update(true)).await
+        })
+        .await?;
+
+        // The first poll happens only now and still sees the notification.
+        let notification = tokio::time::timeout(Duration::from_secs(5), notifications.next())
+            .await
+            .expect("notification should be buffered, not lost")
+            .expect("notification stream should be open");
+        assert!(
+            notification.ops.keys().any(|entity_id| matches!(
+                entity_id,
+                DbEntityId::UserSetting(key) if key == ReadReceiptsSetting::KEY
+            )),
+            "expected a UserSetting notification for {}",
+            ReadReceiptsSetting::KEY
+        );
+
+        Ok(())
+    }
+
     /// Rolls back to the previous value when the stored value still equals the
     /// value the update tried to set.
     #[sqlx::test]
@@ -390,6 +533,102 @@ mod tests {
 
         // Untouched: still the newer value.
         assert_eq!(stored_read_receipts(&pool).await?, Some(false));
+        Ok(())
+    }
+
+    /// Applying an update with a present field stores that value.
+    #[sqlx::test]
+    async fn apply_stores_present_field(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        pool.with_write_transaction(async |txn| {
+            apply_settings_update(txn, &read_receipts_update(true)).await
+        })
+        .await?;
+
+        assert_eq!(stored_read_receipts(&pool).await?, Some(true));
+        Ok(())
+    }
+
+    /// A field absent from the update leaves the stored value untouched: an
+    /// absent field means the sender has no value for it, not "clear it".
+    #[sqlx::test]
+    async fn apply_leaves_absent_field_untouched(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        UserSettingRecord::store(pool.write().await?, ReadReceiptsSetting::KEY, vec![1]).await?;
+
+        // An update that carries no value for the setting.
+        pool.with_write_transaction(async |txn| {
+            apply_settings_update(txn, &SettingsUpdate::default()).await
+        })
+        .await?;
+
+        assert_eq!(stored_read_receipts(&pool).await?, Some(true));
+        Ok(())
+    }
+
+    /// Applying an update whose value equals the stored value is a no-op: the
+    /// stored value stays as it was.
+    #[sqlx::test]
+    async fn apply_equal_value_is_noop(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        UserSettingRecord::store(pool.write().await?, ReadReceiptsSetting::KEY, vec![1]).await?;
+
+        pool.with_write_transaction(async |txn| {
+            apply_settings_update(txn, &read_receipts_update(true)).await
+        })
+        .await?;
+
+        assert_eq!(stored_read_receipts(&pool).await?, Some(true));
+        Ok(())
+    }
+
+    /// Reconciling against an incoming snapshot that covers the pending field
+    /// makes `update` and `previous` agree, so nothing is left to change.
+    #[tokio::test]
+    async fn reconcile_matches_update_and_previous_when_covered() -> anyhow::Result<()> {
+        for incoming in [true, false] {
+            let mut update = read_receipts_update(true);
+            let mut previous = read_receipts_update(false);
+            reconcile_pending_update(&mut update, &mut previous, &read_receipts_update(incoming))
+                .await?;
+            assert_eq!(update, previous, "incoming = {incoming}");
+            assert_eq!(update, read_receipts_update(incoming));
+        }
+        Ok(())
+    }
+
+    /// An empty incoming snapshot, as produced by an unknown-only update from a
+    /// newer client, covers nothing, so `update` and `previous` are unchanged.
+    #[tokio::test]
+    async fn reconcile_leaves_update_and_previous_when_incoming_empty() -> anyhow::Result<()> {
+        let mut update = read_receipts_update(true);
+        let mut previous = read_receipts_update(false);
+        reconcile_pending_update(&mut update, &mut previous, &SettingsUpdate::default()).await?;
+        assert_eq!(update, read_receipts_update(true));
+        assert_eq!(previous, read_receipts_update(false));
+        Ok(())
+    }
+
+    /// Folding a sequence of snapshots yields the last-wins union per field.
+    #[tokio::test]
+    async fn merge_folds_last_wins() -> anyhow::Result<()> {
+        let mut acc = SettingsUpdate::default();
+        merge_settings_update(&mut acc, &SettingsUpdate::default()).await?;
+        assert_eq!(acc, SettingsUpdate::default(), "empty fold changes nothing");
+
+        merge_settings_update(&mut acc, &read_receipts_update(true)).await?;
+        assert_eq!(acc, read_receipts_update(true));
+
+        // A later snapshot that covers the field overwrites it.
+        merge_settings_update(&mut acc, &read_receipts_update(false)).await?;
+        assert_eq!(acc, read_receipts_update(false));
+
+        // A later empty snapshot leaves the accumulated value in place.
+        merge_settings_update(&mut acc, &SettingsUpdate::default()).await?;
+        assert_eq!(acc, read_receipts_update(false));
         Ok(())
     }
 
