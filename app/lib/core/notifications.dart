@@ -11,22 +11,151 @@ import 'frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:uuid/uuid.dart';
 
+class ConversationMessage {
+  /// References a participant uuid (reactor for reactions)
+  final UuidValue senderUuid;
+  final String text;
+
+  /// Rendering hint: italize the line for reactions
+  final bool isReaction;
+
+  /// Milliseconds since epoch
+  final PlatformInt64 timestamp;
+
+  const ConversationMessage({
+    required this.senderUuid,
+    required this.text,
+    required this.isReaction,
+    required this.timestamp,
+  });
+
+  @override
+  int get hashCode =>
+      senderUuid.hashCode ^
+      text.hashCode ^
+      isReaction.hashCode ^
+      timestamp.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ConversationMessage &&
+          runtimeType == other.runtimeType &&
+          senderUuid == other.senderUuid &&
+          text == other.text &&
+          isReaction == other.isReaction &&
+          timestamp == other.timestamp;
+}
+
+/// Structured payload a chat rebuilt conversation notification.
+class ConversationNotification {
+  final String chatTitle;
+  final bool isGroup;
+
+  /// Device owner
+  final String ownDisplayName;
+
+  /// Senders/reactors referenced by `messages`, deduplicated
+  final List<ConversationParticipant> participants;
+
+  /// Chronological, as most CHAT_NOTIFICATION_REBUILD_LIMIT entries
+  final List<ConversationMessage> messages;
+
+  /// `false` for silent rebuilds (delete/edit/retraction)
+  final bool alert;
+
+  /// The group picture for group chats, absent for 1:1 chats
+  ///
+  /// Base64 on JNI JSON path
+  final Uint8List? chatAvatar;
+
+  const ConversationNotification({
+    required this.chatTitle,
+    required this.isGroup,
+    required this.ownDisplayName,
+    required this.participants,
+    required this.messages,
+    required this.alert,
+    this.chatAvatar,
+  });
+
+  @override
+  int get hashCode =>
+      chatTitle.hashCode ^
+      isGroup.hashCode ^
+      ownDisplayName.hashCode ^
+      participants.hashCode ^
+      messages.hashCode ^
+      alert.hashCode ^
+      chatAvatar.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ConversationNotification &&
+          runtimeType == other.runtimeType &&
+          chatTitle == other.chatTitle &&
+          isGroup == other.isGroup &&
+          ownDisplayName == other.ownDisplayName &&
+          participants == other.participants &&
+          messages == other.messages &&
+          alert == other.alert &&
+          chatAvatar == other.chatAvatar;
+}
+
+class ConversationParticipant {
+  /// Stable `Person` key
+  final UuidValue uuid;
+  final String displayName;
+
+  /// Small image bytes (webp/jpeg)
+  ///
+  /// Base64 on JNI JSON path
+  final Uint8List? avatar;
+
+  const ConversationParticipant({
+    required this.uuid,
+    required this.displayName,
+    this.avatar,
+  });
+
+  @override
+  int get hashCode => uuid.hashCode ^ displayName.hashCode ^ avatar.hashCode;
+
+  @override
+  bool operator ==(Object other) =>
+      identical(this, other) ||
+      other is ConversationParticipant &&
+          runtimeType == other.runtimeType &&
+          uuid == other.uuid &&
+          displayName == other.displayName &&
+          avatar == other.avatar;
+}
+
 class NotificationContent {
   final NotificationId identifier;
   final String title;
   final String body;
   final ChatId chatId;
 
+  /// Structured conversation payload for Android `MessagingStyle` notifications.
+  final ConversationNotification? conversation;
+
   const NotificationContent({
     required this.identifier,
     required this.title,
     required this.body,
     required this.chatId,
+    this.conversation,
   });
 
   @override
   int get hashCode =>
-      identifier.hashCode ^ title.hashCode ^ body.hashCode ^ chatId.hashCode;
+      identifier.hashCode ^
+      title.hashCode ^
+      body.hashCode ^
+      chatId.hashCode ^
+      conversation.hashCode;
 
   @override
   bool operator ==(Object other) =>
@@ -36,7 +165,8 @@ class NotificationContent {
           identifier == other.identifier &&
           title == other.title &&
           body == other.body &&
-          chatId == other.chatId;
+          chatId == other.chatId &&
+          conversation == other.conversation;
 }
 
 class NotificationHandle {

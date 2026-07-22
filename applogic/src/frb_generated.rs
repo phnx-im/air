@@ -10334,6 +10334,60 @@ impl SseDecode for crate::api::chat_list_cubit::ChatListState {
     }
 }
 
+impl SseDecode for crate::notifications::ConversationMessage {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_senderUuid = <uuid::Uuid>::sse_decode(deserializer);
+        let mut var_text = <String>::sse_decode(deserializer);
+        let mut var_isReaction = <bool>::sse_decode(deserializer);
+        let mut var_timestamp = <i64>::sse_decode(deserializer);
+        return crate::notifications::ConversationMessage {
+            sender_uuid: var_senderUuid,
+            text: var_text,
+            is_reaction: var_isReaction,
+            timestamp: var_timestamp,
+        };
+    }
+}
+
+impl SseDecode for crate::notifications::ConversationNotification {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_chatTitle = <String>::sse_decode(deserializer);
+        let mut var_isGroup = <bool>::sse_decode(deserializer);
+        let mut var_ownDisplayName = <String>::sse_decode(deserializer);
+        let mut var_participants =
+            <Vec<crate::notifications::ConversationParticipant>>::sse_decode(deserializer);
+        let mut var_messages =
+            <Vec<crate::notifications::ConversationMessage>>::sse_decode(deserializer);
+        let mut var_alert = <bool>::sse_decode(deserializer);
+        let mut var_chatAvatar = <Option<Vec<u8>>>::sse_decode(deserializer);
+        return crate::notifications::ConversationNotification {
+            chat_title: var_chatTitle,
+            is_group: var_isGroup,
+            own_display_name: var_ownDisplayName,
+            participants: var_participants,
+            messages: var_messages,
+            alert: var_alert,
+            chat_avatar: var_chatAvatar,
+        };
+    }
+}
+
+impl SseDecode for crate::notifications::ConversationParticipant {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut var_uuid = <uuid::Uuid>::sse_decode(deserializer);
+        let mut var_displayName = <String>::sse_decode(deserializer);
+        let mut var_avatar = <Option<Vec<u8>>>::sse_decode(deserializer);
+        return crate::notifications::ConversationParticipant {
+            uuid: var_uuid,
+            display_name: var_displayName,
+            avatar: var_avatar,
+        };
+    }
+}
+
 impl SseDecode for crate::api::chat_details_cubit::DebugCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -10721,6 +10775,34 @@ impl SseDecode for Vec<crate::api::types::ChatId> {
         let mut ans_ = Vec::with_capacity(len_ as usize);
         for idx_ in 0..len_ {
             ans_.push(<crate::api::types::ChatId>::sse_decode(deserializer));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::notifications::ConversationMessage> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::notifications::ConversationMessage>::sse_decode(
+                deserializer,
+            ));
+        }
+        return ans_;
+    }
+}
+
+impl SseDecode for Vec<crate::notifications::ConversationParticipant> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut len_ = <i32>::sse_decode(deserializer);
+        let mut ans_ = Vec::with_capacity(len_ as usize);
+        for idx_ in 0..len_ {
+            ans_.push(<crate::notifications::ConversationParticipant>::sse_decode(
+                deserializer,
+            ));
         }
         return ans_;
     }
@@ -11282,11 +11364,14 @@ impl SseDecode for crate::notifications::NotificationContent {
         let mut var_title = <String>::sse_decode(deserializer);
         let mut var_body = <String>::sse_decode(deserializer);
         let mut var_chatId = <crate::api::types::ChatId>::sse_decode(deserializer);
+        let mut var_conversation =
+            <Option<crate::notifications::ConversationNotification>>::sse_decode(deserializer);
         return crate::notifications::NotificationContent {
             identifier: var_identifier,
             title: var_title,
             body: var_body,
             chat_id: var_chatId,
+            conversation: var_conversation,
         };
     }
 }
@@ -11456,6 +11541,19 @@ impl SseDecode for Option<crate::api::types::ChatId> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<crate::api::types::ChatId>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<crate::notifications::ConversationNotification> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(
+                <crate::notifications::ConversationNotification>::sse_decode(deserializer),
+            );
         } else {
             return None;
         }
@@ -13673,6 +13771,77 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::chat_list_cubit::ChatListStat
     }
 }
 // Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::notifications::ConversationMessage {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.sender_uuid.into_into_dart().into_dart(),
+            self.text.into_into_dart().into_dart(),
+            self.is_reaction.into_into_dart().into_dart(),
+            self.timestamp.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::notifications::ConversationMessage
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::notifications::ConversationMessage>
+    for crate::notifications::ConversationMessage
+{
+    fn into_into_dart(self) -> crate::notifications::ConversationMessage {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::notifications::ConversationNotification {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.chat_title.into_into_dart().into_dart(),
+            self.is_group.into_into_dart().into_dart(),
+            self.own_display_name.into_into_dart().into_dart(),
+            self.participants.into_into_dart().into_dart(),
+            self.messages.into_into_dart().into_dart(),
+            self.alert.into_into_dart().into_dart(),
+            self.chat_avatar.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::notifications::ConversationNotification
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::notifications::ConversationNotification>
+    for crate::notifications::ConversationNotification
+{
+    fn into_into_dart(self) -> crate::notifications::ConversationNotification {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart for crate::notifications::ConversationParticipant {
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        [
+            self.uuid.into_into_dart().into_dart(),
+            self.display_name.into_into_dart().into_dart(),
+            self.avatar.into_into_dart().into_dart(),
+        ]
+        .into_dart()
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for crate::notifications::ConversationParticipant
+{
+}
+impl flutter_rust_bridge::IntoIntoDart<crate::notifications::ConversationParticipant>
+    for crate::notifications::ConversationParticipant
+{
+    fn into_into_dart(self) -> crate::notifications::ConversationParticipant {
+        self
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
 impl flutter_rust_bridge::IntoDart
     for FrbWrapper<crate::api::chat_details_cubit::DebugCapabilities>
 {
@@ -14456,6 +14625,7 @@ impl flutter_rust_bridge::IntoDart for crate::notifications::NotificationContent
             self.title.into_into_dart().into_dart(),
             self.body.into_into_dart().into_dart(),
             self.chat_id.into_into_dart().into_dart(),
+            self.conversation.into_into_dart().into_dart(),
         ]
         .into_dart()
     }
@@ -16405,6 +16575,41 @@ impl SseEncode for crate::api::chat_list_cubit::ChatListState {
     }
 }
 
+impl SseEncode for crate::notifications::ConversationMessage {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <uuid::Uuid>::sse_encode(self.sender_uuid, serializer);
+        <String>::sse_encode(self.text, serializer);
+        <bool>::sse_encode(self.is_reaction, serializer);
+        <i64>::sse_encode(self.timestamp, serializer);
+    }
+}
+
+impl SseEncode for crate::notifications::ConversationNotification {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <String>::sse_encode(self.chat_title, serializer);
+        <bool>::sse_encode(self.is_group, serializer);
+        <String>::sse_encode(self.own_display_name, serializer);
+        <Vec<crate::notifications::ConversationParticipant>>::sse_encode(
+            self.participants,
+            serializer,
+        );
+        <Vec<crate::notifications::ConversationMessage>>::sse_encode(self.messages, serializer);
+        <bool>::sse_encode(self.alert, serializer);
+        <Option<Vec<u8>>>::sse_encode(self.chat_avatar, serializer);
+    }
+}
+
+impl SseEncode for crate::notifications::ConversationParticipant {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <uuid::Uuid>::sse_encode(self.uuid, serializer);
+        <String>::sse_encode(self.display_name, serializer);
+        <Option<Vec<u8>>>::sse_encode(self.avatar, serializer);
+    }
+}
+
 impl SseEncode for crate::api::chat_details_cubit::DebugCapabilities {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -16726,6 +16931,26 @@ impl SseEncode for Vec<crate::api::types::ChatId> {
         <i32>::sse_encode(self.len() as _, serializer);
         for item in self {
             <crate::api::types::ChatId>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::notifications::ConversationMessage> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::notifications::ConversationMessage>::sse_encode(item, serializer);
+        }
+    }
+}
+
+impl SseEncode for Vec<crate::notifications::ConversationParticipant> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(self.len() as _, serializer);
+        for item in self {
+            <crate::notifications::ConversationParticipant>::sse_encode(item, serializer);
         }
     }
 }
@@ -17169,6 +17394,10 @@ impl SseEncode for crate::notifications::NotificationContent {
         <String>::sse_encode(self.title, serializer);
         <String>::sse_encode(self.body, serializer);
         <crate::api::types::ChatId>::sse_encode(self.chat_id, serializer);
+        <Option<crate::notifications::ConversationNotification>>::sse_encode(
+            self.conversation,
+            serializer,
+        );
     }
 }
 
@@ -17315,6 +17544,16 @@ impl SseEncode for Option<crate::api::types::ChatId> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <crate::api::types::ChatId>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<crate::notifications::ConversationNotification> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <crate::notifications::ConversationNotification>::sse_encode(value, serializer);
         }
     }
 }

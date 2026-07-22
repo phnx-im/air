@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE chat SET notified_until = ?1 WHERE chat_id = ?2",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "e36678ea607943bb680babe6b784c9620c63bcbad0e5ffb74e8f2d325098823c"
+}

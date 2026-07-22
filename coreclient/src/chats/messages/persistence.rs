@@ -10,6 +10,7 @@ use aircommon::{
     time::TimeStamp,
 };
 use anyhow::bail;
+use chrono::{DateTime, Utc};
 use indexmap::IndexMap;
 use mimi_content::{MessageStatus, MimiContent};
 use serde::{Deserialize, Serialize};
@@ -589,6 +590,50 @@ impl ChatMessage {
         .map(ChatMessage::from)
         .with_loaded_in_reply_to(&mut connection)
         .await
+    }
+
+    /// Load the newest content messages in a chat since (exclusive) `since`, in ascending order,
+    /// capped at `limit`.
+    pub(crate) async fn load_newest_since(
+        mut connection: impl ReadConnection,
+        chat_id: ChatId,
+        since: DateTime<Utc>,
+        limit: u32,
+    ) -> sqlx::Result<Vec<ChatMessage>> {
+        let mut messages: Vec<ChatMessage> = query_as!(
+            SqlChatMessage,
+            r#"SELECT
+                message_id AS "message_id: _",
+                mimi_id AS "mimi_id: _",
+                chat_id AS "chat_id: _",
+                timestamp AS "timestamp: _",
+                sender_user_uuid AS "sender_user_uuid: _",
+                sender_user_domain AS "sender_user_domain: _",
+                content AS "content: _",
+                sent,
+                status,
+                edited_at AS "edited_at: _",
+                b.user_uuid IS NOT NULL AS "is_blocked!: _",
+                in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+            FROM message
+            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
+                AND b.user_domain = sender_user_domain
+            WHERE chat_id = ?1
+                AND timestamp > ?2
+                AND sender_user_uuid IS NOT NULL
+            ORDER BY timestamp DESC, message_id DESC
+            LIMIT ?3"#,
+            chat_id,
+            since,
+            limit,
+        )
+        .fetch(connection.as_mut())
+        .filter_map(Self::decode_row)
+        .collect::<sqlx::Result<Vec<_>>>()
+        .await?;
+
+        messages.reverse();
+        messages.with_loaded_in_reply_to(&mut connection).await
     }
 
     /// Augments a loaded chat message with lazily-loaded data: the referenced
