@@ -40,7 +40,7 @@ use crate::{
     job::pending_chat_operation::PendingChatOperation, key_stores::as_credentials::AsCredentials,
 };
 
-use super::{Group, openmls_provider::AirOpenMlsProvider};
+use super::{Group, openmls_provider::AirOpenMlsProvider, self_group_message_key};
 
 pub(crate) enum ProcessMessageResult {
     Processed(ProcessMessageProcessed),
@@ -224,6 +224,20 @@ impl Group {
 
         let staged_commit = expect_staged_commit(processed_message)?;
         let pq_staged_commit = pq_processed_message.map(expect_staged_commit).transpose()?;
+
+        // A commit must never flip the self-group flag: an ordinary group can
+        // never turn into a self-group, and the self-group can never lose the
+        // flag. The flag lives in the T group context, so compare the live
+        // context against the provisional post-commit context of the T staged
+        // commit. Rejecting here keeps the in-memory flag trustworthy across
+        // epochs (see `Group::is_self_group`).
+        let self_group_flag_after = self_group_message_key::extensions_claim_self_group(
+            staged_commit.group_context().extensions(),
+        );
+        ensure!(
+            self.is_self_group() == self_group_flag_after,
+            "commit changes the self-group flag"
+        );
 
         // For an external commit (resync, join connection group), the sender's new leaf lives in
         // the commit's update path and is not visible in the live tree until the commit is merged.

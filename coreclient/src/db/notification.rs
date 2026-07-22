@@ -212,6 +212,8 @@ pub enum DbEntityId {
     Chat(ChatId),
     Message(MessageId),
     Attachment(AttachmentId),
+    /// A synchronized user setting, identified by its setting key.
+    UserSetting(String),
 }
 
 impl DbEntityId {
@@ -221,6 +223,7 @@ impl DbEntityId {
             DbEntityId::Chat(_) => DbEntityKind::Chat,
             DbEntityId::Message(_) => DbEntityKind::Message,
             DbEntityId::Attachment(_) => DbEntityKind::Attachment,
+            DbEntityId::UserSetting(_) => DbEntityKind::UserSetting,
         }
     }
 }
@@ -231,6 +234,7 @@ pub(crate) enum DbEntityKind {
     Chat = 1,
     Message = 2,
     Attachment = 3,
+    UserSetting = 4,
 }
 
 #[derive(Debug, thiserror::Error)]
@@ -246,6 +250,7 @@ impl TryFrom<i64> for DbEntityKind {
             1 => Ok(DbEntityKind::Chat),
             2 => Ok(DbEntityKind::Message),
             3 => Ok(DbEntityKind::Attachment),
+            4 => Ok(DbEntityKind::UserSetting),
             _ => Err(InvalidDbEntityKind(value)),
         }
     }

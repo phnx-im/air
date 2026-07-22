@@ -13,7 +13,7 @@ use aircommon::{
     },
     time::TimeStamp,
 };
-use airprotos::client::group::GroupData;
+use airprotos::client::{group::GroupData, self_group::SettingsUpdate};
 use anyhow::{Context as _, anyhow, bail};
 use apqmls::commit_builder::ApqCommitMessageBundle;
 use chrono::{DateTime, Duration, Utc};
@@ -26,7 +26,10 @@ use tracing::{debug, error, info};
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
     chats::{GroupDataExt, messages::TimestampedMessage},
-    clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
+    clients::{
+        CoreUser, api_clients::ApiClients, update_key::update_chat_attributes,
+        user_settings::roll_back_settings,
+    },
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
         Group, GroupDataBytes, PreparedInvitee, VerifiedGroup,
@@ -71,6 +74,15 @@ pub(super) enum OperationType {
         #[serde(with = "serde_bytes")]
         new_chat_picture: Option<Vec<u8>>,
     },
+    SettingsUpdate {
+        params: Box<ApqGroupOperationParamsOut>,
+        /// The decoded intent; kept so the commit can be rebuilt after an epoch
+        /// race.
+        update: SettingsUpdate,
+        /// Values of the touched settings before the update; used to roll back
+        /// on terminal failure.
+        previous: SettingsUpdate,
+    },
 }
 
 impl std::fmt::Display for OperationType {
@@ -81,6 +93,7 @@ impl std::fmt::Display for OperationType {
             OperationType::ApqDelete { .. } => "apq_delete",
             OperationType::Other { .. } => "other",
             OperationType::ApqOther { .. } => "apq_other",
+            OperationType::SettingsUpdate { .. } => "settings_update",
         };
         f.write_str(label)
     }
@@ -121,7 +134,8 @@ impl OperationType {
             OperationType::Delete(_)
             | OperationType::ApqDelete { .. }
             | OperationType::Other { .. }
-            | OperationType::ApqOther { .. } => true,
+            | OperationType::ApqOther { .. }
+            | OperationType::SettingsUpdate { .. } => true,
         }
     }
 
@@ -130,6 +144,14 @@ impl OperationType {
             self,
             OperationType::Delete(_) | OperationType::ApqDelete { .. }
         )
+    }
+
+    /// Whether a DS rejection of this operation marks the group's commit as
+    /// failed, which raises the desync banner on the chat. Settings updates
+    /// skip this: a self-group settings race is reconciled silently through
+    /// the queue and must not raise a banner on the Notes-to-self chat.
+    fn marks_commit_failed(&self) -> bool {
+        !matches!(self, OperationType::SettingsUpdate { .. })
     }
 }
 
@@ -184,6 +206,7 @@ impl Job for PendingChatOperation {
                     .write()
                     .await?
                     .with_transaction(async |txn| {
+                        self.roll_back_settings_if_any(txn).await?;
                         handle_group_not_found_on_ds(txn, &group_id).await
                     })
                     .await?;
@@ -196,6 +219,7 @@ impl Job for PendingChatOperation {
                     .write()
                     .await?
                     .with_transaction(async |txn| -> anyhow::Result<()> {
+                        self.roll_back_settings_if_any(txn).await?;
                         let group = self.group.group_mut();
                         group.discard_pending_commit(&mut *txn).await?;
                         Self::delete(txn, self.group.group_id()).await?;
@@ -232,6 +256,21 @@ impl PendingChatOperation {
         matches!(self.operation, OperationType::Leave(_))
     }
 
+    /// Rolls back an optimistically applied settings update on terminal
+    /// failure of the operation. No-op for other operation kinds.
+    async fn roll_back_settings_if_any(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+    ) -> anyhow::Result<()> {
+        if let OperationType::SettingsUpdate {
+            update, previous, ..
+        } = &self.operation
+        {
+            roll_back_settings(txn, update, previous).await?;
+        }
+        Ok(())
+    }
+
     pub async fn execute_internal(
         &mut self,
         context: &mut JobContext<'_, '_>,
@@ -243,11 +282,13 @@ impl PendingChatOperation {
                 it is still waiting for a queue response",
             );
             // Re-assert the flag derived from the persisted job state, in case
-            // the original write was lost
-            self.group
-                .group_mut()
-                .mark_commit_failed(context.db.write().await?)
-                .await?;
+            // the original write was lost.
+            if self.operation.marks_commit_failed() {
+                self.group
+                    .group_mut()
+                    .mark_commit_failed(context.db.write().await?)
+                    .await?;
+            }
             return Err(JobError::Blocked);
         }
 
@@ -345,6 +386,23 @@ impl PendingChatOperation {
             } => {
                 new_chat_picture = chat_picture;
 
+                let own_qs_client_reference = key_store.create_own_client_reference(qs_client_id);
+                let own_encrypted_user_profile_key =
+                    encrypt_user_profile_key(db.read().await?).await?;
+
+                api_client
+                    .ds_apq_group_operation(
+                        *params,
+                        signer,
+                        self.group.group_state_ear_key(),
+                        own_qs_client_reference,
+                        own_encrypted_user_profile_key,
+                    )
+                    .await
+            }
+            OperationType::SettingsUpdate { params, .. } => {
+                // Sent exactly like `ApqOther`: same DS call, no chat picture,
+                // no chat side effects.
                 let own_qs_client_reference = key_store.create_own_client_reference(qs_client_id);
                 let own_encrypted_user_profile_key =
                     encrypt_user_profile_key(db.read().await?).await?;
@@ -514,10 +572,12 @@ impl PendingChatOperation {
             // it because another one got there first.
             self.mark_as_waiting_for_queue_response(&mut connection)
                 .await?;
-            self.group
-                .group_mut()
-                .mark_commit_failed(&mut connection)
-                .await?;
+            if self.operation.marks_commit_failed() {
+                self.group
+                    .group_mut()
+                    .mark_commit_failed(&mut connection)
+                    .await?;
+            }
 
             Err(JobError::Blocked)
         } else if error.is_network_error() && self.number_of_attempts < MAX_RETRIES {
@@ -628,6 +688,36 @@ impl PendingChatOperation {
             .with_context(|| format!("Can't find group with chat id {chat_id}"))?;
         let params = group.group_mut().apq_update(txn, signer)?;
         let job = Self::new(group, OperationType::apq_other(params));
+        job.store(txn).await?;
+        Ok(job)
+    }
+
+    /// Stages a self-group commit carrying the settings update and stores it as
+    /// a pending chat operation.
+    pub(crate) async fn create_settings_update(
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &ClientSigningKey,
+        self_group_id: &GroupId,
+        update: SettingsUpdate,
+        previous: SettingsUpdate,
+    ) -> anyhow::Result<Self> {
+        let mut group = Group::load_clean_verified(&mut *txn, self_group_id)
+            .await?
+            .with_context(|| format!("Can't find self group with id {self_group_id:?}"))?;
+
+        let params = group
+            .group_mut()
+            .stage_settings_update(txn, signer, &update)
+            .await?;
+
+        let job = Self::new(
+            group,
+            OperationType::SettingsUpdate {
+                params: Box::new(params),
+                update,
+                previous,
+            },
+        );
         job.store(txn).await?;
         Ok(job)
     }
@@ -1189,6 +1279,11 @@ mod tests {
         credentials::{keys::ClientSigningKey, test_utils::create_test_credentials},
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QualifiedGroupId, UserId},
+        mls_group_config::AppComponent,
+    };
+    use airprotos::{
+        client::component::AirComponent,
+        common::v1::{StatusDetails, StatusDetailsCode, WrongEpochDetail, status_details::Detail},
     };
     use chrono::{Duration, Utc};
     use uuid::Uuid;
@@ -1199,6 +1294,102 @@ mod tests {
     };
 
     use super::*;
+
+    /// A DS error that reports a wrong-epoch rejection.
+    fn wrong_epoch_error() -> DsRequestError {
+        let details = StatusDetails {
+            code: StatusDetailsCode::WrongEpoch.into(),
+            detail: Some(Detail::WrongEpoch(WrongEpochDetail {})),
+        };
+        DsRequestError::Tonic(details.to_status(tonic::Code::InvalidArgument, "wrong epoch"))
+    }
+
+    /// Builds a single-member APQ self-group with a pending settings-update
+    /// operation, stored in the database.
+    async fn setup_self_group_settings_op()
+    -> anyhow::Result<(DbAccess, PendingChatOperation, ClientSigningKey)> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let (_aic_sk, signing_key) =
+            create_test_credentials(UserId::random("example.com".parse()?));
+
+        let mut connection = pool.write().await?;
+        let job = connection
+            .with_transaction(async |txn| -> anyhow::Result<_> {
+                let t_group_id = GroupId::from(QualifiedGroupId::new(
+                    Uuid::new_v4(),
+                    "example.com".parse()?,
+                ));
+                let pq_group_id = GroupId::from(QualifiedGroupId::new(
+                    Uuid::new_v4(),
+                    "example.com".parse()?,
+                ));
+                let (group, _params) = Group::create_apq_group(
+                    &mut *txn,
+                    &signing_key,
+                    IdentityLinkWrapperKey::random()?,
+                    t_group_id,
+                    pq_group_id,
+                    GroupDataBytes::from(b"test-group-data".to_vec()),
+                    None,
+                    AirComponent::default_for_self_group(),
+                )?;
+                group.store(&mut *txn).await?;
+                let mut group = VerifiedGroup::new_for_test(group);
+
+                let update = SettingsUpdate {
+                    send_read_receipts: Some(true),
+                };
+                let params = group
+                    .group_mut()
+                    .stage_settings_update(txn, &signing_key, &update)
+                    .await?;
+
+                let job = PendingChatOperation::new(
+                    group,
+                    OperationType::SettingsUpdate {
+                        params: Box::new(params),
+                        update,
+                        previous: SettingsUpdate::default(),
+                    },
+                );
+                job.store(txn).await?;
+                Ok(job)
+            })
+            .await?;
+
+        Ok((pool, job, signing_key))
+    }
+
+    /// A wrong-epoch rejection of a settings update parks the operation as
+    /// `WaitingForQueueResponse` but does not mark the self-group commit as
+    /// failed. A settings race must not raise a "desynced" banner.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn wrong_epoch_parks_settings_without_marking_failed() -> anyhow::Result<()> {
+        let (pool, mut pending, _signing_key) = setup_self_group_settings_op().await?;
+
+        let result = pending
+            .handle_error(pool.write().await?, wrong_epoch_error())
+            .await;
+
+        // Parked, not failed.
+        assert_matches!(result, Err(JobError::Blocked));
+        assert!(
+            !pending.group.commit_failed(),
+            "settings race must not mark the commit failed"
+        );
+
+        // The status is persisted as waiting for the queue response.
+        let group_id = pending.group.group_id().clone();
+        let reloaded = PendingChatOperation::load_by_group_id(pool.read().await?, &group_id)
+            .await?
+            .expect("operation should still exist");
+        assert!(matches!(
+            reloaded.status,
+            PendingChatOperationStatus::WaitingForQueueResponse
+        ));
+
+        Ok(())
+    }
 
     async fn setup_group_and_chat()
     -> anyhow::Result<(DbAccess, VerifiedGroup, ChatId, ClientSigningKey)> {

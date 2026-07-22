@@ -339,6 +339,13 @@ impl Group {
         self.pq.as_mut()
     }
 
+    /// Whether the group has a commit that the DS rejected and that has not
+    /// been reconciled yet.
+    #[cfg(test)]
+    pub(crate) fn commit_failed(&self) -> bool {
+        self.pending_commit_failed
+    }
+
     pub(crate) async fn mark_commit_failed(
         &mut self,
         mut connection: impl WriteConnection,

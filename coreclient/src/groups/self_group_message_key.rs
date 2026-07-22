@@ -20,12 +20,26 @@
 //! epoch returns the cached key. The punctured tree and the cached key are
 //! written in the same transaction, so they can never diverge.
 
-use aircommon::crypto::{
-    aead::{AEAD_KEY_SIZE, keys::SelfGroupMessageKey},
-    kdf::{KdfDerivable, keys::SelfGroupExporterSecret},
+use aircommon::codec::PersistenceCodec;
+use aircommon::{
+    credentials::keys::ClientSigningKey,
+    crypto::{
+        aead::{AEAD_KEY_SIZE, PaddedAeadEncryptable, keys::SelfGroupMessageKey},
+        kdf::{KdfDerivable, keys::SelfGroupExporterSecret},
+    },
+    messages::{
+        client_ds::{AadMessage, AadPayload, GroupOperationParamsAad},
+        client_ds_out::ApqGroupOperationParamsOut,
+    },
 };
-use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent};
+use airprotos::client::{
+    component::{AIR_COMPONENT_ID, AirComponent},
+    self_group::{AppEphemeralPayload, SelfGroupMessage, SelfGroupMessages, SettingsUpdate},
+};
 use anyhow::{Result, anyhow, ensure};
+use openmls::prelude::{
+    AppEphemeralProposal, Extensions, GroupContext, Proposal, tls_codec::Serialize as _,
+};
 use openmls_traits::OpenMlsProvider;
 
 use crate::{
@@ -33,20 +47,36 @@ use crate::{
     groups::{Group, openmls_provider::AirOpenMlsProvider},
 };
 
+/// Reads the `is_self_group` flag from a group context's app-data dictionary.
+///
+/// The flag lives in the [`AirComponent`] entry under [`AIR_COMPONENT_ID`]. A
+/// missing component or entry means "not a self-group". Works on any
+/// [`Extensions<GroupContext>`], so it can be applied both to a live group's
+/// extensions and to the provisional post-commit context of a
+/// [`StagedCommit`](openmls::prelude::StagedCommit).
+pub(crate) fn extensions_claim_self_group(extensions: &Extensions<GroupContext>) -> bool {
+    extensions
+        .app_data_dictionary()
+        .and_then(|dict| dict.dictionary().get(&AIR_COMPONENT_ID))
+        .and_then(|data| AirComponent::from_bytes(data).ok())
+        .map(|component| component.is_self_group)
+        .unwrap_or(false)
+}
+
 impl Group {
-    /// Returns whether this group is a self-group, according to the
-    /// `is_self_group` flag in the AIR component of the group context.
-    // Wired into the send/receive paths in later steps of the settings-sync
-    // plan; kept here alongside the key accessor that already relies on it.
-    #[allow(dead_code)]
+    /// Returns whether this group claims to be a self-group, per the
+    /// `is_self_group` flag in the AIR component of the T group context.
+    ///
+    /// The flag lives in group-creator-controlled state. Commit-time
+    /// validation rejects any commit that flips it (see
+    /// `post_process_staged_commit` in `groups::process`), so a group can
+    /// never change its self-group status after the fact. Join-time
+    /// validation (rejecting a joined group whose flag disagrees with the
+    /// locally known self-group id) is deferred to a follow-up. Until then we
+    /// assume an adversary cannot make a client join a non-legitimate
+    /// self-group.
     pub(crate) fn is_self_group(&self) -> bool {
-        self.mls_group()
-            .extensions()
-            .app_data_dictionary()
-            .and_then(|dict| dict.dictionary().get(&AIR_COMPONENT_ID))
-            .and_then(|data| AirComponent::from_bytes(data).ok())
-            .map(|component| component.is_self_group)
-            .unwrap_or(false)
+        extensions_claim_self_group(self.mls_group().extensions())
     }
 
     /// Returns the message key for the self-group's current epoch, deriving and
@@ -65,9 +95,8 @@ impl Group {
     ///
     /// Errors if called on a group that is not the self-group: deriving the AIR
     /// component export for an ordinary chat group would puncture that group's
-    /// export tree for nothing.
-    // Wired into the send/receive paths in later steps of the settings-sync plan.
-    #[allow(dead_code)]
+    /// export tree for nothing. The guard reads the in-memory `is_self_group`
+    /// flag (see [`Group::is_self_group`] for its trust model).
     pub(crate) async fn self_group_message_key(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
@@ -111,6 +140,59 @@ impl Group {
         persistence::store(&mut *txn, &group_id, current_epoch, &key).await?;
 
         Ok(key)
+    }
+
+    /// Stages a self-group commit that carries the given settings update.
+    ///
+    /// The update is encrypted under the current-epoch self-group message key
+    /// (which enforces the self-group guard), wrapped into an
+    /// [`AppEphemeralPayload`], and committed as an `AppEphemeral` proposal on a
+    /// forced self-update. The commit shape mirrors `stage_apq_invite` minus the
+    /// invitees, so it carries no welcome or attribution infos.
+    pub(crate) async fn stage_settings_update(
+        &mut self,
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &ClientSigningKey,
+        update: &SettingsUpdate,
+    ) -> Result<ApqGroupOperationParamsOut> {
+        // Derive the current-epoch key. This also enforces the self-group guard.
+        let key = self.self_group_message_key(txn).await?;
+
+        // Encrypt the update and wrap it into an app-ephemeral payload.
+        let messages = SelfGroupMessages(vec![SelfGroupMessage::SettingsUpdate(update.clone())]);
+        let encrypted = messages.encrypt_padded(&key)?;
+        let payload = AppEphemeralPayload::EncryptedSelfGroupMessages(encrypted);
+        let payload_bytes = PersistenceCodec::to_vec(&payload)?;
+        let proposal = Proposal::AppEphemeral(Box::new(AppEphemeralProposal::new(
+            AIR_COMPONENT_ID,
+            payload_bytes,
+        )));
+
+        // Set the AAD for a group operation without any added users.
+        let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
+            new_encrypted_user_profile_keys: Vec::new(),
+        }))
+        .tls_serialize_detached()?;
+        self.mls_group.set_aad(aad);
+
+        let provider = AirOpenMlsProvider::new(txn.as_mut());
+        let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
+        let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
+            .force_self_update(true)
+            .add_t_proposal(proposal)
+            .create_group_info(true)
+            .finalize(&provider, signer, |_| true, |_| true)?;
+
+        debug_assert!(bundle.welcome.is_none());
+        ensure!(
+            bundle.group_info.is_some(),
+            "No group info in APQMLS bundle"
+        );
+
+        Ok(ApqGroupOperationParamsOut {
+            bundle,
+            encrypted_welcome_attribution_infos: Vec::new(),
+        })
     }
 }
 
@@ -235,13 +317,18 @@ mod persistence {
 #[cfg(test)]
 mod derivation_tests {
     use aircommon::{
+        codec::PersistenceCodec,
         credentials::{keys::ClientSigningKey, test_utils::create_test_credentials},
-        crypto::aead::keys::IdentityLinkWrapperKey,
+        crypto::aead::{PaddedAeadDecryptable, keys::IdentityLinkWrapperKey},
         identifiers::{QualifiedGroupId, UserId},
-        mls_group_config::AppComponent,
+        mls_group_config::{AppComponent, default_group_context_app_data_dictionary_extension},
     };
-    use airprotos::client::component::AirComponent;
+    use airprotos::client::{
+        component::{AIR_COMPONENT_ID, AirComponent},
+        self_group::{AppEphemeralPayload, SelfGroupMessage, SelfGroupMessages, SettingsUpdate},
+    };
     use openmls::prelude::GroupId;
+    use openmls_traits::OpenMlsProvider;
     use uuid::Uuid;
 
     use crate::{
@@ -250,6 +337,8 @@ mod derivation_tests {
         utils::persistence::open_db_in_memory,
     };
 
+    use super::extensions_claim_self_group;
+
     fn random_group_id() -> GroupId {
         GroupId::from(QualifiedGroupId::new(
             Uuid::new_v4(),
@@ -257,7 +346,9 @@ mod derivation_tests {
         ))
     }
 
-    /// Creates a fresh single-member APQ group with the given self-group flag.
+    /// Creates a fresh single-member APQ group. When `is_self_group` is set,
+    /// the group context carries `AirComponent::default_for_self_group`, which
+    /// is what the accessor's guard checks.
     fn create_group(
         txn: &mut WriteDbTransaction<'_>,
         signer: &ClientSigningKey,
@@ -350,6 +441,50 @@ mod derivation_tests {
         Ok(())
     }
 
+    /// Staging a settings update produces a commit that carries exactly one
+    /// AppEphemeral proposal with `AIR_COMPONENT_ID`, whose payload decrypts
+    /// (with the cached epoch key) back to the original update.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn stage_settings_update_carries_encrypted_update() -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let (_as_key, signer) = create_test_credentials(UserId::random("example.com".parse()?));
+
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+
+        let mut group = create_group(&mut txn, &signer, true)?;
+
+        let update = SettingsUpdate {
+            send_read_receipts: Some(true),
+        };
+        group
+            .stage_settings_update(&mut txn, &signer, &update)
+            .await?;
+
+        // Exactly one AppEphemeral proposal with our component id.
+        let staged = group
+            .mls_group()
+            .pending_commit()
+            .expect("commit should be staged");
+        let proposals: Vec<_> = staged.queued_app_ephemeral_proposals().collect();
+        assert_eq!(proposals.len(), 1);
+        let proposal = proposals[0].app_ephemeral_proposal();
+        assert_eq!(proposal.component_id(), AIR_COMPONENT_ID);
+
+        // The payload decodes and decrypts back to the original update.
+        let payload: AppEphemeralPayload = PersistenceCodec::from_slice(proposal.data())?;
+        let AppEphemeralPayload::EncryptedSelfGroupMessages(encrypted) = payload else {
+            panic!("expected encrypted self-group messages");
+        };
+        // Re-derive (cached, same epoch) to exercise the cache on the read side.
+        let key = group.self_group_message_key(&mut txn).await?;
+        let messages = SelfGroupMessages::decrypt_padded(&key, &encrypted)?;
+        assert_eq!(messages.0, vec![SelfGroupMessage::SettingsUpdate(update)]);
+
+        txn.commit().await?;
+        Ok(())
+    }
+
     /// The accessor refuses to derive for a group that is not the self-group, so
     /// ordinary chat groups never have their export tree punctured for nothing.
     #[tokio::test(flavor = "multi_thread")]
@@ -361,8 +496,79 @@ mod derivation_tests {
         let mut txn = connection.begin().await?;
 
         let mut group = create_group(&mut txn, &signer, false)?;
-        assert!(!group.is_self_group());
         assert!(group.self_group_message_key(&mut txn).await.is_err());
+
+        txn.commit().await?;
+        Ok(())
+    }
+
+    /// `is_self_group` reflects the AIR component flag in the group context: a
+    /// group created for the self-group reports true, an ordinary group false.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn is_self_group_reflects_air_component() -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let (_as_key, signer) = create_test_credentials(UserId::random("example.com".parse()?));
+
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+
+        let self_group = create_group(&mut txn, &signer, true)?;
+        assert!(self_group.is_self_group());
+
+        let ordinary_group = create_group(&mut txn, &signer, false)?;
+        assert!(!ordinary_group.is_self_group());
+
+        txn.commit().await?;
+        Ok(())
+    }
+
+    /// A commit that flips the self-group flag is detectable: the live group
+    /// context still claims self-group, but the staged commit's provisional
+    /// context does not. This is exactly the difference the commit-time guard
+    /// in `post_process_staged_commit` rejects. The full guard runs against a
+    /// received commit and needs the client/DS stack, so it is covered by the
+    /// integration tests; here we exercise the helper on a real staged commit.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn commit_flipping_self_group_flag_is_detectable() -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let (_as_key, signer) = create_test_credentials(UserId::random("example.com".parse()?));
+
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+
+        let mut group = create_group(&mut txn, &signer, true)?;
+        assert!(group.is_self_group());
+
+        // Build a group-context-extensions commit that clears the self-group
+        // flag by replacing the AIR component in the app data dictionary.
+        let mut flipped = group.mls_group().extensions().clone();
+        flipped.add_or_replace(default_group_context_app_data_dictionary_extension(
+            AirComponent::default_for_leaf_or_key_package(),
+            None,
+        ))?;
+        {
+            let provider = AirOpenMlsProvider::new(txn.as_mut());
+            let (t_mls_group, _pq_mls_group) = group.apq_mls_groups_mut()?;
+            t_mls_group
+                .commit_builder()
+                .propose_group_context_extensions(flipped)?
+                .load_psks(provider.storage())?
+                .build(provider.rand(), provider.crypto(), &signer, |_| true)?
+                .stage_commit(&provider)?;
+        }
+
+        let staged = group
+            .mls_group()
+            .pending_commit()
+            .expect("commit should be staged");
+        assert!(
+            extensions_claim_self_group(group.mls_group().extensions()),
+            "live context still claims self-group"
+        );
+        assert!(
+            !extensions_claim_self_group(staged.group_context().extensions()),
+            "staged commit context drops the self-group flag"
+        );
 
         txn.commit().await?;
         Ok(())
