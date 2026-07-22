@@ -6,7 +6,7 @@ use std::time::Duration;
 
 use airserver_test_harness::utils::setup::TestBackend;
 use mimi_content::MimiContent;
-use rand::{Rng, thread_rng};
+use rand::RngExt;
 use tracing::info;
 
 /// Test that [`CoreUser::fully_process_qs_messages`] is cancellation-safe.
@@ -46,7 +46,7 @@ async fn process_qs_messages_cancellation_safety() {
         info!(num_messages = messages.len(), "processing messages");
 
         // Random delay in [30, 500) µs
-        let delay_us = thread_rng().gen_range(30u64..500);
+        let delay_us = rand::rng().random_range(30u64..500);
 
         tokio::select! {
             _ = tokio::time::sleep(Duration::from_micros(delay_us)) => {},

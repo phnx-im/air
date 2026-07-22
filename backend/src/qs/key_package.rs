@@ -244,7 +244,7 @@ mod tests {
 
     use std::collections::HashSet;
 
-    use rand::{Rng, thread_rng};
+    use rand::RngExt;
     use sqlx::PgPool;
 
     use crate::qs::{
@@ -340,11 +340,11 @@ mod tests {
         pool: &PgPool,
         client_id: &QsClientId,
     ) -> anyhow::Result<Vec<DummyKeyPackage>> {
-        let mut rng = thread_rng();
+        let mut rng = rand::rng();
 
-        let a: [u8; 4] = rng.r#gen();
-        let b: [u8; 4] = rng.r#gen();
-        let last_resort: [u8; 4] = rng.r#gen();
+        let a: [u8; 4] = rng.random();
+        let b: [u8; 4] = rng.random();
+        let last_resort: [u8; 4] = rng.random();
 
         let pkg_a = a.to_vec();
         let pkg_b = b.to_vec();

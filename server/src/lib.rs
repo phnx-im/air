@@ -32,6 +32,7 @@ use futures_core::Stream;
 #[cfg(target_os = "linux")]
 use metrics::{describe_gauge, gauge};
 use metrics_exporter_prometheus::{PrometheusBuilder, PrometheusHandle};
+use rand::RngExt;
 use tokio::{
     io::{AsyncRead, AsyncWrite},
     net::TcpListener,
@@ -142,7 +143,6 @@ pub async fn run<
     let rotation_pool = auth_service.db_pool().clone();
     tokio::spawn(shutdown.clone().run_until_cancelled_owned(async move {
         use airbackend::auth_service::privacy_pass::rotate_keys_if_needed;
-        use rand::Rng;
 
         let cooldown = Duration::from_secs(15 * 60);
         tokio::time::sleep(cooldown).await;
@@ -151,7 +151,7 @@ pub async fn run<
             if let Err(e) = rotate_keys_if_needed(&rotation_pool).await {
                 tracing::error!(%e, "VOPRF key rotation check failed");
             }
-            let jitter = rand::thread_rng().gen_range(0..3600);
+            let jitter = rand::rng().random_range(0..3600);
             let interval = Duration::from_secs(24 * 60 * 60 + jitter);
 
             tokio::time::sleep(interval).await;

@@ -26,7 +26,9 @@ derive_more.workspace = true
 displaydoc.workspace = true
 enumset.workspace = true
 hex.workspace = true
+hkdf.workspace = true
 image.workspace = true
+indexmap.workspace = true
 infer.workspace = true
 mimi-room-policy.workspace = true
 mimi_content.workspace = true
@@ -38,12 +40,10 @@ openmls_traits.workspace = true
 pin-project.workspace = true
 privacypass.workspace = true
 rand.workspace = true                                              # TODO: Replace this with a CSPRNG
-rand_chacha.workspace = true
 reqwest = { workspace = true, features = ["stream", "multipart"] }
 serde.workspace = true
 serde_bytes.workspace = true
 serde_json.workspace = true
-hkdf.workspace = true
 sha2.workspace = true
 sqlx = { workspace = true, features = ["chrono", "sqlite"] }
 tempfile = { workspace = true, optional = true }
@@ -56,7 +56,6 @@ tracing.workspace = true
 url.workspace = true
 uuid = { workspace = true, features = ["v4", "serde"] }
 webpx.workspace = true
-indexmap.workspace = true
 
 [dev-dependencies]
 airbackend.workspace = true
