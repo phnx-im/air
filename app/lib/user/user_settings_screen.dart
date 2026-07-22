@@ -21,6 +21,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:logging/logging.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'add_username_dialog.dart';
@@ -28,6 +29,8 @@ import 'change_display_name_dialog.dart';
 import 'contact_us_screen.dart';
 import 'delete_account_dialog.dart';
 import 'remove_username_dialog.dart';
+
+final _log = Logger('UserSettingsScreen');
 
 class UserSettingsScreen extends StatelessWidget {
   const UserSettingsScreen({super.key});
@@ -331,6 +334,17 @@ class _CommonSettings extends HookWidget {
     final readReceipts = useState(
       useMemoized(() => context.read<UserSettingsCubit>().state.readReceipts),
     );
+    final readReceiptsSetting = context.select(
+      (UserSettingsCubit cubit) => cubit.state.readReceipts,
+    );
+    // Converge the local switch onto the cubit state. This moves the switch
+    // for out-of-band changes (a sibling device update or a rollback) and
+    // confirms it after a successful submit. The optimistic local flip
+    // survives because the cubit state only changes on success.
+    useEffect(() {
+      readReceipts.value = readReceiptsSetting;
+      return null;
+    }, [readReceiptsSetting]);
     final bool isDeveloper = context.select(
       (UserSettingsCubit cubit) => cubit.state.isDeveloper,
     );
@@ -343,11 +357,20 @@ class _CommonSettings extends HookWidget {
         if (isDeveloper) const _Devices(),
         const _LanguageSettings(),
         _SwitchField(
-          onSubmit: (value) {
-            context.read<UserSettingsCubit>().setReadReceipts(
-              userCubit: context.read(),
-              value: value,
-            );
+          onSubmit: (value) async {
+            final settingsCubit = context.read<UserSettingsCubit>();
+            final userCubit = context.read<UserCubit>();
+            try {
+              await settingsCubit.setReadReceipts(
+                userCubit: userCubit,
+                value: value,
+              );
+            } catch (e) {
+              // The submit failed, so the cubit state did not move. Revert the
+              // optimistic local flip to match it.
+              _log.severe("Failed to set read receipts: $e", e);
+              readReceipts.value = settingsCubit.state.readReceipts;
+            }
           },
           value: readReceipts,
           label: loc.userSettingsScreen_readReceipts,
