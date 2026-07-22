@@ -52,6 +52,28 @@ void main() {
     expect(correction.dy, isNot(isNaN));
   });
 
+  testWidgets('measures asymmetric ink bounds in the right direction', (
+    tester,
+  ) async {
+    // An apostrophe's ink sits near the top of the line box, a period's
+    // near the baseline, so centering must nudge them in opposite vertical
+    // directions. This guards against an implementation that never
+    // measures and always reports a zero correction.
+    await tester.pumpWidget(_subject(emoji: "'"));
+    await tester.runAsync(CenteredEmoji.debugFlushMeasurements);
+    await tester.pump();
+    final apostrophe = _painterOf(tester).correction;
+
+    await tester.pumpWidget(_subject(emoji: '.'));
+    await tester.runAsync(CenteredEmoji.debugFlushMeasurements);
+    await tester.pump();
+    final period = _painterOf(tester).correction;
+
+    // The apostrophe is nudged down toward the center, the period up.
+    expect(apostrophe.dy, greaterThan(1.0));
+    expect(period.dy, lessThan(-1.0));
+  });
+
   testWidgets('reuses the cached correction without a zero-offset frame', (
     tester,
   ) async {
