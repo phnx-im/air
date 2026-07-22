@@ -678,14 +678,17 @@ class _CenteredEmojiState extends State<_CenteredEmoji> {
   Widget build(BuildContext context) {
     final scaler = MediaQuery.textScalerOf(context);
     final dpr = MediaQuery.devicePixelRatioOf(context);
+    // Merge with the ambient style like Text does: a bare TextPainter falls
+    // back to the engine default font family, not the theme's.
+    final style = DefaultTextStyle.of(context).style.merge(widget.style);
     final glyph = TextPainter(
-      text: TextSpan(text: widget.emoji, style: widget.style),
+      text: TextSpan(text: widget.emoji, style: style),
       textDirection: TextDirection.ltr,
       textScaler: scaler,
       textHeightBehavior: const TextHeightBehavior(leadingDistribution: .even),
     )..layout();
 
-    final key = '${widget.emoji}|${widget.style.fontSize}|$dpr';
+    final key = '${widget.emoji}|${style.fontSize}|$dpr';
     if (key != _key) {
       _key = key;
       final cached = _corrections[key];
@@ -693,13 +696,18 @@ class _CenteredEmojiState extends State<_CenteredEmoji> {
         _correction = cached;
       } else {
         _correction = Offset.zero;
-        _measure(key, widget.emoji, widget.style, scaler, dpr);
+        _measure(key, widget.emoji, style, scaler, dpr);
       }
     }
 
-    return CustomPaint(
-      size: Size(glyph.width, glyph.height),
-      painter: _CenteredGlyphPainter(glyph, _correction),
+    // A raw Text would expose its content to the semantics tree, painting the
+    // glyph ourselves loses that, so restore the label explicitly.
+    return Semantics(
+      label: widget.emoji,
+      child: CustomPaint(
+        size: Size(glyph.width, glyph.height),
+        painter: _CenteredGlyphPainter(glyph, _correction),
+      ),
     );
   }
 
