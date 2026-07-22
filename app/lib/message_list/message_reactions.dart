@@ -55,7 +55,7 @@ const double reactionChipSpacing = 1;
 /// Fixed height of a reaction chip (at text scale 1.0)
 const double reactionChipHeight = 28;
 
-/// The chip text scales with the text scaler so the chip 
+/// The chip text scales with the text scaler so the chip
 /// must grow with it, otherwise emojis are clipped or shrunk.
 double reactionChipHeightOf(BuildContext context) =>
     MediaQuery.textScalerOf(context).scale(reactionChipHeight);
@@ -624,10 +624,7 @@ class _ReactionChip extends StatelessWidget {
               // extra leading, not the font's asymmetric ascent/descent), so a
               // Text ends up visually off-centre. This mirrors how the emoji
               // picker paints its glyphs (see `_EmojiGlyphPainter`).
-              _CenteredEmoji(
-                emoji: reaction.emoji,
-                style: textStyle(),
-              ),
+              _CenteredEmoji(emoji: reaction.emoji, style: textStyle()),
               if (count >= 2) ...[
                 const SizedBox(width: Spacing.px4),
                 Text(
@@ -685,9 +682,7 @@ class _CenteredEmojiState extends State<_CenteredEmoji> {
       text: TextSpan(text: widget.emoji, style: widget.style),
       textDirection: TextDirection.ltr,
       textScaler: scaler,
-      textHeightBehavior: const TextHeightBehavior(
-        leadingDistribution: .even,
-      ),
+      textHeightBehavior: const TextHeightBehavior(leadingDistribution: .even),
     )..layout();
 
     final key = '${widget.emoji}|${widget.style.fontSize}|$dpr';

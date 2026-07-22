@@ -403,9 +403,7 @@ class _EmojiPainters {
         style: const TextStyle(fontSize: _emojiGlyphSize),
       ),
       textDirection: TextDirection.ltr,
-      textHeightBehavior: const TextHeightBehavior(
-        leadingDistribution: .even,
-      ),
+      textHeightBehavior: const TextHeightBehavior(leadingDistribution: .even),
     )..layout(),
   );
 
