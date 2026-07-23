@@ -79,7 +79,13 @@ pub enum SelfGroupMessage {
     Unknown,
 }
 
-/// An update to one or more synchronized user settings.
+/// The full state of the sender's synchronized user settings.
+///
+/// A settings update is a snapshot, not a diff. Senders fill in every synced
+/// setting they have a stored value for. An absent field means the sender has
+/// no value for that setting, for example because it is an older client that
+/// does not know the tag. Receivers leave the local value of absent fields
+/// unchanged.
 ///
 /// ## CDDL Definition
 ///

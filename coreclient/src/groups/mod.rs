@@ -14,6 +14,7 @@ pub(crate) mod openmls_provider;
 pub(crate) mod persistence;
 pub(crate) mod process;
 pub(crate) mod self_group;
+pub(crate) mod self_group_message_key;
 
 use apqmls::{
     authentication::ApqCredentialWithKey,
@@ -336,6 +337,13 @@ impl Group {
 
     pub(crate) fn pq_mut(&mut self) -> Option<&mut PqGroup> {
         self.pq.as_mut()
+    }
+
+    /// Whether the group has a commit that the DS rejected and that has not
+    /// been reconciled yet.
+    #[cfg(test)]
+    pub(crate) fn commit_failed(&self) -> bool {
+        self.pending_commit_failed
     }
 
     pub(crate) async fn mark_commit_failed(

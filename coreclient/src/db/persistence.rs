@@ -42,6 +42,7 @@ impl<'q> Encode<'q, Sqlite> for DbEntityId {
             DbEntityId::Attachment(attachment_id) => {
                 Encode::<Sqlite>::encode_by_ref(&attachment_id.uuid, buf)
             }
+            DbEntityId::UserSetting(key) => Encode::<Sqlite>::encode(key.clone().into_bytes(), buf),
         }
     }
 }
@@ -97,6 +98,7 @@ impl SqlDbNotification {
             DbEntityKind::Attachment => {
                 DbEntityId::Attachment(AttachmentId::from_raw(Uuid::from_slice(&entity_id)?))
             }
+            DbEntityKind::UserSetting => DbEntityId::UserSetting(String::from_utf8(entity_id)?),
         };
         let mut op: EnumSet<DbOperation> = Default::default();
         if added {

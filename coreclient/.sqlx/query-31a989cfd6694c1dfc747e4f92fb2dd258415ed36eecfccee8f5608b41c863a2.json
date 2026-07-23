@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT OR REPLACE INTO self_group_message_key (group_id, epoch, key)\n            VALUES (?, ?, ?)",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "31a989cfd6694c1dfc747e4f92fb2dd258415ed36eecfccee8f5608b41c863a2"
+}

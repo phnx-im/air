@@ -13,7 +13,7 @@ use aircommon::{
     },
     time::TimeStamp,
 };
-use airprotos::client::group::GroupData;
+use airprotos::client::{group::GroupData, self_group::SettingsUpdate};
 use anyhow::{Context as _, anyhow, bail};
 use apqmls::commit_builder::ApqCommitMessageBundle;
 use chrono::{DateTime, Duration, Utc};
@@ -26,7 +26,13 @@ use tracing::{debug, error, info};
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
     chats::{GroupDataExt, messages::TimestampedMessage},
-    clients::{CoreUser, api_clients::ApiClients, update_key::update_chat_attributes},
+    clients::{
+        CoreUser,
+        api_clients::ApiClients,
+        own_client_info::OwnClientInfo,
+        update_key::update_chat_attributes,
+        user_settings::{reconcile_pending_update, roll_back_settings},
+    },
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
         Group, GroupDataBytes, PreparedInvitee, VerifiedGroup,
@@ -71,6 +77,15 @@ pub(super) enum OperationType {
         #[serde(with = "serde_bytes")]
         new_chat_picture: Option<Vec<u8>>,
     },
+    SettingsUpdate {
+        params: Box<ApqGroupOperationParamsOut>,
+        /// The decoded intent; kept so the commit can be rebuilt after an epoch
+        /// race.
+        update: SettingsUpdate,
+        /// Values of the touched settings before the update; used to roll back
+        /// on terminal failure.
+        previous: SettingsUpdate,
+    },
 }
 
 impl std::fmt::Display for OperationType {
@@ -81,6 +96,7 @@ impl std::fmt::Display for OperationType {
             OperationType::ApqDelete { .. } => "apq_delete",
             OperationType::Other { .. } => "other",
             OperationType::ApqOther { .. } => "apq_other",
+            OperationType::SettingsUpdate { .. } => "settings_update",
         };
         f.write_str(label)
     }
@@ -121,7 +137,8 @@ impl OperationType {
             OperationType::Delete(_)
             | OperationType::ApqDelete { .. }
             | OperationType::Other { .. }
-            | OperationType::ApqOther { .. } => true,
+            | OperationType::ApqOther { .. }
+            | OperationType::SettingsUpdate { .. } => true,
         }
     }
 
@@ -130,6 +147,14 @@ impl OperationType {
             self,
             OperationType::Delete(_) | OperationType::ApqDelete { .. }
         )
+    }
+
+    /// Whether a DS rejection of this operation marks the group's commit as
+    /// failed, which raises the desync banner on the chat. Settings updates
+    /// skip this: a self-group settings race is reconciled silently through
+    /// the queue and must not raise a banner on the Notes-to-self chat.
+    fn marks_commit_failed(&self) -> bool {
+        !matches!(self, OperationType::SettingsUpdate { .. })
     }
 }
 
@@ -184,6 +209,7 @@ impl Job for PendingChatOperation {
                     .write()
                     .await?
                     .with_transaction(async |txn| {
+                        self.roll_back_settings_if_any(txn).await?;
                         handle_group_not_found_on_ds(txn, &group_id).await
                     })
                     .await?;
@@ -196,6 +222,7 @@ impl Job for PendingChatOperation {
                     .write()
                     .await?
                     .with_transaction(async |txn| -> anyhow::Result<()> {
+                        self.roll_back_settings_if_any(txn).await?;
                         let group = self.group.group_mut();
                         group.discard_pending_commit(&mut *txn).await?;
                         Self::delete(txn, self.group.group_id()).await?;
@@ -232,6 +259,25 @@ impl PendingChatOperation {
         matches!(self.operation, OperationType::Leave(_))
     }
 
+    pub(crate) fn is_settings_update(&self) -> bool {
+        matches!(self.operation, OperationType::SettingsUpdate { .. })
+    }
+
+    /// Rolls back an optimistically applied settings update on terminal
+    /// failure of the operation. No-op for other operation kinds.
+    async fn roll_back_settings_if_any(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+    ) -> anyhow::Result<()> {
+        if let OperationType::SettingsUpdate {
+            update, previous, ..
+        } = &self.operation
+        {
+            roll_back_settings(txn, update, previous).await?;
+        }
+        Ok(())
+    }
+
     pub async fn execute_internal(
         &mut self,
         context: &mut JobContext<'_, '_>,
@@ -243,11 +289,13 @@ impl PendingChatOperation {
                 it is still waiting for a queue response",
             );
             // Re-assert the flag derived from the persisted job state, in case
-            // the original write was lost
-            self.group
-                .group_mut()
-                .mark_commit_failed(context.db.write().await?)
-                .await?;
+            // the original write was lost.
+            if self.operation.marks_commit_failed() {
+                self.group
+                    .group_mut()
+                    .mark_commit_failed(context.db.write().await?)
+                    .await?;
+            }
             return Err(JobError::Blocked);
         }
 
@@ -288,6 +336,18 @@ impl PendingChatOperation {
                 leave_params,
             )?;
             **leave_params = restaged;
+        }
+
+        // Restage a settings update whose original commit is gone. While the
+        // op's original commit is alive the group holds a matching pending
+        // commit. Processing any incoming commit always discards our pending
+        // commit, so an op with no pending commit means an unrelated commit
+        // advanced the epoch and the stored params are stale. Rebuild the
+        // commit against the current epoch from the stored update snapshot.
+        let needs_settings_restage = matches!(self.operation, OperationType::SettingsUpdate { .. })
+            && self.group.mls_group().pending_commit().is_none();
+        if needs_settings_restage {
+            self.restage_settings_update(db.write().await?).await?;
         }
 
         let encrypt_user_profile_key =
@@ -345,6 +405,23 @@ impl PendingChatOperation {
             } => {
                 new_chat_picture = chat_picture;
 
+                let own_qs_client_reference = key_store.create_own_client_reference(qs_client_id);
+                let own_encrypted_user_profile_key =
+                    encrypt_user_profile_key(db.read().await?).await?;
+
+                api_client
+                    .ds_apq_group_operation(
+                        *params,
+                        signer,
+                        self.group.group_state_ear_key(),
+                        own_qs_client_reference,
+                        own_encrypted_user_profile_key,
+                    )
+                    .await
+            }
+            OperationType::SettingsUpdate { params, .. } => {
+                // Sent exactly like `ApqOther`: same DS call, no chat picture,
+                // no chat side effects.
                 let own_qs_client_reference = key_store.create_own_client_reference(qs_client_id);
                 let own_encrypted_user_profile_key =
                     encrypt_user_profile_key(db.read().await?).await?;
@@ -497,6 +574,76 @@ impl PendingChatOperation {
         Ok(messages)
     }
 
+    /// Rebuilds a settings-update commit against the group's current epoch from
+    /// the operation's stored update snapshot, replacing the stored params.
+    ///
+    /// The MLS commit must be signed with the self-group leaf key, which lives
+    /// in [`OwnClientInfo`], not with the DS request signing key. Only the MLS
+    /// commit is rebuilt here. The DS request envelope keeps using the key
+    /// store signing key on the send path.
+    async fn restage_settings_update(
+        &mut self,
+        mut connection: impl WriteConnection,
+    ) -> anyhow::Result<()> {
+        let self_group_signer = OwnClientInfo::load(&mut connection)
+            .await?
+            .self_group_signing_key
+            .context("self-group signer was not initialized")?;
+
+        let mut txn = connection.begin().await?;
+
+        {
+            // Destructure so the borrow of `self.operation` (params/update)
+            // stays disjoint from the borrow of `self.group`.
+            let OperationType::SettingsUpdate { params, update, .. } = &mut self.operation else {
+                bail!("restage_settings_update called on a non-settings operation");
+            };
+            let new_params = self
+                .group
+                .group_mut()
+                .stage_settings_update(&mut txn, &self_group_signer, update)
+                .await?;
+            **params = new_params;
+        }
+
+        // Persist the restaged params. Without this the stored blob keeps the
+        // stale-epoch params, so a reload after a network retry would resend
+        // them against an epoch the group has already moved past.
+        self.update_operation_data(&mut txn).await?;
+
+        txn.commit().await?;
+        Ok(())
+    }
+
+    /// Reconciles a pending settings update against an `incoming` snapshot that
+    /// a sibling's accepted commit already carried, and persists the result.
+    ///
+    /// Returns `true` when, after reconciliation, nothing is left that we still
+    /// intend to change (the update equals the previous state), so the caller
+    /// should delete the operation. Returns `false` when some fields remain
+    /// pending, in which case the reconciled operation is persisted so the
+    /// later restage rebuilds from it.
+    pub(crate) async fn reconcile_settings_update(
+        &mut self,
+        mut connection: impl WriteConnection,
+        incoming: &SettingsUpdate,
+    ) -> anyhow::Result<bool> {
+        let nothing_left = {
+            let OperationType::SettingsUpdate {
+                update, previous, ..
+            } = &mut self.operation
+            else {
+                bail!("reconcile_settings_update called on a non-settings operation");
+            };
+            reconcile_pending_update(update, previous, incoming).await?;
+            update == previous
+        };
+        if !nothing_left {
+            self.update_operation_data(&mut connection).await?;
+        }
+        Ok(nothing_left)
+    }
+
     async fn handle_error(
         &mut self,
         mut connection: impl WriteConnection,
@@ -514,10 +661,12 @@ impl PendingChatOperation {
             // it because another one got there first.
             self.mark_as_waiting_for_queue_response(&mut connection)
                 .await?;
-            self.group
-                .group_mut()
-                .mark_commit_failed(&mut connection)
-                .await?;
+            if self.operation.marks_commit_failed() {
+                self.group
+                    .group_mut()
+                    .mark_commit_failed(&mut connection)
+                    .await?;
+            }
 
             Err(JobError::Blocked)
         } else if error.is_network_error() && self.number_of_attempts < MAX_RETRIES {
@@ -628,6 +777,36 @@ impl PendingChatOperation {
             .with_context(|| format!("Can't find group with chat id {chat_id}"))?;
         let params = group.group_mut().apq_update(txn, signer)?;
         let job = Self::new(group, OperationType::apq_other(params));
+        job.store(txn).await?;
+        Ok(job)
+    }
+
+    /// Stages a self-group commit carrying the settings update and stores it as
+    /// a pending chat operation.
+    pub(crate) async fn create_settings_update(
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &ClientSigningKey,
+        self_group_id: &GroupId,
+        update: SettingsUpdate,
+        previous: SettingsUpdate,
+    ) -> anyhow::Result<Self> {
+        let mut group = Group::load_clean_verified(&mut *txn, self_group_id)
+            .await?
+            .with_context(|| format!("Can't find self group with id {self_group_id:?}"))?;
+
+        let params = group
+            .group_mut()
+            .stage_settings_update(txn, signer, &update)
+            .await?;
+
+        let job = Self::new(
+            group,
+            OperationType::SettingsUpdate {
+                params: Box::new(params),
+                update,
+                previous,
+            },
+        );
         job.store(txn).await?;
         Ok(job)
     }
@@ -919,6 +1098,28 @@ mod persistence {
             Ok(())
         }
 
+        /// Re-serializes the in-memory operation into the stored blob.
+        ///
+        /// Used after the operation is rebuilt or reconciled in memory so a
+        /// later reload from the database sees the current params rather than
+        /// the ones stored at creation time.
+        pub(super) async fn update_operation_data(
+            &self,
+            mut connection: impl WriteConnection,
+        ) -> sqlx::Result<()> {
+            let operation_data = BlobEncoded(&self.operation);
+            let group_id = self.group.group_id().as_slice();
+            query!(
+                "UPDATE pending_chat_operation SET operation_data = ? WHERE group_id = ?",
+                operation_data as _,
+                group_id
+            )
+            .execute(connection.as_mut())
+            .await?;
+
+            Ok(())
+        }
+
         pub(super) async fn update_retry_due_at(
             &mut self,
             mut connection: impl WriteConnection,
@@ -951,6 +1152,32 @@ mod persistence {
             query!(
                 "UPDATE pending_chat_operation SET request_status = ? WHERE group_id = ?",
                 PendingChatOperationStatus::WaitingForQueueResponse as _,
+                group_id
+            )
+            .execute(connection.as_mut())
+            .await?;
+
+            Ok(())
+        }
+
+        /// Re-arms a parked operation so `dequeue` picks it up immediately.
+        ///
+        /// Sets the status back to ready-to-retry and the retry-due time to
+        /// now. `dequeue` requires both `retry_due_at <= now` and the
+        /// ready-to-retry status, and a parked op sits in
+        /// `waiting_for_queue_response`, so both fields must be reset.
+        pub(crate) async fn mark_as_ready_to_retry(
+            &self,
+            mut connection: impl WriteConnection,
+        ) -> sqlx::Result<()> {
+            let group_id = self.group.group_id().as_slice();
+            let now = Utc::now();
+            query!(
+                "UPDATE pending_chat_operation
+                SET request_status = ?, retry_due_at = ?
+                WHERE group_id = ?",
+                PendingChatOperationStatus::ReadyToRetry as _,
+                now,
                 group_id
             )
             .execute(connection.as_mut())
@@ -1188,17 +1415,412 @@ mod tests {
         assert_matches,
         credentials::{keys::ClientSigningKey, test_utils::create_test_credentials},
         crypto::aead::keys::IdentityLinkWrapperKey,
-        identifiers::{QualifiedGroupId, UserId},
+        identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
+        mls_group_config::AppComponent,
+    };
+    use airprotos::{
+        client::component::AirComponent,
+        common::v1::{StatusDetails, StatusDetailsCode, WrongEpochDetail, status_details::Detail},
     };
     use chrono::{Duration, Utc};
+    use openmls_traits::OpenMlsProvider;
     use uuid::Uuid;
 
     use crate::{
-        ChatAttributes, db::access::DbAccess, groups::GroupDataBytes,
+        ChatAttributes,
+        db::access::{DbAccess, WriteDbTransaction},
+        groups::{GroupDataBytes, openmls_provider::AirOpenMlsProvider},
         utils::persistence::open_db_in_memory,
     };
 
     use super::*;
+
+    /// A DS error that reports a wrong-epoch rejection.
+    fn wrong_epoch_error() -> DsRequestError {
+        let details = StatusDetails {
+            code: StatusDetailsCode::WrongEpoch.into(),
+            detail: Some(Detail::WrongEpoch(WrongEpochDetail {})),
+        };
+        DsRequestError::Tonic(details.to_status(tonic::Code::InvalidArgument, "wrong epoch"))
+    }
+
+    /// Builds a single-member APQ self-group with a pending settings-update
+    /// operation, stored in the database.
+    async fn setup_self_group_settings_op()
+    -> anyhow::Result<(DbAccess, PendingChatOperation, ClientSigningKey)> {
+        let pool = DbAccess::for_tests(open_db_in_memory().await?);
+        let (_aic_sk, signing_key) =
+            create_test_credentials(UserId::random("example.com".parse()?));
+
+        let mut connection = pool.write().await?;
+        let job = connection
+            .with_transaction(async |txn| -> anyhow::Result<_> {
+                let t_group_id = GroupId::from(QualifiedGroupId::new(
+                    Uuid::new_v4(),
+                    "example.com".parse()?,
+                ));
+                let pq_group_id = GroupId::from(QualifiedGroupId::new(
+                    Uuid::new_v4(),
+                    "example.com".parse()?,
+                ));
+                let (group, _params) = Group::create_apq_group(
+                    &mut *txn,
+                    &signing_key,
+                    IdentityLinkWrapperKey::random()?,
+                    t_group_id,
+                    pq_group_id,
+                    GroupDataBytes::from(b"test-group-data".to_vec()),
+                    None,
+                    AirComponent::default_for_self_group(),
+                )?;
+                group.store(&mut *txn).await?;
+                let mut group = VerifiedGroup::new_for_test(group);
+
+                let update = SettingsUpdate {
+                    send_read_receipts: Some(true),
+                };
+                let params = group
+                    .group_mut()
+                    .stage_settings_update(txn, &signing_key, &update)
+                    .await?;
+
+                let job = PendingChatOperation::new(
+                    group,
+                    OperationType::SettingsUpdate {
+                        params: Box::new(params),
+                        update,
+                        previous: SettingsUpdate::default(),
+                    },
+                );
+                job.store(txn).await?;
+                Ok(job)
+            })
+            .await?;
+
+        Ok((pool, job, signing_key))
+    }
+
+    /// A wrong-epoch rejection of a settings update parks the operation as
+    /// `WaitingForQueueResponse` but does not mark the self-group commit as
+    /// failed. A settings race must not raise a "desynced" banner.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn wrong_epoch_parks_settings_without_marking_failed() -> anyhow::Result<()> {
+        let (pool, mut pending, _signing_key) = setup_self_group_settings_op().await?;
+
+        let result = pending
+            .handle_error(pool.write().await?, wrong_epoch_error())
+            .await;
+
+        // Parked, not failed.
+        assert_matches!(result, Err(JobError::Blocked));
+        assert!(
+            !pending.group.commit_failed(),
+            "settings race must not mark the commit failed"
+        );
+
+        // The status is persisted as waiting for the queue response.
+        let group_id = pending.group.group_id().clone();
+        let reloaded = PendingChatOperation::load_by_group_id(pool.read().await?, &group_id)
+            .await?
+            .expect("operation should still exist");
+        assert!(matches!(
+            reloaded.status,
+            PendingChatOperationStatus::WaitingForQueueResponse
+        ));
+
+        Ok(())
+    }
+
+    /// Clears any pending commit and advances the group's epoch by merging a
+    /// forced self-update, simulating an unrelated commit landing.
+    fn advance_epoch(
+        group: &mut Group,
+        txn: &mut WriteDbTransaction<'_>,
+        signer: &ClientSigningKey,
+    ) -> anyhow::Result<()> {
+        let provider = AirOpenMlsProvider::new(txn.as_mut());
+        let (t_mls_group, pq_mls_group) = group.apq_mls_groups_mut()?;
+        t_mls_group.clear_pending_commit(provider.storage())?;
+        pq_mls_group.clear_pending_commit(provider.storage())?;
+        apqmls::commit_builder::CommitBuilder::from_groups(&mut *t_mls_group, &mut *pq_mls_group)
+            .force_self_update(true)
+            .finalize(&provider, signer, |_| true, |_| true)?;
+        t_mls_group.merge_pending_commit(&provider)?;
+        pq_mls_group.merge_pending_commit(&provider)?;
+        Ok(())
+    }
+
+    /// An incoming settings update on the same commit wins: the pending
+    /// settings op is deleted, and our local pending commit is discarded.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn discard_deletes_settings_op_when_commit_carries_update() -> anyhow::Result<()> {
+        let (pool, mut pending, _signer) = setup_self_group_settings_op().await?;
+        let group_id = pending.group.group_id().clone();
+
+        // A throwaway staged commit. The settings-update branch ignores its
+        // contents, so any staged commit works.
+        let (_src_pool, src, _src_signer) = setup_self_group_settings_op().await?;
+        let staged = src
+            .group
+            .mls_group()
+            .pending_commit()
+            .expect("staged commit");
+
+        let mut connection = pool.write().await?;
+        connection
+            .with_transaction(async |txn| -> anyhow::Result<()> {
+                let incoming = SettingsUpdate {
+                    send_read_receipts: Some(true),
+                };
+                pending
+                    .group
+                    .group_mut()
+                    .discard_pending_commit_and_operations(txn, &group_id, staged, Some(&incoming))
+                    .await?;
+
+                assert!(
+                    PendingChatOperation::load_by_group_id(&mut *txn, &group_id)
+                        .await?
+                        .is_none(),
+                    "op should be deleted when the incoming snapshot covers the pending change"
+                );
+                assert!(pending.group.mls_group().pending_commit().is_none());
+                Ok(())
+            })
+            .await?;
+
+        Ok(())
+    }
+
+    /// A commit that carries no settings update keeps the op and re-arms it, so
+    /// `dequeue` picks it up immediately, while our local pending commit is
+    /// still discarded.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn discard_keeps_and_rearms_settings_op_without_incoming_update() -> anyhow::Result<()> {
+        let (pool, mut pending, _signer) = setup_self_group_settings_op().await?;
+        let group_id = pending.group.group_id().clone();
+
+        let (_src_pool, src, _src_signer) = setup_self_group_settings_op().await?;
+        let staged = src
+            .group
+            .mls_group()
+            .pending_commit()
+            .expect("staged commit");
+
+        let mut connection = pool.write().await?;
+        connection
+            .with_transaction(async |txn| -> anyhow::Result<()> {
+                // Park the op as a wrong-epoch rejection would.
+                pending
+                    .mark_as_waiting_for_queue_response(&mut *txn)
+                    .await?;
+
+                pending
+                    .group
+                    .group_mut()
+                    .discard_pending_commit_and_operations(txn, &group_id, staged, None)
+                    .await?;
+
+                // Kept and re-armed: dequeue returns it now.
+                let dequeued =
+                    PendingChatOperation::dequeue(&mut *txn, Uuid::new_v4(), Utc::now()).await?;
+                assert!(dequeued.is_some(), "re-armed op should dequeue");
+                assert!(pending.group.mls_group().pending_commit().is_none());
+                Ok(())
+            })
+            .await?;
+
+        Ok(())
+    }
+
+    /// An empty incoming snapshot, as a newer sibling's unknown-only update
+    /// decodes to on our side, covers none of our pending fields. The op is
+    /// kept, re-armed, and its `update`/`previous` are left unchanged.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn discard_keeps_settings_op_when_incoming_snapshot_empty() -> anyhow::Result<()> {
+        let (pool, mut pending, _signer) = setup_self_group_settings_op().await?;
+        let group_id = pending.group.group_id().clone();
+
+        let (_src_pool, src, _src_signer) = setup_self_group_settings_op().await?;
+        let staged = src
+            .group
+            .mls_group()
+            .pending_commit()
+            .expect("staged commit");
+
+        let mut connection = pool.write().await?;
+        connection
+            .with_transaction(async |txn| -> anyhow::Result<()> {
+                pending
+                    .mark_as_waiting_for_queue_response(&mut *txn)
+                    .await?;
+
+                // A commit that carried a settings update, but one that decoded
+                // to an empty snapshot on our side.
+                pending
+                    .group
+                    .group_mut()
+                    .discard_pending_commit_and_operations(
+                        txn,
+                        &group_id,
+                        staged,
+                        Some(&SettingsUpdate::default()),
+                    )
+                    .await?;
+
+                // Kept: still present, and its snapshots are unchanged.
+                let reloaded = PendingChatOperation::load_by_group_id(&mut *txn, &group_id)
+                    .await?
+                    .expect("op should be kept when the incoming snapshot is empty");
+                let OperationType::SettingsUpdate {
+                    update, previous, ..
+                } = &reloaded.operation
+                else {
+                    bail!("expected a settings-update operation");
+                };
+                assert_eq!(
+                    update,
+                    &SettingsUpdate {
+                        send_read_receipts: Some(true),
+                    }
+                );
+                assert_eq!(previous, &SettingsUpdate::default());
+
+                // Re-armed: dequeue returns it now.
+                let dequeued =
+                    PendingChatOperation::dequeue(&mut *txn, Uuid::new_v4(), Utc::now()).await?;
+                assert!(dequeued.is_some(), "re-armed op should dequeue");
+                Ok(())
+            })
+            .await?;
+
+        Ok(())
+    }
+
+    /// After an unrelated commit advanced the epoch, restaging rebuilds the
+    /// settings commit against the new epoch: a new pending commit exists and
+    /// its AppEphemeral payload decrypts under the new epoch key back to the
+    /// stored update snapshot.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn restage_settings_update_rebuilds_against_new_epoch() -> anyhow::Result<()> {
+        let (pool, mut pending, signing_key) = setup_self_group_settings_op().await?;
+        let group_id = pending.group.group_id().clone();
+
+        {
+            let mut connection = pool.write().await?;
+            let mut txn = connection.begin().await?;
+
+            // The restage path signs the MLS commit with the self-group leaf
+            // key from OwnClientInfo, so it must be stored.
+            OwnClientInfo {
+                qs_user_id: QsUserId::random(),
+                qs_client_id: QsClientId::random(&mut rand::rng()),
+                user_id: signing_key.credential().user_id().clone(),
+                self_group_id: Some(group_id.clone()),
+                self_group_signing_key: Some(signing_key.clone()),
+            }
+            .store(&mut txn)
+            .await?;
+
+            advance_epoch(pending.group.group_mut(), &mut txn, &signing_key)?;
+            txn.commit().await?;
+        }
+
+        assert!(
+            pending.group.mls_group().pending_commit().is_none(),
+            "precondition: no pending commit after the unrelated commit"
+        );
+
+        pending.restage_settings_update(pool.write().await?).await?;
+
+        assert!(
+            pending.group.mls_group().pending_commit().is_some(),
+            "restage should stage a fresh commit"
+        );
+
+        // The restaged commit decrypts under the new epoch key back to the
+        // stored update snapshot.
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+        let mut receiver = Group::load(&mut txn, &group_id)
+            .await?
+            .expect("group stored in setup");
+        let staged = pending
+            .group
+            .mls_group()
+            .pending_commit()
+            .expect("restaged commit");
+        let extracted = receiver.extract_settings_updates(&mut txn, staged).await;
+        assert_eq!(
+            extracted,
+            vec![SettingsUpdate {
+                send_read_receipts: Some(true),
+            }]
+        );
+        txn.commit().await?;
+
+        Ok(())
+    }
+
+    /// Restaging persists the rebuilt params: after a simulated network retry
+    /// (reload from the database) the stored operation carries the restaged
+    /// params, not the stale-epoch ones from creation time.
+    #[tokio::test(flavor = "multi_thread")]
+    async fn restage_settings_update_persists_params_for_reload() -> anyhow::Result<()> {
+        use aircommon::codec::PersistenceCodec;
+
+        let (pool, mut pending, signing_key) = setup_self_group_settings_op().await?;
+        let group_id = pending.group.group_id().clone();
+
+        // Snapshot of the params stored at creation time, before the epoch
+        // moves and the op is restaged.
+        let params_before = {
+            let reloaded = PendingChatOperation::load_by_group_id(pool.read().await?, &group_id)
+                .await?
+                .expect("op stored in setup");
+            PersistenceCodec::to_vec(&reloaded.operation)?
+        };
+
+        {
+            let mut connection = pool.write().await?;
+            let mut txn = connection.begin().await?;
+
+            // The restage path signs the MLS commit with the self-group leaf
+            // key from OwnClientInfo, so it must be stored.
+            OwnClientInfo {
+                qs_user_id: QsUserId::random(),
+                qs_client_id: QsClientId::random(&mut rand::rng()),
+                user_id: signing_key.credential().user_id().clone(),
+                self_group_id: Some(group_id.clone()),
+                self_group_signing_key: Some(signing_key.clone()),
+            }
+            .store(&mut txn)
+            .await?;
+
+            advance_epoch(pending.group.group_mut(), &mut txn, &signing_key)?;
+            txn.commit().await?;
+        }
+
+        pending.restage_settings_update(pool.write().await?).await?;
+
+        // The reloaded op matches the in-memory restaged op, and differs from
+        // the params stored at creation time.
+        let reloaded = PendingChatOperation::load_by_group_id(pool.read().await?, &group_id)
+            .await?
+            .expect("op still present after restage");
+        let reloaded_bytes = PersistenceCodec::to_vec(&reloaded.operation)?;
+        let in_memory_bytes = PersistenceCodec::to_vec(&pending.operation)?;
+        assert_eq!(
+            reloaded_bytes, in_memory_bytes,
+            "reloaded params must match the in-memory restaged params"
+        );
+        assert_ne!(
+            reloaded_bytes, params_before,
+            "restage must have replaced the stale-epoch params in the database"
+        );
+
+        Ok(())
+    }
 
     async fn setup_group_and_chat()
     -> anyhow::Result<(DbAccess, VerifiedGroup, ChatId, ClientSigningKey)> {

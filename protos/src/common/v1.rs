@@ -11,4 +11,9 @@ impl StatusDetails {
     pub fn from_status(status: &Status) -> Option<StatusDetails> {
         StatusDetails::decode(status.details()).ok()
     }
+
+    /// Encodes these details into a [`Status`] with the given code and message.
+    pub fn to_status(&self, code: tonic::Code, message: impl Into<String>) -> Status {
+        Status::with_details(code, message, self.encode_to_vec().into())
+    }
 }

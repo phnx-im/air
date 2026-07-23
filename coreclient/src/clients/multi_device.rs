@@ -23,6 +23,7 @@ use aircommon::mls_group_config::{
     default_leaf_node_capabilities, default_leaf_node_extensions,
 };
 use airprotos::client::component::AirComponent;
+use airprotos::client::self_group::SettingsUpdate;
 use airprotos::relay_service::v1::{LinkingSessionId, RelayFrame};
 use anyhow::{Context, anyhow, bail};
 use apqmls::authentication::ApqCredentialWithKey;
@@ -59,6 +60,7 @@ use crate::{
         own_client_info::OwnClientInfo,
         process::process_qs::ProcessedQsMessages,
         store::{ClientRecord, UserCreationState},
+        user_settings::{SettingsUpdateExt, apply_settings_update},
     },
     contacts::{ContactAddInfos, ContactKeyPackage},
     groups::{
@@ -99,6 +101,9 @@ pub(crate) struct ProvisioningPackage {
     // Self-group metadata not carried by the Welcome.
     pub(crate) self_group_id: GroupId,
     pub(crate) identity_link_wrapper_key: IdentityLinkWrapperKey,
+    // Synced user settings snapshot so the new device starts with the
+    // provisioner's values.
+    pub(crate) synced_settings: SettingsUpdate,
 }
 
 #[derive(Debug)]
@@ -429,6 +434,14 @@ impl CoreUser {
 
         let user_profile_key = UserProfileKey::load_own(self.db().read().await?).await?;
 
+        // Snapshot the current synced settings so the new device starts with
+        // our values. An empty update means we have no stored settings, which
+        // the new device applies as a no-op.
+        let synced_settings = self
+            .db()
+            .with_write_transaction(async |txn| SettingsUpdate::collect(txn).await)
+            .await?;
+
         Ok(ProvisioningPackage {
             user_id: self.user_id().clone(),
             client_signing_key: key_store.signing_key.clone(),
@@ -445,6 +458,7 @@ impl CoreUser {
             user_profile_key,
             self_group_id,
             identity_link_wrapper_key,
+            synced_settings,
         })
     }
 
@@ -710,6 +724,7 @@ impl CoreUser {
             user_profile_key,
             self_group_id,
             identity_link_wrapper_key: _,
+            synced_settings,
         } = package;
 
         let shared_client_credential = client_signing_key.credential().clone();
@@ -751,10 +766,16 @@ impl CoreUser {
                 // Schedule the fetching operation of our own profile information for when the [`CoreClient`]
                 // starts (or more specifically, when the outbound service runs for the first time.)
                 Self::schedule_fetch_user_profile(
-                    txn,
+                    &mut *txn,
                     (shared_client_credential, user_profile_key),
                 )
                 .await?;
+
+                // Seed the synced settings before the device processes any
+                // self-group traffic. A device joining via Welcome cannot
+                // decrypt updates from before its join, so the current state
+                // has to arrive in the linking payload.
+                apply_settings_update(txn, &synced_settings).await?;
 
                 Ok(())
             })
@@ -774,5 +795,70 @@ impl CoreUser {
         Ok(final_state
             .final_state()?
             .into_self_user(client_db, api_clients, global_lock))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use aircommon::credentials::test_utils::create_test_credentials;
+    use aircommon::crypto::hpke::ClientIdDecryptionKey;
+    use aircommon::identifiers::QualifiedGroupId;
+    use uuid::Uuid;
+
+    use super::*;
+
+    /// Builds a [`ProvisioningPackage`] with the given synced-settings snapshot
+    /// and otherwise freshly generated key material.
+    fn sample_package(synced_settings: SettingsUpdate) -> anyhow::Result<ProvisioningPackage> {
+        let user_id = UserId::random("example.com".parse()?);
+        let (_as_key, client_signing_key) = create_test_credentials(user_id.clone());
+        let self_group_id = GroupId::from(QualifiedGroupId::new(
+            Uuid::new_v4(),
+            "example.com".parse()?,
+        ));
+        Ok(ProvisioningPackage {
+            client_signing_key,
+            qs_user_id: QsUserId::random(),
+            qs_user_signing_key: QsUserSigningKey::generate()?,
+            friendship_token: FriendshipToken::random()?,
+            push_token_ear_key: PushTokenEarKey::random()?,
+            wai_ear_key: WelcomeAttributionInfoEarKey::random()?,
+            qs_client_id_encryption_key: ClientIdDecryptionKey::generate()?
+                .encryption_key()
+                .clone(),
+            qs_client_id: QsClientId::random(&mut rand::rng()),
+            qs_client_signing_key: QsClientSigningKey::generate()?,
+            qs_queue_decryption_key: RatchetDecryptionKey::generate()?,
+            qs_initial_ratchet_secret: RatchetSecret::random()?,
+            user_profile_key: UserProfileKey::random(&user_id)?,
+            self_group_id,
+            identity_link_wrapper_key: IdentityLinkWrapperKey::random()?,
+            synced_settings,
+            user_id,
+        })
+    }
+
+    /// A full package roundtrips through the linking channel with its synced
+    /// settings intact.
+    #[test]
+    fn synced_settings_roundtrip_through_linking_channel() -> anyhow::Result<()> {
+        let package = sample_package(SettingsUpdate {
+            send_read_receipts: Some(false),
+        })?;
+        let user_id = package.user_id.clone();
+
+        let key = MultiDeviceLinkingKey::random()?;
+        let frame = LinkingMessage::seal(package, &key)?;
+        let decoded: ProvisioningPackage = LinkingMessage::open(frame.as_slice(), &key)?;
+
+        assert_eq!(
+            decoded.synced_settings,
+            SettingsUpdate {
+                send_read_receipts: Some(false),
+            }
+        );
+        assert_eq!(decoded.user_id, user_id);
+
+        Ok(())
     }
 }

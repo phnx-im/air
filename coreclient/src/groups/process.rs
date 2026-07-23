@@ -16,6 +16,7 @@ use aircommon::{
     },
     utils::removed_client,
 };
+use airprotos::client::self_group::SettingsUpdate;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use apqmls::{
     ApqMlsGroupMut,
@@ -35,12 +36,17 @@ use tls_codec::DeserializeBytes as TlsDeserializeBytes;
 use tracing::{debug, error, instrument, warn};
 
 use crate::{
-    clients::api_clients::ApiClients, db::access::WriteDbTransaction,
+    clients::{
+        api_clients::ApiClients,
+        user_settings::{apply_settings_update, merge_settings_update},
+    },
+    db::access::WriteDbTransaction,
     groups::client_auth_info::VerifiableClientCredentialExt,
-    job::pending_chat_operation::PendingChatOperation, key_stores::as_credentials::AsCredentials,
+    job::pending_chat_operation::PendingChatOperation,
+    key_stores::as_credentials::AsCredentials,
 };
 
-use super::{Group, openmls_provider::AirOpenMlsProvider};
+use super::{Group, openmls_provider::AirOpenMlsProvider, self_group_message_key};
 
 pub(crate) enum ProcessMessageResult {
     Processed(ProcessMessageProcessed),
@@ -225,6 +231,20 @@ impl Group {
         let staged_commit = expect_staged_commit(processed_message)?;
         let pq_staged_commit = pq_processed_message.map(expect_staged_commit).transpose()?;
 
+        // A commit must never flip the self-group flag: an ordinary group can
+        // never turn into a self-group, and the self-group can never lose the
+        // flag. The flag lives in the T group context, so compare the live
+        // context against the provisional post-commit context of the T staged
+        // commit. Rejecting here keeps the in-memory flag trustworthy across
+        // epochs (see `Group::is_self_group`).
+        let self_group_flag_after = self_group_message_key::extensions_claim_self_group(
+            staged_commit.group_context().extensions(),
+        );
+        ensure!(
+            self.is_self_group() == self_group_flag_after,
+            "commit changes the self-group flag"
+        );
+
         // For an external commit (resync, join connection group), the sender's new leaf lives in
         // the commit's update path and is not visible in the live tree until the commit is merged.
         // Bind the T and PQ legs here, regardless of which AAD payload the commit carries.
@@ -244,8 +264,44 @@ impl Group {
             }
         };
 
-        self.discard_pending_commit_and_operations(txn, &group_id, staged_commit)
-            .await?;
+        // Settings phase. This must run before the pending-op discard below,
+        // because the discard reconciles any pending settings op against the
+        // snapshot this commit carried.
+        let incoming_settings_update = if self.is_self_group() {
+            let updates = self.extract_settings_updates(txn, staged_commit).await;
+            // Own echo: the DS fanned our own commit back while our pending
+            // commit was already gone. The values are already applied locally,
+            // so only a sibling's update needs applying.
+            let own_echo = sender_index == self.mls_group().own_leaf_index();
+            if !own_echo {
+                for update in &updates {
+                    apply_settings_update(txn, update).await?;
+                }
+            }
+            // Fold the extracted snapshots into one merged incoming snapshot.
+            // None means the commit carried no settings update at all. A commit
+            // that did carry one yields Some, including an empty snapshot when a
+            // newer sibling's update decoded to unknown-only fields.
+            if updates.is_empty() {
+                None
+            } else {
+                let mut merged = SettingsUpdate::default();
+                for update in &updates {
+                    merge_settings_update(&mut merged, update).await?;
+                }
+                Some(merged)
+            }
+        } else {
+            None
+        };
+
+        self.discard_pending_commit_and_operations(
+            txn,
+            &group_id,
+            staged_commit,
+            incoming_settings_update.as_ref(),
+        )
+        .await?;
 
         let sender_credential =
             VerifiableClientCredential::from_basic_credential(processed_message.credential())?;
@@ -528,19 +584,53 @@ impl Group {
         Ok(())
     }
 
-    /// Discard any pending commits we have locally and delete any pending
-    /// non-leave chat operations we may have for this group. If it's a leave
-    /// operation, only delete it if it's part of this commit.
-    async fn discard_pending_commit_and_operations(
+    /// Discard our local pending commit and reconcile any pending chat
+    /// operation for this group against the incoming commit.
+    ///
+    /// A pending non-leave operation is deleted. A leave operation is deleted
+    /// only if this commit carries our own self-remove. A settings update is
+    /// reconciled per field against `incoming_settings_update`, the merged
+    /// snapshot this commit carried (`None` if it carried no settings update at
+    /// all, including our own echo). When the commit carried a snapshot, the op
+    /// is reconciled against it: fields the snapshot covers are no longer ours
+    /// to change. If nothing is left to change afterwards the op is deleted,
+    /// otherwise the reconciled op is persisted and re-armed so the outbound job
+    /// restages the surviving fields against the new epoch. When the commit
+    /// carried no settings update, an unrelated commit advanced the epoch, so
+    /// the op is kept and re-armed unchanged.
+    pub(crate) async fn discard_pending_commit_and_operations(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
         staged_commit: &StagedCommit,
+        incoming_settings_update: Option<&SettingsUpdate>,
     ) -> Result<()> {
         self.discard_pending_commit(&mut *txn).await?;
-        if let Some(pending_chat_operation) =
+        if let Some(mut pending_chat_operation) =
             PendingChatOperation::load_by_group_id(&mut *txn, group_id).await?
         {
+            if pending_chat_operation.is_settings_update() {
+                match incoming_settings_update {
+                    None => {
+                        pending_chat_operation
+                            .mark_as_ready_to_retry(&mut *txn)
+                            .await?;
+                    }
+                    Some(incoming) => {
+                        let nothing_left = pending_chat_operation
+                            .reconcile_settings_update(&mut *txn, incoming)
+                            .await?;
+                        if nothing_left {
+                            PendingChatOperation::delete(&mut *txn, group_id).await?;
+                        } else {
+                            pending_chat_operation
+                                .mark_as_ready_to_retry(&mut *txn)
+                                .await?;
+                        }
+                    }
+                }
+                return Ok(());
+            }
             let commit_contains_our_self_remove = staged_commit.queued_proposals().any(|p| {
                 let Sender::Member(proposal_sender_index) = p.sender() else {
                     return false;

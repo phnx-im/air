@@ -2,15 +2,24 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircoreclient::{IsDeveloperSetting, ReadReceiptsSetting, UserSetting};
+use std::sync::Arc;
+
+use aircoreclient::{
+    IsDeveloperSetting, ReadReceiptsSetting, UserSetting,
+    clients::CoreUser,
+    db::notification::{DbEntityId, DbNotification},
+};
 use anyhow::{anyhow, bail};
 use flutter_rust_bridge::frb;
 use tokio::sync::watch;
+use tokio_stream::{Stream, StreamExt};
+use tokio_util::sync::{CancellationToken, DropGuard};
+use tracing::debug;
 
 use crate::{
     StreamSink,
     api::{user::User, user_cubit::UserCubitBase},
-    util::{Cubit, CubitCore},
+    util::{Cubit, CubitCore, spawn_from_sync},
 };
 
 #[derive(Debug, Clone)]
@@ -49,6 +58,11 @@ impl Default for UserSettings {
 #[frb(opaque)]
 pub struct UserSettingsCubitBase {
     core: CubitCore<UserSettings>,
+    /// Cancels the running db-notification listener when dropped or replaced.
+    ///
+    /// A new listener is spawned on every `load_state`, so the guard is
+    /// replaced there. It is cleared on `reset` and `close`.
+    listener: std::sync::Mutex<Option<DropGuard>>,
 }
 
 impl UserSettingsCubitBase {
@@ -56,12 +70,14 @@ impl UserSettingsCubitBase {
     pub fn new() -> Self {
         Self {
             core: CubitCore::new(),
+            listener: std::sync::Mutex::new(None),
         }
     }
 
     // Cubit interface
 
     pub fn close(&self) {
+        *self.listener.lock().expect("poisoned listener lock") = None;
         self.core.close();
     }
 
@@ -82,6 +98,7 @@ impl UserSettingsCubitBase {
     // Cubit methods
 
     pub async fn reset(&self) {
+        *self.listener.lock().expect("poisoned listener lock") = None;
         self.core
             .state_tx()
             .send_modify(|state| *state = Default::default());
@@ -89,6 +106,14 @@ impl UserSettingsCubitBase {
 
     pub async fn load_state(&self, user: &User) {
         let core_user = &user.user;
+
+        // Subscribe before the initial reads. `db_notifications` observes every
+        // notification sent after this call, and the underlying broadcast
+        // channel buffers them until the listener task first polls the stream.
+        // Subscribing first means an update applied between the reads below and
+        // the task starting is delivered rather than lost.
+        let notifications = core_user.db_notifications();
+
         let locale = core_user.user_setting().await;
         let interface_scale = core_user.user_setting().await;
         let sidebar_width = core_user.user_setting().await;
@@ -115,6 +140,19 @@ impl UserSettingsCubitBase {
                 state.default_emoji_skin_tone = value;
             }
         });
+
+        // Listen for synced settings that change out of band: a sibling
+        // device's update or a rollback after a failed send. Both emit a
+        // `DbEntityId::UserSetting` notification.
+        let cancel = CancellationToken::new();
+        spawn_from_sync(settings_listener(
+            core_user.clone(),
+            notifications,
+            self.core.state_tx().clone(),
+            cancel.clone(),
+        ));
+        // Replacing the guard cancels any listener from a previous load.
+        *self.listener.lock().expect("poisoned listener lock") = Some(cancel.drop_guard());
     }
 
     pub async fn set_locale(&self, user: &User, value: String) -> anyhow::Result<()> {
@@ -194,7 +232,7 @@ impl UserSettingsCubitBase {
         }
         user_cubit
             .core_user()
-            .set_user_setting(&ReadReceiptsSetting(value))
+            .set_synced_user_setting(&ReadReceiptsSetting(value))
             .await?;
         self.core
             .state_tx()
@@ -242,6 +280,53 @@ impl UserSettingsCubitBase {
 
     pub(crate) fn subscribe(&self) -> watch::Receiver<UserSettings> {
         self.core.state_tx().subscribe()
+    }
+}
+
+/// Reloads synced settings into the cubit state when they change out of band.
+///
+/// Runs until cancelled. On each `DbEntityId::UserSetting` notification it
+/// reloads the affected setting from the database. A missing row means a
+/// rollback deleted it, so the state falls back to the default.
+///
+/// The notification stream is established by the caller before it takes the
+/// initial reads, so a change applied between those reads and this task
+/// starting is buffered by the stream and delivered here rather than lost.
+async fn settings_listener(
+    core_user: CoreUser,
+    mut notifications: impl Stream<Item = Arc<DbNotification>> + Send + Unpin + 'static,
+    state_tx: watch::Sender<UserSettings>,
+    cancel: CancellationToken,
+) {
+    loop {
+        let notification = tokio::select! {
+            _ = cancel.cancelled() => return,
+            notification = notifications.next() => match notification {
+                Some(notification) => notification,
+                None => return,
+            },
+        };
+
+        for entity_id in notification.ops.keys() {
+            let DbEntityId::UserSetting(key) = entity_id else {
+                continue;
+            };
+            if key == ReadReceiptsSetting::KEY {
+                // `None` means the row was deleted by a rollback, so fall back
+                // to the default (matching the `frb(default)` of `true`).
+                let read_receipts = core_user
+                    .user_setting::<ReadReceiptsSetting>()
+                    .await
+                    .is_none_or(|ReadReceiptsSetting(value)| value);
+                state_tx.send_if_modified(|state| {
+                    let modified = state.read_receipts != read_receipts;
+                    state.read_receipts = read_receipts;
+                    modified
+                });
+            } else {
+                debug!(%key, "ignoring notification for unhandled user setting");
+            }
+        }
     }
 }
 
