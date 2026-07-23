@@ -26,7 +26,7 @@ use mls_assist::{
     group::Group,
     openmls::{
         group::GroupId,
-        prelude::{GroupEpoch, LeafNodeIndex},
+        prelude::{GroupEpoch, LeafNodeIndex, StagedCommit},
         treesync::RatchetTree,
     },
     provider_traits::MlsAssistProvider,
@@ -241,6 +241,15 @@ impl DsGroupState {
             .is_some_and(|component| component.is_self_group);
 
         !is_self_group
+    }
+
+    /// The self-group flag in the group context's [`AirComponent`] is fixed at
+    /// group creation. Returns `true` if merging `staged_commit` keeps it
+    /// unchanged.
+    pub(crate) fn self_group_flag_unchanged(&self, staged_commit: &StagedCommit) -> bool {
+        let current_extensions = self.group().group_info().group_context().extensions();
+        AirComponent::is_self_group_context(staged_commit.group_context().extensions())
+            == AirComponent::is_self_group_context(current_extensions)
     }
 
     pub(crate) fn qs_client_ref_by_index(
