@@ -1199,10 +1199,10 @@ mod tests {
             new_test_message(&bob, 4),
             new_test_message(&bob, 5),
             // -- break due to time
-            new_test_message(&bob, 65),
+            new_test_message(&bob, 305),
             // -- break due to sender and time
-            new_test_message(&alice, 125),
-            new_test_message(&alice, 126),
+            new_test_message(&alice, 605),
+            new_test_message(&alice, 606),
         ];
 
         let mut state = MessageListState::default();
