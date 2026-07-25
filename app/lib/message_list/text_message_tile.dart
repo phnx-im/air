@@ -29,6 +29,7 @@ import 'package:air/ds/components/modal/bottom_sheet_modal.dart';
 import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/user/user.dart';
+import 'package:air/util/app_haptics.dart';
 import 'package:air/util/platform.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/widgets.dart';
@@ -661,7 +662,10 @@ class _MessageView extends HookWidget {
                         // Mobile: double-tap a message to react. On desktop,
                         // double-click is reserved for text selection.
                         onDoubleTap: (isMobilePlatform && isReplyable)
-                            ? openReactionMenu
+                            ? () {
+                                AppHaptics.confirm();
+                                openReactionMenu();
+                              }
                             : null,
                         onLongPress: onLongPress,
                         child: bubble,
@@ -695,6 +699,7 @@ class _MessageView extends HookWidget {
                   final overlayBubble = buildMessageBubble(
                     enableSelection: false,
                   );
+                  AppHaptics.menuOpen();
                   ContextMenu.closeActiveMenu();
                   isDetached.value = true;
                   final future = showMobileMessageActions(
@@ -1423,7 +1428,6 @@ class _ImageAttachmentContent extends StatelessWidget {
             fit: BoxFit.cover,
             onTap: () {
               FocusScope.of(context).unfocus();
-              HapticFeedback.mediumImpact();
               Navigator.of(
                 context,
               ).push(imageViewerRoute(attachment: attachment));
@@ -1448,17 +1452,20 @@ void _showDeleteMessageDialog({
       title: loc.deleteMessageDialog_title,
       description: loc.deleteMessageDialog_description,
       primaryActionText: loc.deleteMessageDialog_forEveryone,
-      onPrimaryAction: (_) => cubit.deleteMessage(
-        messageId: messageId,
-        deleteMode: DeleteMode.forEveryone,
-      ),
+      onPrimaryAction: (_) {
+        AppHaptics.destructive();
+        cubit.deleteMessage(
+          messageId: messageId,
+          deleteMode: DeleteMode.forEveryone,
+        );
+      },
       primaryType: AppButtonType.secondary,
       primaryTone: AppButtonTone.danger,
       secondaryActionText: loc.deleteMessageDialog_forMe,
-      onSecondaryAction: (_) => cubit.deleteMessage(
-        messageId: messageId,
-        deleteMode: DeleteMode.forMe,
-      ),
+      onSecondaryAction: (_) {
+        AppHaptics.destructive();
+        cubit.deleteMessage(messageId: messageId, deleteMode: DeleteMode.forMe);
+      },
       secondaryType: AppButtonType.secondary,
       secondaryTone: AppButtonTone.danger,
     ),
@@ -1478,10 +1485,10 @@ void _showDeleteForMeDialog({
       title: loc.deleteMessageForMeDialog_title,
       description: loc.deleteMessageForMeDialog_description,
       primaryActionText: loc.deleteMessageForMeDialog_delete,
-      onPrimaryAction: (_) => cubit.deleteMessage(
-        messageId: messageId,
-        deleteMode: DeleteMode.forMe,
-      ),
+      onPrimaryAction: (_) {
+        AppHaptics.destructive();
+        cubit.deleteMessage(messageId: messageId, deleteMode: DeleteMode.forMe);
+      },
       primaryType: AppButtonType.secondary,
       primaryTone: AppButtonTone.danger,
     ),

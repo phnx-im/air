@@ -9,6 +9,7 @@ import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/foundations/themes.dart';
 import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/user/user.dart';
+import 'package:air/util/app_haptics.dart';
 import 'package:air/ds/components/modal/dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -63,6 +64,7 @@ class DeleteContactButton extends StatelessWidget {
       negativeButtonText: loc.deleteContactDialog_cancel,
     );
     if (confirmed) {
+      AppHaptics.destructive();
       userCubit.deleteChat(chatId);
       navigationCubit.closeChat();
     }

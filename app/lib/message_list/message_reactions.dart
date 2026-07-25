@@ -17,6 +17,7 @@ import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:air/ds/foundations/themes.dart';
 import 'package:air/ds/theme/theme.dart';
+import 'package:air/util/app_haptics.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -218,12 +219,17 @@ class MessageReactions extends StatelessWidget {
       return width;
     }
 
+    void handleTap(String? emoji) {
+      AppHaptics.selection();
+      onTap(emoji);
+    }
+
     Widget chipFor(UiReaction reaction, {int? extras}) => _ReactionChip(
       reaction: reaction,
       extras: extras,
       isSender: isSender,
       isMine: reaction.users.contains(ownUserId),
-      onTap: () => onTap(reaction.emoji),
+      onTap: () => handleTap(reaction.emoji),
     );
 
     // Chip widths depend only on the reaction data and text scaler, not the
@@ -269,7 +275,7 @@ class MessageReactions extends StatelessWidget {
               _OverflowChip(
                 count: count,
                 isSender: isSender,
-                onTap: () => onTap(null),
+                onTap: () => handleTap(null),
               ),
             ];
           } else {
@@ -280,7 +286,7 @@ class MessageReactions extends StatelessWidget {
               _OverflowChip(
                 count: overflow,
                 isSender: isSender,
-                onTap: () => onTap(null),
+                onTap: () => handleTap(null),
               ),
             ];
           }
@@ -566,7 +572,10 @@ class _QuickReactionButton extends StatelessWidget {
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: onTap,
+        onTap: () {
+          AppHaptics.confirm();
+          onTap();
+        },
         child: SizedBox(
           width: quickReactionBarTapSize,
           height: quickReactionBarTapSize,
@@ -812,6 +821,7 @@ class WhoReactedSheet extends HookWidget {
     }
 
     void remove(String emoji) {
+      AppHaptics.selection();
       onRemove(emoji);
       Navigator.of(context).maybePop();
     }
