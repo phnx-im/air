@@ -134,6 +134,14 @@ message CreateGroupPayload {
   QsReference creator_client_reference = 6;
   MlsMessage group_info = 7;
   RoomState room_state = 8;
+  // Authenticates the creation of groups whose leaves carry no user
+  // credential (self-groups). Must be absent for all other groups, where the
+  // credential is taken from the creator's leaf.
+  optional UserCredential creator_user_credential = 10;
+}
+
+message UserCredential {
+  bytes tls = 1;
 }
 
 message EncryptedUserProfileKey {
@@ -172,6 +180,11 @@ message CreateApqGroupPayload {
   GroupSessionData t_group_data = 6;
   // Data for the pq group
   GroupSessionData pq_group_data = 7;
+
+  // Authenticates the creation of groups whose leaves carry no user
+  // credential (self-groups). Must be absent for all other groups, where the
+  // credential is taken from the creator's leaf.
+  optional UserCredential creator_user_credential = 8;
 }
 
 message GroupSessionData {
