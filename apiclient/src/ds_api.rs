@@ -171,9 +171,14 @@ impl ApiClient {
             creator_client_reference,
             room_state,
             pq,
+            creator_user_credential,
         } = params;
 
         let qgid: QualifiedGroupId = group_id.try_into()?;
+        let creator_user_credential = creator_user_credential
+            .as_ref()
+            .map(TryRefInto::try_ref_into)
+            .transpose()?;
 
         if let Some(pq) = pq {
             let pq_qgid: QualifiedGroupId = pq.group_id.try_into()?;
@@ -198,7 +203,7 @@ impl ApiClient {
                 room_state: Some(room_state.unverified().try_ref_into()?),
                 t_group_data: Some(t_group_data),
                 pq_group_data: Some(pq_group_data),
-                creator_user_credential: None,
+                creator_user_credential,
             };
             let request = payload.sign(signing_key)?;
             self.ds_grpc_client().create_apq_group(request).await?;
@@ -212,7 +217,7 @@ impl ApiClient {
                 creator_client_reference: Some(creator_client_reference.into()),
                 group_info: Some(group_info.try_ref_into()?),
                 room_state: Some(room_state.unverified().try_ref_into()?),
-                creator_user_credential: None,
+                creator_user_credential,
             };
             let request = payload.sign(signing_key)?;
             self.ds_grpc_client().create_group(request).await?;
