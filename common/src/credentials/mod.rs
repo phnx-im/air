@@ -43,6 +43,9 @@ mod private_mod {
 }
 
 pub mod keys;
+mod self_group;
+
+pub use self_group::{SELF_GROUP_CREDENTIAL_TYPE, SelfGroupCredential, SelfGroupCredentialError};
 
 use self::keys::ClientVerifyingKey;
 
