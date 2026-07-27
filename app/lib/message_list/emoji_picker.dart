@@ -13,6 +13,7 @@ import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:air/ds/foundations/themes.dart';
 import 'package:air/ds/theme/theme.dart';
+import 'package:air/util/app_haptics.dart';
 
 import 'centered_emoji.dart';
 
@@ -253,7 +254,10 @@ class _EmojiCell extends StatelessWidget {
       cursor: SystemMouseCursors.click,
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
-        onTap: onTap,
+        onTap: () {
+          AppHaptics.selection();
+          onTap();
+        },
         child: CenteredEmoji(
           emoji: emoji,
           style: const TextStyle(fontSize: _emojiGlyphSize),
