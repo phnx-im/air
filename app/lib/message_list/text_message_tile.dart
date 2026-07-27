@@ -58,13 +58,15 @@ final double _hoverReactSize =
 // Width the hover affordance occupies beside the bubble: the reply and react
 // buttons, the gap between them, and the gap to the bubble.
 final double _hoverAffordanceWidth = 2 * _hoverReactSize + 2 * Spacing.px8;
-const double largeCornerRadius = Spacing.px20;
-const double smallCornerRadius = Spacing.px8;
-const double messageHorizontalPadding = Spacing.px16;
+const double largeCornerRadius = Spacing.px12;
+const double smallCornerRadius = Spacing.px12;
+const double messageHorizontalPadding = Spacing.px12;
 const double messageVerticalPadding = Spacing.px8;
+// Gap between consecutive bubbles of the same flight.
+const double messageFollowUpGap = Spacing.px2;
 const double senderAvatarSize = Spacing.px32;
 const double senderAvatarVerticalOffset = Spacing.px4;
-const double senderLabelBottomGap = Spacing.px4 / 2;
+const double senderLabelBottomGap = Spacing.px2;
 const double incomingContentInset =
     senderAvatarSize + Spacing.px12 + messageHorizontalPadding;
 
@@ -1208,9 +1210,9 @@ class _MessageContent extends StatelessWidget {
           if (isEdited)
             Padding(
               padding: const EdgeInsets.only(
-                left: Spacing.px16,
-                right: Spacing.px16,
-                bottom: Spacing.px8,
+                left: messageHorizontalPadding,
+                right: messageHorizontalPadding,
+                bottom: messageVerticalPadding,
               ),
               child: SelectionContainer.disabled(
                 child: Text(
@@ -1228,7 +1230,7 @@ class _MessageContent extends StatelessWidget {
     );
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 1.5),
+      padding: const EdgeInsets.only(bottom: messageFollowUpGap),
       // Jumbo emoji renders without a bubble background, we skip the jump
       // highlight
       child: nakedContent
@@ -1273,7 +1275,7 @@ class _DeletedMessageContent extends StatelessWidget {
         : colors.message.otherBackground;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 1.5),
+      padding: const EdgeInsets.only(bottom: messageFollowUpGap),
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: _messageBorderRadius(isSender, flightPosition),
@@ -1353,7 +1355,7 @@ class _DisplayName extends StatelessWidget {
     return SelectionContainer.disabled(
       child: Text(
         displayName,
-        style: TextTheme.of(context).labelSmall!.copyWith(
+        style: TextTheme.of(context).bodyMedium!.copyWith(
           color: CustomColorScheme.of(context).text.tertiary,
         ),
         overflow: TextOverflow.ellipsis,
