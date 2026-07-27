@@ -6,8 +6,8 @@ use std::{collections::HashMap, iter};
 
 use aircommon::{
     credentials::{
-        AsIntermediateCredential, AsIntermediateCredentialBody, ClientCredential,
-        VerifiableClientCredential,
+        AsIntermediateCredential, AsIntermediateCredentialBody, UserCredential,
+        VerifiableUserCredential,
     },
     crypto::{aead::keys::EncryptedUserProfileKey, hash::Hash, indexed_aead::keys::UserProfileKey},
     identifiers::UserId,
@@ -36,7 +36,7 @@ use tracing::{debug, error, instrument, warn};
 
 use crate::{
     clients::api_clients::ApiClients, db::access::WriteDbTransaction,
-    groups::client_auth_info::VerifiableClientCredentialExt,
+    groups::client_auth_info::VerifiableUserCredentialExt,
     job::pending_chat_operation::PendingChatOperation, key_stores::as_credentials::AsCredentials,
 };
 
@@ -55,25 +55,25 @@ pub(crate) enum ProcessMessageResult {
 pub(crate) struct ProcessMessageProcessed {
     pub(crate) processed_message: ProcessedMessage,
     pub(crate) we_were_removed: bool,
-    pub(crate) profile_infos: Vec<(ClientCredential, UserProfileKey)>,
+    pub(crate) profile_infos: Vec<(UserCredential, UserProfileKey)>,
 }
 
 struct PostProcessState {
     sender_index: LeafNodeIndex,
     we_were_removed: bool,
-    encrypted_profile_infos: Vec<(ClientCredential, EncryptedUserProfileKey)>,
+    encrypted_profile_infos: Vec<(UserCredential, EncryptedUserProfileKey)>,
 }
 
 struct PostProcessAadResult {
     we_were_removed: bool,
-    encrypted_profile_infos: Vec<(ClientCredential, EncryptedUserProfileKey)>,
+    encrypted_profile_infos: Vec<(UserCredential, EncryptedUserProfileKey)>,
 }
 
 impl Group {
     /// Process inbound message
     ///
     /// Returns the processed message, whether the group was deleted, as well as
-    /// the sender's client credential.
+    /// the sender's user credential.
     #[instrument(skip_all, fields(group_id = ?self.group_id()))]
     pub(crate) async fn process_message(
         &mut self,
@@ -196,13 +196,13 @@ impl Group {
         let profile_infos = post_process_state
             .encrypted_profile_infos
             .into_iter()
-            .map(|(client_credential, encrypted_user_profile_key)| {
+            .map(|(user_credential, encrypted_user_profile_key)| {
                 let user_profile_key = UserProfileKey::decrypt(
                     self.identity_link_wrapper_key(),
                     &encrypted_user_profile_key,
-                    client_credential.user_id(),
+                    user_credential.user_id(),
                 )?;
-                Ok((client_credential, user_profile_key))
+                Ok((user_credential, user_profile_key))
             })
             .collect::<Result<Vec<_>>>()?;
 
@@ -248,7 +248,7 @@ impl Group {
             .await?;
 
         let sender_credential =
-            VerifiableClientCredential::from_basic_credential(processed_message.credential())?;
+            VerifiableUserCredential::from_basic_credential(processed_message.credential())?;
 
         // StagedCommitMessage Phase 1: Process the proposals.
         let removed_by_proposal =
@@ -284,7 +284,7 @@ impl Group {
         api_clients: &ApiClients,
         processed_message: &ProcessedMessage,
         pq_staged_commit: Option<&StagedCommit>,
-        sender_credential: VerifiableClientCredential,
+        sender_credential: VerifiableUserCredential,
     ) -> Result<PostProcessAadResult> {
         // Let's figure out which operation this is meant to be.
         let aad_payload =
@@ -347,12 +347,12 @@ impl Group {
         api_clients: &ApiClients,
         processed_message: &ProcessedMessage,
         pq_staged_commit: Option<&StagedCommit>,
-        sender_credential: VerifiableClientCredential,
+        sender_credential: VerifiableUserCredential,
         group_operation_payload: GroupOperationParamsAad,
-    ) -> Result<Vec<(ClientCredential, EncryptedUserProfileKey)>> {
+    ) -> Result<Vec<(UserCredential, EncryptedUserProfileKey)>> {
         let staged_commit = expect_staged_commit(processed_message)?;
 
-        let mut encrypted_profile_infos: Vec<(ClientCredential, EncryptedUserProfileKey)> =
+        let mut encrypted_profile_infos: Vec<(UserCredential, EncryptedUserProfileKey)> =
             Vec::new();
 
         let number_of_adds = staged_commit.add_proposals().count();
@@ -376,7 +376,7 @@ impl Group {
             let mut verifiable_credentials = Vec::with_capacity(number_of_adds);
             for ap in staged_commit.add_proposals() {
                 let credential = ap.add_proposal().key_package().leaf_node().credential();
-                let credential = VerifiableClientCredential::from_basic_credential(credential)?;
+                let credential = VerifiableUserCredential::from_basic_credential(credential)?;
                 verifiable_credentials.push(credential);
             }
 
@@ -394,7 +394,7 @@ impl Group {
                     &as_credentials,
                 )
                 .await?;
-            // Match up client credentials and new UserProfileKeys
+            // Match up user credentials and new UserProfileKeys
             let new_profile_infos: Vec<_> = credentials
                 .into_iter()
                 .zip(group_operation_payload.new_encrypted_user_profile_keys)
@@ -433,7 +433,7 @@ impl Group {
     }
 
     /// Process a join-connection-group AAD payload: verify and persist the
-    /// joiner's client credential. Returns the joiner's encrypted user profile
+    /// joiner's user credential. Returns the joiner's encrypted user profile
     /// key.
     async fn process_join_connection_group_aad(
         &mut self,
@@ -441,7 +441,7 @@ impl Group {
         api_clients: &ApiClients,
         processed_message: &ProcessedMessage,
         join_connection_group_payload: JoinConnectionGroupParamsAad,
-    ) -> Result<(ClientCredential, EncryptedUserProfileKey)> {
+    ) -> Result<(UserCredential, EncryptedUserProfileKey)> {
         let staged_commit = expect_staged_commit(processed_message)?;
 
         validate_join_connection_group_commit(
@@ -453,7 +453,7 @@ impl Group {
         )?;
 
         // JoinConnectionGroup Phase 1: Decrypt and verify the
-        // client credential of the joiner
+        // user credential of the joiner
         let (sender_credential, sender_leaf_key) = update_path_leaf_node_info(staged_commit)?;
 
         let as_credentials = AsCredentials::fetch_for_verification(
@@ -472,7 +472,7 @@ impl Group {
         // TODO: (More) validation:
         // * Check that the user id is unique.
 
-        // JoinConnectionGroup Phase 2: Persist the client credential
+        // JoinConnectionGroup Phase 2: Persist the user credential
         sender_credential.store(txn).await?;
         Ok((
             sender_credential.into(),
@@ -481,7 +481,7 @@ impl Group {
     }
 
     /// Process a resync AAD payload: verify and persist the resyncing member's
-    /// (unchanged) client credential.
+    /// (unchanged) user credential.
     async fn process_resync_aad(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
@@ -518,7 +518,7 @@ impl Group {
         )
         .await?;
 
-        let old_credential = VerifiableClientCredential::from_basic_credential(old_credential)?;
+        let old_credential = VerifiableUserCredential::from_basic_credential(old_credential)?;
         let sender_credential = sender_credential.verify_and_validate(
             sender_leaf_key,
             Some(&old_credential),
@@ -560,7 +560,7 @@ impl Group {
     fn process_remove_proposals(
         &self,
         staged_commit: &StagedCommit,
-        sender_credential: &VerifiableClientCredential,
+        sender_credential: &VerifiableUserCredential,
     ) -> Result<bool> {
         let mut we_were_removed = false;
         for queued_proposal in staged_commit.queued_proposals() {
@@ -621,7 +621,7 @@ impl Group {
         staged_commit: &StagedCommit,
         txn: &mut WriteDbTransaction<'_>,
         as_credentials: &HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>,
-    ) -> Result<Vec<ClientCredential>> {
+    ) -> Result<Vec<UserCredential>> {
         let mut credentials = Vec::new();
 
         for proposal in staged_commit.add_proposals() {
@@ -629,7 +629,7 @@ impl Group {
 
             // Verify the credential
             let credential =
-                VerifiableClientCredential::from_basic_credential(leaf_node.credential())?;
+                VerifiableUserCredential::from_basic_credential(leaf_node.credential())?;
             let credential =
                 credential.verify_and_validate(leaf_node.signature_key(), None, as_credentials)?;
 
@@ -770,11 +770,11 @@ fn expect_staged_commit(processed_message: &ProcessedMessage) -> Result<&StagedC
 
 fn update_path_leaf_node_info(
     staged_commit: &StagedCommit,
-) -> Result<(VerifiableClientCredential, &SignaturePublicKey)> {
+) -> Result<(VerifiableUserCredential, &SignaturePublicKey)> {
     let leaf_node = staged_commit
         .update_path_leaf_node()
         .context("Could not find sender leaf node")?;
-    let credential = VerifiableClientCredential::from_basic_credential(leaf_node.credential())?;
+    let credential = VerifiableUserCredential::from_basic_credential(leaf_node.credential())?;
     let signature_key = leaf_node.signature_key();
     Ok((credential, signature_key))
 }

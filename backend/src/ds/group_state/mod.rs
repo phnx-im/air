@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use aircommon::{
     codec::PersistenceCodec,
-    credentials::VerifiableClientCredential,
+    credentials::VerifiableUserCredential,
     crypto::{
         aead::{
             AeadDecryptable, AeadEncryptable, Ciphertext,
@@ -56,7 +56,7 @@ pub(super) struct MemberProfile {
 /// It is encrypted-at-rest with a roster key.
 ///
 /// TODO: Past group states are now included in mls-assist. However, we might
-/// have to store client credentials externally.
+/// have to store user credentials externally.
 pub(crate) struct DsGroupState {
     pub(super) room_state: VerifiedRoomState,
     pub(super) group: Group,
@@ -117,18 +117,15 @@ impl DsGroupState {
         }
     }
 
-    /// Extract and parse the client credential of the leaf at `index`.
+    /// Extract and parse the user credential of the leaf at `index`.
     ///
     /// Returns `None` (and logs) if the leaf is missing or its credential is invalid.
-    pub(crate) fn leaf_credential(
-        &self,
-        index: LeafNodeIndex,
-    ) -> Option<VerifiableClientCredential> {
+    pub(crate) fn leaf_credential(&self, index: LeafNodeIndex) -> Option<VerifiableUserCredential> {
         let leaf = self.group().leaf(index).or_else(|| {
             error!(%index, "Leaf node not found");
             None
         })?;
-        VerifiableClientCredential::from_basic_credential(leaf.credential())
+        VerifiableUserCredential::from_basic_credential(leaf.credential())
             .map_err(|error| error!(%error, "Credential is invalid"))
             .ok()
     }
@@ -406,8 +403,7 @@ fn fallback_room_state(
 ) -> VerifiedRoomState {
     let mut member_ids = Vec::new();
     for member in members {
-        let credential = match VerifiableClientCredential::from_basic_credential(&member.credential)
-        {
+        let credential = match VerifiableUserCredential::from_basic_credential(&member.credential) {
             Ok(credential) => credential,
             Err(error) => {
                 error!(%error, "Failed to convert credential; skipping member");

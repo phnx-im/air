@@ -46,17 +46,6 @@ impl RandomlyGeneratable for PushTokenEarKeyType {}
 
 impl AeadKey for PushTokenEarKey {}
 
-// Client credential EAR key
-
-#[derive(Debug)]
-pub struct ClientCredentialEarKeyType;
-
-pub type ClientCredentialEarKey = Key<ClientCredentialEarKeyType>;
-
-impl RandomlyGeneratable for ClientCredentialEarKeyType {}
-
-impl AeadKey for ClientCredentialEarKey {}
-
 // Ratchet key
 
 #[derive(Debug)]

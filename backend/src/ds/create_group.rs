@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::ClientCredential,
+    credentials::UserCredential,
     crypto::aead::keys::{EncryptedUserProfileKey, GroupStateEarKey},
     identifiers::{QsReference, QualifiedGroupId},
 };
@@ -80,13 +80,13 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         Ok((qgid, state, ear_key))
     }
 
-    pub(super) fn extract_credential(group: &Group) -> Result<ClientCredential, Status> {
+    pub(super) fn extract_credential(group: &Group) -> Result<UserCredential, Status> {
         let mut members = group.members().fuse();
         match (members.next(), members.next()) {
-            (Some(member), None) => ClientCredential::tls_deserialize_exact_bytes(
-                member.credential.serialized_content(),
-            )
-            .map_err(|_| Status::invalid_argument("invalid credential")),
+            (Some(member), None) => {
+                UserCredential::tls_deserialize_exact_bytes(member.credential.serialized_content())
+                    .map_err(|_| Status::invalid_argument("invalid credential"))
+            }
             _ => {
                 error!("group must have exactly one member");
                 Err(Status::invalid_argument(

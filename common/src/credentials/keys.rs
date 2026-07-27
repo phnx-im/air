@@ -28,7 +28,7 @@ use crate::crypto::signatures::private_keys::{SigningKey, VerifyingKey};
 
 use thiserror::Error;
 
-use super::ClientCredential;
+use super::UserCredential;
 
 #[derive(Debug)]
 pub struct AsIntermediateKeyType;
@@ -138,13 +138,13 @@ impl RawKey for ClientKeyType {}
 #[derive(Clone, Debug, Serialize, Deserialize)]
 pub struct ClientSigningKey {
     signing_key: SigningKey<ClientKeyType>, // private
-    credential: ClientCredential,           // known to other users and the server
+    credential: UserCredential,             // known to other users and the server
 }
 
-impl TryFrom<&ClientCredential> for Credential {
+impl TryFrom<&UserCredential> for Credential {
     type Error = tls_codec::Error;
 
-    fn try_from(value: &ClientCredential) -> Result<Self, Self::Error> {
+    fn try_from(value: &UserCredential) -> Result<Self, Self::Error> {
         let basic_credential = BasicCredential::new(value.tls_serialize_detached()?);
         Ok(basic_credential.into())
     }
@@ -188,7 +188,7 @@ impl ClientSigningKey {
     /// Pair a signing key with a matching credential and validates it.
     pub fn from_prelim_key(
         prelim_key: PreliminaryClientSigningKey,
-        credential: ClientCredential,
+        credential: UserCredential,
     ) -> Result<Self, SigningKeyCreationError> {
         let prelim_key = prelim_key.convert();
         if prelim_key.verifying_key() != credential.verifying_key() {
@@ -205,7 +205,7 @@ impl ClientSigningKey {
     /// client self-group, where leaves are signed with a fresh signing key.
     pub fn from_prelim_key_with_foreign_credential(
         preliminary_client_signing_key: PreliminaryClientSigningKey,
-        credential: ClientCredential,
+        credential: UserCredential,
     ) -> Result<Self, KeyGenerationError> {
         Ok(Self {
             signing_key: preliminary_client_signing_key.convert(),
@@ -213,7 +213,7 @@ impl ClientSigningKey {
         })
     }
 
-    pub fn credential(&self) -> &ClientCredential {
+    pub fn credential(&self) -> &UserCredential {
         &self.credential
     }
 }

@@ -28,10 +28,10 @@ use crate::{
 use super::v1::{
     AirProtocolVersion, AsCredential, AsCredentialBody, AsIntermediateCredential,
     AsIntermediateCredentialBody, AsIntermediateCredentialCsr, AsIntermediateCredentialPayload,
-    AsIntermediateVerifyingKey, AsVerifyingKey, ClientCredential, ClientCredentialCsr,
-    ClientCredentialPayload, ClientVerifyingKey, ConnectionEncryptionKey, ConnectionOfferMessage,
-    ConnectionPackage, ConnectionPackagePayload, EncryptedUserProfile, Hash, SignatureScheme,
-    UsernameHash, UsernameSignature, UsernameVerifyingKey,
+    AsIntermediateVerifyingKey, AsVerifyingKey, ClientVerifyingKey, ConnectionEncryptionKey,
+    ConnectionOfferMessage, ConnectionPackage, ConnectionPackagePayload, EncryptedUserProfile,
+    Hash, SignatureScheme, UserCredential, UserCredentialCsr, UserCredentialPayload, UsernameHash,
+    UsernameSignature, UsernameVerifyingKey,
 };
 
 impl From<identifiers::UserId> for UserId {
@@ -69,8 +69,8 @@ impl From<UserIdError> for Status {
     }
 }
 
-impl From<credentials::ClientCredentialCsr> for ClientCredentialCsr {
-    fn from(value: credentials::ClientCredentialCsr) -> Self {
+impl From<credentials::UserCredentialCsr> for UserCredentialCsr {
+    fn from(value: credentials::UserCredentialCsr) -> Self {
         Self {
             msl_version: value.version as u32,
             user_id: Some(value.user_id.into()),
@@ -80,13 +80,13 @@ impl From<credentials::ClientCredentialCsr> for ClientCredentialCsr {
     }
 }
 
-impl TryFrom<ClientCredentialCsr> for credentials::ClientCredentialCsr {
-    type Error = ClientCredentialCsrError;
+impl TryFrom<UserCredentialCsr> for credentials::UserCredentialCsr {
+    type Error = UserCredentialCsrError;
 
-    fn try_from(proto: ClientCredentialCsr) -> Result<Self, Self::Error> {
+    fn try_from(proto: UserCredentialCsr) -> Result<Self, Self::Error> {
         let version = match proto.msl_version {
             0 => messages::AirProtocolVersion::Alpha,
-            version => return Err(ClientCredentialCsrError::UnexpectedMlsVersion(version)),
+            version => return Err(UserCredentialCsrError::UnexpectedMlsVersion(version)),
         };
         let signature_scheme = SignatureScheme::try_from(proto.signature_scheme)
             .map_err(|_| UnsupportedSignatureScheme)?
@@ -105,7 +105,7 @@ impl TryFrom<ClientCredentialCsr> for credentials::ClientCredentialCsr {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum ClientCredentialCsrError {
+pub enum UserCredentialCsrError {
     #[error("unexpected MLS version: {0}")]
     UnexpectedMlsVersion(u32),
     #[error(transparent)]
@@ -221,10 +221,10 @@ impl<T: Labeled> TryFrom<Hash> for hash::Hash<T> {
     }
 }
 
-impl TryFrom<ClientCredential> for credentials::VerifiableClientCredential {
-    type Error = ClientCredentialError;
+impl TryFrom<UserCredential> for credentials::VerifiableUserCredential {
+    type Error = UserCredentialError;
 
-    fn try_from(proto: ClientCredential) -> Result<Self, Self::Error> {
+    fn try_from(proto: UserCredential) -> Result<Self, Self::Error> {
         let payload = proto.payload.ok_or_missing_field("payload")?.try_into()?;
         let signature = proto.signature.ok_or_missing_field("signature")?.into();
         Ok(Self::new(payload, signature))
@@ -232,15 +232,15 @@ impl TryFrom<ClientCredential> for credentials::VerifiableClientCredential {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum ClientCredentialError {
+pub enum UserCredentialError {
     #[error(transparent)]
     MissingField(#[from] MissingFieldError<&'static str>),
     #[error(transparent)]
-    Payload(#[from] ClientCredentialPayloadError),
+    Payload(#[from] UserCredentialPayloadError),
 }
 
-impl From<credentials::ClientCredential> for ClientCredential {
-    fn from(value: credentials::ClientCredential) -> Self {
+impl From<credentials::UserCredential> for UserCredential {
+    fn from(value: credentials::UserCredential) -> Self {
         let (payload, signature) = value.into_parts();
         Self {
             payload: Some(payload.into()),
@@ -249,8 +249,8 @@ impl From<credentials::ClientCredential> for ClientCredential {
     }
 }
 
-impl From<credentials::ClientCredentialPayload> for ClientCredentialPayload {
-    fn from(value: credentials::ClientCredentialPayload) -> Self {
+impl From<credentials::UserCredentialPayload> for UserCredentialPayload {
+    fn from(value: credentials::UserCredentialPayload) -> Self {
         Self {
             csr: Some(value.csr.into()),
             expiration_data: Some(value.expiration_data.into()),
@@ -259,17 +259,17 @@ impl From<credentials::ClientCredentialPayload> for ClientCredentialPayload {
     }
 }
 
-impl TryFrom<ClientCredentialPayload> for credentials::ClientCredentialPayload {
-    type Error = ClientCredentialPayloadError;
+impl TryFrom<UserCredentialPayload> for credentials::UserCredentialPayload {
+    type Error = UserCredentialPayloadError;
 
-    fn try_from(proto: ClientCredentialPayload) -> Result<Self, Self::Error> {
+    fn try_from(proto: UserCredentialPayload) -> Result<Self, Self::Error> {
         let csr = proto.csr.ok_or_missing_field("csr")?.try_into()?;
         let expiration_data = proto.expiration_data.map(TryFrom::try_from).transpose()?;
         let signer_fingerprint = proto
             .credential_fingerprint
             .ok_or_missing_field("credential_fingerprint")?
             .try_into()?;
-        Ok(credentials::ClientCredentialPayload::new(
+        Ok(credentials::UserCredentialPayload::new(
             csr,
             expiration_data,
             signer_fingerprint,
@@ -278,19 +278,19 @@ impl TryFrom<ClientCredentialPayload> for credentials::ClientCredentialPayload {
 }
 
 #[derive(Debug, thiserror::Error)]
-pub enum ClientCredentialPayloadError {
+pub enum UserCredentialPayloadError {
     #[error(transparent)]
     MissingField(#[from] MissingFieldError<&'static str>),
     #[error(transparent)]
-    Csr(#[from] ClientCredentialCsrError),
+    Csr(#[from] UserCredentialCsrError),
     #[error(transparent)]
     ExpirationData(#[from] ExpirationDataError),
     #[error("Invalid credential fingerprint: {0}")]
     CredentialFingerprint(#[from] HashError),
 }
 
-impl From<ClientCredentialPayloadError> for Status {
-    fn from(e: ClientCredentialPayloadError) -> Self {
+impl From<UserCredentialPayloadError> for Status {
+    fn from(e: UserCredentialPayloadError) -> Self {
         Status::invalid_argument(format!("invalid client payload: {e}"))
     }
 }
@@ -320,7 +320,7 @@ pub enum ConnectionPackageError {
     #[error(transparent)]
     MissingField(#[from] MissingFieldError<&'static str>),
     #[error(transparent)]
-    Csr(#[from] ClientCredentialCsrError),
+    Csr(#[from] UserCredentialCsrError),
     #[error(transparent)]
     ExpirationData(#[from] ExpirationDataError),
     #[error("Invalid credential fingerprint: {0}")]
