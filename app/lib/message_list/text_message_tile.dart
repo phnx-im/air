@@ -19,6 +19,7 @@ import 'package:air/message_list/message_reactions.dart';
 import 'package:air/message_list/mobile_message_actions.dart';
 import 'package:air/message_list/timestamp.dart';
 import 'package:air/navigation/navigation.dart';
+import 'package:air/ds/foundations/motion.dart';
 import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/foundations/themes.dart';
 import 'package:air/ds/components/button/button.dart';
@@ -253,7 +254,10 @@ class _IncomingMessageTile extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Padding(
+            AnimatedPadding(
+              // Tracks the animated reserve in [BubbleWithReactions].
+              duration: motionShort,
+              curve: motionEasing,
               padding: EdgeInsets.only(
                 bottom: reactionsReservedBelow(context, reactions.isNotEmpty),
               ),
@@ -394,6 +398,8 @@ class _MessageView extends HookWidget {
     Rect? reactionAnchorRect() => globalRectOf(messageBubbleKey);
 
     void sendReaction(String emoji) {
+      // May run after the reaction overlay's exit transition.
+      if (!context.mounted) return;
       context.read<ChatDetailsCubit>().sendReaction(
         messageId: messageId,
         emoji: emoji,
@@ -766,8 +772,11 @@ class _MessageView extends HookWidget {
     );
 
     // Padded at the bottom by the chip reserve so the trailing-affordance Row
-    // centers it on the bubble itself (not the bubble + reaction chips).
-    final hoverAffordance = Padding(
+    // centers it on the bubble itself (not the bubble + reaction chips),
+    // in sync with the animated reserve in [BubbleWithReactions].
+    final hoverAffordance = AnimatedPadding(
+      duration: motionShort,
+      curve: motionEasing,
       padding: EdgeInsets.only(
         bottom: reactionsReservedBelow(context, reactions.isNotEmpty),
         left: isSender ? 0 : Spacing.px8,
