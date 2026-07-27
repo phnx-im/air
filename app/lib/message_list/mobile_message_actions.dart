@@ -41,6 +41,11 @@ Future<void> showMobileMessageActions({
   void Function(String emoji)? onReact,
   VoidCallback? onReactMore,
 }) {
+  // Deliver a picked reaction only after the exit transition settled.
+  // Mutating the message earlier would relayout the list while the bubble
+  // copy flies back and make it land off target.
+  String? pickedEmoji;
+  var exitListenerAttached = false;
   return showGeneralDialog(
     context: context,
     barrierDismissible: true,
@@ -50,6 +55,14 @@ Future<void> showMobileMessageActions({
     pageBuilder: (context, animation, secondaryAnimation) =>
         const SizedBox.shrink(),
     transitionBuilder: (dialogContext, animation, secondaryAnimation, child) {
+      if (!exitListenerAttached) {
+        exitListenerAttached = true;
+        animation.addStatusListener((status) {
+          if (status == AnimationStatus.dismissed && pickedEmoji != null) {
+            onReact?.call(pickedEmoji!);
+          }
+        });
+      }
       final curvedAnimation = CurvedAnimation(
         parent: animation,
         curve: Curves.easeOutCubic,
@@ -62,7 +75,7 @@ Future<void> showMobileMessageActions({
         messageContent: messageContent,
         alignEnd: alignEnd,
         reactionSkinTone: reactionSkinTone,
-        onReact: onReact,
+        onReact: onReact == null ? null : (emoji) => pickedEmoji = emoji,
         onReactMore: onReactMore,
       );
       final defaultTextStyle = DefaultTextStyle.of(context);
@@ -244,8 +257,10 @@ class _MobileMessageActionView extends StatelessWidget {
                     skinTone: reactionSkinTone,
                     showShadow: false,
                     onReact: (emoji) {
-                      Navigator.of(context).pop();
+                      // Delivered after the exit transition, see
+                      // [showMobileMessageActions].
                       onReact!(emoji);
+                      Navigator.of(context).pop();
                     },
                     onMore: () {
                       Navigator.of(context).pop();
