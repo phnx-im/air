@@ -41,6 +41,8 @@ Future<void> showMobileMessageActions({
   void Function(String emoji)? onReact,
   VoidCallback? onReactMore,
 }) {
+  // Drop taps that land during the closing transition.
+  var consumed = false;
   // Deliver a picked reaction only after the exit transition settled.
   // Mutating the message earlier would relayout the list while the bubble
   // copy flies back and make it land off target.
@@ -55,6 +57,13 @@ Future<void> showMobileMessageActions({
     pageBuilder: (context, animation, secondaryAnimation) =>
         const SizedBox.shrink(),
     transitionBuilder: (dialogContext, animation, secondaryAnimation, child) {
+      bool dismiss() {
+        if (consumed) return false;
+        consumed = true;
+        Navigator.of(dialogContext).pop();
+        return true;
+      }
+
       if (!exitListenerAttached) {
         exitListenerAttached = true;
         animation.addStatusListener((status) {
@@ -63,6 +72,7 @@ Future<void> showMobileMessageActions({
           }
         });
       }
+
       final curvedAnimation = CurvedAnimation(
         parent: animation,
         curve: Curves.easeOutCubic,
@@ -75,8 +85,10 @@ Future<void> showMobileMessageActions({
         messageContent: messageContent,
         alignEnd: alignEnd,
         reactionSkinTone: reactionSkinTone,
+        // Delivered by the exit listener above once the overlay is gone.
         onReact: onReact == null ? null : (emoji) => pickedEmoji = emoji,
         onReactMore: onReactMore,
+        onDismiss: dismiss,
       );
       final defaultTextStyle = DefaultTextStyle.of(context);
       return DefaultTextStyle(
@@ -101,6 +113,7 @@ class _MobileMessageActionView extends StatelessWidget {
     required this.reactionSkinTone,
     required this.onReact,
     required this.onReactMore,
+    required this.onDismiss,
   });
 
   final Animation<double> animation;
@@ -111,6 +124,10 @@ class _MobileMessageActionView extends StatelessWidget {
   final EmojiSkinVariation reactionSkinTone;
   final void Function(String emoji)? onReact;
   final VoidCallback? onReactMore;
+
+  /// Closes the overlay, returning false when it is already closing so that
+  /// callers drop taps that land during the closing transition.
+  final bool Function() onDismiss;
 
   @override
   Widget build(BuildContext context) {
@@ -227,7 +244,7 @@ class _MobileMessageActionView extends StatelessWidget {
           children: [
             GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () => Navigator.of(context).pop(),
+              onTap: onDismiss,
               child: BackdropFilter(
                 filter: ImageFilter.blur(sigmaX: blurSigma, sigmaY: blurSigma),
                 child: Container(
@@ -257,14 +274,10 @@ class _MobileMessageActionView extends StatelessWidget {
                     skinTone: reactionSkinTone,
                     showShadow: false,
                     onReact: (emoji) {
-                      // Delivered after the exit transition, see
-                      // [showMobileMessageActions].
-                      onReact!(emoji);
-                      Navigator.of(context).pop();
+                      if (onDismiss()) onReact!(emoji);
                     },
                     onMore: () {
-                      Navigator.of(context).pop();
-                      onReactMore?.call();
+                      if (onDismiss()) onReactMore?.call();
                     },
                   ),
                 ),
@@ -278,6 +291,7 @@ class _MobileMessageActionView extends StatelessWidget {
                   animation: animation,
                   actions: actions,
                   alignEnd: alignEnd,
+                  onDismiss: onDismiss,
                 ),
               ),
           ],
@@ -292,11 +306,13 @@ class _MobileContextMenu extends StatelessWidget {
     required this.animation,
     required this.actions,
     required this.alignEnd,
+    required this.onDismiss,
   });
 
   final Animation<double> animation;
   final List<MessageAction> actions;
   final bool alignEnd;
+  final bool Function() onDismiss;
 
   @override
   Widget build(BuildContext context) {
@@ -311,8 +327,7 @@ class _MobileContextMenu extends StatelessWidget {
           leading: action.leading,
           isDestructive: action.isDestructive,
           onPressed: () {
-            Navigator.of(context).pop();
-            action.onSelected();
+            if (onDismiss()) action.onSelected();
           },
         ),
       );
@@ -329,12 +344,7 @@ class _MobileContextMenu extends StatelessWidget {
         child: Align(
           alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
           child: IntrinsicWidth(
-            child: ContextMenuUi(
-              menuItems: menuItems,
-              onHide: () {
-                Navigator.of(context).pop();
-              },
-            ),
+            child: ContextMenuUi(menuItems: menuItems, onHide: onDismiss),
           ),
         ),
       ),
