@@ -1188,14 +1188,14 @@ mod tests {
         assert_matches,
         credentials::{keys::ClientSigningKey, test_utils::create_test_credentials},
         crypto::aead::keys::IdentityLinkWrapperKey,
-        identifiers::{QualifiedGroupId, UserId},
+        identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
     };
     use chrono::{Duration, Utc};
     use uuid::Uuid;
 
     use crate::{
-        ChatAttributes, db::access::DbAccess, groups::GroupDataBytes,
-        utils::persistence::open_db_in_memory,
+        ChatAttributes, clients::own_client_info::OwnClientInfo, db::access::DbAccess,
+        groups::GroupDataBytes, utils::persistence::open_db_in_memory,
     };
 
     use super::*;
@@ -1223,6 +1223,18 @@ mod tests {
         )?;
         group.store(&mut connection).await?;
         let group = VerifiedGroup::new_for_test(group);
+
+        // Loading a group resolves the owner's identity, which requires an own_client_info row.
+        OwnClientInfo {
+            qs_user_id: QsUserId::random(),
+            qs_client_id: QsClientId::random(&mut rand::rng()),
+            user_id: user_id.clone(),
+            client_id: Uuid::new_v4(),
+            self_group_id: None,
+            self_group_signing_key: None,
+        }
+        .store(&mut connection)
+        .await?;
 
         let chat = Chat::new_group_chat(
             group_id.clone(),

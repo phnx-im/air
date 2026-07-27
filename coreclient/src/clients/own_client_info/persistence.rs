@@ -80,6 +80,24 @@ impl OwnClientInfo {
         })
     }
 
+    /// Returns the user id of this client.
+    pub(crate) async fn load_user_id(mut connection: impl ReadConnection) -> sqlx::Result<UserId> {
+        struct SqlUserId {
+            user_uuid: Uuid,
+            user_domain: Fqdn,
+        }
+        let sql = sqlx::query_as!(
+            SqlUserId,
+            r#"SELECT
+                user_uuid AS "user_uuid: _",
+                user_domain AS "user_domain: _"
+            FROM own_client_info"#,
+        )
+        .fetch_one(connection.as_mut())
+        .await?;
+        Ok(UserId::new(sql.user_uuid, sql.user_domain))
+    }
+
     /// Returns the `self_group_id`.
     pub(crate) async fn load_self_group_id(
         mut connection: impl ReadConnection,
