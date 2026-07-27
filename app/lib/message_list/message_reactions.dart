@@ -476,6 +476,8 @@ Future<void> showQuickReactionMenu({
   // otherwise it would fade back in while this route pops (the picker's
   // dismissal reverses [secondaryAnimation] concurrently with the pop).
   var handedOff = false;
+  // Drop taps that land during the closing transition.
+  var consumed = false;
   return showGeneralDialog(
     context: context,
     barrierDismissible: true,
@@ -498,7 +500,10 @@ Future<void> showQuickReactionMenu({
         onKeyEvent: (node, event) {
           if (event is KeyDownEvent &&
               event.logicalKey == LogicalKeyboardKey.escape) {
-            Navigator.of(dialogContext).maybePop();
+            if (!consumed) {
+              consumed = true;
+              Navigator.of(dialogContext).maybePop();
+            }
             return KeyEventResult.handled;
           }
           return KeyEventResult.ignored;
@@ -513,10 +518,14 @@ Future<void> showQuickReactionMenu({
             anchorRect: anchorRect,
             skinTone: skinTone,
             onReact: (emoji) {
+              if (consumed) return;
+              consumed = true;
               Navigator.of(dialogContext).pop();
               onReact(emoji);
             },
             onMore: () {
+              if (consumed) return;
+              consumed = true;
               handedOff = true;
               unawaited(
                 onMore().whenComplete(() {
