@@ -659,8 +659,8 @@ pub mod persistence {
     };
 
     #[derive(Debug, sqlx::Type)]
-    #[sqlx(type_name = "client_credential")]
-    pub struct FlatClientCredential {
+    #[sqlx(type_name = "user_credential")]
+    pub struct FlatUserCredential {
         version: Vec<u8>,
         signature_scheme: Vec<u8>,
         verifying_key: ClientVerifyingKey,
@@ -669,7 +669,7 @@ pub mod persistence {
         signature: AsIntermediateSignature,
     }
 
-    impl FlatClientCredential {
+    impl FlatUserCredential {
         pub fn new(credential: &UserCredential) -> Self {
             Self {
                 version: PersistenceCodec::to_vec(&credential.payload.csr.version).unwrap(),

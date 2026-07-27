@@ -34,7 +34,7 @@ impl ClientRecord {
 }
 
 pub(crate) mod persistence {
-    use aircommon::credentials::persistence::FlatClientCredential;
+    use aircommon::credentials::persistence::FlatUserCredential;
     use sqlx::{
         PgExecutor, query,
         types::chrono::{DateTime, Utc},
@@ -48,7 +48,7 @@ pub(crate) mod persistence {
             connection: impl PgExecutor<'_>,
         ) -> Result<(), StorageError> {
             let activity_time = DateTime::<Utc>::from(self.activity_time);
-            let user_credential = FlatClientCredential::new(&self.credential);
+            let user_credential = FlatUserCredential::new(&self.credential);
             let user_id = self.credential.user_id();
             query!(
                 "INSERT INTO as_client_record (
@@ -60,7 +60,7 @@ pub(crate) mod persistence {
                 user_id.uuid(),
                 user_id.domain() as _,
                 activity_time,
-                user_credential as FlatClientCredential,
+                user_credential as FlatUserCredential,
             )
             .execute(connection)
             .await?;
@@ -74,7 +74,7 @@ pub(crate) mod persistence {
             query!(
                 r#"SELECT
                     activity_time,
-                    credential AS "credential: FlatClientCredential"
+                    credential AS "credential: FlatUserCredential"
                 FROM as_client_record
                 WHERE user_uuid = $1 AND user_domain = $2"#,
                 user_id.uuid(),
@@ -113,7 +113,7 @@ pub(crate) mod persistence {
             user_id: &UserId,
         ) -> Result<Vec<UserCredential>, StorageError> {
             let credentials = sqlx::query_scalar!(
-                r#"SELECT credential as "client_credential: FlatClientCredential"
+                r#"SELECT credential as "user_credential: FlatUserCredential"
                 FROM as_client_record
                 WHERE user_uuid = $1 AND user_domain = $2"#,
                 user_id.uuid(),

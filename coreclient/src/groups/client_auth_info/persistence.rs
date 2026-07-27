@@ -18,8 +18,8 @@ impl StorableUserCredential {
         let domain = user_id.domain();
         query_scalar!(
             r#"SELECT
-                client_credential AS "client_credential: _"
-            FROM client_credential
+                user_credential AS "user_credential: _"
+            FROM user_credential
             WHERE user_uuid = ? AND user_domain = ?"#,
             uuid,
             domain,
@@ -36,8 +36,8 @@ impl StorableUserCredential {
         let uuid = user_id.uuid();
         let domain = user_id.domain();
         query!(
-            "INSERT OR IGNORE INTO client_credential
-                (fingerprint, user_uuid, user_domain, client_credential) VALUES (?, ?, ?, ?)",
+            "INSERT OR IGNORE INTO user_credential
+                (fingerprint, user_uuid, user_domain, user_credential) VALUES (?, ?, ?, ?)",
             fingerprint,
             uuid,
             domain,
