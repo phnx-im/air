@@ -29,13 +29,15 @@ impl OwnClientInfo {
                 qs_client_id,
                 user_uuid,
                 user_domain,
+                client_id,
                 self_group_id,
                 self_group_signing_key
-            ) VALUES (?,  ?, ?, ?, ?, ?)",
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)",
             self.qs_user_id,
             self.qs_client_id,
             uuid,
             domain,
+            self.client_id,
             self_group_id,
             self_group_signing_key
         )
@@ -50,6 +52,7 @@ impl OwnClientInfo {
             qs_client_id: QsClientId,
             user_uuid: Uuid,
             user_domain: Fqdn,
+            client_id: Uuid,
             self_group_id: Option<GroupIdWrapper>,
             self_group_signing_key: Option<ClientSigningKey>,
         }
@@ -60,6 +63,7 @@ impl OwnClientInfo {
                 qs_client_id AS "qs_client_id: _",
                 user_uuid AS "user_uuid: _",
                 user_domain AS "user_domain: _",
+                client_id AS "client_id!: _",
                 self_group_id AS "self_group_id: _",
                 self_group_signing_key AS "self_group_signing_key: _"
             FROM own_client_info"#,
@@ -70,6 +74,7 @@ impl OwnClientInfo {
             qs_user_id: sql.qs_user_id,
             qs_client_id: sql.qs_client_id,
             user_id: UserId::new(sql.user_uuid, sql.user_domain),
+            client_id: sql.client_id,
             self_group_id: sql.self_group_id.map(From::from),
             self_group_signing_key: sql.self_group_signing_key,
         })
@@ -141,6 +146,7 @@ mod tests {
             qs_user_id: QsUserId::random(),
             qs_client_id: QsClientId::random(&mut rng),
             user_id: UserId::new(Uuid::new_v4(), "localhost".parse().unwrap()),
+            client_id: Uuid::new_v4(),
             self_group_id: Some(GroupId::random(&RustCrypto::default())),
             self_group_signing_key: None,
         };
@@ -151,6 +157,7 @@ mod tests {
         assert_eq!(loaded.qs_user_id, own_client_info.qs_user_id);
         assert_eq!(loaded.qs_client_id, own_client_info.qs_client_id);
         assert_eq!(loaded.user_id, own_client_info.user_id);
+        assert_eq!(loaded.client_id, own_client_info.client_id);
         assert_eq!(loaded.self_group_id, own_client_info.self_group_id);
         assert!(loaded.self_group_signing_key.is_none());
 
