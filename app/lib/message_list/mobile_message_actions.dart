@@ -43,6 +43,11 @@ Future<void> showMobileMessageActions({
 }) {
   // Drop taps that land during the closing transition.
   var consumed = false;
+  // Deliver a picked reaction only after the exit transition settled.
+  // Mutating the message earlier would relayout the list while the bubble
+  // copy flies back and make it land off target.
+  String? pickedEmoji;
+  var exitListenerAttached = false;
   return showGeneralDialog(
     context: context,
     barrierDismissible: true,
@@ -59,6 +64,15 @@ Future<void> showMobileMessageActions({
         return true;
       }
 
+      if (!exitListenerAttached) {
+        exitListenerAttached = true;
+        animation.addStatusListener((status) {
+          if (status == AnimationStatus.dismissed && pickedEmoji != null) {
+            onReact?.call(pickedEmoji!);
+          }
+        });
+      }
+
       final curvedAnimation = CurvedAnimation(
         parent: animation,
         curve: Curves.easeOutCubic,
@@ -71,7 +85,8 @@ Future<void> showMobileMessageActions({
         messageContent: messageContent,
         alignEnd: alignEnd,
         reactionSkinTone: reactionSkinTone,
-        onReact: onReact,
+        // Delivered by the exit listener above once the overlay is gone.
+        onReact: onReact == null ? null : (emoji) => pickedEmoji = emoji,
         onReactMore: onReactMore,
         onDismiss: dismiss,
       );
