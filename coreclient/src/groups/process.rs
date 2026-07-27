@@ -16,6 +16,7 @@ use aircommon::{
     },
     utils::removed_client,
 };
+use airprotos::client::component::AirComponent;
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use apqmls::{
     ApqMlsGroupMut,
@@ -26,8 +27,8 @@ use mimi_room_policy::RoleIndex;
 use openmls::{
     group::{ProcessMessageError, ValidationError},
     prelude::{
-        Credential, GroupId, LeafNodeIndex, ProcessedMessage, ProcessedMessageContent, Proposal,
-        ProtocolMessage, Sender, SignaturePublicKey, StagedCommit,
+        Credential, GroupId, LeafNodeIndex, MlsGroup, ProcessedMessage, ProcessedMessageContent,
+        Proposal, ProtocolMessage, Sender, SignaturePublicKey, StagedCommit,
     },
 };
 use openmls_traits::OpenMlsProvider;
@@ -224,6 +225,13 @@ impl Group {
 
         let staged_commit = expect_staged_commit(processed_message)?;
         let pq_staged_commit = pq_processed_message.map(expect_staged_commit).transpose()?;
+
+        // The self-group flag is set at group creation and must never change. Reject any commit
+        // whose proposals (AppDataUpdate or GroupContextExtensions) would toggle it.
+        ensure_self_group_flag_unchanged(&self.mls_group, staged_commit)?;
+        if let (Some(pq_group), Some(pq_staged_commit)) = (self.pq.as_ref(), pq_staged_commit) {
+            ensure_self_group_flag_unchanged(&pq_group.mls_group, pq_staged_commit)?;
+        }
 
         // For an external commit (resync, join connection group), the sender's new leaf lives in
         // the commit's update path and is not visible in the live tree until the commit is merged.
@@ -756,6 +764,20 @@ impl Group {
 
         Ok(res)
     }
+}
+
+/// Verify that merging `staged_commit` keeps the self-group flag of the group
+/// context's [`AirComponent`] unchanged. The flag is fixed at group creation.
+fn ensure_self_group_flag_unchanged(
+    mls_group: &MlsGroup,
+    staged_commit: &StagedCommit,
+) -> Result<()> {
+    ensure!(
+        AirComponent::is_self_group_context(staged_commit.group_context().extensions())
+            == AirComponent::is_self_group_context(mls_group.extensions()),
+        "commit would toggle the self-group flag"
+    );
+    Ok(())
 }
 
 /// Extract the staged commit from a processed message. Errors if the message
