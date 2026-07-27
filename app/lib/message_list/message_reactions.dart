@@ -513,28 +513,33 @@ Future<void> showQuickReactionMenu({
           opacity: handedOff
               ? const AlwaysStoppedAnimation(0.0)
               : ReverseAnimation(secondaryAnimation),
-          child: _QuickReactionMenuOverlay(
-            animation: curved,
-            anchorRect: anchorRect,
-            skinTone: skinTone,
-            onReact: (emoji) {
-              if (consumed) return;
-              consumed = true;
-              Navigator.of(dialogContext).pop();
-              onReact(emoji);
-            },
-            onMore: () {
-              if (consumed) return;
-              consumed = true;
-              handedOff = true;
-              unawaited(
-                onMore().whenComplete(() {
-                  if (dialogContext.mounted) {
-                    Navigator.of(dialogContext).pop();
-                  }
-                }),
-              );
-            },
+          // Dialog routes live in the navigator's overlay, above the page's
+          // Material
+          child: Material(
+            type: MaterialType.transparency,
+            child: _QuickReactionMenuOverlay(
+              animation: curved,
+              anchorRect: anchorRect,
+              skinTone: skinTone,
+              onReact: (emoji) {
+                if (consumed) return;
+                consumed = true;
+                Navigator.of(dialogContext).pop();
+                onReact(emoji);
+              },
+              onMore: () {
+                if (consumed) return;
+                consumed = true;
+                handedOff = true;
+                unawaited(
+                  onMore().whenComplete(() {
+                    if (dialogContext.mounted) {
+                      Navigator.of(dialogContext).pop();
+                    }
+                  }),
+                );
+              },
+            ),
           ),
         ),
       );
