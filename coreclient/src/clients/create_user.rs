@@ -384,6 +384,7 @@ impl PersistedUserState {
     pub(super) fn into_self_user(
         self,
         db: DbAccess,
+        client_record_id: Uuid,
         api_clients: ApiClients,
         global_lock: GlobalLock,
     ) -> CoreUser {
@@ -408,6 +409,7 @@ impl PersistedUserState {
 
         let inner = Arc::new(CoreUserInner {
             db,
+            client_record_id,
             key_store,
             qs_user_id,
             qs_client_id,

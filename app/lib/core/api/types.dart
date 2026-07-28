@@ -261,15 +261,18 @@ sealed class UiChatType with _$UiChatType {
 ///
 /// Each user has a client record which identifies the users database.
 class UiClientRecord {
+  /// Random UUID naming this client's DB file and identifying its client
+  /// record.
+  final UuidValue clientRecordId;
+
   /// The unique identifier of the user
-  ///
-  /// Also used for identifying the client database path.
   final UiUserId userId;
   final DateTime createdAt;
   final UiUserProfile userProfile;
   final bool isFinished;
 
   const UiClientRecord({
+    required this.clientRecordId,
     required this.userId,
     required this.createdAt,
     required this.userProfile,
@@ -278,6 +281,7 @@ class UiClientRecord {
 
   @override
   int get hashCode =>
+      clientRecordId.hashCode ^
       userId.hashCode ^
       createdAt.hashCode ^
       userProfile.hashCode ^
@@ -288,6 +292,7 @@ class UiClientRecord {
       identical(this, other) ||
       other is UiClientRecord &&
           runtimeType == other.runtimeType &&
+          clientRecordId == other.clientRecordId &&
           userId == other.userId &&
           createdAt == other.createdAt &&
           userProfile == other.userProfile &&

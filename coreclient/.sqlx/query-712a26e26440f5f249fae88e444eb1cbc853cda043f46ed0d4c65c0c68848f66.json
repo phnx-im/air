@@ -1,11 +1,22 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT\n                user_uuid AS \"user_uuid: _\",\n                user_domain AS \"user_domain: _\",\n                record_state AS \"client_record_state: _\",\n                created_at AS \"created_at: _\",\n                is_default,\n                db_uuid AS \"db_uuid: _\"\n            FROM client_record",
+  "query": "\n            SELECT\n                client_record_id AS \"client_record_id: _\",\n                user_uuid AS \"user_uuid: _\",\n                user_domain AS \"user_domain: _\",\n                record_state AS \"client_record_state: _\",\n                created_at AS \"created_at: _\",\n                is_default\n            FROM client_record",
   "describe": {
     "columns": [
       {
-        "name": "user_uuid: _",
+        "name": "client_record_id: _",
         "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "client_record",
+            "name": "client_record_id"
+          }
+        }
+      },
+      {
+        "name": "user_uuid: _",
+        "ordinal": 1,
         "type_info": "Blob",
         "origin": {
           "Table": {
@@ -16,7 +27,7 @@
       },
       {
         "name": "user_domain: _",
-        "ordinal": 1,
+        "ordinal": 2,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -27,7 +38,7 @@
       },
       {
         "name": "client_record_state: _",
-        "ordinal": 2,
+        "ordinal": 3,
         "type_info": "Text",
         "origin": {
           "Table": {
@@ -38,7 +49,7 @@
       },
       {
         "name": "created_at: _",
-        "ordinal": 3,
+        "ordinal": 4,
         "type_info": "Datetime",
         "origin": {
           "Table": {
@@ -49,23 +60,12 @@
       },
       {
         "name": "is_default",
-        "ordinal": 4,
+        "ordinal": 5,
         "type_info": "Bool",
         "origin": {
           "Table": {
             "table": "client_record",
             "name": "is_default"
-          }
-        }
-      },
-      {
-        "name": "db_uuid: _",
-        "ordinal": 5,
-        "type_info": "Blob",
-        "origin": {
-          "Table": {
-            "table": "client_record",
-            "name": "db_uuid"
           }
         }
       }
@@ -79,8 +79,8 @@
       false,
       false,
       false,
-      true
+      false
     ]
   },
-  "hash": "419ac8ff905f040cdf75555fb525dfde7a72bc432a71dc972ee93b952b052472"
+  "hash": "712a26e26440f5f249fae88e444eb1cbc853cda043f46ed0d4c65c0c68848f66"
 }

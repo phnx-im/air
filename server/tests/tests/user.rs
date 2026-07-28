@@ -118,35 +118,41 @@ async fn client_persistence() {
 
     let db_path = setup.temp_dir().to_owned();
 
-    // Try to load the user from the database.
-    CoreUser::load_with_server_url(&alice, db_path.to_str().unwrap(), Some(setup.server_url()))
-        .await
-        .unwrap();
-
-    // The client DB is named by the random DB UUID from the client record.
-    let db_uuid = ClientRecord::load_all_from_air_db(db_path.to_str().unwrap())
+    // The client DB is named by the random client record ID.
+    let client_record_id = ClientRecord::load_all_from_air_db(db_path.to_str().unwrap())
         .await
         .unwrap()
         .into_iter()
         .find(|record| record.user_id == alice)
-        .and_then(|record| record.db_uuid)
-        .unwrap();
-    let client_db_path = db_path.join(format!("{db_uuid}.db"));
+        .unwrap()
+        .client_record_id;
+    let client_db_path = db_path.join(format!("{client_record_id}.db"));
     assert!(client_db_path.exists());
+
+    // Try to load the user from the database.
+    CoreUser::load_with_server_url(
+        db_path.to_str().unwrap(),
+        client_record_id,
+        Some(setup.server_url()),
+    )
+    .await
+    .unwrap();
 
     setup.delete_user(&alice).await;
 
     assert!(!client_db_path.exists());
+
+    // Without a client record, the user cannot be loaded.
     assert!(
-        CoreUser::load_with_server_url(&alice, db_path.to_str().unwrap(), Some(setup.server_url()))
-            .await
-            .is_err()
+        CoreUser::load_with_server_url(
+            db_path.to_str().unwrap(),
+            client_record_id,
+            Some(setup.server_url()),
+        )
+        .await
+        .is_err()
     );
 
-    // `CoreUser::load` opened the client DB, and so it was re-created. Without
-    // a client record, it was created under the legacy name derived from the
-    // user id.
-    fs::remove_file(db_path.join(format!("{}@{}.db", alice.uuid(), alice.domain()))).unwrap();
     fs::remove_file(db_path.join("air.db")).unwrap();
 }
 

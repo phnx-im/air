@@ -43,11 +43,11 @@ impl UserCreationState {
         client_db: &DbAccess,
         air_db: &DbAccess,
         user_id: UserId,
-        db_uuid: Uuid,
+        client_record_id: Uuid,
         push_token: Option<PushToken>,
         invitation_code: String,
     ) -> Result<Self> {
-        let client_record = ClientRecord::new(user_id.clone(), db_uuid);
+        let client_record = ClientRecord::new(user_id.clone(), client_record_id);
         client_record.store(air_db.write().await?).await?;
 
         let basic_user_data = BasicUserData {
@@ -67,6 +67,7 @@ impl UserCreationState {
         self,
         air_db: &DbAccess,
         client_db: &DbAccess,
+        client_record_id: Uuid,
         api_clients: &ApiClients,
     ) -> Result<Self> {
         // If we're already in the final state, there is nothing to do.
@@ -106,7 +107,7 @@ impl UserCreationState {
         // If we just transitioned into the final state, we need to update the
         // client record.
         if let UserCreationState::FinalUserState(_) = new_state {
-            let mut client_record = ClientRecord::load(air_db.read().await?, new_state.user_id())
+            let mut client_record = ClientRecord::load(air_db.read().await?, client_record_id)
                 .await?
                 .ok_or(anyhow!("Client record not found"))?;
             client_record.finish();
@@ -129,10 +130,13 @@ impl UserCreationState {
         mut self,
         air_db: &DbAccess,
         client_db: &DbAccess,
+        client_record_id: Uuid,
         api_clients: &ApiClients,
     ) -> Result<PersistedUserState> {
         while !matches!(self, UserCreationState::FinalUserState(_)) {
-            self = self.step(air_db, client_db, api_clients).await?
+            self = self
+                .step(air_db, client_db, client_record_id, api_clients)
+                .await?
         }
 
         self.final_state()
@@ -164,25 +168,22 @@ impl ClientRecordState {
 
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientRecord {
+    /// Random UUID naming this client DB file
+    pub client_record_id: Uuid,
     pub user_id: UserId,
     pub client_record_state: ClientRecordState,
     pub created_at: DateTime<Utc>,
     pub is_default: bool,
-    /// Random UUID naming this client's DB file.
-    ///
-    /// Randomized so that the file name does not leak any metadata. `None` corresponds to the
-    /// legacy DB file name derived from the user id.
-    pub db_uuid: Option<Uuid>,
 }
 
 impl ClientRecord {
-    pub(super) fn new(user_id: UserId, db_uuid: Uuid) -> Self {
+    pub(super) fn new(user_id: UserId, client_record_id: Uuid) -> Self {
         Self {
+            client_record_id,
             user_id,
             client_record_state: ClientRecordState::InProgress,
             created_at: Utc::now(),
             is_default: false,
-            db_uuid: Some(db_uuid),
         }
     }
 

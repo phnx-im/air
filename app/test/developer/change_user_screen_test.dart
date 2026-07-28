@@ -15,18 +15,21 @@ import '../mocks.dart';
 
 final clientRecords = [
   UiClientRecord(
+    clientRecordId: 1.clientRecordId(),
     userId: 1.userId(),
     createdAt: DateTime.parse("2023-01-01T00:00:00.000Z"),
     userProfile: UiUserProfile(userId: 1.userId(), displayName: "alice"),
     isFinished: true,
   ),
   UiClientRecord(
+    clientRecordId: 2.clientRecordId(),
     userId: 2.userId(),
     createdAt: DateTime.parse("2024-01-01T00:00:00.000Z"),
     userProfile: UiUserProfile(userId: 2.userId(), displayName: "alice"),
     isFinished: true,
   ),
   UiClientRecord(
+    clientRecordId: 3.clientRecordId(),
     userId: 3.userId(),
     createdAt: DateTime.parse("2025-01-01T00:00:00.000Z"),
     userProfile: UiUserProfile(userId: 3.userId(), displayName: "bob"),

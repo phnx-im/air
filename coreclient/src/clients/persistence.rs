@@ -131,22 +131,22 @@ impl<'r> Decode<'r, Sqlite> for ClientRecordState {
 }
 
 struct SqlClientRecord {
+    client_record_id: Uuid,
     user_uuid: Uuid,
     user_domain: Fqdn,
     client_record_state: ClientRecordState,
     created_at: DateTime<Utc>,
     is_default: bool,
-    db_uuid: Option<Uuid>,
 }
 
 impl From<SqlClientRecord> for ClientRecord {
     fn from(value: SqlClientRecord) -> Self {
         Self {
+            client_record_id: value.client_record_id,
             user_id: UserId::new(value.user_uuid, value.user_domain),
             client_record_state: value.client_record_state,
             created_at: value.created_at,
             is_default: value.is_default,
-            db_uuid: value.db_uuid,
         }
     }
 }
@@ -162,12 +162,12 @@ impl ClientRecord {
             SqlClientRecord,
             r#"
             SELECT
+                client_record_id AS "client_record_id: _",
                 user_uuid AS "user_uuid: _",
                 user_domain AS "user_domain: _",
                 record_state AS "client_record_state: _",
                 created_at AS "created_at: _",
-                is_default,
-                db_uuid AS "db_uuid: _"
+                is_default
             FROM client_record"#
         )
         .fetch_all(connection.as_mut())
@@ -177,22 +177,19 @@ impl ClientRecord {
 
     pub(crate) async fn load(
         mut connection: impl ReadConnection,
-        user_id: &UserId,
+        client_record_id: Uuid,
     ) -> sqlx::Result<Option<Self>> {
-        let uuid = user_id.uuid();
-        let domain = user_id.domain();
         query_as!(
             SqlClientRecord,
             r#"SELECT
+                client_record_id AS "client_record_id: _",
                 user_uuid AS "user_uuid: _",
                 user_domain AS "user_domain: _",
                 record_state AS "client_record_state: _",
                 created_at AS "created_at: _",
-                is_default,
-                db_uuid AS "db_uuid: _"
-            FROM client_record WHERE user_uuid = ? AND user_domain = ?"#,
-            uuid,
-            domain
+                is_default
+            FROM client_record WHERE client_record_id = ?"#,
+            client_record_id,
         )
         .fetch_optional(connection.as_mut())
         .await
@@ -204,18 +201,18 @@ impl ClientRecord {
             ClientRecordState::InProgress => "in_progress",
             ClientRecordState::Finished => "finished",
         };
-        let uuid = self.user_id.uuid();
-        let domain = self.user_id.domain();
+        let user_uuid = self.user_id.uuid();
+        let user_domain = self.user_id.domain();
         query!(
             "INSERT OR REPLACE INTO client_record
-            (user_uuid, user_domain, record_state, created_at, is_default, db_uuid)
+            (client_record_id, user_uuid, user_domain, record_state, created_at, is_default)
             VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
-            uuid,
-            domain,
+            self.client_record_id,
+            user_uuid,
+            user_domain,
             record_state_str,
             self.created_at,
             self.is_default,
-            self.db_uuid,
         )
         .execute(connection.as_mut())
         .await?;
@@ -224,14 +221,11 @@ impl ClientRecord {
 
     pub(crate) async fn set_default(
         mut connection: impl WriteConnection,
-        user_id: &UserId,
+        client_record_id: Uuid,
     ) -> sqlx::Result<()> {
-        let uuid = user_id.uuid();
-        let domain = user_id.domain();
         query!(
-            "UPDATE client_record SET is_default = (user_uuid == ? AND user_domain == ?)",
-            uuid,
-            domain,
+            "UPDATE client_record SET is_default = (client_record_id == ?)",
+            client_record_id,
         )
         .execute(connection.as_mut())
         .await?;
@@ -240,14 +234,11 @@ impl ClientRecord {
 
     pub(crate) async fn delete(
         mut connection: impl WriteConnection,
-        user_id: &UserId,
+        client_record_id: Uuid,
     ) -> sqlx::Result<()> {
-        let uuid = user_id.uuid();
-        let domain = user_id.domain();
         query!(
-            "DELETE FROM client_record WHERE user_uuid = ? AND user_domain = ?",
-            uuid,
-            domain
+            "DELETE FROM client_record WHERE client_record_id = ?",
+            client_record_id,
         )
         .execute(connection.as_mut())
         .await?;
@@ -275,7 +266,7 @@ mod tests {
             client_record_state: ClientRecordState::Finished,
             created_at,
             is_default: false,
-            db_uuid: None,
+            client_record_id: Uuid::new_v4(),
         }
     }
 
@@ -297,20 +288,20 @@ mod tests {
 
         // Set default to alice set alice is_default
         alice_record.is_default = true;
-        ClientRecord::set_default(pool.write().await?, &alice_record.user_id).await?;
+        ClientRecord::set_default(pool.write().await?, alice_record.client_record_id).await?;
         let records = ClientRecord::load_all(pool.read().await?).await?;
         assert_eq!(records, [alice_record.clone(), bob_record.clone()]);
 
         // Set default to bob clears alice is_default
         alice_record.is_default = false;
         bob_record.is_default = true;
-        ClientRecord::set_default(pool.write().await?, &bob_record.user_id).await?;
+        ClientRecord::set_default(pool.write().await?, bob_record.client_record_id).await?;
         let records = ClientRecord::load_all(pool.read().await?).await?;
         assert_eq!(records, [alice_record.clone(), bob_record.clone()]);
 
         // Delete client records
-        ClientRecord::delete(pool.write().await?, &alice_record.user_id).await?;
-        ClientRecord::delete(pool.write().await?, &bob_record.user_id).await?;
+        ClientRecord::delete(pool.write().await?, alice_record.client_record_id).await?;
+        ClientRecord::delete(pool.write().await?, bob_record.client_record_id).await?;
         let records = ClientRecord::load_all(pool.read().await?).await?;
         assert_eq!(records, []);
 

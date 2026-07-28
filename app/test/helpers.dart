@@ -39,6 +39,8 @@ extension IntTestExtension on int {
   UiUserId userId({String domain = "localhost"}) =>
       UiUserId(uuid: _intToUuidValue(this), domain: domain);
 
+  UuidValue clientRecordId() => _intToUuidValue(this);
+
   AttachmentId attachmentId() => AttachmentId(uuid: _intToUuidValue(this));
 }
 

@@ -40,7 +40,7 @@ impl CoreUser {
         self.delete_as_identity(&client).await;
 
         if let Some(db_path) = db_path {
-            delete_client_database(db_path, self.user_id()).await?;
+            delete_client_database(db_path, self.client_record_id()).await?;
         }
 
         Ok(())

@@ -110,9 +110,8 @@ impl User {
         Ok(ui_records)
     }
 
-    pub async fn load(db_path: String, user_id: UiUserId) -> anyhow::Result<Self> {
-        let user_id = user_id.into();
-        let user = CoreUser::load(&user_id, &db_path).await?;
+    pub async fn load(db_path: String, client_record_id: Uuid) -> anyhow::Result<Self> {
+        let user = CoreUser::load(&db_path, client_record_id).await?;
         Ok(Self { user: user.clone() })
     }
 
@@ -131,13 +130,17 @@ impl User {
 
         let mut loaded_user = None;
         for client_record in records {
-            let user_id = client_record.user_id;
-            match CoreUser::load(&user_id, &path).await {
+            match CoreUser::load(&path, client_record.client_record_id).await {
                 Ok(user) => {
                     loaded_user = Some(user);
                     break;
                 }
-                Err(error) => error!(?user_id, %error, "Failed to load user"),
+                Err(error) => {
+                    error!(
+                        %client_record.client_record_id,
+                        ?client_record.user_id, %error, "Failed to load user"
+                    )
+                }
             };
         }
 
@@ -186,6 +189,12 @@ impl User {
         self.user.user_id().clone().into()
     }
 
+    /// Random UUID naming this client's DB file and identifying its client record.
+    #[frb(getter, sync)]
+    pub fn client_record_id(&self) -> Uuid {
+        self.user.client_record_id()
+    }
+
     pub async fn user_debug_info(&self) -> Result<UserDebugInfo> {
         self.user.user_debug_info().await
     }
@@ -214,12 +223,13 @@ pub struct _TimedTaskDebugInfo {
 }
 
 async fn load_ui_record(db_path: &str, record: &ClientRecord) -> anyhow::Result<UiClientRecord> {
-    let db = open_client_db(&record.user_id, db_path, record.db_uuid).await?;
+    let db = open_client_db(db_path, record.client_record_id).await?;
     let user_profile = UserProfile::load_from_db(&db, &record.user_id)
         .await?
         .map(UiUserProfile::from_profile)
         .unwrap_or_else(|| UiUserProfile::from_user_id(record.user_id.clone()));
     Ok(UiClientRecord {
+        client_record_id: record.client_record_id,
         user_id: record.user_id.clone().into(),
         created_at: record.created_at,
         user_profile,
