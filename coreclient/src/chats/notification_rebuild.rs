@@ -114,15 +114,14 @@ impl Chat {
                 .map(ChatNotificationEntry::Message),
         );
 
-        for reaction in reactions {
-            let target =
-                ChatMessage::load_by_mimi_id(&mut connection, &reaction.target_mimi_id).await?;
+        for (reaction, target) in reactions {
             entries.push(ChatNotificationEntry::Reaction(Box::new(
                 NotificationReaction {
                     reactor: reaction.sender,
                     emoji: reaction.emoji,
                     created_at: reaction.created_at.into(),
-                    target: target.filter(|message| !message.message().is_deleted()),
+                    // The target is dropped if it was deleted (tombstone content)
+                    target: Some(target).filter(|message| !message.message().is_deleted()),
                 },
             )));
         }

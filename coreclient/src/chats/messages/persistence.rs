@@ -97,19 +97,19 @@ impl VersionedMessage {
 
 use super::{MessageId, TimestampedMessage};
 
-struct SqlChatMessage {
-    message_id: MessageId,
-    mimi_id: Option<MimiId>,
-    chat_id: ChatId,
-    timestamp: TimeStamp,
-    sender_user_uuid: Option<Uuid>,
-    sender_user_domain: Option<Fqdn>,
-    content: BlobDecoded<VersionedMessage>,
-    sent: bool,
-    status: i64,
-    edited_at: Option<TimeStamp>,
-    is_blocked: bool,
-    in_reply_to_mimi_id: Option<MimiId>,
+pub(crate) struct SqlChatMessage {
+    pub(crate) message_id: MessageId,
+    pub(crate) mimi_id: Option<MimiId>,
+    pub(crate) chat_id: ChatId,
+    pub(crate) timestamp: TimeStamp,
+    pub(crate) sender_user_uuid: Option<Uuid>,
+    pub(crate) sender_user_domain: Option<Fqdn>,
+    pub(crate) content: BlobDecoded<VersionedMessage>,
+    pub(crate) sent: bool,
+    pub(crate) status: i64,
+    pub(crate) edited_at: Option<TimeStamp>,
+    pub(crate) is_blocked: bool,
+    pub(crate) in_reply_to_mimi_id: Option<MimiId>,
 }
 
 impl From<SqlChatMessage> for ChatMessage {
