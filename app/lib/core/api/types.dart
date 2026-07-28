@@ -259,10 +259,9 @@ sealed class UiChatType with _$UiChatType {
 
 /// Client record of a user
 ///
-/// Each user has a client record which identifies the users database.
+/// Each user has a client record which identifies the users database. One user can have multiple
+/// client records identifying different client in a multi-client setup.
 class UiClientRecord {
-  /// Random UUID naming this client's DB file and identifying its client
-  /// record.
   final UuidValue clientRecordId;
 
   /// The unique identifier of the user

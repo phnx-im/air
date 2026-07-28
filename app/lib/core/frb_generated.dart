@@ -19524,8 +19524,7 @@ class UserImpl extends RustOpaque implements User {
         RustLib.instance.api.rust_arc_decrement_strong_count_UserPtr,
   );
 
-  /// Random UUID naming this client's DB file and identifying its client
-  /// record.
+  /// Random UUID naming this client's DB file and identifying its client record.
   UuidValue get clientRecordId =>
       RustLib.instance.api.crateApiUserUserClientRecordId(that: this);
 

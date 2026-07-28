@@ -18,8 +18,7 @@ part 'user.freezed.dart';
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<User>>
 abstract class User implements RustOpaqueInterface {
-  /// Random UUID naming this client's DB file and identifying its client
-  /// record.
+  /// Random UUID naming this client's DB file and identifying its client record.
   UuidValue get clientRecordId;
 
   /// Total number of unread messages across all chats
