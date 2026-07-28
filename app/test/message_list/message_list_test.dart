@@ -9,9 +9,11 @@ import 'package:air/core/api/markdown.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/message_list/message_list.dart';
+import 'package:air/message_list/message_reactions.dart';
 import 'package:air/user/user.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
@@ -1403,5 +1405,58 @@ void main() {
         matchesGoldenFile('goldens/message_list_who_reacted_sheet.png'),
       );
     });
+
+    testWidgets(
+      'double-click selects a word on desktop',
+      (tester) async {
+        // A 1.0 ratio makes the whole list fit, so the target message is
+        // always built and on screen regardless of the viewport anchor.
+        tester.view.physicalSize = highTestSize;
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        messageListCubit.setState(messages);
+
+        await tester.pumpWidget(buildSubject());
+
+        final target = find.textContaining('This is a delivered message');
+        expect(
+          find.ancestor(of: target, matching: find.byType(SelectableRegion)),
+          findsOne,
+        );
+        final paragraph = tester.renderObject<RenderParagraph>(
+          find.descendant(of: target, matching: find.byType(RichText)),
+        );
+        // The tile can be built but laid out below the fold, where taps
+        // land on nothing.
+        await tester.ensureVisible(target);
+        await tester.pumpAndSettle();
+        final center = tester.getCenter(target);
+
+        final gesture = await tester.startGesture(
+          center,
+          kind: PointerDeviceKind.mouse,
+        );
+        addTearDown(gesture.removePointer);
+        await tester.pump();
+        await gesture.up();
+        await tester.pump(const Duration(milliseconds: 50));
+        await gesture.down(center);
+        await tester.pump();
+        await gesture.up();
+        await tester.pump(kDoubleTapTimeout);
+        await tester.pumpAndSettle();
+
+        // A double-tap recognizer on the bubble would win the gesture arena
+        // and swallow the second click, leaving no word selection.
+        expect(paragraph.selections, hasLength(1));
+        expect(paragraph.selections.single.isCollapsed, isFalse);
+        expect(find.byType(QuickReactionBar), findsNothing);
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
   });
 }
