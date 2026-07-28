@@ -20,6 +20,7 @@ use sqlx::{
     sqlite::{SqliteConnectOptions, SqliteJournalMode, SqlitePoolOptions},
 };
 use tracing::{error, info};
+use uuid::Uuid;
 
 use crate::{
     clients::store::ClientRecord,
@@ -155,7 +156,7 @@ async fn delete_client_databases(client_db_path: &str) -> anyhow::Result<()> {
     let air_db_connection = open_air_db(client_db_path).await?;
     if let Ok(client_records) = ClientRecord::load_all(air_db_connection.read().await?).await {
         for client_record in client_records {
-            let client_db_name = client_db_name(&client_record.user_id);
+            let client_db_name = client_db_name(&client_record.user_id, client_record.db_uuid);
             let client_db_path = format!("{client_db_path}/{client_db_name}");
             info!(path =% client_db_path, "removing client DB");
             if let Err(error) = fs::remove_file(&client_db_path) {
@@ -167,30 +168,46 @@ async fn delete_client_databases(client_db_path: &str) -> anyhow::Result<()> {
 }
 
 pub async fn delete_client_database(db_path: &str, user_id: &UserId) -> anyhow::Result<()> {
+    // The client record knows which DB UUID the client DB was created with.
+    let full_air_db_path = format!("{db_path}/{AIR_DB_NAME}");
+    if !Path::new(&full_air_db_path).exists() {
+        bail!("air.db does not exist")
+    }
+    let air_db = open_air_db(db_path).await?;
+    let db_uuid = ClientRecord::load(air_db.read().await?, user_id)
+        .await?
+        .and_then(|record| record.db_uuid);
+
     // Delete the client DB
-    let client_db_name = client_db_name(user_id);
+    let client_db_name = client_db_name(user_id, db_uuid);
     let client_db_path = format!("{db_path}/{client_db_name}");
     if let Err(error) = fs::remove_file(&client_db_path) {
         error!(%error, %client_db_path, "Failed to delete client DB")
     }
 
     // Delete the client record from the air DB
-    let full_air_db_path = format!("{db_path}/{AIR_DB_NAME}");
-    if !Path::new(&full_air_db_path).exists() {
-        bail!("air.db does not exist")
-    }
-    let air_db = open_air_db(db_path).await?;
     ClientRecord::delete(air_db.write().await?, user_id).await?;
 
     Ok(())
 }
 
-fn client_db_name(user_id: &UserId) -> String {
-    format!("{}@{}.db", user_id.uuid(), user_id.domain())
+/// The name of a client DB file
+///
+/// New client DBs are named by a random UUID so that the file name does not leak any metadata.
+/// `None` corresponds to the legacy name derived from the user id.
+fn client_db_name(user_id: &UserId, db_uuid: Option<Uuid>) -> String {
+    match db_uuid {
+        Some(db_uuid) => format!("{db_uuid}.db"),
+        None => format!("{}@{}.db", user_id.uuid(), user_id.domain()),
+    }
 }
 
-pub async fn open_client_db(user_id: &UserId, client_db_path: &str) -> sqlx::Result<DbAccess> {
-    let client_db_name = client_db_name(user_id);
+pub async fn open_client_db(
+    user_id: &UserId,
+    client_db_path: &str,
+    db_uuid: Option<Uuid>,
+) -> sqlx::Result<DbAccess> {
+    let client_db_name = client_db_name(user_id, db_uuid);
     let db_url = format!("sqlite://{client_db_path}/{client_db_name}");
     let opts: SqliteConnectOptions = db_url.parse()?;
 

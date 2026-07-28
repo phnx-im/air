@@ -136,6 +136,7 @@ struct SqlClientRecord {
     client_record_state: ClientRecordState,
     created_at: DateTime<Utc>,
     is_default: bool,
+    db_uuid: Option<Uuid>,
 }
 
 impl From<SqlClientRecord> for ClientRecord {
@@ -145,6 +146,7 @@ impl From<SqlClientRecord> for ClientRecord {
             client_record_state: value.client_record_state,
             created_at: value.created_at,
             is_default: value.is_default,
+            db_uuid: value.db_uuid,
         }
     }
 }
@@ -164,7 +166,8 @@ impl ClientRecord {
                 user_domain AS "user_domain: _",
                 record_state AS "client_record_state: _",
                 created_at AS "created_at: _",
-                is_default
+                is_default,
+                db_uuid AS "db_uuid: _"
             FROM client_record"#
         )
         .fetch_all(connection.as_mut())
@@ -185,7 +188,8 @@ impl ClientRecord {
                 user_domain AS "user_domain: _",
                 record_state AS "client_record_state: _",
                 created_at AS "created_at: _",
-                is_default
+                is_default,
+                db_uuid AS "db_uuid: _"
             FROM client_record WHERE user_uuid = ? AND user_domain = ?"#,
             uuid,
             domain
@@ -204,13 +208,14 @@ impl ClientRecord {
         let domain = self.user_id.domain();
         query!(
             "INSERT OR REPLACE INTO client_record
-            (user_uuid, user_domain, record_state, created_at, is_default)
-            VALUES (?1, ?2, ?3, ?4, ?5)",
+            (user_uuid, user_domain, record_state, created_at, is_default, db_uuid)
+            VALUES (?1, ?2, ?3, ?4, ?5, ?6)",
             uuid,
             domain,
             record_state_str,
             self.created_at,
             self.is_default,
+            self.db_uuid,
         )
         .execute(connection.as_mut())
         .await?;
@@ -270,6 +275,7 @@ mod tests {
             client_record_state: ClientRecordState::Finished,
             created_at,
             is_default: false,
+            db_uuid: None,
         }
     }
 
@@ -334,19 +340,5 @@ mod tests {
     #[test]
     fn user_creation_state_basic_json_codec() {
         insta::assert_json_snapshot!(&*USER_CREATION_STATE_BASIC);
-    }
-
-    #[test]
-    fn client_record_serde_codec() {
-        let record = new_client_record(Uuid::from_u128(1), "2025-01-01T00:00:00Z".parse().unwrap());
-        let bytes = PersistenceCodec::to_vec(&record).unwrap();
-        let diag = cbor_diag::parse_bytes(&bytes[1..]).unwrap().to_hex();
-        insta::assert_snapshot!(diag);
-    }
-
-    #[test]
-    fn client_record_serde_json() {
-        let record = new_client_record(Uuid::from_u128(1), "2025-01-01T00:00:00Z".parse().unwrap());
-        insta::assert_json_snapshot!(&record);
     }
 }

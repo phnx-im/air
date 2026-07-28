@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "\n            SELECT\n                user_uuid AS \"user_uuid: _\",\n                user_domain AS \"user_domain: _\",\n                record_state AS \"client_record_state: _\",\n                created_at AS \"created_at: _\",\n                is_default\n            FROM client_record",
+  "query": "\n            SELECT\n                user_uuid AS \"user_uuid: _\",\n                user_domain AS \"user_domain: _\",\n                record_state AS \"client_record_state: _\",\n                created_at AS \"created_at: _\",\n                is_default,\n                db_uuid AS \"db_uuid: _\"\n            FROM client_record",
   "describe": {
     "columns": [
       {
@@ -57,6 +57,17 @@
             "name": "is_default"
           }
         }
+      },
+      {
+        "name": "db_uuid: _",
+        "ordinal": 5,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "client_record",
+            "name": "db_uuid"
+          }
+        }
       }
     ],
     "parameters": {
@@ -67,8 +78,9 @@
       false,
       false,
       false,
-      false
+      false,
+      true
     ]
   },
-  "hash": "52effea5fab17202ff62c2b5b02238fba05b8b7646d57a654ebeca44c3efebd6"
+  "hash": "419ac8ff905f040cdf75555fb525dfde7a72bc432a71dc972ee93b952b052472"
 }

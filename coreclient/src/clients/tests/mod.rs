@@ -31,6 +31,7 @@ async fn user_stages() -> anyhow::Result<()> {
         &client_db,
         &air_db,
         user_id.clone(),
+        uuid::Uuid::new_v4(),
         None,
         "DUMMY007".to_owned(),
     )

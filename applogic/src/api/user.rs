@@ -214,7 +214,7 @@ pub struct _TimedTaskDebugInfo {
 }
 
 async fn load_ui_record(db_path: &str, record: &ClientRecord) -> anyhow::Result<UiClientRecord> {
-    let db = open_client_db(&record.user_id, db_path).await?;
+    let db = open_client_db(&record.user_id, db_path, record.db_uuid).await?;
     let user_profile = UserProfile::load_from_db(&db, &record.user_id)
         .await?
         .map(UiUserProfile::from_profile)

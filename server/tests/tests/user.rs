@@ -8,7 +8,8 @@ use airapiclient::as_api::AsRequestError;
 use aircommon::{assert_matches, identifiers::Username};
 use aircoreclient::{
     AddUsernameContactError, Asset, BlockedContactError, DisplayName, EventMessage, Message,
-    SystemMessage, UserProfile, clients::CoreUser,
+    SystemMessage, UserProfile,
+    clients::{CoreUser, store::ClientRecord},
 };
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use mimi_content::MimiContent;
@@ -122,7 +123,15 @@ async fn client_persistence() {
         .await
         .unwrap();
 
-    let client_db_path = db_path.join(format!("{}@{}.db", alice.uuid(), alice.domain()));
+    // The client DB is named by the random DB UUID from the client record.
+    let db_uuid = ClientRecord::load_all_from_air_db(db_path.to_str().unwrap())
+        .await
+        .unwrap()
+        .into_iter()
+        .find(|record| record.user_id == alice)
+        .and_then(|record| record.db_uuid)
+        .unwrap();
+    let client_db_path = db_path.join(format!("{db_uuid}.db"));
     assert!(client_db_path.exists());
 
     setup.delete_user(&alice).await;
@@ -134,8 +143,10 @@ async fn client_persistence() {
             .is_err()
     );
 
-    // `CoreUser::load` opened the client DB, and so it was re-created.
-    fs::remove_file(client_db_path).unwrap();
+    // `CoreUser::load` opened the client DB, and so it was re-created. Without
+    // a client record, it was created under the legacy name derived from the
+    // user id.
+    fs::remove_file(db_path.join(format!("{}@{}.db", alice.uuid(), alice.domain()))).unwrap();
     fs::remove_file(db_path.join("air.db")).unwrap();
 }
 

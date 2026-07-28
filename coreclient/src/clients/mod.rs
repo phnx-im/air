@@ -45,6 +45,7 @@ use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::DropGuard;
 use tracing::{error, info, warn};
 use url::Url;
+use uuid::Uuid;
 
 use crate::{
     Asset, ChatMuted, PartialContact, UsernameRecord,
@@ -182,12 +183,14 @@ impl CoreUser {
         let air_db = open_air_db(db_path).await?;
 
         // Open client specific db
-        let client_db = open_client_db(&user_id, db_path).await?;
+        let db_uuid = Uuid::new_v4();
+        let client_db = open_client_db(&user_id, db_path, Some(db_uuid)).await?;
 
         let global_lock = open_lock_file(db_path)?;
 
         Self::new_with_connections(
             user_id,
+            db_uuid,
             server_url,
             push_token,
             air_db,
@@ -198,8 +201,10 @@ impl CoreUser {
         .await
     }
 
+    #[expect(clippy::too_many_arguments)]
     async fn new_with_connections(
         user_id: UserId,
+        db_uuid: Uuid,
         server_url: Option<Url>,
         push_token: Option<PushToken>,
         air_db: DbAccess,
@@ -209,9 +214,15 @@ impl CoreUser {
     ) -> Result<Self> {
         let api_clients = ApiClients::new(user_id.domain().clone(), server_url.clone());
 
-        let user_creation_state =
-            UserCreationState::new(&client_db, &air_db, user_id, push_token, invitation_code)
-                .await?;
+        let user_creation_state = UserCreationState::new(
+            &client_db,
+            &air_db,
+            user_id,
+            db_uuid,
+            push_token,
+            invitation_code,
+        )
+        .await?;
 
         let final_state = user_creation_state
             .complete_user_creation(&air_db, &client_db, &api_clients)
@@ -255,13 +266,18 @@ impl CoreUser {
         db_path: &str,
         server_url: Option<Url>,
     ) -> Result<CoreUser> {
-        let client_db = open_client_db(user_id, db_path).await?;
+        // The client record knows which DB UUID the client DB was created
+        // with. Legacy clients have no DB UUID and use the DB name derived
+        // from the user id.
+        let air_db = open_air_db(db_path).await?;
+        let db_uuid = ClientRecord::load(air_db.read().await?, user_id)
+            .await?
+            .and_then(|record| record.db_uuid);
+        let client_db = open_client_db(user_id, db_path, db_uuid).await?;
 
         let user_creation_state = UserCreationState::load(client_db.read().await?, user_id)
             .await?
             .context("missing user creation state")?;
-
-        let air_db = open_air_db(db_path).await?;
         let api_clients = ApiClients::new(user_id.domain().clone(), server_url);
         let final_state = user_creation_state
             .complete_user_creation(&air_db, &client_db, &api_clients)

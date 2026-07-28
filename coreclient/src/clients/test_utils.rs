@@ -49,6 +49,7 @@ impl CoreUser {
 
         Self::new_with_connections(
             user_id,
+            Uuid::new_v4(),
             Some(server_url),
             push_token,
             air_db,

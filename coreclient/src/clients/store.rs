@@ -43,10 +43,11 @@ impl UserCreationState {
         client_db: &DbAccess,
         air_db: &DbAccess,
         user_id: UserId,
+        db_uuid: Uuid,
         push_token: Option<PushToken>,
         invitation_code: String,
     ) -> Result<Self> {
-        let client_record = ClientRecord::new(user_id.clone());
+        let client_record = ClientRecord::new(user_id.clone(), db_uuid);
         client_record.store(air_db.write().await?).await?;
 
         let basic_user_data = BasicUserData {
@@ -161,21 +162,27 @@ impl ClientRecordState {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq)]
 pub struct ClientRecord {
     pub user_id: UserId,
     pub client_record_state: ClientRecordState,
     pub created_at: DateTime<Utc>,
     pub is_default: bool,
+    /// Random UUID naming this client's DB file.
+    ///
+    /// Randomized so that the file name does not leak any metadata. `None` corresponds to the
+    /// legacy DB file name derived from the user id.
+    pub db_uuid: Option<Uuid>,
 }
 
 impl ClientRecord {
-    pub(super) fn new(user_id: UserId) -> Self {
+    pub(super) fn new(user_id: UserId, db_uuid: Uuid) -> Self {
         Self {
             user_id,
             client_record_state: ClientRecordState::InProgress,
             created_at: Utc::now(),
             is_default: false,
+            db_uuid: Some(db_uuid),
         }
     }
 
