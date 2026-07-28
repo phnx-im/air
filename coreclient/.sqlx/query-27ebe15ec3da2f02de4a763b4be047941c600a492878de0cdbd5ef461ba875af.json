@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO setting_changes (id, changes, previous) VALUES (0, ?, ?)\n                ON CONFLICT (id) DO UPDATE SET\n                    changes = excluded.changes,\n                    previous = excluded.previous",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "27ebe15ec3da2f02de4a763b4be047941c600a492878de0cdbd5ef461ba875af"
+}

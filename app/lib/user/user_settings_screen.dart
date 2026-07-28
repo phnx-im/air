@@ -331,12 +331,17 @@ class _CommonSettings extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final readReceipts = useState(
-      useMemoized(() => context.read<UserSettingsCubit>().state.readReceipts),
-    );
+    // Captured here rather than read inside the submit callback: a debounced
+    // submit can fire while the widget is being disposed, when context
+    // lookups are no longer allowed.
+    final settingsCubit = context.read<UserSettingsCubit>();
+    final userCubit = context.read<UserCubit>();
     final readReceiptsSetting = context.select(
       (UserSettingsCubit cubit) => cubit.state.readReceipts,
     );
+    // The subscription above also provides the initial value: useState only
+    // reads its argument on the first build.
+    final readReceipts = useState(readReceiptsSetting);
     // Converge the local switch onto the cubit state. This moves the switch
     // for out-of-band changes (a sibling device update or a rollback) and
     // confirms it after a successful submit. The optimistic local flip
@@ -358,8 +363,6 @@ class _CommonSettings extends HookWidget {
         const _LanguageSettings(),
         _SwitchField(
           onSubmit: (value) async {
-            final settingsCubit = context.read<UserSettingsCubit>();
-            final userCubit = context.read<UserCubit>();
             try {
               await settingsCubit.setReadReceipts(
                 userCubit: userCubit,
@@ -526,8 +529,13 @@ class _Devices extends StatelessWidget {
 class _MobileSettings extends HookWidget {
   @override
   Widget build(BuildContext context) {
+    // Captured here rather than read inside the submit callback: a debounced
+    // submit can fire while the widget is being disposed, when context
+    // lookups are no longer allowed.
+    final settingsCubit = context.read<UserSettingsCubit>();
+    final UserCubit userCubit = context.read();
     final sendOnEnter = useState(
-      useMemoized(() => context.read<UserSettingsCubit>().state.sendOnEnter),
+      useMemoized(() => settingsCubit.state.sendOnEnter),
     );
 
     final loc = AppLocalizations.of(context);
@@ -539,10 +547,7 @@ class _MobileSettings extends HookWidget {
           label: loc.userSettingsScreen_sendWithEnter,
           value: sendOnEnter,
           onSubmit: (value) {
-            context.read<UserSettingsCubit>().setSendOnEnter(
-              userCubit: context.read(),
-              value: value,
-            );
+            settingsCubit.setSendOnEnter(userCubit: userCubit, value: value);
           },
         ),
 
@@ -779,13 +784,20 @@ class _SwitchField extends HookWidget {
     final debouncer = useMemoized(
       () => Debouncer(delay: const Duration(milliseconds: 500)),
     );
-    useEffect(() => debouncer.dispose, []);
+    // Flush on dispose: a tap still waiting out the debounce delay when the
+    // screen closes is submitted, not dropped.
+    useEffect(() => debouncer.flush, [debouncer]);
 
+    // Only user taps schedule a submit. Programmatic writes to `value` (such
+    // as an owner converging it onto cubit state) never do, so a state update
+    // cannot re-trigger a submit and loop back on itself. The debounced
+    // action reads `value` when it fires, so a burst of taps submits only the
+    // final position.
     final handleTap = useCallback(() {
+      value.value = !value.value;
       debouncer.run(() {
         onSubmit(value.value);
       });
-      value.value = !value.value;
     }, [onSubmit, value]);
 
     return _FieldContainer(

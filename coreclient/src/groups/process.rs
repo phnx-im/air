@@ -38,7 +38,7 @@ use tracing::{debug, error, instrument, warn};
 use crate::{
     clients::{
         api_clients::ApiClients,
-        user_settings::{apply_settings_update, merge_settings_update},
+        user_settings::{SettingChanges, apply_settings_update, merge_settings_update},
     },
     db::access::WriteDbTransaction,
     groups::client_auth_info::VerifiableClientCredentialExt,
@@ -264,44 +264,39 @@ impl Group {
             }
         };
 
-        // Settings phase. This must run before the pending-op discard below,
-        // because the discard reconciles any pending settings op against the
-        // snapshot this commit carried.
-        let incoming_settings_update = if self.is_self_group() {
+        // Settings phase. This must run before the pending-op discard below so
+        // the pending setting changes are reconciled against the snapshot this
+        // commit carried before the outbound service can re-issue them.
+        if self.is_self_group() {
             let updates = self.extract_settings_updates(txn, staged_commit).await;
-            // Own echo: the DS fanned our own commit back while our pending
-            // commit was already gone. The values are already applied locally,
-            // so only a sibling's update needs applying.
-            let own_echo = sender_index == self.mls_group().own_leaf_index();
-            if !own_echo {
-                for update in &updates {
-                    apply_settings_update(txn, update).await?;
-                }
-            }
-            // Fold the extracted snapshots into one merged incoming snapshot.
-            // None means the commit carried no settings update at all. A commit
-            // that did carry one yields Some, including an empty snapshot when a
-            // newer sibling's update decoded to unknown-only fields.
-            if updates.is_empty() {
-                None
-            } else {
+            if !updates.is_empty() {
+                // Fold the extracted snapshots into one merged snapshot. This
+                // can be empty when the update decoded to unknown-only fields
+                // sent by a newer sibling; an empty snapshot covers nothing.
                 let mut merged = SettingsUpdate::default();
                 for update in &updates {
                     merge_settings_update(&mut merged, update).await?;
                 }
-                Some(merged)
+                // Own echo: the DS fanned our own commit back while our
+                // pending commit was already gone. The values are already
+                // applied locally. The commit was accepted, so complete the
+                // pending setting changes it asserted.
+                let own_echo = sender_index == self.mls_group().own_leaf_index();
+                if own_echo {
+                    SettingChanges::complete_sent(txn, &merged).await?;
+                } else {
+                    for update in &updates {
+                        apply_settings_update(txn, update).await?;
+                    }
+                    // Fields a sibling's accepted commit covered are no longer
+                    // ours to change.
+                    SettingChanges::remove_covered(txn, &merged).await?;
+                }
             }
-        } else {
-            None
-        };
+        }
 
-        self.discard_pending_commit_and_operations(
-            txn,
-            &group_id,
-            staged_commit,
-            incoming_settings_update.as_ref(),
-        )
-        .await?;
+        self.discard_pending_commit_and_operations(txn, &group_id, staged_commit)
+            .await?;
 
         let sender_credential =
             VerifiableClientCredential::from_basic_credential(processed_message.credential())?;
@@ -587,50 +582,21 @@ impl Group {
     /// Discard our local pending commit and reconcile any pending chat
     /// operation for this group against the incoming commit.
     ///
-    /// A pending non-leave operation is deleted. A leave operation is deleted
-    /// only if this commit carries our own self-remove. A settings update is
-    /// reconciled per field against `incoming_settings_update`, the merged
-    /// snapshot this commit carried (`None` if it carried no settings update at
-    /// all, including our own echo). When the commit carried a snapshot, the op
-    /// is reconciled against it: fields the snapshot covers are no longer ours
-    /// to change. If nothing is left to change afterwards the op is deleted,
-    /// otherwise the reconciled op is persisted and re-armed so the outbound job
-    /// restages the surviving fields against the new epoch. When the commit
-    /// carried no settings update, an unrelated commit advanced the epoch, so
-    /// the op is kept and re-armed unchanged.
+    /// A pending non-leave operation is deleted. For a settings update this
+    /// only drops the send attempt whose staged commit just became stale: the
+    /// pending [`SettingChanges`] survive and the outbound service re-issues a
+    /// fresh commit from them. A leave operation is deleted only if this
+    /// commit carries our own self-remove.
     pub(crate) async fn discard_pending_commit_and_operations(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
         staged_commit: &StagedCommit,
-        incoming_settings_update: Option<&SettingsUpdate>,
     ) -> Result<()> {
         self.discard_pending_commit(&mut *txn).await?;
-        if let Some(mut pending_chat_operation) =
+        if let Some(pending_chat_operation) =
             PendingChatOperation::load_by_group_id(&mut *txn, group_id).await?
         {
-            if pending_chat_operation.is_settings_update() {
-                match incoming_settings_update {
-                    None => {
-                        pending_chat_operation
-                            .mark_as_ready_to_retry(&mut *txn)
-                            .await?;
-                    }
-                    Some(incoming) => {
-                        let nothing_left = pending_chat_operation
-                            .reconcile_settings_update(&mut *txn, incoming)
-                            .await?;
-                        if nothing_left {
-                            PendingChatOperation::delete(&mut *txn, group_id).await?;
-                        } else {
-                            pending_chat_operation
-                                .mark_as_ready_to_retry(&mut *txn)
-                                .await?;
-                        }
-                    }
-                }
-                return Ok(());
-            }
             let commit_contains_our_self_remove = staged_commit.queued_proposals().any(|p| {
                 let Sender::Member(proposal_sender_index) = p.sender() else {
                     return false;

@@ -331,8 +331,11 @@ mod persistence {
         let group_id = GroupIdRefWrapper::from(group_id);
         let epoch = epoch as i64;
         query!(
-            r#"INSERT OR REPLACE INTO self_group_message_key (group_id, epoch, key)
-            VALUES (?, ?, ?)"#,
+            r#"INSERT INTO self_group_message_key (group_id, epoch, key)
+            VALUES (?, ?, ?)
+            ON CONFLICT (group_id) DO UPDATE SET
+                epoch = excluded.epoch,
+                key = excluded.key"#,
             group_id,
             epoch,
             key,

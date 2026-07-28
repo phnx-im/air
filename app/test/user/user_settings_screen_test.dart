@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -131,6 +132,115 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/user_settings_screen_all_handles.png'),
+      );
+    });
+
+    testWidgets('read receipts toggle debounces into one submit', (
+      tester,
+    ) async {
+      tester.view.physicalSize = physicalSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      when(() => userCubit.state).thenReturn(MockUiUser(id: 1, usernames: []));
+      when(
+        () => userSettingsCubit.setReadReceipts(
+          userCubit: userCubit,
+          value: any(named: 'value'),
+        ),
+      ).thenAnswer((_) async {});
+
+      await tester.pumpWidget(buildSubject());
+
+      // Three quick taps: the switch follows each tap right away, but nothing
+      // is submitted while the taps keep coming.
+      final toggle = find.text('Read receipts');
+      await tester.tap(toggle);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(toggle);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(toggle);
+      verifyNever(
+        () => userSettingsCubit.setReadReceipts(
+          userCubit: userCubit,
+          value: any(named: 'value'),
+        ),
+      );
+
+      // The quiet period elapses: exactly one submit, with the final position
+      // (on -> off -> on -> off).
+      await tester.pump(const Duration(milliseconds: 500));
+      verify(
+        () => userSettingsCubit.setReadReceipts(
+          userCubit: userCubit,
+          value: false,
+        ),
+      ).called(1);
+      verifyNever(
+        () => userSettingsCubit.setReadReceipts(
+          userCubit: userCubit,
+          value: true,
+        ),
+      );
+    });
+
+    testWidgets('pending toggle is submitted when the screen closes', (
+      tester,
+    ) async {
+      tester.view.physicalSize = physicalSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      when(() => userCubit.state).thenReturn(MockUiUser(id: 1, usernames: []));
+      when(
+        () => userSettingsCubit.setReadReceipts(
+          userCubit: userCubit,
+          value: any(named: 'value'),
+        ),
+      ).thenAnswer((_) async {});
+
+      await tester.pumpWidget(buildSubject());
+      await tester.tap(find.text('Read receipts'));
+
+      // The screen goes away before the debounce delay elapses. The pending
+      // submit is flushed, not dropped.
+      await tester.pumpWidget(const SizedBox());
+      verify(
+        () => userSettingsCubit.setReadReceipts(
+          userCubit: userCubit,
+          value: false,
+        ),
+      ).called(1);
+    });
+
+    testWidgets('a settings state update does not feed back into a submit', (
+      tester,
+    ) async {
+      tester.view.physicalSize = physicalSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      when(() => userCubit.state).thenReturn(MockUiUser(id: 1, usernames: []));
+      // A sibling device turns read receipts off after the first build.
+      whenListen(
+        userSettingsCubit,
+        Stream.fromIterable([const UserSettings(readReceipts: false)]),
+        initialState: const UserSettings(),
+      );
+
+      await tester.pumpWidget(buildSubject());
+      // Deliver the update and wait out the debounce window: the switch
+      // converges onto the new state without submitting anything.
+      await tester.pump();
+      await tester.pump(const Duration(milliseconds: 600));
+      verifyNever(
+        () => userSettingsCubit.setReadReceipts(
+          userCubit: userCubit,
+          value: any(named: 'value'),
+        ),
       );
     });
   });
