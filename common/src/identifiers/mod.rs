@@ -5,7 +5,7 @@
 use std::{fmt, hash::Hash, str::FromStr};
 
 use mls_assist::{openmls::group::GroupId, openmls_traits::types::HpkeCiphertext};
-use rand::{CryptoRng, Rng};
+use rand::{CryptoRng, RngExt};
 use sqlx::{Database, Decode, Encode, Type, encode::IsNull, error::BoxDynError};
 use tls_codec_impls::TlsUuid;
 use tracing::{debug, error};
@@ -375,8 +375,8 @@ impl fmt::Display for QsClientId {
 }
 
 impl QsClientId {
-    pub fn random(rng: &mut (impl CryptoRng + Rng)) -> Self {
-        let random_bytes = rng.r#gen::<[u8; 16]>();
+    pub fn random(rng: &mut impl CryptoRng) -> Self {
+        let random_bytes = rng.random::<[u8; 16]>();
         Uuid::from_bytes(random_bytes).into()
     }
 

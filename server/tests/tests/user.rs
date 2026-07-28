@@ -12,7 +12,7 @@ use aircoreclient::{
 };
 use airserver_test_harness::utils::setup::{TestBackend, TestUser};
 use mimi_content::MimiContent;
-use rand::Rng;
+use rand::RngExt;
 use tracing::info;
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -397,7 +397,7 @@ async fn check_username_exists() {
     let alice = setup.add_user().await;
     let alice_user = &setup.get_user(&alice).user;
 
-    let random_number = rand::thread_rng().gen_range(100_000..1_000_000);
+    let random_number = rand::rng().random_range(100_000..1_000_000);
     let alice_username = Username::new(format!("alice-{}", random_number)).unwrap();
 
     let hash = alice_user

@@ -9,7 +9,6 @@ use aircommon::{
     },
     time::TimeStamp,
 };
-use rand::rngs::OsRng;
 use tracing::error;
 
 use crate::{
@@ -35,14 +34,12 @@ impl Qs {
         let ratchet_key = initial_ratchet_secret
             .try_into()
             .map_err(|_| QsCreateClientRecordError::LibraryError)?;
-        let mut rng = OsRng;
         let mut connection = self.db_pool.acquire().await.map_err(|error| {
             error!(%error, "Error acquiring connection from pool");
             QsCreateClientRecordError::StorageError
         })?;
         let client_record = QsClientRecord::new_and_store(
             &mut connection,
-            &mut rng,
             TimeStamp::now(),
             sender,
             encrypted_push_token,

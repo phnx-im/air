@@ -76,7 +76,7 @@ lru = "0.16.2"
 memmap2 = "0.9.5"
 metrics = "0.24.2"
 metrics-exporter-prometheus = { version = "0.17.2", default-features = false }
-mimi-room-policy = { git = "https://github.com/phnx-im/mimi-room-policy", rev = "6406e6d84c1219da3afcccb91007f2fdaaf61193" }
+mimi-room-policy = { git = "https://github.com/phnx-im/mimi-room-policy", rev = "603f3e07372119560ce9d60252e5df2f6cbd1e18" }
 mimi_content = { git = "https://github.com/phnx-im/mimi-content", rev = "c6e5ab7a7ede126906961332551c5e67c1081d3a", features = ["serde"] }
 minicbor = { version = "2.2.1", features = ["std"] }
 minicbor-serde = { version = "0.6", features = ["std"] }
@@ -91,18 +91,15 @@ openmls_traits = { version = "0.5.0", features = ["draft-ietf-mls-pq-ciphersuite
 parking_lot = "0.12"
 pin-project = "1.1.10"
 png = "0.17"
-privacypass = { version = "0.2.0-pre.1" }
+privacypass = "0.2.0-pre.2"
 prost = "0.14.0"
 protoc-bin-vendored = "3.1.0"
 pulldown-cmark = "0.13.0"
 qrcode = { version = "0.14.1", default-features = false, features = ["svg"] }
 quickcheck = "1.0.3"
 quickcheck_macros = "1.0.0"
-rand = "0.8"
-# privacypass/voprf-ng require an RNG implementing rand_core 0.10's TryRng. Aliased
-# so it can coexist with the rand 0.8 the rest of the workspace still uses.
-rand_chacha = "0.3.1"
-rand_v10 = { package = "rand", version = "0.10" }
+rand = "0.10.0"
+rand_chacha = "0.10.0"
 regex = "1.11.1"
 reqwest = { version = "^0.12", features = ["json", "rustls-tls-webpki-roots", "brotli", "http2", "charset"], default-features = false }
 secrecy = "0.10"
@@ -118,7 +115,7 @@ tap = "1.0.1"
 tar = "0.4.44"
 tempfile = "3.23.0"
 thiserror = "2.0"
-tls_codec = { version = "0.4.1", features = ["derive", "serde", "mls"] }
+tls_codec = { version = "0.5.0", features = ["derive", "serde", "mls"] }
 tokio = { version = "1.18.2", features = ["macros"] }
 tokio-stream = { version = "0.1.17", features = ["sync"] }
 tokio-util = "0.7.13"
@@ -142,12 +139,12 @@ zeroize = "1.8.2"
 
 [patch.crates-io]
 # Use unreleased post-quantum and virtual-clients features of openmls after the 0.8.1 release
-openmls = { git = "https://github.com/openmls/openmls", rev = "4b6183a3e12009a219c59212def1d1bd5117db1f" }
-openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "4b6183a3e12009a219c59212def1d1bd5117db1f" }
-openmls_traits = { git = "https://github.com/openmls/openmls", rev = "4b6183a3e12009a219c59212def1d1bd5117db1f" }
-openmls_memory_storage = { git = "https://github.com/openmls/openmls", rev = "4b6183a3e12009a219c59212def1d1bd5117db1f" }
-openmls_basic_credential = { git = "https://github.com/openmls/openmls", rev = "4b6183a3e12009a219c59212def1d1bd5117db1f" }
-openmls_sqlite_storage = { git = "https://github.com/openmls/openmls", rev = "4b6183a3e12009a219c59212def1d1bd5117db1f" }
+openmls = { git = "https://github.com/openmls/openmls", rev = "65396d8ed3121506d1b9c7d0e6ec9fce1bed486d" }
+openmls_rust_crypto = { git = "https://github.com/openmls/openmls", rev = "65396d8ed3121506d1b9c7d0e6ec9fce1bed486d" }
+openmls_traits = { git = "https://github.com/openmls/openmls", rev = "65396d8ed3121506d1b9c7d0e6ec9fce1bed486d" }
+openmls_memory_storage = { git = "https://github.com/openmls/openmls", rev = "65396d8ed3121506d1b9c7d0e6ec9fce1bed486d" }
+openmls_basic_credential = { git = "https://github.com/openmls/openmls", rev = "65396d8ed3121506d1b9c7d0e6ec9fce1bed486d" }
+openmls_sqlite_storage = { git = "https://github.com/openmls/openmls", rev = "65396d8ed3121506d1b9c7d0e6ec9fce1bed486d" }
 # openmls = { path = "../openmls/openmls" }
 # openmls_rust_crypto = { path = "../openmls/openmls_rust_crypto" }
 # openmls_traits = { path = "../openmls/traits" }
@@ -155,19 +152,15 @@ openmls_sqlite_storage = { git = "https://github.com/openmls/openmls", rev = "4b
 # openmls_sqlite_storage = { path = "../openmls/sqlite_storage" }
 # openmls_basic_credential = { path = "../openmls/basic_credential" }
 
-# feat: add p384 support
-# <https://github.com/cryspen/hpke-rs/pull/150>
-hpke-rs = { git = "https://github.com/cryspen/hpke-rs", rev = "42f9b421d499dec01dcb3fd80d639669d9669c73" }
-hpke-rs-crypto = { git = "https://github.com/cryspen/hpke-rs", rev = "42f9b421d499dec01dcb3fd80d639669d9669c73" }
-hpke-rs-rust-crypto = { git = "https://github.com/cryspen/hpke-rs", rev = "42f9b421d499dec01dcb3fd80d639669d9669c73" }
-# hpke-rs = { path = "../hpke-rs" }
-# hpke-rs-crypto = { path = "../hpke-rs/traits/" }
-# hpke-rs-rust-crypto = { path = "../hpke-rs/rust_crypto_provider/" }
-
 # v0.10.0-rc.18 with additional unreleased commit using `signature@0.3` instead of `3.0.0-rc.10`
 # This patch is needed to be compatible with dsa 0.1 which uses `signature@0.3`.
 rsa = { git = "https://github.com/RustCrypto/RSA", rev = "99f80888cdc838da78a48ad14f6e1f5c01be5c30" }
 
+# Pull in the unreleased patch of `ml-dsa` #1419 solving stack overflows due to
+# large signatures on the stack
+#
+# [#1419](https://github.com/RustCrypto/signatures/pull/1419)
+ml-dsa = { git = "https://github.com/RustCrypto/signatures", rev = "017ce322cdbdd66a702cc0c4ef676b38022e5cbb" }
 
 [profile.release]
 strip = true

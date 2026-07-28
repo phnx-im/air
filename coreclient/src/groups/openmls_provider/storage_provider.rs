@@ -19,9 +19,9 @@ use sqlx::{
 use tokio_stream::StreamExt;
 
 use crate::groups::openmls_provider::{
-    StorableEmulationBindingRef, StorableOperationTreeRef, StorableRetainedKeyPackageMaterialRef,
-    StorableVcEpochIdRef, StorableVcSecretRef, StorableVcSecretType,
-    encryption_key_pairs::StorableEncryptionKeyPairRef,
+    StorableEmulationBindingRef, StorableOperationTreeRef, StorableRegisteredVcEmulationEpochRef,
+    StorableRetainedKeyPackageMaterialRef, StorableVcEpochIdRef, StorableVcSecretRef,
+    StorableVcSecretType, encryption_key_pairs::StorableEncryptionKeyPairRef,
 };
 
 use super::{
@@ -856,6 +856,43 @@ impl StorageProvider<CURRENT_VERSION> for SqliteStorageProvider<'_> {
         block_async_in_place(task)
     }
 
+    fn write_registered_vc_emulation_epoch<
+        GroupId: traits::GroupId<CURRENT_VERSION>,
+        RegisteredVcEmulationEpoch: traits::RegisteredVcEmulationEpoch<CURRENT_VERSION>,
+    >(
+        &self,
+        group_id: &GroupId,
+        registered: &RegisteredVcEmulationEpoch,
+    ) -> Result<(), Self::Error> {
+        let storable = StorableRegisteredVcEmulationEpochRef(registered);
+        let mut connection = self.connection.borrow_mut();
+        let task = storable.store_registered_vc_emulation_epoch(&mut **connection, group_id);
+        block_async_in_place(task)
+    }
+
+    fn registered_vc_emulation_epoch<
+        GroupId: traits::GroupId<CURRENT_VERSION>,
+        RegisteredVcEmulationEpoch: traits::RegisteredVcEmulationEpoch<CURRENT_VERSION>,
+    >(
+        &self,
+        group_id: &GroupId,
+    ) -> Result<Option<RegisteredVcEmulationEpoch>, Self::Error> {
+        let storable = StorableGroupIdRef(group_id);
+        let mut connection = self.connection.borrow_mut();
+        let task = storable.load_registered_vc_emulation_epoch(&mut **connection);
+        block_async_in_place(task)
+    }
+
+    fn delete_registered_vc_emulation_epoch<GroupId: traits::GroupId<CURRENT_VERSION>>(
+        &self,
+        group_id: &GroupId,
+    ) -> Result<(), Self::Error> {
+        let storable = StorableGroupIdRef(group_id);
+        let mut connection = self.connection.borrow_mut();
+        let task = storable.delete_registered_vc_emulation_epoch(&mut **connection);
+        block_async_in_place(task)
+    }
+
     fn write_vc_operation_tree<
         EpochId: traits::VcEpochId<CURRENT_VERSION>,
         VcOperationTree: traits::VcOperationTree<CURRENT_VERSION>,
@@ -1484,6 +1521,37 @@ impl<GroupId: Key<CURRENT_VERSION>> StorableGroupIdRef<'_, GroupId> {
         .await?;
         Ok(())
     }
+
+    pub(super) async fn load_registered_vc_emulation_epoch<
+        RegisteredVcEmulationEpoch: Entity<CURRENT_VERSION>,
+    >(
+        &self,
+        executor: impl SqliteExecutor<'_>,
+    ) -> sqlx::Result<Option<RegisteredVcEmulationEpoch>> {
+        sqlx::query("SELECT registration FROM vc_registered_emulation_epoch WHERE group_id = ?1")
+            .bind(KeyRefWrapper(self.0))
+            .fetch_optional(executor)
+            .await?
+            .map(|row| {
+                let EntityWrapper(registration) = row.try_get(0)?;
+                Ok(registration)
+            })
+            .transpose()
+    }
+
+    pub(super) async fn delete_registered_vc_emulation_epoch(
+        &self,
+        executor: impl SqliteExecutor<'_>,
+    ) -> sqlx::Result<()> {
+        let group_id = KeyRefWrapper(self.0);
+        query!(
+            "DELETE FROM vc_registered_emulation_epoch WHERE group_id = ?1",
+            group_id,
+        )
+        .execute(executor)
+        .await?;
+        Ok(())
+    }
 }
 
 impl<SignaturePublicKey: Key<CURRENT_VERSION>>
@@ -1707,6 +1775,28 @@ impl<'a, VcEmulationBindings: Entity<CURRENT_VERSION>>
             VALUES (?1, ?2)
             ON CONFLICT(group_id) DO UPDATE SET
                 bindings = excluded.bindings",
+            KeyRefWrapper(group_id),
+            EntityRefWrapper(self.0)
+        )
+        .execute(executor)
+        .await?;
+        Ok(())
+    }
+}
+
+impl<'a, RegisteredVcEmulationEpoch: Entity<CURRENT_VERSION>>
+    StorableRegisteredVcEmulationEpochRef<'a, RegisteredVcEmulationEpoch>
+{
+    pub(super) async fn store_registered_vc_emulation_epoch<GroupId: Key<CURRENT_VERSION>>(
+        &self,
+        executor: impl SqliteExecutor<'_>,
+        group_id: &GroupId,
+    ) -> Result<(), sqlx::Error> {
+        query!(
+            "INSERT INTO vc_registered_emulation_epoch(group_id, registration)
+            VALUES (?1, ?2)
+            ON CONFLICT(group_id) DO UPDATE SET
+                registration = excluded.registration",
             KeyRefWrapper(group_id),
             EntityRefWrapper(self.0)
         )

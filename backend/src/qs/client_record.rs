@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use airprotos::{convert::RefInto, queue_service::v1::QueueEventPayload};
-use rand::{CryptoRng, RngCore};
 use serde::{Deserialize, Serialize};
 use sqlx::{PgConnection, PgPool};
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
@@ -57,10 +56,8 @@ pub(super) struct QsClientRecord<const UPDATABLE: bool = true> {
 }
 
 impl QsClientRecord {
-    #[expect(clippy::too_many_arguments)]
     pub(super) async fn new_and_store(
         connection: &mut PgConnection,
-        rng: &mut (impl CryptoRng + RngCore),
         now: TimeStamp,
         user_id: QsUserId,
         encrypted_push_token: Option<EncryptedPushToken>,
@@ -68,7 +65,7 @@ impl QsClientRecord {
         auth_key: QsClientVerifyingKey,
         ratchet_key: QsQueueRatchet,
     ) -> Result<Self, StorageError> {
-        let client_id = QsClientId::random(rng);
+        let client_id = QsClientId::random(&mut rand::rng());
         let record = Self {
             user_id,
             client_id,
@@ -382,7 +379,7 @@ pub(crate) mod persistence {
         fn random_client_record(user_id: QsUserId) -> QsClientRecord {
             QsClientRecord {
                 user_id,
-                client_id: QsClientId::random(&mut rand::thread_rng()),
+                client_id: QsClientId::random(&mut rand::rng()),
                 encrypted_push_token: Some(EncryptedPushToken::dummy()),
                 queue_encryption_key: RatchetEncryptionKey::new_for_test(
                     b"encryption_key_32_bytes".to_vec(),
@@ -765,7 +762,7 @@ mod tests {
         let other_user = store_random_user_record(&pool).await?;
 
         // Case 1: unknown anchor => Ok(None)
-        let unknown = QsClientId::random(&mut rand::thread_rng());
+        let unknown = QsClientId::random(&mut rand::rng());
         assert_eq!(
             QsClientRecord::load_client_ids(&pool, &unknown).await?,
             None
