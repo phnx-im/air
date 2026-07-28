@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:async';
+
 import 'package:bloc_test/bloc_test.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -240,6 +242,57 @@ void main() {
         () => userSettingsCubit.setReadReceipts(
           userCubit: userCubit,
           value: any(named: 'value'),
+        ),
+      );
+    });
+
+    testWidgets('a settings update does not replace a pending user choice', (
+      tester,
+    ) async {
+      tester.view.physicalSize = physicalSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      when(() => userCubit.state).thenReturn(MockUiUser(id: 1, usernames: []));
+      when(
+        () => userSettingsCubit.setReadReceipts(
+          userCubit: userCubit,
+          value: any(named: 'value'),
+        ),
+      ).thenAnswer((_) async {});
+      final settings = StreamController<UserSettings>();
+      addTearDown(settings.close);
+      whenListen(
+        userSettingsCubit,
+        settings.stream,
+        initialState: const UserSettings(),
+      );
+
+      await tester.pumpWidget(buildSubject());
+
+      // The user turns the setting off and then back on. Before the debounce
+      // delay elapses, a sibling update moves the displayed switch to off.
+      final toggle = find.text('Read receipts');
+      await tester.tap(toggle);
+      await tester.pump(const Duration(milliseconds: 100));
+      await tester.tap(toggle);
+      settings.add(const UserSettings(readReceipts: false));
+      await tester.pump();
+
+      // The pending submit still carries the user's final choice from the
+      // second tap, rather than the later programmatic switch value.
+      await tester.pump(const Duration(milliseconds: 500));
+      verify(
+        () => userSettingsCubit.setReadReceipts(
+          userCubit: userCubit,
+          value: true,
+        ),
+      ).called(1);
+      verifyNever(
+        () => userSettingsCubit.setReadReceipts(
+          userCubit: userCubit,
+          value: false,
         ),
       );
     });

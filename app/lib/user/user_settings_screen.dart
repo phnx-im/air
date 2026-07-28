@@ -790,13 +790,13 @@ class _SwitchField extends HookWidget {
 
     // Only user taps schedule a submit. Programmatic writes to `value` (such
     // as an owner converging it onto cubit state) never do, so a state update
-    // cannot re-trigger a submit and loop back on itself. The debounced
-    // action reads `value` when it fires, so a burst of taps submits only the
-    // final position.
+    // cannot re-trigger a submit and loop back on itself. Each tap captures
+    // its intended value, and the debouncer retains only the latest action.
     final handleTap = useCallback(() {
-      value.value = !value.value;
+      final submittedValue = !value.value;
+      value.value = submittedValue;
       debouncer.run(() {
-        onSubmit(value.value);
+        onSubmit(submittedValue);
       });
     }, [onSubmit, value]);
 
