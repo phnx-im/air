@@ -895,11 +895,7 @@ impl TestBackend {
             assert!(messages.chats_with_changed_notifications.contains(&chat_id));
 
             // The edited message keeps its timestamp, so it is still the last message.
-            let message = recipient_user
-                .last_message(chat_id)
-                .await
-                .unwrap()
-                .unwrap();
+            let message = recipient_user.last_message(chat_id).await.unwrap().unwrap();
             assert_eq!(message.message(), target_message.message());
         }
         message.id()
