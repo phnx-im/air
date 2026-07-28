@@ -718,6 +718,10 @@ pub(crate) struct ChatNotificationsBatch {
 enum ChatNotificationsRebuildOutcome {
     /// Chat has content to notify about
     /// => replace existing notification
+    ///
+    /// The payload is only consumed on Android; on other platforms the rebuild is used solely
+    /// to detect empty chats.
+    #[cfg_attr(not(target_os = "android"), expect(dead_code))]
     Notifications(NotificationContent),
     /// Chat build set is empty
     /// => cancel any existing notification
