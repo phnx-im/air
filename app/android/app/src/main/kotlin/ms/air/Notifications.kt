@@ -221,18 +221,12 @@ class Notifications {
 
         @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
         private fun showPlainNotification(context: Context, content: NotificationContent) {
-            val intent = Intent(context, MainActivity::class.java).apply {
-                action = SELECT_NOTIFICATION
-                putExtra(EXTRAS_NOTIFICATION_ID_KEY, content.identifier)
-                putExtra(EXTRAS_CHAT_ID_KEY, content.chatId?.uuid)
-            }
-
             val pendingIntent = PendingIntent.getActivity(
                 context,
                 // Unique identifier per intent to ensure that multiple
                 // notifications don't overwrite each other's pending intent
                 content.identifier.hashCode(),
-                intent,
+                buildContentIntent(context, content),
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )
 
