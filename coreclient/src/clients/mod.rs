@@ -720,7 +720,7 @@ impl CoreUser {
 
     /// Advance the chat notification watermark.
     ///
-    /// Called when user dismisses a notification.
+    /// Called when user dismisses a notification. Never moves backwards.
     pub async fn set_chat_notified_until(
         &self,
         chat_id: ChatId,

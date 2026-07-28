@@ -681,19 +681,23 @@ impl Chat {
         })
     }
 
+    /// Advances the `notified_until` watermark; never moves it backwards.
     pub(crate) async fn set_notified_until(
         mut connection: impl WriteConnection,
         chat_id: ChatId,
         notified_until: DateTime<Utc>,
     ) -> sqlx::Result<()> {
-        query!(
-            "UPDATE chat SET notified_until = ?1 WHERE chat_id = ?2",
+        let result = query!(
+            "UPDATE chat SET notified_until = ?1
+            WHERE chat_id = ?2 AND (notified_until IS NULL OR notified_until < ?1)",
             notified_until,
             chat_id,
         )
         .execute(connection.as_mut())
         .await?;
-        connection.notifier().update(chat_id);
+        if result.rows_affected() > 0 {
+            connection.notifier().update(chat_id);
+        }
         Ok(())
     }
 
@@ -1198,6 +1202,13 @@ pub mod tests {
         let notified_until = Utc::now();
         Chat::set_notified_until(&mut txn, chat.id, notified_until).await?;
         chat.notified_until = Some(notified_until);
+
+        let loaded = Chat::load(&mut txn, &chat.id).await?.unwrap();
+        assert_eq!(loaded, chat);
+
+        // The watermark never moves backwards.
+        let earlier = notified_until - chrono::Duration::seconds(10);
+        Chat::set_notified_until(&mut txn, chat.id, earlier).await?;
 
         let loaded = Chat::load(&mut txn, &chat.id).await?.unwrap();
         assert_eq!(loaded, chat);

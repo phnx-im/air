@@ -42,11 +42,13 @@ pub(crate) struct NotificationBatch {
 /// Payload for the notification dismissal JNI entry point
 ///
 /// The chat whose posted notification was dismissed, so its `notified_until` watermark can be
-/// updated.
+/// updated. `newest_timestamp` is the dismissed notification's `newest_timestamp` (RFC 3339),
+/// i.e. the newest entry that was actually displayed.
 #[derive(Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct IncomingNotificationDismissal {
     path: String,
     log_file_path: String,
     chat_id: String,
+    newest_timestamp: String,
 }

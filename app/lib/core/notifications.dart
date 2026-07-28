@@ -65,6 +65,9 @@ class ConversationNotification {
   /// `false` for silent rebuilds (delete/edit/retraction)
   final bool alert;
 
+  /// Timestamp of the newest rebuild-set entry covered by this notification (RFC 3339)
+  final String newestTimestamp;
+
   /// The group picture for group chats, absent for 1:1 chats
   ///
   /// Base64 on JNI JSON path
@@ -77,6 +80,7 @@ class ConversationNotification {
     required this.participants,
     required this.messages,
     required this.alert,
+    required this.newestTimestamp,
     this.chatAvatar,
   });
 
@@ -88,6 +92,7 @@ class ConversationNotification {
       participants.hashCode ^
       messages.hashCode ^
       alert.hashCode ^
+      newestTimestamp.hashCode ^
       chatAvatar.hashCode;
 
   @override
@@ -101,6 +106,7 @@ class ConversationNotification {
           participants == other.participants &&
           messages == other.messages &&
           alert == other.alert &&
+          newestTimestamp == other.newestTimestamp &&
           chatAvatar == other.chatAvatar;
 }
 

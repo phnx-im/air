@@ -9463,8 +9463,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   ConversationNotification dco_decode_conversation_notification(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 7)
-      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
+    if (arr.length != 8)
+      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
     return ConversationNotification(
       chatTitle: dco_decode_String(arr[0]),
       isGroup: dco_decode_bool(arr[1]),
@@ -9472,7 +9472,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       participants: dco_decode_list_conversation_participant(arr[3]),
       messages: dco_decode_list_conversation_message(arr[4]),
       alert: dco_decode_bool(arr[5]),
-      chatAvatar: dco_decode_opt_list_prim_u_8_strict(arr[6]),
+      newestTimestamp: dco_decode_String(arr[6]),
+      chatAvatar: dco_decode_opt_list_prim_u_8_strict(arr[7]),
     );
   }
 
@@ -12725,6 +12726,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     );
     var var_messages = sse_decode_list_conversation_message(deserializer);
     var var_alert = sse_decode_bool(deserializer);
+    var var_newestTimestamp = sse_decode_String(deserializer);
     var var_chatAvatar = sse_decode_opt_list_prim_u_8_strict(deserializer);
     return ConversationNotification(
       chatTitle: var_chatTitle,
@@ -12733,6 +12735,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       participants: var_participants,
       messages: var_messages,
       alert: var_alert,
+      newestTimestamp: var_newestTimestamp,
       chatAvatar: var_chatAvatar,
     );
   }
@@ -16805,6 +16808,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_list_conversation_participant(self.participants, serializer);
     sse_encode_list_conversation_message(self.messages, serializer);
     sse_encode_bool(self.alert, serializer);
+    sse_encode_String(self.newestTimestamp, serializer);
     sse_encode_opt_list_prim_u_8_strict(self.chatAvatar, serializer);
   }
 

@@ -243,6 +243,7 @@ Map<String, dynamic> _conversationMap(ConversationNotification conversation) {
     'participants': conversation.participants.map(_participantMap).toList(),
     'messages': conversation.messages.map(_messageMap).toList(),
     'alert': conversation.alert,
+    'newestTimestamp': conversation.newestTimestamp,
     if (conversation.chatAvatar != null) 'chatAvatar': conversation.chatAvatar,
   };
 }

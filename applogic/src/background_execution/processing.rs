@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use anyhow::Context;
+use chrono::{DateTime, Utc};
 use std::panic::{self, AssertUnwindSafe};
 use tokio::runtime::Builder;
 use tracing::{error, info};
@@ -188,7 +189,13 @@ pub(crate) fn init_dismissal_environment(content: &str) -> Option<()> {
     // Create a new thread with a larger stack
     let Ok(thread) = std::thread::Builder::new()
         .stack_size(SECOND_THREAD_STACK_SIZE)
-        .spawn(move || init_dismissal_tokio(incoming_dismissal.path, incoming_dismissal.chat_id))
+        .spawn(move || {
+            init_dismissal_tokio(
+                incoming_dismissal.path,
+                incoming_dismissal.chat_id,
+                incoming_dismissal.newest_timestamp,
+            )
+        })
     else {
         error!("Failed to spawn thread with increased stack size");
         return None;
@@ -216,7 +223,11 @@ pub(crate) fn init_dismissal_environment(content: &str) -> Option<()> {
     .ok()
 }
 
-fn init_dismissal_tokio(path: String, chat_id: String) -> anyhow::Result<()> {
+fn init_dismissal_tokio(
+    path: String,
+    chat_id: String,
+    newest_timestamp: String,
+) -> anyhow::Result<()> {
     Builder::new_multi_thread()
         .thread_name("notification-dismissed-thread")
         .enable_all()
@@ -227,7 +238,12 @@ fn init_dismissal_tokio(path: String, chat_id: String) -> anyhow::Result<()> {
         .and_then(|runtime| {
             panic::catch_unwind(AssertUnwindSafe(|| {
                 runtime.block_on(async {
-                    Box::pin(persist_notification_dismissal(path, chat_id)).await
+                    Box::pin(persist_notification_dismissal(
+                        path,
+                        chat_id,
+                        newest_timestamp,
+                    ))
+                    .await
                 })
             }))
             .map_err(|payload| {
@@ -243,35 +259,26 @@ fn init_dismissal_tokio(path: String, chat_id: String) -> anyhow::Result<()> {
         })
 }
 
-async fn persist_notification_dismissal(path: String, chat_id: String) -> anyhow::Result<()> {
+async fn persist_notification_dismissal(
+    path: String,
+    chat_id: String,
+    newest_timestamp: String,
+) -> anyhow::Result<()> {
     let chat_id = Uuid::parse_str(&chat_id)
         .context("Failed to parse chat id")
         .map(ChatId::new)?;
+
+    let notified_until = DateTime::parse_from_rfc3339(&newest_timestamp)
+        .context("Failed to parse newest timestamp")?
+        .with_timezone(&Utc);
 
     let user = User::load_default(path)
         .await
         .context("Failed to load user")?
         .context("User not found: the database contained no user data")?;
 
-    let rebuild = user
-        .user
-        .chat_notification_rebuild_set(chat_id)
-        .await
-        .context("Failed to load chat notification rebuild set")?;
-
-    let Some(newest) = rebuild
-        .rebuild_set
-        .entries
-        .iter()
-        .map(|entry| entry.timestamp())
-        .max()
-    else {
-        info!(%chat_id, "Notification rebuild set is empty, not moving the watermark");
-        return Ok(());
-    };
-
     user.user
-        .set_chat_notified_until(chat_id, newest)
+        .set_chat_notified_until(chat_id, notified_until)
         .await
         .context("Failed to persist notification watermark")
 }

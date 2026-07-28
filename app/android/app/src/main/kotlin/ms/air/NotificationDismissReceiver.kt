@@ -30,9 +30,19 @@ class NotificationDismissReceiver : BroadcastReceiver() {
             Log.w(LOGTAG, "Dismiss intent missing chat ID")
             return
         }
+        val newestTimestamp = intent.getStringExtra(Notifications.EXTRAS_NEWEST_TIMESTAMP_KEY)
+        if (newestTimestamp.isNullOrEmpty()) {
+            Log.w(LOGTAG, "Dismiss intent missing newest timestamp")
+            return
+        }
 
         val request = OneTimeWorkRequestBuilder<NotificationDismissWorker>()
-            .setInputData(workDataOf(NotificationDismissWorker.KEY_CHAT_ID to chatId))
+            .setInputData(
+                workDataOf(
+                    NotificationDismissWorker.KEY_CHAT_ID to chatId,
+                    NotificationDismissWorker.KEY_NEWEST_TIMESTAMP to newestTimestamp
+                )
+            )
             .build()
 
         WorkManager.getInstance(context.applicationContext).enqueueUniqueWork(
@@ -49,7 +59,8 @@ class NotificationDismissWorker(appContext: Context, params: WorkerParameters) :
     override suspend fun doWork(): Result =
         withContext(Dispatchers.IO) {
             val chatId = inputData.getString(KEY_CHAT_ID)
-            if (chatId.isNullOrEmpty()) {
+            val newestTimestamp = inputData.getString(KEY_NEWEST_TIMESTAMP)
+            if (chatId.isNullOrEmpty() || newestTimestamp.isNullOrEmpty()) {
                 return@withContext Result.failure()
             }
 
@@ -60,7 +71,8 @@ class NotificationDismissWorker(appContext: Context, params: WorkerParameters) :
                     IncomingDismissalContent(
                         path = applicationContext.filesDir.absolutePath,
                         logFilePath = logFilePath,
-                        chatId = chatId
+                        chatId = chatId,
+                        newestTimestamp = newestTimestamp
                     )
                 )
                 Result.success()
@@ -72,5 +84,6 @@ class NotificationDismissWorker(appContext: Context, params: WorkerParameters) :
 
     companion object {
         const val KEY_CHAT_ID = "chat_id"
+        const val KEY_NEWEST_TIMESTAMP = "newest_timestamp"
     }
 }

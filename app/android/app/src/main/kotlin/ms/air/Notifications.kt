@@ -75,6 +75,11 @@ data class ConversationNotification(
     val participants: List<ConversationParticipant>,
     val messages: List<ConversationMessage>,
     val alert: Boolean,
+    // Newest displayed entry (RFC 3339)
+    //
+    // Echoed back on dismissal to advance the notification watermark. Opaque
+    // to the Kotlin side.
+    val newestTimestamp: String,
     // Base64 (standard alphabet, padded) on the JNI JSON path
     val chatAvatar: String? = null
 )
@@ -107,7 +112,9 @@ data class NotificationBatch(
 data class IncomingDismissalContent(
     val path: String,
     val logFilePath: String,
-    val chatId: String
+    val chatId: String,
+    // The dismissed notification's newest displayed entry (RFC 3339)
+    val newestTimestamp: String
 )
 
 data class NotificationHandle(
@@ -180,6 +187,7 @@ class Notifications {
         /// Key for storing the chat id in the Intent extras field
         const val EXTRAS_NOTIFICATION_ID_KEY: String = "ms.air/notification_id"
         const val EXTRAS_CHAT_ID_KEY: String = "ms.air/chat_id"
+        const val EXTRAS_NEWEST_TIMESTAMP_KEY: String = "ms.air/newest_timestamp"
 
         // Category required for the conversation shortcut
         private const val SHORTCUT_CATEGORY_CONVERSATION = "android.shortcut.conversation"
@@ -270,6 +278,7 @@ class Notifications {
                 chatUuid.hashCode(),
                 Intent(context, NotificationDismissReceiver::class.java).apply {
                     putExtra(EXTRAS_CHAT_ID_KEY, chatUuid)
+                    putExtra(EXTRAS_NEWEST_TIMESTAMP_KEY, conversation.newestTimestamp)
                 },
                 PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
             )

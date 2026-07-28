@@ -94,6 +94,7 @@ class MainActivity : FlutterFragmentActivity() {
             val isGroup = map["isGroup"] as? Boolean ?: return null
             val ownDisplayName = map["ownDisplayName"] as? String ?: return null
             val alert = map["alert"] as? Boolean ?: return null
+            val newestTimestamp = map["newestTimestamp"] as? String ?: return null
             val participants = (map["participants"] as? List<*>)
                 ?.mapNotNull { decodeParticipantsArgument(it) } ?: return null
             val messages = (map["messages"] as? List<*>)
@@ -108,6 +109,7 @@ class MainActivity : FlutterFragmentActivity() {
                 participants = participants,
                 messages = messages,
                 alert = alert,
+                newestTimestamp = newestTimestamp,
                 chatAvatar = chatAvatar
             )
         } catch (e: Exception) {
@@ -127,7 +129,8 @@ class MainActivity : FlutterFragmentActivity() {
 
     private fun decodeMessageArgument(raw: Any?): ConversationMessage? {
         val map = raw as? Map<*, *> ?: return null
-        val senderUuid = map["senderUuid"] as? String ?: return null
+        // Absent for system messages
+        val senderUuid = map["senderUuid"] as? String
         val text = map["text"] as? String ?: return null
         val isReaction = map["isReaction"] as? Boolean ?: return null
         val timestamp = (map["timestamp"] as? Number)?.toLong() ?: return null

@@ -130,6 +130,7 @@ impl User {
                 AlertMode::Alert => true,
                 AlertMode::Silent => false,
             },
+            newest_timestamp: newest.timestamp().to_rfc3339(),
             chat_avatar,
         };
 
@@ -332,6 +333,8 @@ pub struct ConversationNotification {
     pub messages: Vec<ConversationMessage>,
     /// `false` for silent rebuilds (delete/edit/retraction)
     pub alert: bool,
+    /// Timestamp of the newest rebuild-set entry covered by this notification (RFC 3339)
+    pub newest_timestamp: String,
     /// The group picture for group chats, absent for 1:1 chats
     ///
     /// Base64 on JNI JSON path
