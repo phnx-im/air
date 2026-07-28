@@ -638,6 +638,14 @@ impl VerifiableUserCredential {
     pub fn user_id(&self) -> &UserId {
         &self.payload.csr.user_id
     }
+
+    /// The verifying key embedded in the credential.
+    ///
+    /// Like the other accessors on this type, this returns data whose AS signature has not been
+    /// verified.
+    pub fn verifying_key(&self) -> &ClientVerifyingKey {
+        &self.payload.csr.verifying_key
+    }
 }
 
 impl Verifiable for VerifiableUserCredential {
