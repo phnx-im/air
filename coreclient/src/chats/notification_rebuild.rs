@@ -426,6 +426,46 @@ mod tests {
     }
 
     #[sqlx::test]
+    async fn reading_chat_advances_notified_until_over_reactions(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
+
+        let own_user = UserId::random("localhost".parse().unwrap());
+        let reactor = UserId::random("localhost".parse().unwrap());
+
+        let mut chat = test_chat();
+        chat.last_read = dt(0);
+        chat.store(&mut connection).await?;
+
+        let own_message = message_at(chat.id(), own_user.clone(), chat.group_id(), 10);
+        own_message.store(&mut connection).await?;
+        let target_mimi_id = *own_message.message().mimi_id().unwrap();
+
+        // Reaction newer than the newest message.
+        reaction_at(1, target_mimi_id, chat.id(), reactor.clone(), 20)
+            .store(&mut connection)
+            .await?;
+
+        let rebuild_set =
+            Chat::load_notification_rebuild_set(&mut connection, chat.id(), &own_user).await?;
+        assert_eq!(rebuild_set.entries.len(), 2);
+
+        // Reading the chat up to the newest message also covers the newer reaction.
+        let mut txn = connection.begin().await?;
+        Chat::mark_as_read_until_message_id(&mut txn, chat.id(), own_message.id(), &own_user)
+            .await?;
+        txn.commit().await?;
+
+        let rebuild_set =
+            Chat::load_notification_rebuild_set(&mut connection, chat.id(), &own_user).await?;
+        assert!(rebuild_set.entries.is_empty());
+
+        Ok(())
+    }
+
+    #[sqlx::test]
     async fn event_messages_are_included(pool: SqlitePool) -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(pool);
         let mut connection = pool.write().await?;

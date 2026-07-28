@@ -523,6 +523,10 @@ impl Chat {
 
     /// Mark all messages in the chat as read until including the given message id.
     ///
+    /// Also advances the chat's `notified_until` watermark over all currently stored entries
+    /// (messages and reactions), so that already-seen content does not resurface in a later
+    /// notification rebuild.
+    ///
     /// Returns whether the chat was marked as read and the mimi ids of the messages that
     /// were marked as read.
     pub(crate) async fn mark_as_read_until_message_id(
@@ -598,6 +602,20 @@ impl Chat {
         )
         .execute(txn.as_mut())
         .await?;
+
+        // Also advance the notification watermark: opening the chat shows everything currently in
+        // it, including reactions, whose `created_at` can be newer than the newest read message.
+        // Done even if `last_read` did not move (e.g. only a reaction arrived).
+        let newest_reaction: Option<DateTime<Utc>> = query_scalar!(
+            r#"SELECT MAX(created_at) AS "max_created_at: _"
+            FROM reaction WHERE chat_id = ?"#,
+            chat_id,
+        )
+        .fetch_one(txn.as_mut())
+        .await?;
+        let notified_until =
+            newest_reaction.map_or(timestamp, |created_at| created_at.max(timestamp));
+        Self::set_notified_until(&mut *txn, chat_id, notified_until).await?;
 
         let marked_as_read = updated.rows_affected() == 1;
         if marked_as_read {

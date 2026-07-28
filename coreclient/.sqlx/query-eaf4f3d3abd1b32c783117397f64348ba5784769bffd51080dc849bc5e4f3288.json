@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT MAX(created_at) AS \"max_created_at: _\"\n            FROM reaction WHERE chat_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "max_created_at: _",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "eaf4f3d3abd1b32c783117397f64348ba5784769bffd51080dc849bc5e4f3288"
+}
