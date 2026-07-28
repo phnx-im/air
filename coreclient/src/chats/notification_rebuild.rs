@@ -408,6 +408,10 @@ mod tests {
         reaction_at(2, other_target, chat.id(), reactor.clone(), 21)
             .store(&mut connection)
             .await?;
+        // Own reaction on the own message: excluded.
+        reaction_at(3, own_target, chat.id(), own_user.clone(), 22)
+            .store(&mut connection)
+            .await?;
 
         let rebuild_set =
             Chat::load_notification_rebuild_set(&mut connection, chat.id(), &own_user).await?;

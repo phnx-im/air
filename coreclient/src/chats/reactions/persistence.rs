@@ -140,7 +140,7 @@ impl Reaction {
     /// Load all newest reactions on the messages of the own user in a chat.
     ///
     /// Only reactions with a `created_at > since` are loaded (all of them if since is `None`),
-    /// capped at `limit`, newest first.
+    /// capped at `limit`, newest first, excluding own reactions.
     pub(crate) async fn load_own_message_reactions_since(
         mut connection: impl ReadConnection,
         chat_id: ChatId,
@@ -166,6 +166,7 @@ impl Reaction {
                 AND (?2 IS NULL OR r.created_at > ?2)
                 AND m.sender_user_uuid = ?3
                 AND m.sender_user_domain = ?4
+                AND (r.sender_user_uuid != ?3 OR r.sender_user_domain != ?4)
             ORDER BY r.created_at DESC, r.reaction_mimi_id DESC
             LIMIT ?5"#,
             chat_id,
