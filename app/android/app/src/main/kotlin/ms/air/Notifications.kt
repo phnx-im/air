@@ -89,7 +89,8 @@ data class ConversationParticipant(
 
 @Serializable
 data class ConversationMessage(
-    val senderUuid: String,
+    // Absent for system messages (e.g. group membership changes)
+    val senderUuid: String? = null,
     val text: String,
     val isReaction: Boolean,
     val timestamp: Long
@@ -322,12 +323,19 @@ class Notifications {
 
             val participantsByUuid = conversation.participants.associateBy { it.uuid }
             val personCache = mutableMapOf<String, Person>()
+            // Nameless sender for system messages; their text is self-contained.
+            val systemPerson = Person.Builder().setName("").build()
             for (message in conversation.messages) {
-                val sender = personCache.getOrPut(message.senderUuid) {
-                    buildParticipantPerson(
-                        message.senderUuid,
-                        participantsByUuid[message.senderUuid]
-                    )
+                val senderUuid = message.senderUuid
+                val sender = if (senderUuid != null) {
+                    personCache.getOrPut(senderUuid) {
+                        buildParticipantPerson(
+                            senderUuid,
+                            participantsByUuid[senderUuid]
+                        )
+                    }
+                } else {
+                    systemPerson
                 }
                 val text: CharSequence =
                     if (message.isReaction) italicizeExceptEmoji(message.text) else message.text

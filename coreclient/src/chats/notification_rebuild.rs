@@ -68,8 +68,8 @@ impl ChatNotificationRebuildSet {
 impl Chat {
     /// Loads the notification rebuild set for `chat_id`.
     ///
-    /// Includes content messages newer than `max(last_read, notified_until)` (deleted messages are
-    /// dropped) and reactions on messages from `own_user` newer than `notified_until`.
+    /// Includes messages newer than `max(last_read, notified_until)` (deleted messages are dropped)
+    /// and reactions on messages from `own_user` newer than `notified_until`.
     ///
     /// Returns an empty set if the chat does not exist.
     pub(crate) async fn load_notification_rebuild_set(
@@ -83,8 +83,8 @@ impl Chat {
             return Ok(Default::default());
         };
 
-        // Content messages are gated by both watermarks: unread (relative to `last_read`) and not
-        // yet notified (relative to `notified_until`).
+        // Messages are gated by both watermarks: unread (relative to `last_read`) and not yet
+        // notified (relative to `notified_until`).
         let messages_since = notified_until
             .map(|notified_until| notified_until.max(last_read))
             .unwrap_or(last_read);
@@ -145,7 +145,8 @@ mod tests {
     use sqlx::SqlitePool;
 
     use crate::{
-        ContentMessage, MessageId, chats::persistence::tests::test_chat, db::access::DbAccess,
+        ContentMessage, EventMessage, Message, MessageId, SystemMessage,
+        chats::persistence::tests::test_chat, db::access::DbAccess,
     };
 
     use super::*;
@@ -420,6 +421,39 @@ mod tests {
         let rebuild_set =
             Chat::load_notification_rebuild_set(&mut connection, chat.id(), &own_user).await?;
         assert!(rebuild_set.entries.is_empty());
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn event_messages_are_included(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
+
+        let own_user = UserId::random("localhost".parse().unwrap());
+        let remover = UserId::random("localhost".parse().unwrap());
+
+        let mut chat = test_chat();
+        chat.last_read = dt(0);
+        chat.store(&mut connection).await?;
+
+        let event = ChatMessage::new_for_test(
+            chat.id(),
+            MessageId::random(),
+            TimeStamp::from(10 * 1_000_000_000),
+            EventMessage::System(SystemMessage::Remove(remover, own_user.clone())),
+        );
+        event.store(&mut connection).await?;
+
+        let rebuild_set =
+            Chat::load_notification_rebuild_set(&mut connection, chat.id(), &own_user).await?;
+
+        assert_eq!(rebuild_set.entries.len(), 1);
+        let ChatNotificationEntry::Message(message) = &rebuild_set.entries[0] else {
+            panic!("expected a message entry");
+        };
+        assert_eq!(message.id(), event.id());
+        assert!(matches!(message.message(), Message::Event(_)));
 
         Ok(())
     }

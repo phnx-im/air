@@ -592,8 +592,8 @@ impl ChatMessage {
         .await
     }
 
-    /// Load the newest content messages in a chat since (exclusive) `since`, in ascending order,
-    /// capped at `limit`.
+    /// Load the newest messages (incl. system messages) in a chat since (exclusive) `since`, in
+    /// ascending order, capped at `limit`.
     pub(crate) async fn load_newest_since(
         mut connection: impl ReadConnection,
         chat_id: ChatId,
@@ -618,9 +618,7 @@ impl ChatMessage {
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
-            WHERE chat_id = ?1
-                AND timestamp > ?2
-                AND sender_user_uuid IS NOT NULL
+            WHERE chat_id = ?1 AND timestamp > ?2
             ORDER BY timestamp DESC, message_id DESC
             LIMIT ?3"#,
             chat_id,

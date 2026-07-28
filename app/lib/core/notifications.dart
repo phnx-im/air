@@ -12,8 +12,9 @@ import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
 import 'package:uuid/uuid.dart';
 
 class ConversationMessage {
-  /// References a participant uuid (reactor for reactions)
-  final UuidValue senderUuid;
+  /// References a participant uuid (reactor for reactions) if it is not a system message,
+  /// otherwise absent.
+  final UuidValue? senderUuid;
   final String text;
 
   /// Rendering hint: italize the line for reactions
@@ -23,7 +24,7 @@ class ConversationMessage {
   final PlatformInt64 timestamp;
 
   const ConversationMessage({
-    required this.senderUuid,
+    this.senderUuid,
     required this.text,
     required this.isReaction,
     required this.timestamp,

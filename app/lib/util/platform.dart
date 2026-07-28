@@ -257,7 +257,7 @@ Map<String, dynamic> _participantMap(ConversationParticipant participant) {
 
 Map<String, dynamic> _messageMap(ConversationMessage message) {
   return <String, dynamic>{
-    'senderUuid': message.senderUuid.toString(),
+    if (message.senderUuid != null) 'senderUuid': message.senderUuid.toString(),
     'text': message.text,
     'isReaction': message.isReaction,
     'timestamp': message.timestamp.toInt(),

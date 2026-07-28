@@ -108,12 +108,12 @@ impl User {
             .collect();
         participants.sort_unstable_by_key(|participant| participant.uuid);
 
-        let messages = rebuild
-            .rebuild_set
-            .entries
-            .iter()
-            .filter_map(conversation_message)
-            .collect();
+        let mut messages = Vec::with_capacity(rebuild.rebuild_set.entries.len());
+        for entry in &rebuild.rebuild_set.entries {
+            if let Some(message) = self.conversation_message(&chat, entry).await {
+                messages.push(message);
+            }
+        }
 
         let chat_avatar = match chat.chat_type() {
             ChatType::Group(attrs) => attrs.picture().map(|bytes| bytes.to_vec()),
@@ -175,6 +175,51 @@ impl User {
                     "{reactor} reacted {} to {target_text}",
                     reaction.emoji
                 ))
+            }
+        }
+    }
+
+    /// Renders a rebuild-set entry as a single line of the conversation payload.
+    async fn conversation_message(
+        &self,
+        chat: &Chat,
+        entry: &ChatNotificationEntry,
+    ) -> Option<ConversationMessage> {
+        match entry {
+            ChatNotificationEntry::Message(message) => {
+                let text = match message.message().mimi_content() {
+                    Some(content) => render_message_text(content)?,
+                    // event message: has no sender, the text is self-contained
+                    None => {
+                        message
+                            .message()
+                            .string_representation(&self.user, chat.chat_type(), false)
+                            .await?
+                    }
+                };
+                Some(ConversationMessage {
+                    sender_uuid: message.message().sender().map(|sender| sender.uuid()),
+                    text: truncate_notification_text(text),
+                    is_reaction: false,
+                    timestamp: message.timestamp().timestamp_millis(),
+                })
+            }
+            ChatNotificationEntry::Reaction(reaction) => {
+                let target_text = reaction
+                    .target
+                    .as_ref()
+                    .and_then(|message| render_message_text(message.message().mimi_content()?));
+                let target_text = target_text.unwrap_or_else(|| "your message".to_owned());
+                Some(ConversationMessage {
+                    sender_uuid: Some(reaction.reactor.uuid()),
+                    // TODO: Localization
+                    text: truncate_notification_text(format!(
+                        "Reacted {} to {target_text}",
+                        reaction.emoji
+                    )),
+                    is_reaction: true,
+                    timestamp: reaction.created_at.timestamp_millis(),
+                })
             }
         }
     }
@@ -318,8 +363,9 @@ pub struct ConversationParticipant {
 #[derive(Debug, Serialize, Deserialize)]
 #[serde(rename_all = "camelCase")]
 pub struct ConversationMessage {
-    /// References a participant uuid (reactor for reactions)
-    pub sender_uuid: Uuid,
+    /// References a participant uuid (reactor for reactions) if it is not a system message,
+    /// otherwise absent.
+    pub sender_uuid: Option<Uuid>,
     pub text: String,
     /// Rendering hint: italize the line for reactions
     pub is_reaction: bool,
@@ -354,39 +400,6 @@ fn conversation_participant(user_id: UserId, profile: UserProfile) -> Conversati
         uuid: user_id.uuid(),
         display_name: profile.display_name.to_string(),
         avatar,
-    }
-}
-
-fn conversation_message(entry: &ChatNotificationEntry) -> Option<ConversationMessage> {
-    match entry {
-        ChatNotificationEntry::Message(message) => {
-            let sender = message.message().sender()?;
-            let content = message.message().mimi_content()?;
-            let text = render_message_text(content)?;
-            Some(ConversationMessage {
-                sender_uuid: sender.uuid(),
-                text: truncate_notification_text(text),
-                is_reaction: false,
-                timestamp: message.timestamp().timestamp_millis(),
-            })
-        }
-        ChatNotificationEntry::Reaction(reaction) => {
-            let target_text = reaction
-                .target
-                .as_ref()
-                .and_then(|message| render_message_text(message.message().mimi_content()?));
-            let target_text = target_text.unwrap_or_else(|| "your message".to_owned());
-            Some(ConversationMessage {
-                sender_uuid: reaction.reactor.uuid(),
-                // TODO: Localization
-                text: truncate_notification_text(format!(
-                    "Reacted {} to {target_text}",
-                    reaction.emoji
-                )),
-                is_reaction: true,
-                timestamp: reaction.created_at.timestamp_millis(),
-            })
-        }
     }
 }
 

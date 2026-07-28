@@ -9452,7 +9452,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     if (arr.length != 4)
       throw Exception('unexpected arr length: expect 4 but see ${arr.length}');
     return ConversationMessage(
-      senderUuid: dco_decode_Uuid(arr[0]),
+      senderUuid: dco_decode_opt_Uuid(arr[0]),
       text: dco_decode_String(arr[1]),
       isReaction: dco_decode_bool(arr[2]),
       timestamp: dco_decode_i_64(arr[3]),
@@ -10184,6 +10184,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   String? dco_decode_opt_String(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     return raw == null ? null : dco_decode_String(raw);
+  }
+
+  @protected
+  UuidValue? dco_decode_opt_Uuid(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_Uuid(raw);
   }
 
   @protected
@@ -12694,7 +12700,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     SseDeserializer deserializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    var var_senderUuid = sse_decode_Uuid(deserializer);
+    var var_senderUuid = sse_decode_opt_Uuid(deserializer);
     var var_text = sse_decode_String(deserializer);
     var var_isReaction = sse_decode_bool(deserializer);
     var var_timestamp = sse_decode_i_64(deserializer);
@@ -13671,6 +13677,17 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
     if (sse_decode_bool(deserializer)) {
       return (sse_decode_String(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
+  UuidValue? sse_decode_opt_Uuid(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_Uuid(deserializer));
     } else {
       return null;
     }
@@ -16770,7 +16787,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     SseSerializer serializer,
   ) {
     // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_Uuid(self.senderUuid, serializer);
+    sse_encode_opt_Uuid(self.senderUuid, serializer);
     sse_encode_String(self.text, serializer);
     sse_encode_bool(self.isReaction, serializer);
     sse_encode_i_64(self.timestamp, serializer);
@@ -17605,6 +17622,16 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_bool(self != null, serializer);
     if (self != null) {
       sse_encode_String(self, serializer);
+    }
+  }
+
+  @protected
+  void sse_encode_opt_Uuid(UuidValue? self, SseSerializer serializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_Uuid(self, serializer);
     }
   }
 

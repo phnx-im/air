@@ -1070,6 +1070,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
+  UuidValue? dco_decode_opt_Uuid(dynamic raw);
+
+  @protected
   UiRoomState?
   dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
     dynamic raw,
@@ -2424,6 +2427,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   String? sse_decode_opt_String(SseDeserializer deserializer);
+
+  @protected
+  UuidValue? sse_decode_opt_Uuid(SseDeserializer deserializer);
 
   @protected
   UiRoomState?
@@ -4101,6 +4107,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_opt_String(String? self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_opt_Uuid(UuidValue? self, SseSerializer serializer);
 
   @protected
   void

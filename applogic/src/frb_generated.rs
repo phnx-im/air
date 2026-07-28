@@ -10337,7 +10337,7 @@ impl SseDecode for crate::api::chat_list_cubit::ChatListState {
 impl SseDecode for crate::notifications::ConversationMessage {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
-        let mut var_senderUuid = <uuid::Uuid>::sse_decode(deserializer);
+        let mut var_senderUuid = <Option<uuid::Uuid>>::sse_decode(deserializer);
         let mut var_text = <String>::sse_decode(deserializer);
         let mut var_isReaction = <bool>::sse_decode(deserializer);
         let mut var_timestamp = <i64>::sse_decode(deserializer);
@@ -11412,6 +11412,17 @@ impl SseDecode for Option<String> {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         if (<bool>::sse_decode(deserializer)) {
             return Some(<String>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
+impl SseDecode for Option<uuid::Uuid> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<uuid::Uuid>::sse_decode(deserializer));
         } else {
             return None;
         }
@@ -16578,7 +16589,7 @@ impl SseEncode for crate::api::chat_list_cubit::ChatListState {
 impl SseEncode for crate::notifications::ConversationMessage {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
-        <uuid::Uuid>::sse_encode(self.sender_uuid, serializer);
+        <Option<uuid::Uuid>>::sse_encode(self.sender_uuid, serializer);
         <String>::sse_encode(self.text, serializer);
         <bool>::sse_encode(self.is_reaction, serializer);
         <i64>::sse_encode(self.timestamp, serializer);
@@ -17432,6 +17443,16 @@ impl SseEncode for Option<String> {
         <bool>::sse_encode(self.is_some(), serializer);
         if let Some(value) = self {
             <String>::sse_encode(value, serializer);
+        }
+    }
+}
+
+impl SseEncode for Option<uuid::Uuid> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <uuid::Uuid>::sse_encode(value, serializer);
         }
     }
 }

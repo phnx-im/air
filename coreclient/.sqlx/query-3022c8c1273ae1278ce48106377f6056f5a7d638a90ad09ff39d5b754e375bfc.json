@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                message_id AS \"message_id: _\",\n                mimi_id AS \"mimi_id: _\",\n                chat_id AS \"chat_id: _\",\n                timestamp AS \"timestamp: _\",\n                sender_user_uuid AS \"sender_user_uuid: _\",\n                sender_user_domain AS \"sender_user_domain: _\",\n                content AS \"content: _\",\n                sent,\n                status,\n                edited_at AS \"edited_at: _\",\n                b.user_uuid IS NOT NULL AS \"is_blocked!: _\",\n                in_reply_to_mimi_id AS \"in_reply_to_mimi_id: _\"\n            FROM message\n            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid\n                AND b.user_domain = sender_user_domain\n            WHERE chat_id = ?1\n                AND timestamp > ?2\n                AND sender_user_uuid IS NOT NULL\n            ORDER BY timestamp DESC, message_id DESC\n            LIMIT ?3",
+  "query": "SELECT\n                message_id AS \"message_id: _\",\n                mimi_id AS \"mimi_id: _\",\n                chat_id AS \"chat_id: _\",\n                timestamp AS \"timestamp: _\",\n                sender_user_uuid AS \"sender_user_uuid: _\",\n                sender_user_domain AS \"sender_user_domain: _\",\n                content AS \"content: _\",\n                sent,\n                status,\n                edited_at AS \"edited_at: _\",\n                b.user_uuid IS NOT NULL AS \"is_blocked!: _\",\n                in_reply_to_mimi_id AS \"in_reply_to_mimi_id: _\"\n            FROM message\n            LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid\n                AND b.user_domain = sender_user_domain\n            WHERE chat_id = ?1 AND timestamp > ?2\n            ORDER BY timestamp DESC, message_id DESC\n            LIMIT ?3",
   "describe": {
     "columns": [
       {
@@ -149,5 +149,5 @@
       true
     ]
   },
-  "hash": "bf5a70f4929e36f5bbc152d6e088d45a6353a1d346d3f7af191173a56af12d67"
+  "hash": "3022c8c1273ae1278ce48106377f6056f5a7d638a90ad09ff39d5b754e375bfc"
 }
