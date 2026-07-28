@@ -96,6 +96,14 @@ impl User {
             return ChatNotificationsRebuildOutcome::Empty;
         };
 
+        // Silent rebuilds update the conversation content in-place. This can only be expressed
+        // on Android via the MessagingStyle notification. On all other platforms, such
+        // notifications are skipped. Note: an empty rebuild set still cancels above.
+        #[cfg(not(target_os = "android"))]
+        if let AlertMode::Silent = alert {
+            return ChatNotificationsRebuildOutcome::Skip;
+        }
+
         let title = chat_title(&self.user, &chat).await;
 
         // Body of the newest renderable entry: a single unrenderable message must not suppress

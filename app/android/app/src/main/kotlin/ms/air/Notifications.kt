@@ -262,6 +262,13 @@ class Notifications {
             conversation: ConversationNotification,
             chatId: ChatId
         ) {
+            // A silent rebuild (e.g. a message edit) only updates a displayed notification in
+            // place, where `setOnlyAlertOnce` suppresses the sound. It must not create a new
+            // notification: posting anew on the high-importance channel always rings.
+            if (!conversation.alert && !isNotificationDisplayed(context, content.identifier)) {
+                return
+            }
+
             val chatUuid = chatId.uuid
 
             val pendingIntent = PendingIntent.getActivity(
@@ -306,6 +313,10 @@ class Notifications {
             NotificationManagerCompat.from(context)
                 .notify(content.identifier, NOTIFICATION_ID, notification)
         }
+
+        private fun isNotificationDisplayed(context: Context, tag: String): Boolean =
+            NotificationManagerCompat.from(context).activeNotifications
+                .any { it.tag == tag && it.id == NOTIFICATION_ID }
 
         // Content intent shared by the notification tap target and the conversation shortcut
         //
