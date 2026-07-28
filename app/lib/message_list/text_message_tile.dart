@@ -666,13 +666,15 @@ class _MessageView extends HookWidget {
                             ? () => isRevealed.value = true
                             : null,
                         // Mobile: double-tap a message to react. On desktop,
-                        // double-click is reserved for text selection.
-                        onDoubleTap: () {
-                          if (isMobilePlatform && isReplyable) {
-                            AppHaptics.confirm();
-                            openReactionMenu();
-                          }
-                        },
+                        // the recognizer must not be registered at all,
+                        // otherwise it wins the gesture arena and blocks
+                        // double-click text selection.
+                        onDoubleTap: isMobilePlatform && isReplyable
+                            ? () {
+                                AppHaptics.confirm();
+                                openReactionMenu();
+                              }
+                            : null,
                         onLongPress: onLongPress,
                         child: bubble,
                       ),
