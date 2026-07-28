@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::collections::{HashMap, hash_map::Entry};
+use std::collections::{HashMap, HashSet, hash_map::Entry};
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{
@@ -62,6 +62,8 @@ impl User {
         }
 
         let mut batch = ChatNotificationsBatch::default();
+
+        #[cfg(target_os = "android")]
         for (chat_id, (chat, alert)) in chats {
             match self.rebuild_chat_notification(chat, alert).await {
                 ChatNotificationsRebuildOutcome::Notifications(content) => {
@@ -73,6 +75,59 @@ impl User {
                 ChatNotificationsRebuildOutcome::Skip => {}
             }
         }
+
+        #[cfg(not(target_os = "android"))]
+        {
+            // One notification per fresh message/reaction, with a random ID so entries accumulate.
+            for message in messages {
+                if let Some((chat, AlertMode::Alert)) = chats.get(&message.chat_id())
+                    && let Some(body) = message
+                        .message()
+                        .string_representation(&self.user, chat.chat_type(), true)
+                        .await
+                {
+                    batch.additions.push(NotificationContent {
+                        identifier: NotificationId::random(),
+                        title: chat_title(&self.user, chat).await,
+                        body: truncate_notification_text(body),
+                        chat_id: chat.id(),
+                        conversation: None,
+                    });
+                }
+            }
+            for reaction in reactions {
+                if let Some((chat, AlertMode::Alert)) = chats.get(&reaction.chat_id) {
+                    let reactor = self.user.user_profile(&reaction.reactor).await.display_name;
+                    let emoji = &reaction.emoji;
+                    // TODO: Localization
+                    let target_text = reaction
+                        .original_chat_message
+                        .message()
+                        .string_representation(&self.user, chat.chat_type(), true)
+                        .await
+                        .unwrap_or_else(|| "your message".to_string());
+                    let body = format!("{reactor} reacted {emoji} to {target_text}");
+                    batch.additions.push(NotificationContent {
+                        identifier: NotificationId::random(),
+                        title: chat_title(&self.user, chat).await,
+                        body: truncate_notification_text(body),
+                        chat_id: chat.id(),
+                        conversation: None,
+                    });
+                }
+            }
+
+            // Silent chats: only for cancel-on-empty
+            for (chat_id, (chat, alert)) in chats {
+                if let AlertMode::Silent = alert
+                    && let ChatNotificationsRebuildOutcome::Empty =
+                        self.rebuild_chat_notification(chat, alert).await
+                {
+                    batch.empty_chats.push(chat_id);
+                }
+            }
+        }
+
         batch
     }
 
@@ -600,6 +655,34 @@ impl NotificationService {
         )?;
 
         Ok(())
+    }
+
+    /// Cancels all notifications belonging to the given chats.
+    ///
+    /// Resolves chats to concrete notification identifiers via the active notification handles, so
+    /// it works regardless of how identifiers are assigned per platform.
+    pub(crate) async fn cancel_chat_notifications(
+        &self,
+        chat_ids: impl IntoIterator<Item = ChatId>,
+    ) {
+        let chat_ids: HashSet<ChatId> = chat_ids.into_iter().collect();
+        if chat_ids.is_empty() {
+            return;
+        }
+        let identifiers: Vec<NotificationId> = self
+            .get_active_notifications()
+            .await
+            .into_iter()
+            .filter_map(|handle| {
+                chat_ids
+                    .contains(&handle.chat_id?)
+                    .then_some(handle.identifier)
+            })
+            .collect();
+        if identifiers.is_empty() {
+            return;
+        }
+        self.cancel_notifications(identifiers).await;
     }
 
     pub(crate) async fn get_active_notifications(&self) -> Vec<NotificationHandle> {

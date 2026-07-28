@@ -15,7 +15,6 @@ use tracing::error;
 
 use crate::{
     api::user::User,
-    notifications::NotificationId,
     util::{BackgroundStreamContext, BackgroundStreamTask},
 };
 
@@ -58,12 +57,9 @@ impl CubitContext {
         self.show_notifications(notifications).await;
 
         if !chat_notifications.empty_chats.is_empty() {
-            let ids = chat_notifications
-                .empty_chats
-                .into_iter()
-                .map(NotificationId::for_chat)
-                .collect();
-            self.notification_service.cancel_notifications(ids).await;
+            self.notification_service
+                .cancel_chat_notifications(chat_notifications.empty_chats)
+                .await;
         }
     }
 }
