@@ -97,7 +97,17 @@ impl User {
         };
 
         let title = chat_title(&self.user, &chat).await;
-        let Some(body) = self.entry_body(&chat, newest, &rebuild.participants).await else {
+
+        // Body of the newest renderable entry: a single unrenderable message must not suppress
+        // the notification for the other entries in the set.
+        let mut body = None;
+        for entry in rebuild.rebuild_set.entries.iter().rev() {
+            body = self.entry_body(&chat, entry, &rebuild.participants).await;
+            if body.is_some() {
+                break;
+            }
+        }
+        let Some(body) = body else {
             return ChatNotificationsRebuildOutcome::Skip;
         };
 
