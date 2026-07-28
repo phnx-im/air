@@ -13,7 +13,10 @@ import 'package:provider/provider.dart';
 const _maxDesktopWidth = 800.0;
 
 class ChangeUserScreen extends StatelessWidget {
-  const ChangeUserScreen({super.key});
+  const ChangeUserScreen({super.key, this.clientRecords});
+
+  /// Overrides loading the client records from the database (used in tests).
+  final Future<List<UiClientRecord>>? clientRecords;
 
   @override
   Widget build(BuildContext context) {
@@ -29,7 +32,7 @@ class ChangeUserScreen extends StatelessWidget {
           constraints: DeviceType.isDesktop
               ? const BoxConstraints(maxWidth: _maxDesktopWidth)
               : null,
-          child: const _ClientRecordsList(),
+          child: _ClientRecordsList(clientRecords: clientRecords),
         ),
       ),
     );
@@ -37,7 +40,9 @@ class ChangeUserScreen extends StatelessWidget {
 }
 
 class _ClientRecordsList extends HookWidget {
-  const _ClientRecordsList();
+  const _ClientRecordsList({this.clientRecords});
+
+  final Future<List<UiClientRecord>>? clientRecords;
 
   @override
   Widget build(BuildContext context) {
@@ -46,11 +51,13 @@ class _ClientRecordsList extends HookWidget {
     );
 
     final clientRecordsFut = useMemoized(
-      () => dbPath().then((dbPath) => User.loadClientRecords(dbPath: dbPath)),
+      () =>
+          clientRecords ??
+          dbPath().then((dbPath) => User.loadClientRecords(dbPath: dbPath)),
     );
-    final clientRecords = useFuture(clientRecordsFut);
+    final records = useFuture(clientRecordsFut);
 
-    final data = clientRecords.data;
+    final data = records.data;
     if (data == null) return const CircularProgressIndicator();
 
     return Center(

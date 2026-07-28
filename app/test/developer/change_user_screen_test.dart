@@ -49,6 +49,7 @@ void main() {
       loadableUserCubit = MockLoadableUserCubit();
 
       when(() => user.userId).thenReturn(1.userId());
+      when(() => user.clientRecordId).thenReturn(1.clientRecordId());
       when(() => loadableUserCubit.state).thenReturn(LoadableUser.loaded(user));
       when(() => usersCubit.state).thenReturn(
         MockUsersState(
@@ -68,9 +69,7 @@ void main() {
           return MaterialApp(
             debugShowCheckedModeBanner: false,
             theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-            home: ChangeUserScreenView(
-              clientRecords: Future.value(clientRecords),
-            ),
+            home: ChangeUserScreen(clientRecords: Future.value(clientRecords)),
           );
         },
       ),

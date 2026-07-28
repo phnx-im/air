@@ -293,7 +293,7 @@ class LoadableUserCubitProvider extends StatelessWidget {
         return switch (loadableUser) {
           LoadingUser() || UnloadedUser() => child,
           LoadedUser(:final user) || UnloadingUser(:final user) => KeyedSubtree(
-            key: ValueKey(user.userId),
+            key: ValueKey(user.clientRecordId),
             child: MultiBlocProvider(
               providers: [
                 // Logged-in user and contacts are accessible everywhere inside
