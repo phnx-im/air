@@ -593,13 +593,14 @@ impl ChatMessage {
     }
 
     /// Load the newest messages (incl. system messages) in a chat since (exclusive) `since`, in
-    /// ascending order, capped at `limit`.
+    /// ascending order, capped at `limit` excluding deleted messages.
     pub(crate) async fn load_newest_since(
         mut connection: impl ReadConnection,
         chat_id: ChatId,
         since: DateTime<Utc>,
         limit: u32,
     ) -> sqlx::Result<Vec<ChatMessage>> {
+        let excluded_status: u8 = MessageStatus::Deleted.into();
         let mut messages: Vec<ChatMessage> = query_as!(
             SqlChatMessage,
             r#"SELECT
@@ -618,12 +619,13 @@ impl ChatMessage {
             FROM message
             LEFT JOIN blocked_contact b ON b.user_uuid = sender_user_uuid
                 AND b.user_domain = sender_user_domain
-            WHERE chat_id = ?1 AND timestamp > ?2
+            WHERE chat_id = ?1 AND timestamp > ?2 AND status != ?4
             ORDER BY timestamp DESC, message_id DESC
             LIMIT ?3"#,
             chat_id,
             since,
             limit,
+            excluded_status,
         )
         .fetch(connection.as_mut())
         .filter_map(Self::decode_row)

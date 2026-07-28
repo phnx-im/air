@@ -107,8 +107,8 @@ impl Chat {
         entries.extend(
             messages
                 .into_iter()
-                // Technically it would be better to exclude these messages already in SQL, but
-                // currently we cannot do this, because being deleted is a function of content.
+                // Deleted messages are already excluded in the SQL query, however we make sure that
+                // no deleted messages leak as safety measure.
                 .filter(|message| !message.message().is_deleted())
                 .map(Box::new)
                 .map(ChatNotificationEntry::Message),
@@ -140,13 +140,14 @@ impl Chat {
 #[cfg(test)]
 mod tests {
     use aircommon::{identifiers::MimiId, time::TimeStamp};
-    use mimi_content::{Disposition, MimiContent, NestedPart};
+    use mimi_content::{Disposition, MessageStatus, MimiContent, NestedPart};
     use openmls::group::GroupId;
     use sqlx::SqlitePool;
 
     use crate::{
         ContentMessage, EventMessage, Message, MessageId, SystemMessage,
-        chats::persistence::tests::test_chat, db::access::DbAccess,
+        chats::persistence::tests::test_chat,
+        db::access::{DbAccess, WriteConnection},
     };
 
     use super::*;
@@ -177,8 +178,10 @@ mod tests {
         group_id: &GroupId,
         secs: i64,
     ) -> ChatMessage {
+        let mut salt = vec![0u8; 16];
+        salt[..8].copy_from_slice(&secs.to_le_bytes());
         let content = MimiContent {
-            salt: vec![0; 16],
+            salt,
             nested_part: NestedPart::NullPart {
                 disposition: Disposition::Render,
                 language: String::new(),
@@ -268,6 +271,44 @@ mod tests {
         deleted_message_at(chat.id(), sender.clone(), chat.group_id(), 20)
             .store(&mut connection)
             .await?;
+
+        let rebuild_set =
+            Chat::load_notification_rebuild_set(&mut connection, chat.id(), &own_user).await?;
+
+        assert_eq!(rebuild_set.entries.len(), 1);
+        let ChatNotificationEntry::Message(message) = &rebuild_set.entries[0] else {
+            panic!("expected a message entry");
+        };
+        assert_eq!(message.id(), kept.id());
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn deleted_messages_do_not_consume_the_limit(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
+
+        let sender = UserId::random("localhost".parse().unwrap());
+        let own_user = UserId::random("localhost".parse().unwrap());
+
+        let mut chat = test_chat();
+        chat.last_read = dt(0);
+        chat.store(&mut connection).await?;
+
+        let kept = message_at(chat.id(), sender.clone(), chat.group_id(), 10);
+        kept.store(&mut connection).await?;
+
+        // More deleted messages than the rebuild limit, all newer than the kept message, with the
+        // deleted status persisted as local and remote deletes do. They must not starve the kept
+        // message out of the SQL limit.
+        for i in 0..CHAT_NOTIFICATION_REBUILD_LIMIT as i64 {
+            let mut deleted =
+                deleted_message_at(chat.id(), sender.clone(), chat.group_id(), 20 + i);
+            deleted.store(&mut connection).await?;
+            deleted.set_status(MessageStatus::Deleted);
+            deleted.update(&mut connection).await?;
+        }
 
         let rebuild_set =
             Chat::load_notification_rebuild_set(&mut connection, chat.id(), &own_user).await?;
