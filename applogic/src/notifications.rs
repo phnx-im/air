@@ -195,7 +195,7 @@ impl User {
 
         let conversation = ConversationNotification {
             chat_title: title.clone(),
-            is_group: matches!(chat.chat_type(), ChatType::Group(_)),
+            is_group: chat.chat_type().is_group(),
             own_display_name: rebuild.own_profile.display_name.to_string(),
             participants,
             messages,
