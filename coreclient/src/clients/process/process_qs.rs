@@ -867,25 +867,30 @@ impl CoreUser {
             }
         };
 
-        let mut messages = Self::store_new_messages(&mut *txn, chat_id, new_messages).await?;
-        for updated_message in updated_messages {
+        let messages = Self::store_new_messages(&mut *txn, chat_id, new_messages).await?;
+
+        // Edits and remote deletes only rebuild the chat notification silently, they must not be
+        // returned as new messages, which would alert like a new message.
+        for updated_message in &updated_messages {
             notification_changed_chats.push(updated_message.chat_id());
             updated_message.update(&mut *txn).await?;
-            messages.push(updated_message);
         }
 
-        // Schedule delivery receipts for incoming messages
-        let delivery_receipts = messages.iter().filter_map(|message| {
-            if let Message::Content(content_message) = message.message()
-                && let Disposition::Render | Disposition::Attachment =
-                    content_message.content().nested_part.disposition()
-                && let Some(mimi_id) = content_message.mimi_id()
-            {
-                Some((message.id(), mimi_id, MessageStatus::Delivered))
-            } else {
-                None
-            }
-        });
+        // Schedule delivery receipts for incoming new and updated messages
+        let delivery_receipts = messages
+            .iter()
+            .chain(&updated_messages)
+            .filter_map(|message| {
+                if let Message::Content(content_message) = message.message()
+                    && let Disposition::Render | Disposition::Attachment =
+                        content_message.content().nested_part.disposition()
+                    && let Some(mimi_id) = content_message.mimi_id()
+                {
+                    Some((message.id(), mimi_id, MessageStatus::Delivered))
+                } else {
+                    None
+                }
+            });
 
         self.outbound_service()
             .schedule_receipts(&mut *txn, chat_id, delivery_receipts)
