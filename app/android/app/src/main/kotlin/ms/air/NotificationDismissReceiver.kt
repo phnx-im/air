@@ -77,13 +77,21 @@ class NotificationDismissWorker(appContext: Context, params: WorkerParameters) :
                 )
                 Result.success()
             } catch (t: Throwable) {
-                Log.e(LOGTAG, "Failed to persist notification dismissal", t)
-                Result.failure()
+                // Retry transient failures (e.g. DB locked); losing the watermark update
+                // re-shows already dismissed notifications.
+                if (runAttemptCount >= MAX_ATTEMPTS) {
+                    Log.e(LOGTAG, "Failed to persist notification dismissal, giving up", t)
+                    Result.failure()
+                } else {
+                    Log.w(LOGTAG, "Failed to persist notification dismissal, retrying", t)
+                    Result.retry()
+                }
             }
         }
 
     companion object {
         const val KEY_CHAT_ID = "chat_id"
         const val KEY_NEWEST_TIMESTAMP = "newest_timestamp"
+        private const val MAX_ATTEMPTS = 5
     }
 }

@@ -167,13 +167,11 @@ class NativeLib {
         return result
     }
 
+    // Throws when the native call fails (e.g. DB locked), so that the caller
+    // can retry the persistence.
     fun notificationDismissed(input: IncomingDismissalContent) {
         val jsonInput = Json.encodeToString(IncomingDismissalContent.serializer(), input)
-        try {
-            notification_dismissed(jsonInput)
-        } catch (e: Exception) {
-            Log.e(LOGTAG, "Error calling native notification_dismissed function: ${e.message}")
-        }
+        notification_dismissed(jsonInput)
     }
 }
 
