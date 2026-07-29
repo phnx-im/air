@@ -75,7 +75,6 @@ impl User {
         debug!("fetch QS messages");
         let ProcessedQsMessages {
             new_chats,
-            changed_chats: _,
             new_messages,
             errors: _,
             processed: _,
