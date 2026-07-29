@@ -200,7 +200,8 @@ pub async fn open_client_db(user_id: &UserId, client_db_path: &str) -> sqlx::Res
 
     let db = DbAccess::with_split_pools(write_pool, read_pool, DbNotificationsSender::new());
 
-    // The client-id migration leaves the column NULL for clients that existed before it.
+    // The client-id migration defaults the column to the nil UUID for clients that existed
+    // before it.
     OwnClientInfo::backfill_client_id(db.write().await?).await?;
 
     Ok(db)

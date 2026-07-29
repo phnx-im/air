@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                qs_user_id AS \"qs_user_id: _\",\n                qs_client_id AS \"qs_client_id: _\",\n                user_uuid AS \"user_uuid: _\",\n                user_domain AS \"user_domain: _\",\n                client_id AS \"client_id!: _\",\n                self_group_id AS \"self_group_id: _\",\n                self_group_signing_key AS \"self_group_signing_key: _\"\n            FROM own_client_info",
+  "query": "SELECT\n                qs_user_id AS \"qs_user_id: _\",\n                qs_client_id AS \"qs_client_id: _\",\n                user_uuid AS \"user_uuid: _\",\n                user_domain AS \"user_domain: _\",\n                client_id AS \"client_id: _\",\n                self_group_id AS \"self_group_id: _\",\n                self_group_signing_key AS \"self_group_signing_key: _\"\n            FROM own_client_info",
   "describe": {
     "columns": [
       {
@@ -48,7 +48,7 @@
         }
       },
       {
-        "name": "client_id!: _",
+        "name": "client_id: _",
         "ordinal": 4,
         "type_info": "Blob",
         "origin": {
@@ -89,10 +89,10 @@
       false,
       false,
       false,
-      true,
+      false,
       true,
       true
     ]
   },
-  "hash": "95c213e9da235411b713b39bcfcbc8a31d5860aebda723fdb77dd22eec413628"
+  "hash": "e6f9a58d92d399776d3a33635e964b940679e309129014e6519156b045560a32"
 }

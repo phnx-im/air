@@ -63,7 +63,7 @@ impl OwnClientInfo {
                 qs_client_id AS "qs_client_id: _",
                 user_uuid AS "user_uuid: _",
                 user_domain AS "user_domain: _",
-                client_id AS "client_id!: _",
+                client_id AS "client_id: _",
                 self_group_id AS "self_group_id: _",
                 self_group_signing_key AS "self_group_signing_key: _"
             FROM own_client_info"#,
@@ -109,14 +109,16 @@ impl OwnClientInfo {
 
     /// Backfill a missing client id with a freshly generated one.
     ///
-    /// The migration adding the column leaves it NULL for clients that existed before, since
-    /// sqlite cannot generate valid UUIDs. Runs on every client DB open and is a no-op once
-    /// the id is set.
+    /// The migration adding the column defaults it to the nil UUID for clients that existed
+    /// before, since sqlite cannot generate valid UUIDs. Runs on every client DB open and is a
+    /// no-op once the id is set.
     pub(crate) async fn backfill_client_id(mut write: impl WriteConnection) -> sqlx::Result<()> {
         let client_id = Uuid::new_v4();
+        let nil_client_id = Uuid::nil();
         query!(
-            "UPDATE own_client_info SET client_id = ? WHERE client_id IS NULL",
+            "UPDATE own_client_info SET client_id = ? WHERE client_id = ?",
             client_id,
+            nil_client_id,
         )
         .execute(write.as_mut())
         .await?;
@@ -185,7 +187,8 @@ mod tests {
         let pool = DbAccess::for_tests(pool);
         let mut rng = rand::rng();
 
-        // A client that existed before the client-id migration: its row has a NULL client_id.
+        // A client that existed before the client-id migration: its client_id defaults to the
+        // nil UUID.
         sqlx::query(
             "INSERT INTO own_client_info (qs_user_id, qs_client_id, user_uuid, user_domain)
             VALUES (?, ?, ?, ?)",
@@ -196,6 +199,9 @@ mod tests {
         .bind("localhost")
         .execute(pool.write().await?.as_mut())
         .await?;
+
+        let loaded = OwnClientInfo::load(pool.read().await?).await?;
+        assert!(loaded.client_id.is_nil());
 
         OwnClientInfo::backfill_client_id(pool.write().await?).await?;
 
