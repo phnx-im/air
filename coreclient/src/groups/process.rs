@@ -782,8 +782,8 @@ fn expect_staged_commit(processed_message: &ProcessedMessage) -> Result<&StagedC
 
 /// Pair the new and old leaf credential of a member transition for AS verification.
 ///
-/// Returns `None` when both are self-group credentials, which carry no AS material to verify or
-/// store. Mixed pairs are rejected: a leaf must not change its credential type.
+/// Returns `None` when both are self-group credentials with the same client id, since they carry no
+/// AS material to verify or store. Mixed pairs and client id changes are rejected.
 fn user_credential_transition(
     new: LeafCredential,
     old: LeafCredential,
@@ -791,7 +791,13 @@ fn user_credential_transition(
 ) -> Result<Option<(VerifiableUserCredential, VerifiableUserCredential)>> {
     match (new, old) {
         (LeafCredential::User(new), LeafCredential::User(old)) => Ok(Some((new, old))),
-        (LeafCredential::SelfGroup(_), LeafCredential::SelfGroup(_)) => Ok(None),
+        (LeafCredential::SelfGroup(new), LeafCredential::SelfGroup(old)) => {
+            ensure!(
+                new.client_id() == old.client_id(),
+                "self-group client id changed in {context}"
+            );
+            Ok(None)
+        }
         (LeafCredential::User(_), LeafCredential::SelfGroup(_))
         | (LeafCredential::SelfGroup(_), LeafCredential::User(_)) => {
             bail!("mismatched leaf credential types in {context}")
@@ -879,9 +885,40 @@ fn validate_join_connection_group_commit(
 
 #[cfg(test)]
 mod tests {
+    use aircommon::credentials::SelfGroupCredential;
     use openmls::prelude::LeafNodeIndex;
+    use uuid::Uuid;
 
     use super::*;
+
+    fn self_group_credential(client_id: u128) -> LeafCredential {
+        LeafCredential::SelfGroup(SelfGroupCredential::new(Uuid::from_u128(client_id)))
+    }
+
+    #[test]
+    fn self_group_transition_preserves_client_id() -> anyhow::Result<()> {
+        let transition = user_credential_transition(
+            self_group_credential(1),
+            self_group_credential(1),
+            "update path",
+        )?;
+
+        assert!(transition.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn self_group_transition_rejects_client_id_change() {
+        for context in ["update path", "resync"] {
+            let transition = user_credential_transition(
+                self_group_credential(2),
+                self_group_credential(1),
+                context,
+            );
+
+            assert!(transition.is_err(), "{context}");
+        }
+    }
 
     #[test]
     fn join_connection_group_validation_enforces_operation_shape() {
