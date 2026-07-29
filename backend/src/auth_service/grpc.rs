@@ -341,7 +341,7 @@ impl auth_service_server::AuthService for GrpcAs {
 
         let params = RegisterUserParamsIn {
             client_payload: request
-                .client_credential_payload
+                .user_credential_payload
                 .ok_or_missing_field("client_payload")?
                 .try_into()?,
             encrypted_user_profile: request
@@ -354,7 +354,7 @@ impl auth_service_server::AuthService for GrpcAs {
             .as_init_user_registration(params, code_record)
             .await?;
         Ok(Response::new(RegisterUserResponse {
-            client_credential: Some(response.client_credential.into()),
+            user_credential: Some(response.user_credential.into()),
         }))
     }
 

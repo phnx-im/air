@@ -351,7 +351,7 @@ impl LocalGroup<ConnectionPackage> {
         // Create a connection offer
         let connection_package_hash = verified_connection_package.hash();
         let connection_offer_payload = ConnectionOfferPayload {
-            sender_client_credential: key_store.signing_key.credential().clone(),
+            sender_user_credential: key_store.signing_key.credential().clone(),
             connection_info: ConnectionInfo::new(
                 &group,
                 friendship_package,

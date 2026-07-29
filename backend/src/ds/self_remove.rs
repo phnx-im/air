@@ -5,7 +5,7 @@
 use super::group_state::DsGroupState;
 use super::process::USER_EXPIRATION_DAYS;
 use crate::errors::ClientSelfRemovalError;
-use aircommon::{credentials::VerifiableClientCredential, time::Duration};
+use aircommon::{credentials::VerifiableUserCredential, time::Duration};
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::ProcessedAssistedMessage,
@@ -24,7 +24,7 @@ impl DsGroupState {
             self.self_remove_client_inner(remove_proposal)?;
 
         // Change the role of the sender to outsider.
-        let sender = VerifiableClientCredential::from_basic_credential(sender_leaf.credential())
+        let sender = VerifiableUserCredential::from_basic_credential(sender_leaf.credential())
             .map_err(|error| {
                 error!(%error, "Credential of sender is invalid");
                 ClientSelfRemovalError::InvalidMessage

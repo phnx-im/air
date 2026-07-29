@@ -305,7 +305,7 @@ impl OutboundServiceContext {
     /// Returns the signing key to use for operations on `group_id`.
     ///
     /// The self group's leaves are signed with a fresh key that differs from the
-    /// shared client credential key, so its messages and commits must be signed
+    /// shared user credential key, so its messages and commits must be signed
     /// with that key. All other groups use the shared client signing key.
     async fn signer_for_group(
         &self,
