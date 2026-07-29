@@ -4,25 +4,13 @@
 
 name: Build iOS app
 
-concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
-
 on:
-  pull_request:
-    branches: ["main"]
-  push:
-    branches:
-      - main
-    paths:
-      - "coreclient/**"
-      - "apiclient/**"
-      - "applogic/**"
-      - "common/**"
-      - "app/**"
-      - "Cargo.toml"
-      - "Cargo.lock"
-  merge_group:
+  workflow_call:
+    inputs:
+      upload:
+        description: "Upload the app to TestFlight"
+        type: boolean
+        default: false
 
 env:
   CARGO_TERM_COLOR: always
@@ -38,7 +26,7 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@de0fac2e4500dabe0009e67214ff5f5447ce83dd # v6.0.2
         with:
-          # Fetch all commit metadata (build number is derived from number of commits)
+          # Fetch all commit metadata (client build metadata is derived from git history)
           fetch-depth: 0
           # Don't download historical file contents (blobs)
           filter: blob:none
@@ -80,7 +68,7 @@ jobs:
           MATCH_GIT_URL: ${{ secrets.MATCH_GIT_URL }}
           MATCH_GIT_BASIC_AUTHORIZATION: ${{ secrets.MATCH_GIT_BASIC_AUTHORIZATION }}
         working-directory: app
-        run: bundle exec fastlane ios beta_ios ${{ github.event_name == 'push' && github.ref == 'refs/heads/main' && 'upload_to_test_flight:true' || '' }} --verbose
+        run: bundle exec fastlane ios beta_ios ${{ inputs.upload && 'upload_to_test_flight:true' || '' }} --verbose
 
       - name: Upload build logs on failure
         if: failure()

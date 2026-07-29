@@ -7,7 +7,6 @@ set windows-shell := ["C:\\Program Files\\Git\\bin\\sh.exe","-c"]
 export RUST_BACKTRACE := "1"
 export RUSTFLAGS := "-D warnings"
 
-build_number := `git rev-list --count HEAD`
 ci := env_var_or_default("CI", "false")
 
 _default:
@@ -177,9 +176,21 @@ run-app *args='':
 run-server:
     cargo run --bin airserver | bunyan
 
-# Increment minor version numbers and update changelog.
-bump-version:
-    cargo xtask bump-version
+# Print the store build number (workflow run number plus a fixed offset).
+@build-number:
+    bash scripts/build-number.sh
+
+# Print the app version (patch level from the commit count outside release branches).
+@build-name:
+    bash scripts/build-name.sh
+
+# Increment version numbers (minor by default, --patch on release branches).
+bump-version *args='':
+    cargo xtask bump-version {{args}}
+
+# Cut a release/0.X branch from main (at the given commit, default HEAD).
+cut-release *args='':
+    cargo xtask cut-release {{args}}
 
 # Install fvm.
 install-fvm:

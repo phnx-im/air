@@ -1,0 +1,61 @@
+# SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+#
+# SPDX-License-Identifier: AGPL-3.0-or-later
+
+name: Release app
+
+# All platforms build in one run and share its run number as the store build
+# number (see scripts/build-number.sh). Runs are queued FIFO instead of
+# cancelled, and process one at a time, so uploads happen in run-number
+# order, which Google Play requires (versionCode must increase with every
+# upload).
+concurrency:
+  group: app-release
+  queue: max
+
+on:
+  push:
+    branches:
+      - main
+      - "release/**"
+    paths:
+      - "coreclient/**"
+      - "apiclient/**"
+      - "applogic/**"
+      - "common/**"
+      - "app/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+  # Recovery path: retry a failed or superseded release by dispatching a new
+  # run (never by re-running an old one, which would reuse its stale build
+  # number).
+  workflow_dispatch:
+
+jobs:
+  android:
+    uses: ./.github/workflows/android.yml
+    with:
+      upload: true
+    secrets: inherit
+
+  ios:
+    uses: ./.github/workflows/ios.yml
+    with:
+      upload: true
+    secrets: inherit
+
+  macos:
+    uses: ./.github/workflows/macos.yml
+    with:
+      upload: true
+    secrets: inherit
+
+  linux:
+    uses: ./.github/workflows/linux.yml
+    with:
+      upload: true
+    secrets: inherit
+
+  windows:
+    uses: ./.github/workflows/windows.yml
+    secrets: inherit
