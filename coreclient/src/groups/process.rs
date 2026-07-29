@@ -238,7 +238,6 @@ impl Group {
             ensure_self_group_flag_unchanged(&pq_group.mls_group, pq_staged_commit)?;
         }
 
-
         // For an external commit (resync, join connection group), the sender's new leaf lives in
         // the commit's update path and is not visible in the live tree until the commit is merged.
         // Bind the T and PQ legs here, regardless of which AAD payload the commit carries.
