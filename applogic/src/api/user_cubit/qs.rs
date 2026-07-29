@@ -6,7 +6,7 @@ use std::sync::Arc;
 
 use aircoreclient::clients::{
     ListenResponse,
-    process::process_qs::{ProcessedQsMessages, QsProcessEventResult},
+    process::{process_qs::ProcessedQsMessages, qs_stream::QsProcessEventResult},
 };
 use flutter_rust_bridge::frb;
 use tokio_stream::Stream;
@@ -31,7 +31,6 @@ impl CubitContext {
         &self,
         ProcessedQsMessages {
             new_chats,
-            changed_chats: _,
             new_messages,
             errors: _,
             processed: _,
