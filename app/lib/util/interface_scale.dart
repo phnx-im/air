@@ -2,9 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/ds/theme/scale.dart';
+import 'package:air/ds/material/scale.dart';
 import 'package:flutter/widgets.dart';
-import 'package:air/user/user.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:provider/provider.dart';
 
 /// Scales the child's interface by keeping the same size

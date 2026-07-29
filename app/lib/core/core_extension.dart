@@ -6,7 +6,7 @@ import 'dart:typed_data';
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
-import 'package:air/util/platform.dart';
+import 'package:air/platform/method_channel.dart';
 import 'package:uuid/uuid.dart';
 
 extension UiChatDetailsExtension on UiChatDetails {
