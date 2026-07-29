@@ -11,7 +11,7 @@ use tracing::warn;
 
 use crate::{
     Chat, ChatId,
-    clients::block_contact::BlockedContact,
+    clients::{block_contact::BlockedContact, own_client_info::OwnClientInfo},
     groups::Group,
     key_stores::indexed_keys::StorableIndexedKey,
     user_profiles::{IndexedUserProfile, UserProfile, update::UserProfileUpdate},
@@ -90,6 +90,9 @@ impl CoreUser {
             let own_index = group.own_index();
             let user_profile_key =
                 user_profile_key.encrypt(group.identity_link_wrapper_key(), own_user_id)?;
+            let signer =
+                OwnClientInfo::signer_for_group(&mut connection, &group_id, self.signing_key())
+                    .await?;
             let params = UserProfileKeyUpdateParams {
                 group_id,
                 sender_index: own_index,
@@ -97,7 +100,7 @@ impl CoreUser {
             };
 
             api_client
-                .ds_user_profile_key_update(params, self.signing_key(), group.group_state_ear_key())
+                .ds_user_profile_key_update(params, &signer, group.group_state_ear_key())
                 .await?;
         }
 

@@ -8,7 +8,11 @@ use mimi_room_policy::RoleIndex;
 use tracing::{error, info, warn};
 
 use crate::{
-    UsernameRecord, clients::CoreUser, delete_client_database, groups::Group, privacy_pass,
+    UsernameRecord,
+    clients::{CoreUser, own_client_info::OwnClientInfo},
+    delete_client_database,
+    groups::Group,
+    privacy_pass,
 };
 
 impl CoreUser {
@@ -67,8 +71,6 @@ impl CoreUser {
     }
 
     async fn try_leave_all_chats(&self, api_client: &ApiClient) -> anyhow::Result<()> {
-        let user_id = self.user_id();
-
         let chat_ids = self.ordered_chat_ids().await?;
         info!(num_chats = chat_ids.len(), "Leaving all chats");
 
@@ -80,20 +82,28 @@ impl CoreUser {
                     let mut group = Group::load_with_chat_id_clean(&mut *txn, chat_id)
                         .await?
                         .with_context(|| format!("Can't find group with chat id {chat_id:?}"))?;
-                    group.room_state_change_role(user_id, user_id, RoleIndex::Outsider)?;
-                    let params = group.stage_leave_group(&mut *txn, self.signing_key())?;
+                    let signer = OwnClientInfo::signer_for_group(
+                        &mut *txn,
+                        group.group_id(),
+                        self.signing_key(),
+                    )
+                    .await?;
+                    let identity = signer.room_policy_identity()?;
+                    group.room_state_change_role_identity(
+                        &identity,
+                        identity.clone(),
+                        RoleIndex::Outsider,
+                    )?;
+                    let params = group.stage_leave_group(&mut *txn, &signer)?;
                     let ear_key = group.group_state_ear_key().clone();
-                    removals.push((params, ear_key));
+                    removals.push((params, ear_key, signer));
                 }
                 Ok(removals)
             })
             .await?;
 
-        for (params, ear_key) in removals {
-            match api_client
-                .ds_self_remove(params, self.signing_key(), &ear_key)
-                .await
-            {
+        for (params, ear_key, signer) in removals {
+            match api_client.ds_self_remove(params, &signer, &ear_key).await {
                 Ok(_) => {}
                 Err(e) if e.is_not_found() => {
                     warn!("Group already gone from server; skipping");

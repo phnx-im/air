@@ -20,6 +20,8 @@ use mls_assist::{
 };
 use tls_codec::Serialize;
 
+use crate::credentials::SELF_GROUP_CREDENTIAL_TYPE;
+
 /// An app-level MLS component that can be stored in the app data dictionary of a group, leaf node,
 /// or key package.
 ///
@@ -112,6 +114,14 @@ pub const SUPPORTED_PROPOSALS: &[ProposalType] = &[
 ];
 pub const SUPPORTED_CREDENTIALS: &[CredentialType] = REQUIRED_CREDENTIALS;
 
+/// Credential types advertised by self-group leaves. Self-group leaves carry a
+/// self-group credential, and every member of a group must list the credential types of all
+/// leaves in its capabilities. Safe because self-groups never contain foreign members.
+pub const SELF_GROUP_SUPPORTED_CREDENTIALS: &[CredentialType] = &[
+    CredentialType::Basic,
+    CredentialType::Other(SELF_GROUP_CREDENTIAL_TYPE),
+];
+
 /// Capabilities that are used in the leaf node.
 pub fn default_leaf_node_capabilities() -> Capabilities {
     Capabilities::new(
@@ -120,6 +130,17 @@ pub fn default_leaf_node_capabilities() -> Capabilities {
         Some(SUPPORTED_EXTENSIONS),
         Some(SUPPORTED_PROPOSALS),
         Some(SUPPORTED_CREDENTIALS),
+    )
+}
+
+/// Capabilities used in self-group leaf nodes.
+pub fn self_group_leaf_node_capabilities() -> Capabilities {
+    Capabilities::new(
+        Some(SUPPORTED_PROTOCOL_VERSIONS),
+        Some(SUPPORTED_CIPHERSUITES),
+        Some(SUPPORTED_EXTENSIONS),
+        Some(SUPPORTED_PROPOSALS),
+        Some(SELF_GROUP_SUPPORTED_CREDENTIALS),
     )
 }
 
@@ -237,6 +258,7 @@ mod test {
         }
         for credential in REQUIRED_CREDENTIALS {
             assert!(SUPPORTED_CREDENTIALS.contains(credential));
+            assert!(SELF_GROUP_SUPPORTED_CREDENTIALS.contains(credential));
         }
     }
 

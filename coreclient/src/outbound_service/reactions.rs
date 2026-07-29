@@ -146,7 +146,8 @@ impl OutboundServiceContext {
             .context("Failed to deserialize queued reaction content")?;
 
         // load group and create MLS message
-        let (group_state_ear_key, params) = self.new_mls_message(&chat, content, None).await?;
+        let (group_state_ear_key, params, signer) =
+            self.new_mls_message(&chat, content, None).await?;
         let epoch = params.epoch;
         let sent_tags = params.collision_tags.clone();
         let generation = params.generation;
@@ -155,7 +156,7 @@ impl OutboundServiceContext {
         if let Err(ds_error) = self
             .api_clients
             .get(&chat.owner_domain())?
-            .ds_send_message(params, self.signing_key(), &group_state_ear_key)
+            .ds_send_message(params, &signer, &group_state_ear_key)
             .await
         {
             if ds_error.is_not_found() {

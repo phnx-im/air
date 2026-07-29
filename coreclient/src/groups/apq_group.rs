@@ -3,12 +3,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::ClientSigningKey,
+    credentials::keys::LeafSigningKey,
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
+    identifiers::UserId,
     mls_group_config::{
         APQ_CIPHERSUITE, GROUP_DATA_EXTENSION_TYPE, MAX_PAST_EPOCHS,
         default_group_context_app_data_dictionary_extension, default_group_required_extensions,
         default_leaf_node_capabilities, default_sender_ratchet_configuration,
+        self_group_leaf_node_capabilities,
     },
     time::TimeStamp,
 };
@@ -23,7 +25,6 @@ use openmls::{
     },
 };
 use openmls_traits::OpenMlsProvider;
-use tls_codec::Serialize;
 
 use crate::{
     db::access::WriteConnection,
@@ -52,7 +53,8 @@ impl Group {
     #[allow(clippy::too_many_arguments)]
     pub(crate) fn create_apq_group(
         mut connection: impl WriteConnection,
-        signer: &ClientSigningKey,
+        signer: &LeafSigningKey,
+        own_user_id: UserId,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         t_group_id: GroupId,
         pq_group_id: GroupId,
@@ -79,12 +81,9 @@ impl Group {
             default_group_context_app_data_dictionary_extension(air_component, safe_aad_components),
         ])?;
 
-        // The leaf signature key must be the signer's *own* verifying key, not
-        // the credential's. They coincide for regular groups, but for the
-        // self-group the signer is a freshly minted key paired with a foreign
-        // credential.
+        // The leaf signature key is the signer's own key.
         let t_credential = CredentialWithKey {
-            credential: signer.credential().try_into()?,
+            credential: signer.mls_credential()?,
             signature_key: signer.verifying_key().clone().into(),
         };
         // Skip storing the same credential twice
@@ -97,10 +96,15 @@ impl Group {
             pq_credential,
         };
 
+        let capabilities = match signer {
+            LeafSigningKey::User(_) => default_leaf_node_capabilities(),
+            LeafSigningKey::SelfGroup(_) => self_group_leaf_node_capabilities(),
+        };
+
         let (t_group, pq_group) = ApqMlsGroup::builder()
             .with_group_ids(t_group_id, pq_group_id)
             .with_ciphersuite(APQ_CIPHERSUITE)
-            .with_capabilities(default_leaf_node_capabilities())
+            .with_capabilities(capabilities)
             .with_group_context_extensions(gc_extensions.clone(), gc_extensions)?
             .sender_ratchet_configuration(default_sender_ratchet_configuration())
             .max_past_epochs(MAX_PAST_EPOCHS)
@@ -108,9 +112,8 @@ impl Group {
             .build(&provider, signer, apq_credential_with_key)?
             .into_groups();
 
-        let user_id = signer.credential().user_id();
         let room_state = VerifiedRoomState::new(
-            user_id.tls_serialize_detached()?,
+            signer.room_policy_identity()?,
             RoomPolicy::default_trusted_private(),
         )?;
 
@@ -140,7 +143,7 @@ impl Group {
             }),
             pending_commit_failed: false,
             send_message_collision_key: None,
-            own_user_id: signer.credential().user_id().clone(),
+            own_user_id,
         };
 
         Ok((group, params))

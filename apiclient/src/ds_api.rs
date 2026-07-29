@@ -8,10 +8,10 @@ use std::collections::HashMap;
 
 use aircommon::{
     LibraryError,
-    credentials::keys::ClientSigningKey,
+    credentials::keys::{ClientKeyType, ClientSigningKey},
     crypto::{
         aead::keys::{EncryptedUserProfileKey, GroupStateEarKey},
-        signatures::signable::Signable,
+        signatures::{private_keys::SigningKey, signable::Signable},
     },
     identifiers::{QsReference, QualifiedGroupId, RemoteAttachmentId, UserId},
     messages::{
@@ -271,7 +271,7 @@ impl ApiClient {
     pub async fn ds_apq_group_operation(
         &self,
         params: ApqGroupOperationParamsOut,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
         qs_client_reference: QsReference,
         encrypted_user_profile_key: EncryptedUserProfileKey,
@@ -332,7 +332,7 @@ impl ApiClient {
         group_id: GroupId,
         epoch: GroupEpoch,
         group_state_ear_key: &GroupStateEarKey,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
     ) -> Result<WelcomeInfoIn, DsRequestError> {
         let qgid: QualifiedGroupId = group_id.try_into()?;
         let payload = WelcomeInfoPayload {
@@ -581,7 +581,7 @@ impl ApiClient {
     pub async fn ds_self_remove(
         &self,
         params: SelfRemoveParamsOut,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
         if let Some(pq_remove_proposal) = params.pq_remove_proposal {
@@ -616,7 +616,7 @@ impl ApiClient {
         &self,
         t_remove_proposal: AssistedMessageOut,
         pq_remove_proposal: AssistedMessageOut,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
         let remove_proposal = ApqAssistedMlsMessage {
@@ -644,7 +644,7 @@ impl ApiClient {
     pub async fn ds_send_message(
         &self,
         params: SendMessageParamsOut,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
         let payload = SendMessagePayload {
@@ -741,7 +741,7 @@ impl ApiClient {
     pub async fn ds_apq_delete_group(
         &self,
         delete_bundle: ApqCommitMessageBundle,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
         let ApqCommitMessageBundle {
@@ -783,7 +783,7 @@ impl ApiClient {
     pub async fn ds_user_profile_key_update(
         &self,
         params: UserProfileKeyUpdateParams,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<(), DsRequestError> {
         let qgid: QualifiedGroupId = params.group_id.try_into()?;

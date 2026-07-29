@@ -4,7 +4,7 @@
 
 use airapiclient::rs_api::RsRequestError;
 use aircommon::codec::PersistenceCodec;
-use aircommon::credentials::keys::{ClientSigningKey, PreliminaryClientSigningKey};
+use aircommon::credentials::keys::{ClientSigningKey, SelfGroupSigningKey};
 use aircommon::crypto::RatchetDecryptionKey;
 use aircommon::crypto::aead::keys::{
     IdentityLinkWrapperKey, PushTokenEarKey, WelcomeAttributionInfoEarKey,
@@ -20,7 +20,7 @@ use aircommon::identifiers::{Fqdn, QsClientId, QsUserId, UserId};
 use aircommon::messages::{FriendshipToken, QueueMessage};
 use aircommon::mls_group_config::{
     APQ_CIPHERSUITE, QS_CLIENT_REFERENCE_EXTENSION_TYPE, default_key_package_extensions,
-    default_leaf_node_capabilities, default_leaf_node_extensions,
+    default_leaf_node_extensions, self_group_leaf_node_capabilities,
 };
 use airprotos::client::component::AirComponent;
 use airprotos::client::self_group::SettingsUpdate;
@@ -464,7 +464,7 @@ impl CoreUser {
     }
 
     /// The signing key used for this client's leaf in the self group.
-    async fn self_group_signature_key(&self) -> anyhow::Result<ClientSigningKey> {
+    async fn self_group_signature_key(&self) -> anyhow::Result<SelfGroupSigningKey> {
         let stored: OwnClientInfo = OwnClientInfo::load(self.db().read().await?).await?;
         stored
             .self_group_signing_key
@@ -475,12 +475,12 @@ impl CoreUser {
     /// to the self group.
     async fn generate_self_group_key_package(&self) -> anyhow::Result<ApqKeyPackage> {
         let signer = self.self_group_signature_key().await?;
-        // Both T and PQ leaves use this device's fresh signature key (the PQ
-        // side is confidentiality-only), which is what the DS expects.
+        // Both T and PQ leaves use this device's signature key (the PQ side is
+        // confidentiality-only), which is what the DS expects.
         let signature_key = SignaturePublicKey::from(signer.verifying_key().clone());
         let credential = ApqCredentialWithKey {
             t_credential: CredentialWithKey {
-                credential: Credential::try_from(signer.credential())?,
+                credential: signer.credential().to_credential()?,
                 signature_key: signature_key.clone(),
             },
             pq_credential: CredentialWithKey {
@@ -504,7 +504,7 @@ impl CoreUser {
                 let provider = AirOpenMlsProvider::new(txn.as_mut());
                 let bundle = ApqKeyPackage::builder()
                     .key_package_extensions(key_package_extensions)
-                    .leaf_node_capabilities(default_leaf_node_capabilities())
+                    .leaf_node_capabilities(self_group_leaf_node_capabilities())
                     .leaf_node_extensions(leaf_node_extensions)
                     .build(&provider, APQ_CIPHERSUITE, &signer, credential)?;
                 Ok(bundle.into_key_package())
@@ -541,7 +541,7 @@ impl CoreUser {
                     // ciphertext); the new device shares our user id.
                     user_credential: self.signing_key().credential().clone(),
                 };
-                // Sign the commit with the fresh self-group key, but sign the
+                // Sign the commit with the per-device self-group key, but sign the
                 // WAI with the shared client key so the joiner can verify it
                 // against our user credential.
                 let params = group
@@ -567,14 +567,13 @@ impl CoreUser {
             })
             .await?;
 
-        // Send the commit to the DS. The MLS commit was signed by our leaf
-        // (fresh self-group key), but the DS request envelope is signed with the
-        // shared user credential key: the DS authenticates requests against
-        // the sender's credential key, not the leaf key.
+        // Send the commit to the DS. The DS verifies request envelopes from
+        // self-group members against the leaf's signature key, so the envelope
+        // is signed with the per-device self-group key.
         let ds_timestamp = api_client
             .ds_apq_group_operation(
                 params,
-                self.signing_key(),
+                &self_group_signature_key,
                 &group_state_ear_key,
                 qs_client_reference,
                 encrypted_user_profile_key,
@@ -740,11 +739,9 @@ impl CoreUser {
             qs_client_id_encryption_key,
         };
 
-        // Mint a fresh signing key to use in self-group operations
-        let self_group_signing_key = ClientSigningKey::from_prelim_key_with_foreign_credential(
-            PreliminaryClientSigningKey::generate()?,
-            key_store.signing_key.credential().clone(),
-        )?;
+        // Each linked device mints its own client id and a per-device self-group signing key.
+        let client_id = Uuid::new_v4();
+        let self_group_signing_key = SelfGroupSigningKey::generate(client_id)?;
 
         client_db
             .with_write_transaction(async |txn| -> anyhow::Result<()> {
@@ -758,8 +755,7 @@ impl CoreUser {
                     qs_user_id,
                     qs_client_id,
                     user_id: user_id.clone(),
-                    // Each linked device mints its own client id.
-                    client_id: Uuid::new_v4(),
+                    client_id,
                     self_group_id: Some(self_group_id),
                     self_group_signing_key: Some(self_group_signing_key),
                 }

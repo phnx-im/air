@@ -4,7 +4,10 @@
 
 use airapiclient::ds_api::DsRequestError;
 use aircommon::{
-    credentials::{UserCredential, keys::ClientSigningKey},
+    credentials::{
+        UserCredential,
+        keys::{ClientSigningKey, SelfGroupSigningKey},
+    },
     crypto::indexed_aead::keys::UserProfileKey,
     identifiers::{QualifiedGroupId, UserId},
     messages::client_ds_out::{
@@ -27,8 +30,8 @@ use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
     chats::{GroupDataExt, messages::TimestampedMessage},
     clients::{
-        CoreUser, api_clients::ApiClients, update_key::update_chat_attributes,
-        user_settings::SettingChanges,
+        CoreUser, api_clients::ApiClients, own_client_info::OwnClientInfo,
+        update_key::update_chat_attributes, user_settings::SettingChanges,
     },
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
@@ -429,10 +432,18 @@ impl PendingChatOperation {
                 let own_encrypted_user_profile_key =
                     encrypt_user_profile_key(db.read().await?).await?;
 
+                // The DS verifies request envelopes from self-group members against
+                // the leaf's signature key, so the envelope is signed with the
+                // per-device self-group key.
+                let self_group_signer = OwnClientInfo::load(db.read().await?)
+                    .await?
+                    .self_group_signing_key
+                    .context("self-group signer was not initialized")?;
+
                 api_client
                     .ds_apq_group_operation(
                         *params,
-                        signer,
+                        &self_group_signer,
                         self.group.group_state_ear_key(),
                         own_qs_client_reference,
                         own_encrypted_user_profile_key,
@@ -725,7 +736,7 @@ impl PendingChatOperation {
     /// pending commit itself to tell a transient one apart from a failure.
     pub(crate) async fn create_settings_update(
         txn: &mut WriteDbTransaction<'_>,
-        signer: &ClientSigningKey,
+        signer: &SelfGroupSigningKey,
         mut group: VerifiedGroup,
         update: SettingsUpdate,
     ) -> anyhow::Result<Self> {
@@ -1299,7 +1310,10 @@ pub mod test_utils {
 mod tests {
     use aircommon::{
         assert_matches,
-        credentials::{keys::ClientSigningKey, test_utils::create_test_credentials},
+        credentials::{
+            keys::{ClientSigningKey, LeafSigningKey, SelfGroupSigningKey},
+            test_utils::create_test_credentials,
+        },
         crypto::aead::keys::IdentityLinkWrapperKey,
         identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
         mls_group_config::AppComponent,
@@ -1330,10 +1344,11 @@ mod tests {
     /// Builds a single-member APQ self-group with a pending settings-update
     /// operation, stored in the database.
     async fn setup_self_group_settings_op()
-    -> anyhow::Result<(DbAccess, PendingChatOperation, ClientSigningKey)> {
+    -> anyhow::Result<(DbAccess, PendingChatOperation, SelfGroupSigningKey)> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let user_id = UserId::random("example.com".parse()?);
-        let (_aic_sk, signing_key) = create_test_credentials(user_id.clone());
+        let signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
+        let leaf_signer = LeafSigningKey::SelfGroup(signing_key.clone());
 
         let mut connection = pool.write().await?;
         let job = connection
@@ -1360,7 +1375,8 @@ mod tests {
                 ));
                 let (group, _params) = Group::create_apq_group(
                     &mut *txn,
-                    &signing_key,
+                    &leaf_signer,
+                    user_id.clone(),
                     IdentityLinkWrapperKey::random()?,
                     t_group_id,
                     pq_group_id,
