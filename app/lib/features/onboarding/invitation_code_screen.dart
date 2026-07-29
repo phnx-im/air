@@ -4,7 +4,7 @@
 
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/material/button_styles.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
@@ -250,7 +250,7 @@ class _JoinButton extends StatelessWidget {
               height: 20,
               width: 20,
               child: CircularProgressIndicator(
-                strokeWidth: 2,
+                strokeWidth: Strokes.px2,
                 valueColor: AlwaysStoppedAnimation<Color>(
                   colors.function.neutral.toggleWhite,
                 ),

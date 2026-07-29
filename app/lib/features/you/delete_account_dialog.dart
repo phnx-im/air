@@ -11,7 +11,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:logging/logging.dart';

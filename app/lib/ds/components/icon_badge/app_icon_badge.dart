@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:flutter/material.dart';
 
@@ -30,7 +30,7 @@ class AppIconBadge extends StatelessWidget {
       decoration: BoxDecoration(
         color: backgroundColor ?? colors.backgroundBase.tertiary,
         shape: BoxShape.rectangle,
-        borderRadius: BorderRadius.circular(Spacing.px12),
+        borderRadius: BorderRadius.circular(Radii.px12),
       ),
       child: AppIcon(type: type, size: size),
     );

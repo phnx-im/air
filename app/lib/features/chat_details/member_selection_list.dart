@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -61,7 +61,7 @@ class MemberSelectionList extends HookWidget {
       itemCount: sortedContacts.length,
       separatorBuilder: (context, index) => Divider(
         height: 1,
-        thickness: 1,
+        thickness: Strokes.px1,
         color: CustomColorScheme.of(context).backgroundBase.primary,
       ),
       itemBuilder: (context, index) {
@@ -76,7 +76,7 @@ class MemberSelectionList extends HookWidget {
             hasEncryptedGroupProfiles && (!isApq || hasPqGroups);
 
         return Opacity(
-          opacity: hasSupportedClient ? 1.0 : 0.5,
+          opacity: hasSupportedClient ? 1.0 : Opacities.alpha50,
           child: MemberListItem(
             profile: profile,
             onTap: hasSupportedClient
@@ -100,7 +100,9 @@ class MemberSelectionList extends HookWidget {
                     overlayColor: WidgetStateProperty.all(Colors.transparent),
                     side: BorderSide.none,
                     shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(4)),
+                      borderRadius: BorderRadius.all(
+                        Radius.circular(Radii.px4),
+                      ),
                     ),
                     onChanged: (_) => onToggle(contact),
                   )

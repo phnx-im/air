@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:flutter/material.dart';
@@ -46,7 +46,9 @@ class MemberSearchField extends StatelessWidget {
           hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
             color: customColorScheme.text.quaternary,
           ),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(Radii.px12),
+          ),
         ),
       ),
     );

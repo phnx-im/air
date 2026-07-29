@@ -4,7 +4,7 @@
 import 'package:air/features/attachments/attachment_file.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -61,7 +61,7 @@ class _FileTestBubble extends StatelessWidget {
       ),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(Spacing.px20),
+        borderRadius: BorderRadius.circular(Radii.px20),
       ),
       child: AttachmentFile(
         attachment: attachment ?? file.copyWith(attachmentId: attachmentId),

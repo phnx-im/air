@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:flutter/material.dart';
@@ -46,16 +46,20 @@ class AppButton extends StatelessWidget {
 
     final foregroundColor = switch ((type, state, tone)) {
       (.primary, .inactive, .danger) =>
-        colors.function.neutral.white.withValues(alpha: 0.5),
+        colors.function.neutral.white.withValues(alpha: Opacities.alpha50),
       (.primary, .inactive, .normal) =>
-        colors.function.neutral.toggleWhite.withValues(alpha: 0.5),
+        colors.function.neutral.toggleWhite.withValues(
+          alpha: Opacities.alpha50,
+        ),
       (.primary, _, .danger) => colors.function.neutral.white,
       (.primary, _, .normal) => colors.function.neutral.toggleWhite,
       (.secondary, .inactive, .danger) => colors.function.danger.withValues(
-        alpha: 0.5,
+        alpha: Opacities.alpha50,
       ),
       (.secondary, .inactive, _) =>
-        colors.function.neutral.toggleBlack.withValues(alpha: 0.5),
+        colors.function.neutral.toggleBlack.withValues(
+          alpha: Opacities.alpha50,
+        ),
       (.secondary, _, .danger) => colors.function.danger,
       (.secondary, _, _) => colors.function.neutral.toggleBlack,
     };
@@ -89,8 +93,8 @@ class AppButton extends StatelessWidget {
     };
 
     final borderRadius = switch (size) {
-      AppButtonSize.small => Spacing.px8,
-      AppButtonSize.large => Spacing.px12,
+      AppButtonSize.small => Radii.px8,
+      AppButtonSize.large => Radii.px12,
     };
 
     return OutlinedButton(
@@ -128,7 +132,7 @@ class AppButton extends StatelessWidget {
                 height: iconSize.height,
                 child: CircularProgressIndicator(
                   color: foregroundColor,
-                  strokeWidth: 2,
+                  strokeWidth: Strokes.px2,
                 ),
               ),
 

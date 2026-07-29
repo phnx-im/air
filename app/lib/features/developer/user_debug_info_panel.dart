@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/ds/foundations/monospace.dart';
@@ -52,7 +52,7 @@ class UserDebugInfoPanel extends HookWidget {
           width: 16,
           height: 16,
           child: CircularProgressIndicator(
-            strokeWidth: 2,
+            strokeWidth: Strokes.px2,
             valueColor: AlwaysStoppedAnimation<Color>(colors.text.primary),
           ),
         ),
@@ -190,7 +190,7 @@ class _InfoCard extends StatelessWidget {
       return Container(
         decoration: BoxDecoration(
           color: colors.backgroundBase.secondary,
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(Radii.px12),
         ),
         padding: const EdgeInsets.symmetric(
           horizontal: Spacing.px16,
@@ -208,7 +208,7 @@ class _InfoCard extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: colors.backgroundBase.secondary,
-        borderRadius: BorderRadius.circular(12),
+        borderRadius: BorderRadius.circular(Radii.px12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -263,7 +263,7 @@ class _InfoRow extends StatelessWidget {
           ),
         );
       },
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(Radii.px12),
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: Spacing.px16,

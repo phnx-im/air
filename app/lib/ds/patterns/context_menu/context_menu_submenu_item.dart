@@ -9,7 +9,7 @@ import 'package:air/ds/patterns/context_menu/context_menu_item.dart';
 import 'package:air/ds/patterns/context_menu/context_menu_surface.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';

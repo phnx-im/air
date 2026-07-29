@@ -5,7 +5,7 @@
 import 'dart:async';
 
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';

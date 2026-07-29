@@ -8,7 +8,7 @@
 import 'package:air/features/attachments/attachment_image.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -48,11 +48,11 @@ class _ImageTestBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(Spacing.px20),
+      borderRadius: BorderRadius.circular(Radii.px20),
       child: Container(
         constraints: const BoxConstraints(maxHeight: 300, maxWidth: 300),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(Spacing.px20),
+          borderRadius: BorderRadius.circular(Radii.px20),
         ),
         child: AttachmentImage(
           attachment: file.copyWith(attachmentId: attachmentId),

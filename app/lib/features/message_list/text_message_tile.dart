@@ -20,7 +20,7 @@ import 'package:air/features/message_list/mobile_message_actions.dart';
 import 'package:air/features/message_list/timestamp.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/motion.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/button_icon/glass_circle_button.dart';
@@ -63,8 +63,8 @@ final double _hoverReactSize =
 // Width the hover affordance occupies beside the bubble: the reply and react
 // buttons, the gap between them, and the gap to the bubble.
 final double _hoverAffordanceWidth = 2 * _hoverReactSize + 2 * Spacing.px8;
-const double largeCornerRadius = Spacing.px12;
-const double smallCornerRadius = Spacing.px12;
+const double largeCornerRadius = Radii.px12;
+const double smallCornerRadius = Radii.px12;
 const double messageHorizontalPadding = Spacing.px12;
 const double messageVerticalPadding = Spacing.px8;
 // Gap between consecutive bubbles of the same flight.

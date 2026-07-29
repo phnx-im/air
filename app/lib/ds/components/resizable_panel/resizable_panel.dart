@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 
 /// Left panel which can be resized by dragging the handle
 class ResizablePanel extends StatefulWidget {
@@ -74,7 +75,7 @@ class _ResizablePanelState extends State<ResizablePanel> {
                         shape: BoxShape.rectangle,
                         border: Border(
                           left: BorderSide(
-                            width: 1,
+                            width: Strokes.px1,
                             color: CustomColorScheme.of(
                               context,
                             ).separator.secondary,

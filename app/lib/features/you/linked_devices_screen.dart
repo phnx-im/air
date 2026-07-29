@@ -11,7 +11,7 @@ import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/ds/components/icon_badge/app_icon_badge.dart';
 import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/you/linking_device_dialog.dart';
@@ -187,7 +187,7 @@ class _SingleDevice extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(Spacing.px16),
+        borderRadius: BorderRadius.circular(Radii.px16),
         color: colors.backgroundBase.secondary,
       ),
       padding: const EdgeInsets.all(Spacing.px12),

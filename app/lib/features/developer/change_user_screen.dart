@@ -4,7 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:air/core/core.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';

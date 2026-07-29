@@ -9,7 +9,7 @@ import 'dart:ui' as ui;
 import 'package:air/features/attachments/attachment_image_provider.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/foundations/blur.dart';
 import 'package:air/ds/foundations/icons.dart';
@@ -380,7 +380,7 @@ class AttachmentImageOverlay extends HookWidget {
             alignment: Alignment.center,
             children: [
               CircularProgressIndicator(
-                strokeWidth: 2,
+                strokeWidth: Strokes.px2,
                 valueColor: AlwaysStoppedAnimation<Color>(colors.text.primary),
                 backgroundColor: Colors.transparent,
                 value: loaded / BigInt.from(size),
@@ -424,7 +424,7 @@ class _BlurredPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(1000),
+      borderRadius: BorderRadius.circular(Radii.full),
       child: BackdropFilter(
         filter: ui.ImageFilter.blur(
           sigmaX: kMaterialBlurMedium,

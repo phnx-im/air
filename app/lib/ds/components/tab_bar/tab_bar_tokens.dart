@@ -3,12 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:flutter/widgets.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 
 /// Layout tokens for the floating mobile tab bar.
 abstract final class TabBarTokens {
   static const double height = 72;
   static const double tabWidth = 128;
-  static const double pillRadius = 1000;
+  static const double pillRadius = Radii.full;
   static const double paddingHorizontal = 32;
   static const double paddingBottom = 32;
 

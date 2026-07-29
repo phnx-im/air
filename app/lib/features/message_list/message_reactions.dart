@@ -17,7 +17,7 @@ import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/platform/haptics.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -894,7 +894,7 @@ Future<void> showWhoReactedSheet({
               padding: const EdgeInsets.all(Spacing.px16),
               decoration: BoxDecoration(
                 color: colors.backgroundElevated.primary,
-                borderRadius: BorderRadius.circular(Spacing.px20),
+                borderRadius: BorderRadius.circular(Radii.px20),
                 boxShadow: smallElevationBoxShadows,
               ),
               child: sheet,

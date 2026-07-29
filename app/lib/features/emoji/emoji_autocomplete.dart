@@ -6,7 +6,7 @@ import 'dart:async';
 
 import 'package:air/features/emoji/emoji_data.dart';
 import 'package:air/features/emoji/emoji_repository.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/features/message_list/widgets/suggestion_overlay.dart';
@@ -89,7 +89,7 @@ class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
   SuggestionOverlayStyle overlayStyle(BuildContext context) {
     return SuggestionOverlayStyle(
       backgroundColor: CustomColorScheme.of(context).backgroundElevated.primary,
-      borderRadius: BorderRadius.circular(Spacing.px16),
+      borderRadius: BorderRadius.circular(Radii.px16),
       elevation: 8,
       maxWidth: 320,
     );

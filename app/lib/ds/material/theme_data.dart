@@ -11,6 +11,7 @@ import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/material/cupertino_scrim_transition.dart';
 import 'package:air/ds/material/text_theme.dart';
 import 'package:air/ds/foundations/type_scale.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 
 ThemeData darkTheme = themeData(Brightness.dark);
 ThemeData lightTheme = themeData(Brightness.light);
@@ -126,7 +127,7 @@ ThemeData themeData(Brightness brightness) {
 
 final _textInputBorder = OutlineInputBorder(
   borderSide: const BorderSide(width: 0, style: BorderStyle.none),
-  borderRadius: BorderRadius.circular(8),
+  borderRadius: BorderRadius.circular(Radii.px8),
 );
 
 /// Scroll behavior that matches Flutter's base [ScrollBehavior] physics:

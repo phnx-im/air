@@ -4,7 +4,7 @@
 
 import 'dart:async';
 import 'dart:math' as math;
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:flutter/material.dart';
@@ -72,7 +72,7 @@ class _BottomSheetModal extends StatefulWidget {
 class _BottomSheetModalState extends State<_BottomSheetModal>
     with SingleTickerProviderStateMixin {
   static const _sheetBorderRadius = BorderRadius.vertical(
-    top: Radius.circular(28),
+    top: Radius.circular(Radii.px28),
   );
   static const double _handleHeight = 4;
   static const double _handleTopSpacing = Spacing.px8;
@@ -291,7 +291,7 @@ class _BottomSheetHandle extends StatelessWidget {
       height: 4,
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(Radii.full),
       ),
     );
   }

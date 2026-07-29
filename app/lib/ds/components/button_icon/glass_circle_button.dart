@@ -8,6 +8,7 @@ import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/foundations/effects.dart';
 import 'package:air/ds/foundations/blur.dart';
 import 'package:flutter/material.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 
 /// Circular glass button used for app bar chrome that floats over content
 /// (back, plus, dismiss, composer actions).
@@ -77,7 +78,7 @@ class GlassCircleButton extends StatelessWidget {
     );
 
     if (!enabled) {
-      circle = Opacity(opacity: 0.4, child: circle);
+      circle = Opacity(opacity: Opacities.alpha40, child: circle);
     }
 
     return MouseRegion(

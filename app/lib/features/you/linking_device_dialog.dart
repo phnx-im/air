@@ -8,7 +8,7 @@ import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
@@ -242,7 +242,7 @@ class _ScanQrCodePageState extends State<_ScanQrCodePage> {
         AspectRatio(
           aspectRatio: 1,
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(Spacing.px16),
+            borderRadius: BorderRadius.circular(Radii.px16),
             child: ColoredBox(
               color: colors.backgroundBase.secondary,
               child: _isQrCodeScannerSupported
@@ -658,7 +658,7 @@ class _LinkDeviceName extends StatelessWidget {
       children: [
         Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(Spacing.px16),
+            borderRadius: BorderRadius.circular(Radii.px16),
             color: colors.backgroundBase.secondary,
           ),
           padding: const EdgeInsets.only(
@@ -737,7 +737,7 @@ class _LinkConfirmView extends HookWidget {
         const SizedBox(height: Spacing.px16),
         InkWell(
           onTap: () => checked.value = !checked.value,
-          borderRadius: BorderRadius.circular(Spacing.px8),
+          borderRadius: BorderRadius.circular(Radii.px8),
           child: Row(
             children: [
               Checkbox(

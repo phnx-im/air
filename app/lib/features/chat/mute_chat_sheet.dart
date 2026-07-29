@@ -7,7 +7,7 @@ import 'package:air/core/core.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
 import 'package:air/l10n/l10n.dart';

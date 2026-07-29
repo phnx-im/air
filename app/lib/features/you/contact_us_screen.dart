@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/foundations/type_scale.dart';
@@ -192,7 +192,9 @@ class _EmailForm extends HookWidget {
                         child: SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            strokeWidth: Strokes.px2,
+                          ),
                         ),
                       ),
                     )
@@ -211,13 +213,13 @@ class _EmailForm extends HookWidget {
 
             // Submit Button
             Opacity(
-              opacity: isUploadingLogs.value ? 0.4 : 1.0,
+              opacity: isUploadingLogs.value ? Opacities.alpha40 : 1.0,
               child: OutlinedButton(
                 style: const ButtonStyle(
                   shape: WidgetStatePropertyAll(
                     RoundedRectangleBorder(
                       borderRadius: BorderRadius.all(
-                        Radius.circular(Spacing.px12),
+                        Radius.circular(Radii.px12),
                       ),
                     ),
                   ),
@@ -295,6 +297,6 @@ class _UrlLauncher implements UrlLauncher {
 }
 
 const _outlineInputBorder = OutlineInputBorder(
-  borderRadius: BorderRadius.all(Radius.circular(Spacing.px16)),
+  borderRadius: BorderRadius.all(Radius.circular(Radii.px16)),
   borderSide: BorderSide(width: 0, style: BorderStyle.none),
 );

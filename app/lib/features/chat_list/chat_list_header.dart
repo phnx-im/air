@@ -6,7 +6,7 @@ import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/features/chat_list/add_contact_dialog.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/material/button_styles.dart';
 import 'package:air/ds/components/button_icon/glass_circle_button.dart';
 import 'package:air/ds/foundations/icons.dart';

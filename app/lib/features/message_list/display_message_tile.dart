@@ -4,7 +4,7 @@
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/primitives.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/foundations/type_scale.dart';
@@ -75,10 +75,10 @@ class _SystemMessageContent extends StatelessWidget {
       _ => Center(
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(Spacing.px16),
+            borderRadius: BorderRadius.circular(Radii.px16),
             border: Border.all(
               color: CustomColorScheme.of(context).separator.secondary,
-              width: 2,
+              width: Strokes.px2,
             ),
           ),
           padding: const EdgeInsets.symmetric(

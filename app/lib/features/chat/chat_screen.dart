@@ -10,7 +10,7 @@ import 'package:air/features/message_list/scroll_to_bottom_controller.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/message_list/message_cubit.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
 import 'package:air/ds/material/button_styles.dart';
 import 'package:air/ds/foundations/color_scheme.dart';

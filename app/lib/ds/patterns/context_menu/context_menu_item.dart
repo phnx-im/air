@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:io';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:flutter/material.dart';
@@ -21,7 +21,7 @@ class ContextMenuSeparator extends ContextMenuEntry {
       padding: const EdgeInsets.symmetric(vertical: Spacing.px8),
       child: Divider(
         height: 0,
-        thickness: 1,
+        thickness: Strokes.px1,
         color: CustomColorScheme.of(context).separator.primary,
       ),
     );

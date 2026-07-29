@@ -4,7 +4,7 @@
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/ds/foundations/icons.dart';
@@ -146,8 +146,8 @@ class _AttachmentFileStatus extends HookWidget {
           alignment: Alignment.center,
           children: [
             CircularProgressIndicator(
-              strokeWidth: 2,
-              backgroundColor: color.withValues(alpha: 0.1),
+              strokeWidth: Strokes.px2,
+              backgroundColor: color.withValues(alpha: Opacities.alpha10),
               valueColor: AlwaysStoppedAnimation<Color>(color),
               value: loaded / BigInt.from(size),
             ),

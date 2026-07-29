@@ -4,7 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/foundations/icons.dart';
@@ -127,7 +127,7 @@ class _SafetyCode extends HookWidget {
           : null,
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
+          borderRadius: BorderRadius.circular(Radii.px12),
           color: colors.backgroundBase.secondary,
         ),
         padding: const EdgeInsets.symmetric(

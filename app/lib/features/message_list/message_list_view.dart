@@ -6,7 +6,7 @@ import 'dart:async';
 import 'dart:math';
 
 import 'package:air/ds/foundations/motion.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

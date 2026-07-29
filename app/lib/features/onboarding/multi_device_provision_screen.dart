@@ -6,7 +6,7 @@ import 'package:air/core/core.dart';
 import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/components/constrained_width/constrained_width.dart';
@@ -361,7 +361,7 @@ class _CountdownRing extends HookWidget {
                     padding: const EdgeInsets.all(1),
                     child: CircularProgressIndicator(
                       value: controller.value,
-                      strokeWidth: 2,
+                      strokeWidth: Strokes.px2,
                       color: ringColor,
                       backgroundColor: colors.backgroundBase.tertiary,
                     ),
@@ -426,10 +426,10 @@ class _AwaitingLinkView extends StatelessWidget {
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(Spacing.px16),
+            borderRadius: BorderRadius.circular(Radii.px16),
             border: Border.all(
               color: colors.backgroundBase.quaternary,
-              width: 1,
+              width: Strokes.px1,
             ),
           ),
           padding: const EdgeInsets.all(Spacing.px16),

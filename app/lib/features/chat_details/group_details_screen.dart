@@ -7,7 +7,7 @@ import 'package:air/features/chat_details/mute_button.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/components/button/button.dart'
@@ -257,7 +257,7 @@ class _PeoplePreview extends HookWidget {
               if (i < previewIds.length)
                 Divider(
                   height: 1,
-                  thickness: 1,
+                  thickness: Strokes.px1,
                   color: colors.backgroundBase.primary,
                 ),
             ],
@@ -295,9 +295,9 @@ class _PeoplePreviewEntry extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
 
     final borderRadius = switch (position) {
-      _PeopleEntryPosition.single => BorderRadius.circular(16),
+      _PeopleEntryPosition.single => BorderRadius.circular(Radii.px16),
       _PeopleEntryPosition.first => const BorderRadius.vertical(
-        top: Radius.circular(16),
+        top: Radius.circular(Radii.px16),
       ),
       _PeopleEntryPosition.middle => BorderRadius.zero,
       _PeopleEntryPosition.last => BorderRadius.zero,
@@ -332,12 +332,12 @@ class _ActionsRow extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
     final loc = AppLocalizations.of(context);
     final borderRadius = switch (position) {
-      _PeopleEntryPosition.single => BorderRadius.circular(16),
+      _PeopleEntryPosition.single => BorderRadius.circular(Radii.px16),
       _PeopleEntryPosition.first => const BorderRadius.vertical(
-        top: Radius.circular(16),
+        top: Radius.circular(Radii.px16),
       ),
       _PeopleEntryPosition.last => const BorderRadius.vertical(
-        bottom: Radius.circular(16),
+        bottom: Radius.circular(Radii.px16),
       ),
       _PeopleEntryPosition.middle => BorderRadius.zero,
     };
@@ -364,7 +364,7 @@ class _ActionsRow extends StatelessWidget {
                       width: 32,
                       decoration: BoxDecoration(
                         color: colors.backgroundElevated.primary,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(Radii.px16),
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(Spacing.px8),
@@ -407,7 +407,7 @@ class _ActionsRow extends StatelessWidget {
                       width: 32,
                       decoration: BoxDecoration(
                         color: colors.backgroundElevated.primary,
-                        borderRadius: BorderRadius.circular(16),
+                        borderRadius: BorderRadius.circular(Radii.px16),
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(Spacing.px8),

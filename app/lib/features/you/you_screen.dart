@@ -7,7 +7,7 @@ import 'dart:io';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/material/button_styles.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
@@ -431,7 +431,7 @@ class _InvitationCodesBadge extends StatelessWidget {
       height: 24,
       decoration: BoxDecoration(
         color: colors.function.success,
-        borderRadius: BorderRadius.circular(1000),
+        borderRadius: BorderRadius.circular(Radii.full),
       ),
       child: Center(
         child: Text(
@@ -812,7 +812,7 @@ class _FieldContainer extends StatelessWidget {
         child: Container(
           decoration: BoxDecoration(
             color: colors.backgroundBase.secondary,
-            borderRadius: BorderRadius.circular(Spacing.px16),
+            borderRadius: BorderRadius.circular(Radii.px16),
           ),
           padding: const EdgeInsets.symmetric(horizontal: Spacing.px12),
           height: height,

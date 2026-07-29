@@ -4,7 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/components/scaffold/app_scaffold.dart';
@@ -163,7 +163,7 @@ class _InvitationCodesList extends StatelessWidget {
     return Container(
       decoration: BoxDecoration(
         color: colors.backgroundElevated.primary,
-        borderRadius: BorderRadius.circular(Spacing.px16),
+        borderRadius: BorderRadius.circular(Radii.px16),
       ),
       child: Column(
         children: invitationCodes.isEmpty
@@ -180,7 +180,7 @@ class _InvitationCodesList extends StatelessWidget {
                       if (code != invitationCodes.last)
                         Divider(
                           height: 1,
-                          thickness: 1,
+                          thickness: Strokes.px1,
                           color: colors.separator.primary,
                         ),
                     ],
@@ -203,7 +203,7 @@ class _InvitationCodeItem extends StatelessWidget {
     return InkWell(
       onTap: () => _handleCopy(context),
       mouseCursor: SystemMouseCursors.click,
-      borderRadius: BorderRadius.circular(Spacing.px16),
+      borderRadius: BorderRadius.circular(Radii.px16),
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: Spacing.px16,
@@ -262,7 +262,7 @@ class _InvitationTokenItem extends StatelessWidget {
     return InkWell(
       onTap: () => _handleUnlock(context),
       mouseCursor: SystemMouseCursors.click,
-      borderRadius: BorderRadius.circular(Spacing.px16),
+      borderRadius: BorderRadius.circular(Radii.px16),
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: Spacing.px16,

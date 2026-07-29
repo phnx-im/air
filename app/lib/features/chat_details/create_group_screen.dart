@@ -11,7 +11,7 @@ import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/foundations/icons.dart';
@@ -226,7 +226,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
-                      strokeWidth: 2,
+                      strokeWidth: Strokes.px2,
                       valueColor: AlwaysStoppedAnimation<Color>(
                         colors.text.primary,
                       ),
@@ -324,7 +324,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                           final isSupported =
                               features?.isSupported(isApq: isApq) ?? false;
                           return Opacity(
-                            opacity: isSupported ? 1.0 : 0.5,
+                            opacity: isSupported ? 1.0 : Opacities.alpha50,
                             child: _SelectedParticipant(
                               profile: profile,
                               onRemove: () => _removeContact(context, userId),
@@ -451,7 +451,7 @@ class _GroupPicturePicker extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
     return InkWell(
       onTap: onPick,
-      borderRadius: BorderRadius.circular(72),
+      borderRadius: BorderRadius.circular(Radii.full),
       child: Ink(
         width: 192,
         height: 192,
@@ -548,7 +548,7 @@ class _SelectedParticipant extends StatelessWidget {
                       color: colors.text.primary,
                       border: Border.all(
                         color: colors.backgroundBase.primary,
-                        width: 1,
+                        width: Strokes.px1,
                       ),
                     ),
                     child: Center(
@@ -590,7 +590,7 @@ class _CircularBackButton extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
       child: InkWell(
         onTap: onPressed,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(Radii.full),
         child: Ink(
           width: 32,
           height: 32,
@@ -626,7 +626,7 @@ class _SwitchField extends StatelessWidget {
       child: Container(
         decoration: BoxDecoration(
           color: colors.backgroundBase.secondary,
-          borderRadius: BorderRadius.circular(Spacing.px16),
+          borderRadius: BorderRadius.circular(Radii.px16),
         ),
         padding: const EdgeInsets.symmetric(horizontal: Spacing.px12),
         height: 42,

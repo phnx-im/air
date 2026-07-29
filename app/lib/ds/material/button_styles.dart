@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/material/text_theme.dart';
 import 'package:flutter/material.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
@@ -85,7 +85,7 @@ class CustomOutlineButtonStyle extends ButtonStyle {
                width: 0,
                style: BorderStyle.none,
              ),
-             borderRadius: BorderRadius.circular(12),
+             borderRadius: BorderRadius.circular(Radii.px12),
            ),
          ),
          textStyle: WidgetStatePropertyAll(baselineTextTheme.labelLarge!),

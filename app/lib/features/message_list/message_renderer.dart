@@ -7,7 +7,7 @@ import 'dart:typed_data';
 
 import 'package:air/core/api/markdown.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/primitives.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
@@ -66,13 +66,13 @@ Widget buildBlockElement(
         vertical: Spacing.px8,
       ),
       decoration: BoxDecoration(
-        borderRadius: const BorderRadius.all(Radius.circular(12)),
+        borderRadius: const BorderRadius.all(Radius.circular(Radii.px12)),
         border: Border(
           left: BorderSide(
             color: isSender
                 ? CustomColorScheme.of(context).message.selfQuoteBorder
                 : CustomColorScheme.of(context).message.otherQuoteBorder,
-            width: 4,
+            width: Strokes.px4,
           ),
         ),
         color: isSender
@@ -177,8 +177,8 @@ Widget buildBlockElement(
         color: isSender
             ? CustomColorScheme.of(context).message.selfTableBorder
             : CustomColorScheme.of(context).message.otherTableBorder,
-        width: 2,
-        borderRadius: BorderRadius.circular(8),
+        width: Strokes.px2,
+        borderRadius: BorderRadius.circular(Radii.px8),
       ),
       defaultColumnWidth: const IntrinsicColumnWidth(),
       children: [
@@ -267,7 +267,7 @@ Widget buildBlockElement(
         border: Border(
           left: BorderSide(
             color: CustomColorScheme.of(context).separator.primary,
-            width: 4,
+            width: Strokes.px4,
           ),
         ),
         color: CustomColorScheme.of(context).function.warning.primary,

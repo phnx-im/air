@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
@@ -22,7 +22,7 @@ class AppDialog extends StatelessWidget {
     return Dialog(
       backgroundColor: backgroundColor,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(Spacing.px24),
+        borderRadius: BorderRadius.circular(Radii.px24),
       ),
       child: Container(
         constraints: BoxConstraints(maxWidth: maxWidth ?? 340),
@@ -58,7 +58,7 @@ class AppDialogContainer extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 360),
         decoration: BoxDecoration(
           color: backgroundColor,
-          borderRadius: BorderRadius.circular(Spacing.px24),
+          borderRadius: BorderRadius.circular(Radii.px24),
         ),
         padding: const EdgeInsets.only(
           left: Spacing.px16,
@@ -103,7 +103,7 @@ class AppDialogProgressButton extends HookWidget {
               width: 16,
               height: 16,
               child: CircularProgressIndicator(
-                strokeWidth: 2,
+                strokeWidth: Strokes.px2,
                 valueColor: progressColor != null
                     ? AlwaysStoppedAnimation<Color>(progressColor!)
                     : null,
@@ -126,6 +126,6 @@ const appDialogInputDecoration = InputDecoration(
 );
 
 const _outlineInputBorder = OutlineInputBorder(
-  borderRadius: BorderRadius.all(Radius.circular(Spacing.px16)),
+  borderRadius: BorderRadius.all(Radius.circular(Radii.px16)),
   borderSide: BorderSide(width: 0, style: BorderStyle.none),
 );

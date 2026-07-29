@@ -12,7 +12,7 @@ import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/platform/haptics.dart';
 
 import 'package:air/ds/components/emoji/centered_emoji.dart';
@@ -20,13 +20,13 @@ import 'package:air/ds/components/emoji/centered_emoji.dart';
 // Picker metrics.
 const double _emojiCellSize = 52;
 const double _emojiGlyphSize = 32;
-const double _panelRadius = Spacing.px20;
+const double _panelRadius = Radii.px20;
 const double _panelPadding = Spacing.px16;
 const double _searchHeight = 40;
 
 /// Border for the search field.
 final _pillBorder = OutlineInputBorder(
-  borderRadius: BorderRadius.circular(1000),
+  borderRadius: BorderRadius.circular(Radii.full),
   borderSide: BorderSide.none,
 );
 

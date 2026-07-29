@@ -14,7 +14,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/message_list/display_message_tile.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
 import 'package:air/ds/material/button_styles.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
@@ -145,7 +145,7 @@ class _ChatSeparator extends StatelessWidget {
     }
     return Divider(
       height: 0.5,
-      thickness: 0.5,
+      thickness: Strokes.px0_5,
       indent: Spacing.px16 + Spacing.px48 + Spacing.px12,
       endIndent: Spacing.px16,
       color: color,
@@ -491,7 +491,7 @@ class _UnreadBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(1000),
+        borderRadius: BorderRadius.circular(Radii.full),
       ),
       child: Text(
         badgeText,

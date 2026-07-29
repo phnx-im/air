@@ -4,7 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/components/button/button.dart' show AppButtonTone;
@@ -53,7 +53,9 @@ class RemoveMemberButton extends StatelessWidget {
         ),
         shape: compact
             ? WidgetStatePropertyAll(
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(Radii.px8),
+                ),
               )
             : null,
         minimumSize: compact

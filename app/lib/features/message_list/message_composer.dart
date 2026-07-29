@@ -29,7 +29,7 @@ import 'package:path_provider/path_provider.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/ds/foundations/effects.dart';
@@ -1089,7 +1089,7 @@ class InReplyToBubble extends StatelessWidget {
     final innerContent = Container(
       decoration: BoxDecoration(
         border: Border(
-          left: BorderSide(color: color.separator.primary, width: 1),
+          left: BorderSide(color: color.separator.primary, width: Strokes.px1),
         ),
       ),
       child: Padding(
@@ -1128,7 +1128,7 @@ class InReplyToBubble extends StatelessWidget {
         vertical: Spacing.px8,
       ),
       decoration: BoxDecoration(
-        borderRadius: const BorderRadius.all(Radius.circular(Spacing.px8)),
+        borderRadius: const BorderRadius.all(Radius.circular(Radii.px8)),
         color: backgroundColor,
       ),
       child: showJumpIcon
