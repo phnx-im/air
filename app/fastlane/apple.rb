@@ -23,7 +23,9 @@ def apple_platform(platform)
       screenshots_dir: "ios",
       flutter_target: "ios",
       # Signing happens in the build_app step, not while writing the config.
-      flutter_debug_options: ["--no-codesign"],
+      flutter_unsigned_options: ["--no-codesign"],
+      # iOS device builds are arm64-only, nothing to narrow down.
+      unsigned_xcargs: nil,
       xcode_dir: "ios",
     }
   when :macos
@@ -40,7 +42,12 @@ def apple_platform(platform)
       asc_platform: "osx",
       screenshots_dir: "macos",
       flutter_target: "macos",
-      flutter_debug_options: [],
+      flutter_unsigned_options: [],
+      # Unsigned builds are smoke builds that are never shipped. Skip the
+      # universal binary and build only the runner's native architecture,
+      # halving the uncacheable Rust LTO work (cargokit builds the Rust
+      # targets listed in ARCHS).
+      unsigned_xcargs: "ONLY_ACTIVE_ARCH=YES",
       xcode_dir: "macos",
     }
   else
@@ -132,8 +139,10 @@ def apple_build(platform, with_signing:, api_key:)
 
   sh "just flutter pub get"
 
-  # Build with flutter first to create the necessary ephemeral files
-  flutter_options = skip_signing ? ["--debug"] + target[:flutter_debug_options] : ["--release"]
+  # Build with flutter first to create the necessary ephemeral files.
+  # Unsigned builds also compile the Release configuration, so that PR builds
+  # hit the sccache warmed on main; only signing/packaging is skipped.
+  flutter_options = ["--release"] + (skip_signing ? target[:flutter_unsigned_options] : [])
   sh "just flutter build #{target[:flutter_target]} --flavor production " \
      "--config-only #{flutter_options.join(' ')} --build-number=#{build_number}"
 
@@ -144,11 +153,15 @@ def apple_build(platform, with_signing:, api_key:)
   xcode_options = {
     workspace: "#{target[:xcode_dir]}/Runner.xcworkspace",
     scheme: "Runner",
-    configuration: skip_signing ? "Debug" : "Release",
+    configuration: "Release",
     skip_codesigning: skip_signing,
     skip_archive: skip_signing,
     export_method: "app-store",
   }
+
+  if skip_signing && target[:unsigned_xcargs]
+    xcode_options[:xcargs] = target[:unsigned_xcargs]
+  end
 
   # gym exposes a different skip option per package format.
   case platform
