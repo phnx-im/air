@@ -28,6 +28,7 @@ pub(crate) use {pending::PendingConnectionInfo, status::StatusRecord};
 
 mod draft;
 pub(crate) mod messages;
+pub(crate) mod notification_rebuild;
 pub(crate) mod pending;
 pub(crate) mod persistence;
 pub(crate) mod reactions;
@@ -94,6 +95,7 @@ pub struct Chat {
     pub status: ChatStatus,
     pub chat_type: ChatType,
     pub muted_until: Option<ChatMuted>,
+    pub notified_until: Option<DateTime<Utc>>,
 }
 
 impl Chat {
@@ -107,6 +109,7 @@ impl Chat {
             status: ChatStatus::Active,
             chat_type: ChatType::HandleConnection(username),
             muted_until: None,
+            notified_until: None,
         }
     }
 
@@ -120,6 +123,7 @@ impl Chat {
             status: ChatStatus::Active,
             chat_type: ChatType::TargetedMessageConnection(user_id),
             muted_until: None,
+            notified_until: None,
         }
     }
 
@@ -133,6 +137,7 @@ impl Chat {
             status: ChatStatus::Active,
             chat_type: ChatType::Group(attributes),
             muted_until: None,
+            notified_until: None,
         }
     }
 
@@ -145,6 +150,7 @@ impl Chat {
             status: ChatStatus::Active,
             chat_type: ChatType::PendingConnection(user_id),
             muted_until: None,
+            notified_until: None,
         }
     }
 

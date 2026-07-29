@@ -889,10 +889,13 @@ impl TestBackend {
                 .fully_process_qs_messages(recipient_qs_messages)
                 .await;
 
-            let message = messages.new_messages.last().unwrap();
-            let chat = recipient_user.chat(&message.chat_id()).await.unwrap();
-            let _group_id = chat.group_id();
+            // Edits are applied in place and reported as a silent notification change, not as a
+            // new message.
+            assert!(messages.new_messages.is_empty());
+            assert!(messages.chats_with_changed_notifications.contains(&chat_id));
 
+            // The edited message keeps its timestamp, so it is still the last message.
+            let message = recipient_user.last_message(chat_id).await.unwrap().unwrap();
             assert_eq!(message.message(), target_message.message());
         }
         message.id()
@@ -910,6 +913,8 @@ impl TestBackend {
         let message = sender.message(message_id).await.unwrap().unwrap();
         let chat_id = message.chat_id();
         let message_id = message.id();
+        // DS-assigned and identical on all clients; survives the deletion unchanged.
+        let deleted_at = message.timestamp();
 
         // Before sending a message, the sender must first fetch and process its QS messages.
         let sender_qs_messages = sender.qs_fetch_messages().await.unwrap();
@@ -939,7 +944,20 @@ impl TestBackend {
                 .fully_process_qs_messages(recipient_qs_messages)
                 .await;
 
-            let received_message = messages.new_messages.last().unwrap();
+            // Deletes are applied in place and reported as a silent notification change, not as
+            // a new message.
+            assert!(messages.new_messages.is_empty());
+            assert!(messages.chats_with_changed_notifications.contains(&chat_id));
+
+            // The deleted message is not necessarily the last message in the chat; find the
+            // recipient's copy by the shared DS timestamp.
+            let received_message = recipient_user
+                .messages(chat_id, 100)
+                .await
+                .unwrap()
+                .into_iter()
+                .find(|message| message.timestamp() == deleted_at)
+                .unwrap();
             // Verify the message was deleted (has NullPart content)
             assert!(received_message.message().is_deleted());
         }

@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use std::collections::HashMap;
+
 use aircommon::{
     identifiers::{MimiId, UserId},
     time::TimeStamp,
@@ -11,8 +13,11 @@ use mimi_room_policy::VerifiedRoomState;
 use tracing::error;
 
 use crate::{
-    ChatAttributes, ChatType, MessageDraft, MessageId,
-    chats::{Chat, PendingConnectionInfo, messages::ChatMessage},
+    ChatAttributes, ChatType, MessageDraft, MessageId, UserProfile,
+    chats::{
+        Chat, PendingConnectionInfo, messages::ChatMessage,
+        notification_rebuild::ChatNotificationRebuildSet,
+    },
     groups::Group,
     job::{chat_operation::ChatOperation, create_chat::CreateChat},
     utils::image::resize_profile_image,
@@ -355,4 +360,34 @@ impl CoreUser {
         }
         bail!("Room does not exist")
     }
+
+    pub async fn chat_notification_rebuild_set(
+        &self,
+        chat_id: ChatId,
+    ) -> Result<ChatNotificationRebuild> {
+        let rebuild_set =
+            Chat::load_notification_rebuild_set(self.db().read().await?, chat_id, self.user_id())
+                .await?;
+
+        let mut participants = HashMap::new();
+        for user_id in rebuild_set.participant_ids() {
+            let profile = self.user_profile(&user_id).await;
+            participants.insert(user_id, profile);
+        }
+
+        let own_profile = self.own_user_profile().await?;
+
+        Ok(ChatNotificationRebuild {
+            rebuild_set,
+            participants,
+            own_profile,
+        })
+    }
+}
+
+pub struct ChatNotificationRebuild {
+    pub rebuild_set: ChatNotificationRebuildSet,
+    /// Distinct sender/reactor profiles referenced in `rebuild_set`
+    pub participants: HashMap<UserId, UserProfile>,
+    pub own_profile: UserProfile,
 }

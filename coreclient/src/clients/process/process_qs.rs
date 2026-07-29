@@ -72,6 +72,7 @@ pub struct QsMessageOutcome {
     new_connection: Option<ChatId>,
     new_messages: Vec<ChatMessage>,
     reaction_notifications: Vec<ReactionNotification>,
+    changed_chats: Vec<ChatId>,
 }
 
 impl QsMessageOutcome {
@@ -97,10 +98,12 @@ impl QsMessageOutcome {
     fn messages(
         messages: Vec<ChatMessage>,
         reaction_notifications: Vec<ReactionNotification>,
+        changed_chats: Vec<ChatId>,
     ) -> QsMessageOutcome {
         Self {
             new_messages: messages,
             reaction_notifications,
+            changed_chats,
             ..Self::empty()
         }
     }
@@ -115,6 +118,11 @@ pub struct ProcessedQsMessages {
     pub new_connections: Vec<ChatId>,
     /// Reactions on our own messages, for which we should notify the user.
     pub reaction_notifications: Vec<ReactionNotification>,
+    // Chats whose local notification content changed without necessarily producing a notification.
+    //
+    // For example, a message edit, remote delete, or a reaction retraction on one of our own
+    // messages is such a change.
+    pub chats_with_changed_notifications: Vec<ChatId>,
 }
 
 /// A reaction by another user on a message we sent.
@@ -136,6 +144,7 @@ impl ProcessedQsMessages {
             && self.errors.is_empty()
             && self.new_connections.is_empty()
             && self.reaction_notifications.is_empty()
+            && self.chats_with_changed_notifications.is_empty()
     }
 
     fn merge(
@@ -145,12 +154,14 @@ impl ProcessedQsMessages {
             new_connection,
             new_messages,
             reaction_notifications,
+            changed_chats,
         }: QsMessageOutcome,
     ) {
         self.new_chats.extend(new_chat);
         self.new_connections.extend(new_connection);
         self.new_messages.extend(new_messages);
         self.reaction_notifications.extend(reaction_notifications);
+        self.chats_with_changed_notifications.extend(changed_chats);
     }
 }
 
@@ -160,6 +171,7 @@ struct HandledMessages {
     new_messages: Vec<TimestampedMessage>,
     updated_messages: Vec<ChatMessage>,
     reaction_notifications: Vec<ReactionNotification>,
+    changed_chats: Vec<ChatId>,
 }
 
 impl CoreUser {
@@ -767,6 +779,7 @@ impl CoreUser {
             new_messages,
             updated_messages,
             reaction_notifications,
+            mut changed_chats,
         } = match processed_message.into_content() {
             ProcessedMessageContent::ApplicationMessage(application_message) => {
                 // Drop messages in 1:1 blocked chats Note: In group chats, messages
@@ -861,24 +874,30 @@ impl CoreUser {
             }
         };
 
-        let mut messages = Self::store_new_messages(&mut *txn, chat_id, new_messages).await?;
-        for updated_message in updated_messages {
+        let messages = Self::store_new_messages(&mut *txn, chat_id, new_messages).await?;
+
+        // Edits and remote deletes only rebuild the chat notification silently, they must not be
+        // returned as new messages, which would alert like a new message.
+        for updated_message in &updated_messages {
+            changed_chats.push(updated_message.chat_id());
             updated_message.update(&mut *txn).await?;
-            messages.push(updated_message);
         }
 
-        // Schedule delivery receipts for incoming messages
-        let delivery_receipts = messages.iter().filter_map(|message| {
-            if let Message::Content(content_message) = message.message()
-                && let Disposition::Render | Disposition::Attachment =
-                    content_message.content().nested_part.disposition()
-                && let Some(mimi_id) = content_message.mimi_id()
-            {
-                Some((message.id(), mimi_id, MessageStatus::Delivered))
-            } else {
-                None
-            }
-        });
+        // Schedule delivery receipts for incoming new and updated messages
+        let delivery_receipts = messages
+            .iter()
+            .chain(&updated_messages)
+            .filter_map(|message| {
+                if let Message::Content(content_message) = message.message()
+                    && let Disposition::Render | Disposition::Attachment =
+                        content_message.content().nested_part.disposition()
+                    && let Some(mimi_id) = content_message.mimi_id()
+                {
+                    Some((message.id(), mimi_id, MessageStatus::Delivered))
+                } else {
+                    None
+                }
+            });
 
         self.outbound_service()
             .schedule_receipts(&mut *txn, chat_id, delivery_receipts)
@@ -889,7 +908,11 @@ impl CoreUser {
             Self::schedule_fetch_user_profile(&mut *txn, profile_info).await?;
         }
 
-        Ok(QsMessageOutcome::messages(messages, reaction_notifications))
+        Ok(QsMessageOutcome::messages(
+            messages,
+            reaction_notifications,
+            changed_chats,
+        ))
     }
 
     /// Returns a message if it should be stored, otherwise an empty vec.
@@ -943,15 +966,14 @@ impl CoreUser {
                 }
             )
         {
-            let reaction_notifications = self
+            let (notification, changed_chat) = self
                 .handle_reaction(txn, group, content, sender, ds_timestamp)
-                .await?
-                .into_iter()
-                .collect();
+                .await?;
             // Reactions are not stored as messages; the targeted message is
             // notified as updated from within the handler.
             return Ok(HandledMessages {
-                reaction_notifications,
+                reaction_notifications: notification.into_iter().collect(),
+                changed_chats: changed_chat.into_iter().collect(),
                 ..Default::default()
             });
         }
@@ -1000,6 +1022,10 @@ impl CoreUser {
     }
 
     /// Apply an incoming reaction (add or retraction) to the targeted message.
+    ///
+    /// Returns a notification if another user reacted to one of our own
+    /// messages, and the chat id whose notification content changed silently
+    /// if a reaction on one of our own messages was retracted.
     async fn handle_reaction(
         &self,
         txn: &mut WriteDbTransaction<'_>,
@@ -1007,34 +1033,38 @@ impl CoreUser {
         content: &MimiContent,
         sender: &UserId,
         ds_timestamp: TimeStamp,
-    ) -> anyhow::Result<Option<ReactionNotification>> {
+    ) -> anyhow::Result<(Option<ReactionNotification>, Option<ChatId>)> {
         // Retraction: `replaces` the previously sent reaction with an empty body.
         if let Some(replaces) = content.replaces.as_ref() {
             let replaced_mimi_id = MimiId::from_slice(replaces)?;
+            let mut changed_chat = None;
             if let Some(target_mimi_id) =
                 Reaction::delete_by_mimi_id(&mut *txn, &replaced_mimi_id).await?
                 && let Some(target) =
                     ChatMessage::load_by_mimi_id(&mut *txn, &target_mimi_id).await?
             {
                 txn.notifier().update(target.id());
+                if target.message().sender() == Some(self.user_id()) {
+                    changed_chat = Some(target.chat_id());
+                }
             }
-            return Ok(None);
+            return Ok((None, changed_chat));
         }
 
         // Add: `in_reply_to` references the reacted-to message.
         let Some(in_reply_to) = content.in_reply_to.as_ref() else {
             warn!("Received reaction without in_reply_to, ignoring");
-            return Ok(None);
+            return Ok((None, None));
         };
         let target_mimi_id = MimiId::from_slice(in_reply_to)?;
 
         let Some(target) = ChatMessage::load_by_mimi_id(&mut *txn, &target_mimi_id).await? else {
             warn!("Received reaction for unknown message, ignoring");
-            return Ok(None);
+            return Ok((None, None));
         };
 
         let NestedPart::SinglePart { content: body, .. } = &content.nested_part else {
-            return Ok(None);
+            return Ok((None, None));
         };
         let emoji = String::from_utf8(body.clone()).context("Reaction emoji is not valid UTF-8")?;
 
@@ -1054,12 +1084,13 @@ impl CoreUser {
         reaction.store(&mut *txn).await?;
         txn.notifier().update(target.id());
 
-        Ok(notify.then(|| ReactionNotification {
+        let notification = notify.then(|| ReactionNotification {
             chat_id,
             reactor: sender.clone(),
             emoji,
             original_chat_message: target,
-        }))
+        });
+        Ok((notification, None))
     }
 
     async fn read_receipts_enabled(&self) -> bool {
@@ -1405,6 +1436,8 @@ impl CoreUser {
 
         debug!(elapsed = ?started.elapsed(), num_messages, "Processed QS messages");
 
+        result.chats_with_changed_notifications.sort_unstable();
+        result.chats_with_changed_notifications.dedup();
         result
     }
 
