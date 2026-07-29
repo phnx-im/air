@@ -1,0 +1,158 @@
+// SPDX-FileCopyrightText: 2024 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import 'package:air/core/core.dart';
+import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/motion.dart';
+import 'package:air/features/user/user_cubit.dart';
+import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
+
+import 'package:air/features/message_list/display_message_tile.dart';
+import 'package:air/features/message_list/message_cubit.dart';
+import 'package:air/features/message_list/text_message_tile.dart';
+
+class MessageRowContainer extends StatelessWidget {
+  const MessageRowContainer({
+    super.key,
+    required this.isConnectionChat,
+    required this.animated,
+  });
+
+  final bool isConnectionChat;
+
+  /// Wraps the tile in [_AnimatedMessage] to play the entrance animation on
+  /// mount. Rebuilds within the same mount preserve the controller's progress;
+  /// flipping back to `false` (or never entering `true`) renders the tile
+  /// directly.
+  final bool animated;
+
+  @override
+  Widget build(BuildContext context) {
+    final userId = context.select((UserCubit cubit) => cubit.state.userId);
+    final (
+      messageId,
+      message,
+      inReplyToMessage,
+      timestamp,
+      position,
+      status,
+      reactions,
+    ) = context.select(
+      (MessageCubit cubit) => (
+        cubit.state.message.id,
+        cubit.state.message.message,
+        cubit.state.message.inReplyToMessage,
+        cubit.state.message.timestamp,
+        cubit.state.message.position,
+        cubit.state.message.status,
+        cubit.state.message.reactions,
+      ),
+    );
+    final isSender = switch (message) {
+      UiMessage_Content(field0: final content) => content.sender == userId,
+      UiMessage_Display() => false,
+    };
+
+    // Don't hide messages in blocked connection chats
+    final adjustedStatus = switch (status) {
+      UiMessageStatus.hidden when isConnectionChat => UiMessageStatus.sent,
+      _ => status,
+    };
+
+    final tile = ListTile(
+      contentPadding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+      dense: true,
+      visualDensity: const VisualDensity(horizontal: 0, vertical: -4),
+      minVerticalPadding: 0,
+      title: Container(
+        alignment: AlignmentDirectional.centerStart,
+        child: switch (message) {
+          UiMessage_Content(field0: final content) => TextMessageTile(
+            messageId: messageId,
+            contentMessage: content,
+            inReplyToMessage: inReplyToMessage,
+            timestamp: timestamp,
+            flightPosition: position,
+            status: adjustedStatus,
+            isSender: isSender,
+            showSender: !isConnectionChat,
+            reactions: reactions,
+            ownUserId: userId,
+          ),
+          UiMessage_Display(field0: final display) => DisplayMessageTile(
+            display,
+            timestamp,
+          ),
+        },
+      ),
+      selected: false,
+    );
+
+    return animated
+        ? _AnimatedMessage(position: position, isSender: isSender, child: tile)
+        : tile;
+  }
+}
+
+class _AnimatedMessage extends StatefulWidget {
+  const _AnimatedMessage({
+    required this.position,
+    required this.isSender,
+    required this.child,
+  });
+
+  final UiFlightPosition position;
+  final bool isSender;
+  final Widget child;
+
+  @override
+  State<_AnimatedMessage> createState() => _AnimatedMessageState();
+}
+
+class _AnimatedMessageState extends State<_AnimatedMessage>
+    with SingleTickerProviderStateMixin {
+  late AnimationController _controller;
+
+  @override
+  void initState() {
+    super.initState();
+    _controller = AnimationController(vsync: this, duration: motionShort);
+    _controller.forward();
+  }
+
+  @override
+  void dispose() {
+    _controller.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final fixedStartHeight = switch (widget.position) {
+      UiFlightPosition.start || UiFlightPosition.middle => 0.0,
+      // FIXME: magic number
+      // Technically, this is the height of the timestamp and checkmark for the read message,
+      // however the value is exactly the height + spacing.
+      UiFlightPosition.single || UiFlightPosition.end => 27.0,
+    };
+
+    final animation = CurvedAnimation(parent: _controller, curve: motionEasing);
+
+    return Container(
+      constraints: BoxConstraints(minHeight: fixedStartHeight),
+      child: SizeTransition(
+        axis: Axis.vertical,
+        sizeFactor: animation,
+        child: ScaleTransition(
+          scale: animation,
+          alignment: widget.isSender
+              ? Alignment.bottomRight
+              : Alignment.bottomLeft,
+          child: widget.child,
+        ),
+      ),
+    );
+  }
+}

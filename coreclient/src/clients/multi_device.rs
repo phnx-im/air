@@ -48,6 +48,7 @@ use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
 use tracing::{debug, error, info, warn};
 use url::Url;
+use uuid::Uuid;
 
 use crate::groups::self_group::SelfGroup;
 use crate::{
@@ -742,6 +743,8 @@ impl CoreUser {
                     qs_user_id,
                     qs_client_id,
                     user_id: user_id.clone(),
+                    // Each linked device mints its own client id.
+                    client_id: Uuid::new_v4(),
                     self_group_id: Some(self_group_id),
                     self_group_signing_key: Some(self_group_signing_key),
                 }

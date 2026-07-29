@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-export 'app_localizations.dart' show AppLocalizations;
-export 'app_localizations_extension.dart' show AppLocalizationsExtension;
-export 'app_locale_cubit.dart' show AppLocaleCubit;
+export 'package:air/l10n/app_localizations.dart' show AppLocalizations;
+export 'package:air/l10n/app_localizations_extension.dart'
+    show AppLocalizationsExtension;
+export 'package:air/l10n/app_locale_cubit.dart' show AppLocaleCubit;
