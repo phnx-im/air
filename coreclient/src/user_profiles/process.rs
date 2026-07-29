@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::ClientCredential,
+    credentials::UserCredential,
     crypto::{indexed_aead::keys::UserProfileKeyIndex, signatures::signable::Verifiable as _},
     identifiers::UserId,
 };
@@ -28,7 +28,7 @@ impl ExistingUserProfile {
     pub(crate) fn process_decrypted_user_profile(
         self,
         user_profile: VerifiableUserProfile,
-        credential: &ClientCredential,
+        credential: &UserCredential,
     ) -> Result<PersistableUserProfile, UserProfileValidationError> {
         let unvalidated_user_profile: UnvalidatedUserProfile =
             user_profile.verify(credential.verifying_key())?;

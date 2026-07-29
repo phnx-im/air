@@ -127,12 +127,12 @@ impl OutboundServiceContext {
 
             let mut connection = self.db.write().await?;
             for ProfileInfo {
-                client_credential,
+                user_credential,
                 user_profile_key,
             } in profile_infos.members
             {
                 if let Err(error) =
-                    FetchUserProfileOperation::new(client_credential, user_profile_key)
+                    FetchUserProfileOperation::new(user_credential, user_profile_key)
                         .into_operation()
                         .enqueue(&mut connection)
                         .await

@@ -25,7 +25,6 @@ use crate::{
     codec::PersistenceCodec,
     crypto::{
         Labeled,
-        aead::Ciphertext,
         errors::KeyGenerationError,
         hash::{Hash, Hashable},
         signatures::{
@@ -156,7 +155,7 @@ pub struct AsIntermediateCredentialCsr {
     pub version: AirProtocolVersion,
     pub user_domain: Fqdn,
     pub signature_scheme: SignatureScheme,
-    pub verifying_key: AsIntermediateVerifyingKey, // PK used to sign client credentials
+    pub verifying_key: AsIntermediateVerifyingKey, // PK used to sign user credentials
 }
 
 impl AsIntermediateCredentialCsr {
@@ -374,24 +373,26 @@ impl VerifiedStruct<VerifiableAsIntermediateCredential> for AsIntermediateCreden
     }
 }
 
-const CLIENT_CREDENTIAL_LABEL: &str = "Client Credential";
-const DEFAULT_CLIENT_CREDENTIAL_LIFETIME: Duration = Duration::days(90);
+// The label value predates the rename from "client credential" and is baked into
+// existing signatures. It must not be changed.
+const USER_CREDENTIAL_LABEL: &str = "Client Credential";
+const DEFAULT_USER_CREDENTIAL_LIFETIME: Duration = Duration::days(90);
 
 // WARNING: If this type is changed, a new variant of the
-// VersionedClientCredential(Ref) must be created and the `FromSql` and `ToSql`
-// implementations of `ClientCredential` must be updated accordingly.
+// VersionedUserCredential(Ref) must be created and the `FromSql` and `ToSql`
+// implementations of `UserCredential` must be updated accordingly.
 #[derive(
     Debug, Clone, PartialEq, Eq, TlsDeserializeBytes, TlsSerialize, TlsSize, Serialize, Deserialize,
 )]
-pub struct ClientCredentialCsr {
+pub struct UserCredentialCsr {
     pub version: AirProtocolVersion,
     pub user_id: UserId,
     pub signature_scheme: SignatureScheme,
     pub verifying_key: ClientVerifyingKey,
 }
 
-impl ClientCredentialCsr {
-    /// Generate a new [`ClientCredentialCsr`] with the given data and a freshly
+impl UserCredentialCsr {
+    /// Generate a new [`UserCredentialCsr`] with the given data and a freshly
     /// generated signature keypair.
     ///
     /// Returns the CSR and a preliminary signing key. The preliminary signing
@@ -414,25 +415,25 @@ impl ClientCredentialCsr {
 }
 
 // WARNING: If this type is changed, a new variant of the
-// VersionedClientCredential(Ref) must be created and the `FromSql` and `ToSql`
-// implementations of `ClientCredential` must be updated accordingly.
+// VersionedUserCredential(Ref) must be created and the `FromSql` and `ToSql`
+// implementations of `UserCredential` must be updated accordingly.
 #[derive(
     Debug, Clone, PartialEq, Eq, TlsDeserializeBytes, TlsSerialize, TlsSize, Serialize, Deserialize,
 )]
-pub struct ClientCredentialPayload {
-    pub csr: ClientCredentialCsr,
+pub struct UserCredentialPayload {
+    pub csr: UserCredentialCsr,
     pub expiration_data: ExpirationData,
     pub signer_fingerprint: Hash<AsIntermediateCredentialBody>,
 }
 
-impl ClientCredentialPayload {
+impl UserCredentialPayload {
     pub fn new(
-        csr: ClientCredentialCsr,
+        csr: UserCredentialCsr,
         expiration_data_option: Option<ExpirationData>,
         signer_fingerprint: Hash<AsIntermediateCredentialBody>,
     ) -> Self {
-        let expiration_data = expiration_data_option
-            .unwrap_or(ExpirationData::new(DEFAULT_CLIENT_CREDENTIAL_LIFETIME));
+        let expiration_data =
+            expiration_data_option.unwrap_or(ExpirationData::new(DEFAULT_USER_CREDENTIAL_LIFETIME));
         Self {
             csr,
             expiration_data,
@@ -450,29 +451,29 @@ impl ClientCredentialPayload {
     }
 }
 
-impl Signable for ClientCredentialPayload {
-    type SignedOutput = ClientCredential;
+impl Signable for UserCredentialPayload {
+    type SignedOutput = UserCredential;
 
     fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
         self.tls_serialize_detached()
     }
 
     fn label(&self) -> &str {
-        CLIENT_CREDENTIAL_LABEL
+        USER_CREDENTIAL_LABEL
     }
 }
 
-impl ClientCredentialPayload {
+impl UserCredentialPayload {
     pub fn identity(&self) -> &UserId {
         &self.csr.user_id
     }
 }
 
-impl Labeled for ClientCredential {
-    const LABEL: &'static str = CLIENT_CREDENTIAL_LABEL;
+impl Labeled for UserCredential {
+    const LABEL: &'static str = USER_CREDENTIAL_LABEL;
 }
 
-impl Hashable for ClientCredential {}
+impl Hashable for UserCredential {}
 
 /// A witness trait which guarantees that a leaf node credential was verified against an AS
 /// intermediate credential.
@@ -486,24 +487,24 @@ pub trait GroupStorageWitness {
 }
 
 // WARNING: If this type is changed, a new variant of the
-// VersionedClientCredential(Ref) must be created and the `FromSql` and `ToSql`
-// implementations of `ClientCredential` must be updated accordingly.
+// VersionedUserCredential(Ref) must be created and the `FromSql` and `ToSql`
+// implementations of `UserCredential` must be updated accordingly.
 #[derive(
     Debug, Clone, PartialEq, Eq, TlsSerialize, TlsDeserializeBytes, TlsSize, Serialize, Deserialize,
 )]
-pub struct ClientCredential {
-    payload: ClientCredentialPayload,
+pub struct UserCredential {
+    payload: UserCredentialPayload,
     signature: AsIntermediateSignature,
 }
 
-impl ClientCredential {
+impl UserCredential {
     #[cfg(feature = "test_utils")]
-    pub fn new(payload: ClientCredentialPayload, signature: AsIntermediateSignature) -> Self {
+    pub fn new(payload: UserCredentialPayload, signature: AsIntermediateSignature) -> Self {
         Self { payload, signature }
     }
 
     pub fn assume_verified(
-        credential: VerifiableClientCredential,
+        credential: VerifiableUserCredential,
         _: &impl GroupStorageWitness,
     ) -> Self {
         Self {
@@ -516,7 +517,7 @@ impl ClientCredential {
         self.payload.csr.signature_scheme
     }
 
-    pub fn into_parts(self) -> (ClientCredentialPayload, AsIntermediateSignature) {
+    pub fn into_parts(self) -> (UserCredentialPayload, AsIntermediateSignature) {
         (self.payload, self.signature)
     }
 
@@ -542,46 +543,46 @@ impl ClientCredential {
 // is the next version number. The content type of the old `CurrentVersion` must
 // be renamed and otherwise preserved to ensure backwards compatibility.
 #[derive(Serialize, Deserialize)]
-enum VersionedClientCredential {
-    CurrentVersion(ClientCredential),
+enum VersionedUserCredential {
+    CurrentVersion(UserCredential),
 }
 
 // Only change this enum in tandem with its non-Ref variant.
 #[derive(Serialize)]
-enum VersionedClientCredentialRef<'a> {
-    CurrentVersion(&'a ClientCredential),
+enum VersionedUserCredentialRef<'a> {
+    CurrentVersion(&'a UserCredential),
 }
 
-impl Type<Sqlite> for ClientCredential {
+impl Type<Sqlite> for UserCredential {
     fn type_info() -> <Sqlite as Database>::TypeInfo {
         <Vec<u8> as Type<Sqlite>>::type_info()
     }
 }
 
-impl<'q> Encode<'q, Sqlite> for ClientCredential {
+impl<'q> Encode<'q, Sqlite> for UserCredential {
     fn encode_by_ref(
         &self,
         buf: &mut <Sqlite as Database>::ArgumentBuffer,
     ) -> Result<IsNull, BoxDynError> {
-        let versioned = VersionedClientCredentialRef::CurrentVersion(self);
+        let versioned = VersionedUserCredentialRef::CurrentVersion(self);
         let bytes = PersistenceCodec::to_vec(&versioned)?;
         Encode::<Sqlite>::encode(bytes, buf)
     }
 }
 
-impl<'r> Decode<'r, Sqlite> for ClientCredential {
+impl<'r> Decode<'r, Sqlite> for UserCredential {
     fn decode(value: <Sqlite as Database>::ValueRef<'r>) -> Result<Self, BoxDynError> {
         let bytes: &[u8] = Decode::<Sqlite>::decode(value)?;
         match PersistenceCodec::from_slice(bytes)? {
-            VersionedClientCredential::CurrentVersion(credential) => Ok(credential),
+            VersionedUserCredential::CurrentVersion(credential) => Ok(credential),
         }
     }
 }
 
-impl VerifiedStruct<VerifiableClientCredential> for ClientCredential {
+impl VerifiedStruct<VerifiableUserCredential> for UserCredential {
     type SealingType = private_mod::Seal;
 
-    fn from_verifiable(verifiable: VerifiableClientCredential, _seal: Self::SealingType) -> Self {
+    fn from_verifiable(verifiable: VerifiableUserCredential, _seal: Self::SealingType) -> Self {
         Self {
             payload: verifiable.payload,
             signature: verifiable.signature,
@@ -589,8 +590,8 @@ impl VerifiedStruct<VerifiableClientCredential> for ClientCredential {
     }
 }
 
-impl SignedStruct<ClientCredentialPayload, AsIntermediateKeyType> for ClientCredential {
-    fn from_payload(payload: ClientCredentialPayload, signature: AsIntermediateSignature) -> Self {
+impl SignedStruct<UserCredentialPayload, AsIntermediateKeyType> for UserCredential {
+    fn from_payload(payload: UserCredentialPayload, signature: AsIntermediateSignature) -> Self {
         Self { payload, signature }
     }
 }
@@ -598,17 +599,17 @@ impl SignedStruct<ClientCredentialPayload, AsIntermediateKeyType> for ClientCred
 #[derive(
     Debug, TlsDeserializeBytes, TlsSerialize, TlsSize, Clone, Serialize, Deserialize, PartialEq,
 )]
-pub struct VerifiableClientCredential {
-    payload: ClientCredentialPayload,
+pub struct VerifiableUserCredential {
+    payload: UserCredentialPayload,
     signature: AsIntermediateSignature,
 }
 
-impl VerifiableClientCredential {
-    pub fn new(payload: ClientCredentialPayload, signature: AsIntermediateSignature) -> Self {
+impl VerifiableUserCredential {
+    pub fn new(payload: UserCredentialPayload, signature: AsIntermediateSignature) -> Self {
         Self { payload, signature }
     }
 
-    /// Deserializes a [`VerifiableClientCredential`] from a [`Credential`].
+    /// Deserializes a [`VerifiableUserCredential`] from a [`Credential`].
     ///
     /// If the credential is not a [`CredentialType::Basic`], an error is returned.
     pub fn from_basic_credential(credential: &Credential) -> Result<Self, BasicCredentialError> {
@@ -616,9 +617,8 @@ impl VerifiableClientCredential {
         let CredentialType::Basic = credential.credential_type() else {
             return Err(BasicCredentialError::WrongCredentialType);
         };
-        let credential = VerifiableClientCredential::tls_deserialize_exact_bytes(
-            credential.serialized_content(),
-        )?;
+        let credential =
+            VerifiableUserCredential::tls_deserialize_exact_bytes(credential.serialized_content())?;
         Ok(credential)
     }
 
@@ -635,7 +635,7 @@ impl VerifiableClientCredential {
     }
 }
 
-impl Verifiable for VerifiableClientCredential {
+impl Verifiable for VerifiableUserCredential {
     fn unsigned_payload(&self) -> Result<Vec<u8>, tls_codec::Error> {
         self.payload.tls_serialize_detached()
     }
@@ -645,26 +645,22 @@ impl Verifiable for VerifiableClientCredential {
     }
 
     fn label(&self) -> &str {
-        CLIENT_CREDENTIAL_LABEL
+        USER_CREDENTIAL_LABEL
     }
 }
-
-#[derive(Debug)]
-pub struct EncryptedClientCredentialCtype;
-pub type EncryptedClientCredential = Ciphertext<EncryptedClientCredentialCtype>;
 
 pub mod persistence {
     use crate::{codec::PersistenceCodec, identifiers::UserId, time::ExpirationData};
 
     use super::{
-        AsIntermediateCredentialBody, ClientCredential, ClientCredentialCsr,
-        ClientCredentialPayload, Hash,
+        AsIntermediateCredentialBody, Hash, UserCredential, UserCredentialCsr,
+        UserCredentialPayload,
         keys::{AsIntermediateSignature, ClientVerifyingKey},
     };
 
     #[derive(Debug, sqlx::Type)]
-    #[sqlx(type_name = "client_credential")]
-    pub struct FlatClientCredential {
+    #[sqlx(type_name = "user_credential")]
+    pub struct FlatUserCredential {
         version: Vec<u8>,
         signature_scheme: Vec<u8>,
         verifying_key: ClientVerifyingKey,
@@ -673,8 +669,8 @@ pub mod persistence {
         signature: AsIntermediateSignature,
     }
 
-    impl FlatClientCredential {
-        pub fn new(credential: &ClientCredential) -> Self {
+    impl FlatUserCredential {
+        pub fn new(credential: &UserCredential) -> Self {
             Self {
                 version: PersistenceCodec::to_vec(&credential.payload.csr.version).unwrap(),
                 signature_scheme: PersistenceCodec::to_vec(
@@ -688,9 +684,9 @@ pub mod persistence {
             }
         }
 
-        pub fn into_client_credential(self, user_id: UserId) -> ClientCredential {
-            let payload = ClientCredentialPayload {
-                csr: ClientCredentialCsr {
+        pub fn into_user_credential(self, user_id: UserId) -> UserCredential {
+            let payload = UserCredentialPayload {
+                csr: UserCredentialCsr {
                     version: PersistenceCodec::from_slice(&self.version).unwrap(),
                     user_id,
                     signature_scheme: PersistenceCodec::from_slice(&self.signature_scheme).unwrap(),
@@ -700,7 +696,7 @@ pub mod persistence {
                 signer_fingerprint: self.signer_fingerprint,
             };
             let signature = self.signature;
-            ClientCredential { payload, signature }
+            UserCredential { payload, signature }
         }
     }
 }
@@ -716,7 +712,7 @@ pub mod test_utils {
         user_id: UserId,
     ) -> (AsIntermediateSigningKey, ClientSigningKey) {
         let (credential_csr, signing_key) =
-            ClientCredentialCsr::new(user_id.clone(), SignatureScheme::ED25519).unwrap();
+            UserCredentialCsr::new(user_id.clone(), SignatureScheme::ED25519).unwrap();
         let domain = user_id.domain().clone();
         let (_as_credential, ac_sk) =
             AsCredential::new(SignatureScheme::ED25519, domain.clone(), None).unwrap();
@@ -725,11 +721,11 @@ pub mod test_utils {
         let as_intermediate_credential = as_intermediate_credential_csr.sign(&ac_sk, None).unwrap();
         let aic_sk =
             AsIntermediateSigningKey::from_prelim_key(aic_sk, as_intermediate_credential).unwrap();
-        let client_credential =
-            ClientCredentialPayload::new(credential_csr, None, *aic_sk.credential().fingerprint())
+        let user_credential =
+            UserCredentialPayload::new(credential_csr, None, *aic_sk.credential().fingerprint())
                 .sign(&aic_sk)
                 .unwrap();
-        let client_sk = ClientSigningKey::from_prelim_key(signing_key, client_credential).unwrap();
+        let client_sk = ClientSigningKey::from_prelim_key(signing_key, user_credential).unwrap();
         (aic_sk, client_sk)
     }
 }

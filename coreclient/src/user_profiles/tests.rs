@@ -7,7 +7,7 @@ use std::str::FromStr;
 use airbackend::auth_service::user_record::UserRecord;
 use aircommon::{
     credentials::{
-        AsCredential, AsIntermediateCredentialCsr, ClientCredentialCsr, ClientCredentialPayload,
+        AsCredential, AsIntermediateCredentialCsr, UserCredentialCsr, UserCredentialPayload,
         keys::ClientSigningKey,
     },
     crypto::{
@@ -36,7 +36,7 @@ fn backend_interaction() {
     let display_name = DisplayName::from_str("Alice").unwrap();
     let profile_picture = Some(Asset::Value(vec![1, 2, 3]));
     let (credential_csr, signing_key) =
-        ClientCredentialCsr::new(user_id.clone(), SignatureScheme::ED25519).unwrap();
+        UserCredentialCsr::new(user_id.clone(), SignatureScheme::ED25519).unwrap();
 
     let encrypted_user_profile = NewUserProfile::new(
         &signing_key,
@@ -61,7 +61,7 @@ fn backend_interaction() {
             .is_some()
     );
 
-    // To sign the update we need a full client credential
+    // To sign the update we need a full user credential
     let domain = Fqdn::from_str("localhost").unwrap();
     let (_as_credential, ac_sk) =
         AsCredential::new(SignatureScheme::ED25519, domain.clone(), None).unwrap();
@@ -69,14 +69,14 @@ fn backend_interaction() {
         AsIntermediateCredentialCsr::new(SignatureScheme::ED25519, domain.clone()).unwrap();
     let as_intermediate_credential = as_intermediate_credential_csr.sign(&ac_sk, None).unwrap();
     let aic_sk = aic_sk.convert();
-    let client_credential = ClientCredentialPayload::new(
+    let user_credential = UserCredentialPayload::new(
         credential_csr,
         None,
         *as_intermediate_credential.fingerprint(),
     )
     .sign(&aic_sk)
     .unwrap();
-    let client_sk = ClientSigningKey::from_prelim_key(signing_key, client_credential).unwrap();
+    let client_sk = ClientSigningKey::from_prelim_key(signing_key, user_credential).unwrap();
 
     // Now the user wants to update their profile
     // (To simulate loading it from the DB, we just create a new one here)
@@ -143,7 +143,7 @@ fn profile_deletion_trigger(pool: SqlitePool) {
     let display_name = DisplayName::from_str("Alice").unwrap();
     let profile_picture = Some(Asset::Value(vec![1, 2, 3]));
     let (_credential_csr, signing_key) =
-        ClientCredentialCsr::new(user_id.clone(), SignatureScheme::ED25519).unwrap();
+        UserCredentialCsr::new(user_id.clone(), SignatureScheme::ED25519).unwrap();
 
     let user_profile_key = UserProfileKey::random(&user_id).unwrap();
     user_profile_key

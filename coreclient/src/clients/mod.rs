@@ -16,7 +16,7 @@ use airapiclient::{
 };
 use aircommon::{
     credentials::{
-        ClientCredential, ClientCredentialCsr, ClientCredentialPayload, keys::ClientSigningKey,
+        UserCredential, UserCredentialCsr, UserCredentialPayload, keys::ClientSigningKey,
     },
     crypto::{
         RatchetDecryptionKey,
