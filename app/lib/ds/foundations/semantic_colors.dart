@@ -4,13 +4,10 @@
 
 import 'package:flutter/material.dart';
 
-class BackGroundBaseColors {
-  final Color primary;
-  final Color secondary;
-  final Color tertiary;
-  final Color quaternary;
+class AccentBrand {
+  final Color primary, secondary, tertiary, quaternary;
 
-  BackGroundBaseColors({
+  const AccentBrand({
     required this.primary,
     required this.secondary,
     required this.tertiary,
@@ -18,13 +15,36 @@ class BackGroundBaseColors {
   });
 }
 
-class BackGroundElevatedColors {
-  final Color primary;
-  final Color secondary;
-  final Color tertiary;
-  final Color quaternary;
+class BackgroundBase {
+  final Color primary, secondary, tertiary, quaternary, quinary;
 
-  BackGroundElevatedColors({
+  const BackgroundBase({
+    required this.primary,
+    required this.secondary,
+    required this.tertiary,
+    required this.quaternary,
+    required this.quinary,
+  });
+}
+
+class BackgroundElevated {
+  final Color primary, secondary, tertiary, quaternary, quinary;
+
+  const BackgroundElevated({
+    required this.primary,
+    required this.secondary,
+    required this.tertiary,
+    required this.quaternary,
+    required this.quinary,
+  });
+}
+
+/// Translucent fills for frosted-glass surfaces. The fill alpha is baked in,
+/// so these pair directly with a sigma from `blur.dart`.
+class BackgroundMaterial {
+  final Color primary, secondary, tertiary, quaternary;
+
+  const BackgroundMaterial({
     required this.primary,
     required this.secondary,
     required this.tertiary,
@@ -33,12 +53,9 @@ class BackGroundElevatedColors {
 }
 
 class TextColors {
-  final Color primary;
-  final Color secondary;
-  final Color tertiary;
-  final Color quaternary;
+  final Color primary, secondary, tertiary, quaternary;
 
-  TextColors({
+  const TextColors({
     required this.primary,
     required this.secondary,
     required this.tertiary,
@@ -47,71 +64,72 @@ class TextColors {
 }
 
 class SeparatorColors {
-  final Color primary;
-  final Color secondary;
+  final Color primary, secondary;
 
-  SeparatorColors({required this.primary, required this.secondary});
+  const SeparatorColors({required this.primary, required this.secondary});
 }
 
 class FillColors {
-  final Color primary;
-  final Color secondary;
-  final Color tertiary;
+  final Color primary, secondary, tertiary;
 
-  FillColors({
+  const FillColors({
     required this.primary,
     required this.secondary,
     required this.tertiary,
   });
 }
 
-class FunctionColors {
-  final Color white;
-  final Color black;
-  final Color toggleWhite;
-  final Color toggleBlack;
-  final Color success;
-  final Color warning;
-  final Color danger;
-  final Color link;
-  final Color barrier;
+/// Neutrals that either stay put or flip with the theme. [white] and [black]
+/// are for ink on a fixed-color surface (avatar initials, lightbox glass);
+/// [toggleWhite] and [toggleBlack] swap between light and dark.
+class FunctionNeutral {
+  final Color white, black, toggleWhite, toggleBlack, scrim, scrimDark;
 
-  FunctionColors({
+  const FunctionNeutral({
     required this.white,
     required this.black,
     required this.toggleWhite,
     required this.toggleBlack,
-    required this.success,
-    required this.warning,
-    required this.danger,
-    required this.link,
-    required this.barrier,
+    required this.scrim,
+    required this.scrimDark,
   });
 }
 
-class MessageColors {
-  final Color selfBackground;
-  final Color otherBackground;
-  final Color selfText;
-  final Color otherText;
-  final Color selfListPrefix;
-  final Color otherListPrefix;
-  final Color selfQuoteBorder;
-  final Color otherQuoteBorder;
-  final Color selfQuoteBackground;
-  final Color otherQuoteBackground;
-  final Color selfTableBorder;
-  final Color otherTableBorder;
-  final Color selfCheckboxBorder;
-  final Color otherCheckboxBorder;
-  final Color selfCheckboxFill;
-  final Color otherCheckboxFill;
-  final Color selfCheckboxCheck;
-  final Color otherCheckboxCheck;
-  final Color selfEditedLabel;
-  final Color otherEditedLabel;
+class FunctionWarning {
+  final Color primary, secondary;
 
-  MessageColors({
+  const FunctionWarning({required this.primary, required this.secondary});
+}
+
+class FunctionColors {
+  final FunctionNeutral neutral;
+  final Color link, danger, success;
+  final FunctionWarning warning;
+
+  const FunctionColors({
+    required this.neutral,
+    required this.link,
+    required this.danger,
+    required this.success,
+    required this.warning,
+  });
+}
+
+/// Message-bubble colors. An Air-specific extension of the design system:
+/// the reference DS carries these in its message-bubble pattern tokens.
+class MessageColors {
+  final Color selfBackground, otherBackground;
+  final Color selfText, otherText;
+  final Color selfListPrefix, otherListPrefix;
+  final Color selfQuoteBorder, otherQuoteBorder;
+  final Color selfQuoteBackground, otherQuoteBackground;
+  final Color selfTableBorder, otherTableBorder;
+  final Color selfCheckboxBorder, otherCheckboxBorder;
+  final Color selfCheckboxFill, otherCheckboxFill;
+  final Color selfCheckboxCheck, otherCheckboxCheck;
+  final Color selfEditedLabel, otherEditedLabel;
+
+  const MessageColors({
     required this.selfBackground,
     required this.otherBackground,
     required this.selfText,
@@ -132,25 +150,5 @@ class MessageColors {
     required this.otherCheckboxCheck,
     required this.selfEditedLabel,
     required this.otherEditedLabel,
-  });
-}
-
-class MaterialColors {
-  final Color tertiary;
-
-  MaterialColors({required this.tertiary});
-}
-
-class AccentColors {
-  final Color primary;
-  final Color secondary;
-  final Color tertiary;
-  final Color quaternary;
-
-  AccentColors({
-    required this.primary,
-    required this.secondary,
-    required this.tertiary,
-    required this.quaternary,
   });
 }

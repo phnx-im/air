@@ -6,27 +6,31 @@ import 'package:flutter/material.dart';
 import 'package:air/ds/foundations/primitives.dart';
 import 'package:air/ds/foundations/semantic_colors.dart';
 
+/// Alpha applied to every material fill, so a blurred surface still masks the
+/// content moving behind it.
+const double _materialFillAlpha = 0.5;
+
 class CustomColorScheme {
-  final BackGroundBaseColors backgroundBase;
-  final BackGroundElevatedColors backgroundElevated;
+  final AccentBrand accentBrand;
+  final BackgroundBase backgroundBase;
+  final BackgroundElevated backgroundElevated;
+  final BackgroundMaterial backgroundMaterial;
   final TextColors text;
   final SeparatorColors separator;
   final FillColors fill;
   final FunctionColors function;
   final MessageColors message;
-  final MaterialColors material;
-  final AccentColors accent;
 
-  CustomColorScheme({
+  const CustomColorScheme({
+    required this.accentBrand,
     required this.backgroundBase,
     required this.backgroundElevated,
+    required this.backgroundMaterial,
     required this.text,
     required this.separator,
     required this.fill,
     required this.function,
     required this.message,
-    required this.material,
-    required this.accent,
   });
 
   static CustomColorScheme of(BuildContext context) {
@@ -37,47 +41,67 @@ class CustomColorScheme {
 }
 
 final CustomColorScheme lightCustomColorScheme = CustomColorScheme(
-  backgroundBase: BackGroundBaseColors(
-    primary: AppColors.neutral[0]!,
-    secondary: AppColors.neutral[50]!,
-    tertiary: AppColors.neutral[0]!,
-    quaternary: AppColors.neutral[50]!,
+  accentBrand: AccentBrand(
+    primary: AppColors.neutral[1000]!,
+    secondary: AppColors.neutral[700]!,
+    tertiary: AppColors.neutral[400]!,
+    quaternary: AppColors.neutral[150]!,
   ),
-  backgroundElevated: BackGroundElevatedColors(
+  backgroundBase: BackgroundBase(
     primary: AppColors.neutral[0]!,
-    secondary: AppColors.neutral[50]!,
+    secondary: AppColors.neutral[100]!,
     tertiary: AppColors.neutral[0]!,
-    quaternary: AppColors.neutral[100]!,
+    quaternary: AppColors.neutral[150]!,
+    quinary: AppColors.neutral[0]!,
+  ),
+  backgroundElevated: BackgroundElevated(
+    primary: AppColors.neutral[0]!,
+    secondary: AppColors.neutral[100]!,
+    tertiary: AppColors.neutral[0]!,
+    quaternary: AppColors.neutral[150]!,
+    quinary: AppColors.neutral[100]!,
+  ),
+  backgroundMaterial: BackgroundMaterial(
+    primary: AppColors.neutral[0]!.withValues(alpha: _materialFillAlpha),
+    secondary: AppColors.neutral[50]!.withValues(alpha: _materialFillAlpha),
+    tertiary: AppColors.neutral[0]!.withValues(alpha: _materialFillAlpha),
+    quaternary: AppColors.neutral[100]!.withValues(alpha: _materialFillAlpha),
   ),
   text: TextColors(
-    primary: AppColors.neutral[950]!.withValues(alpha: 0.95),
-    secondary: AppColors.neutral[950]!.withValues(alpha: 0.85),
-    tertiary: AppColors.neutral[950]!.withValues(alpha: 0.60),
-    quaternary: AppColors.neutral[950]!.withValues(alpha: 0.40),
+    primary: AppColors.neutral[900]!.withValues(alpha: 0.94),
+    secondary: AppColors.neutral[900]!.withValues(alpha: 0.85),
+    tertiary: AppColors.neutral[900]!.withValues(alpha: 0.60),
+    quaternary: AppColors.neutral[900]!.withValues(alpha: 0.40),
   ),
   separator: SeparatorColors(
-    primary: AppColors.neutral[950]!.withValues(alpha: 0.20),
-    secondary: AppColors.neutral[950]!.withValues(alpha: 0.10),
+    primary: AppColors.neutral[900]!.withValues(alpha: 0.10),
+    secondary: AppColors.neutral[900]!.withValues(alpha: 0.10),
   ),
   fill: FillColors(
-    primary: AppColors.neutral[950]!.withValues(alpha: 0.15),
-    secondary: AppColors.neutral[950]!.withValues(alpha: 0.10),
-    tertiary: AppColors.neutral[950]!.withValues(alpha: 0.05),
+    primary: AppColors.neutral[900]!.withValues(alpha: 0.15),
+    secondary: AppColors.neutral[900]!.withValues(alpha: 0.10),
+    tertiary: AppColors.neutral[900]!.withValues(alpha: 0.05),
   ),
   function: FunctionColors(
-    white: AppColors.neutral[0]!,
-    black: AppColors.neutral[1000]!,
-    toggleWhite: AppColors.neutral[0]!,
-    toggleBlack: AppColors.neutral[1000]!,
-    success: AppColors.green[400]!,
-    warning: AppColors.yellow[400]!,
-    danger: AppColors.red[400]!,
+    neutral: FunctionNeutral(
+      white: AppColors.neutral[0]!,
+      black: AppColors.neutral[1000]!,
+      toggleWhite: AppColors.neutral[0]!,
+      toggleBlack: AppColors.neutral[1000]!,
+      scrim: AppColors.neutral[1000]!.withValues(alpha: 0.20),
+      scrimDark: AppColors.neutral[1000]!.withValues(alpha: 0.90),
+    ),
     link: AppColors.blue[400]!,
-    barrier: AppColors.neutral[1000]!.withValues(alpha: 0.35),
+    danger: AppColors.red[400]!,
+    success: AppColors.green[400]!,
+    warning: FunctionWarning(
+      primary: AppColors.yellow[400]!,
+      secondary: AppColors.yellow[100]!,
+    ),
   ),
   message: MessageColors(
-    selfBackground: AppColors.neutral[100]!,
-    otherBackground: AppColors.neutral[50]!,
+    selfBackground: AppColors.neutral[150]!,
+    otherBackground: AppColors.neutral[100]!,
     selfText: AppColors.neutral[1000]!,
     otherText: AppColors.neutral[1000]!,
     selfListPrefix: AppColors.neutral[800]!,
@@ -97,30 +121,37 @@ final CustomColorScheme lightCustomColorScheme = CustomColorScheme(
     selfEditedLabel: AppColors.neutral[600]!,
     otherEditedLabel: AppColors.neutral[600]!,
   ),
-  material: MaterialColors(tertiary: const Color(0x80FFFFFF)),
-  accent: AccentColors(
-    primary: AppColors.neutral[1000]!,
-    secondary: AppColors.neutral[700]!,
-    tertiary: AppColors.neutral[400]!,
-    quaternary: AppColors.neutral[100]!,
-  ),
 );
 
 final CustomColorScheme darkCustomColorScheme = CustomColorScheme(
-  backgroundBase: BackGroundBaseColors(
-    primary: AppColors.neutral[1000]!,
-    secondary: AppColors.neutral[950]!,
-    tertiary: AppColors.neutral[1000]!,
-    quaternary: AppColors.neutral[900]!,
+  accentBrand: AccentBrand(
+    primary: AppColors.neutral[0]!,
+    secondary: AppColors.neutral[300]!,
+    tertiary: AppColors.neutral[600]!,
+    quaternary: AppColors.neutral[850]!,
   ),
-  backgroundElevated: BackGroundElevatedColors(
-    primary: AppColors.neutral[900]!,
+  backgroundBase: BackgroundBase(
+    primary: AppColors.neutral[1000]!,
+    secondary: AppColors.neutral[900]!,
+    tertiary: AppColors.neutral[1000]!,
+    quaternary: AppColors.neutral[850]!,
+    quinary: AppColors.neutral[900]!,
+  ),
+  backgroundElevated: BackgroundElevated(
+    primary: AppColors.neutral[850]!,
     secondary: AppColors.neutral[800]!,
     tertiary: AppColors.neutral[700]!,
     quaternary: AppColors.neutral[600]!,
+    quinary: AppColors.neutral[900]!,
+  ),
+  backgroundMaterial: BackgroundMaterial(
+    primary: AppColors.neutral[1000]!.withValues(alpha: _materialFillAlpha),
+    secondary: AppColors.neutral[950]!.withValues(alpha: _materialFillAlpha),
+    tertiary: AppColors.neutral[900]!.withValues(alpha: _materialFillAlpha),
+    quaternary: AppColors.neutral[900]!.withValues(alpha: _materialFillAlpha),
   ),
   text: TextColors(
-    primary: AppColors.neutral[0]!.withValues(alpha: 0.95),
+    primary: AppColors.neutral[0]!.withValues(alpha: 0.94),
     secondary: AppColors.neutral[0]!.withValues(alpha: 0.85),
     tertiary: AppColors.neutral[0]!.withValues(alpha: 0.60),
     quaternary: AppColors.neutral[0]!.withValues(alpha: 0.40),
@@ -135,19 +166,25 @@ final CustomColorScheme darkCustomColorScheme = CustomColorScheme(
     tertiary: AppColors.neutral[0]!.withValues(alpha: 0.10),
   ),
   function: FunctionColors(
-    white: AppColors.neutral[0]!,
-    black: AppColors.neutral[1000]!,
-    toggleWhite: AppColors.neutral[1000]!,
-    toggleBlack: AppColors.neutral[0]!,
-    success: AppColors.green[500]!,
-    warning: AppColors.yellow[500]!,
+    neutral: FunctionNeutral(
+      white: AppColors.neutral[0]!,
+      black: AppColors.neutral[1000]!,
+      toggleWhite: AppColors.neutral[1000]!,
+      toggleBlack: AppColors.neutral[0]!,
+      scrim: AppColors.neutral[1000]!.withValues(alpha: 0.80),
+      scrimDark: AppColors.neutral[1000]!.withValues(alpha: 0.90),
+    ),
+    link: AppColors.blue[500]!,
     danger: AppColors.red[500]!,
-    link: AppColors.blue[200]!,
-    barrier: AppColors.neutral[1000]!.withValues(alpha: 0.55),
+    success: AppColors.green[500]!,
+    warning: FunctionWarning(
+      primary: AppColors.yellow[500]!,
+      secondary: AppColors.yellow[900]!,
+    ),
   ),
   message: MessageColors(
-    selfBackground: AppColors.neutral[900]!,
-    otherBackground: AppColors.neutral[950]!,
+    selfBackground: AppColors.neutral[850]!,
+    otherBackground: AppColors.neutral[900]!,
     selfText: AppColors.neutral[0]!,
     otherText: AppColors.neutral[0]!,
     selfListPrefix: AppColors.neutral[200]!,
@@ -166,13 +203,6 @@ final CustomColorScheme darkCustomColorScheme = CustomColorScheme(
     otherCheckboxCheck: AppColors.neutral[0]!,
     selfEditedLabel: AppColors.neutral[400]!,
     otherEditedLabel: AppColors.neutral[400]!,
-  ),
-  material: MaterialColors(tertiary: const Color(0x803C3B3B)),
-  accent: AccentColors(
-    primary: AppColors.neutral[0]!,
-    secondary: AppColors.neutral[300]!,
-    tertiary: AppColors.neutral[600]!,
-    quaternary: AppColors.neutral[900]!,
   ),
 );
 
