@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::{ClientCredential, keys::ClientVerifyingKey},
+    credentials::{UserCredential, keys::ClientVerifyingKey},
     crypto::{
         aead::keys::GroupStateEarKey,
         signatures::{
@@ -574,22 +574,22 @@ where
             )),
         }
     })?;
-    let sender_credential = sender_client_credential(group_state, sender_index)?;
+    let sender_credential = sender_user_credential(group_state, sender_index)?;
     let payload: P = request
         .verify(sender_credential.verifying_key())
         .map_err(InvalidSignature)?;
     Ok((payload, sender_index))
 }
 
-fn sender_client_credential(
+fn sender_user_credential(
     group_state: &DsGroupState,
     sender_index: LeafNodeIndex,
-) -> Result<ClientCredential, Status> {
+) -> Result<UserCredential, Status> {
     let leaf = group_state
         .group()
         .leaf(sender_index)
         .ok_or_else(|| Status::invalid_argument("unknown sender"))?;
-    ClientCredential::tls_deserialize_exact_bytes(leaf.credential().serialized_content())
+    UserCredential::tls_deserialize_exact_bytes(leaf.credential().serialized_content())
         .map_err(|_| Status::invalid_argument("invalid credential"))
 }
 
@@ -716,7 +716,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
         };
 
         let credential =
-            ClientCredential::tls_deserialize_exact_bytes(own_leaf.credential.serialized_content())
+            UserCredential::tls_deserialize_exact_bytes(own_leaf.credential.serialized_content())
                 .map_err(|_| Status::invalid_argument("invalid credential"))?;
         let user_id = credential.user_id().uuid();
 
@@ -788,7 +788,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
     ) -> Result<Response<CreateApqGroupResponse>, Status> {
         let request = request.into_inner();
 
-        // First use unverified payload; later we verify it using the client credential from the
+        // First use unverified payload; later we verify it using the user credential from the
         // leaf node.
         let payload = request
             .inner()
@@ -830,16 +830,13 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             &creator_client_reference,
             &room_state,
         )?;
-        let t_client_credential = Self::extract_credential(&t_group_state.group)?;
+        let t_user_credential = Self::extract_credential(&t_group_state.group)?;
 
         // Configure and apply rate-limiting
         let rl_key = RlKey::new(
             b"ds",
             b"reserve_group_id",
-            &[
-                b"user_uuid",
-                t_client_credential.user_id().uuid().as_bytes(),
-            ],
+            &[b"user_uuid", t_user_credential.user_id().uuid().as_bytes()],
         );
         let config = RlConfig {
             max_requests: 100,
@@ -855,7 +852,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
         // Now we can verify the payload
         let payload: CreateApqGroupPayload = request
-            .verify(t_client_credential.verifying_key())
+            .verify(t_user_credential.verifying_key())
             .map_err(InvalidSignature)?;
 
         // Extract pq group state (PQ group uses the same ear_key as the T group)
@@ -1428,7 +1425,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .map_err(to_status)?;
 
         // verify signature
-        let sender_credential = sender_client_credential(&group_state, sender_index)?;
+        let sender_credential = sender_user_credential(&group_state, sender_index)?;
         let payload: SendMessagePayload = request
             .verify(sender_credential.verifying_key())
             .map_err(InvalidSignature)?;
@@ -1844,7 +1841,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             &ear_key,
             async |group_state, _group_data| {
                 // verify signature
-                let sender_credential = sender_client_credential(group_state, sender_index)?;
+                let sender_credential = sender_user_credential(group_state, sender_index)?;
                 let payload: UpdateProfileKeyPayload = request
                     .verify(sender_credential.verifying_key())
                     .map_err(InvalidSignature)?;
@@ -1917,7 +1914,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .await
                     .map_err(to_status)?;
 
-                let sender_credential = sender_client_credential(&group_state, sender_index)?;
+                let sender_credential = sender_user_credential(&group_state, sender_index)?;
 
                 request
                     .verify(sender_credential.verifying_key())
@@ -1996,7 +1993,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .await
                     .map_err(to_status)?;
 
-                let sender_credential = sender_client_credential(&group_state, sender_index)?;
+                let sender_credential = sender_user_credential(&group_state, sender_index)?;
 
                 request
                     .verify(sender_credential.verifying_key())
@@ -2069,7 +2066,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .map_err(to_status)?;
 
         // verify signature
-        let sender_credential = sender_client_credential(&group_state, sender_index)?;
+        let sender_credential = sender_user_credential(&group_state, sender_index)?;
         let payload: TargetedMessagePayload = request
             .verify(sender_credential.verifying_key())
             .map_err(InvalidSignature)?;

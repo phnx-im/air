@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{credentials::VerifiableClientCredential, time::Duration, utils::removed_clients};
+use aircommon::{credentials::VerifiableUserCredential, time::Duration, utils::removed_clients};
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::{ProcessedAssistedMessage, apq::ApqGroupRef},
@@ -27,7 +27,7 @@ impl DsGroupState {
     /// acting party.
     fn change_removed_roles_to_outsider(
         &mut self,
-        sender: &VerifiableClientCredential,
+        sender: &VerifiableUserCredential,
         removed_indices: &[LeafNodeIndex],
     ) -> Result<(), ResyncClientError> {
         for &removed_index in removed_indices {

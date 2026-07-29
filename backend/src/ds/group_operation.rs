@@ -22,7 +22,7 @@ use mls_assist::{
 use apqmls::messages::ApqWelcome;
 
 use aircommon::{
-    credentials::VerifiableClientCredential,
+    credentials::VerifiableUserCredential,
     crypto::{
         aead::keys::{EncryptedUserProfileKey, GroupStateEarKey},
         hpke::{HpkeEncryptable, JoinerInfoEncryptionKey},
@@ -154,7 +154,7 @@ impl DsGroupState {
             let mut pq_add_proposals = pq_staged_commit.map(|commit| commit.add_proposals());
 
             for ((added_key_package, _), _) in &add_users_state.added_users {
-                let added_credential = VerifiableClientCredential::from_basic_credential(
+                let added_credential = VerifiableUserCredential::from_basic_credential(
                     added_key_package.leaf_node().credential(),
                 )
                 .map_err(|e| {
@@ -263,7 +263,7 @@ impl DsGroupState {
             }
 
             let removed_credential =
-                VerifiableClientCredential::from_basic_credential(removed_leaf.credential())
+                VerifiableUserCredential::from_basic_credential(removed_leaf.credential())
                     .map_err(|e| {
                         error!(%e, "Credential of removed user is invalid");
                         GroupOperationError::InvalidMessage

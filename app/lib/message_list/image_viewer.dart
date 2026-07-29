@@ -122,7 +122,6 @@ class ImageViewer extends HookWidget {
         return;
       }
       if (dragOffset.value > 120) {
-        HapticFeedback.lightImpact();
         Navigator.pop(context);
         return;
       }

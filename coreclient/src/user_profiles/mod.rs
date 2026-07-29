@@ -55,8 +55,8 @@ impl Signable for IndexedUserProfile {
     }
 }
 
-// User profiles need to be signable by both the client credential and the
-// preliminary client credential.
+// User profiles need to be signable by both the user credential and the
+// preliminary user credential.
 
 impl SignedStruct<IndexedUserProfile, PreliminaryClientKeyType> for SignedUserProfile {
     fn from_payload(

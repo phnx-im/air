@@ -672,7 +672,7 @@ impl UiFlightPosition {
 
     /// Returns true if there is a flight break between the messages `a` and `b`.
     fn flight_break_condition(a: &UiChatMessage, b: &UiChatMessage) -> bool {
-        const TIME_THRESHOLD: Duration = Duration::minutes(1);
+        const TIME_THRESHOLD: Duration = Duration::minutes(5);
         match (&a.message, &b.message) {
             (UiMessage::Content(a_content), UiMessage::Content(b_content)) => {
                 a_content.sender != b_content.sender

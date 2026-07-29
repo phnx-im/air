@@ -29,7 +29,7 @@ use std::collections::{HashMap, HashSet};
 
 use aircommon::{
     credentials::{
-        ClientCredential, GroupStorageWitness, VerifiableClientCredential, keys::ClientSigningKey,
+        GroupStorageWitness, UserCredential, VerifiableUserCredential, keys::ClientSigningKey,
     },
     crypto::{
         aead::{
@@ -96,7 +96,7 @@ use crate::{
     },
     contacts::{ContactAddInfos, ContactKeyPackage},
     db::access::{WriteConnection, WriteDbTransaction},
-    groups::{apq_group::PqGroup, client_auth_info::VerifiableClientCredentialExt},
+    groups::{apq_group::PqGroup, client_auth_info::VerifiableUserCredentialExt},
     key_stores::as_credentials::AsCredentials,
     outbound_service::resync::Resync,
 };
@@ -121,7 +121,7 @@ use openmls::{
     treesync::{RatchetTree, RatchetTreeIn, errors::LeafNodeValidationError},
 };
 
-use self::{client_auth_info::StorableClientCredential, diff::StagedGroupDiff};
+use self::{client_auth_info::StorableUserCredential, diff::StagedGroupDiff};
 
 pub(crate) struct PartialCreateGroupParams {
     pub(crate) group_id: GroupId,
@@ -170,14 +170,14 @@ pub(super) struct DecryptedProfileInfos {
 
 #[derive(Debug)]
 pub(super) struct ProfileInfo {
-    pub(super) client_credential: ClientCredential,
+    pub(super) user_credential: UserCredential,
     pub(super) user_profile_key: UserProfileKey,
 }
 
-impl From<(ClientCredential, UserProfileKey)> for ProfileInfo {
-    fn from((client_credential, user_profile_key): (ClientCredential, UserProfileKey)) -> Self {
+impl From<(UserCredential, UserProfileKey)> for ProfileInfo {
+    fn from((user_credential, user_profile_key): (UserCredential, UserProfileKey)) -> Self {
         Self {
-            client_credential,
+            user_credential,
             user_profile_key,
         }
     }
@@ -187,7 +187,7 @@ impl From<(ClientCredential, UserProfileKey)> for ProfileInfo {
 pub(crate) struct PreparedInvitee {
     pub(crate) add_info: ContactAddInfos,
     pub(crate) wai_key: WelcomeAttributionInfoEarKey,
-    pub(crate) client_credential: ClientCredential,
+    pub(crate) user_credential: UserCredential,
 }
 
 /// Bytes stored in the group data extension.
@@ -422,7 +422,7 @@ impl Group {
     /// is not in the group.
     pub(crate) fn member_air_component(&self, user_id: &UserId) -> Option<AirComponent> {
         let member = self.mls_group.members().find(|m| {
-            VerifiableClientCredential::from_basic_credential(&m.credential)
+            VerifiableUserCredential::from_basic_credential(&m.credential)
                 .map(|c| c.user_id() == user_id)
                 .unwrap_or(false)
         })?;
@@ -629,11 +629,11 @@ impl Group {
             .into_verifiable(mls_group.group_id().clone(), serialized_welcome);
 
             let sender_user_id = verifiable_attribution_info.sender();
-            let sender_client_credential =
-                StorableClientCredential::load_by_user_id(&mut *txn, &sender_user_id)
+            let sender_user_credential =
+                StorableUserCredential::load_by_user_id(&mut *txn, &sender_user_id)
                     .await?
                     .ok_or_else(|| {
-                        anyhow!("Could not find client credential of sender in database.")
+                        anyhow!("Could not find user credential of sender in database.")
                     })?;
 
             if BlockedContact::check_blocked(&mut *txn, &sender_user_id).await? {
@@ -641,7 +641,7 @@ impl Group {
             }
 
             let welcome_attribution_info: WelcomeAttributionInfoPayload =
-                verifiable_attribution_info.verify(sender_client_credential.verifying_key())?;
+                verifiable_attribution_info.verify(sender_user_credential.verifying_key())?;
 
             (
                 mls_group,
@@ -672,7 +672,7 @@ impl Group {
             send_message_collision_key: None,
         };
 
-        // Phase 7: Store the group and client credentials.
+        // Phase 7: Store the group and user credentials.
         group.store(&mut *txn).await?;
         for credential in &credentials {
             credential.store(&mut *txn).await?;
@@ -847,12 +847,12 @@ impl Group {
         if BlockedContact::check_blocked(&mut *txn, &sender_user_id).await? {
             bail!(BlockedContactError);
         }
-        let sender_client_credential =
-            StorableClientCredential::load_by_user_id(&mut *txn, &sender_user_id)
+        let sender_user_credential =
+            StorableUserCredential::load_by_user_id(&mut *txn, &sender_user_id)
                 .await?
-                .context("Unknown sender client credential")?;
+                .context("Unknown sender user credential")?;
         let welcome_attribution_info: WelcomeAttributionInfoPayload =
-            verifiable_attribution_info.verify(sender_client_credential.verifying_key())?;
+            verifiable_attribution_info.verify(sender_user_credential.verifying_key())?;
 
         // Phase 6: Construct and persist Group.
         //
@@ -919,7 +919,7 @@ impl Group {
     /// not fail the join/resync.
     fn decrypt_member_profile_keys(
         &self,
-        credentials: Vec<StorableClientCredential>,
+        credentials: Vec<StorableUserCredential>,
         indexed_keys: HashMap<LeafNodeIndex, EncryptedUserProfileKey>,
         // Positional fallback for servers that don't send indexed keys yet
         fallback_keys: HashMap<UserId, EncryptedUserProfileKey>,
@@ -957,7 +957,7 @@ impl Group {
                     } else {
                         members.push(ProfileInfo {
                             user_profile_key,
-                            client_credential: credential.into(),
+                            user_credential: credential.into(),
                         });
                     }
                 }
@@ -994,8 +994,7 @@ impl Group {
             .zip(encrypted_user_profile_keys)
             .filter_map(|(leaf_node, profile_key)| {
                 let cred =
-                    VerifiableClientCredential::from_basic_credential(leaf_node.credential())
-                        .ok()?;
+                    VerifiableUserCredential::from_basic_credential(leaf_node.credential()).ok()?;
                 Some((cred.user_id().clone(), profile_key))
             })
             .collect()
@@ -1003,12 +1002,12 @@ impl Group {
 
     /// Persist a freshly joined group after an external commit.
     ///
-    /// Replace any prior group with the same id, store the client credentials, and decrypt the
+    /// Replace any prior group with the same id, store the user credentials, and decrypt the
     /// member profile keys.
     async fn store_after_external_join(
         &self,
         txn: &mut WriteDbTransaction<'_>,
-        credentials: Vec<StorableClientCredential>,
+        credentials: Vec<StorableUserCredential>,
         indexed_encrypted_user_profile_keys: HashMap<LeafNodeIndex, EncryptedUserProfileKey>,
         encrypted_profile_keys_fallback: HashMap<UserId, EncryptedUserProfileKey>,
         own_user_id: &UserId,
@@ -1146,7 +1145,7 @@ impl Group {
             "self-group flag does not match the recorded self-group"
         );
 
-        // Phase 3: Verify the client credentials. Relaxed for the self group:
+        // Phase 3: Verify the user credentials. Relaxed for the self group:
         // a linked device's leaf presents a foreign credential for the MVP.
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &mls_group, is_self_group).await?;
@@ -1340,13 +1339,13 @@ impl Group {
         for PreparedInvitee {
             add_info,
             wai_key,
-            client_credential,
+            user_credential,
         } in invitees
         {
             new_encrypted_user_profile_keys.push(
                 add_info
                     .user_profile_key
-                    .encrypt(&self.identity_link_wrapper_key, client_credential.user_id())?,
+                    .encrypt(&self.identity_link_wrapper_key, user_credential.user_id())?,
             );
             key_packages.push(add_info.key_package);
             wai_keys.push(wai_key);
@@ -1357,7 +1356,7 @@ impl Group {
         })
         .into();
 
-        // Set Aad to contain the encrypted client credentials.
+        // Set Aad to contain the encrypted user credentials.
         let key_packages = key_packages
             .into_iter()
             .map(|kp| match kp {
@@ -1432,8 +1431,8 @@ impl Group {
     /// `signer` signs the MLS commit (i.e. the committer's leaf), while
     /// `wai_signer` signs the WelcomeAttributionInfo. They differ only for the
     /// self group, where the leaf is signed with a fresh key but the WAI must be
-    /// signed with the real client credential key so the joiner can verify it
-    /// against the sender's client credential.
+    /// signed with the real user credential key so the joiner can verify it
+    /// against the sender's user credential.
     pub(super) fn stage_apq_invite(
         &mut self,
         mut connection: impl WriteConnection,
@@ -1450,13 +1449,13 @@ impl Group {
         for PreparedInvitee {
             add_info,
             wai_key,
-            client_credential,
+            user_credential,
         } in invitees
         {
             new_encrypted_user_profile_keys.push(
                 add_info
                     .user_profile_key
-                    .encrypt(&self.identity_link_wrapper_key, client_credential.user_id())?,
+                    .encrypt(&self.identity_link_wrapper_key, user_credential.user_id())?,
             );
             key_packages.push(add_info.key_package);
             wai_keys.push(wai_key);
@@ -1543,7 +1542,7 @@ impl Group {
         // Note: The order of `remove_indices` is not the same as the order of `members`.
         let mut remove_indices = Vec::with_capacity(members.len());
         for member in self.mls_group.members() {
-            let credential = VerifiableClientCredential::from_basic_credential(&member.credential)?;
+            let credential = VerifiableUserCredential::from_basic_credential(&member.credential)?;
             let user_id = credential.user_id();
             if let Some(idx) = members.iter().position(|id| id == user_id) {
                 remove_indices.push(member.index);
@@ -1594,7 +1593,7 @@ impl Group {
         // Note: The order of `remove_indices` is not the same as the order of `members`.
         let mut remove_indices = Vec::with_capacity(members.len());
         for member in self.mls_group.members() {
-            let credential = VerifiableClientCredential::from_basic_credential(&member.credential)?;
+            let credential = VerifiableUserCredential::from_basic_credential(&member.credential)?;
             let user_id = credential.user_id();
             if let Some(idx) = members.iter().position(|id| id == user_id) {
                 remove_indices.push(member.index);
@@ -1927,9 +1926,9 @@ impl Group {
             .mls_group()
             .members()
             .find_map(|m| {
-                let client_credential =
-                    VerifiableClientCredential::from_basic_credential(&m.credential).ok()?;
-                if client_credential.user_id() == &recipient {
+                let user_credential =
+                    VerifiableUserCredential::from_basic_credential(&m.credential).ok()?;
+                if user_credential.user_id() == &recipient {
                     Some(m.index)
                 } else {
                     None
@@ -1978,7 +1977,7 @@ impl Group {
     /// Returns an iterator over [`UserId`]s of the members of the group.
     pub(crate) fn members(&self) -> impl Iterator<Item = UserId> {
         self.mls_group.members().filter_map(|m| {
-            let credential = VerifiableClientCredential::from_basic_credential(&m.credential)
+            let credential = VerifiableUserCredential::from_basic_credential(&m.credential)
                 .inspect_err(|error| {
                     error!(%error, "Invalid member credential");
                 })
@@ -2302,7 +2301,7 @@ impl Group {
 
     fn user_id_at_index(&self, index: LeafNodeIndex) -> Option<UserId> {
         self.mls_group().member_at(index).and_then(|m| {
-            VerifiableClientCredential::from_basic_credential(&m.credential)
+            VerifiableUserCredential::from_basic_credential(&m.credential)
                 .map(|c| c.user_id().clone())
                 .ok()
         })
@@ -2327,7 +2326,7 @@ impl Group {
                 Some(user_id) => user_id,
                 None => continue,
             };
-            let Ok(added_user) = VerifiableClientCredential::from_basic_credential(
+            let Ok(added_user) = VerifiableUserCredential::from_basic_credential(
                 proposal
                     .add_proposal()
                     .key_package()
@@ -2417,16 +2416,16 @@ impl Group {
         Ok(())
     }
 
-    /// Deserializes client credentials from the corresponding leaf node.
+    /// Deserializes user credentials from the corresponding leaf node.
     ///
     /// Does not guarantee that the credential was verified and is valid.
     pub(crate) fn unverified_credential_at(
         &self,
         index: LeafNodeIndex,
-    ) -> Result<Option<VerifiableClientCredential>, BasicCredentialError> {
+    ) -> Result<Option<VerifiableUserCredential>, BasicCredentialError> {
         self.mls_group
             .member_at(index)
-            .map(|m| VerifiableClientCredential::from_basic_credential(&m.credential))
+            .map(|m| VerifiableUserCredential::from_basic_credential(&m.credential))
             .transpose()
     }
 
@@ -2438,11 +2437,11 @@ impl Group {
         &self,
         index: LeafNodeIndex,
         witness: &impl GroupStorageWitness,
-    ) -> anyhow::Result<Option<ClientCredential>> {
+    ) -> anyhow::Result<Option<UserCredential>> {
         ensure!(self.group_id() == witness.group_id(), "Group ID mismatch");
         Ok(self
             .unverified_credential_at(index)?
-            .map(|credential| ClientCredential::assume_verified(credential, witness)))
+            .map(|credential| UserCredential::assume_verified(credential, witness)))
     }
 }
 
@@ -2456,15 +2455,15 @@ async fn verify_member_credentials(
     api_clients: &ApiClients,
     mls_group: &MlsGroup,
     // In `relaxed` mode (used for the user's own self group), members whose leaf
-    // credential is not a valid AS-issued client credential are skipped with a
+    // credential is not a valid AS-issued user credential are skipped with a
     // warning instead of failing the whole join. This is what lets a freshly
     // linked device whose self-group leaf uses a self-signed basic credential
     // be a member alongside AS-credentialed leaves.
     relaxed: bool,
-) -> anyhow::Result<Vec<StorableClientCredential>> {
+) -> anyhow::Result<Vec<StorableUserCredential>> {
     let mut unverified_credentials = Vec::new();
     for member in mls_group.members() {
-        match VerifiableClientCredential::from_basic_credential(&member.credential) {
+        match VerifiableUserCredential::from_basic_credential(&member.credential) {
             Ok(credential) => {
                 unverified_credentials
                     .push((credential, SignaturePublicKey::from(member.signature_key)));
@@ -2485,7 +2484,7 @@ async fn verify_member_credentials(
 
     let mut verified = Vec::with_capacity(unverified_credentials.len());
     for (credential, leaf_verifying_key) in unverified_credentials {
-        match VerifiableClientCredential::verify_and_validate(
+        match VerifiableUserCredential::verify_and_validate(
             credential,
             &leaf_verifying_key,
             None,
@@ -2776,7 +2775,7 @@ impl TimestampedMessage {
 
             let remover = group
                 .credential_at(*sender_index, verified)?
-                .context("Could not find client credential of message sender")?
+                .context("Could not find user credential of message sender")?
                 .user_id()
                 .clone();
 
@@ -2787,7 +2786,7 @@ impl TimestampedMessage {
 
             let removed = group
                 .credential_at(removed_index, verified)?
-                .context("Could not find client credential of removed")?
+                .context("Could not find user credential of removed")?
                 .user_id()
                 .clone();
 
@@ -2815,7 +2814,7 @@ impl TimestampedMessage {
             // Get the user id of the sender from the MLS group member credential
             let sender_id = group
                 .credential_at(*sender_index, verified)?
-                .context("Could not find client credential of sender")?
+                .context("Could not find user credential of sender")?
                 .user_id()
                 .clone();
 
@@ -2825,7 +2824,7 @@ impl TimestampedMessage {
                 .key_package()
                 .leaf_node()
                 .credential();
-            let credential = VerifiableClientCredential::from_basic_credential(credential)?;
+            let credential = VerifiableUserCredential::from_basic_credential(credential)?;
             let addee_id = credential.user_id().clone();
 
             adds_set.insert((sender_id, addee_id));
@@ -2845,7 +2844,7 @@ impl TimestampedMessage {
             if enabled!(Level::DEBUG) {
                 let credential = group
                     .credential_at(*sender_index, verified)?
-                    .context("Could not find client credential of sender")?;
+                    .context("Could not find user credential of sender")?;
                 let user_id = credential.user_id();
                 debug!(
                     ?user_id,
