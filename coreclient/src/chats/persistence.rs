@@ -608,8 +608,12 @@ impl Chat {
         // Done even if `last_read` did not move (e.g. only a reaction arrived).
         let newest_reaction: Option<DateTime<Utc>> = query_scalar!(
             r#"SELECT MAX(created_at) AS "max_created_at: _"
-            FROM reaction WHERE chat_id = ?"#,
+            FROM reaction r
+            JOIN message m ON m.mimi_id = r.target_mimi_id
+            WHERE r.chat_id = ?1 AND m.timestamp <= ?2
+            "#,
             chat_id,
+            timestamp,
         )
         .fetch_one(txn.as_mut())
         .await?;
