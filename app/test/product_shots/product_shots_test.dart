@@ -13,6 +13,7 @@ import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/primitives.dart';
 import 'package:air/features/navigation/app_tab_bar.dart';
+import 'package:air/features/home/home_screen.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
@@ -33,9 +34,12 @@ import 'product_shot_device.dart';
 
 const androidPhysicalSize = Size(2160, 3840);
 const iosPhysicalSize = Size(1290, 2796);
+// One of the sizes accepted by the Mac App Store (16:10 retina).
+const macosPhysicalSize = Size(2880, 1800);
 
 const androidProductShotSize = Size(2160, 3840);
 const iosProductShotSize = Size(1290, 2796);
+const macosProductShotSize = Size(2880, 1800);
 const _defaultProductShotSize = Size(1242, 2000);
 
 Size _productShotSizeFor(ProductShotPlatform platform) {
@@ -45,6 +49,7 @@ Size _productShotSizeFor(ProductShotPlatform platform) {
     case ProductShotPlatform.ios:
       return iosProductShotSize;
     case ProductShotPlatform.macos:
+      return macosProductShotSize;
     case ProductShotPlatform.windows:
     case ProductShotPlatform.linux:
       return _defaultProductShotSize;
@@ -486,6 +491,218 @@ void main() {
           find.byType(ProductShot),
           // Do not change the file name, as it is referenced in stores/android/metadata/en-US/screenshots
           matchesGoldenFile("goldens/group_chat.android.png"),
+        );
+      },
+    );
+  });
+
+  group("macOS Product Shots", () {
+    late MockNavigationCubit navigationCubit;
+    late MockUserCubit userCubit;
+    late MockUsersCubit usersCubit;
+    late MockChatListCubit chatListCubit;
+    late MockChatDetailsCubit chatDetailsCubit;
+    late MockMessageListCubit messageListCubit;
+    late MockUserSettingsCubit userSettingsCubit;
+    late MockAttachmentsRepository attachmentsRepository;
+
+    setUp(() async {
+      navigationCubit = MockNavigationCubit();
+      userCubit = MockUserCubit();
+      usersCubit = MockUsersCubit();
+      chatListCubit = MockChatListCubit();
+      chatDetailsCubit = MockChatDetailsCubit();
+      messageListCubit = MockMessageListCubit();
+      userSettingsCubit = MockUserSettingsCubit();
+      attachmentsRepository = MockAttachmentsRepository();
+
+      when(() => userCubit.state).thenReturn(MockUiUser(id: ownIdx));
+      when(() => usersCubit.state).thenReturn(
+        MockUsersState(profiles: userProfiles, defaultUserId: ownId),
+      );
+      when(
+        () => chatListCubit.state,
+      ).thenReturn(ChatListState(chatIds: chatIds));
+      when(
+        () => userSettingsCubit.state,
+      ).thenReturn(const UserSettings(isDeveloper: false));
+      when(
+        () => chatDetailsCubit.markAsRead(
+          untilMessageId: any(named: "untilMessageId"),
+          untilTimestamp: any(named: "untilTimestamp"),
+        ),
+      ).thenAnswer((_) => Future.value());
+      when(
+        () => chatDetailsCubit.storeDraft(
+          draftMessage: any(named: "draftMessage"),
+          isCommitted: any(named: "isCommitted"),
+        ),
+      ).thenAnswer((_) async => Future.value());
+      when(
+        () => attachmentsRepository.loadImageAttachment(
+          attachmentId: any(named: "attachmentId"),
+          retryDownloadIfFailed: false,
+          chunkEventCallback: any(named: "chunkEventCallback"),
+        ),
+      ).thenAnswer(
+        (_) => Future.value(
+          LoadedImageAttachment(
+            bytes: jupiterAttachmentImage.data,
+            isAnimated: false,
+          ),
+        ),
+      );
+      when(
+        () => attachmentsRepository.statusStream(
+          attachmentId: any(named: "attachmentId"),
+        ),
+      ).thenAnswer((_) => Stream.value(const UiAttachmentStatus.completed()));
+    });
+
+    Widget buildSubject({
+      required Color backgroundColor,
+      required Color titleColor,
+      required Color subtitleColor,
+      required Color frameColor,
+      required String title,
+      required String subtitle,
+    }) => MultiRepositoryProvider(
+      providers: [
+        RepositoryProvider<ChatsRepository>.value(value: MockChatsRepository()),
+        RepositoryProvider<AttachmentsRepository>.value(
+          value: attachmentsRepository,
+        ),
+      ],
+      child: MultiBlocProvider(
+        providers: [
+          BlocProvider<NavigationCubit>.value(value: navigationCubit),
+          BlocProvider<UserCubit>.value(value: userCubit),
+          BlocProvider<UsersCubit>.value(value: usersCubit),
+          BlocProvider<ChatListCubit>.value(value: chatListCubit),
+          BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
+          BlocProvider<MessageListCubit>.value(value: messageListCubit),
+          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+        ],
+        child: SDTFScope(
+          child: Builder(
+            builder: (context) {
+              final shot = ProductShot(
+                size: macosProductShotSize,
+                backgroundColor: backgroundColor,
+                titleColor: titleColor,
+                subtitleColor: subtitleColor,
+                title: title,
+                subtitle: subtitle,
+                frameColor: frameColor,
+                device: ProductShotDevices.forPlatform(
+                  ProductShotPlatform.macos,
+                ),
+                child: HomeScreenDesktopLayout(
+                  chatList: ChatListView(
+                    createChatDetailsCubit: createMockChatDetailsCubitFactory(
+                      chats,
+                    ),
+                  ),
+                  chat: const ChatScreenView(
+                    createMessageCubit: createMockMessageCubit,
+                  ),
+                ),
+              );
+
+              return MaterialApp(
+                debugShowCheckedModeBanner: false,
+                theme: testLightTheme.copyWith(
+                  platform: desktopTargetPlatform(),
+                ),
+                themeMode: ThemeMode.light,
+                localizationsDelegates: AppLocalizations.localizationsDelegates,
+                home: Material(
+                  child: MediaQuery(
+                    data: MediaQuery.of(
+                      context,
+                    ).copyWith(platformBrightness: Brightness.light),
+                    child: shot,
+                  ),
+                ),
+              );
+            },
+          ),
+        ),
+      ),
+    );
+
+    testProductShot(
+      "Private Chat (macOS)",
+      hostPlatform: "macos",
+      physicalSize: macosPhysicalSize,
+      (tester) async {
+        final chat = chats[0];
+        when(() => navigationCubit.state).thenReturn(
+          NavigationState.home(
+            home: HomeNavigationState(chatOpen: true, chatId: chat.id),
+          ),
+        );
+        when(
+          () => chatDetailsCubit.state,
+        ).thenReturn(ChatDetailsState(chat: chat, members: [fredId]));
+        messageListCubit.setState(fredMessages);
+
+        // The desktop layout always shows the chat list, so this shot doubles
+        // as the hero image and carries the lead store copy.
+        await tester.pumpWidget(
+          buildSubject(
+            backgroundColor: AppColors.neutral[50]!,
+            titleColor: AppColors.neutral[800]!,
+            subtitleColor: AppColors.neutral[600]!,
+            frameColor: AppColors.neutral[300]!,
+            title: 'Secure messaging for everyone.',
+            subtitle: 'Everything in Air is end-to-end encrypted.',
+          ),
+        );
+        await _precacheImages(tester);
+        await tester.pumpAndSettle();
+
+        await expectLater(
+          find.byType(ProductShot),
+          // Do not change the file name, as it is referenced in stores/macos/screenshots/en-US
+          matchesGoldenFile("goldens/private_chat.macos.png"),
+        );
+      },
+    );
+
+    testProductShot(
+      "Group Chat (macOS)",
+      hostPlatform: "macos",
+      physicalSize: macosPhysicalSize,
+      (tester) async {
+        final chat = chats[4];
+        when(() => navigationCubit.state).thenReturn(
+          NavigationState.home(
+            home: HomeNavigationState(chatOpen: true, chatId: chat.id),
+          ),
+        );
+        when(() => chatDetailsCubit.state).thenReturn(
+          ChatDetailsState(chat: chat, members: gardeningPartyMembers),
+        );
+        messageListCubit.setState(gardeningPartyMessages);
+
+        await tester.pumpWidget(
+          buildSubject(
+            backgroundColor: AppColors.blue[50]!,
+            titleColor: AppColors.blue[800]!,
+            subtitleColor: AppColors.blue[600]!,
+            frameColor: AppColors.blue[300]!,
+            title: 'Create group chats.',
+            subtitle: 'Message with multiple people.',
+          ),
+        );
+        await _precacheImages(tester);
+        await tester.pumpAndSettle();
+
+        await expectLater(
+          find.byType(ProductShot),
+          // Do not change the file name, as it is referenced in stores/macos/screenshots/en-US
+          matchesGoldenFile("goldens/group_chat.macos.png"),
         );
       },
     );
