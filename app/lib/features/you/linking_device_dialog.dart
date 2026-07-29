@@ -109,7 +109,7 @@ class _LinkModalHeader extends StatelessWidget {
             alignment: Alignment.centerLeft,
             child: GlassCircleButton(
               icon: AppIcon.arrowLeft(size: 20, color: colors.text.primary),
-              color: colors.accent.quaternary,
+              color: colors.accentBrand.quaternary,
               onPressed: onBack,
             ),
           ),

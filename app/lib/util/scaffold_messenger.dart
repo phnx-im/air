@@ -33,11 +33,14 @@ void showErrorBannerStandalone(
       backgroundColor: colors.function.danger,
       elevation: 0,
       dividerColor: Colors.transparent,
-      leading: AppIcon.circleAlert(size: 32, color: colors.function.white),
+      leading: AppIcon.circleAlert(
+        size: 32,
+        color: colors.function.neutral.white,
+      ),
       padding: const EdgeInsets.all(20),
       content: Text(
         errorDescription(loc),
-        style: TextStyle(color: colors.function.white),
+        style: TextStyle(color: colors.function.neutral.white),
       ),
       actions: [
         Builder(
@@ -45,7 +48,7 @@ void showErrorBannerStandalone(
             return TextButton(
               child: Text(
                 loc.errorBanner_ok,
-                style: TextStyle(color: colors.function.white),
+                style: TextStyle(color: colors.function.neutral.white),
               ),
               onPressed: () {
                 ScaffoldMessenger.of(context).hideCurrentMaterialBanner();

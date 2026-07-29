@@ -437,7 +437,7 @@ class _InvitationCodesBadge extends StatelessWidget {
         child: Text(
           availableInvitationCodes.toString(),
           style: TextStyle(
-            color: colors.function.white,
+            color: colors.function.neutral.white,
             fontSize: LabelFontSize.small2.size,
           ),
         ),

@@ -344,7 +344,7 @@ class _CountdownRing extends HookWidget {
       builder: (context, _) {
         final remaining = (controller.value * duration.inSeconds).ceil();
         final ringColor = remaining <= warnThreshold.inSeconds
-            ? colors.function.warning
+            ? colors.function.warning.primary
             : colors.function.success;
 
         return SizedBox(
@@ -400,7 +400,7 @@ class _LinkQrCodeSvgColorMapper extends ColorMapper {
     Color color,
   ) {
     return switch (color) {
-      Colors.black => colors.function.toggleBlack,
+      Colors.black => colors.function.neutral.toggleBlack,
       Colors.white => colors.backgroundBase.secondary,
       _ => color,
     };

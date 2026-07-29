@@ -118,16 +118,16 @@ class AddUsernameDialog extends HookWidget {
                     ),
                     style: ButtonStyle(
                       backgroundColor: WidgetStatePropertyAll(
-                        colors.accent.primary,
+                        colors.accentBrand.primary,
                       ),
                       overlayColor: WidgetStatePropertyAll(
-                        colors.accent.primary,
+                        colors.accentBrand.primary,
                       ),
                       foregroundColor: WidgetStatePropertyAll(
-                        colors.function.toggleWhite,
+                        colors.function.neutral.toggleWhite,
                       ),
                     ),
-                    progressColor: colors.function.toggleWhite,
+                    progressColor: colors.function.neutral.toggleWhite,
                     inProgress: inProgress,
                     child: Text(loc.usernameScreen_confirm),
                   ),

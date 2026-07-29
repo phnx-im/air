@@ -75,7 +75,7 @@ class RemoveMemberButton extends StatelessWidget {
           fontSize: compact
               ? LabelFontSize.small1.size
               : LabelFontSize.base.size,
-          color: compact ? colors.text.primary : colors.function.white,
+          color: compact ? colors.text.primary : colors.function.neutral.white,
         ),
       ),
     );

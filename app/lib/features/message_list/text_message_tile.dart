@@ -1016,7 +1016,9 @@ class _MessageMetadataRowState extends State<_MessageMetadataRow> {
                 if (showMessageStatus && isError)
                   Text(
                     style: TextStyle(
-                      color: CustomColorScheme.of(context).function.warning,
+                      color: CustomColorScheme.of(
+                        context,
+                      ).function.warning.primary,
                       fontSize: LabelFontSize.small2.size,
                     ),
                     loc.messageBubble_failedToSend,

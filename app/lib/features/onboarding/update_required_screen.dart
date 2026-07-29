@@ -123,16 +123,16 @@ class UpdateRequiredView extends StatelessWidget {
                           style: OutlinedButtonTheme.of(context).style!
                               .copyWith(
                                 backgroundColor: WidgetStateProperty.all(
-                                  colors.accent.primary,
+                                  colors.accentBrand.primary,
                                 ),
                                 foregroundColor: WidgetStateProperty.all(
-                                  colors.function.toggleWhite,
+                                  colors.function.neutral.toggleWhite,
                                 ),
                               ),
                           child: Text(
                             loc.appOutdatedScreen_action,
                             style: TextStyle(
-                              color: colors.function.toggleWhite,
+                              color: colors.function.neutral.toggleWhite,
                               fontSize: LabelFontSize.base.size,
                             ),
                           ),

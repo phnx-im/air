@@ -136,7 +136,7 @@ class _MessageStatusIndicatorState extends State<MessageStatusIndicator> {
       return AppIcon.circleAlert(
         key: const ValueKey('error'),
         size: 16,
-        color: CustomColorScheme.of(context).function.warning,
+        color: CustomColorScheme.of(context).function.warning.primary,
       );
     }
     final iconType = switch (widget.status) {

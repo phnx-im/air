@@ -409,7 +409,7 @@ class _PendingCommitFailedBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: CustomColorScheme.of(context).function.warning,
+      color: CustomColorScheme.of(context).function.warning.primary,
       child: Padding(
         padding: const EdgeInsets.symmetric(
           horizontal: Spacing.px16,

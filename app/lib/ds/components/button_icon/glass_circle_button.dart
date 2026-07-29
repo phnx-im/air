@@ -47,7 +47,8 @@ class GlassCircleButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fillColor = color ?? CustomColorScheme.of(context).material.tertiary;
+    final fillColor =
+        color ?? CustomColorScheme.of(context).backgroundMaterial.tertiary;
     final hitSize = hitTargetSize ?? size;
     final enabled = onPressed != null || onLongPress != null;
 

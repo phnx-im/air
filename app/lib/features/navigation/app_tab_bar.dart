@@ -57,7 +57,7 @@ class AppTabBar extends StatelessWidget {
                   width: pillWidth,
                   height: TabBarTokens.height,
                   decoration: BoxDecoration(
-                    color: colors.material.tertiary,
+                    color: colors.backgroundMaterial.tertiary,
                     borderRadius: BorderRadius.circular(
                       TabBarTokens.pillRadius,
                     ),

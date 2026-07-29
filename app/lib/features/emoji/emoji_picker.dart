@@ -315,7 +315,7 @@ Future<String?> showEmojiPickerPopover({
     context: context,
     barrierDismissible: true,
     barrierColor:
-        barrierColor ?? CustomColorScheme.of(context).function.barrier,
+        barrierColor ?? CustomColorScheme.of(context).function.neutral.scrim,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     transitionDuration: const Duration(milliseconds: 150),
     pageBuilder: (context, animation, secondaryAnimation) =>

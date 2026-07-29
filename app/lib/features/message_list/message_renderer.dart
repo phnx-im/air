@@ -270,7 +270,7 @@ Widget buildBlockElement(
             width: 4,
           ),
         ),
-        color: CustomColorScheme.of(context).function.warning,
+        color: CustomColorScheme.of(context).function.warning.primary,
       ),
       child: Text.rich(TextSpan(text: field0)),
     ),
@@ -471,13 +471,13 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
                     },
                     style: ButtonStyle(
                       backgroundColor: WidgetStatePropertyAll(
-                        colors.accent.primary,
+                        colors.accentBrand.primary,
                       ),
                       overlayColor: WidgetStatePropertyAll(
-                        colors.accent.primary,
+                        colors.accentBrand.primary,
                       ),
                       foregroundColor: WidgetStatePropertyAll(
-                        colors.function.toggleWhite,
+                        colors.function.neutral.toggleWhite,
                       ),
                     ),
                     child: Text(loc.linkConfirmation_openLink),

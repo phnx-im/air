@@ -211,8 +211,10 @@ class _AddButton extends StatelessWidget {
       width: isSmallScreen(context) ? double.infinity : null,
       child: OutlinedButton(
         style: OutlinedButtonTheme.of(context).style!.copyWith(
-          backgroundColor: WidgetStateProperty.all(colors.accent.primary),
-          foregroundColor: WidgetStateProperty.all(colors.function.toggleWhite),
+          backgroundColor: WidgetStateProperty.all(colors.accentBrand.primary),
+          foregroundColor: WidgetStateProperty.all(
+            colors.function.neutral.toggleWhite,
+          ),
         ),
         onPressed: isSubmitting ? null : onPressed,
         child: isSubmitting
@@ -222,14 +224,14 @@ class _AddButton extends StatelessWidget {
                 child: CircularProgressIndicator(
                   strokeWidth: 2,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    colors.function.toggleWhite,
+                    colors.function.neutral.toggleWhite,
                   ),
                 ),
               )
             : Text(
                 loc.usernameOnboarding_addButton,
                 style: TextStyle(
-                  color: colors.function.toggleWhite,
+                  color: colors.function.neutral.toggleWhite,
                   fontSize: LabelFontSize.base.size,
                 ),
               ),

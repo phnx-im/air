@@ -200,7 +200,7 @@ class _MessageComposerState extends State<MessageComposer>
     }
 
     final color = CustomColorScheme.of(context);
-    final materialColor = color.material.tertiary;
+    final materialColor = color.backgroundMaterial.tertiary;
 
     Widget composerButton({required Widget icon, VoidCallback? onPressed}) {
       return GlassCircleButton(

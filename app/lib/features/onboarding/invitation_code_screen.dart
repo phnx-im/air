@@ -231,8 +231,10 @@ class _JoinButton extends StatelessWidget {
 
     return OutlinedButton(
       style: OutlinedButtonTheme.of(context).style!.copyWith(
-        backgroundColor: WidgetStateProperty.all(colors.accent.primary),
-        foregroundColor: WidgetStateProperty.all(colors.function.toggleWhite),
+        backgroundColor: WidgetStateProperty.all(colors.accentBrand.primary),
+        foregroundColor: WidgetStateProperty.all(
+          colors.function.neutral.toggleWhite,
+        ),
       ),
       onPressed: isCheckingInvitationCode
           ? null
@@ -250,14 +252,14 @@ class _JoinButton extends StatelessWidget {
               child: CircularProgressIndicator(
                 strokeWidth: 2,
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  colors.function.toggleWhite,
+                  colors.function.neutral.toggleWhite,
                 ),
               ),
             )
           : Text(
               loc.invitationCodeScreen_actionButton,
               style: TextStyle(
-                color: colors.function.toggleWhite,
+                color: colors.function.neutral.toggleWhite,
                 fontSize: LabelFontSize.base.size,
               ),
             ),

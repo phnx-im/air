@@ -129,7 +129,7 @@ class ImageViewer extends HookWidget {
     }
 
     return Scaffold(
-      backgroundColor: colors.function.black,
+      backgroundColor: colors.function.neutral.black,
       body: Focus(
         autofocus: true,
         onKeyEvent: (node, event) {

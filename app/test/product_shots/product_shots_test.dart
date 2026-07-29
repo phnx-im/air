@@ -64,7 +64,7 @@ void main() {
   });
 
   group('Chat List Product Shots', () {
-    final backgroundColor = AppColors.neutral[50]!;
+    final backgroundColor = AppColors.neutral[100]!;
     final titleColor = AppColors.neutral[800]!;
     final subtitleColor = AppColors.neutral[600]!;
     final frameColor = AppColors.neutral[300]!;
@@ -651,7 +651,7 @@ void main() {
         // as the hero image and carries the lead store copy.
         await tester.pumpWidget(
           buildSubject(
-            backgroundColor: AppColors.neutral[50]!,
+            backgroundColor: AppColors.neutral[100]!,
             titleColor: AppColors.neutral[800]!,
             subtitleColor: AppColors.neutral[600]!,
             frameColor: AppColors.neutral[300]!,

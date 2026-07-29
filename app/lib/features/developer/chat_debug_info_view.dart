@@ -563,14 +563,14 @@ class _MemberCard extends StatelessWidget {
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: colors.accent.primary.withValues(alpha: 0.15),
+                      color: colors.accentBrand.primary.withValues(alpha: 0.15),
                       borderRadius: BorderRadius.circular(4),
                     ),
                     child: Text(
                       'self',
                       style: TextStyle(
                         fontSize: BodyFontSize.small2.size,
-                        color: colors.accent.primary,
+                        color: colors.accentBrand.primary,
                         fontWeight: FontWeight.bold,
                       ),
                     ),

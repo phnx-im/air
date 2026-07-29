@@ -370,7 +370,7 @@ class _ActionsRow extends StatelessWidget {
                         padding: const EdgeInsets.all(Spacing.px8),
                         child: AppIcon.plus(
                           size: 16,
-                          color: colors.function.toggleBlack,
+                          color: colors.function.neutral.toggleBlack,
                         ),
                       ),
                     ),
@@ -413,7 +413,7 @@ class _ActionsRow extends StatelessWidget {
                         padding: const EdgeInsets.all(Spacing.px8),
                         child: AppIcon.arrowRight(
                           size: 16,
-                          color: colors.function.toggleBlack,
+                          color: colors.function.neutral.toggleBlack,
                         ),
                       ),
                     ),

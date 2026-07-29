@@ -106,7 +106,7 @@ class DeleteAccountDialog extends HookWidget {
                   },
                   style: ButtonStyle(
                     backgroundColor: WidgetStatePropertyAll(
-                      colors.accent.quaternary,
+                      colors.accentBrand.quaternary,
                     ),
                   ),
                   child: Text(loc.editDisplayNameScreen_cancel),
@@ -127,8 +127,8 @@ class DeleteAccountDialog extends HookWidget {
                     ),
                     foregroundColor: WidgetStateProperty.resolveWith(
                       (states) => states.contains(WidgetState.disabled)
-                          ? colors.function.white.withValues(alpha: 0.7)
-                          : colors.function.white,
+                          ? colors.function.neutral.white.withValues(alpha: 0.7)
+                          : colors.function.neutral.white,
                     ),
                   ),
                   child: Text(loc.deleteAccountScreen_confirmButtonText),

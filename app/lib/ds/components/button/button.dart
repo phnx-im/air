@@ -45,28 +45,25 @@ class AppButton extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
 
     final foregroundColor = switch ((type, state, tone)) {
-      (.primary, .inactive, .danger) => colors.function.white.withValues(
-        alpha: 0.5,
-      ),
-      (.primary, .inactive, .normal) => colors.function.toggleWhite.withValues(
-        alpha: 0.5,
-      ),
-      (.primary, _, .danger) => colors.function.white,
-      (.primary, _, .normal) => colors.function.toggleWhite,
+      (.primary, .inactive, .danger) =>
+        colors.function.neutral.white.withValues(alpha: 0.5),
+      (.primary, .inactive, .normal) =>
+        colors.function.neutral.toggleWhite.withValues(alpha: 0.5),
+      (.primary, _, .danger) => colors.function.neutral.white,
+      (.primary, _, .normal) => colors.function.neutral.toggleWhite,
       (.secondary, .inactive, .danger) => colors.function.danger.withValues(
         alpha: 0.5,
       ),
-      (.secondary, .inactive, _) => colors.function.toggleBlack.withValues(
-        alpha: 0.5,
-      ),
+      (.secondary, .inactive, _) =>
+        colors.function.neutral.toggleBlack.withValues(alpha: 0.5),
       (.secondary, _, .danger) => colors.function.danger,
-      (.secondary, _, _) => colors.function.toggleBlack,
+      (.secondary, _, _) => colors.function.neutral.toggleBlack,
     };
 
     final backgroundColor = switch ((type, tone)) {
       (.primary, .danger) => colors.function.danger,
-      (.primary, .normal) => colors.accent.primary,
-      (.secondary, _) => colors.accent.tertiary,
+      (.primary, .normal) => colors.accentBrand.primary,
+      (.secondary, _) => colors.accentBrand.tertiary,
     };
 
     const Border? border = null;

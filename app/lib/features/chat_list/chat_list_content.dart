@@ -464,7 +464,7 @@ class _PendingCommitFailedIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppIcon.circleAlert(
       size: 16,
-      color: CustomColorScheme.of(context).function.warning,
+      color: CustomColorScheme.of(context).function.warning.primary,
     );
   }
 }
@@ -480,7 +480,9 @@ class _UnreadBadge extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final backgroundColor = CustomColorScheme.of(context).function.toggleBlack;
+    final backgroundColor = CustomColorScheme.of(
+      context,
+    ).function.neutral.toggleBlack;
 
     final badgeText = count <= 100 ? "$count" : "100+";
     return Container(
@@ -494,7 +496,7 @@ class _UnreadBadge extends StatelessWidget {
       child: Text(
         badgeText,
         style: TextStyle(
-          color: CustomColorScheme.of(context).function.toggleWhite,
+          color: CustomColorScheme.of(context).function.neutral.toggleWhite,
           fontSize: LabelFontSize.small2.size,
           height: 1,
         ),

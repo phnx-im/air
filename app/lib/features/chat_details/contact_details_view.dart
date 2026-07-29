@@ -295,14 +295,16 @@ class _AddContactDialog extends HookWidget {
                 child: AppDialogProgressButton(
                   onPressed: (inProgress) =>
                       _handleSendChatRequest(context, inProgress),
-                  progressColor: colors.function.toggleWhite,
+                  progressColor: colors.function.neutral.toggleWhite,
                   style: ButtonStyle(
                     backgroundColor: WidgetStatePropertyAll(
-                      colors.accent.primary,
+                      colors.accentBrand.primary,
                     ),
-                    overlayColor: WidgetStatePropertyAll(colors.accent.primary),
+                    overlayColor: WidgetStatePropertyAll(
+                      colors.accentBrand.primary,
+                    ),
                     foregroundColor: WidgetStatePropertyAll(
-                      colors.function.toggleWhite,
+                      colors.function.neutral.toggleWhite,
                     ),
                   ),
                   child: Text(

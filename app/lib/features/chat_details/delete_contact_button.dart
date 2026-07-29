@@ -46,7 +46,7 @@ class DeleteContactButton extends StatelessWidget {
         loc.deleteContactButton_text,
         style: TextStyle(
           fontSize: LabelFontSize.base.size,
-          color: colors.function.white,
+          color: colors.function.neutral.white,
         ),
       ),
     );

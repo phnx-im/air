@@ -31,7 +31,9 @@ class UnreadDivider extends StatelessWidget {
             padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
             child: DecoratedBox(
               decoration: ShapeDecoration(
-                color: CustomColorScheme.of(context).function.toggleBlack,
+                color: CustomColorScheme.of(
+                  context,
+                ).function.neutral.toggleBlack,
                 shape: const StadiumBorder(),
               ),
               child: Padding(
@@ -42,7 +44,9 @@ class UnreadDivider extends StatelessWidget {
                 child: Text(
                   label,
                   style: TextTheme.of(context).bodySmall?.copyWith(
-                    color: CustomColorScheme.of(context).function.toggleWhite,
+                    color: CustomColorScheme.of(
+                      context,
+                    ).function.neutral.toggleWhite,
                   ),
                 ),
               ),

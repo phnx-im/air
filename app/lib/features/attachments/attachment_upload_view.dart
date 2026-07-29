@@ -41,7 +41,7 @@ class AttachmentUploadView extends HookWidget {
     final colors = darkCustomColorScheme;
 
     return Scaffold(
-      backgroundColor: colors.function.black,
+      backgroundColor: colors.function.neutral.black,
       body: Focus(
         autofocus: true,
         onKeyEvent: (node, event) {
@@ -83,7 +83,7 @@ class AttachmentUploadView extends HookWidget {
                 child: SafeArea(
                   child: GlassCircleButton(
                     icon: AppIcon.arrowUp(size: 20, color: colors.text.primary),
-                    color: colors.material.tertiary,
+                    color: colors.backgroundMaterial.tertiary,
                     onPressed: () {
                       onUpload();
                       Navigator.of(context).pop();

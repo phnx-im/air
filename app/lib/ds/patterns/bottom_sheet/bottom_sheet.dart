@@ -29,7 +29,7 @@ Future<T?> showBottomSheetModal<T>({
     barrierDismissible: isDismissible,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     barrierColor:
-        barrierColor ?? CustomColorScheme.of(context).function.barrier,
+        barrierColor ?? CustomColorScheme.of(context).function.neutral.scrim,
     transitionDuration: animationDuration,
     transitionBuilder: (context, animation, secondaryAnimation, child) => child,
     pageBuilder: (context, animation, secondaryAnimation) {
