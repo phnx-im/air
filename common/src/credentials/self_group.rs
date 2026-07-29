@@ -23,7 +23,14 @@ pub const SELF_GROUP_CREDENTIAL_TYPE: u16 = 0xff02;
 /// key, and the creation of a self-group is authenticated by a [`UserCredential`] sent alongside
 /// the request.
 ///
-/// Serialized as a tagged CBOR map so fields can be added without breaking older clients.
+/// Serialized as a tagged CBOR map so fields can be added without breaking older clients,
+/// preceded by a persistence-codec version byte:
+///
+/// ```cddl
+/// SelfGroupCredential = {
+///   1: bstr .size 16, ; client_id
+/// }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
 pub struct SelfGroupCredential {
     /// Identifies the client (device) that owns the leaf. Generated at client creation and unique
