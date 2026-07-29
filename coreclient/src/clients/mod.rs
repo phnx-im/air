@@ -45,6 +45,7 @@ use tokio_stream::{Stream, StreamExt};
 use tokio_util::sync::DropGuard;
 use tracing::{error, info, warn};
 use url::Url;
+use uuid::Uuid;
 
 use crate::{
     Asset, ChatMuted, PartialContact, UsernameRecord,
@@ -221,6 +222,7 @@ impl CoreUser {
             qs_user_id: *final_state.qs_user_id(),
             qs_client_id: *final_state.qs_client_id(),
             user_id: final_state.user_id().clone(),
+            client_id: Uuid::new_v4(),
             self_group_id: None,          // Created lazily on first use
             self_group_signing_key: None, // Same as above
         }

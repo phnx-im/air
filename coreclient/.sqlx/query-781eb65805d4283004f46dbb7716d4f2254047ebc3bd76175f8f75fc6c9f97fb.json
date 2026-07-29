@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "UPDATE own_client_info SET client_id = ? WHERE client_id = ?",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": []
+  },
+  "hash": "781eb65805d4283004f46dbb7716d4f2254047ebc3bd76175f8f75fc6c9f97fb"
+}
