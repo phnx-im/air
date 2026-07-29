@@ -2,9 +2,11 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::UserId;
+use std::collections::HashSet;
+
+use aircommon::{credentials::LeafCredential, identifiers::UserId};
 use aircoreclient::{
-    ChatId, Message, ReadReceiptsSetting,
+    ChatId, Message, ReadReceiptsSetting, UserProfile,
     clients::{
         CoreUser,
         multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
@@ -14,6 +16,7 @@ use airprotos::relay_service::v1::LinkingSessionId;
 use airserver_test_harness::utils::setup::TestBackend;
 use mimi_content::MimiContent;
 use tempfile::TempDir;
+use uuid::Uuid;
 
 /// Sends `text` from `sender` into the self-group chat and asserts that
 /// `receiver` sees it after fetching + processing its queue.
@@ -44,6 +47,28 @@ async fn send_and_receive(sender: &CoreUser, linked: &CoreUser, chat_id: ChatId,
         &content,
         "self-group message should round-trip"
     );
+}
+
+/// Reads the self-group leaf credentials of `device`, asserts every leaf carries
+/// a `SelfGroupCredential`, and returns their client ids in member order.
+async fn self_group_client_ids(device: &CoreUser) -> Vec<Uuid> {
+    let credentials = device
+        .self_group_leaf_credentials()
+        .await
+        .unwrap()
+        .expect("device should have a self group");
+    assert_eq!(
+        credentials.len(),
+        2,
+        "the self group should have two leaf credentials"
+    );
+    credentials
+        .iter()
+        .map(|credential| match credential {
+            LeafCredential::SelfGroup(self_group) => self_group.client_id(),
+            LeafCredential::User(_) => panic!("self-group leaf must carry a SelfGroupCredential"),
+        })
+        .collect()
 }
 
 /// A confirmation receiver that is already fulfilled, so the acceptor proceeds
@@ -207,6 +232,32 @@ async fn multi_device_linking_session() {
         "new device should see both emulator clients in the self group"
     );
 
+    // The self group carries per-device SelfGroupCredentials, not user
+    // credentials. Both devices must see the same pair of distinct client ids,
+    // and that pair must match the client id each device stored locally.
+    let old_client_ids = self_group_client_ids(old_device).await;
+    let new_client_ids = self_group_client_ids(&new_device).await;
+    assert_ne!(
+        old_client_ids[0], old_client_ids[1],
+        "the two self-group leaves must have distinct client ids"
+    );
+    let old_set: HashSet<Uuid> = old_client_ids.into_iter().collect();
+    let new_set: HashSet<Uuid> = new_client_ids.into_iter().collect();
+    assert_eq!(
+        old_set, new_set,
+        "both devices must see the same set of self-group client ids"
+    );
+    let expected: HashSet<Uuid> = [
+        old_device.own_client_id().await.unwrap(),
+        new_device.own_client_id().await.unwrap(),
+    ]
+    .into_iter()
+    .collect();
+    assert_eq!(
+        old_set, expected,
+        "self-group client ids must match each device's own client id"
+    );
+
     // Both devices surface the self group as a "Notes to self" chat.
     assert_eq!(
         old_device.self_chat_title().await.unwrap().as_deref(),
@@ -236,6 +287,17 @@ async fn multi_device_linking_session() {
         "hello back from the new device",
     )
     .await;
+
+    // Rotating the user profile updates the profile key on the self group. That
+    // DS request envelope is now signed with the per-device self-group key, so
+    // this confirms the flipped self-group credential still authenticates
+    // self-group operations.
+    let new_profile = UserProfile {
+        user_id: alice.clone(),
+        display_name: "New Alice".parse().unwrap(),
+        profile_picture: None,
+    };
+    old_device.set_own_user_profile(new_profile).await.unwrap();
 }
 
 // Linking with a session ID that was never registered returns an error.
