@@ -3,30 +3,30 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 /// Named size tokens, valid for layout: gaps, padding, and box dimensions.
-abstract final class Spacing {
-  static const double px0 = 0.0;
-  static const double px1 = 1.0;
-  static const double px2 = 2.0;
-  static const double px4 = 4.0;
-  static const double px8 = 8.0;
-  static const double px12 = 12.0;
-  static const double px16 = 16.0;
-  static const double px20 = 20.0;
-  static const double px24 = 24.0;
-  static const double px28 = 28.0;
-  static const double px32 = 32.0;
-  static const double px40 = 40.0;
-  static const double px48 = 48.0;
-  static const double px56 = 56.0;
-  static const double px64 = 64.0;
-  static const double px72 = 72.0;
-  static const double px80 = 80.0;
-  static const double px96 = 96.0;
-  static const double px120 = 120.0;
-  static const double px128 = 128.0;
-  static const double px160 = 160.0;
-  static const double px192 = 192.0;
-  static const double px240 = 240.0;
+abstract final class S {
+  static const double s0 = 0.0;
+  static const double s1 = 1.0;
+  static const double s2 = 2.0;
+  static const double s4 = 4.0;
+  static const double s8 = 8.0;
+  static const double s12 = 12.0;
+  static const double s16 = 16.0;
+  static const double s20 = 20.0;
+  static const double s24 = 24.0;
+  static const double s28 = 28.0;
+  static const double s32 = 32.0;
+  static const double s40 = 40.0;
+  static const double s48 = 48.0;
+  static const double s56 = 56.0;
+  static const double s64 = 64.0;
+  static const double s72 = 72.0;
+  static const double s80 = 80.0;
+  static const double s96 = 96.0;
+  static const double s120 = 120.0;
+  static const double s128 = 128.0;
+  static const double s160 = 160.0;
+  static const double s192 = 192.0;
+  static const double s240 = 240.0;
 }
 
 /// Named corner radius tokens.
