@@ -1448,6 +1448,15 @@ impl Group {
         Ok(Ok(params))
     }
 
+    /// Validate the leaf credential of a client about to be added to this self-group: it must be
+    /// a self-group credential whose client id is not yet used by any leaf in the roster.
+    pub(crate) fn validate_self_group_add(&self, added: &Credential) -> Result<()> {
+        validate_self_group_add_credential(
+            self.mls_group.members().map(|member| member.credential),
+            added,
+        )
+    }
+
     /// Invite the given list of contacts to join the APQ group.
     ///
     /// Returns the [`ApqGroupOperationParamsOut`] as input for the pending chat operation
@@ -2538,24 +2547,12 @@ async fn verify_member_credentials(
     // verify against the AS, so it is only accepted here.
     is_self_group: bool,
 ) -> anyhow::Result<Vec<StorableUserCredential>> {
-    let mut unverified_credentials = Vec::new();
-    for member in mls_group.members() {
-        match LeafCredential::from_credential(&member.credential) {
-            Ok(LeafCredential::User(credential)) => {
-                unverified_credentials
-                    .push((credential, SignaturePublicKey::from(member.signature_key)));
-            }
-            // A self-group credential carries nothing to verify against the AS and is only
-            // accepted inside the user's own self group.
-            Ok(LeafCredential::SelfGroup(_)) => {
-                ensure!(
-                    is_self_group,
-                    "self-group credential outside the self-group"
-                );
-            }
-            Err(error) => return Err(error.into()),
-        }
-    }
+    let unverified_credentials = classify_member_credentials(
+        mls_group
+            .members()
+            .map(|member| (member.credential, SignaturePublicKey::from(member.signature_key))),
+        is_self_group,
+    )?;
 
     let as_credentials = AsCredentials::fetch_for_verification(
         txn,
@@ -2575,6 +2572,66 @@ async fn verify_member_credentials(
         verified.push(credential);
     }
     Ok(verified)
+}
+
+/// Classify the leaf credentials of all group members for verification.
+///
+/// User credentials are returned together with their leaf signature keys for AS verification.
+/// Self-group credentials carry nothing to verify against the AS. They are only accepted inside
+/// the user's own self-group, where room policy is keyed on the client id, so each leaf must
+/// carry a distinct one.
+fn classify_member_credentials(
+    members: impl Iterator<Item = (Credential, SignaturePublicKey)>,
+    is_self_group: bool,
+) -> anyhow::Result<Vec<(VerifiableUserCredential, SignaturePublicKey)>> {
+    let mut client_ids = HashSet::new();
+    let mut unverified_credentials = Vec::new();
+    for (credential, signature_key) in members {
+        match LeafCredential::from_credential(&credential) {
+            Ok(LeafCredential::User(credential)) => {
+                unverified_credentials.push((credential, signature_key));
+            }
+            Ok(LeafCredential::SelfGroup(credential)) => {
+                ensure!(
+                    is_self_group,
+                    "self-group credential outside the self-group"
+                );
+                ensure!(
+                    client_ids.insert(credential.client_id()),
+                    "duplicate client id in the self-group"
+                );
+            }
+            Err(error) => return Err(error.into()),
+        }
+    }
+    Ok(unverified_credentials)
+}
+
+/// Validate the leaf credential of a client about to be added to the self-group.
+///
+/// The credential must be a self-group credential and its client id must not collide with a
+/// leaf already in the roster, since room policy is keyed on the client id.
+fn validate_self_group_add_credential(
+    roster: impl Iterator<Item = Credential>,
+    added: &Credential,
+) -> anyhow::Result<()> {
+    let LeafCredential::SelfGroup(added) = LeafCredential::from_credential(added)? else {
+        bail!("expected a self-group credential");
+    };
+    for credential in roster {
+        match LeafCredential::from_credential(&credential)? {
+            LeafCredential::SelfGroup(existing) => {
+                ensure!(
+                    existing.client_id() != added.client_id(),
+                    "client id already present in the self-group"
+                );
+            }
+            // Self-groups created before the flip to self-group credentials still carry
+            // user-credential leaves. Client ids cannot collide with them.
+            LeafCredential::User(_) => {}
+        }
+    }
+    Ok(())
 }
 
 /// Cleans up local state when the DS reports that a group no longer exists.
@@ -2732,6 +2789,117 @@ impl Group {
         ))?;
         leaf_node_parameters = leaf_node_parameters.with_extensions(new_leaf_node_extensions);
         Ok(leaf_node_parameters.build())
+    }
+}
+
+#[cfg(test)]
+mod member_credential_validation_tests {
+    use aircommon::{
+        credentials::{SelfGroupCredential, test_utils::create_test_credentials},
+        identifiers::UserId,
+    };
+    use uuid::Uuid;
+
+    use super::*;
+
+    fn self_group_credential(client_id: Uuid) -> Credential {
+        SelfGroupCredential::new(client_id)
+            .to_credential()
+            .expect("serializing a self-group credential")
+    }
+
+    fn user_credential() -> Credential {
+        let user_id = UserId::random("example.com".parse().unwrap());
+        let (_as_signing_key, client_signing_key) = create_test_credentials(user_id);
+        Credential::try_from(client_signing_key.credential())
+            .expect("serializing a user credential")
+    }
+
+    fn signature_key() -> SignaturePublicKey {
+        SignaturePublicKey::from(vec![0u8; 32])
+    }
+
+    #[test]
+    fn self_group_roster_with_unique_client_ids_is_accepted() {
+        let members = [
+            (self_group_credential(Uuid::from_u128(1)), signature_key()),
+            (self_group_credential(Uuid::from_u128(2)), signature_key()),
+        ];
+        let unverified = classify_member_credentials(members.into_iter(), true)
+            .expect("unique client ids should be accepted");
+        assert!(unverified.is_empty());
+    }
+
+    #[test]
+    fn duplicate_client_ids_in_self_group_roster_are_rejected() {
+        let client_id = Uuid::from_u128(1);
+        let members = [
+            (self_group_credential(client_id), signature_key()),
+            (self_group_credential(client_id), signature_key()),
+        ];
+        let error = classify_member_credentials(members.into_iter(), true)
+            .expect_err("duplicate client ids should be rejected");
+        assert!(
+            error.to_string().contains("duplicate client id"),
+            "unexpected error: {error:#}"
+        );
+    }
+
+    #[test]
+    fn self_group_credential_outside_self_group_is_rejected() {
+        let members = [(self_group_credential(Uuid::from_u128(1)), signature_key())];
+        let error = classify_member_credentials(members.into_iter(), false)
+            .expect_err("self-group credential outside the self-group should be rejected");
+        assert!(
+            error.to_string().contains("outside the self-group"),
+            "unexpected error: {error:#}"
+        );
+    }
+
+    /// Self-groups created before the flip to self-group credentials still carry
+    /// user-credential leaves.
+    #[test]
+    fn user_credentials_in_self_group_roster_are_passed_on_for_verification() {
+        let members = [
+            (user_credential(), signature_key()),
+            (self_group_credential(Uuid::from_u128(1)), signature_key()),
+        ];
+        let unverified = classify_member_credentials(members.into_iter(), true)
+            .expect("mixed roster should be accepted");
+        assert_eq!(unverified.len(), 1);
+    }
+
+    #[test]
+    fn adding_a_fresh_client_id_is_accepted() {
+        let roster = [user_credential(), self_group_credential(Uuid::from_u128(1))];
+        let added = self_group_credential(Uuid::from_u128(2));
+        validate_self_group_add_credential(roster.into_iter(), &added)
+            .expect("fresh client id should be accepted");
+    }
+
+    #[test]
+    fn adding_a_duplicate_client_id_is_rejected() {
+        let client_id = Uuid::from_u128(1);
+        let roster = [self_group_credential(client_id)];
+        let added = self_group_credential(client_id);
+        let error = validate_self_group_add_credential(roster.into_iter(), &added)
+            .expect_err("duplicate client id should be rejected");
+        assert!(
+            error.to_string().contains("already present"),
+            "unexpected error: {error:#}"
+        );
+    }
+
+    #[test]
+    fn adding_a_user_credential_is_rejected() {
+        let roster = [self_group_credential(Uuid::from_u128(1))];
+        let added = user_credential();
+        let error = validate_self_group_add_credential(roster.into_iter(), &added)
+            .expect_err("user credential should be rejected");
+        assert!(
+            error.to_string().contains("expected a self-group credential"),
+            "unexpected error: {error:#}"
+        );
     }
 }
 

@@ -529,6 +529,11 @@ impl CoreUser {
                 let mut group = Group::load_clean_verified(&mut *txn, &self_group_id)
                     .await?
                     .context("self group not found")?;
+
+                // Room policy is keyed on the client id, so reject a credential whose id is
+                // already in the roster before staging the add.
+                group.validate_self_group_add(key_package.t_credential())?;
+
                 let user_profile_key = UserProfileKey::load_own(&mut *txn).await?;
 
                 let invitee = PreparedInvitee {
