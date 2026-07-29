@@ -23,7 +23,7 @@ def apple_platform(platform)
       screenshots_dir: "ios",
       flutter_target: "ios",
       # Signing happens in the build_app step, not while writing the config.
-      flutter_debug_options: ["--no-codesign"],
+      flutter_unsigned_options: ["--no-codesign"],
       xcode_dir: "ios",
     }
   when :macos
@@ -40,7 +40,7 @@ def apple_platform(platform)
       asc_platform: "osx",
       screenshots_dir: "macos",
       flutter_target: "macos",
-      flutter_debug_options: [],
+      flutter_unsigned_options: [],
       xcode_dir: "macos",
     }
   else
@@ -132,8 +132,10 @@ def apple_build(platform, with_signing:, api_key:)
 
   sh "just flutter pub get"
 
-  # Build with flutter first to create the necessary ephemeral files
-  flutter_options = skip_signing ? ["--debug"] + target[:flutter_debug_options] : ["--release"]
+  # Build with flutter first to create the necessary ephemeral files.
+  # Unsigned builds also compile the Release configuration, so that PR builds
+  # hit the sccache warmed on main; only signing/packaging is skipped.
+  flutter_options = ["--release"] + (skip_signing ? target[:flutter_unsigned_options] : [])
   sh "just flutter build #{target[:flutter_target]} --flavor production " \
      "--config-only #{flutter_options.join(' ')} --build-number=#{build_number}"
 
@@ -144,7 +146,7 @@ def apple_build(platform, with_signing:, api_key:)
   xcode_options = {
     workspace: "#{target[:xcode_dir]}/Runner.xcworkspace",
     scheme: "Runner",
-    configuration: skip_signing ? "Debug" : "Release",
+    configuration: "Release",
     skip_codesigning: skip_signing,
     skip_archive: skip_signing,
     export_method: "app-store",
