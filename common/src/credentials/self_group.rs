@@ -52,7 +52,12 @@ impl SelfGroupCredential {
         let CredentialType::Other(SELF_GROUP_CREDENTIAL_TYPE) = credential.credential_type() else {
             return Err(SelfGroupCredentialError::WrongCredentialType);
         };
-        let credential = PersistenceCodec::from_slice(credential.serialized_content())?;
+        let credential: Self = PersistenceCodec::from_slice(credential.serialized_content())?;
+        // The tagged-map codec defaults absent fields, so a credential without a client id
+        // decodes as the nil UUID. Reject it to uphold the unique-per-client invariant.
+        if credential.client_id.is_nil() {
+            return Err(SelfGroupCredentialError::NilClientId);
+        }
         Ok(credential)
     }
 }
@@ -61,6 +66,8 @@ impl SelfGroupCredential {
 pub enum SelfGroupCredentialError {
     #[error("wrong credential type")]
     WrongCredentialType,
+    #[error("nil client id")]
+    NilClientId,
     #[error(transparent)]
     Codec(#[from] codec::Error),
 }
@@ -98,6 +105,28 @@ mod test {
             error,
             SelfGroupCredentialError::WrongCredentialType
         ));
+    }
+
+    /// The tagged-map codec defaults absent fields, so an empty map would otherwise decode as
+    /// the nil UUID.
+    #[test]
+    fn credential_without_client_id_is_rejected() {
+        // 0x01 is the persistence codec version, 0xa0 is an empty CBOR map.
+        let credential = Credential::new(
+            CredentialType::Other(SELF_GROUP_CREDENTIAL_TYPE),
+            vec![0x01, 0xa0],
+        );
+        let error = SelfGroupCredential::from_credential(&credential).unwrap_err();
+        assert!(matches!(error, SelfGroupCredentialError::NilClientId));
+    }
+
+    #[test]
+    fn nil_client_id_is_rejected() {
+        let mls_credential = SelfGroupCredential::new(Uuid::nil())
+            .to_credential()
+            .unwrap();
+        let error = SelfGroupCredential::from_credential(&mls_credential).unwrap_err();
+        assert!(matches!(error, SelfGroupCredentialError::NilClientId));
     }
 
     /// The serialized form is a wire format and must stay stable.
