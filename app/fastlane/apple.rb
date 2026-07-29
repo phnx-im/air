@@ -24,6 +24,8 @@ def apple_platform(platform)
       flutter_target: "ios",
       # Signing happens in the build_app step, not while writing the config.
       flutter_unsigned_options: ["--no-codesign"],
+      # iOS device builds are arm64-only, nothing to narrow down.
+      unsigned_xcargs: nil,
       xcode_dir: "ios",
     }
   when :macos
@@ -41,6 +43,11 @@ def apple_platform(platform)
       screenshots_dir: "macos",
       flutter_target: "macos",
       flutter_unsigned_options: [],
+      # Unsigned builds are smoke builds that are never shipped. Skip the
+      # universal binary and build only the runner's native architecture,
+      # halving the uncacheable Rust LTO work (cargokit builds the Rust
+      # targets listed in ARCHS).
+      unsigned_xcargs: "ONLY_ACTIVE_ARCH=YES",
       xcode_dir: "macos",
     }
   else
@@ -151,6 +158,10 @@ def apple_build(platform, with_signing:, api_key:)
     skip_archive: skip_signing,
     export_method: "app-store",
   }
+
+  if skip_signing && target[:unsigned_xcargs]
+    xcode_options[:xcargs] = target[:unsigned_xcargs]
+  end
 
   # gym exposes a different skip option per package format.
   case platform
