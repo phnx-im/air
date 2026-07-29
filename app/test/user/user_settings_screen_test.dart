@@ -147,10 +147,7 @@ void main() {
 
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1, usernames: []));
       when(
-        () => userSettingsCubit.setReadReceipts(
-          userCubit: userCubit,
-          value: any(named: 'value'),
-        ),
+        () => userSettingsCubit.setReadReceipts(value: any(named: 'value')),
       ).thenAnswer((_) async {});
 
       await tester.pumpWidget(buildSubject());
@@ -164,27 +161,14 @@ void main() {
       await tester.pump(const Duration(milliseconds: 100));
       await tester.tap(toggle);
       verifyNever(
-        () => userSettingsCubit.setReadReceipts(
-          userCubit: userCubit,
-          value: any(named: 'value'),
-        ),
+        () => userSettingsCubit.setReadReceipts(value: any(named: 'value')),
       );
 
       // The quiet period elapses: exactly one submit, with the final position
       // (on -> off -> on -> off).
       await tester.pump(const Duration(milliseconds: 500));
-      verify(
-        () => userSettingsCubit.setReadReceipts(
-          userCubit: userCubit,
-          value: false,
-        ),
-      ).called(1);
-      verifyNever(
-        () => userSettingsCubit.setReadReceipts(
-          userCubit: userCubit,
-          value: true,
-        ),
-      );
+      verify(() => userSettingsCubit.setReadReceipts(value: false)).called(1);
+      verifyNever(() => userSettingsCubit.setReadReceipts(value: true));
     });
 
     testWidgets('pending toggle is submitted when the screen closes', (
@@ -197,10 +181,7 @@ void main() {
 
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1, usernames: []));
       when(
-        () => userSettingsCubit.setReadReceipts(
-          userCubit: userCubit,
-          value: any(named: 'value'),
-        ),
+        () => userSettingsCubit.setReadReceipts(value: any(named: 'value')),
       ).thenAnswer((_) async {});
 
       await tester.pumpWidget(buildSubject());
@@ -209,12 +190,7 @@ void main() {
       // The screen goes away before the debounce delay elapses. The pending
       // submit is flushed, not dropped.
       await tester.pumpWidget(const SizedBox());
-      verify(
-        () => userSettingsCubit.setReadReceipts(
-          userCubit: userCubit,
-          value: false,
-        ),
-      ).called(1);
+      verify(() => userSettingsCubit.setReadReceipts(value: false)).called(1);
     });
 
     testWidgets('a settings state update does not feed back into a submit', (
@@ -239,10 +215,7 @@ void main() {
       await tester.pump();
       await tester.pump(const Duration(milliseconds: 600));
       verifyNever(
-        () => userSettingsCubit.setReadReceipts(
-          userCubit: userCubit,
-          value: any(named: 'value'),
-        ),
+        () => userSettingsCubit.setReadReceipts(value: any(named: 'value')),
       );
     });
 
@@ -256,10 +229,7 @@ void main() {
 
       when(() => userCubit.state).thenReturn(MockUiUser(id: 1, usernames: []));
       when(
-        () => userSettingsCubit.setReadReceipts(
-          userCubit: userCubit,
-          value: any(named: 'value'),
-        ),
+        () => userSettingsCubit.setReadReceipts(value: any(named: 'value')),
       ).thenAnswer((_) async {});
       final settings = StreamController<UserSettings>();
       addTearDown(settings.close);
@@ -283,18 +253,8 @@ void main() {
       // The pending submit still carries the user's final choice from the
       // second tap, rather than the later programmatic switch value.
       await tester.pump(const Duration(milliseconds: 500));
-      verify(
-        () => userSettingsCubit.setReadReceipts(
-          userCubit: userCubit,
-          value: true,
-        ),
-      ).called(1);
-      verifyNever(
-        () => userSettingsCubit.setReadReceipts(
-          userCubit: userCubit,
-          value: false,
-        ),
-      );
+      verify(() => userSettingsCubit.setReadReceipts(value: true)).called(1);
+      verifyNever(() => userSettingsCubit.setReadReceipts(value: false));
     });
   });
 }

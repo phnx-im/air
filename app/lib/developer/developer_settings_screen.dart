@@ -127,17 +127,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                     title: const Text("Enable experimental features"),
                     value: isDeveloper,
                     onChanged: (value) {
-                      UserCubit? userCubit;
-                      // in the context where the app is fresh, we don't
-                      // have a UserCubit, but we might still want to toggle
-                      // the feature flags in transient fashion.
-                      try {
-                        userCubit = context.read<UserCubit>();
-                        // ignore: empty_catches
-                      } on ProviderNotFoundException {}
-
                       context.read<UserSettingsCubit>().setIsDeveloper(
-                        userCubit: userCubit,
                         value: value,
                       );
                     },

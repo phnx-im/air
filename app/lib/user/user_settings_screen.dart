@@ -335,7 +335,6 @@ class _CommonSettings extends HookWidget {
     // submit can fire while the widget is being disposed, when context
     // lookups are no longer allowed.
     final settingsCubit = context.read<UserSettingsCubit>();
-    final userCubit = context.read<UserCubit>();
     final readReceiptsSetting = context.select(
       (UserSettingsCubit cubit) => cubit.state.readReceipts,
     );
@@ -364,10 +363,7 @@ class _CommonSettings extends HookWidget {
         _SwitchField(
           onSubmit: (value) async {
             try {
-              await settingsCubit.setReadReceipts(
-                userCubit: userCubit,
-                value: value,
-              );
+              await settingsCubit.setReadReceipts(value: value);
             } catch (e) {
               // The submit failed, so the cubit state did not move. Revert the
               // optimistic local flip to match it.
@@ -473,12 +469,11 @@ class _LanguageSettings extends StatelessWidget {
     return LanguagePickerMenu(
       onLocaleSelected: (locale) async {
         context.read<AppLocaleCubit>().setLocale(locale);
-        final user = context.read<LoadableUserCubit>().state.loadedUser;
-        if (user == null) {
+        // Before login there is no user to persist the locale to.
+        if (context.read<LoadableUserCubit>().state.loadedUser == null) {
           return;
         }
         await context.read<UserSettingsCubit>().setLocale(
-          user: user,
           value: locale.languageCode,
         );
       },
@@ -533,7 +528,6 @@ class _MobileSettings extends HookWidget {
     // submit can fire while the widget is being disposed, when context
     // lookups are no longer allowed.
     final settingsCubit = context.read<UserSettingsCubit>();
-    final UserCubit userCubit = context.read();
     final sendOnEnter = useState(
       useMemoized(() => settingsCubit.state.sendOnEnter),
     );
@@ -547,7 +541,7 @@ class _MobileSettings extends HookWidget {
           label: loc.userSettingsScreen_sendWithEnter,
           value: sendOnEnter,
           onSubmit: (value) {
-            settingsCubit.setSendOnEnter(userCubit: userCubit, value: value);
+            settingsCubit.setSendOnEnter(value: value);
           },
         ),
 
@@ -596,7 +590,6 @@ class _DesktopSettings extends HookWidget {
               onChanged: (value) => interfaceScale.value = value,
               onChangeEnd: (value) {
                 context.read<UserSettingsCubit>().setInterfaceScale(
-                  userCubit: context.read(),
                   value: value / 100,
                 );
               },

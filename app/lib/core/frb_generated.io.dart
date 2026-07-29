@@ -665,12 +665,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UserCubitBase
-  dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    dynamic raw,
-  );
-
-  @protected
   UsernameHash
   dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     dynamic raw,
@@ -823,6 +817,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UploadAttachmentError dco_decode_box_autoadd_upload_attachment_error(
     dynamic raw,
   );
+
+  @protected
+  UserSettings dco_decode_box_autoadd_user_settings(dynamic raw);
 
   @protected
   UsernameValidationError dco_decode_box_autoadd_username_validation_error(
@@ -1054,12 +1051,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   User?
   dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    dynamic raw,
-  );
-
-  @protected
-  UserCubitBase?
-  dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
     dynamic raw,
   );
 
@@ -1877,12 +1868,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UserCubitBase
-  sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   UsernameHash
   sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     SseDeserializer deserializer,
@@ -2095,6 +2080,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   UploadAttachmentError sse_decode_box_autoadd_upload_attachment_error(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  UserSettings sse_decode_box_autoadd_user_settings(
     SseDeserializer deserializer,
   );
 
@@ -2376,12 +2366,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   User?
   sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UserCubitBase?
-  sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
     SseDeserializer deserializer,
   );
 
@@ -3378,13 +3362,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
-  sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    UserCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
   sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     UsernameHash self,
     SseSerializer serializer,
@@ -3645,6 +3622,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_box_autoadd_upload_attachment_error(
     UploadAttachmentError self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_box_autoadd_user_settings(
+    UserSettings self,
     SseSerializer serializer,
   );
 
@@ -4013,13 +3996,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
     User? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    UserCubitBase? self,
     SseSerializer serializer,
   );
 

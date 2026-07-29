@@ -247,6 +247,11 @@ class LoadableUserCubitProvider extends StatelessWidget {
             final coreClient = context.read<CoreClient>();
             final appLocaleCubit = context.read<AppLocaleCubit>();
 
+            // Bind the settings cubit to the user before navigating anywhere.
+            // The logged-in subtree below is gated on the attachment, because
+            // it reads the user-bound settings cubit impl.
+            await userSettingsCubit.attach(user: user);
+
             final registrationState = registrationCubit.state;
             if (registrationState.needsUsernameOnboarding) {
               navigationCubit.openIntroScreen(
@@ -258,7 +263,6 @@ class LoadableUserCubitProvider extends StatelessWidget {
               // Home with a specific chat open, so we must not overwrite it.
               navigationCubit.openHome();
             }
-            await userSettingsCubit.loadState(user: user);
             final userLocaleCode = userSettingsCubit.state.locale;
             final appLocale = appLocaleCubit.state;
             if (userLocaleCode != null) {
@@ -266,10 +270,7 @@ class LoadableUserCubitProvider extends StatelessWidget {
               appLocaleCubit.setLocale(Locale(userLocaleCode));
             } else if (appLocale != null) {
               // Persist pre-user selection once the user exists.
-              await userSettingsCubit.setLocale(
-                user: user,
-                value: appLocale.languageCode,
-              );
+              await userSettingsCubit.setLocale(value: appLocale.languageCode);
             }
             unawaited(coreClient.refreshPushToken());
 
@@ -277,7 +278,7 @@ class LoadableUserCubitProvider extends StatelessWidget {
             final loadableUserCubit = context.read<LoadableUserCubit>();
 
             navigationCubit.openIntro();
-            await userSettingsCubit.reset();
+            userSettingsCubit.detach();
 
             // Fully unload the user to dispose all user related providers, but
             // only after enough time to finish the transition to the intro
@@ -290,8 +291,15 @@ class LoadableUserCubitProvider extends StatelessWidget {
         }
       },
       builder: (context, loadableUser) {
+        // The logged-in subtree reads the settings cubit's user-bound impl,
+        // which exists only once the listener above has attached it. Until
+        // then, keep showing the same screen as while the user is loading.
+        final settingsAttached = context.select(
+          (UserSettingsCubit cubit) => cubit.isAttached,
+        );
         return switch (loadableUser) {
           LoadingUser() || UnloadedUser() => child,
+          LoadedUser() when !settingsAttached => child,
           LoadedUser(:final user) || UnloadingUser(:final user) => KeyedSubtree(
             key: ValueKey(user.userId),
             child: MultiBlocProvider(
