@@ -33,7 +33,7 @@ use mls_assist::{
 };
 use sqlx::PgExecutor;
 use thiserror::Error;
-use tls_codec::{Serialize as _, TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
+use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
 use tracing::error;
 use uuid::Uuid;
 
@@ -402,11 +402,7 @@ impl SerializableDsGroupStateV2 {
     }
 }
 
-/// Room-policy identity of a leaf credential.
-///
-/// User credentials resolve to the TLS-serialized user id. Self-group credentials carry no user
-/// identity and resolve to the raw client id bytes, which are unique per client. The two forms
-/// cannot collide: a serialized user id is always longer than the 16 client id bytes.
+/// Room-policy identity of a leaf credential, see [`LeafCredential::room_policy_identity`].
 #[derive(Debug, Clone)]
 pub(super) struct RoomPolicyIdentity(Vec<u8>);
 
@@ -415,17 +411,11 @@ impl RoomPolicyIdentity {
     ///
     /// Returns `None` (and logs) if serializing the user id fails.
     pub(super) fn from_credential(credential: &LeafCredential) -> Option<Self> {
-        match credential {
-            LeafCredential::User(credential) => credential
-                .user_id()
-                .tls_serialize_detached()
-                .map_err(|error| error!(%error, "Failed to serialize user id"))
-                .ok()
-                .map(Self),
-            LeafCredential::SelfGroup(credential) => {
-                Some(Self(credential.client_id().into_bytes().to_vec()))
-            }
-        }
+        credential
+            .room_policy_identity()
+            .map_err(|error| error!(%error, "Failed to serialize user id"))
+            .ok()
+            .map(Self)
     }
 }
 

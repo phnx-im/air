@@ -5,6 +5,7 @@
 //! Parsed MLS leaf credentials.
 
 use mls_assist::openmls::prelude::{BasicCredentialError, Credential, CredentialType};
+use tls_codec::Serialize as _;
 
 use crate::identifiers::UserId;
 
@@ -56,6 +57,20 @@ impl LeafCredential {
         match self {
             LeafCredential::User(credential) => credential.user_id(),
             LeafCredential::SelfGroup(_) => own_user_id,
+        }
+    }
+
+    /// Room-policy identity of the leaf's owner.
+    ///
+    /// User credentials resolve to the TLS-serialized user id. Self-group credentials carry no
+    /// user identity and resolve to the raw client id bytes, which are unique per client. The two
+    /// forms cannot collide: a serialized user id is always longer than the 16 client id bytes.
+    pub fn room_policy_identity(&self) -> Result<Vec<u8>, tls_codec::Error> {
+        match self {
+            LeafCredential::User(credential) => credential.user_id().tls_serialize_detached(),
+            LeafCredential::SelfGroup(credential) => {
+                Ok(credential.client_id().into_bytes().to_vec())
+            }
         }
     }
 
@@ -125,6 +140,23 @@ mod test {
             error,
             LeafCredentialError::UnsupportedCredentialType
         ));
+    }
+
+    #[test]
+    fn room_policy_identity_resolution() {
+        let user_id = UserId::new(Uuid::new_v4(), "example.com".parse().unwrap());
+        let user_leaf = LeafCredential::User(user_credential(user_id.clone()));
+        assert_eq!(
+            user_leaf.room_policy_identity().unwrap(),
+            user_id.tls_serialize_detached().unwrap()
+        );
+
+        let client_id = Uuid::new_v4();
+        let self_group_leaf = LeafCredential::SelfGroup(SelfGroupCredential::new(client_id));
+        assert_eq!(
+            self_group_leaf.room_policy_identity().unwrap(),
+            client_id.into_bytes().to_vec()
+        );
     }
 
     #[test]
