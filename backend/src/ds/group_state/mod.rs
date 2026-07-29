@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use aircommon::{
     codec::PersistenceCodec,
-    credentials::VerifiableClientCredential,
+    credentials::VerifiableUserCredential,
     crypto::{
         aead::{
             AeadDecryptable, AeadEncryptable, Ciphertext,
@@ -26,7 +26,7 @@ use mls_assist::{
     group::Group,
     openmls::{
         group::GroupId,
-        prelude::{GroupEpoch, LeafNodeIndex},
+        prelude::{GroupEpoch, LeafNodeIndex, StagedCommit},
         treesync::RatchetTree,
     },
     provider_traits::MlsAssistProvider,
@@ -56,7 +56,7 @@ pub(super) struct MemberProfile {
 /// It is encrypted-at-rest with a roster key.
 ///
 /// TODO: Past group states are now included in mls-assist. However, we might
-/// have to store client credentials externally.
+/// have to store user credentials externally.
 pub(crate) struct DsGroupState {
     pub(super) room_state: VerifiedRoomState,
     pub(super) group: Group,
@@ -117,18 +117,15 @@ impl DsGroupState {
         }
     }
 
-    /// Extract and parse the client credential of the leaf at `index`.
+    /// Extract and parse the user credential of the leaf at `index`.
     ///
     /// Returns `None` (and logs) if the leaf is missing or its credential is invalid.
-    pub(crate) fn leaf_credential(
-        &self,
-        index: LeafNodeIndex,
-    ) -> Option<VerifiableClientCredential> {
+    pub(crate) fn leaf_credential(&self, index: LeafNodeIndex) -> Option<VerifiableUserCredential> {
         let leaf = self.group().leaf(index).or_else(|| {
             error!(%index, "Leaf node not found");
             None
         })?;
-        VerifiableClientCredential::from_basic_credential(leaf.credential())
+        VerifiableUserCredential::from_basic_credential(leaf.credential())
             .map_err(|error| error!(%error, "Credential is invalid"))
             .ok()
     }
@@ -241,6 +238,15 @@ impl DsGroupState {
             .is_some_and(|component| component.is_self_group);
 
         !is_self_group
+    }
+
+    /// The self-group flag in the group context's [`AirComponent`] is fixed at
+    /// group creation. Returns `true` if merging `staged_commit` keeps it
+    /// unchanged.
+    pub(crate) fn self_group_flag_unchanged(&self, staged_commit: &StagedCommit) -> bool {
+        let current_extensions = self.group().group_info().group_context().extensions();
+        AirComponent::is_self_group_context(staged_commit.group_context().extensions())
+            == AirComponent::is_self_group_context(current_extensions)
     }
 
     pub(crate) fn qs_client_ref_by_index(
@@ -406,8 +412,7 @@ fn fallback_room_state(
 ) -> VerifiedRoomState {
     let mut member_ids = Vec::new();
     for member in members {
-        let credential = match VerifiableClientCredential::from_basic_credential(&member.credential)
-        {
+        let credential = match VerifiableUserCredential::from_basic_credential(&member.credential) {
             Ok(credential) => credential,
             Err(error) => {
                 error!(%error, "Failed to convert credential; skipping member");

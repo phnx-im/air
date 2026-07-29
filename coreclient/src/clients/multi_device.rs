@@ -64,7 +64,7 @@ use crate::{
     },
     contacts::{ContactAddInfos, ContactKeyPackage},
     groups::{
-        Group, PreparedInvitee, client_auth_info::StorableClientCredential,
+        Group, PreparedInvitee, client_auth_info::StorableUserCredential,
         openmls_provider::AirOpenMlsProvider,
     },
     key_stores::{
@@ -81,7 +81,7 @@ const EXPORTER_LABEL: &str = "multi-device-linking";
 /// [`CoreUser`] and join the user's self group.
 #[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct ProvisioningPackage {
-    // Identity + AS client credential (shared across devices for the MVP).
+    // Identity + AS user credential (shared across devices for the MVP).
     pub(crate) user_id: UserId,
     pub(crate) client_signing_key: ClientSigningKey,
     // User-level QS key material (shared by all of the user's devices).
@@ -538,11 +538,11 @@ impl CoreUser {
                     wai_key: wai_key.clone(),
                     // Only used for its `user_id()` (to bind the profile-key
                     // ciphertext); the new device shares our user id.
-                    client_credential: self.signing_key().credential().clone(),
+                    user_credential: self.signing_key().credential().clone(),
                 };
                 // Sign the commit with the fresh self-group key, but sign the
                 // WAI with the shared client key so the joiner can verify it
-                // against our client credential.
+                // against our user credential.
                 let params = group
                     .group_mut()
                     .stage_apq_invite(
@@ -568,7 +568,7 @@ impl CoreUser {
 
         // Send the commit to the DS. The MLS commit was signed by our leaf
         // (fresh self-group key), but the DS request envelope is signed with the
-        // shared client credential key: the DS authenticates requests against
+        // shared user credential key: the DS authenticates requests against
         // the sender's credential key, not the leaf key.
         let ds_timestamp = api_client
             .ds_apq_group_operation(
@@ -727,7 +727,7 @@ impl CoreUser {
             synced_settings,
         } = package;
 
-        let shared_client_credential = client_signing_key.credential().clone();
+        let shared_user_credential = client_signing_key.credential().clone();
         let key_store = MemoryUserKeyStore {
             signing_key: client_signing_key,
             qs_client_signing_key,
@@ -747,7 +747,7 @@ impl CoreUser {
 
         client_db
             .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                StorableClientCredential::new(key_store.signing_key.credential().clone())
+                StorableUserCredential::new(key_store.signing_key.credential().clone())
                     .store(&mut *txn)
                     .await?;
                 StorableQsQueueRatchet::initialize(&mut *txn, qs_initial_ratchet_secret).await?;
@@ -767,7 +767,7 @@ impl CoreUser {
                 // starts (or more specifically, when the outbound service runs for the first time.)
                 Self::schedule_fetch_user_profile(
                     &mut *txn,
-                    (shared_client_credential, user_profile_key),
+                    (shared_user_credential, user_profile_key),
                 )
                 .await?;
 

@@ -5,7 +5,7 @@
 use std::time::Instant;
 
 use aircommon::{
-    credentials::{ClientCredential, VerifiableClientCredential},
+    credentials::{UserCredential, VerifiableUserCredential},
     crypto::{aead::AeadDecryptable, indexed_aead::keys::UserProfileKey},
     identifiers::{MimiId, QualifiedGroupId, UserId},
     messages::{
@@ -59,7 +59,7 @@ use crate::{
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
         DecryptedProfileInfos, Group, GroupDataBytes, VerifiedGroup,
-        client_auth_info::StorableClientCredential,
+        client_auth_info::StorableUserCredential,
         process::{ProcessMessageProcessed, ProcessMessageResult},
     },
     job::{JobContext, JobContextDb, pending_chat_operation::PendingChatOperation},
@@ -524,9 +524,9 @@ impl CoreUser {
         let Sender::Member(sender_index) = processed_message.sender() else {
             bail!("Sender is not a member");
         };
-        let sender_client_credential = group
+        let sender_user_credential = group
             .credential_at(*sender_index)?
-            .context("No sender client credential found")?;
+            .context("No sender user credential found")?;
 
         let ProcessedMessageContent::ApplicationMessage(application_message) =
             processed_message.into_content()
@@ -541,7 +541,7 @@ impl CoreUser {
         let connection_info_source =
             ConnectionInfoSource::TargetedMessage(Box::new(TargetedMessageSource {
                 connection_info,
-                sender_client_credential,
+                sender_user_credential,
                 origin_chat_id: chat.id(),
                 sent_at: ds_timestamp,
             }));
@@ -719,7 +719,7 @@ impl CoreUser {
 
         let sender = processed_message.sender().clone();
         let sender_user_id =
-            VerifiableClientCredential::from_basic_credential(processed_message.credential())?
+            VerifiableUserCredential::from_basic_credential(processed_message.credential())?
                 .user_id()
                 .clone();
 
@@ -769,10 +769,10 @@ impl CoreUser {
                     (new_messages, Vec::new(), updated, Vec::new())
                 }
                 ProcessedMessageContent::StagedCommitMessage(staged_commit) => {
-                    let sender_client_credential =
-                        StorableClientCredential::load_by_user_id(&mut *txn, &sender_user_id)
+                    let sender_user_credential =
+                        StorableUserCredential::load_by_user_id(&mut *txn, &sender_user_id)
                             .await?
-                            .ok_or_else(|| anyhow!("No sender client credential found"))?
+                            .ok_or_else(|| anyhow!("No sender user credential found"))?
                             .into();
                     let (new_messages, updated) = self
                         .handle_staged_commit_message(
@@ -783,7 +783,7 @@ impl CoreUser {
                             aad,
                             ds_timestamp,
                             &sender,
-                            &sender_client_credential,
+                            &sender_user_credential,
                             we_were_removed,
                         )
                         .await?;
@@ -1106,7 +1106,7 @@ impl CoreUser {
         aad: Vec<u8>,
         ds_timestamp: TimeStamp,
         sender: &Sender,
-        sender_client_credential: &ClientCredential,
+        sender_user_credential: &UserCredential,
         we_were_removed: bool,
     ) -> anyhow::Result<(Vec<TimestampedMessage>, bool)> {
         // If a client joined externally, we check if the
@@ -1121,7 +1121,7 @@ impl CoreUser {
                     aad,
                     ds_timestamp,
                     sender,
-                    sender_client_credential,
+                    sender_user_credential,
                     &mut chat,
                     group.group_mut(),
                 )
@@ -1153,7 +1153,7 @@ impl CoreUser {
                     Self::schedule_fetch_group_profile(
                         &mut *txn,
                         chat.group_id().clone(),
-                        sender_client_credential.user_id().clone(),
+                        sender_user_credential.user_id().clone(),
                         ds_timestamp,
                         external_group_profile,
                         false,
@@ -1170,7 +1170,7 @@ impl CoreUser {
                     update_chat_attributes(
                         txn,
                         &mut chat,
-                        sender_client_credential.user_id(),
+                        sender_user_credential.user_id(),
                         ChatAttributes {
                             title,
                             picture: Some(picture),
@@ -1184,7 +1184,7 @@ impl CoreUser {
                     update_chat_title(
                         txn,
                         &mut chat,
-                        sender_client_credential.user_id(),
+                        sender_user_credential.user_id(),
                         title,
                         ds_timestamp,
                         &mut group_messages,
@@ -1206,7 +1206,7 @@ impl CoreUser {
         aad: Vec<u8>,
         ds_timestamp: TimeStamp,
         sender: &Sender,
-        sender_client_credential: &ClientCredential,
+        sender_user_credential: &UserCredential,
         chat: &mut Chat,
         group: &mut Group,
     ) -> Result<TimestampedMessage, anyhow::Error> {
@@ -1220,7 +1220,7 @@ impl CoreUser {
             "Incoming commit to ConnectionGroup was not an external commit"
         );
 
-        let sender_user_id = sender_client_credential.user_id();
+        let sender_user_id = sender_user_credential.user_id();
 
         if let PartialContactType::TargetedMessage(chat_user_id) = &contact_type {
             ensure!(
@@ -1260,7 +1260,7 @@ impl CoreUser {
         // UnconfirmedConnection Phase 2: Fetch the user profile.
         Self::schedule_fetch_user_profile(
             &mut *txn,
-            (sender_client_credential.clone(), user_profile_key),
+            (sender_user_credential.clone(), user_profile_key),
         )
         .await?;
 

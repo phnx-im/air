@@ -1,14 +1,25 @@
 {
   "db_name": "PostgreSQL",
-  "query": "SELECT credential as \"client_credential: FlatClientCredential\"\n                FROM as_client_record\n                WHERE user_uuid = $1 AND user_domain = $2",
+  "query": "SELECT\n                    activity_time,\n                    credential AS \"credential: FlatUserCredential\"\n                FROM as_client_record\n                WHERE user_uuid = $1 AND user_domain = $2",
   "describe": {
     "columns": [
       {
         "ordinal": 0,
-        "name": "client_credential: FlatClientCredential",
+        "name": "activity_time",
+        "type_info": "Timestamptz",
+        "origin": {
+          "Table": {
+            "table": "as_client_record",
+            "name": "activity_time"
+          }
+        }
+      },
+      {
+        "ordinal": 1,
+        "name": "credential: FlatUserCredential",
         "type_info": {
           "Custom": {
-            "name": "client_credential",
+            "name": "user_credential",
             "kind": {
               "Composite": [
                 [
@@ -70,8 +81,9 @@
       ]
     },
     "nullable": [
+      false,
       false
     ]
   },
-  "hash": "69aa624f6448b467607c5691614f34100985f97535d53654ab3d3c0aab7f16ef"
+  "hash": "3b9f34c2db1c09e52e936e44fee8cf656c70f16be58348105baa519b882d26f3"
 }

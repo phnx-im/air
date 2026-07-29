@@ -4,7 +4,7 @@
 
 use aircommon::{
     credentials::{
-        AsIntermediateCredentialBody, ClientCredential, VerifiableClientCredential,
+        AsIntermediateCredentialBody, UserCredential, VerifiableUserCredential,
         keys::{AsIntermediateVerifyingKey, ClientSignature},
     },
     crypto::{
@@ -45,7 +45,7 @@ pub(crate) mod payload {
 
     #[derive(Debug, TlsDeserializeBytes, TlsSize, Clone)]
     pub(super) struct ConnectionOfferPayloadIn {
-        pub(super) sender_client_credential: VerifiableClientCredential,
+        pub(super) sender_user_credential: VerifiableUserCredential,
         connection_group_id: GroupId,
         connection_group_ear_key: GroupStateEarKey,
         connection_group_identity_link_wrapper_key: IdentityLinkWrapperKey,
@@ -59,9 +59,9 @@ pub(crate) mod payload {
             self,
             verifying_key: &AsIntermediateVerifyingKey,
         ) -> Result<ConnectionOfferPayload, SignatureVerificationError> {
-            let client_credential = self.sender_client_credential.verify(verifying_key)?;
+            let user_credential = self.sender_user_credential.verify(verifying_key)?;
             let verified_payload = ConnectionOfferPayload {
-                sender_client_credential: client_credential,
+                sender_user_credential: user_credential,
                 connection_info: ConnectionInfo {
                     connection_group_id: self.connection_group_id,
                     connection_group_ear_key: self.connection_group_ear_key,
@@ -107,7 +107,7 @@ pub(crate) mod payload {
     #[derive(Debug, TlsSerialize, TlsSize, Clone)]
     #[cfg_attr(test, derive(PartialEq))]
     pub(crate) struct ConnectionOfferPayload {
-        pub(crate) sender_client_credential: ClientCredential,
+        pub(crate) sender_user_credential: UserCredential,
         pub(crate) connection_info: ConnectionInfo,
         pub(crate) connection_package_hash: ConnectionPackageHash,
     }
@@ -128,9 +128,9 @@ pub(crate) mod payload {
         }
 
         #[cfg(test)]
-        pub(super) fn dummy(client_credential: ClientCredential) -> Self {
+        pub(super) fn dummy(user_credential: UserCredential) -> Self {
             Self {
-                sender_client_credential: client_credential,
+                sender_user_credential: user_credential,
                 connection_info: ConnectionInfo {
                     connection_group_id: GroupId::from_slice(b"dummy_group_id"),
                     connection_group_ear_key: GroupStateEarKey::random().unwrap(),
@@ -263,7 +263,7 @@ mod tbs {
             let verifying_key = self
                 .tbs
                 .payload
-                .sender_client_credential
+                .sender_user_credential
                 .verifying_key()
                 .clone();
             <Self as Verifiable>::verify(self, &verifying_key)
@@ -312,11 +312,11 @@ pub(super) struct ConnectionOfferIn {
 
 impl ConnectionOfferIn {
     pub(super) fn sender_domain(&self) -> &Fqdn {
-        self.payload.sender_client_credential.domain()
+        self.payload.sender_user_credential.domain()
     }
 
     pub(super) fn signer_fingerprint(&self) -> &Hash<AsIntermediateCredentialBody> {
-        self.payload.sender_client_credential.signer_fingerprint()
+        self.payload.sender_user_credential.signer_fingerprint()
     }
 
     pub(super) fn verify(
