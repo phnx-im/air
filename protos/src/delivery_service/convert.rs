@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys,
+    credentials::{self, keys},
     crypto::{aead, secrets},
     identifiers,
     messages::{client_ds, client_ds_out::AddUsersInfoOut, welcome_attribution_info},
@@ -27,7 +27,7 @@ use crate::{
 use super::v1::{
     AddUsersInfo, AssistedMessage, ClientVerifyingKey, EncryptedUserProfileKey,
     EncryptedWelcomeAttributionInfo, GroupEpoch, GroupInfo, GroupStateEarKey, LeafNodeIndex,
-    MlsMessage, QsReference, RatchetTree, RoomState, SealedClientReference,
+    MlsMessage, QsReference, RatchetTree, RoomState, SealedClientReference, UserCredential,
 };
 
 impl From<identifiers::SealedClientReference> for SealedClientReference {
@@ -126,6 +126,24 @@ impl From<EncryptedUserProfileKeyError> for Status {
 #[derive(Debug, derive_more::Display)]
 #[display(fmt = "ciphertext")]
 pub struct CiphertextField;
+
+impl TryFromRef<'_, credentials::UserCredential> for UserCredential {
+    type Error = tls_codec::Error;
+
+    fn try_from_ref(value: &credentials::UserCredential) -> Result<Self, Self::Error> {
+        Ok(Self {
+            tls: value.tls_serialize_detached()?,
+        })
+    }
+}
+
+impl TryFromRef<'_, UserCredential> for credentials::UserCredential {
+    type Error = tls_codec::Error;
+
+    fn try_from_ref(proto: &UserCredential) -> Result<Self, Self::Error> {
+        DeserializeBytes::tls_deserialize_exact_bytes(&proto.tls)
+    }
+}
 
 impl TryFromRef<'_, openmls::framing::MlsMessageOut> for MlsMessage {
     type Error = tls_codec::Error;
