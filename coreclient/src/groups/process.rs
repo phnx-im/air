@@ -10,7 +10,6 @@ use aircommon::{
         VerifiableUserCredential,
     },
     crypto::{aead::keys::EncryptedUserProfileKey, hash::Hash, indexed_aead::keys::UserProfileKey},
-    identifiers::UserId,
     messages::client_ds::{
         AadMessage, AadPayload, GroupOperationParamsAad, JoinConnectionGroupParamsAad,
     },
@@ -32,7 +31,7 @@ use openmls::{
     },
 };
 use openmls_traits::OpenMlsProvider;
-use tls_codec::DeserializeBytes as TlsDeserializeBytes;
+use tls_codec::{DeserializeBytes as TlsDeserializeBytes, Serialize as _};
 use tracing::{debug, error, instrument, warn};
 
 use crate::{
@@ -431,11 +430,10 @@ impl Group {
                 verifiable_credentials.iter(),
             )
             .await?;
-            // Clone the sender id so the immutable borrow of `self` (for `own_user_id`) ends
-            // before the `&mut self` call below.
-            let sender_user_id = sender_credential.user_id(self.own_user_id()).clone();
+            // Compute the sender identity before the `&mut self` call below.
+            let sender_identity = sender_credential.room_policy_identity()?;
             let credentials = self
-                .process_adds(&sender_user_id, staged_commit, &mut *txn, &as_credentials)
+                .process_adds(&sender_identity, staged_commit, &mut *txn, &as_credentials)
                 .await?;
             // Match up user credentials and new UserProfileKeys
             let new_profile_infos: Vec<_> = credentials
@@ -637,12 +635,11 @@ impl Group {
             let removed_credential = self
                 .unverified_credential_at(removed_index)?
                 .context("Removed user credential not found")?;
-            let removed_id = removed_credential.user_id(self.own_user_id());
 
             // Room policy checks
-            self.verify_role_change(
-                sender_credential.user_id(self.own_user_id()),
-                removed_id,
+            self.verify_role_change_identity(
+                &sender_credential.room_policy_identity()?,
+                removed_credential.room_policy_identity()?,
                 RoleIndex::Outsider,
             )?;
 
@@ -677,7 +674,7 @@ impl Group {
 
     async fn process_adds(
         &mut self,
-        sender_user: &UserId,
+        sender_identity: &[u8],
         staged_commit: &StagedCommit,
         txn: &mut WriteDbTransaction<'_>,
         as_credentials: &HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>,
@@ -694,7 +691,11 @@ impl Group {
             let credential =
                 credential.verify_and_validate(leaf_node.signature_key(), None, as_credentials)?;
 
-            self.verify_role_change(sender_user, credential.user_id(), RoleIndex::Regular)?;
+            self.verify_role_change_identity(
+                sender_identity,
+                credential.user_id().tls_serialize_detached()?,
+                RoleIndex::Regular,
+            )?;
 
             credential.store(&mut *txn).await?;
             credentials.push(credential.into());

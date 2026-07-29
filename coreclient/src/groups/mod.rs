@@ -1752,10 +1752,10 @@ impl Group {
         staged_commit: Option<&'_ StagedCommit>,
     ) -> Result<()> {
         for (remover, removed) in self.staged_commit_removes(staged_commit) {
-            self.room_state_change_role(&remover, &removed, RoleIndex::Outsider)?;
+            self.room_state_change_role_identity(&remover, removed, RoleIndex::Outsider)?;
         }
         for (adder, added) in self.pending_adds(staged_commit) {
-            self.room_state_change_role(&adder, &added, RoleIndex::Regular)?;
+            self.room_state_change_role_identity(&adder, added, RoleIndex::Regular)?;
         }
 
         Ok(())
@@ -2271,24 +2271,31 @@ impl Group {
 
     /// Returns a list of (remover, removed) UserId pairs for pending remove proposals.
     pub(crate) fn pending_removes(&self) -> Vec<(UserId, UserId)> {
-        self.compile_removed_list(self.mls_group().pending_proposals())
+        self.compile_removed_list(self.mls_group().pending_proposals(), |index| {
+            self.user_id_at_index(index)
+        })
     }
 
     fn staged_commit_removes(
         &self,
         staged_commit: Option<&'_ StagedCommit>,
-    ) -> Vec<(UserId, UserId)> {
+    ) -> Vec<(Vec<u8>, Vec<u8>)> {
         let Some(staged_commit) = staged_commit.or_else(|| self.mls_group().pending_commit())
         else {
             return Vec::new();
         };
-        self.compile_removed_list(staged_commit.queued_proposals())
+        self.compile_removed_list(staged_commit.queued_proposals(), |index| {
+            self.room_identity_at_index(index)
+        })
     }
 
-    fn compile_removed_list<'a>(
+    /// Collects (remover, removed) pairs from remove proposals, resolving each leaf index with
+    /// `resolve`. UI paths resolve to user ids, room-state paths to room-policy identities.
+    fn compile_removed_list<'a, T>(
         &self,
         removes: impl Iterator<Item = &'a QueuedProposal>,
-    ) -> Vec<(UserId, UserId)> {
+        resolve: impl Fn(LeafNodeIndex) -> Option<T>,
+    ) -> Vec<(T, T)> {
         let mut pending_removes = Vec::new();
 
         for proposal in removes {
@@ -2296,12 +2303,11 @@ impl Group {
                 // We don't support external senders yet.
                 continue;
             };
-            let remover = match self.user_id_at_index(*remover) {
-                Some(user_id) => user_id,
-                None => continue,
+            let Some(remover) = resolve(*remover) else {
+                continue;
             };
             if let Some(removed_client_index) = removed_client(proposal)
-                && let Some(removed) = self.user_id_at_index(removed_client_index)
+                && let Some(removed) = resolve(removed_client_index)
             {
                 pending_removes.push((remover, removed));
             }
@@ -2324,11 +2330,19 @@ impl Group {
         })
     }
 
-    /// Returns a list of (adder, added) UserId pairs for pending add proposals.
+    fn room_identity_at_index(&self, index: LeafNodeIndex) -> Option<Vec<u8>> {
+        self.mls_group().member_at(index).and_then(|m| {
+            LeafCredential::from_credential(&m.credential)
+                .ok()
+                .and_then(|c| c.room_policy_identity().ok())
+        })
+    }
+
+    /// Returns a list of (adder, added) room-policy identity pairs for pending add proposals.
     pub(crate) fn pending_adds(
         &self,
         staged_commit: Option<&'_ StagedCommit>,
-    ) -> Vec<(UserId, UserId)> {
+    ) -> Vec<(Vec<u8>, Vec<u8>)> {
         let staged_commit = staged_commit.or_else(|| self.mls_group().pending_commit());
         let mut pending_adds = Vec::new();
         let Some(pending_commit) = staged_commit else {
@@ -2339,23 +2353,37 @@ impl Group {
                 // We don't support external senders yet.
                 continue;
             };
-            let adder = match self.user_id_at_index(*adder_index) {
-                Some(user_id) => user_id,
-                None => continue,
+            let Some(adder) = self.room_identity_at_index(*adder_index) else {
+                continue;
             };
-            let Ok(added_user) = LeafCredential::from_credential(
+            let Ok(added_credential) = LeafCredential::from_credential(
                 proposal
                     .add_proposal()
                     .key_package()
                     .leaf_node()
                     .credential(),
-            )
-            .map(|c| c.user_id(self.own_user_id()).clone()) else {
+            ) else {
                 continue;
             };
-            pending_adds.push((adder, added_user));
+            let Ok(added) = added_credential.room_policy_identity() else {
+                continue;
+            };
+            pending_adds.push((adder, added));
         }
         pending_adds
+    }
+
+    pub(crate) fn verify_role_change_identity(
+        &self,
+        sender: &[u8],
+        target: Vec<u8>,
+        role: RoleIndex,
+    ) -> Result<()> {
+        let result = self
+            .room_state
+            .can_apply_regular_proposals(sender, &[MimiProposal::ChangeRole { target, role }]);
+
+        Ok(result?)
     }
 
     pub(crate) fn verify_role_change(
@@ -2366,10 +2394,18 @@ impl Group {
     ) -> Result<()> {
         let sender = sender.tls_serialize_detached()?;
         let target = target.tls_serialize_detached()?;
+        self.verify_role_change_identity(&sender, target, role)
+    }
 
+    pub(crate) fn room_state_change_role_identity(
+        &mut self,
+        sender: &[u8],
+        target: Vec<u8>,
+        role: RoleIndex,
+    ) -> Result<()> {
         let result = self
             .room_state
-            .can_apply_regular_proposals(&sender, &[MimiProposal::ChangeRole { target, role }]);
+            .apply_regular_proposals(sender, &[MimiProposal::ChangeRole { target, role }]);
 
         Ok(result?)
     }
@@ -2382,12 +2418,7 @@ impl Group {
     ) -> Result<()> {
         let sender = sender.tls_serialize_detached()?;
         let target = target.tls_serialize_detached()?;
-
-        let result = self
-            .room_state
-            .apply_regular_proposals(&sender, &[MimiProposal::ChangeRole { target, role }]);
-
-        Ok(result?)
+        self.room_state_change_role_identity(&sender, target, role)
     }
 
     pub(crate) fn group_data(&self) -> Option<GroupDataBytes> {
@@ -2467,6 +2498,20 @@ impl Group {
                 Err(anyhow!("self-group leaf carries no user credential"))
             }
         }
+    }
+
+    /// Same as [`Self::credential_at`] but resolves the leaf owner's user id, which also works
+    /// for self-group leaves. They carry no user credential and resolve to the own user id.
+    pub(crate) fn user_id_at(
+        &self,
+        index: LeafNodeIndex,
+        witness: &impl GroupStorageWitness,
+    ) -> anyhow::Result<Option<UserId>> {
+        ensure!(self.group_id() == witness.group_id(), "Group ID mismatch");
+        let Some(credential) = self.unverified_credential_at(index)? else {
+            return Ok(None);
+        };
+        Ok(Some(credential.user_id(self.own_user_id()).clone()))
     }
 }
 
@@ -2820,10 +2865,8 @@ impl TimestampedMessage {
             };
 
             let remover = group
-                .credential_at(*sender_index, verified)?
-                .context("Could not find user credential of message sender")?
-                .user_id()
-                .clone();
+                .user_id_at(*sender_index, verified)?
+                .context("Could not find user credential of message sender")?;
 
             let Some(removed_index) = removed_client(remove_proposal) else {
                 // This cannot happen since we filtered for remove proposals.
@@ -2831,10 +2874,8 @@ impl TimestampedMessage {
             };
 
             let removed = group
-                .credential_at(removed_index, verified)?
-                .context("Could not find user credential of removed")?
-                .user_id()
-                .clone();
+                .user_id_at(removed_index, verified)?
+                .context("Could not find user credential of removed")?;
 
             if remover == removed {
                 // A system message for this proposal was already made when it was proposed
@@ -2859,10 +2900,8 @@ impl TimestampedMessage {
             };
             // Get the user id of the sender from the MLS group member credential
             let sender_id = group
-                .credential_at(*sender_index, verified)?
-                .context("Could not find user credential of sender")?
-                .user_id()
-                .clone();
+                .user_id_at(*sender_index, verified)?
+                .context("Could not find user credential of sender")?;
 
             // Get the user id of the added member from the proposal key package
             let credential = staged_add_proposal
@@ -2888,10 +2927,9 @@ impl TimestampedMessage {
                 bail!("Invalid proposal")
             };
             if enabled!(Level::DEBUG) {
-                let credential = group
-                    .credential_at(*sender_index, verified)?
+                let user_id = group
+                    .user_id_at(*sender_index, verified)?
                     .context("Could not find user credential of sender")?;
-                let user_id = credential.user_id();
                 debug!(
                     ?user_id,
                     %sender_index, "Client has updated their key material",
