@@ -19,6 +19,7 @@ import 'package:air/message_list/message_reactions.dart';
 import 'package:air/message_list/mobile_message_actions.dart';
 import 'package:air/message_list/timestamp.dart';
 import 'package:air/navigation/navigation.dart';
+import 'package:air/ds/foundations/motion.dart';
 import 'package:air/ds/theme/theme.dart';
 import 'package:air/ds/foundations/themes.dart';
 import 'package:air/ds/components/button/button.dart';
@@ -29,6 +30,7 @@ import 'package:air/ds/components/modal/bottom_sheet_modal.dart';
 import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/user/user.dart';
+import 'package:air/util/app_haptics.dart';
 import 'package:air/util/platform.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/widgets/widgets.dart';
@@ -58,13 +60,15 @@ final double _hoverReactSize =
 // Width the hover affordance occupies beside the bubble: the reply and react
 // buttons, the gap between them, and the gap to the bubble.
 final double _hoverAffordanceWidth = 2 * _hoverReactSize + 2 * Spacing.px8;
-const double largeCornerRadius = Spacing.px20;
-const double smallCornerRadius = Spacing.px8;
-const double messageHorizontalPadding = Spacing.px16;
+const double largeCornerRadius = Spacing.px12;
+const double smallCornerRadius = Spacing.px12;
+const double messageHorizontalPadding = Spacing.px12;
 const double messageVerticalPadding = Spacing.px8;
+// Gap between consecutive bubbles of the same flight.
+const double messageFollowUpGap = Spacing.px2;
 const double senderAvatarSize = Spacing.px32;
 const double senderAvatarVerticalOffset = Spacing.px4;
-const double senderLabelBottomGap = Spacing.px4 / 2;
+const double senderLabelBottomGap = Spacing.px2;
 const double incomingContentInset =
     senderAvatarSize + Spacing.px12 + messageHorizontalPadding;
 
@@ -250,7 +254,10 @@ class _IncomingMessageTile extends StatelessWidget {
         Row(
           crossAxisAlignment: CrossAxisAlignment.end,
           children: [
-            Padding(
+            AnimatedPadding(
+              // Tracks the animated reserve in [BubbleWithReactions].
+              duration: motionShort,
+              curve: motionEasing,
               padding: EdgeInsets.only(
                 bottom: reactionsReservedBelow(context, reactions.isNotEmpty),
               ),
@@ -391,6 +398,8 @@ class _MessageView extends HookWidget {
     Rect? reactionAnchorRect() => globalRectOf(messageBubbleKey);
 
     void sendReaction(String emoji) {
+      // May run after the reaction overlay's exit transition.
+      if (!context.mounted) return;
       context.read<ChatDetailsCubit>().sendReaction(
         messageId: messageId,
         emoji: emoji,
@@ -657,9 +666,14 @@ class _MessageView extends HookWidget {
                             ? () => isRevealed.value = true
                             : null,
                         // Mobile: double-tap a message to react. On desktop,
-                        // double-click is reserved for text selection.
-                        onDoubleTap: (isMobilePlatform && isReplyable)
-                            ? openReactionMenu
+                        // the recognizer must not be registered at all,
+                        // otherwise it wins the gesture arena and blocks
+                        // double-click text selection.
+                        onDoubleTap: isMobilePlatform && isReplyable
+                            ? () {
+                                AppHaptics.confirm();
+                                openReactionMenu();
+                              }
                             : null,
                         onLongPress: onLongPress,
                         child: bubble,
@@ -693,6 +707,7 @@ class _MessageView extends HookWidget {
                   final overlayBubble = buildMessageBubble(
                     enableSelection: false,
                   );
+                  AppHaptics.menuOpen();
                   ContextMenu.closeActiveMenu();
                   isDetached.value = true;
                   final future = showMobileMessageActions(
@@ -759,8 +774,11 @@ class _MessageView extends HookWidget {
     );
 
     // Padded at the bottom by the chip reserve so the trailing-affordance Row
-    // centers it on the bubble itself (not the bubble + reaction chips).
-    final hoverAffordance = Padding(
+    // centers it on the bubble itself (not the bubble + reaction chips),
+    // in sync with the animated reserve in [BubbleWithReactions].
+    final hoverAffordance = AnimatedPadding(
+      duration: motionShort,
+      curve: motionEasing,
       padding: EdgeInsets.only(
         bottom: reactionsReservedBelow(context, reactions.isNotEmpty),
         left: isSender ? 0 : Spacing.px8,
@@ -1208,9 +1226,9 @@ class _MessageContent extends StatelessWidget {
           if (isEdited)
             Padding(
               padding: const EdgeInsets.only(
-                left: Spacing.px16,
-                right: Spacing.px16,
-                bottom: Spacing.px8,
+                left: messageHorizontalPadding,
+                right: messageHorizontalPadding,
+                bottom: messageVerticalPadding,
               ),
               child: SelectionContainer.disabled(
                 child: Text(
@@ -1228,7 +1246,7 @@ class _MessageContent extends StatelessWidget {
     );
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 1.5),
+      padding: const EdgeInsets.only(bottom: messageFollowUpGap),
       // Jumbo emoji renders without a bubble background, we skip the jump
       // highlight
       child: nakedContent
@@ -1273,7 +1291,7 @@ class _DeletedMessageContent extends StatelessWidget {
         : colors.message.otherBackground;
 
     return Padding(
-      padding: const EdgeInsets.only(bottom: 1.5),
+      padding: const EdgeInsets.only(bottom: messageFollowUpGap),
       child: DecoratedBox(
         decoration: BoxDecoration(
           borderRadius: _messageBorderRadius(isSender, flightPosition),
@@ -1353,7 +1371,7 @@ class _DisplayName extends StatelessWidget {
     return SelectionContainer.disabled(
       child: Text(
         displayName,
-        style: TextTheme.of(context).labelSmall!.copyWith(
+        style: TextTheme.of(context).bodyMedium!.copyWith(
           color: CustomColorScheme.of(context).text.tertiary,
         ),
         overflow: TextOverflow.ellipsis,
@@ -1421,7 +1439,6 @@ class _ImageAttachmentContent extends StatelessWidget {
             fit: BoxFit.cover,
             onTap: () {
               FocusScope.of(context).unfocus();
-              HapticFeedback.mediumImpact();
               Navigator.of(
                 context,
               ).push(imageViewerRoute(attachment: attachment));
@@ -1446,17 +1463,20 @@ void _showDeleteMessageDialog({
       title: loc.deleteMessageDialog_title,
       description: loc.deleteMessageDialog_description,
       primaryActionText: loc.deleteMessageDialog_forEveryone,
-      onPrimaryAction: (_) => cubit.deleteMessage(
-        messageId: messageId,
-        deleteMode: DeleteMode.forEveryone,
-      ),
+      onPrimaryAction: (_) {
+        AppHaptics.destructive();
+        cubit.deleteMessage(
+          messageId: messageId,
+          deleteMode: DeleteMode.forEveryone,
+        );
+      },
       primaryType: AppButtonType.secondary,
       primaryTone: AppButtonTone.danger,
       secondaryActionText: loc.deleteMessageDialog_forMe,
-      onSecondaryAction: (_) => cubit.deleteMessage(
-        messageId: messageId,
-        deleteMode: DeleteMode.forMe,
-      ),
+      onSecondaryAction: (_) {
+        AppHaptics.destructive();
+        cubit.deleteMessage(messageId: messageId, deleteMode: DeleteMode.forMe);
+      },
       secondaryType: AppButtonType.secondary,
       secondaryTone: AppButtonTone.danger,
     ),
@@ -1476,10 +1496,10 @@ void _showDeleteForMeDialog({
       title: loc.deleteMessageForMeDialog_title,
       description: loc.deleteMessageForMeDialog_description,
       primaryActionText: loc.deleteMessageForMeDialog_delete,
-      onPrimaryAction: (_) => cubit.deleteMessage(
-        messageId: messageId,
-        deleteMode: DeleteMode.forMe,
-      ),
+      onPrimaryAction: (_) {
+        AppHaptics.destructive();
+        cubit.deleteMessage(messageId: messageId, deleteMode: DeleteMode.forMe);
+      },
       primaryType: AppButtonType.secondary,
       primaryTone: AppButtonTone.danger,
     ),

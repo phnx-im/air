@@ -20,6 +20,7 @@ import 'package:air/ds/foundations/themes.dart';
 import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/user/user.dart';
+import 'package:air/util/app_haptics.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -256,6 +257,7 @@ class _ListTileState extends State<_ListTile> {
         onTap: () => context.read<NavigationCubit>().openChat(widget.chatId),
         onLongPressStart: (details) {
           _cursorPosition.value = details.globalPosition;
+          AppHaptics.menuOpen();
           _contextMenuController.show();
         },
         onSecondaryTapDown: (details) {

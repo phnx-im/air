@@ -6,7 +6,7 @@ use std::ops::Deref;
 
 use aircommon::{
     codec::{BlobDecoded, BlobEncoded, PersistenceCodec},
-    credentials::{ClientCredential, GroupStorageWitness, VerifiableClientCredential},
+    credentials::{GroupStorageWitness, UserCredential, VerifiableUserCredential},
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     identifiers::UserId,
     time::TimeStamp,
@@ -91,7 +91,7 @@ impl SqlGroup {
                 .members()
                 .map(|m| -> anyhow::Result<_> {
                     let credential =
-                        VerifiableClientCredential::from_basic_credential(&m.credential)?;
+                        VerifiableUserCredential::from_basic_credential(&m.credential)?;
                     Ok(credential.user_id().tls_serialize_detached()?)
                 })
                 .filter_map(|res| {
@@ -148,7 +148,7 @@ impl VerifiedGroup {
     pub(crate) fn credential_at(
         &self,
         index: LeafNodeIndex,
-    ) -> anyhow::Result<Option<ClientCredential>> {
+    ) -> anyhow::Result<Option<UserCredential>> {
         self.0.credential_at(index, self)
     }
 

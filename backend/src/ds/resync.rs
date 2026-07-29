@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{credentials::VerifiableClientCredential, time::Duration, utils::removed_clients};
+use aircommon::{credentials::VerifiableUserCredential, time::Duration, utils::removed_clients};
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::{ProcessedAssistedMessage, apq::ApqGroupRef},
@@ -27,7 +27,7 @@ impl DsGroupState {
     /// acting party.
     fn change_removed_roles_to_outsider(
         &mut self,
-        sender: &VerifiableClientCredential,
+        sender: &VerifiableUserCredential,
         removed_indices: &[LeafNodeIndex],
     ) -> Result<(), ResyncClientError> {
         for &removed_index in removed_indices {
@@ -88,6 +88,11 @@ impl DsGroupState {
             // This should be a staged commit message.
             return Err(ResyncClientError::InvalidMessage);
         };
+
+        if !self.self_group_flag_unchanged(staged_commit_message) {
+            error!("Commit would toggle the self-group flag");
+            return Err(ResyncClientError::InvalidMessage);
+        }
 
         // Check if it's an external commit.
         if !matches!(processed_message.sender(), Sender::NewMemberCommit) {
@@ -185,6 +190,13 @@ impl DsGroupState {
             error!("Invalid message content; expected staged commit");
             return Err(ResyncClientError::InvalidMessage);
         };
+
+        if !t_group_state.self_group_flag_unchanged(t_staged_commit)
+            || !pq_group_state.self_group_flag_unchanged(pq_staged_commit)
+        {
+            error!("Commit would toggle the self-group flag");
+            return Err(ResyncClientError::InvalidMessage);
+        }
 
         let (Sender::NewMemberCommit, Sender::NewMemberCommit) =
             (t_processed_message.sender(), pq_processed_message.sender())

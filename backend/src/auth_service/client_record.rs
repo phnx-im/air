@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{credentials::ClientCredential, identifiers::UserId, time::TimeStamp};
+use aircommon::{credentials::UserCredential, identifiers::UserId, time::TimeStamp};
 use sqlx::PgExecutor;
 
 use crate::errors::StorageError;
@@ -11,13 +11,13 @@ use crate::errors::StorageError;
 #[cfg_attr(test, derive(PartialEq, Eq))]
 pub(super) struct ClientRecord {
     pub(super) activity_time: TimeStamp,
-    pub(super) credential: ClientCredential,
+    pub(super) credential: UserCredential,
 }
 
 impl ClientRecord {
     pub(super) async fn new_and_store(
         connection: impl PgExecutor<'_>,
-        credential: ClientCredential,
+        credential: UserCredential,
     ) -> Result<Self, StorageError> {
         let record = Self {
             activity_time: TimeStamp::now(),
@@ -34,7 +34,7 @@ impl ClientRecord {
 }
 
 pub(crate) mod persistence {
-    use aircommon::credentials::persistence::FlatClientCredential;
+    use aircommon::credentials::persistence::FlatUserCredential;
     use sqlx::{
         PgExecutor, query,
         types::chrono::{DateTime, Utc},
@@ -48,7 +48,7 @@ pub(crate) mod persistence {
             connection: impl PgExecutor<'_>,
         ) -> Result<(), StorageError> {
             let activity_time = DateTime::<Utc>::from(self.activity_time);
-            let client_credential = FlatClientCredential::new(&self.credential);
+            let user_credential = FlatUserCredential::new(&self.credential);
             let user_id = self.credential.user_id();
             query!(
                 "INSERT INTO as_client_record (
@@ -60,7 +60,7 @@ pub(crate) mod persistence {
                 user_id.uuid(),
                 user_id.domain() as _,
                 activity_time,
-                client_credential as FlatClientCredential,
+                user_credential as FlatUserCredential,
             )
             .execute(connection)
             .await?;
@@ -74,7 +74,7 @@ pub(crate) mod persistence {
             query!(
                 r#"SELECT
                     activity_time,
-                    credential AS "credential: FlatClientCredential"
+                    credential AS "credential: FlatUserCredential"
                 FROM as_client_record
                 WHERE user_uuid = $1 AND user_domain = $2"#,
                 user_id.uuid(),
@@ -85,7 +85,7 @@ pub(crate) mod persistence {
             .map(|record| {
                 Ok(ClientRecord {
                     activity_time: record.activity_time.into(),
-                    credential: record.credential.into_client_credential(user_id.clone()),
+                    credential: record.credential.into_user_credential(user_id.clone()),
                 })
             })
             .transpose()
@@ -106,14 +106,14 @@ pub(crate) mod persistence {
             Ok(())
         }
 
-        /// Return the client credentials of a user for a given username.
+        /// Return the user credentials of a user for a given username.
         #[allow(dead_code)]
         pub(in crate::auth_service) async fn load_user_credentials(
             connection: impl PgExecutor<'_>,
             user_id: &UserId,
-        ) -> Result<Vec<ClientCredential>, StorageError> {
+        ) -> Result<Vec<UserCredential>, StorageError> {
             let credentials = sqlx::query_scalar!(
-                r#"SELECT credential as "client_credential: FlatClientCredential"
+                r#"SELECT credential as "user_credential: FlatUserCredential"
                 FROM as_client_record
                 WHERE user_uuid = $1 AND user_domain = $2"#,
                 user_id.uuid(),
@@ -123,7 +123,7 @@ pub(crate) mod persistence {
             .await?;
             let credentials = credentials
                 .into_iter()
-                .map(|flat_credential| flat_credential.into_client_credential(user_id.clone()))
+                .map(|flat_credential| flat_credential.into_user_credential(user_id.clone()))
                 .collect();
             Ok(credentials)
         }
@@ -132,7 +132,7 @@ pub(crate) mod persistence {
     #[cfg(test)]
     pub(crate) mod tests {
         use aircommon::{
-            credentials::{ClientCredentialCsr, ClientCredentialPayload},
+            credentials::{UserCredentialCsr, UserCredentialPayload},
             crypto::{hash::Hash, signatures::signable::Signature},
             time::{Duration, ExpirationData},
         };
@@ -153,12 +153,12 @@ pub(crate) mod persistence {
         }
 
         pub(crate) fn random_client_record(user_id: UserId) -> Result<ClientRecord, anyhow::Error> {
-            let (csr, _) = ClientCredentialCsr::new(user_id, SignatureScheme::ED25519)?;
+            let (csr, _) = UserCredentialCsr::new(user_id, SignatureScheme::ED25519)?;
             let expiration_data = ExpirationData::new(Duration::days(90));
             let record = ClientRecord {
                 activity_time: TimeStamp::now(),
-                credential: ClientCredential::new(
-                    ClientCredentialPayload::new(
+                credential: UserCredential::new(
+                    UserCredentialPayload::new(
                         csr,
                         Some(expiration_data),
                         Hash::new_for_test(b"fingerprint".to_vec()),

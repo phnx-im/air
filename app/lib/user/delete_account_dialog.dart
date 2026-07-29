@@ -5,6 +5,7 @@
 import 'package:air/ds/components/modal/app_dialog.dart';
 import 'package:air/ds/foundations/icons/app_icons.dart';
 import 'package:air/ds/foundations/font_size.dart';
+import 'package:air/util/app_haptics.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -145,6 +146,7 @@ class DeleteAccountDialog extends HookWidget {
     ValueNotifier<bool> isDeleting,
     String confirmationText,
   ) async {
+    AppHaptics.destructive();
     isDeleting.value = true;
     final userCubit = context.read<UserCubit>();
     final coreClient = context.read<CoreClient>();

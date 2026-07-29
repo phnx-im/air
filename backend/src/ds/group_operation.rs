@@ -22,7 +22,7 @@ use mls_assist::{
 use apqmls::messages::ApqWelcome;
 
 use aircommon::{
-    credentials::VerifiableClientCredential,
+    credentials::VerifiableUserCredential,
     crypto::{
         aead::keys::{EncryptedUserProfileKey, GroupStateEarKey},
         hpke::{HpkeEncryptable, JoinerInfoEncryptionKey},
@@ -102,6 +102,11 @@ impl DsGroupState {
             return Err(GroupOperationError::InvalidMessage);
         };
 
+        if !self.self_group_flag_unchanged(staged_commit) {
+            warn!("Commit would toggle the self-group flag");
+            return Err(GroupOperationError::InvalidMessage);
+        }
+
         // Perform validation depending on the type of message
         let sender_index = match processed_message.sender() {
             Sender::Member(leaf_index) => SenderIndex::Member(*leaf_index),
@@ -149,7 +154,7 @@ impl DsGroupState {
             let mut pq_add_proposals = pq_staged_commit.map(|commit| commit.add_proposals());
 
             for ((added_key_package, _), _) in &add_users_state.added_users {
-                let added_credential = VerifiableClientCredential::from_basic_credential(
+                let added_credential = VerifiableUserCredential::from_basic_credential(
                     added_key_package.leaf_node().credential(),
                 )
                 .map_err(|e| {
@@ -258,7 +263,7 @@ impl DsGroupState {
             }
 
             let removed_credential =
-                VerifiableClientCredential::from_basic_credential(removed_leaf.credential())
+                VerifiableUserCredential::from_basic_credential(removed_leaf.credential())
                     .map_err(|e| {
                         error!(%e, "Credential of removed user is invalid");
                         GroupOperationError::InvalidMessage
@@ -378,6 +383,10 @@ impl DsGroupState {
                 warn!("PQ message content is not a staged commit");
                 return Err(GroupOperationError::InvalidMessage);
             };
+            if !pq_group_state.self_group_flag_unchanged(pq_staged_commit) {
+                warn!("PQ commit would toggle the self-group flag");
+                return Err(GroupOperationError::InvalidMessage);
+            }
             let pq_sender_index = match processed_assisted_message
                 .processed_message
                 .pq_message

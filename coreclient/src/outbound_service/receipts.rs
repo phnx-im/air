@@ -255,7 +255,7 @@ impl OutboundServiceContext {
 
     /// Creates a new MLS message for the given chat.
     /// The MLS content is signed by our leaf, which for the self group uses a
-    /// fresh key that differs from the shared client credential key. The DS
+    /// fresh key that differs from the shared user credential key. The DS
     /// *request* envelope, in contrast, is signed by the caller with the shared
     /// client key.
     pub(super) async fn new_mls_message(

@@ -8,7 +8,7 @@ use std::convert::Infallible;
 
 use airapiclient::ds_api::DsAttachmentTarget;
 use aircommon::{
-    credentials::ClientCredential,
+    credentials::UserCredential,
     crypto::indexed_aead::{ciphertexts::IndexDecryptable, keys::UserProfileKey},
     identifiers::{RemoteAttachmentId, UserId},
     messages::client_as_out::GetUserProfileResponse,
@@ -48,10 +48,10 @@ impl CoreUser {
         profile_info: impl Into<ProfileInfo>,
     ) -> sqlx::Result<()> {
         let ProfileInfo {
-            client_credential,
+            user_credential,
             user_profile_key,
         } = profile_info.into();
-        FetchUserProfileOperation::new(client_credential, user_profile_key)
+        FetchUserProfileOperation::new(user_credential, user_profile_key)
             .into_operation()
             .enqueue(connection)
             .await
@@ -64,10 +64,10 @@ impl CoreUser {
         profile_info: impl Into<ProfileInfo>,
     ) -> impl Job<Output = ()> {
         let ProfileInfo {
-            client_credential,
+            user_credential,
             user_profile_key,
         } = profile_info.into();
-        FetchUserProfileOperation::new(client_credential, user_profile_key)
+        FetchUserProfileOperation::new(user_credential, user_profile_key)
     }
 
     /// Schedule a group profile fetch operation.
@@ -96,17 +96,16 @@ impl CoreUser {
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub(crate) struct FetchUserProfileOperation {
-    client_credential: ClientCredential,
+    // Persisted CBOR field name; predates the rename to user credential.
+    #[serde(rename = "client_credential")]
+    user_credential: UserCredential,
     user_profile_key: UserProfileKey,
 }
 
 impl FetchUserProfileOperation {
-    pub(crate) fn new(
-        client_credential: ClientCredential,
-        user_profile_key: UserProfileKey,
-    ) -> Self {
+    pub(crate) fn new(user_credential: UserCredential, user_profile_key: UserProfileKey) -> Self {
         Self {
-            client_credential,
+            user_credential,
             user_profile_key,
         }
     }
@@ -120,7 +119,7 @@ impl OperationData for FetchUserProfileOperation {
     fn generate_id(&self) -> OperationId {
         let mut bytes = Vec::new();
         bytes.push(Self::kind() as u8);
-        let user_id = self.client_credential.user_id();
+        let user_id = self.user_credential.user_id();
         if let Err(error) = user_id.tls_serialize(&mut bytes) {
             error!(%error, "error white serializing user id");
         }
@@ -138,11 +137,11 @@ impl Job for FetchUserProfileOperation {
         context: &mut JobContext<'_, '_>,
     ) -> Result<Self::Output, JobError<Self::DomainError>> {
         let Self {
-            client_credential,
+            user_credential,
             user_profile_key,
         } = self;
 
-        let user_id = client_credential.user_id();
+        let user_id = user_credential.user_id();
 
         // Phase 1: Check if the profile in the DB is up to date.
         let existing_user_profile =
@@ -164,7 +163,7 @@ impl Job for FetchUserProfileOperation {
             VerifiableUserProfile::decrypt_with_index(&user_profile_key, &encrypted_user_profile)
                 .map_err(JobError::fatal)?;
         let persistable_user_profile = existing_user_profile
-            .process_decrypted_user_profile(verifiable_user_profile, &client_credential)
+            .process_decrypted_user_profile(verifiable_user_profile, &user_credential)
             .map_err(JobError::fatal)?;
 
         // Phase 4: Store the user profile and key in the database

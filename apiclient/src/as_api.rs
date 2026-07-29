@@ -9,7 +9,7 @@ use std::convert::identity;
 use aircommon::{
     LibraryError,
     credentials::{
-        ClientCredentialPayload,
+        UserCredentialPayload,
         keys::{ClientSigningKey, UsernameSigningKey},
     },
     crypto::{indexed_aead::keys::UserProfileKeyIndex, signatures::signable::Signable},
@@ -174,13 +174,13 @@ impl ApiClient {
 
     pub async fn as_register_user(
         &self,
-        client_payload: ClientCredentialPayload,
+        client_payload: UserCredentialPayload,
         encrypted_user_profile: EncryptedUserProfile,
         invitation_code: String,
     ) -> Result<RegisterUserResponseIn, AsRequestError> {
         let request = RegisterUserRequest {
             client_metadata: Some(self.metadata().clone()),
-            client_credential_payload: Some(client_payload.into()),
+            user_credential_payload: Some(client_payload.into()),
             encrypted_user_profile: Some(encrypted_user_profile.into()),
             invitation_code: Some(InvitationCode {
                 code: invitation_code,
@@ -192,15 +192,15 @@ impl ApiClient {
             .await?
             .into_inner();
         Ok(RegisterUserResponseIn {
-            client_credential: response
-                .client_credential
+            user_credential: response
+                .user_credential
                 .ok_or_else(|| {
-                    error!("missing `client_credential` in response");
+                    error!("missing `user_credential` in response");
                     AsRequestError::UnexpectedResponse
                 })?
                 .try_into()
                 .map_err(|error| {
-                    error!(%error, "invalid client_credential in response");
+                    error!(%error, "invalid user_credential in response");
                     AsRequestError::UnexpectedResponse
                 })?,
         })

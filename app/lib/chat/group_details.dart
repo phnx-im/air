@@ -16,6 +16,7 @@ import 'package:air/ds/components/desktop/width_constraints.dart';
 import 'package:air/ds/components/modal/bottom_sheet_modal.dart';
 import 'package:air/ds/foundations/font_size.dart';
 import 'package:air/user/user.dart';
+import 'package:air/util/app_haptics.dart';
 import 'package:air/ds/components/modal/dialog.dart';
 import 'package:air/widgets/widgets.dart';
 import 'package:flutter/material.dart';
@@ -186,6 +187,7 @@ class GroupDetailsScreen extends StatelessWidget {
         ) ??
         false;
     if (!confirmed) return;
+    AppHaptics.destructive();
     userCubit.deleteChat(chat.id);
     if (!context.mounted) return;
     navigationCubit.closeChat();
