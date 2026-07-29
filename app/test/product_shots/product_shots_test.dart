@@ -3,27 +3,29 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:io';
-
-import 'package:air/chat/chat_details.dart';
-import 'package:air/chat_list/chat_list.dart';
-import 'package:air/chat_list/chat_list_cubit.dart';
+import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/features/chat/chat_screen.dart';
+import 'package:air/features/chat_list/chat_list_view.dart';
+import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
-import 'package:air/message_list/message_list.dart';
-import 'package:air/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/palette.dart';
-import 'package:air/ds/components/navigation/app_tab_bar.dart';
-import 'package:air/user/user.dart';
+import 'package:air/features/message_list/message_list_cubit.dart';
+import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/ds/foundations/primitives.dart';
+import 'package:air/features/navigation/app_tab_bar.dart';
+import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
+import 'package:air/features/user/users_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
 import 'package:system_date_time_format/system_date_time_format.dart';
 
-import '../chat_list/chat_list_content_test.dart'
+import '../features/chat_list/chat_list_content_test.dart'
     show createMockChatDetailsCubitFactory;
 import '../helpers.dart';
-import '../message_list/message_list_test.dart';
+import '../features/message_list/message_list_test.dart';
 import '../mocks.dart';
 import 'content.dart';
 import 'product_shot.dart';
