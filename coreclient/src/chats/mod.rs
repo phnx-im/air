@@ -403,9 +403,7 @@ pub(crate) trait GroupDataExt {
     where
         Self: Sized,
     {
-        Ok(Self::decode(bytes)?
-            .into_parts(identity_link_wrapper_key)
-            .0)
+        Ok(Self::decode(bytes)?.into_parts(identity_link_wrapper_key).0)
     }
 }
 
