@@ -28,7 +28,6 @@ use airprotos::{
 use airserver_test_harness::utils::setup::{TestBackend, TestBackendParams, TestUser};
 use chrono::Utc;
 use mimi_content::MimiContent;
-use rand::thread_rng;
 use semver::VersionReq;
 use tokio::time::{sleep, timeout};
 use tokio_stream::StreamExt;
@@ -1037,7 +1036,7 @@ async fn unsupported_client_version() {
     let details = StatusDetails::from_status(&status).unwrap();
     assert_matches!(details.code(), StatusDetailsCode::VersionUnsupported);
 
-    let client_id = QsClientId::random(&mut thread_rng());
+    let client_id = QsClientId::random(&mut rand::rng());
     let signing_key = QsClientSigningKey::generate().unwrap();
     // Signing key does not have to be valid, because the client version is checked first.
     let res = client.qs_listen_queue(client_id, 0, &signing_key).await;

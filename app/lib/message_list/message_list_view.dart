@@ -25,6 +25,7 @@ import 'floating_date_header.dart';
 import 'jump_highlight.dart';
 import 'message_cubit.dart';
 import 'message_list_cubit.dart';
+import 'message_reactions.dart';
 import 'scroll_to_bottom_controller.dart';
 import 'unread_divider.dart';
 
@@ -116,6 +117,8 @@ class _MessageListViewState extends State<MessageListView>
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
+    // Idempotent and cheap when already warmed.
+    warmUpReactionEmojis(context);
     final cubit = context.read<MessageListCubit>();
     if (identical(cubit, _commandsCubit)) return;
     _commandSubscription?.cancel();

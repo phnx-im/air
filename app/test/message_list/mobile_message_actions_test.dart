@@ -245,5 +245,51 @@ void main() {
         matchesGoldenFile('goldens/message_list_mobile_actions.png'),
       );
     });
+
+    testWidgets('defers a picked reaction until the overlay is dismissed', (
+      tester,
+    ) async {
+      tester.view.physicalSize = _testSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      when(
+        () => chatDetailsCubit.sendReaction(
+          messageId: any(named: 'messageId'),
+          emoji: any(named: 'emoji'),
+        ),
+      ).thenAnswer((_) async {});
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      final messageFinder = find.text("Hello Alice, it's Bob");
+      await tester.longPress(messageFinder);
+      await tester.pumpAndSettle();
+
+      // The bar emoji is a painted glyph, not a Text, find it via semantics.
+      final semantics = tester.ensureSemantics();
+      await tester.tap(find.bySemanticsLabel(RegExp('👍')));
+      semantics.dispose();
+      await tester.pump();
+
+      // Not delivered while the exit transition is still running.
+      verifyNever(
+        () => chatDetailsCubit.sendReaction(
+          messageId: any(named: 'messageId'),
+          emoji: any(named: 'emoji'),
+        ),
+      );
+
+      await tester.pumpAndSettle();
+
+      verify(
+        () => chatDetailsCubit.sendReaction(
+          messageId: 1.messageId(),
+          emoji: '👍',
+        ),
+      ).called(1);
+    });
   });
 }

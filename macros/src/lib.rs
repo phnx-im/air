@@ -166,6 +166,112 @@ fn skip_if_default_condition(fi: &FieldInfo) -> TokenStream2 {
     }
 }
 
+/// Information about a single enum variant of a tagged union.
+struct VariantInfo {
+    ident: syn::Ident,
+    /// The single unnamed payload type, or `None` for the `#[unknown]` variant.
+    ty: Option<syn::Type>,
+    /// The `#[tag(N)]` value, or `None` for the `#[unknown]` variant.
+    tag: Option<u32>,
+    /// `true` when the payload type can be serialized as bytes with `serde_bytes`.
+    is_bytes: bool,
+    /// Length expression when `is_bytes` is set for a fixed-size `[u8; N]` payload.
+    array_len: Option<syn::Expr>,
+    /// `true` for the catch-all unit variant marked `#[unknown]`.
+    is_unknown: bool,
+}
+
+fn extract_variant_infos(data: &syn::DataEnum) -> Vec<VariantInfo> {
+    let infos: Vec<VariantInfo> = data
+        .variants
+        .iter()
+        .map(|variant| {
+            let ident = variant.ident.clone();
+
+            let mut is_unknown = false;
+            let mut tag: Option<u32> = None;
+            for attr in &variant.attrs {
+                if attr.path().is_ident("unknown") {
+                    is_unknown = true;
+                } else if attr.path().is_ident("tag") {
+                    let lit: LitInt = attr
+                        .parse_args()
+                        .expect("#[tag(N)] expects a single integer literal");
+                    let n = lit
+                        .base10_parse::<u32>()
+                        .expect("#[tag(N)] key must fit in a u32");
+                    assert!(n >= 1, "#[tag(N)] tags must start at 1 (got 0)");
+                    tag = Some(n);
+                }
+            }
+
+            if is_unknown {
+                assert!(
+                    tag.is_none(),
+                    "the #[unknown] variant `{ident}` must not carry a #[tag]",
+                );
+                assert!(
+                    matches!(variant.fields, Fields::Unit),
+                    "the #[unknown] variant `{ident}` must be a unit variant (no fields)",
+                );
+                VariantInfo {
+                    ident,
+                    ty: None,
+                    tag: None,
+                    is_bytes: false,
+                    array_len: None,
+                    is_unknown: true,
+                }
+            } else {
+                let ty = match &variant.fields {
+                    Fields::Unnamed(f) if f.unnamed.len() == 1 => {
+                        f.unnamed.first().unwrap().ty.clone()
+                    }
+                    _ => panic!(
+                        "variant `{ident}` must have exactly one unnamed field (`Variant(T)`)",
+                    ),
+                };
+                let array_len = array_u8_len(&ty);
+                let is_bytes = is_vec_u8(&ty) || array_len.is_some() || is_cow_u8_slice(&ty);
+                VariantInfo {
+                    ident: ident.clone(),
+                    ty: Some(ty),
+                    tag: Some(tag.unwrap_or_else(|| {
+                        panic!("variant `{ident}` must carry an #[tag(N)] attribute")
+                    })),
+                    is_bytes,
+                    array_len,
+                    is_unknown: false,
+                }
+            }
+        })
+        .collect();
+
+    // At most one #[unknown] variant is allowed.
+    let unknown_count = infos.iter().filter(|vi| vi.is_unknown).count();
+    assert!(
+        unknown_count <= 1,
+        "at most one variant may be marked #[unknown]",
+    );
+
+    // Detect duplicate tags across variants.
+    let mut seen: std::collections::HashMap<u32, &syn::Ident> = std::collections::HashMap::new();
+    for vi in &infos {
+        if let Some(tag) = vi.tag
+            && let Some(prev) = seen.insert(tag, &vi.ident)
+        {
+            panic!(
+                "#[tag({tag})] is used on both `{prev}` and `{curr}`: tags must be unique within an enum",
+                tag = tag,
+                prev = prev,
+                curr = vi.ident,
+            );
+        }
+    }
+
+    infos
+}
+
 fn extract_field_infos(fields: &FieldsNamed) -> Vec<FieldInfo> {
     let infos: Vec<FieldInfo> = fields
         .named
@@ -449,7 +555,16 @@ pub fn derive_deserialize_tagged_map(input: TokenStream) -> TokenStream {
                         A: ::serde::de::MapAccess<'de>,
                     {
                         #(#var_decls)*
+                        let mut _seen_keys = ::std::collections::BTreeSet::new();
                         while let Some(_key) = _map.next_key::<u32>()? {
+                            if !_seen_keys.insert(_key) {
+                                return ::core::result::Result::Err(
+                                    <A::Error as ::serde::de::Error>::custom(::std::format!(
+                                        "duplicate tag {_key} for struct {}",
+                                        stringify!(#name)
+                                    ))
+                                );
+                            }
                             match _key {
                                 #(#match_arms)*
                                 _ => {
@@ -460,6 +575,288 @@ pub fn derive_deserialize_tagged_map(input: TokenStream) -> TokenStream {
                         ::core::result::Result::Ok(#name {
                             #(#field_names,)*
                         })
+                    }
+                }
+
+                deserializer.deserialize_map(#visitor_name {
+                    marker: ::core::marker::PhantomData,
+                    lifetime: ::core::marker::PhantomData,
+                })
+            }
+        }
+    }
+    .into()
+}
+
+/// Derives `serde::Serialize` for an enum as a protobuf-`oneof`-like tagged union.
+///
+/// Each variant must have exactly one unnamed field (`Variant(T)`) and be annotated with
+/// `#[tag(N)]`, where `N` is a `u32` integer (unique across variants) that becomes the map key in
+/// the encoded form. The active variant is encoded as a single-entry CBOR map `{ N: payload }`.
+///
+/// At most one variant may instead be marked `#[unknown]`. It must be a unit variant and must not
+/// carry a `#[tag]`. It represents a tag the reader did not recognise; attempting to **serialize**
+/// it fails with a runtime `serde::ser::Error`.
+///
+/// Payload types that can be serialized as bytes via `serde_bytes` are serialized as CBOR byte
+/// strings, e.g. `Vec<u8>`, `[u8; N]`, `Cow<'_, [u8]>`.
+///
+/// # Example
+///
+/// ```ignore
+/// #[derive(SerializeTaggedUnion, DeserializeTaggedUnion)]
+/// pub enum Message {
+///     #[tag(1)]
+///     Text(String),
+///     #[tag(2)]
+///     Blob(Vec<u8>),  // encoded as bytes
+///     #[unknown]
+///     Unknown,
+/// }
+/// ```
+#[proc_macro_derive(SerializeTaggedUnion, attributes(tag, unknown))]
+pub fn derive_serialize_tagged_union(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = &input.ident;
+
+    let data = match &input.data {
+        Data::Enum(e) => e,
+        _ => panic!("SerializeTaggedUnion only supports enums"),
+    };
+
+    let infos = extract_variant_infos(data);
+
+    let mut generics = input.generics.clone();
+    let where_clause = generics.make_where_clause();
+    for vi in infos.iter().filter(|vi| !vi.is_unknown && !vi.is_bytes) {
+        let ty = vi.ty.as_ref().unwrap();
+        where_clause
+            .predicates
+            .push(syn::parse_quote!(#ty: ::serde::Serialize));
+    }
+    let (impl_generics, ty_generics, where_clause) = generics.split_for_impl();
+
+    let match_arms: Vec<TokenStream2> = infos
+        .iter()
+        .map(|vi| {
+            let ident = &vi.ident;
+            if vi.is_unknown {
+                quote! {
+                    #name::#ident => ::core::result::Result::Err(
+                        <S::Error as ::serde::ser::Error>::custom(concat!(
+                            "cannot serialize the #[unknown] variant of ", stringify!(#name)
+                        ))
+                    ),
+                }
+            } else {
+                let tag = vi.tag.unwrap();
+                let serialize_value: TokenStream2 = if vi.is_bytes {
+                    quote! { ::serde_bytes::Bytes::new(__value) }
+                } else {
+                    quote! { __value }
+                };
+                quote! {
+                    #name::#ident(__value) => {
+                        let mut _map = serializer.serialize_map(Some(1))?;
+                        _map.serialize_entry(&#tag, #serialize_value)?;
+                        _map.end()
+                    }
+                }
+            }
+        })
+        .collect();
+
+    quote! {
+        impl #impl_generics ::serde::Serialize for #name #ty_generics #where_clause {
+            fn serialize<S>(&self, serializer: S) -> ::core::result::Result<S::Ok, S::Error>
+            where
+                S: ::serde::Serializer,
+            {
+                use ::serde::ser::SerializeMap as _;
+                match self {
+                    #(#match_arms)*
+                }
+            }
+        }
+    }
+    .into()
+}
+
+/// Derives `serde::Deserialize` for an enum from a protobuf-`oneof`-like tagged union.
+///
+/// The encoded form is a single-entry CBOR map `{ N: payload }`. The integer key selects the
+/// variant carrying the matching `#[tag(N)]`, and its payload is decoded into that variant's field.
+///
+/// A map with zero entries or more than one entry is a deserialization error. When the key matches
+/// no known tag: if a `#[unknown]` variant is declared, the value is consumed and that variant is
+/// produced (forward compatibility); otherwise it is an error.
+///
+/// Payload types that can be deserialized from bytes via `serde_bytes` are decoded from CBOR byte
+/// strings, e.g. `Vec<u8>`, `[u8; N]`, `Cow<'_, [u8]>`.
+///
+/// # Example
+///
+/// ```ignore
+/// #[derive(SerializeTaggedUnion, DeserializeTaggedUnion)]
+/// pub enum Message {
+///     #[tag(1)]
+///     Text(String),
+///     #[tag(2)]
+///     Blob(Vec<u8>),  // decoded from bytes
+///     #[unknown]
+///     Unknown,
+/// }
+/// ```
+#[proc_macro_derive(DeserializeTaggedUnion, attributes(tag, unknown))]
+pub fn derive_deserialize_tagged_union(input: TokenStream) -> TokenStream {
+    let input = parse_macro_input!(input as DeriveInput);
+    let name = &input.ident;
+
+    let data = match &input.data {
+        Data::Enum(e) => e,
+        _ => panic!("DeserializeTaggedUnion only supports enums"),
+    };
+
+    let infos = extract_variant_infos(data);
+    let visitor_name = syn::Ident::new(&format!("{name}Visitor"), name.span());
+
+    // Original generics (without 'de)
+    let orig_generics = &input.generics;
+    let (_, ty_generics, _) = orig_generics.split_for_impl();
+
+    // Add 'de as a plain lifetime with no bounds on the enum's own lifetimes (see the
+    // DeserializeTaggedMap derive for the rationale).
+    let de_lt_param: syn::LifetimeParam = syn::parse_quote!('de);
+
+    let mut all_generics = orig_generics.clone();
+    all_generics
+        .params
+        .insert(0, GenericParam::Lifetime(de_lt_param));
+    let where_clause = all_generics.make_where_clause();
+    for vi in infos.iter().filter(|vi| !vi.is_unknown && !vi.is_bytes) {
+        let ty = vi.ty.as_ref().unwrap();
+        where_clause
+            .predicates
+            .push(syn::parse_quote!(#ty: ::serde::Deserialize<'de>));
+    }
+    let (all_impl_generics, all_ty_generics, all_where_clause) = all_generics.split_for_impl();
+
+    // Match arms for the known tags, each producing the corresponding variant.
+    let match_arms: Vec<TokenStream2> = infos
+        .iter()
+        .filter(|vi| !vi.is_unknown)
+        .map(|vi| {
+            let ident = &vi.ident;
+            let tag = vi.tag.unwrap();
+            if vi.is_bytes {
+                if let Some(n) = &vi.array_len {
+                    quote! {
+                        #tag => #name::#ident(
+                            _map.next_value::<::serde_bytes::ByteArray<#n>>()?.into_array()
+                        ),
+                    }
+                } else if vi.ty.as_ref().is_some_and(is_cow_u8_slice) {
+                    quote! {
+                        #tag => #name::#ident(::std::borrow::Cow::Owned(
+                            _map.next_value::<::serde_bytes::ByteBuf>()?.into_vec()
+                        )),
+                    }
+                } else {
+                    quote! {
+                        #tag => #name::#ident(
+                            _map.next_value::<::serde_bytes::ByteBuf>()?.into_vec()
+                        ),
+                    }
+                }
+            } else {
+                quote! {
+                    #tag => #name::#ident(_map.next_value()?),
+                }
+            }
+        })
+        .collect();
+
+    // Fallback arm for unrecognised tags: yield the #[unknown] variant when declared, else error.
+    let unknown_arm: TokenStream2 = if let Some(vi) = infos.iter().find(|vi| vi.is_unknown) {
+        let ident = &vi.ident;
+        quote! {
+            _ => {
+                let _: ::serde::de::IgnoredAny = _map.next_value()?;
+                #name::#ident
+            }
+        }
+    } else {
+        quote! {
+            _key => {
+                return ::core::result::Result::Err(
+                    <A::Error as ::serde::de::Error>::custom(::std::format!(
+                        "unknown tag {_key} for enum {}", stringify!(#name)
+                    ))
+                );
+            }
+        }
+    };
+
+    quote! {
+        impl #all_impl_generics ::serde::Deserialize<'de> for #name #ty_generics
+            #all_where_clause
+        {
+            fn deserialize<D>(deserializer: D) -> ::core::result::Result<Self, D::Error>
+            where
+                D: ::serde::Deserializer<'de>,
+            {
+                struct #visitor_name #all_generics {
+                    marker: ::core::marker::PhantomData<#name #ty_generics>,
+                    lifetime: ::core::marker::PhantomData<&'de ()>,
+                }
+
+                impl #all_impl_generics ::serde::de::Visitor<'de> for #visitor_name
+                    #all_ty_generics #all_where_clause
+                {
+                    type Value = #name #ty_generics;
+
+                    fn expecting(
+                        &self,
+                        f: &mut ::core::fmt::Formatter,
+                    ) -> ::core::fmt::Result {
+                        f.write_str(concat!(
+                            "a single-entry map representing ", stringify!(#name)
+                        ))
+                    }
+
+                    fn visit_map<A>(
+                        self,
+                        mut _map: A,
+                    ) -> ::core::result::Result<Self::Value, A::Error>
+                    where
+                        A: ::serde::de::MapAccess<'de>,
+                    {
+                        let _key = match _map.next_key::<u32>()? {
+                            ::core::option::Option::Some(_key) => _key,
+                            ::core::option::Option::None => {
+                                return ::core::result::Result::Err(
+                                    <A::Error as ::serde::de::Error>::custom(concat!(
+                                        "expected a single-entry map for ",
+                                        stringify!(#name),
+                                        ", got an empty map"
+                                    ))
+                                );
+                            }
+                        };
+                        let _value = match _key {
+                            #(#match_arms)*
+                            #unknown_arm
+                        };
+                        if _map.next_key::<u32>()?.is_some() {
+                            return ::core::result::Result::Err(
+                                <A::Error as ::serde::de::Error>::custom(concat!(
+                                    "expected a single-entry map for ",
+                                    stringify!(#name),
+                                    ", got more than one entry"
+                                ))
+                            );
+                        }
+                        ::core::result::Result::Ok(_value)
                     }
                 }
 

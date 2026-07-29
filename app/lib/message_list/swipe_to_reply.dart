@@ -4,9 +4,9 @@
 
 import 'dart:math' show min;
 
+import 'package:air/util/app_haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
-import 'package:flutter/services.dart';
 
 /// Maximum distance (in logical pixels) the bubble can slide.
 /// Must be strictly greater than [_triggerThreshold].
@@ -107,7 +107,7 @@ class _SwipeToReplyScopeState extends State<SwipeToReplyScope>
     if (_rawDragOffset >= _triggerThreshold) {
       if (!thresholdCrossed) {
         thresholdCrossed = true;
-        HapticFeedback.mediumImpact();
+        AppHaptics.gestureTrigger();
       }
     } else {
       thresholdCrossed = false;

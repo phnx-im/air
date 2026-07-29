@@ -22,8 +22,7 @@ use mimi_content::{
     MimiContent, NestedPart,
     content_container::{EncryptionAlgorithm, HashAlgorithm},
 };
-use rand::{Rng, RngCore, distributions::Alphanumeric, seq::IteratorRandom};
-use rand_chacha::rand_core::OsRng;
+use rand::{Rng, RngExt, distr::Alphanumeric, seq::IteratorRandom};
 use semver::VersionReq;
 use tempfile::TempDir;
 use tokio::{
@@ -733,7 +732,7 @@ impl TestBackend {
             "{sender_id:?} sends a message to {}",
             recipient_strings.join(", ")
         );
-        let message: String = OsRng
+        let message: String = rand::rng()
             .sample_iter(&Alphanumeric)
             .take(32)
             .map(char::from)
@@ -1546,7 +1545,7 @@ impl TestBackend {
         self.groups.remove(&chat_id);
     }
 
-    pub fn random_user(&self, rng: &mut impl RngCore) -> UserId {
+    pub fn random_user(&self, rng: &mut impl Rng) -> UserId {
         self.users
             .keys()
             .choose(rng)
@@ -1554,7 +1553,7 @@ impl TestBackend {
             .clone()
     }
 
-    pub async fn perform_random_operation(&mut self, rng: &mut impl RngCore) {
+    pub async fn perform_random_operation(&mut self, rng: &mut impl Rng) {
         // Get a user to perform the operation
         let random_user = self.random_user(rng);
         // Possible actions:
@@ -1566,7 +1565,7 @@ impl TestBackend {
         // Message sending is covered, as it's done as part of all of those
         // actions. If one of the actions is not possible, it is skipped.
         // TODO: Breaking up of connections
-        let action = rng.gen_range(0..=3);
+        let action = rng.random_range(0..=3);
         match action {
             // Establish a connection
             0 => {
@@ -1617,7 +1616,7 @@ impl TestBackend {
                     })
                     .choose(rng)
                 {
-                    let number_of_invitees = rng.gen_range(1..=5);
+                    let number_of_invitees = rng.random_range(1..=5);
                     let mut invitees = Vec::new();
                     for invitee in self.users.keys() {
                         let is_group_member =
@@ -1636,7 +1635,7 @@ impl TestBackend {
                     let invitees = invitees
                         .into_iter()
                         .cloned()
-                        .choose_multiple(rng, number_of_invitees);
+                        .sample(rng, number_of_invitees);
                     // It can happen that there are no suitable users to invite
                     if !invitees.is_empty() {
                         let invitee_strings = invitees
@@ -1666,7 +1665,7 @@ impl TestBackend {
                     })
                     .choose(rng)
                 {
-                    let number_of_removals = rng.gen_range(1..=5);
+                    let number_of_removals = rng.random_range(1..=5);
                     let members_to_remove = self
                         .groups
                         .get(&chat.id())
@@ -1674,7 +1673,7 @@ impl TestBackend {
                         .iter()
                         .filter(|&member| member != &random_user)
                         .cloned()
-                        .choose_multiple(rng, number_of_removals);
+                        .sample(rng, number_of_removals);
                     if !members_to_remove.is_empty() {
                         let removed_strings = members_to_remove
                             .iter()

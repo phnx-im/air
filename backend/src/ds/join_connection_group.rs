@@ -59,6 +59,10 @@ impl DsGroupState {
             {
                 return Err(JoinConnectionGroupError::InvalidMessage);
             }
+            if !self.self_group_flag_unchanged(staged_commit) {
+                tracing::warn!("Commit would toggle the self-group flag");
+                return Err(JoinConnectionGroupError::InvalidMessage);
+            }
         } else {
             tracing::warn!("Invalid message: External commit contained unexpected proposals.");
             return Err(JoinConnectionGroupError::InvalidMessage);

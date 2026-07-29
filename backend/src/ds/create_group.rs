@@ -3,13 +3,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::ClientCredential,
+    credentials::UserCredential,
     crypto::aead::keys::{EncryptedUserProfileKey, GroupStateEarKey},
     identifiers::{QsReference, QualifiedGroupId},
 };
 use airprotos::{
+    client::component::AirComponent,
     convert::TryRefInto,
-    delivery_service::v1::GroupSessionData,
+    delivery_service::v1::{GroupSessionData, UserCredential as UserCredentialProto},
     validation::{InvalidTlsExt, MissingFieldExt},
 };
 use mimi_room_policy::VerifiedRoomState;
@@ -80,19 +81,46 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
         Ok((qgid, state, ear_key))
     }
 
-    pub(super) fn extract_credential(group: &Group) -> Result<ClientCredential, Status> {
+    /// Return the credential that authenticates the creation of `group`.
+    ///
+    /// A credential provided with the request is only acceptable for
+    /// self-groups, whose leaves carry no user credential. For all other
+    /// groups the credential is taken from the creator's leaf.
+    pub(super) fn creator_credential(
+        group: &Group,
+        provided: Option<&UserCredentialProto>,
+    ) -> Result<UserCredential, Status> {
         let mut members = group.members().fuse();
-        match (members.next(), members.next()) {
-            (Some(member), None) => ClientCredential::tls_deserialize_exact_bytes(
-                member.credential.serialized_content(),
-            )
-            .map_err(|_| Status::invalid_argument("invalid credential")),
-            _ => {
-                error!("group must have exactly one member");
-                Err(Status::invalid_argument(
-                    "group must have exactly one member",
-                ))
+        let (Some(member), None) = (members.next(), members.next()) else {
+            error!("group must have exactly one member");
+            return Err(Status::invalid_argument(
+                "group must have exactly one member",
+            ));
+        };
+        match provided {
+            Some(credential) => {
+                Self::require_self_group_context(group)?;
+                let credential = credential
+                    .try_ref_into()
+                    .invalid_tls("creator_user_credential")?;
+                Ok(credential)
             }
+            None => {
+                UserCredential::tls_deserialize_exact_bytes(member.credential.serialized_content())
+                    .map_err(|_| Status::invalid_argument("invalid credential"))
+            }
+        }
+    }
+
+    /// Ensure the group context's self-group flag is set.
+    pub(super) fn require_self_group_context(group: &Group) -> Result<(), Status> {
+        let extensions = group.group_info().group_context().extensions();
+        if AirComponent::is_self_group_context(extensions) {
+            Ok(())
+        } else {
+            Err(Status::invalid_argument(
+                "creator user credential requires a self-group",
+            ))
         }
     }
 

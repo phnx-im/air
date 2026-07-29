@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                user_credential AS \"user_credential: _\"\n            FROM user_credential\n            WHERE user_uuid = ? AND user_domain = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "user_credential: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "user_credential",
+            "name": "user_credential"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "369ff6bcffa5c6346a63939ba783e91ef61289c0bc114b93fb960a09ae185dd4"
+}

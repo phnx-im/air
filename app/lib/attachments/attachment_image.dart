@@ -260,6 +260,11 @@ class _AttachmentImageState extends State<AttachmentImage> {
                 attachment: widget.attachment,
                 attachmentsRepository: context.read<AttachmentsRepository>(),
               ),
+              // The box we lay out in comes from the sender-declared metadata,
+              // which may not match the actual pixels. `exact` (the default)
+              // would decode to the box like BoxFit.fill and distort the
+              // image, so constrain the decode instead of reshaping it.
+              policy: ResizeImagePolicy.fit,
               width: renderingWidth,
               height: renderingHeight,
               allowUpscaling: false,

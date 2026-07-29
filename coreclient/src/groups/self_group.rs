@@ -215,7 +215,10 @@ impl CoreUser {
         let client_reference = self.create_own_client_reference();
         let encrypted_user_profile_key =
             user_profile_key.encrypt(group.identity_link_wrapper_key(), self.user_id())?;
-        let params = partial_params.into_params(client_reference, encrypted_user_profile_key);
+        let mut params = partial_params.into_params(client_reference, encrypted_user_profile_key);
+        // Self-group leaves will stop carrying a user credential, so the creation
+        // is authenticated by a credential sent with the request instead.
+        params.creator_user_credential = Some(key_store.signing_key.credential().clone());
 
         // Create group on the server
         if let Err(error) = api_client

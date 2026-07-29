@@ -4,7 +4,7 @@
 
 use airapiclient::ds_api::DsRequestError;
 use aircommon::{
-    credentials::{ClientCredential, keys::ClientSigningKey},
+    credentials::{UserCredential, keys::ClientSigningKey},
     crypto::indexed_aead::keys::UserProfileKey,
     identifiers::{QualifiedGroupId, UserId},
     messages::client_ds_out::{
@@ -34,7 +34,7 @@ use crate::{
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
         Group, GroupDataBytes, PreparedInvitee, VerifiedGroup,
-        client_auth_info::StorableClientCredential, handle_group_not_found_on_ds,
+        client_auth_info::StorableUserCredential, handle_group_not_found_on_ds,
     },
     job::{
         Job, JobContext, JobContextReadConnection, JobError, chat_operation::ChatOperationError,
@@ -765,28 +765,28 @@ impl PendingChatOperation {
             .await?
             .context("Can't find group for chat with id {chat_id:?}")?;
 
-        // Bundle the per-invitee data (contact, client credential) before we
+        // Bundle the per-invitee data (contact, user credential) before we
         // fetch the server-side add info, so that the parallel pieces stay
         // associated with the same user end-to-end.
         struct InviteeBuildup {
             contact: Contact,
-            client_credential: ClientCredential,
+            user_credential: UserCredential,
         }
         let mut buildups = Vec::with_capacity(new_members.len());
         for new_member in &new_members {
             let contact = Contact::load(&mut connection, new_member)
                 .await?
                 .with_context(|| format!("Can't find contact {new_member:?}"))?;
-            let client_credential =
-                StorableClientCredential::load_by_user_id(&mut connection, new_member)
+            let user_credential =
+                StorableUserCredential::load_by_user_id(&mut connection, new_member)
                     .await?
-                    .map(ClientCredential::from)
+                    .map(UserCredential::from)
                     .with_context(|| {
-                        format!("Can't find client credential for contact {new_member:?}")
+                        format!("Can't find user credential for contact {new_member:?}")
                     })?;
             buildups.push(InviteeBuildup {
                 contact,
-                client_credential,
+                user_credential,
             });
         }
 
@@ -795,7 +795,7 @@ impl PendingChatOperation {
         let mut invitees = Vec::with_capacity(buildups.len());
         for InviteeBuildup {
             contact,
-            client_credential,
+            user_credential,
         } in buildups
         {
             let wai_key = contact.wai_ear_key().clone();
@@ -805,7 +805,7 @@ impl PendingChatOperation {
             invitees.push(PreparedInvitee {
                 add_info,
                 wai_key,
-                client_credential,
+                user_credential,
             });
         }
 

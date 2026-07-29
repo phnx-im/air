@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::ClientCredential,
+    credentials::UserCredential,
     crypto::{
         aead::keys::FriendshipPackageEarKey, hpke::HpkeDecryptable,
         indexed_aead::keys::UserProfileKey,
@@ -56,7 +56,7 @@ pub(crate) struct ConnectionOfferSource {
 
 pub(crate) struct TargetedMessageSource {
     pub(crate) connection_info: ConnectionInfo,
-    pub(crate) sender_client_credential: ClientCredential,
+    pub(crate) sender_user_credential: UserCredential,
     pub(crate) origin_chat_id: ChatId,
     /// Timestamp when the targeted message was enqueued on the QS
     pub(crate) sent_at: TimeStamp,
@@ -75,7 +75,7 @@ impl ConnectionInfoSource {
         api_clients: &ApiClients,
     ) -> Result<(
         ConnectionInfo,
-        ClientCredential,
+        UserCredential,
         Option<ChatId>,
         Option<UsernameConnectionInfo>,
         Option<TimeStamp>,
@@ -95,7 +95,7 @@ impl ConnectionInfoSource {
                     username.clone(),
                 )
                 .await?;
-                let sender_client_credential = cep_payload.sender_client_credential;
+                let sender_user_credential = cep_payload.sender_user_credential;
                 let username_connection_info = UsernameConnectionInfo {
                     connection_offer_hash,
                     connection_package_hash: hash,
@@ -103,7 +103,7 @@ impl ConnectionInfoSource {
                 };
                 Ok((
                     cep_payload.connection_info,
-                    sender_client_credential,
+                    sender_user_credential,
                     None,
                     Some(username_connection_info),
                     sent_at,
@@ -112,13 +112,13 @@ impl ConnectionInfoSource {
             ConnectionInfoSource::TargetedMessage(targeted_message_source) => {
                 let TargetedMessageSource {
                     connection_info,
-                    sender_client_credential,
+                    sender_user_credential,
                     origin_chat_id,
                     sent_at,
                 } = *targeted_message_source;
                 Ok((
                     connection_info,
-                    sender_client_credential,
+                    sender_user_credential,
                     Some(origin_chat_id),
                     None,
                     Some(sent_at),
@@ -172,7 +172,7 @@ impl CoreUser {
         let api_clients = context.api_clients.clone();
         let (
             connection_info,
-            sender_client_credential,
+            sender_user_credential,
             origin_chat_id,
             username_connection_info,
             sent_at,
@@ -184,11 +184,8 @@ impl CoreUser {
         let message_timestamp = sent_at.unwrap_or_else(TimeStamp::now);
 
         // Deny connection from blocked users
-        if BlockedContact::check_blocked(
-            context.db.read().await?,
-            sender_client_credential.user_id(),
-        )
-        .await?
+        if BlockedContact::check_blocked(context.db.read().await?, sender_user_credential.user_id())
+            .await?
         {
             bail!(BlockedContactError);
         }
@@ -214,13 +211,11 @@ impl CoreUser {
                 .friendship_package
                 .user_profile_base_secret
                 .clone(),
-            sender_client_credential.user_id(),
+            sender_user_credential.user_id(),
         )?;
 
-        let fetch_profile_job = CoreUser::fetch_user_profile_job((
-            sender_client_credential.clone(),
-            sender_profile_key,
-        ));
+        let fetch_profile_job =
+            CoreUser::fetch_user_profile_job((sender_user_credential.clone(), sender_profile_key));
 
         if let Err(error) = fetch_profile_job.execute(context).await {
             warn!(%error, "Failed to fetch user profile; falling back to fetching group info");
@@ -259,12 +254,12 @@ impl CoreUser {
             let user_profile_key = UserProfileKey::decrypt(
                 &connection_info.connection_group_identity_link_wrapper_key,
                 encrypted_user_profile_key,
-                sender_client_credential.user_id(),
+                sender_user_credential.user_id(),
             )?;
 
             // Fetch and store user profile (it also creates a new contact)
             let profile_info = ProfileInfo {
-                client_credential: sender_client_credential.clone(),
+                user_credential: sender_user_credential.clone(),
                 user_profile_key,
             };
 
@@ -273,7 +268,7 @@ impl CoreUser {
                 .await?;
         }
 
-        let sender_user_id = sender_client_credential.user_id();
+        let sender_user_id = sender_user_credential.user_id();
 
         // Create pending unconfirmed chat
         let (chat, partial_contact) = Self::create_pending_connection_chat(
