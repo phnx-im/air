@@ -64,10 +64,10 @@ void main() {
   });
 
   group('Chat List Product Shots', () {
-    final backgroundColor = AppColors.neutral[100]!;
-    final titleColor = AppColors.neutral[800]!;
-    final subtitleColor = AppColors.neutral[600]!;
-    final frameColor = AppColors.neutral[300]!;
+    final backgroundColor = Primitives.neutral(NeutralShade.s100);
+    final titleColor = Primitives.neutral(NeutralShade.s800);
+    final subtitleColor = Primitives.neutral(NeutralShade.s600);
+    final frameColor = Primitives.neutral(NeutralShade.s300);
     const title = 'Secure messaging\nfor everyone.';
     const subtitle = 'Everything in Air is\nend-to-end encrypted.';
 
@@ -204,10 +204,10 @@ void main() {
   });
 
   group("Private Chat", () {
-    final backgroundColor = AppColors.orange[50]!;
-    final titleColor = AppColors.orange[800]!;
-    final subtitleColor = AppColors.orange[600]!;
-    final frameColor = AppColors.orange[300]!;
+    final backgroundColor = Primitives.chromatic(Hue.orange, Shade.s50);
+    final titleColor = Primitives.chromatic(Hue.orange, Shade.s800);
+    final subtitleColor = Primitives.chromatic(Hue.orange, Shade.s600);
+    final frameColor = Primitives.chromatic(Hue.orange, Shade.s300);
     const title = 'Connect with friends.';
     const subtitle = 'Send messages in private chats.';
 
@@ -360,10 +360,10 @@ void main() {
   });
 
   group("Group Chat", () {
-    final backgroundColor = AppColors.blue[50]!;
-    final titleColor = AppColors.blue[800]!;
-    final subtitleColor = AppColors.blue[600]!;
-    final frameColor = AppColors.blue[300]!;
+    final backgroundColor = Primitives.chromatic(Hue.blue, Shade.s50);
+    final titleColor = Primitives.chromatic(Hue.blue, Shade.s800);
+    final subtitleColor = Primitives.chromatic(Hue.blue, Shade.s600);
+    final frameColor = Primitives.chromatic(Hue.blue, Shade.s300);
     const title = 'Create group chats.';
     const subtitle = 'Message with multiple people.';
 
@@ -651,10 +651,10 @@ void main() {
         // as the hero image and carries the lead store copy.
         await tester.pumpWidget(
           buildSubject(
-            backgroundColor: AppColors.neutral[100]!,
-            titleColor: AppColors.neutral[800]!,
-            subtitleColor: AppColors.neutral[600]!,
-            frameColor: AppColors.neutral[300]!,
+            backgroundColor: Primitives.neutral(NeutralShade.s100),
+            titleColor: Primitives.neutral(NeutralShade.s800),
+            subtitleColor: Primitives.neutral(NeutralShade.s600),
+            frameColor: Primitives.neutral(NeutralShade.s300),
             title: 'Secure messaging for everyone.',
             subtitle: 'Everything in Air is end-to-end encrypted.',
           ),
@@ -688,10 +688,10 @@ void main() {
 
         await tester.pumpWidget(
           buildSubject(
-            backgroundColor: AppColors.blue[50]!,
-            titleColor: AppColors.blue[800]!,
-            subtitleColor: AppColors.blue[600]!,
-            frameColor: AppColors.blue[300]!,
+            backgroundColor: Primitives.chromatic(Hue.blue, Shade.s50),
+            titleColor: Primitives.chromatic(Hue.blue, Shade.s800),
+            subtitleColor: Primitives.chromatic(Hue.blue, Shade.s600),
+            frameColor: Primitives.chromatic(Hue.blue, Shade.s300),
             title: 'Create group chats.',
             subtitle: 'Message with multiple people.',
           ),

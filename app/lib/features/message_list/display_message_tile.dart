@@ -566,7 +566,7 @@ class _ErrorMessageContent extends StatelessWidget {
       child: Text(
         message.message,
         style: TextStyle(
-          color: AppColors.red,
+          color: Primitives.chromatic(Hue.red, Shade.s500),
           fontSize: LabelFontSize.small2.size,
           height: 1.0,
         ),

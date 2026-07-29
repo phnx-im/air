@@ -208,9 +208,9 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                     ListTile(
                       title: Text(
                         profile?.displayName ?? user.userId.uuid.toString(),
-                        style: Theme.of(
-                          context,
-                        ).textTheme.bodyLarge?.copyWith(color: AppColors.red),
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: Primitives.chromatic(Hue.red, Shade.s500),
+                        ),
                       ),
                       subtitle: Text("${user.userId}"),
                       trailing: const AppIcon.trash(),
@@ -226,7 +226,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                     title: Text(
                       'Erase All Databases',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppColors.red,
+                        color: Primitives.chromatic(Hue.red, Shade.s500),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -282,7 +282,7 @@ void _confirmDialog({
           ),
           TextButton(
             style: TextButton.styleFrom(
-              backgroundColor: AppColors.red,
+              backgroundColor: Primitives.chromatic(Hue.red, Shade.s500),
               foregroundColor: CustomColorScheme.of(
                 context,
               ).function.neutral.white,

@@ -661,7 +661,7 @@ class CustomTextEditingController extends TextEditingController {
       ),
       BlockElement_Quote(:final field0) => TextSpan(
         children: buildWrappedBlock(context, block.start, block.end, field0),
-        style: TextStyle(color: AppColors.neutral[600]),
+        style: TextStyle(color: Primitives.neutral(NeutralShade.s600)),
       ),
       BlockElement_UnorderedList(:final field0) => TextSpan(
         children: buildWrappedBlock(

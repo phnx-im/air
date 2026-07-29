@@ -158,18 +158,15 @@ class _AvatarGradient {
     return _AvatarGradient(start: start, end: end);
   }
 
-  static const _start = 300;
-  static const _end = 700;
+  static const _start = Shade.s300;
+  static const _end = Shade.s700;
 
+  /// One gradient per chromatic hue, in palette order. That order is
+  /// load-bearing: [_gradientIndexForUuid] indexes into this list, so adding a
+  /// hue to [Hue] re-colors existing avatars.
   static final _gradients = [
-    (AppColors.red[_start]!, AppColors.red[_end]!),
-    (AppColors.orange[_start]!, AppColors.orange[_end]!),
-    (AppColors.yellow[_start]!, AppColors.yellow[_end]!),
-    (AppColors.green[_start]!, AppColors.green[_end]!),
-    (AppColors.cyan[_start]!, AppColors.cyan[_end]!),
-    (AppColors.blue[_start]!, AppColors.blue[_end]!),
-    (AppColors.purple[_start]!, AppColors.purple[_end]!),
-    (AppColors.magenta[_start]!, AppColors.magenta[_end]!),
+    for (final hue in Hue.values)
+      (Primitives.chromatic(hue, _start), Primitives.chromatic(hue, _end)),
   ];
 
   static int _gradientIndexForUuid(UuidValue? uuid) {

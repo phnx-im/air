@@ -89,7 +89,7 @@ ThemeData themeData(Brightness brightness) {
       ),
     ),
     textSelectionTheme: TextSelectionThemeData(
-      cursorColor: AppColors.blue[300],
+      cursorColor: Primitives.chromatic(Hue.blue, Shade.s300),
     ),
     inputDecorationTheme: InputDecorationTheme(
       border: InputBorder.none,
