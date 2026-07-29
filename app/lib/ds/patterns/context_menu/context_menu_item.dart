@@ -18,7 +18,7 @@ class ContextMenuSeparator extends ContextMenuEntry {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: Spacing.px8),
+      padding: const EdgeInsets.symmetric(vertical: S.s8),
       child: Divider(
         height: 0,
         thickness: Strokes.px1,
@@ -79,7 +79,7 @@ class ContextMenuItem extends ContextMenuEntry {
         style: TextButton.styleFrom(
           shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
           foregroundColor: foregroundColor,
-          padding: const EdgeInsets.symmetric(vertical: Spacing.px4),
+          padding: const EdgeInsets.symmetric(vertical: S.s4),
           alignment: Alignment.centerLeft,
           splashFactory: !Platform.isAndroid ? NoSplash.splashFactory : null,
           overlayColor: Colors.transparent,
@@ -90,10 +90,10 @@ class ContextMenuItem extends ContextMenuEntry {
           children: [
             if (reserveLeadingSpace) ...[
               SizedBox(width: defaultLeadingWidth, child: leadingWidget),
-              const SizedBox(width: Spacing.px8),
+              const SizedBox(width: S.s8),
             ] else if (leadingWidget != null) ...[
               leadingWidget,
-              const SizedBox(width: Spacing.px8),
+              const SizedBox(width: S.s8),
             ],
             Expanded(
               child: Text(
@@ -105,7 +105,7 @@ class ContextMenuItem extends ContextMenuEntry {
               ),
             ),
             if (trailingIcon != null) ...[
-              const SizedBox(width: Spacing.px8),
+              const SizedBox(width: S.s8),
               Icon(trailingIcon),
             ],
           ],

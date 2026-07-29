@@ -23,9 +23,9 @@ class DisplayMessageTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: Spacing.px24),
+      padding: const EdgeInsets.symmetric(vertical: S.s24),
       child: Column(
-        spacing: Spacing.px4,
+        spacing: S.s4,
         children: [
           Container(
             child: switch (eventMessage) {
@@ -82,8 +82,8 @@ class _SystemMessageContent extends StatelessWidget {
             ),
           ),
           padding: const EdgeInsets.symmetric(
-            horizontal: Spacing.px16,
-            vertical: Spacing.px12,
+            horizontal: S.s16,
+            vertical: S.s12,
           ),
           child: _SystemMessageText(message: message),
         ),

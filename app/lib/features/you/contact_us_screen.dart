@@ -57,9 +57,9 @@ class ContactUsScreen extends StatelessWidget {
       ),
       backgroundColor: colors.backgroundBase.secondary,
       body: SafeArea(
-        minimum: const EdgeInsets.only(bottom: Spacing.px32 + Spacing.px8),
+        minimum: const EdgeInsets.only(bottom: S.s32 + S.s8),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+          padding: const EdgeInsets.symmetric(horizontal: S.s16),
           child: Align(
             alignment: Alignment.topCenter,
             child: Container(
@@ -70,8 +70,8 @@ class ContactUsScreen extends StatelessWidget {
                 data: theme.copyWith(
                   inputDecorationTheme: theme.inputDecorationTheme.copyWith(
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: Spacing.px8,
-                      vertical: Spacing.px8,
+                      horizontal: S.s8,
+                      vertical: S.s8,
                     ),
                     isDense: true,
                     border: _outlineInputBorder,
@@ -147,7 +147,7 @@ class _EmailForm extends HookWidget {
         child: Column(
           children: [
             // Spacing for the label of Subject Dropdown field (when selected)
-            const SizedBox(height: Spacing.px8),
+            const SizedBox(height: S.s8),
 
             // Subject Dropdown
             DropdownButtonFormField<String>(
@@ -164,7 +164,7 @@ class _EmailForm extends HookWidget {
               onChanged: (value) => selectedSubject.value = value,
               validator: (value) => _validateSubject(value, loc),
             ),
-            const SizedBox(height: Spacing.px16),
+            const SizedBox(height: S.s16),
 
             // Email Body
             TextFormField(
@@ -177,7 +177,7 @@ class _EmailForm extends HookWidget {
               onSaved: (value) => body.value = value ?? "",
               validator: (value) => _validateBody(value, loc),
             ),
-            const SizedBox(height: Spacing.px8),
+            const SizedBox(height: S.s8),
 
             // Include logs checkbox
             GestureDetector(
@@ -209,7 +209,7 @@ class _EmailForm extends HookWidget {
                 ],
               ),
             ),
-            const SizedBox(height: Spacing.px8),
+            const SizedBox(height: S.s8),
 
             // Submit Button
             Opacity(

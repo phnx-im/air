@@ -108,17 +108,14 @@ class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
         : scheme.backgroundElevated.primary;
     return Container(
       color: backgroundColor,
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.px16,
-        vertical: Spacing.px8,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),
       child: Row(
         children: [
           Text(
             suggestion.emoji,
             style: TextStyle(fontSize: BodyFontSize.large1.size),
           ),
-          const SizedBox(width: Spacing.px8),
+          const SizedBox(width: S.s8),
           Expanded(
             child: Text(
               ':${suggestion.shortName}:',

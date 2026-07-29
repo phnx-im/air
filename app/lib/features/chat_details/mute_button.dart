@@ -35,7 +35,7 @@ class MuteButton extends StatelessWidget {
           isMuted
               ? const AppIcon.bell(size: 16)
               : const AppIcon.bellOff(size: 16),
-          const SizedBox(width: Spacing.px8),
+          const SizedBox(width: S.s8),
           Text(
             isMuted
                 ? loc.contactDetailsScreen_unmute

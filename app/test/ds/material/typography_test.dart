@@ -17,7 +17,7 @@ void main() {
           home: Scaffold(
             body: SafeArea(
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: Spacing.px12),
+                padding: const EdgeInsets.symmetric(vertical: S.s12),
                 child: Center(child: widget),
               ),
             ),

@@ -27,10 +27,10 @@ class AppDialog extends StatelessWidget {
       child: Container(
         constraints: BoxConstraints(maxWidth: maxWidth ?? 340),
         padding: const EdgeInsets.only(
-          left: Spacing.px16,
-          right: Spacing.px16,
-          top: Spacing.px24,
-          bottom: Spacing.px16,
+          left: S.s16,
+          right: S.s16,
+          top: S.s24,
+          bottom: S.s16,
         ),
         child: child,
       ),
@@ -61,10 +61,10 @@ class AppDialogContainer extends StatelessWidget {
           borderRadius: BorderRadius.circular(Radii.px24),
         ),
         padding: const EdgeInsets.only(
-          left: Spacing.px16,
-          right: Spacing.px16,
-          top: Spacing.px24,
-          bottom: Spacing.px16,
+          left: S.s16,
+          right: S.s16,
+          top: S.s24,
+          bottom: S.s16,
         ),
         child: child,
       ),
@@ -115,10 +115,7 @@ class AppDialogProgressButton extends HookWidget {
 }
 
 const appDialogInputDecoration = InputDecoration(
-  contentPadding: EdgeInsets.symmetric(
-    horizontal: Spacing.px8,
-    vertical: Spacing.px8,
-  ),
+  contentPadding: EdgeInsets.symmetric(horizontal: S.s8, vertical: S.s8),
   isDense: true,
   border: _outlineInputBorder,
   enabledBorder: _outlineInputBorder,

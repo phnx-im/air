@@ -65,12 +65,12 @@ class LinkedDevicesView extends HookWidget {
                     color: colors.text.secondary,
                   ),
                 ),
-                const SizedBox(height: Spacing.px8),
+                const SizedBox(height: S.s8),
                 _SingleDevice(
                   deviceName: platform.name,
                   linkedAt: DateTime.parse("2026-01-15 02:45:00"),
                 ),
-                const SizedBox(height: Spacing.px24),
+                const SizedBox(height: S.s24),
                 Text(
                   loc.linkedDevicesScreen_linkedDevices,
                   style: TextStyle(
@@ -79,19 +79,19 @@ class LinkedDevicesView extends HookWidget {
                     color: colors.text.secondary,
                   ),
                 ),
-                const SizedBox(height: Spacing.px8),
+                const SizedBox(height: S.s8),
                 _SingleDevice(
                   deviceName: "iOS",
                   linkedAt: DateTime.parse("2026-02-03 14:22:00"),
                   unlinkIcon: true,
                 ),
-                const SizedBox(height: Spacing.px8),
+                const SizedBox(height: S.s8),
                 _SingleDevice(
                   deviceName: "Android",
                   linkedAt: DateTime.parse("2026-03-20 10:12:00"),
                   unlinkIcon: true,
                 ),
-                const SizedBox(height: Spacing.px8),
+                const SizedBox(height: S.s8),
                 Text(
                   loc.linkedDevicesScreen_editNameHint,
                   style: TextStyle(
@@ -99,7 +99,7 @@ class LinkedDevicesView extends HookWidget {
                     color: colors.text.quaternary,
                   ),
                 ),
-                const SizedBox(height: Spacing.px24),
+                const SizedBox(height: S.s24),
                 AppButton(
                   type: .primary,
                   label: loc.linkedDevicesScreen_linkDevice,
@@ -108,7 +108,7 @@ class LinkedDevicesView extends HookWidget {
                     builder: (_) => const LinkDeviceModal(),
                   ),
                 ),
-                const SizedBox(height: Spacing.px8),
+                const SizedBox(height: S.s8),
                 SizedBox(
                   width: .infinity,
                   child: Text(
@@ -120,7 +120,7 @@ class LinkedDevicesView extends HookWidget {
                     ),
                   ),
                 ),
-                const SizedBox(height: Spacing.px4),
+                const SizedBox(height: S.s4),
                 const SizedBox(width: .infinity, child: _EncryptionNotice()),
               ],
             ),
@@ -146,7 +146,7 @@ class _EncryptionNotice extends StatelessWidget {
 
     return Column(
       mainAxisAlignment: .center,
-      spacing: Spacing.px8,
+      spacing: S.s8,
       children: [
         Text(loc.linkedDevicesScreen_encryptionNotice, style: textStyle),
         GestureDetector(
@@ -190,9 +190,9 @@ class _SingleDevice extends StatelessWidget {
         borderRadius: BorderRadius.circular(Radii.px16),
         color: colors.backgroundBase.secondary,
       ),
-      padding: const EdgeInsets.all(Spacing.px12),
+      padding: const EdgeInsets.all(S.s12),
       child: Row(
-        spacing: Spacing.px16,
+        spacing: S.s16,
         children: [
           AppIconBadge(
             type: .laptop,
@@ -204,7 +204,7 @@ class _SingleDevice extends StatelessWidget {
               behavior: HitTestBehavior.opaque,
               onTap: () => _editDeviceName(context),
               child: Column(
-                spacing: Spacing.px4,
+                spacing: S.s4,
                 mainAxisAlignment: .start,
                 crossAxisAlignment: .start,
                 children: [

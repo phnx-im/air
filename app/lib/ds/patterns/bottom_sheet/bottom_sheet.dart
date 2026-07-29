@@ -75,7 +75,7 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
     top: Radius.circular(Radii.px28),
   );
   static const double _handleHeight = 4;
-  static const double _handleTopSpacing = Spacing.px8;
+  static const double _handleTopSpacing = S.s8;
 
   late final CurvedAnimation _appearAnimation;
   late final Animation<double> _slideAnimation;
@@ -188,12 +188,7 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
     final colorScheme = CustomColorScheme.of(context);
     final basePadding =
         widget.contentPadding ??
-        const EdgeInsets.fromLTRB(
-          Spacing.px24,
-          Spacing.px32,
-          Spacing.px24,
-          Spacing.px8,
-        );
+        const EdgeInsets.fromLTRB(S.s24, S.s32, S.s24, S.s8);
     final contentPadding = basePadding.add(
       EdgeInsets.only(bottom: bottomPadding),
     );
@@ -348,7 +343,7 @@ class BottomSheetDialogContent extends StatelessWidget {
             textAlign: titleAlignment,
           ),
         if (description != null) ...[
-          const SizedBox(height: Spacing.px16),
+          const SizedBox(height: S.s16),
           Text(
             description!,
             style: textTheme.bodyMedium?.copyWith(
@@ -358,7 +353,7 @@ class BottomSheetDialogContent extends StatelessWidget {
             textAlign: descriptionAlignment,
           ),
         ],
-        const SizedBox(height: Spacing.px24),
+        const SizedBox(height: S.s24),
         if (primaryActionText != null)
           AppButton(
             type: primaryType,
@@ -375,7 +370,7 @@ class BottomSheetDialogContent extends StatelessWidget {
             label: primaryActionText!,
           ),
         if (secondaryActionText != null) ...[
-          const SizedBox(height: Spacing.px16),
+          const SizedBox(height: S.s16),
           AppButton(
             type: secondaryType,
             tone: secondaryTone,

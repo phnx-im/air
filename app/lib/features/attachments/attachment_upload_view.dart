@@ -65,7 +65,7 @@ class AttachmentUploadView extends HookWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const AppIcon.paperclip(size: 64, color: Colors.white),
-                      const SizedBox(height: Spacing.px12),
+                      const SizedBox(height: S.s12),
                       Text(
                         p.basename(file.path),
                         style: TextStyle(
@@ -78,8 +78,8 @@ class AttachmentUploadView extends HookWidget {
                 ),
 
               Positioned(
-                bottom: Spacing.px16,
-                right: Spacing.px16,
+                bottom: S.s16,
+                right: S.s16,
                 child: SafeArea(
                   child: GlassCircleButton(
                     icon: AppIcon.arrowUp(size: 20, color: colors.text.primary),

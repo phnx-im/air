@@ -124,7 +124,7 @@ class LogsScreenView extends StatelessWidget {
         ),
         body: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+            padding: const EdgeInsets.symmetric(horizontal: S.s8),
             child: TabBarView(
               children: [
                 _LogsView(logs: appLogs),

@@ -57,10 +57,10 @@ class AddContactDialog extends HookWidget {
               ),
             ),
 
-            const SizedBox(height: Spacing.px24),
+            const SizedBox(height: S.s24),
 
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+              padding: const EdgeInsets.symmetric(horizontal: S.s8),
               child: Text(
                 loc.newConnectionDialog_inputLabel,
                 style: TextStyle(
@@ -70,7 +70,7 @@ class AddContactDialog extends HookWidget {
               ),
             ),
 
-            const SizedBox(height: Spacing.px8),
+            const SizedBox(height: S.s8),
 
             TextFormField(
               autocorrect: false,
@@ -100,11 +100,11 @@ class AddContactDialog extends HookWidget {
               },
             ),
 
-            const SizedBox(height: Spacing.px12),
+            const SizedBox(height: S.s12),
 
             Container(
               constraints: const BoxConstraints(minHeight: 38),
-              padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+              padding: const EdgeInsets.symmetric(horizontal: S.s8),
               child: _Description(
                 hasUsernameHash: usernameHash.value != null,
                 errorMessage: errorMessage.value,
@@ -112,7 +112,7 @@ class AddContactDialog extends HookWidget {
               ),
             ),
 
-            const SizedBox(height: Spacing.px24),
+            const SizedBox(height: S.s24),
 
             Row(
               children: [
@@ -125,7 +125,7 @@ class AddContactDialog extends HookWidget {
                     label: loc.newConnectionDialog_cancel,
                   ),
                 ),
-                const SizedBox(width: Spacing.px12),
+                const SizedBox(width: S.s12),
                 Expanded(
                   child: AppButton(
                     onPressed: () => _SubmitHandler(

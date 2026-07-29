@@ -37,7 +37,7 @@ class UserDebugInfoPanel extends HookWidget {
       ),
       AsyncSnapshot(hasError: true, :final error) => Center(
         child: Padding(
-          padding: const EdgeInsets.all(Spacing.px16),
+          padding: const EdgeInsets.all(S.s16),
           child: Text(
             error.toString(),
             style: TextStyle(
@@ -83,7 +83,7 @@ class _UserDebugInfoBody extends StatelessWidget {
             _InfoRow(label: 'User ID', value: info.userId, monospace: true),
           ],
         ),
-        const SizedBox(height: Spacing.px16),
+        const SizedBox(height: S.s16),
         const _SectionHeader('Privacy Pass Tokens'),
         _InfoCard(
           children: [
@@ -97,7 +97,7 @@ class _UserDebugInfoBody extends StatelessWidget {
             ),
           ],
         ),
-        const SizedBox(height: Spacing.px16),
+        const SizedBox(height: S.s16),
         _SectionHeader('Timed Tasks (${info.timedTasks.length})'),
         _InfoCard(
           children: [
@@ -165,7 +165,7 @@ class _SectionHeader extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: Spacing.px8),
+      padding: const EdgeInsets.symmetric(vertical: S.s8),
       child: Text(
         title.toUpperCase(),
         style: TextStyle(
@@ -192,10 +192,7 @@ class _InfoCard extends StatelessWidget {
           color: colors.backgroundBase.secondary,
           borderRadius: BorderRadius.circular(Radii.px12),
         ),
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.px16,
-          vertical: Spacing.px12,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
         child: Text(
           '—',
           style: TextStyle(
@@ -218,7 +215,7 @@ class _InfoCard extends StatelessWidget {
             if (i < children.length - 1)
               Divider(
                 height: 1,
-                indent: Spacing.px16,
+                indent: S.s16,
                 color: colors.separator.secondary,
               ),
           ],
@@ -265,10 +262,7 @@ class _InfoRow extends StatelessWidget {
       },
       borderRadius: BorderRadius.circular(Radii.px12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.px16,
-          vertical: Spacing.px12,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -282,7 +276,7 @@ class _InfoRow extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: Spacing.px12),
+            const SizedBox(width: S.s12),
             Expanded(child: Text(value, style: valueStyle)),
             ?trailing,
           ],

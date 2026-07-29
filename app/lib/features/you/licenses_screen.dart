@@ -21,10 +21,7 @@ class LicensesScreen extends StatelessWidget {
         leading: const AppBarBackButton(),
       ),
       body: const SafeArea(
-        child: Padding(
-          padding: EdgeInsets.all(Spacing.px16),
-          child: Text("TODO"),
-        ),
+        child: Padding(padding: EdgeInsets.all(S.s16), child: Text("TODO")),
       ),
     );
   }

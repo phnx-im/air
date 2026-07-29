@@ -432,10 +432,7 @@ class _BlurredPill extends StatelessWidget {
         ),
         child: ColoredBox(
           color: CustomColorScheme.of(context).backgroundMaterial.tertiary,
-          child: Padding(
-            padding: const EdgeInsets.all(Spacing.px16),
-            child: child,
-          ),
+          child: Padding(padding: const EdgeInsets.all(S.s16), child: child),
         ),
       ),
     );

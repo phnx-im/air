@@ -245,8 +245,8 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                     const _SectionHeader("Debug Info"),
                     Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: Spacing.px12,
-                        vertical: Spacing.px8,
+                        horizontal: S.s12,
+                        vertical: S.s8,
                       ),
                       child: UserDebugInfoPanel(user: user),
                     ),
@@ -304,10 +304,7 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        vertical: Spacing.px8,
-        horizontal: Spacing.px12,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: S.s8, horizontal: S.s12),
       child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
     );
   }

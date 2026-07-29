@@ -245,8 +245,8 @@ class _CreateGroupDetailsStep extends HookWidget {
           behavior: HitTestBehavior.translucent,
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(
-              horizontal: Spacing.px24,
-              vertical: Spacing.px24,
+              horizontal: S.s24,
+              vertical: S.s24,
             ),
             child: Align(
               alignment: Alignment.topCenter,
@@ -263,7 +263,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                         onPick: () => _pickImage(picture),
                       ),
                     ),
-                    const SizedBox(height: Spacing.px32),
+                    const SizedBox(height: S.s32),
                     SizedBox(
                       width: double.infinity,
                       child: TextField(
@@ -289,7 +289,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                       ),
                     ),
                     if (showHelperText) ...[
-                      const SizedBox(height: Spacing.px8),
+                      const SizedBox(height: S.s8),
                       Center(
                         child: Text(
                           loc.groupCreationDetails_groupNameHelper,
@@ -300,7 +300,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                       ),
                     ],
                     if (showHiddenSettings.value) ...[
-                      const SizedBox(height: Spacing.px32),
+                      const SizedBox(height: S.s32),
                       _SwitchField(
                         onChanged: (value) {
                           context.read<AddMembersCubit>().enableApq(value);
@@ -309,12 +309,12 @@ class _CreateGroupDetailsStep extends HookWidget {
                         label: "Post-Quantum Encryption",
                       ),
                     ],
-                    const SizedBox(height: Spacing.px32),
+                    const SizedBox(height: S.s32),
                     if (selectedIds.isNotEmpty)
                       Wrap(
                         alignment: WrapAlignment.start,
-                        spacing: Spacing.px16,
-                        runSpacing: Spacing.px16,
+                        spacing: S.s16,
+                        runSpacing: S.s16,
                         children: sortedSelectedIds.map((userId) {
                           final profile = selectedProfiles[userId];
                           if (profile == null) {
@@ -562,7 +562,7 @@ class _SelectedParticipant extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: Spacing.px8),
+          const SizedBox(height: S.s8),
           Text(
             profile.displayName,
             textAlign: TextAlign.center,
@@ -587,7 +587,7 @@ class _CircularBackButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = CustomColorScheme.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+      padding: const EdgeInsets.symmetric(horizontal: S.s16),
       child: InkWell(
         onTap: onPressed,
         borderRadius: BorderRadius.circular(Radii.full),
@@ -628,7 +628,7 @@ class _SwitchField extends StatelessWidget {
           color: colors.backgroundBase.secondary,
           borderRadius: BorderRadius.circular(Radii.px16),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: Spacing.px12),
+        padding: const EdgeInsets.symmetric(horizontal: S.s12),
         height: 42,
         child: Row(
           children: [

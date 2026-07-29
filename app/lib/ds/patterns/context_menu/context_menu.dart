@@ -89,7 +89,7 @@ class _CursorMenuLayoutDelegate extends SingleChildLayoutDelegate {
   Offset getPositionForChild(Size size, Size childSize) {
     final bottomRight = Offset(
       cursorPosition.dx + offset.dx,
-      cursorPosition.dy + Spacing.px12 + offset.dy,
+      cursorPosition.dy + S.s12 + offset.dy,
     );
 
     double dx = bottomRight.dx;
@@ -105,7 +105,7 @@ class _CursorMenuLayoutDelegate extends SingleChildLayoutDelegate {
     }
 
     if (dy + childSize.height > bottomBoundary) {
-      dy = cursorPosition.dy - childSize.height - offset.dy - Spacing.px12;
+      dy = cursorPosition.dy - childSize.height - offset.dy - S.s12;
     }
 
     final minX = safeArea.left;
@@ -160,9 +160,9 @@ class _ContextMenuState extends State<ContextMenu> {
   Offset get _followerOffset {
     switch (widget.direction) {
       case ContextMenuDirection.left:
-        return Offset(-widget.offset.dx, Spacing.px12 + widget.offset.dy);
+        return Offset(-widget.offset.dx, S.s12 + widget.offset.dy);
       case ContextMenuDirection.right:
-        return Offset(widget.offset.dx, Spacing.px8 + widget.offset.dy);
+        return Offset(widget.offset.dx, S.s8 + widget.offset.dy);
     }
   }
 
@@ -238,8 +238,8 @@ class _ContextMenuState extends State<ContextMenu> {
     // Compute an offset in the target's coordinate space so the follower can
     // track the anchor while we still clamp the menu into the safe area.
     final verticalGap = widget.direction == ContextMenuDirection.left
-        ? Spacing.px12 + widget.offset.dy
-        : Spacing.px8 + widget.offset.dy;
+        ? S.s12 + widget.offset.dy
+        : S.s8 + widget.offset.dy;
     final bottomBoundary = overlaySize.height - safeArea.bottom;
     final topBoundary = safeArea.top;
     final spaceBelow = bottomBoundary - targetRect.bottom - verticalGap;
@@ -409,15 +409,15 @@ class _ContextMenuState extends State<ContextMenu> {
         if (overlayBox != null && cursorPosition != null) {
           final topBoundary = safeArea.top;
           final bottomBoundary = overlaySize.height - safeArea.bottom;
-          final spaceBelow = bottomBoundary - cursorPosition.dy - Spacing.px12;
-          final spaceAbove = cursorPosition.dy - topBoundary - Spacing.px12;
+          final spaceBelow = bottomBoundary - cursorPosition.dy - S.s12;
+          final spaceAbove = cursorPosition.dy - topBoundary - S.s12;
           // Limit the menu to the larger available vertical safe space.
           // This ensures we open where the menu can fit or scroll.
           maxHeight = spaceBelow > spaceAbove ? spaceBelow : spaceAbove;
         } else if (overlayBox != null && targetRect != null) {
           final baseGap = widget.direction == ContextMenuDirection.left
-              ? Spacing.px12
-              : Spacing.px8;
+              ? S.s12
+              : S.s8;
           final topBoundary = safeArea.top;
           final bottomBoundary = overlaySize.height - safeArea.bottom;
           final spaceBelow = bottomBoundary - targetRect.bottom - baseGap;
@@ -539,7 +539,7 @@ class _ContextMenuState extends State<ContextMenu> {
         ) ||
         submenuItems.any((item) => item.hasLeading || item.reserveLeadingSpace);
     final leadingWidth = hasAnyLeading
-        ? ContextMenuItem.defaultLeadingWidth + Spacing.px8
+        ? ContextMenuItem.defaultLeadingWidth + S.s8
         : 0.0;
     var widestItem = 0.0;
 
@@ -552,7 +552,7 @@ class _ContextMenuState extends State<ContextMenu> {
       )..layout();
       var itemWidth = textPainter.width + leadingWidth;
       if (item.trailingIcon != null) {
-        itemWidth += trailingIconSize + Spacing.px8;
+        itemWidth += trailingIconSize + S.s8;
       }
       if (itemWidth > widestItem) widestItem = itemWidth;
     }
@@ -569,11 +569,11 @@ class _ContextMenuState extends State<ContextMenu> {
           textPainter.width +
           leadingWidth +
           ContextMenuSubmenuItem.chevronSize +
-          Spacing.px8;
+          S.s8;
       if (itemWidth > widestItem) widestItem = itemWidth;
     }
 
-    final paddedWidth = widestItem + Spacing.px16 * 2;
+    final paddedWidth = widestItem + S.s16 * 2;
     if (maxWidth <= 0) {
       return paddedWidth;
     }

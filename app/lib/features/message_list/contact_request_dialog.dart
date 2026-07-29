@@ -89,7 +89,7 @@ class ContactRequestDialog extends HookWidget {
             ),
           ),
 
-          const SizedBox(height: Spacing.px32),
+          const SizedBox(height: S.s32),
 
           InkWell(
             onTap: () {
@@ -104,7 +104,7 @@ class ContactRequestDialog extends HookWidget {
           ),
 
           if (senderProfile.profilePicture != null) ...[
-            const SizedBox(height: Spacing.px8),
+            const SizedBox(height: S.s8),
             Text(
               loc.contactRequestDialog_avatarHint,
               style: TextStyle(
@@ -114,7 +114,7 @@ class ContactRequestDialog extends HookWidget {
             ),
           ],
 
-          const SizedBox(height: Spacing.px32),
+          const SizedBox(height: S.s32),
 
           Text(
             message,
@@ -125,7 +125,7 @@ class ContactRequestDialog extends HookWidget {
             textAlign: .center,
           ),
 
-          const SizedBox(height: Spacing.px32),
+          const SizedBox(height: S.s32),
 
           Row(
             children: [
@@ -138,7 +138,7 @@ class ContactRequestDialog extends HookWidget {
                   label: loc.contactRequestDialog_cancel,
                 ),
               ),
-              const SizedBox(width: Spacing.px12),
+              const SizedBox(width: S.s12),
               const Expanded(child: _AcceptButton()),
             ],
           ),

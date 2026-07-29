@@ -54,10 +54,7 @@ class ContextMenuSurface extends StatelessWidget {
         boxShadow: mediumElevationBoxShadows,
         borderRadius: BorderRadius.circular(Radii.px16),
       ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.px16,
-        vertical: Spacing.px8,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),
       child: body,
     );
   }

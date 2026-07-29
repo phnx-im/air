@@ -140,8 +140,8 @@ class _JumpHighlightState extends State<JumpHighlight>
                 ? [
                     BoxShadow(
                       color: highlightColor.withValues(alpha: t),
-                      spreadRadius: Spacing.px4,
-                      blurRadius: Spacing.px24,
+                      spreadRadius: S.s4,
+                      blurRadius: S.s24,
                     ),
                   ]
                 : null,

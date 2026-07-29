@@ -62,8 +62,8 @@ class SignUpScreen extends HookWidget {
                         keyboardDismissBehavior:
                             ScrollViewKeyboardDismissBehavior.onDrag,
                         padding: const EdgeInsets.symmetric(
-                          horizontal: Spacing.px16,
-                          vertical: Spacing.px12,
+                          horizontal: S.s16,
+                          vertical: S.s12,
                         ),
                         child: _Form(
                           formKey: formKey,
@@ -74,14 +74,14 @@ class SignUpScreen extends HookWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: Spacing.px24),
+                  padding: const EdgeInsets.symmetric(horizontal: S.s24),
                   width: isSmallScreen(context) ? double.infinity : null,
                   child: _SignUpButton(
                     formKey: formKey,
                     showErrors: showErrors,
                   ),
                 ),
-                const SizedBox(height: Spacing.px16),
+                const SizedBox(height: S.s16),
               ],
             ),
           ),
@@ -122,14 +122,14 @@ class _Form extends HookWidget {
               style: Theme.of(context).textTheme.bodyMedium,
               textAlign: TextAlign.left,
             ),
-            const SizedBox(height: Spacing.px32),
+            const SizedBox(height: S.s32),
 
             GestureDetector(
               onTap: () => _pickAvatar(context),
               onLongPress: () => serverFieldVisible.value = true,
               child: const _UserAvatarPicker(),
             ),
-            const SizedBox(height: Spacing.px32),
+            const SizedBox(height: S.s32),
 
             ConstrainedBox(
               constraints: textFormConstraints,
@@ -144,7 +144,7 @@ class _Form extends HookWidget {
                 style: Theme.of(context).textTheme.bodyMedium,
                 textAlign: TextAlign.left,
               ),
-              const SizedBox(height: Spacing.px16),
+              const SizedBox(height: S.s16),
 
               ConstrainedBox(
                 constraints: textFormConstraints,
@@ -154,7 +154,7 @@ class _Form extends HookWidget {
               ),
             ],
 
-            const SizedBox(height: Spacing.px16),
+            const SizedBox(height: S.s16),
           ],
         ),
       ),
@@ -242,10 +242,10 @@ class _DisplayNameTextField extends HookWidget {
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: Spacing.px8,
+      spacing: S.s8,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: Spacing.px8),
+          padding: const EdgeInsets.only(left: S.s8),
           child: Text(
             loc.signUpScreen_displayNameInputName,
             style: TextStyle(

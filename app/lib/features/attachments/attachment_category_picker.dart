@@ -79,9 +79,9 @@ class _AttachmentCategoryButton extends StatelessWidget {
             onPressed: onPressed,
           ),
         ),
-        const SizedBox(height: Spacing.px8),
+        const SizedBox(height: S.s8),
         Text(label),
-        const SizedBox(height: Spacing.px8),
+        const SizedBox(height: S.s8),
       ],
     );
   }

@@ -51,7 +51,7 @@ class ProgressButton extends HookWidget {
                 backgroundColor: Colors.transparent,
               ),
             ),
-          if (inProgress.value) const SizedBox(width: Spacing.px16),
+          if (inProgress.value) const SizedBox(width: S.s16),
           Text(label),
         ],
       ),

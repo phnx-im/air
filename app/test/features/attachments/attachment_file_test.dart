@@ -55,10 +55,7 @@ class _FileTestBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.px16,
-        vertical: Spacing.px8,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(Radii.px20),
@@ -106,11 +103,11 @@ void main() {
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
                 home: Scaffold(
                   body: Padding(
-                    padding: const EdgeInsets.all(Spacing.px16),
+                    padding: const EdgeInsets.all(S.s16),
                     child: SizedBox(
                       width: double.infinity,
                       child: Column(
-                        spacing: Spacing.px16,
+                        spacing: S.s16,
                         crossAxisAlignment: .end,
                         children: children(context),
                       ),

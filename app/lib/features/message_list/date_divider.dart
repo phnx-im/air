@@ -46,10 +46,7 @@ class _DateDividerState extends State<DateDivider> {
     final label = formatDateLabel(widget.date, DateTime.now(), loc, locale);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.px24,
-        vertical: Spacing.px32,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: S.s24, vertical: S.s32),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [DateLabelPill(label: label)],
@@ -71,10 +68,7 @@ class DateLabelPill extends StatelessWidget {
         shape: const StadiumBorder(),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.px16,
-          vertical: Spacing.px4,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s4),
         child: Text(
           label,
           style: TextTheme.of(context).bodySmall?.copyWith(

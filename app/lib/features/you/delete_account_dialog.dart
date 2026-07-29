@@ -51,13 +51,13 @@ class DeleteAccountDialog extends HookWidget {
               ),
             ),
           ),
-          const SizedBox(height: Spacing.px24),
+          const SizedBox(height: S.s24),
 
           Center(
             child: AppIcon.circleAlert(size: 40, color: colors.function.danger),
           ),
 
-          const SizedBox(height: Spacing.px24),
+          const SizedBox(height: S.s24),
 
           Text(
             loc.deleteAccountScreen_explanatoryText,
@@ -67,7 +67,7 @@ class DeleteAccountDialog extends HookWidget {
             ),
           ),
 
-          const SizedBox(height: Spacing.px12),
+          const SizedBox(height: S.s12),
 
           TextFormField(
             autocorrect: false,
@@ -82,10 +82,10 @@ class DeleteAccountDialog extends HookWidget {
                 isConfirmed.value = value == _confirmationText,
           ),
 
-          const SizedBox(height: Spacing.px12),
+          const SizedBox(height: S.s12),
 
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+            padding: const EdgeInsets.symmetric(horizontal: S.s8),
             child: Text(
               loc.deleteAccountScreen_confirmationInputLabel,
               style: TextStyle(
@@ -95,7 +95,7 @@ class DeleteAccountDialog extends HookWidget {
             ),
           ),
 
-          const SizedBox(height: Spacing.px24),
+          const SizedBox(height: S.s24),
 
           Row(
             children: [
@@ -113,7 +113,7 @@ class DeleteAccountDialog extends HookWidget {
                 ),
               ),
 
-              const SizedBox(width: Spacing.px12),
+              const SizedBox(width: S.s12),
 
               Expanded(
                 child: AppDialogProgressButton(

@@ -62,18 +62,18 @@ final double _hoverReactSize =
     messageVerticalPadding * 2;
 // Width the hover affordance occupies beside the bubble: the reply and react
 // buttons, the gap between them, and the gap to the bubble.
-final double _hoverAffordanceWidth = 2 * _hoverReactSize + 2 * Spacing.px8;
+final double _hoverAffordanceWidth = 2 * _hoverReactSize + 2 * S.s8;
 const double largeCornerRadius = Radii.px12;
 const double smallCornerRadius = Radii.px12;
-const double messageHorizontalPadding = Spacing.px12;
-const double messageVerticalPadding = Spacing.px8;
+const double messageHorizontalPadding = S.s12;
+const double messageVerticalPadding = S.s8;
 // Gap between consecutive bubbles of the same flight.
-const double messageFollowUpGap = Spacing.px2;
-const double senderAvatarSize = Spacing.px32;
-const double senderAvatarVerticalOffset = Spacing.px4;
-const double senderLabelBottomGap = Spacing.px2;
+const double messageFollowUpGap = S.s2;
+const double senderAvatarSize = S.s32;
+const double senderAvatarVerticalOffset = S.s4;
+const double senderLabelBottomGap = S.s2;
 const double incomingContentInset =
-    senderAvatarSize + Spacing.px12 + messageHorizontalPadding;
+    senderAvatarSize + S.s12 + messageHorizontalPadding;
 
 const _messagePadding = EdgeInsets.symmetric(
   horizontal: messageHorizontalPadding,
@@ -245,7 +245,7 @@ class _IncomingMessageTile extends StatelessWidget {
         if (showSenderLabel)
           Padding(
             padding: const EdgeInsets.only(
-              top: Spacing.px12,
+              top: S.s12,
               bottom: senderLabelBottomGap,
               left: incomingContentInset,
             ),
@@ -278,7 +278,7 @@ class _IncomingMessageTile extends StatelessWidget {
                     : const SizedBox.shrink(),
               ),
             ),
-            const SizedBox(width: Spacing.px12),
+            const SizedBox(width: S.s12),
             Expanded(
               child: _MessageView(
                 messageId: messageId,
@@ -306,7 +306,7 @@ class _IncomingMessageTile extends StatelessWidget {
               status: status,
             ),
           ),
-        if (flightPosition.isLast) const SizedBox(height: Spacing.px8),
+        if (flightPosition.isLast) const SizedBox(height: S.s8),
       ],
     );
   }
@@ -624,7 +624,7 @@ class _MessageView extends HookWidget {
 
       return Container(
         padding: EdgeInsets.only(
-          top: flightPosition.isFirst ? Spacing.px4 : 0,
+          top: flightPosition.isFirst ? S.s4 : 0,
           bottom: includeMetadata && flightPosition.isLast ? 5 : 0,
         ),
         child: Column(
@@ -784,8 +784,8 @@ class _MessageView extends HookWidget {
       curve: motionEasing,
       padding: EdgeInsets.only(
         bottom: reactionsReservedBelow(context, reactions.isNotEmpty),
-        left: isSender ? 0 : Spacing.px8,
-        right: isSender ? Spacing.px8 : 0,
+        left: isSender ? 0 : S.s8,
+        right: isSender ? S.s8 : 0,
       ),
       child: ValueListenableBuilder(
         valueListenable: isHovered,
@@ -794,12 +794,12 @@ class _MessageView extends HookWidget {
           children: isSender
               ? [
                   hoverReplyButton,
-                  const SizedBox(width: Spacing.px8),
+                  const SizedBox(width: S.s8),
                   hoverReactButton,
                 ]
               : [
                   hoverReactButton,
-                  const SizedBox(width: Spacing.px8),
+                  const SizedBox(width: S.s8),
                   hoverReplyButton,
                 ],
         ),
@@ -815,7 +815,7 @@ class _MessageView extends HookWidget {
       direction: isSender
           ? ContextMenuDirection.left
           : ContextMenuDirection.right,
-      offset: const Offset(Spacing.px8, 0),
+      offset: const Offset(S.s8, 0),
       controller: contextMenuController,
       menuItems: menuItems,
       cursorPosition: cursorPositionNotifier,
@@ -993,7 +993,7 @@ class _MessageMetadataRowState extends State<_MessageMetadataRow> {
     final isError = widget.status == UiMessageStatus.error;
     final isSending = widget.status == UiMessageStatus.sending;
     final showTimestamp = !isError && !(isSending && _showSending);
-    final double leadingSpacing = widget.isSender ? Spacing.px16 : 0;
+    final double leadingSpacing = widget.isSender ? S.s16 : 0;
 
     return SelectionContainer.disabled(
       child: Column(
@@ -1012,7 +1012,7 @@ class _MessageMetadataRowState extends State<_MessageMetadataRow> {
               children: [
                 SizedBox(width: leadingSpacing),
                 if (showTimestamp) Timestamp(widget.timestamp),
-                if (showMessageStatus) const SizedBox(width: Spacing.px4),
+                if (showMessageStatus) const SizedBox(width: S.s4),
                 if (showMessageStatus && isError)
                   Text(
                     style: TextStyle(
@@ -1033,10 +1033,10 @@ class _MessageMetadataRowState extends State<_MessageMetadataRow> {
                   ),
                 if (showMessageStatus &&
                     (isError || (isSending && _showSending)))
-                  const SizedBox(width: Spacing.px4),
+                  const SizedBox(width: S.s4),
                 if (showMessageStatus)
                   MessageStatusIndicator(status: widget.status),
-                const SizedBox(width: Spacing.px12),
+                const SizedBox(width: S.s12),
               ],
             ),
           ),
@@ -1200,9 +1200,9 @@ class _MessageContent extends StatelessWidget {
               },
               child: Padding(
                 padding: const EdgeInsets.only(
-                  left: Spacing.px12,
-                  right: Spacing.px12,
-                  top: Spacing.px12,
+                  left: S.s12,
+                  right: S.s12,
+                  top: S.s12,
                 ),
                 child: InReplyToBubble(
                   inReplyTo: inReplyTo,

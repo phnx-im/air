@@ -70,7 +70,7 @@ class EditDialog extends HookWidget {
               ),
             ),
           ),
-          const SizedBox(height: Spacing.px24),
+          const SizedBox(height: S.s24),
 
           TextFormField(
             autocorrect: false,
@@ -96,11 +96,11 @@ class EditDialog extends HookWidget {
             },
           ),
 
-          const SizedBox(height: Spacing.px12),
+          const SizedBox(height: S.s12),
 
           if (maxLength != null) ...[
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+              padding: const EdgeInsets.symmetric(horizontal: S.s8),
               child: Text(
                 loc.editDialog_characters_remaining(length.value, maxLength),
                 style: TextStyle(
@@ -109,12 +109,12 @@ class EditDialog extends HookWidget {
                 ),
               ),
             ),
-            const SizedBox(height: Spacing.px12),
+            const SizedBox(height: S.s12),
           ],
 
           if (description != null)
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+              padding: const EdgeInsets.symmetric(horizontal: S.s8),
               child: Text(
                 description,
                 style: TextStyle(
@@ -124,7 +124,7 @@ class EditDialog extends HookWidget {
               ),
             ),
 
-          const SizedBox(height: Spacing.px12),
+          const SizedBox(height: S.s12),
 
           Row(
             children: [
@@ -138,7 +138,7 @@ class EditDialog extends HookWidget {
                 ),
               ),
 
-              const SizedBox(width: Spacing.px12),
+              const SizedBox(width: S.s12),
 
               Expanded(
                 child: AppButton(

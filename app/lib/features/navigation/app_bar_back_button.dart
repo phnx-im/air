@@ -24,7 +24,7 @@ class AppBarBackButton extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.only(left: Spacing.px16),
+      padding: const EdgeInsets.only(left: S.s16),
       child: Align(
         alignment: Alignment.centerLeft,
         child: GlassCircleButton(

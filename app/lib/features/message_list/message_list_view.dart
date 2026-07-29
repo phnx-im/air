@@ -339,7 +339,7 @@ class _MessageListViewState extends State<MessageListView>
     // Height of safe area + tool bar
     final mediaPadding = MediaQuery.paddingOf(context);
     // Height of the tail of the fade beyon the toolbar
-    const fadeBleeding = Spacing.px48;
+    const fadeBleeding = S.s48;
     // Height of the safe area above the toolbar
     final statusBarHeight = max(mediaPadding.top - kToolbarHeight, 0.0);
     // Total height of the fade
@@ -351,13 +351,13 @@ class _MessageListViewState extends State<MessageListView>
     // Y-coordinate of the floating date pill's top edge. Sits just below
     // the safe area, in the toolbar zone — the inline divider is hidden
     // when its pill reaches this slot, making the swap visually in-place.
-    final pillTop = mediaPadding.top + Spacing.px16;
+    final pillTop = mediaPadding.top + S.s16;
     // Item-top y-coordinate at or above which the inline-to-floating pill swap
-    // fires. The inline divider's pill sits [Spacing.px32] below the divider's
+    // fires. The inline divider's pill sits [S.s32] below the divider's
     // top, so when an item's top reaches this y, its pill aligns with
     // [pillTop]. Both the inline-pill hide and the floating-pill show gate on
     // this threshold so they stay in sync.
-    final swapTopThreshold = pillTop - Spacing.px32;
+    final swapTopThreshold = pillTop - S.s32;
     // Solid color for the safe area
     final bgColor = CustomColorScheme.of(context).backgroundBase.primary;
 
@@ -459,7 +459,7 @@ class _MessageListViewState extends State<MessageListView>
       valueListenable: composerHeightListenable,
       builder: (context, composerHeight, _) {
         const fadeBleeding = 40;
-        final bottomInset = max(mediaPadding.bottom, Spacing.px12);
+        final bottomInset = max(mediaPadding.bottom, S.s12);
         final listBottomPadding = composerHeight + bottomInset + _bottomGap;
         final fadeHeight = composerHeight + fadeBleeding;
 
@@ -606,10 +606,10 @@ bool _isSameLocalDay(DateTime a, DateTime b) {
       aLocal.day == bLocal.day;
 }
 
-const double _bottomGap = Spacing.px16;
+const double _bottomGap = S.s16;
 
 /// Downward drag distance to dismiss the keyboard.
-const double _keyboardDismissDragThreshold = Spacing.px64;
+const double _keyboardDismissDragThreshold = S.s64;
 
 /// How long an incoming message id stays eligible for the entrance animation.
 /// Chosen comfortably larger than the animation duration so the tile always

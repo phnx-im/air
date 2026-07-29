@@ -76,13 +76,13 @@ class GroupDetailsScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      const SizedBox(height: Spacing.px16),
+                      const SizedBox(height: S.s16),
                       ChatAvatar(
                         chatId: chat.id,
                         size: 192,
                         onPressed: () => _selectAvatar(context, chat.id),
                       ),
-                      const SizedBox(height: Spacing.px16),
+                      const SizedBox(height: S.s16),
                       InkWell(
                         onTap: () => _changeGroupTitle(context, chat.title),
                         child: Text(
@@ -94,7 +94,7 @@ class GroupDetailsScreen extends StatelessWidget {
                           ),
                         ),
                       ),
-                      const SizedBox(height: Spacing.px8),
+                      const SizedBox(height: S.s8),
                       Text(
                         loc.groupDetails_groupDescription,
                         textAlign: TextAlign.center,
@@ -103,15 +103,15 @@ class GroupDetailsScreen extends StatelessWidget {
                           color: colors.text.secondary,
                         ),
                       ),
-                      const SizedBox(height: Spacing.px8),
+                      const SizedBox(height: S.s8),
                       const MuteButton(),
-                      const SizedBox(height: Spacing.px32),
+                      const SizedBox(height: S.s32),
                       _PeoplePreview(memberIds: members),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: Spacing.px16),
+              const SizedBox(height: S.s16),
               Row(
                 children: [
                   Expanded(
@@ -121,7 +121,7 @@ class GroupDetailsScreen extends StatelessWidget {
                       label: loc.groupDetails_leaveChat,
                     ),
                   ),
-                  const SizedBox(width: Spacing.px12),
+                  const SizedBox(width: S.s12),
                   Expanded(
                     child: AppButton(
                       onPressed: () => _delete(context, chat),
@@ -235,7 +235,7 @@ class _PeoplePreview extends HookWidget {
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.all(Spacing.px12),
+          padding: const EdgeInsets.all(S.s12),
           child: Text(
             loc.groupDetails_memberCount(memberIds.length),
             style: TextStyle(
@@ -307,7 +307,7 @@ class _PeoplePreviewEntry extends StatelessWidget {
       color: colors.backgroundBase.secondary,
       borderRadius: borderRadius,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+        padding: const EdgeInsets.symmetric(horizontal: S.s16),
         child: MemberListItem(
           profile: profile,
           displayNameOverride: displayName,
@@ -354,8 +354,8 @@ class _ActionsRow extends StatelessWidget {
               },
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: Spacing.px16,
-                  vertical: Spacing.px12,
+                  horizontal: S.s16,
+                  vertical: S.s12,
                 ),
                 child: Row(
                   children: [
@@ -367,14 +367,14 @@ class _ActionsRow extends StatelessWidget {
                         borderRadius: BorderRadius.circular(Radii.px16),
                       ),
                       child: Padding(
-                        padding: const EdgeInsets.all(Spacing.px8),
+                        padding: const EdgeInsets.all(S.s8),
                         child: AppIcon.plus(
                           size: 16,
                           color: colors.function.neutral.toggleBlack,
                         ),
                       ),
                     ),
-                    const SizedBox(width: Spacing.px16),
+                    const SizedBox(width: S.s16),
                     Text(
                       loc.groupDetails_addPeople,
                       style: TextStyle(fontSize: BodyFontSize.base.size),
@@ -391,8 +391,8 @@ class _ActionsRow extends StatelessWidget {
               },
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: Spacing.px16,
-                  vertical: Spacing.px12,
+                  horizontal: S.s16,
+                  vertical: S.s12,
                 ),
                 child: Row(
                   mainAxisAlignment: .end,
@@ -401,7 +401,7 @@ class _ActionsRow extends StatelessWidget {
                       loc.groupDetails_seeAll,
                       style: TextStyle(fontSize: BodyFontSize.base.size),
                     ),
-                    const SizedBox(width: Spacing.px12),
+                    const SizedBox(width: S.s12),
                     Container(
                       height: 32,
                       width: 32,
@@ -410,7 +410,7 @@ class _ActionsRow extends StatelessWidget {
                         borderRadius: BorderRadius.circular(Radii.px16),
                       ),
                       child: Padding(
-                        padding: const EdgeInsets.all(Spacing.px8),
+                        padding: const EdgeInsets.all(S.s8),
                         child: AppIcon.arrowRight(
                           size: 16,
                           color: colors.function.neutral.toggleBlack,

@@ -58,13 +58,13 @@ class UpdateRequiredView extends StatelessWidget {
       backgroundColor: colors.backgroundBase.secondary,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+          padding: const EdgeInsets.symmetric(horizontal: S.s16),
           child: Center(
             child: ConstrainedWidth(
               child: Column(
                 crossAxisAlignment: .center,
                 children: [
-                  const SizedBox(height: 3 * Spacing.px96),
+                  const SizedBox(height: 3 * S.s96),
 
                   SizedBox(
                     width: 104,
@@ -77,12 +77,10 @@ class UpdateRequiredView extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(height: 2 * Spacing.px96),
+                  const SizedBox(height: 2 * S.s96),
 
                   Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: Spacing.px16,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: S.s16),
                     child: Text(
                       loc.appOutdatedScreen_message,
                       style: TextStyle(
@@ -93,12 +91,10 @@ class UpdateRequiredView extends StatelessWidget {
                     ),
                   ),
 
-                  const SizedBox(height: Spacing.px16),
+                  const SizedBox(height: S.s16),
 
                   Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: Spacing.px16,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: S.s16),
                     child: Text(
                       loc.appOutdatedScreen_description,
                       style: TextStyle(
@@ -114,9 +110,7 @@ class UpdateRequiredView extends StatelessWidget {
                   if (showUpdateButton)
                     Center(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: Spacing.px24,
-                        ),
+                        padding: const EdgeInsets.symmetric(horizontal: S.s24),
                         width: isSmallScreen(context) ? double.infinity : null,
                         child: OutlinedButton(
                           onPressed: _handleUpdateNow,
@@ -140,7 +134,7 @@ class UpdateRequiredView extends StatelessWidget {
                       ),
                     ),
 
-                  const SizedBox(height: Spacing.px16),
+                  const SizedBox(height: S.s16),
                 ],
               ),
             ),

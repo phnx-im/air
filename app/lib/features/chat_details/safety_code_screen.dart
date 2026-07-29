@@ -52,11 +52,11 @@ class SafetyCodeView extends StatelessWidget {
       alignment: Alignment.topCenter,
       child: Column(
         children: [
-          const SizedBox(height: Spacing.px12),
+          const SizedBox(height: S.s12),
 
           UserAvatar(profile: profile, size: 192),
 
-          const SizedBox(height: Spacing.px16),
+          const SizedBox(height: S.s16),
 
           Text(
             profile.displayName,
@@ -66,13 +66,13 @@ class SafetyCodeView extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: Spacing.px24),
+          const SizedBox(height: S.s24),
 
           _SafetyCode(userId: profile.userId),
 
-          const SizedBox(height: Spacing.px24),
+          const SizedBox(height: S.s24),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+            padding: const EdgeInsets.symmetric(horizontal: S.s16),
             child: Text(
               style: TextStyle(
                 fontSize: BodyFontSize.small1.size,
@@ -130,22 +130,19 @@ class _SafetyCode extends HookWidget {
           borderRadius: BorderRadius.circular(Radii.px12),
           color: colors.backgroundBase.secondary,
         ),
-        padding: const EdgeInsets.symmetric(
-          vertical: Spacing.px16,
-          horizontal: Spacing.px24,
-        ),
+        padding: const EdgeInsets.symmetric(vertical: S.s16, horizontal: S.s24),
         child: Column(
           children: [
             Text(p1, style: codeStyle),
             Text(p2, style: codeStyle),
             Text(p3, style: codeStyle),
-            const SizedBox(height: Spacing.px24),
+            const SizedBox(height: S.s24),
             Row(
               mainAxisSize: .min,
               mainAxisAlignment: .center,
               children: [
                 AppIcon.copy(color: colors.text.tertiary, size: 16),
-                const SizedBox(width: Spacing.px8),
+                const SizedBox(width: S.s8),
                 Text(
                   loc.safetyCodeScreen_tapToCopy,
                   style: TextStyle(

@@ -42,11 +42,7 @@ class AppScaffold extends StatelessWidget {
             : null,
       ),
       body: SafeArea(
-        minimum: const EdgeInsets.only(
-          left: Spacing.px16,
-          right: Spacing.px16,
-          bottom: 40,
-        ),
+        minimum: const EdgeInsets.only(left: S.s16, right: S.s16, bottom: 40),
         child: child,
       ),
     );

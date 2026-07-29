@@ -40,7 +40,7 @@ class BlockContactButton extends StatelessWidget {
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
-        spacing: Spacing.px12,
+        spacing: S.s12,
         children: [
           Text(
             loc.blockContactButton_text,

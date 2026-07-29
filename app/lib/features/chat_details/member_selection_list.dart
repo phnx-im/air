@@ -54,10 +54,7 @@ class MemberSelectionList extends HookWidget {
     }, [contacts, profiles, normalizedQuery]);
 
     return ListView.separated(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.px16,
-        vertical: Spacing.px12,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
       itemCount: sortedContacts.length,
       separatorBuilder: (context, index) => Divider(
         height: 1,

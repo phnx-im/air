@@ -95,11 +95,11 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: Scaffold(
             body: Padding(
-              padding: const EdgeInsets.all(Spacing.px16),
+              padding: const EdgeInsets.all(S.s16),
               child: SizedBox(
                 width: double.infinity,
                 child: Column(
-                  spacing: Spacing.px16,
+                  spacing: S.s16,
                   crossAxisAlignment: .center,
                   children: [
                     for (final testStatus in testStatuses.entries) ...[

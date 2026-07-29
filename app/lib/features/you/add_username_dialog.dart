@@ -49,7 +49,7 @@ class AddUsernameDialog extends HookWidget {
                 ),
               ),
             ),
-            const SizedBox(height: Spacing.px24),
+            const SizedBox(height: S.s24),
 
             TextFormField(
               autocorrect: false,
@@ -81,10 +81,10 @@ class AddUsernameDialog extends HookWidget {
               },
             ),
 
-            const SizedBox(height: Spacing.px12),
+            const SizedBox(height: S.s12),
 
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+              padding: const EdgeInsets.symmetric(horizontal: S.s8),
               child: Text(
                 loc.usernameScreen_description,
                 style: TextStyle(
@@ -94,7 +94,7 @@ class AddUsernameDialog extends HookWidget {
               ),
             ),
 
-            const SizedBox(height: Spacing.px24),
+            const SizedBox(height: S.s24),
 
             Row(
               children: [
@@ -106,7 +106,7 @@ class AddUsernameDialog extends HookWidget {
                     child: Text(loc.usernameScreen_cancel),
                   ),
                 ),
-                const SizedBox(width: Spacing.px12),
+                const SizedBox(width: S.s12),
                 Expanded(
                   child: AppDialogProgressButton(
                     onPressed: (isSubmitting) => _submit(

@@ -78,13 +78,13 @@ class AppButton extends StatelessWidget {
     };
 
     final verticalPadding = switch (size) {
-      AppButtonSize.small => Spacing.px8,
-      AppButtonSize.large => Spacing.px12,
+      AppButtonSize.small => S.s8,
+      AppButtonSize.large => S.s12,
     };
 
     final iconSize = switch (size) {
-      AppButtonSize.small => const Size.square(Spacing.px16),
-      AppButtonSize.large => const Size.square(Spacing.px24),
+      AppButtonSize.small => const Size.square(S.s16),
+      AppButtonSize.large => const Size.square(S.s24),
     };
 
     final labelSize = switch (size) {

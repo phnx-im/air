@@ -25,7 +25,7 @@ class AppBarXButton extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.only(right: Spacing.px24),
+      padding: const EdgeInsets.only(right: S.s24),
       child: GlassCircleButton(
         icon: AppIcon.x(
           size: 20,

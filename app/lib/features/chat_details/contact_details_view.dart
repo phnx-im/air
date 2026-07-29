@@ -81,11 +81,11 @@ class ContactDetailsView extends StatelessWidget {
       alignment: Alignment.topCenter,
       child: Column(
         children: [
-          const SizedBox(height: Spacing.px12),
+          const SizedBox(height: S.s12),
 
           UserAvatar(profile: profile, size: 192),
 
-          const SizedBox(height: Spacing.px16),
+          const SizedBox(height: S.s16),
 
           Text(
             profile.displayName,
@@ -95,7 +95,7 @@ class ContactDetailsView extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: Spacing.px16),
+          const SizedBox(height: S.s16),
 
           OutlinedButton(
             onPressed: () => _handleChat(context),
@@ -107,7 +107,7 @@ class ContactDetailsView extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const AppIcon.messageCircle(size: 16),
-                const SizedBox(width: Spacing.px8),
+                const SizedBox(width: S.s8),
                 Text(
                   loc.contactDetailsScreen_chat,
                   style: TextStyle(fontSize: LabelFontSize.base.size),
@@ -116,7 +116,7 @@ class ContactDetailsView extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: Spacing.px16),
+          const SizedBox(height: S.s16),
 
           OutlinedButton(
             onPressed: () => _handleViewSafetyNumber(context, profile.userId),
@@ -128,7 +128,7 @@ class ContactDetailsView extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const AppIcon.shield(size: 16),
-                const SizedBox(width: Spacing.px8),
+                const SizedBox(width: S.s8),
                 Text(
                   loc.contactDetailsScreen_viewSafetyCode,
                   style: TextStyle(fontSize: LabelFontSize.base.size),
@@ -138,7 +138,7 @@ class ContactDetailsView extends StatelessWidget {
           ),
 
           if (relationship is ContactRelationship) ...[
-            const SizedBox(height: Spacing.px16),
+            const SizedBox(height: S.s16),
             const MuteButton(),
           ],
 
@@ -148,7 +148,7 @@ class ContactDetailsView extends StatelessWidget {
 
           if (relationship case ContactRelationship())
             if (relationship case ContactRelationship(:final isBlocked)) ...[
-              const SizedBox(height: Spacing.px16),
+              const SizedBox(height: S.s16),
               isBlocked
                   ? UnblockContactButton(
                       userId: profile.userId,
@@ -161,7 +161,7 @@ class ContactDetailsView extends StatelessWidget {
             ],
 
           if (relationship case ContactRelationship(:final contactChatId)) ...[
-            const SizedBox(height: Spacing.px16),
+            const SizedBox(height: S.s16),
             DeleteContactButton(
               chatId: contactChatId,
               displayName: profile.displayName,
@@ -172,7 +172,7 @@ class ContactDetailsView extends StatelessWidget {
             :final groupChatId,
             :final canKick,
           ) when canKick) ...[
-            const SizedBox(height: Spacing.px16),
+            const SizedBox(height: S.s16),
             RemoveMemberButton(
               chatId: groupChatId,
               memberId: profile.userId,
@@ -263,7 +263,7 @@ class _AddContactDialog extends HookWidget {
             ),
           ),
 
-          const SizedBox(height: Spacing.px8),
+          const SizedBox(height: S.s8),
 
           Text(
             loc.addContactDialog_content(displayName, groupTitle),
@@ -273,7 +273,7 @@ class _AddContactDialog extends HookWidget {
             ),
           ),
 
-          const SizedBox(height: Spacing.px24),
+          const SizedBox(height: S.s24),
 
           Row(
             children: [
@@ -289,7 +289,7 @@ class _AddContactDialog extends HookWidget {
                 ),
               ),
 
-              const SizedBox(width: Spacing.px12),
+              const SizedBox(width: S.s12),
 
               Expanded(
                 child: AppDialogProgressButton(

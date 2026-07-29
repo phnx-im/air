@@ -61,10 +61,7 @@ Widget buildBlockElement(
       ),
     ),
     BlockElement_Quote(:final field0) => Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.px12,
-        vertical: Spacing.px8,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: S.s12, vertical: S.s8),
       decoration: BoxDecoration(
         borderRadius: const BorderRadius.all(Radius.circular(Radii.px12)),
         border: Border(
@@ -187,8 +184,8 @@ Widget buildBlockElement(
               .map(
                 (itemBlocks) => Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: Spacing.px12,
-                    vertical: Spacing.px4,
+                    horizontal: S.s12,
+                    vertical: S.s4,
                   ),
                   child: DefaultTextStyle(
                     style: const TextStyle(fontWeight: FontWeight.bold),
@@ -217,8 +214,8 @@ Widget buildBlockElement(
                 .map(
                   (itemBlocks) => Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: Spacing.px12,
-                      vertical: Spacing.px4,
+                      horizontal: S.s12,
+                      vertical: S.s4,
                     ),
                     child: Column(
                       spacing: BodyFontSize.base.size,
@@ -364,7 +361,7 @@ InlineSpan buildInlineElement(
     InlineElement_TaskListMarker(:final field0) => WidgetSpan(
       alignment: PlaceholderAlignment.middle,
       child: Padding(
-        padding: const EdgeInsets.only(left: Spacing.px4, right: Spacing.px8),
+        padding: const EdgeInsets.only(left: S.s4, right: S.s8),
         child: field0
             ? AppIcon.squareCheck(
                 size: 20,
@@ -423,7 +420,7 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
           children: [
             Center(
               child: Column(
-                spacing: Spacing.px8,
+                spacing: S.s8,
                 children: [
                   Text(
                     loc.linkConfirmation_title,
@@ -452,7 +449,7 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
               ),
             ),
 
-            const SizedBox(height: Spacing.px24),
+            const SizedBox(height: S.s24),
             Row(
               children: [
                 Expanded(
@@ -463,7 +460,7 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
                     child: Text(loc.linkConfirmation_cancel),
                   ),
                 ),
-                const SizedBox(width: Spacing.px12),
+                const SizedBox(width: S.s12),
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () {

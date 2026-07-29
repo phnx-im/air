@@ -32,10 +32,10 @@ class MemberListItem extends StatelessWidget {
 
     return ListTile(
       contentPadding: EdgeInsets.zero,
-      minVerticalPadding: Spacing.px12,
+      minVerticalPadding: S.s12,
       enabled: enabled,
       onTap: onTap,
-      leading: UserAvatar(profile: profile, size: Spacing.px32),
+      leading: UserAvatar(profile: profile, size: S.s32),
       title: Text(
         displayName,
         style: TextStyle(

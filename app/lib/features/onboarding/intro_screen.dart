@@ -84,7 +84,7 @@ class IntroScreen extends HookWidget {
             const Align(
               alignment: Alignment.topLeft,
               child: Padding(
-                padding: EdgeInsets.only(left: Spacing.px24, top: Spacing.px24),
+                padding: EdgeInsets.only(left: S.s24, top: S.s24),
                 child: _LanguagePicker(),
               ),
             ),
@@ -95,21 +95,21 @@ class IntroScreen extends HookWidget {
                   width: isSmallScreen(context) ? double.infinity : 320,
                   child: Padding(
                     padding: isSmallScreen(context)
-                        ? const EdgeInsets.symmetric(horizontal: Spacing.px16)
+                        ? const EdgeInsets.symmetric(horizontal: S.s16)
                         : EdgeInsets.zero,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         _TermsOfUseText(loc: loc),
-                        const SizedBox(height: Spacing.px16),
+                        const SizedBox(height: S.s16),
                         if (serverFieldVisible.value) ...[
                           Text(
                             loc.introScreen_serverLabel,
                             style: Theme.of(context).textTheme.bodyMedium,
                             textAlign: TextAlign.left,
                           ),
-                          const SizedBox(height: Spacing.px16),
+                          const SizedBox(height: S.s16),
 
                           ConstrainedBox(
                             constraints: textFormConstraints,
@@ -125,7 +125,7 @@ class IntroScreen extends HookWidget {
                             onPressed: openLinking,
                             onLongPress: () => serverFieldVisible.value = true,
                           ),
-                          const SizedBox(height: Spacing.px8),
+                          const SizedBox(height: S.s8),
                         ],
                         AppButton(
                           type: .primary,
@@ -136,7 +136,7 @@ class IntroScreen extends HookWidget {
                             context.read<NavigationCubit>().openSignUp();
                           },
                         ),
-                        const SizedBox(height: Spacing.px16),
+                        const SizedBox(height: S.s16),
                       ],
                     ),
                   ),
@@ -181,7 +181,7 @@ class _LanguagePicker extends StatelessWidget {
                 ),
                 child: AppIcon.globe(color: colors.text.secondary, size: 18),
               ),
-              const SizedBox(width: Spacing.px12),
+              const SizedBox(width: S.s12),
               Text(
                 option.label,
                 style: TextStyle(

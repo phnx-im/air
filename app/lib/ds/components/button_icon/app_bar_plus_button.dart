@@ -15,7 +15,7 @@ class AppBarPlusButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(right: Spacing.px16),
+      padding: const EdgeInsets.only(right: S.s16),
       child: GlassCircleButton(
         icon: const AppIcon.plus(size: 20),
         hitTargetSize: 48,

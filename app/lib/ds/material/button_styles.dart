@@ -68,10 +68,7 @@ class CustomOutlineButtonStyle extends ButtonStyle {
          elevation: WidgetStateProperty.all<double>(0),
          shadowColor: WidgetStateProperty.all<Color>(Colors.transparent),
          padding: WidgetStateProperty.all<EdgeInsetsGeometry>(
-           const EdgeInsets.symmetric(
-             vertical: Spacing.px16,
-             horizontal: Spacing.px16,
-           ),
+           const EdgeInsets.symmetric(vertical: S.s16, horizontal: S.s16),
          ),
          splashFactory: NoSplash.splashFactory,
          surfaceTintColor: WidgetStateProperty.all<Color>(Colors.transparent),

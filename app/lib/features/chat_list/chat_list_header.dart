@@ -30,7 +30,7 @@ class ChatListHeader extends StatelessWidget {
     final isMobile = isSmallScreen(context);
 
     return Padding(
-      padding: const EdgeInsets.only(left: Spacing.px20, right: Spacing.px16),
+      padding: const EdgeInsets.only(left: S.s20, right: S.s16),
       child: SizedBox(
         height: kToolbarHeight,
         child: Row(
@@ -81,7 +81,7 @@ class _Avatar extends StatelessWidget {
           final profile = context.select(
             (UsersCubit cubit) => cubit.state.profile(userId: null),
           );
-          return UserAvatar(profile: profile, size: Spacing.px32);
+          return UserAvatar(profile: profile, size: S.s32);
         },
       ),
     );

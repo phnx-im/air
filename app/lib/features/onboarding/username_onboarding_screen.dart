@@ -104,7 +104,7 @@ class UsernameOnboardingScreen extends HookWidget {
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
         backgroundColor: backgroundColor,
-        actionsPadding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+        actionsPadding: const EdgeInsets.symmetric(horizontal: S.s16),
         actions: [
           TextButton(
             onPressed: isSubmitting.value ? null : skip,
@@ -122,8 +122,8 @@ class UsernameOnboardingScreen extends HookWidget {
                     builder: (context, constraints) {
                       return SingleChildScrollView(
                         padding: const EdgeInsets.symmetric(
-                          horizontal: Spacing.px16,
-                          vertical: Spacing.px12,
+                          horizontal: S.s16,
+                          vertical: S.s12,
                         ),
                         child: Form(
                           key: formKey,
@@ -136,7 +136,7 @@ class UsernameOnboardingScreen extends HookWidget {
                                 textAlign: TextAlign.left,
                                 style: Theme.of(context).textTheme.bodyMedium,
                               ),
-                              const SizedBox(height: Spacing.px24),
+                              const SizedBox(height: S.s24),
                               _UsernameTextField(
                                 controller: controller,
                                 focusNode: focusNode,
@@ -156,7 +156,7 @@ class UsernameOnboardingScreen extends HookWidget {
                   ),
                 ),
                 _AddButton(isSubmitting: isSubmitting.value, onPressed: submit),
-                const SizedBox(height: Spacing.px16),
+                const SizedBox(height: S.s16),
               ],
             ),
           ),
@@ -207,7 +207,7 @@ class _AddButton extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
     final loc = AppLocalizations.of(context);
     return Container(
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.px24),
+      padding: const EdgeInsets.symmetric(horizontal: S.s24),
       width: isSmallScreen(context) ? double.infinity : null,
       child: OutlinedButton(
         style: OutlinedButtonTheme.of(context).style!.copyWith(
@@ -261,10 +261,10 @@ class _UsernameTextField extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: Spacing.px8,
+      spacing: S.s8,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: Spacing.px8),
+          padding: const EdgeInsets.only(left: S.s8),
           child: Text(
             loc.usernameOnboarding_usernameInputName,
             style: TextStyle(

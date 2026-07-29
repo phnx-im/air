@@ -16,10 +16,7 @@ class UnreadDivider extends StatelessWidget {
   Widget build(BuildContext context) {
     final label = AppLocalizations.of(context).messageList_newMessages(count);
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.px24,
-        vertical: Spacing.px32,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: S.s24, vertical: S.s32),
       child: Row(
         children: [
           Expanded(
@@ -28,7 +25,7 @@ class UnreadDivider extends StatelessWidget {
             ),
           ),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+            padding: const EdgeInsets.symmetric(horizontal: S.s16),
             child: DecoratedBox(
               decoration: ShapeDecoration(
                 color: CustomColorScheme.of(
@@ -38,8 +35,8 @@ class UnreadDivider extends StatelessWidget {
               ),
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: Spacing.px16,
-                  vertical: Spacing.px4,
+                  horizontal: S.s16,
+                  vertical: S.s4,
                 ),
                 child: Text(
                   label,

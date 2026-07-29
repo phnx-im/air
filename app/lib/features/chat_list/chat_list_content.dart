@@ -146,8 +146,8 @@ class _ChatSeparator extends StatelessWidget {
     return Divider(
       height: 0.5,
       thickness: Strokes.px0_5,
-      indent: Spacing.px16 + Spacing.px48 + Spacing.px12,
-      endIndent: Spacing.px16,
+      indent: S.s16 + S.s48 + S.s12,
+      endIndent: S.s16,
       color: color,
     );
   }
@@ -161,7 +161,7 @@ class _NoChats extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     return Container(
       alignment: AlignmentDirectional.center,
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+      padding: const EdgeInsets.symmetric(horizontal: S.s16),
       child: Text(
         loc.chatList_emptyMessage,
         style: TextStyle(color: CustomColorScheme.of(context).text.secondary),
@@ -270,12 +270,7 @@ class _ListTileState extends State<_ListTile> {
         },
         behavior: HitTestBehavior.opaque,
         child: Container(
-          padding: const EdgeInsets.fromLTRB(
-            Spacing.px16,
-            Spacing.px16,
-            Spacing.px16,
-            Spacing.px12,
-          ),
+          padding: const EdgeInsets.fromLTRB(S.s16, S.s16, S.s16, S.s12),
           decoration: BoxDecoration(
             color: isSelected
                 ? CustomColorScheme.of(context).backgroundElevated.primary
@@ -292,7 +287,7 @@ class _ListTileState extends State<_ListTile> {
               return Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: .start,
-                spacing: Spacing.px12,
+                spacing: S.s12,
                 children: [
                   ChatAvatar(chatId: chat.id, size: 48),
                   Expanded(
@@ -327,12 +322,12 @@ class _ListTileTop extends StatelessWidget {
     final tertiaryColor = CustomColorScheme.of(context).text.tertiary;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      spacing: Spacing.px12,
+      spacing: S.s12,
       children: [
         Expanded(
           child: Row(
             mainAxisSize: MainAxisSize.min,
-            spacing: Spacing.px4,
+            spacing: S.s4,
             children: [
               Flexible(child: _ChatTitle(title: chat.title)),
               if (chat.isMuted) AppIcon.bellOff(size: 16, color: tertiaryColor),
@@ -368,7 +363,7 @@ class _ListTileBottom extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: .center,
-      spacing: Spacing.px12,
+      spacing: S.s12,
       children: [
         if (!isBlocked)
           Expanded(
@@ -398,7 +393,7 @@ class _BlockedBadge extends StatelessWidget {
     return Row(
       children: [
         AppIcon.ban(size: 16, color: color),
-        const SizedBox(width: Spacing.px4),
+        const SizedBox(width: S.s4),
         Text(
           loc.chatList_blocked,
           style: TextStyle(
@@ -451,7 +446,7 @@ class _TrailingIndicator extends StatelessWidget {
     if (lastSender != ownClientId) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.only(right: Spacing.px8),
+      padding: const EdgeInsets.only(right: S.s8),
       child: MessageStatusIndicator(status: lastMessage.status),
     );
   }
@@ -488,7 +483,7 @@ class _UnreadBadge extends StatelessWidget {
     return Container(
       alignment: AlignmentDirectional.center,
       constraints: const BoxConstraints(minHeight: 24, minWidth: 40),
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+      padding: const EdgeInsets.symmetric(horizontal: S.s8),
       decoration: BoxDecoration(
         color: backgroundColor,
         borderRadius: BorderRadius.circular(Radii.full),
@@ -708,7 +703,7 @@ class _LastUpdatedState extends State<_LastUpdated> {
   @override
   Widget build(BuildContext context) {
     return Baseline(
-      baseline: Spacing.px12,
+      baseline: S.s12,
       baselineType: TextBaseline.alphabetic,
       child: Text(
         _displayTimestamp,
@@ -730,7 +725,7 @@ class _ChatTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Baseline(
-      baseline: Spacing.px16,
+      baseline: S.s16,
       baselineType: TextBaseline.alphabetic,
       child: Text(
         title,

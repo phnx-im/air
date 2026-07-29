@@ -60,9 +60,9 @@ class InvitationCodesView extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: Spacing.px16),
+                const SizedBox(height: S.s16),
                 const _InvitationCodesList(),
-                const SizedBox(height: Spacing.px24),
+                const SizedBox(height: S.s24),
                 Row(
                   children: [
                     const Spacer(),
@@ -86,7 +86,7 @@ class InvitationCodesView extends StatelessWidget {
                     const Spacer(),
                   ],
                 ),
-                const SizedBox(height: Spacing.px16),
+                const SizedBox(height: S.s16),
                 Row(
                   children: [
                     const Spacer(),
@@ -109,7 +109,7 @@ class InvitationCodesView extends StatelessWidget {
                     const Spacer(),
                   ],
                 ),
-                const SizedBox(height: Spacing.px24),
+                const SizedBox(height: S.s24),
                 const _InfoText(),
               ],
             ),
@@ -205,10 +205,7 @@ class _InvitationCodeItem extends StatelessWidget {
       mouseCursor: SystemMouseCursors.click,
       borderRadius: BorderRadius.circular(Radii.px16),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.px16,
-          vertical: Spacing.px12,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
         child: Row(
           children: [
             Expanded(
@@ -221,7 +218,7 @@ class _InvitationCodeItem extends StatelessWidget {
                 ),
               ),
             ),
-            const SizedBox(width: Spacing.px12),
+            const SizedBox(width: S.s12),
             AppIcon.copy(size: 24, color: colors.text.tertiary),
           ],
         ),
@@ -264,10 +261,7 @@ class _InvitationTokenItem extends StatelessWidget {
       mouseCursor: SystemMouseCursors.click,
       borderRadius: BorderRadius.circular(Radii.px16),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.px16,
-          vertical: Spacing.px12,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
         child: Row(
           children: [
             Text(
@@ -318,10 +312,7 @@ class _InvitationCodeEmptyItem extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.px16,
-        vertical: Spacing.px12,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
       child: Row(
         children: [
           Expanded(
@@ -354,12 +345,12 @@ class _InfoText extends StatelessWidget {
     final loc = AppLocalizations.of(context);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+      padding: const EdgeInsets.symmetric(horizontal: S.s8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(loc.invitationCodesScreen_infoText1, style: style),
-          const SizedBox(height: Spacing.px12),
+          const SizedBox(height: S.s12),
           Text(loc.invitationCodesScreen_infoText2, style: style),
         ],
       ),

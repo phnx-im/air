@@ -51,7 +51,7 @@ class ConfirmDialog extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: Spacing.px8),
+          const SizedBox(height: S.s8),
 
           Text(
             message,
@@ -61,7 +61,7 @@ class ConfirmDialog extends StatelessWidget {
             ),
           ),
 
-          const SizedBox(height: Spacing.px24),
+          const SizedBox(height: S.s24),
 
           Row(
             children: [
@@ -74,7 +74,7 @@ class ConfirmDialog extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(width: Spacing.px12),
+                const SizedBox(width: S.s12),
               ],
 
               Expanded(

@@ -45,7 +45,7 @@ import 'package:air/features/message_list/text_message_tile.dart'
 
 final _log = Logger("MessageComposer");
 final double _composerFontSize = BodyFontSize.base.size;
-const double _inputVerticalPadding = Spacing.px12;
+const double _inputVerticalPadding = S.s12;
 final double _composerButtonSize =
     _composerFontSize * BodyFontSize.lineHeight + 2 * _inputVerticalPadding;
 
@@ -229,7 +229,7 @@ class _MessageComposerState extends State<MessageComposer>
             color: materialColor,
             borderRadius: BorderRadius.circular(_inputBorderRadius),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+          padding: const EdgeInsets.symmetric(horizontal: S.s16),
           child: _MessageInput(
             focusNode: _focusNode,
             controller: _inputController,
@@ -252,7 +252,7 @@ class _MessageComposerState extends State<MessageComposer>
       padding: const EdgeInsets.only(
         left: messageHorizontalPadding,
         right: messageHorizontalPadding,
-        bottom: Spacing.px12,
+        bottom: S.s12,
       ),
       child: ValueListenableBuilder<bool>(
         valueListenable:
@@ -304,7 +304,7 @@ class _MessageComposerState extends State<MessageComposer>
 
           final clipper = _ComposerClipper(
             buttonSize: _buttonSize,
-            spacing: Spacing.px8,
+            spacing: S.s8,
             inputBorderRadius: _inputBorderRadius,
             trailingButtonCount: trailingButtonCount,
           );
@@ -335,7 +335,7 @@ class _MessageComposerState extends State<MessageComposer>
                 child: CustomPaint(
                   painter: _ComposerShadowPainter(
                     buttonSize: _buttonSize,
-                    spacing: Spacing.px8,
+                    spacing: S.s8,
                     inputBorderRadius: _inputBorderRadius,
                     trailingButtonCount: trailingButtonCount,
                   ),
@@ -343,7 +343,7 @@ class _MessageComposerState extends State<MessageComposer>
               ),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
-                spacing: Spacing.px8,
+                spacing: S.s8,
                 children: [leftButton, inputField, ?rightButton],
               ),
             ],
@@ -700,18 +700,14 @@ class _MessageInput extends StatelessWidget {
       children: [
         if (isEditing)
           Padding(
-            padding: const EdgeInsets.only(
-              top: Spacing.px12,
-              left: Spacing.px8,
-              right: Spacing.px8,
-            ),
+            padding: const EdgeInsets.only(top: S.s12, left: S.s8, right: S.s8),
             child: Row(
               children: [
                 AppIcon.pencil(
                   size: 20,
                   color: CustomColorScheme.of(context).text.tertiary,
                 ),
-                const SizedBox(width: Spacing.px8),
+                const SizedBox(width: S.s8),
                 Text(
                   loc.composer_editMessage,
                   style: TextStyle(
@@ -725,14 +721,11 @@ class _MessageInput extends StatelessWidget {
 
         if (inReplyTo case (_, final inReplyToMessage))
           Padding(
-            padding: const EdgeInsets.only(top: Spacing.px12),
+            padding: const EdgeInsets.only(top: S.s12),
             child: Stack(
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(
-                    top: Spacing.px4,
-                    right: Spacing.px4,
-                  ),
+                  padding: const EdgeInsets.only(top: S.s4, right: S.s4),
                   child: InReplyToBubble(
                     inReplyTo: inReplyToMessage,
                     backgroundColor: color.fill.secondary,
@@ -751,8 +744,8 @@ class _MessageInput extends StatelessWidget {
                     child: IconButton(
                       icon: const AppIcon.x(size: 12),
                       constraints: const BoxConstraints(
-                        minHeight: Spacing.px8,
-                        minWidth: Spacing.px8,
+                        minHeight: S.s8,
+                        minWidth: S.s8,
                       ),
                       padding: EdgeInsets.zero,
                       onPressed: () {
@@ -1093,7 +1086,7 @@ class InReplyToBubble extends StatelessWidget {
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+        padding: const EdgeInsets.symmetric(horizontal: S.s8),
         child: Column(
           crossAxisAlignment: stretch ? .stretch : .start,
           children: [
@@ -1123,10 +1116,7 @@ class InReplyToBubble extends StatelessWidget {
     );
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.px12,
-        vertical: Spacing.px8,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: S.s12, vertical: S.s8),
       decoration: BoxDecoration(
         borderRadius: const BorderRadius.all(Radius.circular(Radii.px8)),
         color: backgroundColor,

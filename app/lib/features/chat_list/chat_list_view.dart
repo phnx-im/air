@@ -60,7 +60,7 @@ class _ChatListViewState extends State<ChatListView> {
   @override
   Widget build(BuildContext context) {
     final bgColor = ChatListContainer.backgroundColor(context);
-    const fadeBleeding = Spacing.px12;
+    const fadeBleeding = S.s12;
     // Content top/bottom padding includes a small bleed below the header so
     // chat rows don't snap right against it.
     const contentInset = kToolbarHeight + fadeBleeding;

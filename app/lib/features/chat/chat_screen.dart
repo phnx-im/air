@@ -213,7 +213,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
             top: null,
             child: SafeArea(
               top: false,
-              minimum: const EdgeInsets.only(bottom: Spacing.px12),
+              minimum: const EdgeInsets.only(bottom: S.s12),
               child: _MeasureHeight(
                 onChange: (height) {
                   _scrollToBottomController.composerHeight.value = height;
@@ -288,7 +288,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
           },
           child: Row(
             mainAxisSize: MainAxisSize.min,
-            spacing: Spacing.px12,
+            spacing: S.s12,
             children: [
               ChatAvatar(chatId: chatId, size: 40),
               Flexible(
@@ -329,13 +329,13 @@ class _BlockedChatFooter extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final buttonWidth = isSmallScreen(context) ? double.infinity : null;
     return Container(
-      padding: const EdgeInsets.all(Spacing.px16),
+      padding: const EdgeInsets.all(S.s16),
       child: Column(
         children: [
           Text(loc.blockedChatFooter_message(displayName)),
-          const SizedBox(height: Spacing.px16),
+          const SizedBox(height: S.s16),
           Wrap(
-            runSpacing: Spacing.px8,
+            runSpacing: S.s8,
             alignment: WrapAlignment.center,
             children: [
               SizedBox(
@@ -345,12 +345,12 @@ class _BlockedChatFooter extends StatelessWidget {
                   displayName: displayName,
                 ),
               ),
-              const SizedBox(width: Spacing.px16),
+              const SizedBox(width: S.s16),
               SizedBox(
                 width: buttonWidth,
                 child: ReportSpamButton(userId: userId),
               ),
-              const SizedBox(width: Spacing.px16),
+              const SizedBox(width: S.s16),
               SizedBox(
                 width: buttonWidth,
                 child: UnblockContactButton(
@@ -411,10 +411,7 @@ class _PendingCommitFailedBanner extends StatelessWidget {
     return Material(
       color: CustomColorScheme.of(context).function.warning.primary,
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.px16,
-          vertical: Spacing.px8,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),
         child: Row(
           children: [
             Expanded(
@@ -445,7 +442,7 @@ class _InactiveChatFooter extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(Spacing.px16),
+      padding: const EdgeInsets.all(S.s16),
       child: Text(
         loc.inactiveChatFooter_message,
         textAlign: TextAlign.center,

@@ -31,7 +31,7 @@ class AttachmentFile extends HookWidget {
 
     return Row(
       mainAxisSize: MainAxisSize.min,
-      spacing: Spacing.px16,
+      spacing: S.s16,
       children: [
         _AttachmentFileStatus(
           attachmentId: attachment.attachmentId,

@@ -45,10 +45,7 @@ class RemoveMemberButton extends StatelessWidget {
       style: ButtonStyle(
         padding: WidgetStatePropertyAll(
           compact
-              ? const EdgeInsets.symmetric(
-                  horizontal: Spacing.px16,
-                  vertical: Spacing.px4,
-                )
+              ? const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s4)
               : null,
         ),
         shape: compact

@@ -206,7 +206,7 @@ class MultiDeviceProvisionScreen extends HookWidget {
           child: ConstrainedWidth(
             width: 500,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+              padding: const EdgeInsets.symmetric(horizontal: S.s16),
               child: switch (phase.value) {
                 _Connecting() => const _ConnectingView(),
                 _AwaitingLink(:final code, :final qrcodeSvg) =>
@@ -261,12 +261,12 @@ class _LinkingInstructionsList extends StatelessWidget {
     final colors = CustomColorScheme.of(context);
 
     return Column(
-      spacing: Spacing.px4,
+      spacing: S.s4,
       mainAxisAlignment: .center,
       children: [
         for (final (idx, line) in lines.indexed)
           Row(
-            spacing: Spacing.px8,
+            spacing: S.s8,
             mainAxisAlignment: .start,
             crossAxisAlignment: .baseline,
             textBaseline: TextBaseline.alphabetic,
@@ -299,7 +299,7 @@ class _ConnectingView extends StatelessWidget {
 
     return Column(
       mainAxisAlignment: .center,
-      spacing: Spacing.px16,
+      spacing: S.s16,
       children: [
         Text(
           loc.linkingDeviceScreen_connecting,
@@ -432,7 +432,7 @@ class _AwaitingLinkView extends StatelessWidget {
               width: Strokes.px1,
             ),
           ),
-          padding: const EdgeInsets.all(Spacing.px16),
+          padding: const EdgeInsets.all(S.s16),
           child: Column(
             mainAxisAlignment: .center,
             crossAxisAlignment: .center,
@@ -448,7 +448,7 @@ class _AwaitingLinkView extends StatelessWidget {
                   placeholderBuilder: (BuildContext context) =>
                       const CircularProgressIndicator(),
                 ),
-              const SizedBox(height: Spacing.px16),
+              const SizedBox(height: S.s16),
               Text(
                 loc.linkingDeviceScreen_separator,
                 textAlign: TextAlign.center,
@@ -457,7 +457,7 @@ class _AwaitingLinkView extends StatelessWidget {
                   color: colors.text.tertiary,
                 ),
               ),
-              const SizedBox(height: Spacing.px8),
+              const SizedBox(height: S.s8),
               Text(
                 loc.linkingDeviceScreen_numericCode,
                 textAlign: TextAlign.center,
@@ -466,7 +466,7 @@ class _AwaitingLinkView extends StatelessWidget {
                   color: colors.text.primary,
                 ),
               ),
-              const SizedBox(height: Spacing.px8),
+              const SizedBox(height: S.s8),
               Text(
                 code.spacedInGroupsOf(4),
                 textAlign: TextAlign.center,
@@ -481,13 +481,13 @@ class _AwaitingLinkView extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: Spacing.px24),
+        const SizedBox(height: S.s24),
         const _CountdownRing(
           duration: Duration(seconds: 59),
           warnThreshold: Duration(seconds: 10),
           size: 48,
         ),
-        const SizedBox(height: Spacing.px32),
+        const SizedBox(height: S.s32),
         _LinkingInstructionsList(
           lines: [
             loc.linkingDeviceScreen_instructions_1,
@@ -511,7 +511,7 @@ class _LinkingView extends StatelessWidget {
 
     return Column(
       mainAxisAlignment: .center,
-      spacing: Spacing.px16,
+      spacing: S.s16,
       children: [
         Text(
           loc.linkingDeviceScreen_linking,

@@ -62,7 +62,7 @@ class MessageRowContainer extends StatelessWidget {
     };
 
     final tile = ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+      contentPadding: const EdgeInsets.symmetric(horizontal: S.s16),
       dense: true,
       visualDensity: const VisualDensity(horizontal: 0, vertical: -4),
       minVerticalPadding: 0,

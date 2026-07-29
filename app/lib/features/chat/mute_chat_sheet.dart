@@ -57,7 +57,7 @@ class _MuteDurationContent extends StatelessWidget {
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: Spacing.px16),
+        const SizedBox(height: S.s16),
         Text(
           loc.muteDurationSheet_body,
           style: theme.textTheme.bodyMedium?.copyWith(
@@ -66,34 +66,34 @@ class _MuteDurationContent extends StatelessWidget {
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: Spacing.px24),
+        const SizedBox(height: S.s24),
         _DurationOption(
           label: loc.muteDurationSheet_1hour,
           mutedUntil: UiChatMutedExtension.inOneHour,
         ),
-        const SizedBox(height: Spacing.px8),
+        const SizedBox(height: S.s8),
         _DurationOption(
           label: loc.muteDurationSheet_8hours,
           mutedUntil: UiChatMutedExtension.inEightHours,
         ),
-        const SizedBox(height: Spacing.px8),
+        const SizedBox(height: S.s8),
         _DurationOption(
           label: loc.muteDurationSheet_untilTomorrow,
           mutedUntil: UiChatMutedExtension.untilTomorrow,
         ),
-        const SizedBox(height: Spacing.px8),
+        const SizedBox(height: S.s8),
         _DurationOption(
           label: loc.muteDurationSheet_untilNextMonday,
           mutedUntil: UiChatMutedExtension.untilNextMonday,
         ),
-        const SizedBox(height: Spacing.px8),
+        const SizedBox(height: S.s8),
         _DurationOption(
           label: loc.muteDurationSheet_always,
           mutedUntil: () => const UiChatMuted.forever(),
         ),
-        const SizedBox(height: Spacing.px8),
+        const SizedBox(height: S.s8),
         if (ResponsiveScreen.isDesktop(context)) ...[
-          const SizedBox(height: Spacing.px8),
+          const SizedBox(height: S.s8),
           AppButton(
             type: AppButtonType.secondary,
             onPressed: () => Navigator.of(context).pop(),
