@@ -420,10 +420,8 @@ impl PendingChatOperation {
                         .await?;
 
                     if let Some(bytes) = group_data_bytes
-                        && let Some(chat_title) = GroupData::decode_title(
-                            &bytes,
-                            self.group.identity_link_wrapper_key(),
-                        )?
+                        && let Some(chat_title) =
+                            GroupData::decode_title(&bytes, self.group.identity_link_wrapper_key())?
                     {
                         let attributes = ChatAttributes::new(chat_title, new_chat_picture);
                         update_chat_attributes(
