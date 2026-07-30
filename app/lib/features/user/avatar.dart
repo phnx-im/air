@@ -6,7 +6,7 @@ import 'package:air/ds/foundations/primitives.dart';
 import 'package:flutter/material.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/util/cached_memory_image.dart';
 import 'package:provider/provider.dart';
@@ -101,7 +101,7 @@ class _Avatar extends StatelessWidget {
             targetHeight: targetSize,
           )
         : null;
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final gradient = _AvatarGradient.fromUuid(gradientKey);
 
     return GestureDetector(

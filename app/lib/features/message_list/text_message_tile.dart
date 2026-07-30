@@ -19,9 +19,9 @@ import 'package:air/features/message_list/message_reactions.dart';
 import 'package:air/features/message_list/mobile_message_actions.dart';
 import 'package:air/features/message_list/timestamp.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/motion.dart';
+import 'package:air/ds/foundations/effects.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/button_icon/glass_circle_button.dart';
 import 'package:air/ds/patterns/context_menu/context_menu.dart';
@@ -259,8 +259,8 @@ class _IncomingMessageTile extends StatelessWidget {
           children: [
             AnimatedPadding(
               // Tracks the animated reserve in [BubbleWithReactions].
-              duration: motionShort,
-              curve: motionEasing,
+              duration: Effects.duration(MotionPreset.short),
+              curve: Effects.easeOutQuart,
               padding: EdgeInsets.only(
                 bottom: reactionsReservedBelow(context, reactions.isNotEmpty),
               ),
@@ -371,7 +371,7 @@ class _MessageView extends HookWidget {
     }, [contextMenuController]);
 
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     final plainBody = contentMessage.content.plainBody?.trim();
     final platform = Theme.of(context).platform;
@@ -780,8 +780,8 @@ class _MessageView extends HookWidget {
     // centers it on the bubble itself (not the bubble + reaction chips),
     // in sync with the animated reserve in [BubbleWithReactions].
     final hoverAffordance = AnimatedPadding(
-      duration: motionShort,
-      curve: motionEasing,
+      duration: Effects.duration(MotionPreset.short),
+      curve: Effects.easeOutQuart,
       padding: EdgeInsets.only(
         bottom: reactionsReservedBelow(context, reactions.isNotEmpty),
         left: isSender ? 0 : S.s8,
@@ -1016,7 +1016,7 @@ class _MessageMetadataRowState extends State<_MessageMetadataRow> {
                 if (showMessageStatus && isError)
                   Text(
                     style: TextStyle(
-                      color: CustomColorScheme.of(
+                      color: SemanticColors.of(
                         context,
                       ).function.warning.primary,
                       fontSize: LabelFontSize.small2.size,
@@ -1026,7 +1026,7 @@ class _MessageMetadataRowState extends State<_MessageMetadataRow> {
                 if (showMessageStatus && isSending && _showSending)
                   Text(
                     style: TextStyle(
-                      color: CustomColorScheme.of(context).text.tertiary,
+                      color: SemanticColors.of(context).text.tertiary,
                       fontSize: LabelFontSize.small2.size,
                     ),
                     loc.messageBubble_sending,
@@ -1074,7 +1074,7 @@ class _MessageContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final inReplyTo = inReplyToMessage;
     final bool isReply = inReplyTo != null;
     final bool isDeleted = content.isDeleted;
@@ -1280,7 +1280,7 @@ class _DeletedMessageContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     final deletedText = isSender
         ? loc.textMessage_deletedBySelf
@@ -1376,9 +1376,9 @@ class _DisplayName extends StatelessWidget {
     return SelectionContainer.disabled(
       child: Text(
         displayName,
-        style: TextTheme.of(context).bodyMedium!.copyWith(
-          color: CustomColorScheme.of(context).text.tertiary,
-        ),
+        style: TextTheme.of(
+          context,
+        ).bodyMedium!.copyWith(color: SemanticColors.of(context).text.tertiary),
         overflow: TextOverflow.ellipsis,
       ),
     );
@@ -1402,8 +1402,8 @@ class _FileAttachmentContent extends StatelessWidget {
         attachment: attachment,
         isSender: isSender,
         color: isSender
-            ? CustomColorScheme.of(context).message.selfText
-            : CustomColorScheme.of(context).message.otherText,
+            ? SemanticColors.of(context).message.selfText
+            : SemanticColors.of(context).message.otherText,
       ),
     );
   }

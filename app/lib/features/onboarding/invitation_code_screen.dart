@@ -7,7 +7,7 @@ import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/material/button_styles.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/components/constrained_width/constrained_width.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -25,7 +25,7 @@ class InvitationCodeScreen extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final backgroundColor = colors.backgroundBase.secondary;
 
     final formKey = useMemoized(() => GlobalKey<FormState>());
@@ -155,7 +155,7 @@ class _InvitationCodeTextField extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     final focusNode = useFocusNode();
 
@@ -224,7 +224,7 @@ class _JoinButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final isCheckingInvitationCode = context.select(
       (RegistrationCubit cubit) => cubit.state.isCheckingInvitationCode,
     );
@@ -276,7 +276,7 @@ class _ServerTextField extends HookWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     final focusNode = useFocusNode();
 

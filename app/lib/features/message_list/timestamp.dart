@@ -6,7 +6,7 @@ import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:air/l10n/app_localizations.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 
 class Timestamp extends StatefulWidget {
@@ -59,7 +59,7 @@ class TimestampState extends State<Timestamp> {
       child: Text(
         localizedTimestamp,
         style: TextStyle(
-          color: CustomColorScheme.of(context).text.tertiary,
+          color: SemanticColors.of(context).text.tertiary,
           fontSize: LabelFontSize.small2.size,
         ),
       ),

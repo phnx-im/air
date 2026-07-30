@@ -9,7 +9,7 @@ import 'package:air/core/api/markdown.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/primitives.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/ds/foundations/type_scale.dart';
@@ -34,8 +34,8 @@ Widget buildBlockElement(
               .toList(),
           style: TextStyle(
             color: isSender
-                ? CustomColorScheme.of(context).message.selfText
-                : CustomColorScheme.of(context).message.otherText,
+                ? SemanticColors.of(context).message.selfText
+                : SemanticColors.of(context).message.otherText,
             fontSize: jumbo
                 ? BodyFontSize.base.size * jumboEmojiScale
                 : BodyFontSize.base.size,
@@ -55,8 +55,8 @@ Widget buildBlockElement(
           fontSize: BodyFontSize.large1.size,
           fontWeight: FontWeight.bold,
           color: isSender
-              ? CustomColorScheme.of(context).message.selfText
-              : CustomColorScheme.of(context).message.otherText,
+              ? SemanticColors.of(context).message.selfText
+              : SemanticColors.of(context).message.otherText,
         ),
       ),
     ),
@@ -67,14 +67,14 @@ Widget buildBlockElement(
         border: Border(
           left: BorderSide(
             color: isSender
-                ? CustomColorScheme.of(context).message.selfQuoteBorder
-                : CustomColorScheme.of(context).message.otherQuoteBorder,
+                ? SemanticColors.of(context).message.selfQuoteBorder
+                : SemanticColors.of(context).message.otherQuoteBorder,
             width: Strokes.px4,
           ),
         ),
         color: isSender
-            ? CustomColorScheme.of(context).message.selfQuoteBackground
-            : CustomColorScheme.of(context).message.otherQuoteBackground,
+            ? SemanticColors.of(context).message.selfQuoteBackground
+            : SemanticColors.of(context).message.otherQuoteBackground,
       ),
       child: Column(
         spacing: BodyFontSize.base.size,
@@ -96,8 +96,8 @@ Widget buildBlockElement(
                   const TextSpan(text: " \u2022 "),
                   style: TextStyle(
                     color: isSender
-                        ? CustomColorScheme.of(context).message.selfListPrefix
-                        : CustomColorScheme.of(context).message.otherListPrefix,
+                        ? SemanticColors.of(context).message.selfListPrefix
+                        : SemanticColors.of(context).message.otherListPrefix,
                     fontSize: BodyFontSize.base.size,
                     height: BodyFontSize.lineHeight,
                   ),
@@ -137,10 +137,8 @@ Widget buildBlockElement(
                       text: " ${offset + BigInt.from(item.$1)}.  ",
                       style: TextStyle(
                         color: isSender
-                            ? CustomColorScheme.of(
-                                context,
-                              ).message.selfListPrefix
-                            : CustomColorScheme.of(
+                            ? SemanticColors.of(context).message.selfListPrefix
+                            : SemanticColors.of(
                                 context,
                               ).message.otherListPrefix,
                         fontSize: BodyFontSize.base.size,
@@ -172,8 +170,8 @@ Widget buildBlockElement(
     BlockElement_Table(:final head, :final rows) => Table(
       border: TableBorder.all(
         color: isSender
-            ? CustomColorScheme.of(context).message.selfTableBorder
-            : CustomColorScheme.of(context).message.otherTableBorder,
+            ? SemanticColors.of(context).message.selfTableBorder
+            : SemanticColors.of(context).message.otherTableBorder,
         width: Strokes.px2,
         borderRadius: BorderRadius.circular(Radii.px8),
       ),
@@ -242,8 +240,8 @@ Widget buildBlockElement(
       width: 100,
       child: Divider(
         color: isSender
-            ? CustomColorScheme.of(context).message.selfText
-            : CustomColorScheme.of(context).message.otherText,
+            ? SemanticColors.of(context).message.selfText
+            : SemanticColors.of(context).message.otherText,
       ),
     ),
     BlockElement_CodeBlock(:final field0) => Text.rich(
@@ -253,8 +251,8 @@ Widget buildBlockElement(
           fontFamily: getSystemMonospaceFontFamily(),
           fontSize: BodyFontSize.small2.size,
           color: isSender
-              ? CustomColorScheme.of(context).message.selfText
-              : CustomColorScheme.of(context).message.otherText,
+              ? SemanticColors.of(context).message.selfText
+              : SemanticColors.of(context).message.otherText,
         ),
       ),
     ),
@@ -263,11 +261,11 @@ Widget buildBlockElement(
       decoration: BoxDecoration(
         border: Border(
           left: BorderSide(
-            color: CustomColorScheme.of(context).separator.primary,
+            color: SemanticColors.of(context).separator.primary,
             width: Strokes.px4,
           ),
         ),
-        color: CustomColorScheme.of(context).function.warning.primary,
+        color: SemanticColors.of(context).function.warning.primary,
       ),
       child: Text.rich(TextSpan(text: field0)),
     ),
@@ -280,7 +278,7 @@ InlineSpan buildInlineElement(
   bool isSender, {
   Uri? destUrl,
 }) {
-  final colors = CustomColorScheme.of(context);
+  final colors = SemanticColors.of(context);
   return switch (inline.element) {
     InlineElement_Text(:final field0) => TextSpan(
       text: field0,
@@ -411,7 +409,7 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
     context: context,
     builder: (dialogContext) {
       final loc = AppLocalizations.of(context);
-      final colors = CustomColorScheme.of(dialogContext);
+      final colors = SemanticColors.of(dialogContext);
 
       return AppDialog(
         child: Column(
@@ -493,7 +491,7 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
 
 // The style used for formatting characters like * or >
 TextStyle highlightStyle(BuildContext context) =>
-    TextStyle(color: CustomColorScheme.of(context).function.link);
+    TextStyle(color: SemanticColors.of(context).function.link);
 
 class CustomTextEditingController extends TextEditingController {
   // Keep track of where widgets are, so the cursor can treat it as one unit
@@ -710,8 +708,8 @@ class CustomTextEditingController extends TextEditingController {
       BlockElement_Error() => TextSpan(
         text: utf8.decode(raw.sublist(block.start, block.end)),
         style: TextStyle(
-          color: CustomColorScheme.of(context).function.danger,
-          decorationColor: CustomColorScheme.of(context).function.danger,
+          color: SemanticColors.of(context).function.danger,
+          decorationColor: SemanticColors.of(context).function.danger,
           decoration: TextDecoration.underline,
           decorationStyle: TextDecorationStyle.wavy,
         ),
@@ -738,8 +736,8 @@ class CustomTextEditingController extends TextEditingController {
       InlineElement_Link() => TextSpan(
         text: utf8.decode(raw.sublist(inline.start, inline.end)),
         style: TextStyle(
-          color: CustomColorScheme.of(context).function.link,
-          decorationColor: CustomColorScheme.of(context).function.link,
+          color: SemanticColors.of(context).function.link,
+          decorationColor: SemanticColors.of(context).function.link,
           decoration: TextDecoration.underline,
         ),
       ),

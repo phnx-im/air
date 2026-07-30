@@ -11,7 +11,7 @@ import 'package:air/ds/components/button_icon/glass_circle_button.dart';
 import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/platform/haptics.dart';
 
@@ -140,7 +140,7 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     return SizedBox(
       height: _searchHeight,
       child: TextField(
@@ -190,7 +190,7 @@ class _EmojiComponentButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     return GlassCircleButton(
       size: _searchHeight,
       onPressed: onPressed,
@@ -213,7 +213,7 @@ class _SkinToneStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     return Row(
       children: [
         for (final tone in EmojiSkinVariation.values)
@@ -281,7 +281,7 @@ class EmojiPickerPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     return Container(
       width: size.width,
       height: size.height,
@@ -289,7 +289,7 @@ class EmojiPickerPanel extends StatelessWidget {
       decoration: BoxDecoration(
         color: colors.backgroundElevated.primary,
         borderRadius: BorderRadius.circular(_panelRadius),
-        boxShadow: smallElevationBoxShadows,
+        boxShadow: Effects.elevation(Elevation.small),
       ),
       child: EmojiPicker(
         onSelected: onSelected,
@@ -312,7 +312,7 @@ Future<String?> showEmojiPickerPopover({
     context: context,
     barrierDismissible: true,
     barrierColor:
-        barrierColor ?? CustomColorScheme.of(context).function.neutral.scrim,
+        barrierColor ?? SemanticColors.of(context).function.neutral.scrim,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     transitionDuration: const Duration(milliseconds: 150),
     pageBuilder: (context, animation, secondaryAnimation) =>

@@ -12,7 +12,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/ds/foundations/dimensions.dart';
@@ -38,7 +38,7 @@ class IntroScreen extends HookWidget {
 
     final loc = AppLocalizations.of(context);
 
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     final serverFieldVisible = useState(false);
 
@@ -154,7 +154,7 @@ class _LanguagePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return LanguagePickerMenu(
       onLocaleSelected: (locale) async {
@@ -206,7 +206,7 @@ class _TermsOfUseText extends StatelessWidget {
   Widget build(BuildContext context) {
     final baseTextStyle = TextStyle(
       fontSize: LabelFontSize.small2.size,
-      color: CustomColorScheme.of(context).text.tertiary,
+      color: SemanticColors.of(context).text.tertiary,
     );
 
     final linkText = loc.introScreen_termsLinkText;
@@ -221,7 +221,7 @@ class _TermsOfUseText extends StatelessWidget {
     final afterLink = agreement.substring(linkStart + linkText.length);
 
     final linkStyle = baseTextStyle.copyWith(
-      color: CustomColorScheme.of(context).function.link,
+      color: SemanticColors.of(context).function.link,
     );
 
     return Text.rich(
@@ -256,7 +256,7 @@ class _ServerTextField extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final focusNode = useFocusNode();
 
     return TextFormField(

@@ -8,10 +8,10 @@ import 'package:air/features/chat/chat_screen.dart';
 import 'package:air/core/core.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/features/navigation/app_tab_bar.dart';
 import 'package:air/ds/material/tab_transition.dart';
-import 'package:air/ds/foundations/motion.dart';
+import 'package:air/ds/foundations/effects.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/you/you_screen.dart';
 import 'package:air/ds/components/resizable_panel/resizable_panel.dart';
@@ -50,9 +50,9 @@ class _HomeScreenMobileLayout extends StatelessWidget {
       children: [
         Positioned.fill(
           child: AnimatedSwitcher(
-            duration: motionRegular,
-            switchInCurve: motionEasing,
-            switchOutCurve: motionEasing,
+            duration: Effects.duration(MotionPreset.regular),
+            switchInCurve: Effects.easeOutQuart,
+            switchOutCurve: Effects.easeOutQuart,
             transitionBuilder: tabSwitchTransition,
             child: switch (activeTab) {
               HomeTab.chats => const ChatListContainer(
@@ -84,7 +84,7 @@ class HomeScreenDesktopLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: CustomColorScheme.of(context).backgroundBase.primary,
+      backgroundColor: SemanticColors.of(context).backgroundBase.primary,
       body: Row(
         children: [
           ResizablePanel(

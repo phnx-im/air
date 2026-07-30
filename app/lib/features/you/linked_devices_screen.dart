@@ -12,7 +12,7 @@ import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/ds/components/icon_badge/app_icon_badge.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/you/linking_device_dialog.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
@@ -41,7 +41,7 @@ class LinkedDevicesView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final platform = Theme.of(context).platform;
 
     return AppScaffold(
@@ -138,7 +138,7 @@ class _EncryptionNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final textStyle = TextStyle(
       fontSize: LabelFontSize.small2.size,
       color: colors.text.quaternary,
@@ -180,7 +180,7 @@ class _SingleDevice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final loc = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toString();
     final dateFormat = DateFormat.yMMMMd(locale).addPattern("'at'").add_jm();

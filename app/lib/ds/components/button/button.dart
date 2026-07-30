@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:flutter/material.dart';
 
@@ -42,7 +42,7 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     final foregroundColor = switch ((type, state, tone)) {
       (.primary, .inactive, .danger) =>

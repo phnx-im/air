@@ -5,7 +5,7 @@
 import 'dart:async';
 import 'dart:math' as math;
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:flutter/material.dart';
 
@@ -29,7 +29,7 @@ Future<T?> showBottomSheetModal<T>({
     barrierDismissible: isDismissible,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     barrierColor:
-        barrierColor ?? CustomColorScheme.of(context).function.neutral.scrim,
+        barrierColor ?? SemanticColors.of(context).function.neutral.scrim,
     transitionDuration: animationDuration,
     transitionBuilder: (context, animation, secondaryAnimation, child) => child,
     pageBuilder: (context, animation, secondaryAnimation) {
@@ -185,7 +185,7 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
       mediaQuery.viewPadding.bottom,
       mediaQuery.viewInsets.bottom,
     );
-    final colorScheme = CustomColorScheme.of(context);
+    final colorScheme = SemanticColors.of(context);
     final basePadding =
         widget.contentPadding ??
         const EdgeInsets.fromLTRB(S.s24, S.s32, S.s24, S.s8);
@@ -327,7 +327,7 @@ class BottomSheetDialogContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return Column(
       mainAxisSize: MainAxisSize.min,

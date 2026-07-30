@@ -9,7 +9,7 @@ import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -51,7 +51,7 @@ class LinkDeviceModal extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final page = useState(_LinkPage.chooser);
     // The linking code being driven on the [_LinkPage.linking] page.
     final sessionId = useState<String?>(null);
@@ -99,7 +99,7 @@ class _LinkModalHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return Stack(
       alignment: Alignment.center,
@@ -139,7 +139,7 @@ class _LinkChooserPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final loc = AppLocalizations.of(context);
 
     final labelStyle = TextStyle(
@@ -227,7 +227,7 @@ class _ScanQrCodePageState extends State<_ScanQrCodePage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final loc = AppLocalizations.of(context);
 
     return Column(
@@ -275,7 +275,7 @@ class _CornerBrackets extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return Padding(
       padding: const EdgeInsets.all(S.s24),
@@ -295,7 +295,7 @@ class _ScannerPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return _CornerBrackets(
       child: Center(
@@ -403,7 +403,7 @@ class _NumericCodePage extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final loc = AppLocalizations.of(context);
     final controller = useTextEditingController();
 
@@ -577,7 +577,7 @@ class _LinkStatusView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -615,7 +615,7 @@ class _LinkErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -650,7 +650,7 @@ class _LinkDeviceName extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return Column(
       spacing: S.s8,
@@ -707,7 +707,7 @@ class _LinkConfirmView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final checked = useState(false);
 
     final platform = Theme.of(context).platform;

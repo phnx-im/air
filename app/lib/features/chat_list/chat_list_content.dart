@@ -17,7 +17,7 @@ import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
 import 'package:air/ds/material/button_styles.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -134,7 +134,7 @@ class _ChatSeparator extends StatelessWidget {
     // On desktop the separator above and below the active item is made
     // transparent so the selection background reads as a single rounded
     // surface while the row height stays constant.
-    var color = CustomColorScheme.of(context).separator.secondary;
+    var color = SemanticColors.of(context).separator.secondary;
     if (!isMobile) {
       final openChatId = context.select(
         (NavigationCubit cubit) => cubit.state.openChatId,
@@ -164,7 +164,7 @@ class _NoChats extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: S.s16),
       child: Text(
         loc.chatList_emptyMessage,
-        style: TextStyle(color: CustomColorScheme.of(context).text.secondary),
+        style: TextStyle(color: SemanticColors.of(context).text.secondary),
       ),
     );
   }
@@ -273,7 +273,7 @@ class _ListTileState extends State<_ListTile> {
           padding: const EdgeInsets.fromLTRB(S.s16, S.s16, S.s16, S.s12),
           decoration: BoxDecoration(
             color: isSelected
-                ? CustomColorScheme.of(context).backgroundElevated.primary
+                ? SemanticColors.of(context).backgroundElevated.primary
                 : null,
           ),
           child: Builder(
@@ -319,7 +319,7 @@ class _ListTileTop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tertiaryColor = CustomColorScheme.of(context).text.tertiary;
+    final tertiaryColor = SemanticColors.of(context).text.tertiary;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       spacing: S.s12,
@@ -389,7 +389,7 @@ class _BlockedBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final color = CustomColorScheme.of(context).text.tertiary;
+    final color = SemanticColors.of(context).text.tertiary;
     return Row(
       children: [
         AppIcon.ban(size: 16, color: color),
@@ -459,7 +459,7 @@ class _PendingCommitFailedIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppIcon.circleAlert(
       size: 16,
-      color: CustomColorScheme.of(context).function.warning.primary,
+      color: SemanticColors.of(context).function.warning.primary,
     );
   }
 }
@@ -475,7 +475,7 @@ class _UnreadBadge extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final backgroundColor = CustomColorScheme.of(
+    final backgroundColor = SemanticColors.of(
       context,
     ).function.neutral.toggleBlack;
 
@@ -491,7 +491,7 @@ class _UnreadBadge extends StatelessWidget {
       child: Text(
         badgeText,
         style: TextStyle(
-          color: CustomColorScheme.of(context).function.neutral.toggleWhite,
+          color: SemanticColors.of(context).function.neutral.toggleWhite,
           fontSize: LabelFontSize.small2.size,
           height: 1,
         ),
@@ -512,7 +512,7 @@ class _LastMessage extends StatelessWidget {
       (NavigationCubit cubit) => cubit.state.chatId == chat.id,
     );
 
-    final color = CustomColorScheme.of(context);
+    final color = SemanticColors.of(context);
     final loc = AppLocalizations.of(context);
 
     final lastMessage = chat.lastMessage;
@@ -708,7 +708,7 @@ class _LastUpdatedState extends State<_LastUpdated> {
       child: Text(
         _displayTimestamp,
         style: TextStyle(
-          color: CustomColorScheme.of(context).text.tertiary,
+          color: SemanticColors.of(context).text.tertiary,
           fontSize: LabelFontSize.small3.size,
           height: 1.0,
         ),
@@ -735,7 +735,7 @@ class _ChatTitle extends StatelessWidget {
           fontSize: LabelFontSize.base.size,
           height: _previewLineHeight,
           fontWeight: FontWeight.bold,
-          color: CustomColorScheme.of(context).text.primary,
+          color: SemanticColors.of(context).text.primary,
         ),
       ),
     );

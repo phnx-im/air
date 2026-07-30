@@ -8,7 +8,7 @@ import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:flutter/material.dart';
@@ -42,7 +42,7 @@ class _MuteDurationContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final theme = Theme.of(context);
 
     return Column(

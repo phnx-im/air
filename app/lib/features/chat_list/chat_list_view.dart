@@ -5,7 +5,7 @@ import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/ds/components/scroll/faded_scroll_frame.dart';
 
@@ -19,7 +19,7 @@ class ChatListContainer extends StatelessWidget {
   final bool isStandalone;
 
   static Color backgroundColor(BuildContext context) {
-    return CustomColorScheme.of(context).backgroundBase.secondary;
+    return SemanticColors.of(context).backgroundBase.secondary;
   }
 
   @override

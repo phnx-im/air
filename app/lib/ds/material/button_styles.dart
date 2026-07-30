@@ -6,7 +6,7 @@ import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/material/text_theme.dart';
 import 'package:flutter/material.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 
 // === Devices ===
 
@@ -20,14 +20,14 @@ bool isLargeScreen(BuildContext context) {
 
 // === Buttons ===
 
-extension on CustomColorScheme {
+extension on SemanticColors {
   Color get activeButtonColor => backgroundBase.quaternary;
   Color get inactiveButtonColor => backgroundBase.secondary;
 }
 
 class CustomTextButtonStyle extends ButtonStyle {
   CustomTextButtonStyle({
-    required CustomColorScheme colorScheme,
+    required SemanticColors colorScheme,
     required TextTheme baselineTextTheme,
   }) : super(
          foregroundColor: WidgetStateProperty.fromMap({
@@ -46,7 +46,7 @@ class CustomTextButtonStyle extends ButtonStyle {
 
 class CustomOutlineButtonStyle extends ButtonStyle {
   CustomOutlineButtonStyle({
-    required CustomColorScheme colorScheme,
+    required SemanticColors colorScheme,
     required TextTheme baselineTextTheme,
   }) : super(
          foregroundColor: WidgetStateProperty<Color>.fromMap({

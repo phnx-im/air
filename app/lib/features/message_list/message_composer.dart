@@ -12,7 +12,6 @@ import 'package:air/l10n/app_localizations_extension.dart';
 import 'package:air/features/emoji/emoji_autocomplete.dart';
 import 'package:air/ds/components/button_icon/glass_circle_button.dart';
 import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
-import 'package:air/ds/foundations/blur.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/features/message_list/scroll_to_bottom_controller.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
@@ -31,7 +30,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/effects.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:provider/provider.dart';
@@ -199,7 +198,7 @@ class _MessageComposerState extends State<MessageComposer>
       return const SizedBox.shrink();
     }
 
-    final color = CustomColorScheme.of(context);
+    final color = SemanticColors.of(context);
     final materialColor = color.backgroundMaterial.tertiary;
 
     Widget composerButton({required Widget icon, VoidCallback? onPressed}) {
@@ -321,8 +320,8 @@ class _MessageComposerState extends State<MessageComposer>
                       clipper: clipper,
                       child: BackdropFilter(
                         filter: ImageFilter.blur(
-                          sigmaX: kMaterialBlurMedium,
-                          sigmaY: kMaterialBlurMedium,
+                          sigmaX: Effects.blur(BlurLevel.medium),
+                          sigmaY: Effects.blur(BlurLevel.medium),
                           bounds: clipBounds,
                         ),
                         child: const SizedBox.expand(),
@@ -692,7 +691,7 @@ class _MessageInput extends StatelessWidget {
     );
 
     final loc = AppLocalizations.of(context);
-    final color = CustomColorScheme.of(context);
+    final color = SemanticColors.of(context);
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -705,7 +704,7 @@ class _MessageInput extends StatelessWidget {
               children: [
                 AppIcon.pencil(
                   size: 20,
-                  color: CustomColorScheme.of(context).text.tertiary,
+                  color: SemanticColors.of(context).text.tertiary,
                 ),
                 const SizedBox(width: S.s8),
                 Text(
@@ -1004,7 +1003,7 @@ class _ComposerShadowPainter extends CustomPainter {
       Path.combine(PathOperation.difference, outerPath, interiorPath),
     );
 
-    for (final shadow in largeElevationBoxShadows) {
+    for (final shadow in Effects.elevation(Elevation.large)) {
       canvas.drawPath(
         _buildComposerPath(
           size,
@@ -1048,7 +1047,7 @@ class InReplyToBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final color = CustomColorScheme.of(context);
+    final color = SemanticColors.of(context);
 
     // there are a few reasons why a message can't be resolved, for example:
     // a message was deleted locally (only for me) or you joined a group

@@ -5,7 +5,7 @@ import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -115,13 +115,11 @@ class _AttachmentFileStatus extends HookWidget {
             );
           },
           style: IconButton.styleFrom(
-            backgroundColor: CustomColorScheme.of(
-              context,
-            ).backgroundBase.tertiary,
+            backgroundColor: SemanticColors.of(context).backgroundBase.tertiary,
           ),
           icon: AppIcon.upload(
             size: 32,
-            color: CustomColorScheme.of(context).text.secondary,
+            color: SemanticColors.of(context).text.secondary,
           ),
         ),
         UiAttachmentStatus_Pending() ||
@@ -133,13 +131,11 @@ class _AttachmentFileStatus extends HookWidget {
             );
           },
           style: IconButton.styleFrom(
-            backgroundColor: CustomColorScheme.of(
-              context,
-            ).backgroundBase.tertiary,
+            backgroundColor: SemanticColors.of(context).backgroundBase.tertiary,
           ),
           icon: AppIcon.download(
             size: 32,
-            color: CustomColorScheme.of(context).text.secondary,
+            color: SemanticColors.of(context).text.secondary,
           ),
         ),
         UiAttachmentStatus_Progress(field0: final loaded) => Stack(

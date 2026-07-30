@@ -4,7 +4,7 @@
 
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:flutter/material.dart';
@@ -33,7 +33,7 @@ class ConfirmDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final cancel = this.cancel;
 
     return AppDialog(

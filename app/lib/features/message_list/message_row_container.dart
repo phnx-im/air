@@ -4,7 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/motion.dart';
+import 'package:air/ds/foundations/effects.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -118,7 +118,10 @@ class _AnimatedMessageState extends State<_AnimatedMessage>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: motionShort);
+    _controller = AnimationController(
+      vsync: this,
+      duration: Effects.duration(MotionPreset.short),
+    );
     _controller.forward();
   }
 
@@ -138,7 +141,10 @@ class _AnimatedMessageState extends State<_AnimatedMessage>
       UiFlightPosition.single || UiFlightPosition.end => 27.0,
     };
 
-    final animation = CurvedAnimation(parent: _controller, curve: motionEasing);
+    final animation = CurvedAnimation(
+      parent: _controller,
+      curve: Effects.easeOutQuart,
+    );
 
     return Container(
       constraints: BoxConstraints(minHeight: fixedStartHeight),

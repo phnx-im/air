@@ -7,7 +7,7 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
@@ -91,7 +91,7 @@ class GroupMembersView extends HookWidget {
     final query = useState("");
 
     final loc = AppLocalizations.of(context);
-    final colorScheme = CustomColorScheme.of(context);
+    final colorScheme = SemanticColors.of(context);
 
     final sortedMembers = useMemoized(() {
       final youValue = loc.chatList_you.toLowerCase();

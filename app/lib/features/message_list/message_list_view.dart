@@ -5,14 +5,14 @@
 import 'dart:async';
 import 'dart:math';
 
-import 'package:air/ds/foundations/motion.dart';
+import 'package:air/ds/foundations/effects.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/util/anchored_list/anchored_list.dart';
@@ -359,7 +359,7 @@ class _MessageListViewState extends State<MessageListView>
     // this threshold so they stay in sync.
     final swapTopThreshold = pillTop - S.s32;
     // Solid color for the safe area
-    final bgColor = CustomColorScheme.of(context).backgroundBase.primary;
+    final bgColor = SemanticColors.of(context).backgroundBase.primary;
 
     Widget buildAnchoredList({double bottomPadding = 0.0}) {
       Widget list = NotificationListener<ScrollNotification>(
@@ -614,11 +614,11 @@ const double _keyboardDismissDragThreshold = S.s64;
 /// How long an incoming message id stays eligible for the entrance animation.
 /// Chosen comfortably larger than the animation duration so the tile always
 /// has time to mount and play the animation once.
-const Duration _animationWindow = motionLong;
+final Duration _animationWindow = Effects.duration(MotionPreset.long);
 
 /// Delay between scroll settling and the floating date header fading out,
 /// so the label remains briefly readable after the user stops scrolling.
-const Duration _floatingHeaderHideDelay = motionLong;
+final Duration _floatingHeaderHideDelay = Effects.duration(MotionPreset.long);
 
 /// Owns a [MessageCubit] for a single message tile.
 ///

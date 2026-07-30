@@ -4,7 +4,7 @@
 
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:flutter/material.dart';
 
 /// An [AppIcon] wrapped in a rounded/circular background.
@@ -22,7 +22,7 @@ class AppIconBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return Container(
       padding: EdgeInsets.all(size / 2),

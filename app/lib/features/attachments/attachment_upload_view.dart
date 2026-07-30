@@ -4,7 +4,7 @@
 
 import 'dart:io';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/components/button_icon/glass_circle_button.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/ds/foundations/type_scale.dart';
@@ -38,7 +38,7 @@ class AttachmentUploadView extends HookWidget {
     );
     final isImage = useFuture(isImageFut);
 
-    final colors = darkCustomColorScheme;
+    final colors = darkSemanticColors;
 
     return Scaffold(
       backgroundColor: colors.function.neutral.black,
@@ -97,7 +97,7 @@ class AttachmentUploadView extends HookWidget {
                 left: 0,
                 right: 0,
                 child: Container(
-                  color: darkCustomColorScheme.backgroundElevated.primary
+                  color: darkSemanticColors.backgroundElevated.primary
                       .withValues(alpha: 0.7),
                   child: AppBar(
                     automaticallyImplyLeading: false,
@@ -111,7 +111,7 @@ class AttachmentUploadView extends HookWidget {
                         onPressed: () => Navigator.of(context).maybePop(),
                         foregroundColor: colors.text.primary,
                         backgroundColor:
-                            darkCustomColorScheme.backgroundBase.secondary,
+                            darkSemanticColors.backgroundBase.secondary,
                       ),
                     ],
                     backgroundColor: Colors.transparent,

@@ -10,7 +10,7 @@ import 'package:flutter/services.dart';
 import 'package:air/core/core.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/primitives.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
@@ -283,7 +283,7 @@ void _confirmDialog({
           TextButton(
             style: TextButton.styleFrom(
               backgroundColor: Primitives.chromatic(Hue.red, Shade.s500),
-              foregroundColor: CustomColorScheme.of(
+              foregroundColor: SemanticColors.of(
                 context,
               ).function.neutral.white,
             ),

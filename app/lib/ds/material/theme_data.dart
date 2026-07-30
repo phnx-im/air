@@ -7,7 +7,7 @@ import 'package:flutter/services.dart';
 import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/material/button_styles.dart';
 import 'package:air/ds/foundations/primitives.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/material/cupertino_scrim_transition.dart';
 import 'package:air/ds/material/text_theme.dart';
 import 'package:air/ds/foundations/type_scale.dart';
@@ -20,8 +20,8 @@ ThemeData themeData(Brightness brightness) {
   final baselineTheme = ThemeData(brightness: brightness);
 
   final colorScheme = switch (brightness) {
-    Brightness.dark => darkCustomColorScheme,
-    Brightness.light => lightCustomColorScheme,
+    Brightness.dark => darkSemanticColors,
+    Brightness.light => lightSemanticColors,
   };
 
   // AppBar title style

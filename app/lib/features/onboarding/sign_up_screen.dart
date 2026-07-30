@@ -8,7 +8,7 @@ import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/material/button_styles.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/components/constrained_width/constrained_width.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/ds/foundations/type_scale.dart';
@@ -28,7 +28,7 @@ class SignUpScreen extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final backgroundColor = colors.backgroundBase.secondary;
 
     final formKey = useMemoized(() => GlobalKey<FormState>());
@@ -185,7 +185,7 @@ class _UserAvatarPicker extends StatelessWidget {
       (RegistrationCubit cubit) => cubit.state.avatar,
     );
 
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final showPlaceholderIcon = avatar == null;
 
     return SizedBox(
@@ -236,7 +236,7 @@ class _DisplayNameTextField extends HookWidget {
     final displayName = context.read<RegistrationCubit>().state.displayName;
 
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     final focusNode = useFocusNode();
 
@@ -287,7 +287,7 @@ class _ServerTextField extends HookWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     final focusNode = useFocusNode();
 
@@ -322,7 +322,7 @@ class _SignUpButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final isSigningUp = context.select(
       (RegistrationCubit cubit) => cubit.state.isSigningUp,
     );

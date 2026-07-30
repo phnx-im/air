@@ -8,7 +8,7 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/material/button_styles.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/components/constrained_width/constrained_width.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:flutter/material.dart';
@@ -42,7 +42,7 @@ class UpdateRequiredView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final loc = AppLocalizations.of(context);
 
     return Scaffold(

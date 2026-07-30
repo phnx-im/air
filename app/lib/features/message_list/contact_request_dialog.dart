@@ -6,7 +6,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/ds/foundations/type_scale.dart';
@@ -57,7 +57,7 @@ class ContactRequestDialog extends HookWidget {
       (UsersCubit c) => c.state.profile(userId: sender),
     );
 
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final loc = AppLocalizations.of(context);
 
     final showImage = useState(false);

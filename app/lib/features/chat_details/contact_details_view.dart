@@ -9,7 +9,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/ds/foundations/type_scale.dart';
@@ -246,7 +246,7 @@ class _AddContactDialog extends HookWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return AppDialog(
       child: Column(

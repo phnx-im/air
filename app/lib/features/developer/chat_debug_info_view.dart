@@ -4,7 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/foundations/type_scale.dart';
@@ -40,7 +40,7 @@ class ChatDebugInfoView extends HookWidget {
   Widget build(BuildContext context) {
     final debugInfoFuture = useState(useMemoized(loadDebugInfo));
     final snapshot = useFuture(debugInfoFuture.value);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return AppScaffold(
       title: title,
@@ -285,7 +285,7 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: S.s8),
       child: Text(
@@ -307,7 +307,7 @@ class _CardSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
       child: Text(
@@ -330,7 +330,7 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     return Container(
       decoration: BoxDecoration(
         color: colors.backgroundBase.secondary,
@@ -367,7 +367,7 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     var valueStyle = TextStyle(
       fontSize: BodyFontSize.small1.size,
@@ -522,7 +522,7 @@ class _MemberCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return Container(
       decoration: BoxDecoration(
@@ -624,7 +624,7 @@ class _ChipListRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     if (values.isEmpty) {
       return _InfoRow(label: label, value: '—');
@@ -677,7 +677,7 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(

@@ -5,7 +5,7 @@
 import 'dart:async';
 
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/util/anchored_list/controller.dart';
 import 'package:flutter/widgets.dart';
 
@@ -126,7 +126,7 @@ class _JumpHighlightState extends State<JumpHighlight>
 
   @override
   Widget build(BuildContext context) {
-    final highlightColor = CustomColorScheme.of(context).function.link;
+    final highlightColor = SemanticColors.of(context).function.link;
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, child) {

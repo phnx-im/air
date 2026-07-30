@@ -4,7 +4,7 @@
 
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/l10n/l10n.dart';
@@ -51,7 +51,7 @@ class EditDialog extends HookWidget {
     final length = useState(initialValue.characters.length);
 
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     final description = this.description;
     final maxLength = this.maxLength;

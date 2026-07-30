@@ -4,7 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/ds/foundations/monospace.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -27,7 +27,7 @@ class UserDebugInfoPanel extends HookWidget {
     final snapshot = useFuture(
       useMemoized(() => user.userDebugInfo(), [refreshKey.value]),
     );
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return switch (snapshot) {
       AsyncSnapshot(hasData: true, :final data) => _UserDebugInfoBody(
@@ -163,7 +163,7 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: S.s8),
       child: Text(
@@ -185,7 +185,7 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     if (children.isEmpty) {
       return Container(
         decoration: BoxDecoration(
@@ -240,7 +240,7 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     var valueStyle = TextStyle(
       fontSize: BodyFontSize.small1.size,
@@ -293,7 +293,7 @@ class _TriggerButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     return IconButton(
       onPressed: onPressed,
       visualDensity: VisualDensity.compact,

@@ -4,7 +4,7 @@
 
 import 'dart:io';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:flutter/material.dart';
 
@@ -22,7 +22,7 @@ class ContextMenuSeparator extends ContextMenuEntry {
       child: Divider(
         height: 0,
         thickness: Strokes.px1,
-        color: CustomColorScheme.of(context).separator.primary,
+        color: SemanticColors.of(context).separator.primary,
       ),
     );
   }
@@ -68,7 +68,7 @@ class ContextMenuItem extends ContextMenuEntry {
   @override
   Widget build(BuildContext context) {
     final leadingWidget = buildLeading(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final foregroundColor = isDestructive
         ? colors.function.danger
         : colors.text.primary;

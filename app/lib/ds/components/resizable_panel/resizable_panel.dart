@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:flutter/material.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 
 /// Left panel which can be resized by dragging the handle
@@ -76,7 +76,7 @@ class _ResizablePanelState extends State<ResizablePanel> {
                         border: Border(
                           left: BorderSide(
                             width: Strokes.px1,
-                            color: CustomColorScheme.of(
+                            color: SemanticColors.of(
                               context,
                             ).separator.secondary,
                           ),

@@ -10,8 +10,8 @@ import 'package:air/features/attachments/attachment_image_provider.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/blur.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
+import 'package:air/ds/foundations/effects.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
@@ -338,7 +338,7 @@ class AttachmentImageOverlay extends HookWidget {
     );
     final status = useStream<UiAttachmentStatus>(statusStream);
 
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return Align(
       alignment: Alignment.center,
@@ -427,11 +427,11 @@ class _BlurredPill extends StatelessWidget {
       borderRadius: BorderRadius.circular(Radii.full),
       child: BackdropFilter(
         filter: ui.ImageFilter.blur(
-          sigmaX: kMaterialBlurMedium,
-          sigmaY: kMaterialBlurMedium,
+          sigmaX: Effects.blur(BlurLevel.medium),
+          sigmaY: Effects.blur(BlurLevel.medium),
         ),
         child: ColoredBox(
-          color: CustomColorScheme.of(context).backgroundMaterial.tertiary,
+          color: SemanticColors.of(context).backgroundMaterial.tertiary,
           child: Padding(padding: const EdgeInsets.all(S.s16), child: child),
         ),
       ),

@@ -12,7 +12,7 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
@@ -34,7 +34,7 @@ class DeleteAccountDialog extends HookWidget {
       text: (this.isConfirmed) ? _confirmationText : "",
     );
 
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final loc = AppLocalizations.of(context);
 
     return AppDialog(

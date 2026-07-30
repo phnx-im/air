@@ -4,7 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:collection/collection.dart';
@@ -59,7 +59,7 @@ class MemberSelectionList extends HookWidget {
       separatorBuilder: (context, index) => Divider(
         height: 1,
         thickness: Strokes.px1,
-        color: CustomColorScheme.of(context).backgroundBase.primary,
+        color: SemanticColors.of(context).backgroundBase.primary,
       ),
       itemBuilder: (context, index) {
         final contact = sortedContacts[index];
@@ -88,9 +88,9 @@ class MemberSelectionList extends HookWidget {
             trailing: hasSupportedClient
                 ? Checkbox(
                     value: isSelected,
-                    checkColor: CustomColorScheme.of(context).text.secondary,
+                    checkColor: SemanticColors.of(context).text.secondary,
                     fillColor: WidgetStateProperty.all(
-                      CustomColorScheme.of(context).fill.tertiary,
+                      SemanticColors.of(context).fill.tertiary,
                     ),
                     focusColor: Colors.transparent,
                     hoverColor: Colors.transparent,

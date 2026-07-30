@@ -4,7 +4,7 @@
 
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:flutter/material.dart';
 
 class UnreadDivider extends StatelessWidget {
@@ -20,17 +20,13 @@ class UnreadDivider extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Divider(
-              color: CustomColorScheme.of(context).separator.primary,
-            ),
+            child: Divider(color: SemanticColors.of(context).separator.primary),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: S.s16),
             child: DecoratedBox(
               decoration: ShapeDecoration(
-                color: CustomColorScheme.of(
-                  context,
-                ).function.neutral.toggleBlack,
+                color: SemanticColors.of(context).function.neutral.toggleBlack,
                 shape: const StadiumBorder(),
               ),
               child: Padding(
@@ -41,7 +37,7 @@ class UnreadDivider extends StatelessWidget {
                 child: Text(
                   label,
                   style: TextTheme.of(context).bodySmall?.copyWith(
-                    color: CustomColorScheme.of(
+                    color: SemanticColors.of(
                       context,
                     ).function.neutral.toggleWhite,
                   ),
@@ -50,9 +46,7 @@ class UnreadDivider extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Divider(
-              color: CustomColorScheme.of(context).separator.primary,
-            ),
+            child: Divider(color: SemanticColors.of(context).separator.primary),
           ),
         ],
       ),

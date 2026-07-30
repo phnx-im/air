@@ -4,7 +4,7 @@
 
 import 'package:air/core/api/types.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:flutter/material.dart';
@@ -27,7 +27,7 @@ class MemberListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final displayName = displayNameOverride ?? profile.displayName;
 
     return ListTile(

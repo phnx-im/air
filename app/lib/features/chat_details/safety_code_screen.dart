@@ -5,7 +5,7 @@
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/ds/foundations/type_scale.dart';
@@ -46,7 +46,7 @@ class SafetyCodeView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return Align(
       alignment: Alignment.topCenter,
@@ -102,7 +102,7 @@ class _SafetyCode extends HookWidget {
     final (p1, p2, p3) = safetyCode.data?.paragraphs ?? ('', '', '');
 
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     final codeStyle = TextStyle(
       fontSize: BodyFontSize.base.size,

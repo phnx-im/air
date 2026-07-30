@@ -11,7 +11,7 @@ import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/util/username_input_formatter.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:logging/logging.dart';
@@ -38,7 +38,7 @@ class AddContactDialog extends HookWidget {
     final focusNode = useFocusNode();
 
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return AppDialog(
       child: Form(
@@ -177,7 +177,7 @@ class _Description extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     final (text, color) = switch ((errorMessage, hasUsernameHash)) {
       (final errorMessage?, _) => (errorMessage, colors.function.danger),

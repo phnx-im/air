@@ -5,7 +5,7 @@
 import 'dart:async';
 
 import 'package:air/core/core.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:flutter/material.dart';
@@ -45,7 +45,7 @@ class _RotatingSendIconState extends State<RotatingSendIcon>
       turns: _controller,
       child: AppIcon.circleDashed(
         size: 16,
-        color: CustomColorScheme.of(context).text.tertiary,
+        color: SemanticColors.of(context).text.tertiary,
       ),
     );
   }
@@ -136,7 +136,7 @@ class _MessageStatusIndicatorState extends State<MessageStatusIndicator> {
       return AppIcon.circleAlert(
         key: const ValueKey('error'),
         size: 16,
-        color: CustomColorScheme.of(context).function.warning.primary,
+        color: SemanticColors.of(context).function.warning.primary,
       );
     }
     final iconType = switch (widget.status) {
@@ -171,7 +171,7 @@ class MessageStatusIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     final color = colors.text.tertiary;
     return switch (statusIcon) {

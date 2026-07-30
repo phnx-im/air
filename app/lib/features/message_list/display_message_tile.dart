@@ -6,7 +6,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/primitives.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:flutter/material.dart';
@@ -77,7 +77,7 @@ class _SystemMessageContent extends StatelessWidget {
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(Radii.px16),
             border: Border.all(
-              color: CustomColorScheme.of(context).separator.secondary,
+              color: SemanticColors.of(context).separator.secondary,
               width: Strokes.px2,
             ),
           ),
@@ -102,7 +102,7 @@ class _SystemMessageText extends StatelessWidget {
     final loc = AppLocalizations.of(context);
 
     final textStyle = TextStyle(
-      color: CustomColorScheme.of(context).text.tertiary,
+      color: SemanticColors.of(context).text.tertiary,
       fontSize: LabelFontSize.small1.size,
     );
 
@@ -333,7 +333,7 @@ RichText buildSystemMessageText(BuildContext context, UiSystemMessage message) {
   final loc = AppLocalizations.of(context);
 
   final textStyle = TextStyle(
-    color: CustomColorScheme.of(context).text.tertiary,
+    color: SemanticColors.of(context).text.tertiary,
     fontSize: LabelFontSize.small1.size,
   );
 

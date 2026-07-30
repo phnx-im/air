@@ -4,7 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/patterns/context_menu/context_menu_item.dart';
 import 'package:air/ds/foundations/effects.dart';
 
@@ -50,8 +50,8 @@ class ContextMenuSurface extends StatelessWidget {
     return Container(
       clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
-        color: CustomColorScheme.of(context).backgroundElevated.primary,
-        boxShadow: mediumElevationBoxShadows,
+        color: SemanticColors.of(context).backgroundElevated.primary,
+        boxShadow: Effects.elevation(Elevation.medium),
         borderRadius: BorderRadius.circular(Radii.px16),
       ),
       padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),

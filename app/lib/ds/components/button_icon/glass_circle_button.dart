@@ -4,9 +4,8 @@
 
 import 'dart:ui';
 
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/effects.dart';
-import 'package:air/ds/foundations/blur.dart';
 import 'package:flutter/material.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 
@@ -22,7 +21,7 @@ class GlassCircleButton extends StatelessWidget {
     this.hitTargetSize,
     this.enableBackdropBlur = true,
     this.color,
-    this.shadows = mediumElevationBoxShadows,
+    this.shadows,
   });
 
   final Widget icon;
@@ -42,14 +41,16 @@ class GlassCircleButton extends StatelessWidget {
   /// look. Pass an opaque color for non-glass surfaces.
   final Color? color;
 
-  /// Drop shadows. Pass an empty list when an ancestor paints shadows for
-  /// the surrounding element (e.g. the message composer).
-  final List<BoxShadow> shadows;
+  /// Drop shadows. Defaults to [Elevation.medium]. Pass an empty list when an
+  /// ancestor paints shadows for the surrounding element (e.g. the message
+  /// composer).
+  final List<BoxShadow>? shadows;
 
   @override
   Widget build(BuildContext context) {
     final fillColor =
-        color ?? CustomColorScheme.of(context).backgroundMaterial.tertiary;
+        color ?? SemanticColors.of(context).backgroundMaterial.tertiary;
+    final boxShadow = shadows ?? Effects.elevation(Elevation.medium);
     final hitSize = hitTargetSize ?? size;
     final enabled = onPressed != null || onLongPress != null;
 
@@ -62,13 +63,13 @@ class GlassCircleButton extends StatelessWidget {
       width: size,
       height: size,
       child: DecoratedBox(
-        decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: shadows),
+        decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: boxShadow),
         child: enableBackdropBlur
             ? ClipOval(
                 child: BackdropFilter(
                   filter: ImageFilter.blur(
-                    sigmaX: kMaterialBlurMedium,
-                    sigmaY: kMaterialBlurMedium,
+                    sigmaX: Effects.blur(BlurLevel.medium),
+                    sigmaY: Effects.blur(BlurLevel.medium),
                   ),
                   child: fill,
                 ),

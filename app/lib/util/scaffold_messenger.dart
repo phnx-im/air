@@ -4,7 +4,7 @@
 
 import 'package:air/app.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
@@ -25,7 +25,7 @@ void showErrorBannerStandalone(
     return;
   }
 
-  final colors = CustomColorScheme.of(context);
+  final colors = SemanticColors.of(context);
   final loc = AppLocalizations.of(context);
 
   scaffoldMessengerKey.currentState?.showMaterialBanner(

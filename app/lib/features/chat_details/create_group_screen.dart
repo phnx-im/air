@@ -13,7 +13,7 @@ import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -197,7 +197,7 @@ class _CreateGroupDetailsStep extends HookWidget {
     final showHelperText = nameFocusNode.hasFocus && !isGroupNameValid;
 
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -448,7 +448,7 @@ class _GroupPicturePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     return InkWell(
       onTap: onPick,
       borderRadius: BorderRadius.circular(Radii.full),
@@ -525,7 +525,7 @@ class _SelectedParticipant extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     return SizedBox(
       width: 72,
       child: Column(
@@ -585,7 +585,7 @@ class _CircularBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: S.s16),
       child: InkWell(
@@ -619,7 +619,7 @@ class _SwitchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return InkWell(
       onTap: () => onChanged(!value),

@@ -8,7 +8,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/components/button/button.dart'
     show AppButton, AppButtonTone;
@@ -46,7 +46,7 @@ class GroupDetailsScreen extends StatelessWidget {
     }
 
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return AppScaffold(
       title: chat.title,
@@ -228,7 +228,7 @@ class _PeoplePreview extends HookWidget {
       [memberIds, profiles],
     );
 
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final loc = AppLocalizations.of(context);
 
     return Column(
@@ -292,7 +292,7 @@ class _PeoplePreviewEntry extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final displayName = isSelf ? loc.chatList_you : profile.displayName;
 
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     final borderRadius = switch (position) {
       _PeopleEntryPosition.single => BorderRadius.circular(Radii.px16),
@@ -329,7 +329,7 @@ class _ActionsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final loc = AppLocalizations.of(context);
     final borderRadius = switch (position) {
       _PeopleEntryPosition.single => BorderRadius.circular(Radii.px16),

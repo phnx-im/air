@@ -5,7 +5,7 @@
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:flutter/material.dart';
 
@@ -72,7 +72,7 @@ class _AttachmentCategoryButton extends StatelessWidget {
           child: IconButton(
             icon: icon,
             style: IconButton.styleFrom(
-              backgroundColor: CustomColorScheme.of(
+              backgroundColor: SemanticColors.of(
                 context,
               ).backgroundElevated.secondary,
             ),

@@ -10,7 +10,7 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/material/button_styles.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/features/you/linked_devices_screen.dart';
@@ -57,7 +57,7 @@ class YouView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final bgColor = colors.backgroundBase.primary;
 
     final content = Padding(
@@ -273,7 +273,7 @@ class _UsernamesSection extends StatelessWidget {
 
     final loc = AppLocalizations.of(context);
 
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -374,7 +374,7 @@ class _InviteCodes extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return _FieldContainer(
       onTap: () {
@@ -424,7 +424,7 @@ class _InvitationCodesBadge extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return Container(
       width: 40,
@@ -451,7 +451,7 @@ class _LanguageSettings extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return LanguagePickerMenu(
       onLocaleSelected: (locale) async {
@@ -487,7 +487,7 @@ class _Devices extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return _FieldContainer(
       onTap: () {
@@ -573,7 +573,7 @@ class _DesktopSettings extends HookWidget {
               divisions: ((300 - 50) / 10).truncate(),
               value: interfaceScale.value,
               label: interfaceScale.value.truncate().toString(),
-              activeColor: CustomColorScheme.of(context).text.secondary,
+              activeColor: SemanticColors.of(context).text.secondary,
               onChanged: (value) => interfaceScale.value = value,
               onChangeEnd: (value) {
                 context.read<UserSettingsCubit>().setInterfaceScale(
@@ -695,7 +695,7 @@ class _AccountSection extends StatelessWidget {
                 loc.userSettingsScreen_deleteAccount,
                 style: TextStyle(
                   fontSize: BodyFontSize.base.size,
-                  color: CustomColorScheme.of(context).function.danger,
+                  color: SemanticColors.of(context).function.danger,
                 ),
               ),
             ],
@@ -719,7 +719,7 @@ class FieldLabel extends StatelessWidget {
         text,
         style: TextStyle(
           fontSize: LabelFontSize.small2.size,
-          color: CustomColorScheme.of(context).text.quaternary,
+          color: SemanticColors.of(context).text.quaternary,
         ),
       ),
     );
@@ -739,7 +739,7 @@ class _SectionHeader extends StatelessWidget {
         text,
         style: TextStyle(
           fontSize: LabelFontSize.base.size,
-          color: CustomColorScheme.of(context).text.secondary,
+          color: SemanticColors.of(context).text.secondary,
           fontWeight: FontWeight.bold,
         ),
       ),
@@ -800,7 +800,7 @@ class _FieldContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return DefaultTextStyle(
       style: Theme.of(context).textTheme.bodyLarge!.copyWith(

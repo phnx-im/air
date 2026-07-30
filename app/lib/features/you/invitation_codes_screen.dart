@@ -6,7 +6,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/foundations/icons.dart';
@@ -45,7 +45,7 @@ class InvitationCodesView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return AppScaffold(
       title: loc.invitationCodesScreen_title,
@@ -154,7 +154,7 @@ class _InvitationCodesList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     final invitationCodes = context.select(
       (InvitationCodesCubit cubit) => cubit.state.codes,
@@ -198,7 +198,7 @@ class _InvitationCodeItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return InkWell(
       onTap: () => _handleCopy(context),
@@ -254,7 +254,7 @@ class _InvitationTokenItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return InkWell(
       onTap: () => _handleUnlock(context),
@@ -309,7 +309,7 @@ class _InvitationCodeEmptyItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
@@ -335,7 +335,7 @@ class _InfoText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     final style = TextStyle(
       fontSize: BodyFontSize.small1.size,

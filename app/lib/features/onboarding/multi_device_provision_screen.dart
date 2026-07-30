@@ -8,7 +8,7 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/components/constrained_width/constrained_width.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
@@ -95,7 +95,7 @@ class MultiDeviceProvisionScreen extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     // Can be set by the hidden input field
     final domain = context.select(
@@ -238,7 +238,7 @@ class _NumberedBullet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return Text(
       style: TextStyle(
@@ -258,7 +258,7 @@ class _LinkingInstructionsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return Column(
       spacing: S.s4,
@@ -295,7 +295,7 @@ class _ConnectingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return Column(
       mainAxisAlignment: .center,
@@ -329,7 +329,7 @@ class _CountdownRing extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     final controller = useAnimationController(duration: duration);
 
@@ -390,7 +390,7 @@ class _CountdownRing extends HookWidget {
 class _LinkQrCodeSvgColorMapper extends ColorMapper {
   const _LinkQrCodeSvgColorMapper({required this.colors});
 
-  final CustomColorScheme colors;
+  final SemanticColors colors;
 
   @override
   Color substitute(
@@ -417,7 +417,7 @@ class _AwaitingLinkView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     final svg = qrcodeSvg;
 
@@ -507,7 +507,7 @@ class _LinkingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     return Column(
       mainAxisAlignment: .center,

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:flutter/material.dart';
 
@@ -20,7 +20,7 @@ class MemberSearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final customColorScheme = CustomColorScheme.of(context);
+    final customColorScheme = SemanticColors.of(context);
     return Padding(
       padding: const EdgeInsets.only(
         left: S.s16,

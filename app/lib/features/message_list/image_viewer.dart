@@ -7,7 +7,7 @@ import 'dart:math' as math;
 
 import 'package:air/features/attachments/attachment_image_provider.dart';
 import 'package:air/core/core.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/ds/components/button_icon/app_bar_x_button.dart';
@@ -50,7 +50,7 @@ class ImageViewer extends HookWidget {
     final initialScale = useRef<double?>(null);
     final pendingTapTimer = useRef<Timer?>(null);
 
-    final colors = darkCustomColorScheme;
+    final colors = darkSemanticColors;
 
     useEffect(
       () => () {
@@ -201,7 +201,7 @@ class _ZoomableImage extends HookWidget {
     final baseScale = useRef<double?>(null);
     final currentScale = useRef<double?>(null);
 
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
 
     useEffect(
       () => () {
@@ -305,8 +305,8 @@ class _ViewerOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foregroundColor = darkCustomColorScheme.text.primary;
-    final backgroundColor = darkCustomColorScheme.backgroundElevated.primary
+    final foregroundColor = darkSemanticColors.text.primary;
+    final backgroundColor = darkSemanticColors.backgroundElevated.primary
         .withValues(alpha: 0.7);
 
     return Positioned(
@@ -327,8 +327,7 @@ class _ViewerOverlay extends StatelessWidget {
                 AppBarXButton(
                   onPressed: () => Navigator.of(context).maybePop(),
                   foregroundColor: foregroundColor,
-                  backgroundColor:
-                      darkCustomColorScheme.backgroundBase.secondary,
+                  backgroundColor: darkSemanticColors.backgroundBase.secondary,
                 ),
               ],
               backgroundColor: Colors.transparent,

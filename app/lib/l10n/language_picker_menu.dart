@@ -6,7 +6,7 @@ import 'dart:async';
 
 import 'package:air/l10n/app_locale_cubit.dart';
 import 'package:air/l10n/language_options.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/patterns/context_menu/context_menu.dart';
 import 'package:air/ds/patterns/context_menu/context_menu_item.dart';
 import 'package:air/ds/foundations/icons.dart';
@@ -43,7 +43,7 @@ class _LanguagePickerMenuState extends State<LanguagePickerMenu> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final colors = SemanticColors.of(context);
     final storedLocale = context.select(
       (UserSettingsCubit cubit) => cubit.state.locale,
     );

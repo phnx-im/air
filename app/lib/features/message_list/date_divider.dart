@@ -6,7 +6,7 @@ import 'dart:async';
 
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -64,7 +64,7 @@ class DateLabelPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: ShapeDecoration(
-        color: CustomColorScheme.of(context).backgroundBase.secondary,
+        color: SemanticColors.of(context).backgroundBase.secondary,
         shape: const StadiumBorder(),
       ),
       child: Padding(
@@ -72,7 +72,7 @@ class DateLabelPill extends StatelessWidget {
         child: Text(
           label,
           style: TextTheme.of(context).bodySmall?.copyWith(
-            color: CustomColorScheme.of(context).text.secondary,
+            color: SemanticColors.of(context).text.secondary,
           ),
         ),
       ),

@@ -2,7 +2,7 @@
 // Generated via app/tool/compile_svg_icons.dart
 
 import 'dart:convert';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
@@ -475,7 +475,7 @@ class AppIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = this.color ?? CustomColorScheme.of(context).text.primary;
+    final color = this.color ?? SemanticColors.of(context).text.primary;
     return createCompatVectorGraphic(
       loader: compiledSvgLoader(type),
       width: size,

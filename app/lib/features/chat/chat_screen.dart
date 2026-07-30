@@ -13,7 +13,7 @@ import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
 import 'package:air/ds/material/button_styles.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
@@ -79,7 +79,7 @@ class _EmptyChatPane extends StatelessWidget {
     return Center(
       child: Text(
         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-          color: CustomColorScheme.of(context).text.tertiary,
+          color: SemanticColors.of(context).text.tertiary,
         ),
         loc.chatScreen_emptyChat,
       ),
@@ -298,7 +298,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextTheme.of(context).labelMedium!.copyWith(
-                    color: CustomColorScheme.of(context).text.primary,
+                    color: SemanticColors.of(context).text.primary,
                   ),
                 ),
               ),
@@ -409,7 +409,7 @@ class _PendingCommitFailedBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: CustomColorScheme.of(context).function.warning.primary,
+      color: SemanticColors.of(context).function.warning.primary,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),
         child: Row(
@@ -447,7 +447,7 @@ class _InactiveChatFooter extends StatelessWidget {
         loc.inactiveChatFooter_message,
         textAlign: TextAlign.center,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: CustomColorScheme.of(context).text.tertiary,
+          color: SemanticColors.of(context).text.tertiary,
         ),
       ),
     );
