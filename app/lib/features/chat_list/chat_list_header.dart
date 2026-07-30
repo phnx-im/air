@@ -7,7 +7,7 @@ import 'package:air/features/chat_list/add_contact_dialog.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/material/button_styles.dart';
+import 'package:air/ds/foundations/breakpoint.dart';
 import 'package:air/ds/components/button_icon/glass_circle_button.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/ds/patterns/context_menu/context_menu.dart';
@@ -27,7 +27,7 @@ class ChatListHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final isMobile = isSmallScreen(context);
+    final isMobile = context.breakpoint.isSmall;
 
     return Padding(
       padding: const EdgeInsets.only(left: S.s20, right: S.s16),
@@ -122,7 +122,7 @@ class _PlusButtonState extends State<_PlusButton> {
         ),
       ],
       // The plus button is different on mobile and desktop
-      child: isSmallScreen(context)
+      child: context.breakpoint.isSmall
           ? GlassCircleButton(
               icon: const AppIcon.plus(size: 20),
               onPressed: contextMenuController.show,

@@ -9,7 +9,7 @@ import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/semantic_colors.dart';
-import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
+import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -17,7 +17,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 Future<void> showMuteChatSheet(BuildContext context) {
   final cubit = context.read<ChatDetailsCubit>();
 
-  if (ResponsiveScreen.isDesktop(context)) {
+  if (DeviceType.isDesktop) {
     return showDialog(
       context: context,
       builder: (dialogContext) => AppDialog(
@@ -92,7 +92,7 @@ class _MuteDurationContent extends StatelessWidget {
           mutedUntil: () => const UiChatMuted.forever(),
         ),
         const SizedBox(height: S.s8),
-        if (ResponsiveScreen.isDesktop(context)) ...[
+        if (DeviceType.isDesktop) ...[
           const SizedBox(height: S.s8),
           AppButton(
             type: AppButtonType.secondary,

@@ -9,7 +9,7 @@ import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/material/button_styles.dart';
+import 'package:air/ds/foundations/breakpoint.dart';
 import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/ds/foundations/type_scale.dart';
@@ -73,7 +73,7 @@ class YouView extends StatelessWidget {
       ),
     );
 
-    if (isSmallScreen(context)) {
+    if (context.breakpoint.isSmall) {
       return Scaffold(
         backgroundColor: bgColor,
         body: SafeArea(

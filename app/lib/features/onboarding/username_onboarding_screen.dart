@@ -7,7 +7,7 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/material/button_styles.dart';
+import 'package:air/ds/foundations/breakpoint.dart';
 import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/components/constrained_width/constrained_width.dart';
 import 'package:air/ds/foundations/type_scale.dart';
@@ -208,7 +208,7 @@ class _AddButton extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: S.s24),
-      width: isSmallScreen(context) ? double.infinity : null,
+      width: context.breakpoint.isSmall ? double.infinity : null,
       child: OutlinedButton(
         style: OutlinedButtonTheme.of(context).style!.copyWith(
           backgroundColor: WidgetStateProperty.all(colors.accentBrand.primary),

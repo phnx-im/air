@@ -7,6 +7,7 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/foundations/monospace.dart';
 
 import 'helpers.dart';
@@ -27,6 +28,7 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
     await _loadFonts();
     _setGoldenFileComparatorWithThreshold(goldenThreshold);
     _setPhysicalScreenSize(binding, pixel8ScreenSize, pixel8DevicePixelRatio);
+    _setDeviceType(DeviceType.phone);
   });
 
   await testMain();
@@ -146,6 +148,13 @@ void _setPhysicalScreenSize(
   addTearDown(() {
     binding.platformDispatcher.views.first.resetPhysicalSize();
   });
+}
+
+/// The global viewport is a phone, so the device type has to match it. Tests
+/// that widen the viewport pin the desktop device type themselves.
+void _setDeviceType(DeviceType deviceType) {
+  DeviceType.debugOverride = deviceType;
+  addTearDown(() => DeviceType.debugOverride = null);
 }
 
 void _mockSystemDateTimeFormatChannel(TestWidgetsFlutterBinding binding) {

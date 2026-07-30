@@ -5,7 +5,7 @@
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
+import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/components/button/button.dart' show AppButtonTone;
 import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
@@ -38,7 +38,7 @@ class RemoveMemberButton extends StatelessWidget {
 
     final colors = SemanticColors.of(context);
 
-    final isDesktop = ResponsiveScreen.isDesktop(context);
+    final isDesktop = DeviceType.isDesktop;
 
     return OutlinedButton(
       onPressed: () => _confirmRemoval(context),

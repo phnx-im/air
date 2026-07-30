@@ -1,6 +1,7 @@
 // SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/features/chat_list/chat_list_view.dart';
 import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
@@ -156,6 +157,7 @@ void main() {
         tester.view.resetPhysicalSize();
         tester.view.resetDevicePixelRatio();
       });
+      useDeviceType(DeviceType.desktop);
 
       final testChats = [chats[0]];
       when(

@@ -11,6 +11,7 @@ import 'package:air/features/chat/chat_screen.dart';
 import 'package:air/features/chat_list/chat_list_view.dart';
 import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
+import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/features/home/home_screen.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
@@ -121,6 +122,7 @@ void main() {
       addTearDown(() {
         binding.platformDispatcher.views.first.resetPhysicalSize();
       });
+      useDeviceType(DeviceType.desktop);
 
       when(
         () => navigationCubit.state,
@@ -150,6 +152,7 @@ void main() {
       addTearDown(() {
         binding.platformDispatcher.views.first.resetPhysicalSize();
       });
+      useDeviceType(DeviceType.desktop);
 
       when(
         () => navigationCubit.state,
@@ -179,6 +182,7 @@ void main() {
       addTearDown(() {
         binding.platformDispatcher.views.first.resetPhysicalSize();
       });
+      useDeviceType(DeviceType.desktop);
 
       when(() => navigationCubit.state).thenReturn(
         NavigationState.home(
@@ -211,6 +215,7 @@ void main() {
       addTearDown(() {
         binding.platformDispatcher.views.first.resetPhysicalSize();
       });
+      useDeviceType(DeviceType.desktop);
 
       when(() => navigationCubit.state).thenReturn(
         NavigationState.home(

@@ -7,7 +7,7 @@ import 'package:air/features/chat_list/chat_list_view.dart';
 import 'package:air/features/chat/chat_screen.dart';
 import 'package:air/core/core.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
+import 'package:air/ds/foundations/breakpoint.dart';
 import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/features/navigation/app_tab_bar.dart';
 import 'package:air/ds/material/tab_transition.dart';
@@ -22,14 +22,13 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const desktop = HomeScreenDesktopLayout(
-      chatList: ChatListContainer(isStandalone: false),
-      chat: ChatScreen(),
-    );
-    return const ResponsiveScreen(
-      mobile: _HomeScreenMobileLayout(),
-      tablet: desktop,
-      desktop: desktop,
+    return LayoutBuilder(
+      builder: (context, constraints) => constraints.breakpoint.isSmall
+          ? const _HomeScreenMobileLayout()
+          : const HomeScreenDesktopLayout(
+              chatList: ChatListContainer(isStandalone: false),
+              chat: ChatScreen(),
+            ),
     );
   }
 }

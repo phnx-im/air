@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:io';
+import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/material/theme_data.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -27,6 +28,15 @@ TargetPlatform desktopTargetPlatform() {
   if (Platform.isMacOS) return TargetPlatform.macOS;
   if (Platform.isWindows) return TargetPlatform.windows;
   return TargetPlatform.linux;
+}
+
+/// Pin [DeviceType] for the duration of one test, restoring the previous value
+/// afterwards. Widening the viewport alone leaves the device type on the phone
+/// default that `flutter_test_config.dart` sets globally.
+void useDeviceType(DeviceType deviceType) {
+  final previous = DeviceType.debugOverride;
+  DeviceType.debugOverride = deviceType;
+  addTearDown(() => DeviceType.debugOverride = previous);
 }
 
 extension IntTestExtension on int {

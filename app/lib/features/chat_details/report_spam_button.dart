@@ -4,8 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/components/responsive_screen/responsive_screen.dart'
-    show ResponsiveScreen;
+import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -25,7 +24,7 @@ class ReportSpamButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final isDesktop = ResponsiveScreen.isDesktop(context);
+    final isDesktop = DeviceType.isDesktop;
 
     return OutlinedButton(
       onPressed: () => _onPressed(context),

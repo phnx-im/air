@@ -16,7 +16,7 @@ import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/material/button_styles.dart';
+import 'package:air/ds/foundations/breakpoint.dart';
 import 'package:air/platform/notification_permissions.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_svg/svg.dart';
@@ -43,7 +43,7 @@ class IntroScreen extends HookWidget {
     final serverFieldVisible = useState(false);
 
     final textFormConstraints = BoxConstraints.tight(
-      isSmallScreen(context)
+      context.breakpoint.isSmall
           ? const Size(double.infinity, 120)
           : const Size(300, 120),
     );
@@ -92,9 +92,9 @@ class IntroScreen extends HookWidget {
               Align(
                 alignment: Alignment.bottomCenter,
                 child: ConstrainedWidth(
-                  width: isSmallScreen(context) ? double.infinity : 320,
+                  width: context.breakpoint.isSmall ? double.infinity : 320,
                   child: Padding(
-                    padding: isSmallScreen(context)
+                    padding: context.breakpoint.isSmall
                         ? const EdgeInsets.symmetric(horizontal: S.s16)
                         : EdgeInsets.zero,
                     child: Column(

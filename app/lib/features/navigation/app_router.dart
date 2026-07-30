@@ -21,7 +21,7 @@ import 'package:air/features/onboarding/invitation_code_screen.dart';
 import 'package:air/features/onboarding/sign_up_screen.dart';
 import 'package:air/features/onboarding/username_onboarding_screen.dart';
 import 'package:air/features/onboarding/multi_device_provision_screen.dart';
-import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
+import 'package:air/ds/foundations/breakpoint.dart';
 import 'package:air/features/you/you_screen.dart';
 import 'package:air/core/core.dart';
 
@@ -81,7 +81,7 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
     // hide material banners if any
     ScaffoldMessenger.of(context).hideCurrentMaterialBanner();
 
-    final screenType = context.responsiveScreenType;
+    final breakpoint = context.breakpoint;
 
     // routing
     final List<MaterialPage> pages = switch (navigationState) {
@@ -95,7 +95,7 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
         for (final screenType in screens)
           MaterialPage(key: screenType.key, child: screenType.screen),
       ],
-      NavigationState_Home(:final home) => home.pages(screenType),
+      NavigationState_Home(:final home) => home.pages(breakpoint),
     };
 
     _log.finer(
@@ -212,7 +212,7 @@ extension on IntroScreenType {
 extension on HomeNavigationState {
   ChatId? get openChatId => chatOpen ? chatId : null;
 
-  List<MaterialPage> pages(ResponsiveScreenType screenType) {
+  List<MaterialPage> pages(Breakpoint breakpoint) {
     const homeScreenPage = NoAnimationPage(
       key: ValueKey("home-screen"),
       canPop: false,
@@ -225,16 +225,15 @@ extension on HomeNavigationState {
           key: ValueKey("create-group-screen"),
           child: CreateGroupScreen(),
         ),
-      // On mobile the profile is rendered inline inside HomeScreen.
-      // Tablet/desktop still push it as a route until the desktop layout is
-      // reworked.
-      if (activeTab == HomeTab.profile &&
-          screenType != ResponsiveScreenType.mobile)
+      // At the small breakpoint the profile is rendered inline inside
+      // HomeScreen. Wider layouts still push it as a route until the desktop
+      // layout is reworked.
+      if (activeTab == HomeTab.profile && !breakpoint.isSmall)
         const MaterialPage(
           key: ValueKey("user-profile-screen"),
           child: YouScreen(),
         ),
-      if (openChatId != null && screenType == ResponsiveScreenType.mobile)
+      if (openChatId != null && breakpoint.isSmall)
         const MaterialPage(key: ValueKey("chat-screen"), child: ChatScreen()),
       if (openChatId != null && chatDetailsOpen)
         const MaterialPage(

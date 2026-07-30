@@ -15,8 +15,8 @@ import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/message_list/display_message_tile.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
-import 'package:air/ds/material/button_styles.dart';
+import 'package:air/ds/foundations/breakpoint.dart';
+import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/ds/foundations/type_scale.dart';
@@ -130,7 +130,7 @@ class _ChatSeparator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = isSmallScreen(context);
+    final isMobile = context.breakpoint.isSmall;
     // On desktop the separator above and below the active item is made
     // transparent so the selection background reads as a single rounded
     // surface while the row height stays constant.
@@ -200,7 +200,7 @@ class _ListTileState extends State<_ListTile> {
       (ChatDetailsCubit cubit) => cubit.state.chat?.isMuted ?? false,
     );
     final isSelected = currentChatId == widget.chatId;
-    final isDesktop = ResponsiveScreen.isDesktop(context);
+    final isDesktop = DeviceType.isDesktop;
 
     return ContextMenu(
       direction: ContextMenuDirection.right,

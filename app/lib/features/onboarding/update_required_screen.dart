@@ -7,7 +7,7 @@ import 'dart:io';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/material/button_styles.dart';
+import 'package:air/ds/foundations/breakpoint.dart';
 import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/components/constrained_width/constrained_width.dart';
 import 'package:air/ds/foundations/type_scale.dart';
@@ -111,7 +111,9 @@ class UpdateRequiredView extends StatelessWidget {
                     Center(
                       child: Container(
                         padding: const EdgeInsets.symmetric(horizontal: S.s24),
-                        width: isSmallScreen(context) ? double.infinity : null,
+                        width: context.breakpoint.isSmall
+                            ? double.infinity
+                            : null,
                         child: OutlinedButton(
                           onPressed: _handleUpdateNow,
                           style: OutlinedButtonTheme.of(context).style!

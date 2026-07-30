@@ -7,7 +7,7 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/material/button_styles.dart';
+import 'package:air/ds/foundations/breakpoint.dart';
 import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/components/constrained_width/constrained_width.dart';
 import 'package:air/ds/foundations/icons.dart';
@@ -75,7 +75,7 @@ class SignUpScreen extends HookWidget {
                 ),
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: S.s24),
-                  width: isSmallScreen(context) ? double.infinity : null,
+                  width: context.breakpoint.isSmall ? double.infinity : null,
                   child: _SignUpButton(
                     formKey: formKey,
                     showErrors: showErrors,
@@ -102,7 +102,7 @@ class _Form extends HookWidget {
     final loc = AppLocalizations.of(context);
 
     final textFormConstraints = BoxConstraints.tight(
-      isSmallScreen(context)
+      context.breakpoint.isSmall
           ? const Size(double.infinity, 120)
           : const Size(300, 120),
     );

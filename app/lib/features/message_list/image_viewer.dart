@@ -8,7 +8,7 @@ import 'dart:math' as math;
 import 'package:air/features/attachments/attachment_image_provider.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/semantic_colors.dart';
-import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
+import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/ds/components/button_icon/app_bar_x_button.dart';
 import 'package:flutter/material.dart';
@@ -59,7 +59,7 @@ class ImageViewer extends HookWidget {
       [],
     );
 
-    final isDesktop = ResponsiveScreen.isDesktop(context);
+    final isDesktop = DeviceType.isDesktop;
     final enableVerticalDrag = !isDesktop && isAtBaseScale.value;
     final backgroundOpacity = isDesktop
         ? 1.0

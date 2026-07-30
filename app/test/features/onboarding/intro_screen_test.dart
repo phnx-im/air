@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
+import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/features/onboarding/intro_screen.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
@@ -69,6 +70,7 @@ void main() {
       addTearDown(() {
         binding.platformDispatcher.views.first.resetPhysicalSize();
       });
+      useDeviceType(DeviceType.desktop);
 
       await tester.pumpWidget(buildSubject(desktop: true));
       await tester.pumpAndSettle();

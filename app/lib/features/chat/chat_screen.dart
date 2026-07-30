@@ -11,8 +11,7 @@ import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/message_list/message_cubit.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
-import 'package:air/ds/material/button_styles.dart';
+import 'package:air/ds/foundations/breakpoint.dart';
 import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
@@ -255,9 +254,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
       scrolledUnderElevation: 0,
       elevation: 0,
       clipBehavior: Clip.none,
-      leading: context.responsiveScreenType == ResponsiveScreenType.mobile
-          ? const AppBarBackButton()
-          : null,
+      leading: context.breakpoint.isSmall ? const AppBarBackButton() : null,
       centerTitle: true,
       title: MouseRegion(
         cursor: hasDetails ? SystemMouseCursors.click : .defer,
@@ -327,7 +324,7 @@ class _BlockedChatFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final buttonWidth = isSmallScreen(context) ? double.infinity : null;
+    final buttonWidth = context.breakpoint.isSmall ? double.infinity : null;
     return Container(
       padding: const EdgeInsets.all(S.s16),
       child: Column(
