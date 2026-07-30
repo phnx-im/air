@@ -55,7 +55,7 @@ ThemeData themeData(Brightness brightness) {
           : SystemUiOverlayStyle.light,
       titleTextStyle: (mergedAppBarTitleStyle ?? const TextStyle()).copyWith(
         color: colorScheme.text.primary,
-        fontSize: LabelFontSize.base.size,
+        fontSize: typeScale.body.regular.fontSize,
       ),
     ),
     scaffoldBackgroundColor: colorScheme.backgroundBase.primary,
@@ -93,10 +93,7 @@ ThemeData themeData(Brightness brightness) {
     ),
     inputDecorationTheme: InputDecorationTheme(
       border: InputBorder.none,
-      hintStyle: TextStyle(
-        color: colorScheme.text.quaternary,
-        fontSize: LabelFontSize.small1.size,
-      ),
+      hintStyle: typeScale.body.s.style(color: colorScheme.text.quaternary),
       focusedBorder: _textInputBorder,
       enabledBorder: _textInputBorder,
       errorBorder: _textInputBorder,
