@@ -30,46 +30,6 @@ service QueueService {
   //
   // The operation is idempotent when the batch is exactly the same as the
   // staged batch (the order of key packages *matters*).
-  //
-  // ## Full Protocol
-  //
-  // ```
-  //  Emulator A           QS                DS              Emulator B
-  //     │                 │                 │                 │
-  //     │ Stage(          │                 │                 │
-  //     │ client_id,      │                 │                 │
-  //     │ epoch_id,       │                 │                 │
-  //     │ leaf_index,     │                 │                 │
-  //     │ generation, KPs)│                 │                 │
-  //     │ ───────────────►│ store staging   │                 │
-  //     │                 │ row             │                 │
-  //     │ GroupOperation  │                 │                 │
-  //     │ (commit with    │                 │                 │
-  //     │ KeyPackageUpload│                 │                 │
-  //     │ in SafeAAD)     │                 │                 │
-  //     │ ─────────────────────────────────►│ validate,       │
-  //     │                 │                 │ totally-order,  │
-  //     │                 │                 │ extract SafeAAD │
-  //     │                 │ DsFanOutMsg     │ fan out to      │
-  //     │                 │ with            │ emulation-      │
-  //     │                 │ QsVirtualClient │ group members   │
-  //     │                 │ Hint            │                 │
-  //     │                 │◄────────────────│                 │
-  //     │                 │ promote         │                 │
-  //     │                 │ staging:        │                 │
-  //     │                 │ live KPs ←      │                 │
-  //     │                 │ staged KPs      │                 │
-  //     │                 │ delete row      │                 │
-  //     │                 │ enqueue commit  │                 │
-  //     │                 │ ─────────────────────────────────►│ decrypt
-  //     │                 │                 │                 │ commit;
-  //     │                 │                 │                 │ derive KPs
-  //     │                 │                 │                 │ from
-  //     │                 │                 │                 │ (epoch_id,
-  //     │                 │                 │                 │ leaf_index,
-  //     │                 │                 │                 │ generation);
-  //     │                 │                 │                 │ verify QS
-  // ```
   rpc StageKeyPackages(StageKeyPackagesRequest) returns (StageKeyPackagesResponse);
 
   rpc KeyPackage(KeyPackageRequest) returns (KeyPackageResponse);

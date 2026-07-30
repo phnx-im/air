@@ -37,6 +37,9 @@ use crate::{
     util::{find_cause, select_until_first_ends},
 };
 
+/// Maximum number of key packages per batch to upload in one request.
+const MAX_KEY_PACKAGES_PER_BATCH: usize = 512;
+
 use super::Qs;
 
 pub struct GrpcQs {
@@ -415,6 +418,10 @@ impl QueueService for GrpcQs {
             key_packages,
             apq_key_packages,
         } = self.verify_client_auth(request).await?;
+
+        if key_packages.len() + apq_key_packages.len() > MAX_KEY_PACKAGES_PER_BATCH {
+            return Err(Status::invalid_argument("Too many key packages"));
+        }
 
         let client_id = client_id.ok_or_missing_field("client_id")?.try_into()?;
         self.qs

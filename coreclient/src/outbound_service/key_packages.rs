@@ -46,7 +46,7 @@ impl OutboundServiceContext {
 
         let api_client = self.api_clients.default_client()?;
 
-        let key_package_refs = batch.references();
+        let key_package_refs = batch.references()?;
 
         // Publish plain key packages
         if let Err(error) = api_client
@@ -65,7 +65,7 @@ impl OutboundServiceContext {
         }
         self.db
             .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                mark_key_packages_as_live(txn, key_package_refs.plain.iter(), false).await?;
+                mark_key_packages_as_live(txn, key_package_refs.plain.as_slice(), false).await?;
                 Ok(())
             })
             .await?;
@@ -87,7 +87,7 @@ impl OutboundServiceContext {
         }
         self.db
             .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                mark_key_packages_as_live(txn, key_package_refs.apq.iter(), true).await?;
+                mark_key_packages_as_live(txn, key_package_refs.apq.as_slice(), true).await?;
                 delete_orphaned_key_packages(txn).await?;
                 Ok(())
             })
@@ -163,7 +163,7 @@ impl OutboundServiceContext {
             plain: key_packages,
             apq: apq_key_packages,
         };
-        let key_package_refs = batch.references();
+        let key_package_refs = batch.references()?;
 
         info!(
             plain = batch.plain.len(),
@@ -283,31 +283,18 @@ struct KeyPackageRefsBatch {
 
 impl KeyPackageBatch {
     /// Collect all key package references.
-    fn references(&self) -> KeyPackageRefsBatch {
+    fn references(&self) -> anyhow::Result<KeyPackageRefsBatch> {
         let crypto_provider = OpenMlsRustCrypto::default();
-        let plain = self
-            .plain
-            .iter()
-            .filter_map(|kp| kp.hash_ref(crypto_provider.crypto()).ok())
-            .collect();
-        let apq = self
-            .apq
-            .iter()
-            .flat_map(|apq_kp| {
-                [
-                    apq_kp
-                        .t_key_package()
-                        .hash_ref(crypto_provider.crypto())
-                        .ok(),
-                    apq_kp
-                        .pq_key_package()
-                        .hash_ref(crypto_provider.crypto())
-                        .ok(),
-                ]
-            })
-            .flatten()
-            .collect();
-        KeyPackageRefsBatch { plain, apq }
+        let mut plain = Vec::with_capacity(self.plain.len());
+        for kp in &self.plain {
+            plain.push(kp.hash_ref(crypto_provider.crypto())?);
+        }
+        let mut apq = Vec::with_capacity(2 * self.apq.len());
+        for apq_kp in &self.apq {
+            apq.push(apq_kp.t_key_package().hash_ref(crypto_provider.crypto())?);
+            apq.push(apq_kp.pq_key_package().hash_ref(crypto_provider.crypto())?);
+        }
+        Ok(KeyPackageRefsBatch { plain, apq })
     }
 }
 

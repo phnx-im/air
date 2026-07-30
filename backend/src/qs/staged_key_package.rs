@@ -86,7 +86,7 @@ impl StagedKeyPackages {
             }
         } else {
             let epoch_id = self.batch_id.epoch_id.as_bytes();
-            let local_batch_id = query_scalar!(
+            let Some(local_batch_id) = query_scalar!(
                 "SELECT id FROM qs_staged_key_package_batch
                 WHERE user_id = $1 AND epoch_id = $2 AND leaf_index = $3 AND generation = $4",
                 self.user_id as _,
@@ -94,8 +94,12 @@ impl StagedKeyPackages {
                 self.batch_id.leaf_index.u32() as i64,
                 self.batch_id.generation as i64,
             )
-            .fetch_one(txn.as_mut())
-            .await?;
+            .fetch_optional(txn.as_mut())
+            .await?
+            else {
+                // Batch already consumed
+                return Ok(());
+            };
 
             // Existing batch => check that the key packages are the same => idempotency
             struct Row {

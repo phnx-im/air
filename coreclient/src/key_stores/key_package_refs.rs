@@ -12,7 +12,7 @@ use crate::{
 
 pub(crate) async fn mark_key_packages_as_live(
     txn: &mut WriteDbTransaction<'_>,
-    key_package_refs: impl IntoIterator<Item = &KeyPackageRef>,
+    key_package_refs: &[KeyPackageRef],
     is_apq: bool,
 ) -> anyhow::Result<()> {
     let refs_table = if is_apq {
@@ -26,7 +26,7 @@ pub(crate) async fn mark_key_packages_as_live(
 async fn mark_key_packages_as_live_impl(
     txn: &mut WriteDbTransaction<'_>,
     refs_table: &'static str,
-    key_package_refs: impl IntoIterator<Item = &KeyPackageRef>,
+    key_package_refs: &[KeyPackageRef],
 ) -> anyhow::Result<()> {
     // Delete all key packages that are not marked as live
     sqlx::query(AssertSqlSafe(format!(
@@ -48,6 +48,10 @@ async fn mark_key_packages_as_live_impl(
     )))
     .execute(txn.as_mut())
     .await?;
+
+    if key_package_refs.is_empty() {
+        return Ok(());
+    }
 
     // Add the newly uploaded ones as 'live'.
     let mut qb = QueryBuilder::new(format!(
@@ -153,7 +157,7 @@ mod test {
 
         pool.with_write_transaction(async |txn| {
             let is_apq = false;
-            mark_key_packages_as_live(txn, [&new_key_package_ref], is_apq).await
+            mark_key_packages_as_live(txn, &[new_key_package_ref], is_apq).await
         })
         .await?;
 
