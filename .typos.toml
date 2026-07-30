@@ -27,7 +27,7 @@ extend-exclude = [
     "app/ios/Runner/Base.lproj/Main.storyboard",
 
     # Exclude generated emoji list
-    "app/lib/emojis/generated.dart",
+    "app/lib/features/emoji/emoji_data.dart",
 
     # Exclude license files
     "LICENSES/",

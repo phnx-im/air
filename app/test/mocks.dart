@@ -3,16 +3,19 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
-
-import 'package:air/chat/chat_details.dart';
-import 'package:air/chat_list/chat_list_cubit.dart';
+import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/features/chat_details/member_details_cubit.dart';
+import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
-import 'package:air/message_list/message_cubit.dart';
-import 'package:air/message_list/message_list_cubit.dart';
-import 'package:air/navigation/navigation.dart';
-import 'package:air/registration/registration.dart';
-import 'package:air/user/user.dart';
-import 'package:air/widgets/anchored_list/data.dart';
+import 'package:air/features/message_list/message_cubit.dart';
+import 'package:air/features/message_list/message_list_cubit.dart';
+import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/features/onboarding/registration_cubit.dart';
+import 'package:air/features/user/loadable_user_cubit.dart';
+import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
+import 'package:air/features/user/users_cubit.dart';
+import 'package:air/util/anchored_list/data.dart';
 import 'package:bloc_test/bloc_test.dart';
 import 'package:mocktail/mocktail.dart';
 

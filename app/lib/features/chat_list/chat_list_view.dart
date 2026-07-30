@@ -1,0 +1,135 @@
+// SPDX-FileCopyrightText: 2024 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/ds/foundations/spacing.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/features/user/user_cubit.dart';
+import 'package:air/ds/components/scroll/faded_scroll_frame.dart';
+
+import 'package:air/features/chat_list/chat_list_content.dart';
+import 'package:air/features/chat_list/chat_list_cubit.dart';
+import 'package:air/features/chat_list/chat_list_header.dart';
+
+class ChatListContainer extends StatelessWidget {
+  const ChatListContainer({required this.isStandalone, super.key});
+
+  final bool isStandalone;
+
+  static Color backgroundColor(BuildContext context) {
+    return CustomColorScheme.of(context).backgroundBase.secondary;
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final userId = context.select((UserCubit cubit) => cubit.state.userId);
+    return BlocProvider(
+      // Rebuild the cubit when user changes
+      key: ValueKey(userId),
+      create: (context) => ChatListCubit(userCubit: context.read<UserCubit>()),
+      child: ChatListView(scaffold: isStandalone),
+    );
+  }
+}
+
+class ChatListView extends StatefulWidget {
+  const ChatListView({
+    super.key,
+    this.scaffold = false,
+    this.createChatDetailsCubit = ChatDetailsCubit.new,
+  });
+
+  final bool scaffold;
+  final ChatDetailsCubitCreate createChatDetailsCubit;
+
+  @override
+  State<ChatListView> createState() => _ChatListViewState();
+}
+
+class _ChatListViewState extends State<ChatListView> {
+  final _scrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _scrollController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final bgColor = ChatListContainer.backgroundColor(context);
+    const fadeBleeding = Spacing.px12;
+    // Content top/bottom padding includes a small bleed below the header so
+    // chat rows don't snap right against it.
+    const contentInset = kToolbarHeight + fadeBleeding;
+    // Mobile uses taller fade gradients on both edges; desktop keeps the
+    // toolbar-height fade.
+    final topFadeHeight = widget.scaffold ? 96.0 : contentInset;
+    final bottomFadeHeight = widget.scaffold ? 120.0 : contentInset;
+    // Inset the Scrollbar's track so it aligns with the list's content padding
+    // and doesn't overlap the header or the fade regions.
+    final scrollbarPadding = MediaQuery.paddingOf(
+      context,
+    ).copyWith(top: contentInset, bottom: contentInset);
+    final container = MediaQuery(
+      data: MediaQuery.of(context).copyWith(padding: scrollbarPadding),
+      child: Scrollbar(
+        controller: _scrollController,
+        child: FadedScrollFrame(
+          backgroundColor: bgColor,
+          header: const ChatListHeader(),
+          topFadeHeight: topFadeHeight,
+          bottomFadeHeight: bottomFadeHeight,
+          contentTopPadding: contentInset,
+          // Desktop: no tab bar, pin the bottom inset to the fade height.
+          bottomInset: widget.scaffold ? null : bottomFadeHeight,
+          builder: (topPadding, bottomPadding) => ScrollConfiguration(
+            behavior: ScrollConfiguration.of(
+              context,
+            ).copyWith(scrollbars: false),
+            child: ChatListContent(
+              createChatDetailsCubit: widget.createChatDetailsCubit,
+              topPadding: topPadding,
+              bottomPadding: bottomPadding,
+              scrollController: _scrollController,
+            ),
+          ),
+        ),
+      ),
+    );
+    return widget.scaffold
+        ? Scaffold(
+            backgroundColor: bgColor,
+            body: Stack(
+              children: [
+                SafeArea(bottom: false, child: container),
+                const Positioned(
+                  bottom: 0,
+                  left: 0,
+                  right: 0,
+                  child: _ScrollGestureFix(),
+                ),
+              ],
+            ),
+          )
+        : container;
+  }
+}
+
+/// This widget fixes the issue on Android, where the swipe from the bottom
+/// of the screen opens the OS app switcher and the same time scrolls the chat list
+/// view.
+class _ScrollGestureFix extends StatelessWidget {
+  const _ScrollGestureFix();
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      height: MediaQuery.paddingOf(context).bottom,
+      // Note: Color is required otherwise the scroll gesture is still handled by the widget below.
+      color: Colors.transparent,
+    );
+  }
+}

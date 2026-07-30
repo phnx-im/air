@@ -5,24 +5,29 @@
 import 'dart:async';
 import 'dart:io';
 
-import 'package:air/background_service.dart';
+import 'package:air/platform/background_service.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/l10n/supported_locales.dart';
-import 'package:air/navigation/navigation.dart';
-import 'package:air/registration/registration.dart';
-import 'package:air/ds/theme/theme.dart';
-import 'package:air/user/user.dart';
+import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/features/navigation/app_router.dart';
+import 'package:air/features/onboarding/registration_cubit.dart';
+import 'package:air/ds/foundations/device_type.dart';
+import 'package:air/ds/material/theme_data.dart';
+import 'package:air/features/user/loadable_user_cubit.dart';
+import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
+import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/interface_scale.dart';
-import 'package:air/ds/components/context_menu/context_menu.dart';
-import 'package:air/util/notifications.dart';
-import 'package:air/util/platform.dart';
+import 'package:air/ds/patterns/context_menu/context_menu.dart';
+import 'package:air/platform/notifications.dart';
+import 'package:air/platform/method_channel.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:system_date_time_format/system_date_time_format.dart';
-import 'user/update_required_screen.dart';
+import 'package:air/features/onboarding/update_required_screen.dart';
 
 final _appRouter = AppRouter();
 

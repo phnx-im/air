@@ -1,0 +1,54 @@
+// SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/icons.dart';
+import 'package:flutter/material.dart';
+
+class MemberSearchField extends StatelessWidget {
+  const MemberSearchField({
+    super.key,
+    required this.controller,
+    required this.hintText,
+    required this.onChanged,
+  });
+
+  final TextEditingController controller;
+  final String hintText;
+  final ValueChanged<String> onChanged;
+
+  @override
+  Widget build(BuildContext context) {
+    final customColorScheme = CustomColorScheme.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(
+        left: Spacing.px16,
+        right: Spacing.px16,
+        top: Spacing.px24,
+        bottom: Spacing.px8,
+      ),
+      child: TextField(
+        controller: controller,
+        onChanged: onChanged,
+        decoration: InputDecoration(
+          isDense: true,
+          visualDensity: VisualDensity.compact,
+          prefixIcon: const Padding(
+            padding: EdgeInsets.all(8.0),
+            child: AppIcon.search(size: 16),
+          ),
+          prefixIconConstraints: const BoxConstraints(
+            minWidth: 28,
+            minHeight: 28,
+          ),
+          hintText: hintText,
+          hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
+            color: customColorScheme.text.quaternary,
+          ),
+          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
+        ),
+      ),
+    );
+  }
+}

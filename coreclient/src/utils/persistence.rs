@@ -22,7 +22,7 @@ use sqlx::{
 use tracing::{error, info};
 
 use crate::{
-    clients::store::ClientRecord,
+    clients::{own_client_info::OwnClientInfo, store::ClientRecord},
     db::{access::DbAccess, notification::DbNotificationsSender},
     utils::global_lock::GlobalLock,
 };
@@ -198,11 +198,13 @@ pub async fn open_client_db(user_id: &UserId, client_db_path: &str) -> sqlx::Res
     migrate!().run(&write_pool).await?;
     let read_pool = read_pool(opts).await?;
 
-    Ok(DbAccess::with_split_pools(
-        write_pool,
-        read_pool,
-        DbNotificationsSender::new(),
-    ))
+    let db = DbAccess::with_split_pools(write_pool, read_pool, DbNotificationsSender::new());
+
+    // The client-id migration defaults the column to the nil UUID for clients that existed
+    // before it.
+    OwnClientInfo::backfill_client_id(db.write().await?).await?;
+
+    Ok(db)
 }
 
 pub(crate) fn open_lock_file(db_path: &str) -> std::io::Result<GlobalLock> {
