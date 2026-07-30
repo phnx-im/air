@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use aircommon::identifiers::UserId;
 use aircoreclient::{
     ChatId, Message,
     clients::{
@@ -75,13 +76,17 @@ async fn recv_session_id(
     }
 }
 
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test multi-device linking session", skip_all)]
-async fn multi_device_linking_session() {
-    let mut setup = TestBackend::single().await;
+/// Runs a full linking session: provisions a fresh device and links it to
+/// `user_id` from that user's existing device.
+///
+/// Returns the new device together with the [`TempDir`] holding its database,
+/// which must stay alive for as long as the device is used.
+pub(crate) async fn link_new_device(
+    setup: &TestBackend,
+    user_id: &UserId,
+) -> (CoreUser, TempDir) {
     let domain = setup.domain().clone();
     let server_url = setup.server_url();
-    let alice = setup.add_user().await;
 
     let (session_tx, mut session_rx) = tokio::sync::mpsc::channel(1);
 
@@ -101,14 +106,23 @@ async fn multi_device_linking_session() {
 
     // The old device scans/types the session ID and drives linking.
     setup
-        .get_user(&alice)
+        .get_user(user_id)
         .user()
         .multi_device_link_client(session_id, ignore_connected(), auto_confirm())
         .await
         .unwrap()
         .unwrap();
 
-    let (new_device, _tmp) = new_device_task.await.unwrap();
+    new_device_task.await.unwrap()
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test multi-device linking session", skip_all)]
+async fn multi_device_linking_session() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
 
     // The new device is bootstrapped as a second emulator of the same virtual
     // client: it shares the QsUserId and self-group, but has its own queue.

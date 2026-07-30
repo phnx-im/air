@@ -40,6 +40,15 @@ async fn mark_key_packages_as_live_impl(
     .execute(txn.as_mut())
     .await?;
 
+    // Their refs are dead weight now. This used to happen through the
+    // key_package_refs foreign key, which is gone because a sibling's batch has
+    // no local bundles to reference.
+    sqlx::query(AssertSqlSafe(format!(
+        "DELETE FROM {refs_table} WHERE is_live = 0"
+    )))
+    .execute(txn.as_mut())
+    .await?;
+
     // Mark all key packages as stale
     sqlx::query(AssertSqlSafe(format!(
         "UPDATE {refs_table}
@@ -157,7 +166,7 @@ mod test {
 
         pool.with_write_transaction(async |txn| {
             let is_apq = false;
-            mark_key_packages_as_live(txn, &[new_key_package_ref], is_apq).await
+            mark_key_packages_as_live(txn, &[new_key_package_ref.clone()], is_apq).await
         })
         .await?;
 

@@ -2,8 +2,26 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use aircoreclient::clients::{CoreUser, process::process_qs::ProcessedQsMessages};
 use airserver_test_harness::utils::setup::TestBackend;
 use chrono::Utc;
+
+use super::multi_device::link_new_device;
+
+/// Fetches and processes a device's queue, asserting that every message was
+/// processed without error.
+async fn drain_queue(device: &CoreUser) -> anyhow::Result<ProcessedQsMessages> {
+    let messages = device.qs_fetch_messages().await?;
+    let expected = messages.len();
+    let processed = device.fully_process_qs_messages(messages).await;
+    assert!(
+        processed.errors.is_empty(),
+        "queue processing failed: {:?}",
+        processed.errors
+    );
+    assert_eq!(processed.processed, expected, "not all messages processed");
+    Ok(processed)
+}
 
 #[tokio::test(flavor = "multi_thread")]
 async fn ensure_self_group_creates_apq_group() -> anyhow::Result<()> {
@@ -104,10 +122,6 @@ async fn key_package_upload_via_self_group_waits_for_commit_response() -> anyhow
     Ok(())
 }
 
-/// The key packages promoted after a self-group upload are actually served by the QS and usable:
-/// the QS promote replaces *all* previously published key packages, so any invite after the cycle
-/// necessarily consumes a key package from the self-group batch. The invitee must be able to join
-/// and exchange messages.
 #[tokio::test(flavor = "multi_thread")]
 async fn key_packages_from_self_group_upload_are_served_and_usable() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;
@@ -299,6 +313,108 @@ async fn mismatched_upload_commit_abandons_job() -> anyhow::Result<()> {
         user.live_key_package_refs().await?,
         live_before,
         "an abandoned upload must not change the live set"
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn sibling_derives_key_packages_from_upload_commit() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (device_b, _tmp) = link_new_device(&setup, &alice).await;
+
+    // Both devices start from the merged linking commit.
+    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+    drain_queue(&device_b).await?;
+
+    let live_before = device_b.live_key_package_refs().await?;
+    assert_eq!(
+        live_before,
+        (vec![], vec![]),
+        "a freshly linked device has no key packages of its own"
+    );
+
+    // Device A runs a full upload cycle, including the echo that marks the batch live.
+    {
+        let test_user = setup.get_user(&alice);
+        let user = &test_user.user;
+        user.outbound_service()
+            .schedule_key_package_upload(Utc::now())
+            .await?;
+        user.outbound_service().run_once().await;
+        test_user.fetch_and_process_qs_messages().await;
+        assert!(
+            user.self_group_pending_operation_info().await?.is_none(),
+            "upload cycle should have completed"
+        );
+    }
+    let live_a = setup.get_user(&alice).user.live_key_package_refs().await?;
+    assert!(
+        !live_a.0.is_empty() && !live_a.1.is_empty(),
+        "the uploader should have live plain and APQ key packages"
+    );
+
+    // Processing A's self-group commit makes A's batch B's live set too.
+    drain_queue(&device_b).await?;
+    assert_eq!(
+        device_b.live_key_package_refs().await?,
+        live_a,
+        "the sibling must derive exactly the batch the uploader published"
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread")]
+async fn key_packages_from_sibling_upload_are_usable_by_the_sibling() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+
+    let (device_b, _tmp) = link_new_device(&setup, &alice).await;
+    setup.get_user(&alice).fetch_and_process_qs_messages().await;
+    drain_queue(&device_b).await?;
+
+    // Device A publishes a fresh batch via the self-group.
+    {
+        let test_user = setup.get_user(&alice);
+        let user = &test_user.user;
+        user.outbound_service()
+            .schedule_key_package_upload(Utc::now())
+            .await?;
+        user.outbound_service().run_once().await;
+        test_user.fetch_and_process_qs_messages().await;
+        assert!(
+            user.self_group_pending_operation_info().await?.is_none(),
+            "upload cycle should have completed"
+        );
+    }
+
+    // Device B derives the batch from A's commit.
+    drain_queue(&device_b).await?;
+
+    // Bob invites Alice, consuming a key package from the batch.
+    let chat_id = setup.create_group(&bob).await;
+    setup.invite_to_group(chat_id, &bob, vec![&alice]).await;
+
+    // Device B joins from the same welcome, using key material it derived rather than generated.
+    let processed = drain_queue(&device_b).await?;
+    assert!(
+        processed.new_chats.contains(&chat_id),
+        "the sibling should have joined the group from the welcome"
+    );
+
+    // And it stays a working member of the group.
+    setup.send_message(chat_id, &bob, vec![&alice], None).await;
+    let processed = drain_queue(&device_b).await?;
+    assert!(
+        processed
+            .new_messages
+            .iter()
+            .any(|message| message.chat_id() == chat_id),
+        "the sibling should receive messages sent into the group"
     );
 
     Ok(())
