@@ -1,0 +1,12 @@
+{
+  "db_name": "SQLite",
+  "query": "INSERT INTO self_group_message_key (group_id, epoch, key)\n            VALUES (?, ?, ?)\n            ON CONFLICT (group_id) DO UPDATE SET\n                epoch = excluded.epoch,\n                key = excluded.key",
+  "describe": {
+    "columns": [],
+    "parameters": {
+      "Right": 3
+    },
+    "nullable": []
+  },
+  "hash": "49d8c9d17d2bceccc6e75532db8b295e91bfaf8df7a637986959be403c261c34"
+}

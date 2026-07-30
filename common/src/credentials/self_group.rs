@@ -23,7 +23,14 @@ pub const SELF_GROUP_CREDENTIAL_TYPE: u16 = 0xff02;
 /// key, and the creation of a self-group is authenticated by a [`UserCredential`] sent alongside
 /// the request.
 ///
-/// Serialized as a tagged CBOR map so fields can be added without breaking older clients.
+/// Serialized as a tagged CBOR map so fields can be added without breaking older clients,
+/// preceded by a persistence-codec version byte:
+///
+/// ```cddl
+/// SelfGroupCredential = {
+///   1: bstr .size 16, ; client_id
+/// }
+/// ```
 #[derive(Debug, Clone, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
 pub struct SelfGroupCredential {
     /// Identifies the client (device) that owns the leaf. Generated at client creation and unique
@@ -52,7 +59,12 @@ impl SelfGroupCredential {
         let CredentialType::Other(SELF_GROUP_CREDENTIAL_TYPE) = credential.credential_type() else {
             return Err(SelfGroupCredentialError::WrongCredentialType);
         };
-        let credential = PersistenceCodec::from_slice(credential.serialized_content())?;
+        let credential: Self = PersistenceCodec::from_slice(credential.serialized_content())?;
+        // The tagged-map codec defaults absent fields, so a credential without a client id
+        // decodes as the nil UUID. Reject it to uphold the unique-per-client invariant.
+        if credential.client_id.is_nil() {
+            return Err(SelfGroupCredentialError::NilClientId);
+        }
         Ok(credential)
     }
 }
@@ -61,6 +73,8 @@ impl SelfGroupCredential {
 pub enum SelfGroupCredentialError {
     #[error("wrong credential type")]
     WrongCredentialType,
+    #[error("nil client id")]
+    NilClientId,
     #[error(transparent)]
     Codec(#[from] codec::Error),
 }
@@ -98,6 +112,28 @@ mod test {
             error,
             SelfGroupCredentialError::WrongCredentialType
         ));
+    }
+
+    /// The tagged-map codec defaults absent fields, so an empty map would otherwise decode as
+    /// the nil UUID.
+    #[test]
+    fn credential_without_client_id_is_rejected() {
+        // 0x01 is the persistence codec version, 0xa0 is an empty CBOR map.
+        let credential = Credential::new(
+            CredentialType::Other(SELF_GROUP_CREDENTIAL_TYPE),
+            vec![0x01, 0xa0],
+        );
+        let error = SelfGroupCredential::from_credential(&credential).unwrap_err();
+        assert!(matches!(error, SelfGroupCredentialError::NilClientId));
+    }
+
+    #[test]
+    fn nil_client_id_is_rejected() {
+        let mls_credential = SelfGroupCredential::new(Uuid::nil())
+            .to_credential()
+            .unwrap();
+        let error = SelfGroupCredential::from_credential(&mls_credential).unwrap_err();
+        assert!(matches!(error, SelfGroupCredentialError::NilClientId));
     }
 
     /// The serialized form is a wire format and must stay stable.

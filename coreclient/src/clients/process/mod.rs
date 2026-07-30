@@ -6,3 +6,4 @@ use super::{AsCredentials, Chat, ChatId, CoreUser, FriendshipPackage, Timestampe
 
 pub mod process_as;
 pub mod process_qs;
+pub mod qs_stream;

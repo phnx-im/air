@@ -1,0 +1,203 @@
+// SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import 'package:air/core/core.dart';
+import 'package:air/l10n/l10n.dart';
+import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/patterns/dialog/app_dialog.dart';
+import 'package:air/ds/foundations/type_scale.dart';
+import 'package:air/util/username_input_formatter.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:provider/provider.dart';
+
+import 'package:air/features/user/user_cubit.dart';
+
+class AddUsernameDialog extends HookWidget {
+  const AddUsernameDialog({super.key, this.inProgress});
+
+  final bool? inProgress;
+
+  @override
+  Widget build(BuildContext context) {
+    final formKey = useMemoized(() => GlobalKey<FormState>());
+
+    final usernameExists = useState(false);
+    final isSubmitting = useState(false);
+
+    final controller = useTextEditingController();
+    final focusNode = useFocusNode();
+
+    final colors = CustomColorScheme.of(context);
+    final loc = AppLocalizations.of(context);
+
+    return AppDialog(
+      child: Form(
+        key: formKey,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Center(
+              child: Text(
+                loc.usernameScreen_title,
+                style: TextStyle(
+                  fontSize: HeaderFontSize.h4.size,
+                  fontWeight: FontWeight.bold,
+                ),
+              ),
+            ),
+            const SizedBox(height: Spacing.px24),
+
+            TextFormField(
+              autocorrect: false,
+              autofocus: true,
+              controller: controller,
+              focusNode: focusNode,
+              inputFormatters: const [UsernameInputFormatter()],
+              validator: (value) => _validate(loc, usernameExists, value),
+              onChanged: (_) {
+                if (usernameExists.value) {
+                  usernameExists.value = false;
+                  formKey.currentState!.validate();
+                }
+              },
+              decoration: appDialogInputDecoration.copyWith(
+                hintText: loc.usernameScreen_inputHint,
+                filled: true,
+                fillColor: colors.backgroundBase.secondary,
+              ),
+              onFieldSubmitted: (_) {
+                focusNode.requestFocus();
+                _submit(
+                  context,
+                  formKey,
+                  controller,
+                  usernameExists,
+                  isSubmitting,
+                );
+              },
+            ),
+
+            const SizedBox(height: Spacing.px12),
+
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+              child: Text(
+                loc.usernameScreen_description,
+                style: TextStyle(
+                  color: colors.text.tertiary,
+                  fontSize: BodyFontSize.small2.size,
+                ),
+              ),
+            ),
+
+            const SizedBox(height: Spacing.px24),
+
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.of(context).pop(false);
+                    },
+                    child: Text(loc.usernameScreen_cancel),
+                  ),
+                ),
+                const SizedBox(width: Spacing.px12),
+                Expanded(
+                  child: AppDialogProgressButton(
+                    onPressed: (isSubmitting) => _submit(
+                      context,
+                      formKey,
+                      controller,
+                      usernameExists,
+                      isSubmitting,
+                    ),
+                    style: ButtonStyle(
+                      backgroundColor: WidgetStatePropertyAll(
+                        colors.accent.primary,
+                      ),
+                      overlayColor: WidgetStatePropertyAll(
+                        colors.accent.primary,
+                      ),
+                      foregroundColor: WidgetStatePropertyAll(
+                        colors.function.toggleWhite,
+                      ),
+                    ),
+                    progressColor: colors.function.toggleWhite,
+                    inProgress: inProgress,
+                    child: Text(loc.usernameScreen_confirm),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+
+  void _submit(
+    BuildContext context,
+    GlobalKey<FormState> formKey,
+    TextEditingController controller,
+    ValueNotifier<bool> alreadyExists,
+    ValueNotifier<bool> isSubmitting,
+  ) async {
+    if (!formKey.currentState!.validate()) {
+      return;
+    }
+    final normalized = UsernameInputFormatter.normalize(controller.text);
+    final username = UiUsername(plaintext: normalized);
+    final userCubit = context.read<UserCubit>();
+
+    // Clear already exists if any
+    if (alreadyExists.value) {
+      alreadyExists.value = false;
+      formKey.currentState!.validate();
+    }
+
+    isSubmitting.value = true;
+    if (!await userCubit.addUsername(username)) {
+      alreadyExists.value = true;
+      isSubmitting.value = false;
+      formKey.currentState!.validate();
+      return;
+    }
+    if (!context.mounted) return;
+    Navigator.of(context).pop();
+  }
+
+  String? _validate(
+    AppLocalizations loc,
+    ValueNotifier<bool> usernameExists,
+    String? value,
+  ) {
+    if (usernameExists.value) {
+      return loc.usernameScreen_error_alreadyExists;
+    }
+    if (value == null || value.trim().isEmpty) {
+      return loc.usernameScreen_error_emptyUsername;
+    }
+    final safeValue = value;
+    final normalized = UsernameInputFormatter.normalize(safeValue);
+    if (normalized.isEmpty) {
+      return loc.usernameScreen_error_emptyUsername;
+    }
+    final username = UiUsername(plaintext: normalized);
+    return switch (username.validationError()) {
+      UsernameValidationError.tooShort => loc.usernameScreen_error_tooShort,
+      UsernameValidationError.tooLong => loc.usernameScreen_error_tooLong,
+      UsernameValidationError.invalidCharacter =>
+        loc.usernameScreen_error_invalidCharacter,
+      UsernameValidationError.consecutiveDashes =>
+        loc.usernameScreen_error_consecutiveDashes,
+      UsernameValidationError.leadingDigit =>
+        loc.usernameScreen_error_leadingDigit,
+      null => null,
+    };
+  }
+}

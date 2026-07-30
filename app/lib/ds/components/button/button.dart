@@ -1,10 +1,9 @@
 // SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
-
-import 'package:air/ds/theme/theme.dart';
-import 'package:air/ds/foundations/themes.dart';
-import 'package:air/ds/foundations/font_size.dart';
+import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/type_scale.dart';
 import 'package:flutter/material.dart';
 
 enum AppButtonSize { small, large }

@@ -665,12 +665,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UserCubitBase
-  dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    dynamic raw,
-  );
-
-  @protected
   UsernameHash
   dco_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     dynamic raw,
@@ -703,6 +697,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ChatId dco_decode_box_autoadd_chat_id(dynamic raw);
+
+  @protected
+  ConversationNotification dco_decode_box_autoadd_conversation_notification(
+    dynamic raw,
+  );
 
   @protected
   DeveloperSettingsScreenType
@@ -825,6 +824,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  UserSettings dco_decode_box_autoadd_user_settings(dynamic raw);
+
+  @protected
   UsernameValidationError dco_decode_box_autoadd_username_validation_error(
     dynamic raw,
   );
@@ -840,6 +842,15 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ChatListState dco_decode_chat_list_state(dynamic raw);
+
+  @protected
+  ConversationMessage dco_decode_conversation_message(dynamic raw);
+
+  @protected
+  ConversationNotification dco_decode_conversation_notification(dynamic raw);
+
+  @protected
+  ConversationParticipant dco_decode_conversation_participant(dynamic raw);
 
   @protected
   DebugCapabilities dco_decode_debug_capabilities(dynamic raw);
@@ -912,6 +923,14 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ChatId> dco_decode_list_chat_id(dynamic raw);
+
+  @protected
+  List<ConversationMessage> dco_decode_list_conversation_message(dynamic raw);
+
+  @protected
+  List<ConversationParticipant> dco_decode_list_conversation_participant(
+    dynamic raw,
+  );
 
   @protected
   List<IntroScreenType> dco_decode_list_intro_screen_type(dynamic raw);
@@ -1046,6 +1065,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? dco_decode_opt_String(dynamic raw);
 
   @protected
+  UuidValue? dco_decode_opt_Uuid(dynamic raw);
+
+  @protected
   UiRoomState?
   dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
     dynamic raw,
@@ -1054,12 +1076,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   User?
   dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    dynamic raw,
-  );
-
-  @protected
-  UserCubitBase?
-  dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
     dynamic raw,
   );
 
@@ -1091,6 +1107,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ChatId? dco_decode_opt_box_autoadd_chat_id(dynamic raw);
+
+  @protected
+  ConversationNotification?
+  dco_decode_opt_box_autoadd_conversation_notification(dynamic raw);
 
   @protected
   DeveloperSettingsScreenType?
@@ -1877,12 +1897,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
-  UserCubitBase
-  sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    SseDeserializer deserializer,
-  );
-
-  @protected
   UsernameHash
   sse_decode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     SseDeserializer deserializer,
@@ -1921,6 +1935,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ChatId sse_decode_box_autoadd_chat_id(SseDeserializer deserializer);
+
+  @protected
+  ConversationNotification sse_decode_box_autoadd_conversation_notification(
+    SseDeserializer deserializer,
+  );
 
   @protected
   DeveloperSettingsScreenType
@@ -2099,6 +2118,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  UserSettings sse_decode_box_autoadd_user_settings(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   UsernameValidationError sse_decode_box_autoadd_username_validation_error(
     SseDeserializer deserializer,
   );
@@ -2116,6 +2140,21 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ChatListState sse_decode_chat_list_state(SseDeserializer deserializer);
+
+  @protected
+  ConversationMessage sse_decode_conversation_message(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ConversationNotification sse_decode_conversation_notification(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  ConversationParticipant sse_decode_conversation_participant(
+    SseDeserializer deserializer,
+  );
 
   @protected
   DebugCapabilities sse_decode_debug_capabilities(SseDeserializer deserializer);
@@ -2194,6 +2233,16 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<ChatId> sse_decode_list_chat_id(SseDeserializer deserializer);
+
+  @protected
+  List<ConversationMessage> sse_decode_list_conversation_message(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<ConversationParticipant> sse_decode_list_conversation_participant(
+    SseDeserializer deserializer,
+  );
 
   @protected
   List<IntroScreenType> sse_decode_list_intro_screen_type(
@@ -2368,6 +2417,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   String? sse_decode_opt_String(SseDeserializer deserializer);
 
   @protected
+  UuidValue? sse_decode_opt_Uuid(SseDeserializer deserializer);
+
+  @protected
   UiRoomState?
   sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
     SseDeserializer deserializer,
@@ -2376,12 +2428,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   User?
   sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
-    SseDeserializer deserializer,
-  );
-
-  @protected
-  UserCubitBase?
-  sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
     SseDeserializer deserializer,
   );
 
@@ -2423,6 +2469,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   ChatId? sse_decode_opt_box_autoadd_chat_id(SseDeserializer deserializer);
+
+  @protected
+  ConversationNotification?
+  sse_decode_opt_box_autoadd_conversation_notification(
+    SseDeserializer deserializer,
+  );
 
   @protected
   DeveloperSettingsScreenType?
@@ -3378,13 +3430,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
-  sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    UserCubitBase self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
   sse_encode_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     UsernameHash self,
     SseSerializer serializer,
@@ -3431,6 +3476,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_box_autoadd_chat_id(ChatId self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_box_autoadd_conversation_notification(
+    ConversationNotification self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_box_autoadd_developer_settings_screen_type(
@@ -3649,6 +3700,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_user_settings(
+    UserSettings self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_username_validation_error(
     UsernameValidationError self,
     SseSerializer serializer,
@@ -3671,6 +3728,24 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_chat_list_state(ChatListState self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_conversation_message(
+    ConversationMessage self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_conversation_notification(
+    ConversationNotification self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_conversation_participant(
+    ConversationParticipant self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_debug_capabilities(
@@ -3773,6 +3848,18 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_list_chat_id(List<ChatId> self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_list_conversation_message(
+    List<ConversationMessage> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_conversation_participant(
+    List<ConversationParticipant> self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_list_intro_screen_type(
@@ -4003,6 +4090,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_opt_String(String? self, SseSerializer serializer);
 
   @protected
+  void sse_encode_opt_Uuid(UuidValue? self, SseSerializer serializer);
+
+  @protected
   void
   sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUiRoomState(
     UiRoomState? self,
@@ -4013,13 +4103,6 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
     User? self,
-    SseSerializer serializer,
-  );
-
-  @protected
-  void
-  sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUserCubitBase(
-    UserCubitBase? self,
     SseSerializer serializer,
   );
 
@@ -4066,6 +4149,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_opt_box_autoadd_chat_id(
     ChatId? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_conversation_notification(
+    ConversationNotification? self,
     SseSerializer serializer,
   );
 

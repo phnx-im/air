@@ -23,7 +23,10 @@ use mls_assist::{
 };
 use serde::{Deserialize, Serialize};
 
-use crate::{crypto::aead::keys::EncryptedUserProfileKey, identifiers::QsReference};
+use crate::{
+    credentials::UserCredential, crypto::aead::keys::EncryptedUserProfileKey,
+    identifiers::QsReference,
+};
 
 use super::welcome_attribution_info::EncryptedWelcomeAttributionInfo;
 
@@ -61,6 +64,9 @@ pub struct CreateGroupParamsOut {
     pub group_info: MlsMessageOut,
     pub room_state: VerifiedRoomState,
     pub pq: Option<CreatePqGroupParamsOut>,
+    /// Authenticates the creation of a self-group, whose leaves carry no user
+    /// credential. Must be `None` for all other groups.
+    pub creator_user_credential: Option<UserCredential>,
 }
 
 #[derive(Debug)]

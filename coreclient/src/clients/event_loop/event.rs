@@ -17,7 +17,7 @@ use crate::{
             responder,
             response::{Responder, Response},
         },
-        process::process_qs::QsProcessEventResult,
+        process::qs_stream::QsProcessEventResult,
     },
 };
 
