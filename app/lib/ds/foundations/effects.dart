@@ -4,26 +4,132 @@
 
 import 'package:flutter/material.dart';
 
-/// Elevation/Small from the design system. Invisible layers (≤1% opacity)
-/// are omitted for performance.
-const List<BoxShadow> smallElevationBoxShadows = [
-  BoxShadow(color: Color(0x0A000000), offset: Offset(0, 19), blurRadius: 12),
-  BoxShadow(color: Color(0x12000000), offset: Offset(0, 9), blurRadius: 9),
-  BoxShadow(color: Color(0x14000000), offset: Offset(0, 2), blurRadius: 5),
-];
+import 'package:air/ds/foundations/semantic_colors.dart';
 
-/// Elevation/Medium from the design system. Invisible layers (≤1% opacity)
-/// are omitted for performance.
-const List<BoxShadow> mediumElevationBoxShadows = [
-  BoxShadow(color: Color(0x0D000000), offset: Offset(0, 48), blurRadius: 29),
-  BoxShadow(color: Color(0x17000000), offset: Offset(0, 21), blurRadius: 21),
-  BoxShadow(color: Color(0x1A000000), offset: Offset(0, 5), blurRadius: 12),
-];
+/// Elevation tier -- drives stacked drop-shadow lists.
+enum Elevation { flat, small, medium, large }
 
-/// Elevation/Large from the design system. Invisible layers (≤1% opacity)
-/// are omitted for performance.
-const List<BoxShadow> largeElevationBoxShadows = [
-  BoxShadow(color: Color(0x0D000000), offset: Offset(0, 64), blurRadius: 38),
-  BoxShadow(color: Color(0x17000000), offset: Offset(0, 28), blurRadius: 28),
-  BoxShadow(color: Color(0x1A000000), offset: Offset(0, 7), blurRadius: 16),
-];
+/// Backdrop-blur radius tier (in logical pixels).
+enum BlurLevel { thin, medium, thick }
+
+extension BlurLevelRadius on BlurLevel {
+  /// Backdrop-blur radius in logical pixels. Theme-independent.
+  double get radius => switch (this) {
+    BlurLevel.thin => 20,
+    BlurLevel.medium => 40,
+    BlurLevel.thick => 80,
+  };
+}
+
+/// Named motion duration presets. All share [Effects.easeOutQuart].
+/// [none] is 0ms -- for opting a state-change out of animation entirely
+/// (e.g. reduce-motion fallback, or pre-mount initial values).
+enum MotionPreset {
+  none,
+  instant,
+  short,
+  regular,
+  medium,
+  long,
+  extralong,
+  slomo,
+}
+
+extension MotionPresetDuration on MotionPreset {
+  /// Animation duration. Theme-independent. Pair with [Effects.easeOutQuart].
+  Duration get duration => switch (this) {
+    MotionPreset.none => Duration.zero,
+    MotionPreset.instant => const Duration(milliseconds: 50),
+    MotionPreset.short => const Duration(milliseconds: 150),
+    MotionPreset.regular => const Duration(milliseconds: 300),
+    MotionPreset.medium => const Duration(milliseconds: 450),
+    MotionPreset.long => const Duration(milliseconds: 600),
+    MotionPreset.extralong => const Duration(milliseconds: 750),
+    MotionPreset.slomo => const Duration(milliseconds: 1000),
+  };
+}
+
+/// Drop shadows, backdrop-blur radii, and motion timings.
+///
+/// Static where the other resolved foundations are instances: the shadow tint
+/// is the mode-invariant neutral black, and blur and motion carry no theme
+/// dependency at all, so nothing here varies with brightness.
+abstract final class Effects {
+  /// Stacked drop shadows for the given elevation.
+  static List<BoxShadow> elevation(Elevation e) => _shadows[e]!;
+
+  /// Backdrop-blur radius in logical pixels. Pair with a translucent fill
+  /// from [BackgroundMaterial] to produce the frosted-glass look used by the
+  /// tab bar, plus button, and message composer.
+  static double blur(BlurLevel l) => l.radius;
+
+  /// Animation duration for a named preset. Pair with [easeOutQuart].
+  static Duration duration(MotionPreset p) => p.duration;
+
+  /// House easing curve. Theme-independent.
+  static const Cubic easeOutQuart = Cubic(0.25, 1, 0.5, 1);
+
+  static final Map<Elevation, List<BoxShadow>> _shadows = _resolveShadows();
+}
+
+// Elevation layer data. Each layer is [yOffset, blur, spread, alpha]. Inset
+// layers from the source data are dropped, as Flutter's BoxShadow has no
+// inset mode.
+
+const Map<Elevation, List<List<num>>> _elevationLayers = {
+  Elevation.flat: [
+    [18, 5, 0, 0],
+    [10, 5, 0, 0.01],
+    [8, 4, 0, 0.04],
+    [2, 2, 0, 0.08],
+    [0, 1, 0, 0.1],
+  ],
+  Elevation.small: [
+    [53, 15, 0, 0],
+    [34, 14, 0, 0.01],
+    [19, 12, 0, 0.04],
+    [9, 9, 0, 0.07],
+    [2, 5, 0, 0.08],
+  ],
+  Elevation.medium: [
+    [133, 37, 0, 0],
+    [85, 34, 0, 0.01],
+    [48, 29, 0, 0.05],
+    [21, 21, 0, 0.09],
+    [5, 12, 0, 0.1],
+  ],
+  Elevation.large: [
+    [178, 50, 0, 0],
+    [114, 46, 0, 0.01],
+    [64, 38, 0, 0.05],
+    [28, 28, 0, 0.09],
+    [7, 16, 0, 0.1],
+  ],
+};
+
+/// Layers at or below this alpha are dropped: each one costs its own shadow
+/// pass, and spread over the layer's blur radius the contribution does not
+/// read on screen.
+const double _shadowAlphaFloor = 0.01;
+
+Map<Elevation, List<BoxShadow>> _resolveShadows() {
+  // Black is mode-invariant by design (see its alias), so either brightness
+  // resolves the same cell.
+  final tint = SemanticColor.functionNeutralBlack.resolve(Brightness.light);
+  final r = (tint.r * 255).round();
+  final g = (tint.g * 255).round();
+  final b = (tint.b * 255).round();
+  return {
+    for (final entry in _elevationLayers.entries)
+      entry.key: [
+        for (final layer in entry.value)
+          if (layer[3] > _shadowAlphaFloor)
+            BoxShadow(
+              offset: Offset(0, layer[0].toDouble()),
+              blurRadius: layer[1].toDouble(),
+              spreadRadius: layer[2].toDouble(),
+              color: Color.fromRGBO(r, g, b, layer[3].toDouble()),
+            ),
+      ],
+  };
+}
