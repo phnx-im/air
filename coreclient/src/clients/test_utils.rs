@@ -118,20 +118,12 @@ impl CoreUser {
     ///
     /// Two emulator clients of the same virtual client must agree on both once
     /// one of them has onboarded into the group: they share a single leaf.
-    pub async fn group_epoch_and_own_index(
-        &self,
-        chat_id: ChatId,
-    ) -> Result<Option<(u64, u32)>> {
+    pub async fn group_epoch_and_own_index(&self, chat_id: ChatId) -> Result<Option<(u64, u32)>> {
         Ok(self
             .db()
             .with_read_transaction(async |txn| Group::load_with_chat_id(txn, chat_id).await)
             .await?
-            .map(|group| {
-                (
-                    group.mls_group().epoch().as_u64(),
-                    group.own_index().u32(),
-                )
-            }))
+            .map(|group| (group.mls_group().epoch().as_u64(), group.own_index().u32())))
     }
 
     pub async fn group_members(&self, chat_id: ChatId) -> Option<HashSet<UserId>> {
