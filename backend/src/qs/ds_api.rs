@@ -8,13 +8,13 @@ use aircommon::{
     messages::AirProtocolVersion,
     virtual_client::KeyPackageBatchId,
 };
-use thiserror::Error;
+use sqlx::PgTransaction;
 use tls_codec::Serialize;
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::{
     messages::{
-        intra_backend::{DsFanOutMessage, QsVirtualClientHint},
+        intra_backend::{DsFanOutMessage, DsFanOutPayload, QsVirtualClientHint},
         qs_qs::{QsToQsMessage, QsToQsPayload},
     },
     qs::{errors::EnqueueError, staged_key_package::StagedKeyPackages},
@@ -100,74 +100,117 @@ impl Qs {
             } else {
                 vec![client_config.client_id]
             };
-            for qs_client_id in client_ids {
-                match QsClientRecord::enqueue(
-                    &self.db_pool,
-                    qs_client_id,
-                    self.queues(),
-                    push_notification_provider,
-                    &message.payload,
-                    push_token_ear_key.as_ref(),
-                )
-                .await
-                {
-                    Ok(()) => (),
-                    Err(EnqueueError::ClientNotFound) => {
-                        // Sibling was soft-deleted mid fan-out => drop silently
+
+            // Clients that should be notified with a push notification.
+            let mut clients_to_notify = Vec::new();
+
+            match &message.virtual_client_hint {
+                // Promote staged key packages
+                //
+                // A special cas of the fan-out which must be atomic. Self-group commits are never
+                // broadcast, so in practice this transaction covers a single queue.
+                Some(QsVirtualClientHint::PromoteStagedKeyPackages(batch_id)) => {
+                    let mut txn = self
+                        .db_pool
+                        .begin()
+                        .await
+                        .map_err(|_| QsEnqueueError::StorageError)?;
+
+                    // Promote before the fan-out: the user record lock taken by the promote is
+                    // the root of this transaction's lock order.
+                    Self::promote_staged_key_packages(&mut txn, &client_config.client_id, batch_id)
+                        .await?;
+
+                    for qs_client_id in client_ids {
+                        match QsClientRecord::enqueue(
+                            &mut txn,
+                            qs_client_id,
+                            self.queues(),
+                            &message.payload,
+                        )
+                        .await
+                        {
+                            Ok(client_record) => clients_to_notify.extend(client_record),
+                            Err(EnqueueError::ClientNotFound) => {
+                                // Sibling was soft-deleted mid fan-out => drop silently
+                            }
+                            // Anything else aborted the transaction, so the promote is rolled
+                            // back with it. The acting emulator gets no echo and retries.
+                            Err(error) => {
+                                error!(
+                                    %error, %qs_client_id,
+                                    "Failed to enqueue message; aborting promote and fan-out"
+                                );
+                                return Err(error.into());
+                            }
+                        }
                     }
-                    Err(error) => {
-                        error!(
-                            %error,
-                            %qs_client_id, "Failed to enqueue message; message will be lost"
-                        );
+
+                    txn.commit()
+                        .await
+                        .map_err(|_| QsEnqueueError::StorageError)?;
+                }
+                None => {
+                    for qs_client_id in client_ids {
+                        match self
+                            .enqueue_in_own_transaction(qs_client_id, &message.payload)
+                            .await
+                        {
+                            Ok(client_record) => clients_to_notify.extend(client_record),
+                            Err(EnqueueError::ClientNotFound) => {
+                                // Sibling was soft-deleted mid fan-out => drop silently
+                            }
+                            Err(error) => {
+                                error!(
+                                    %error, %qs_client_id,
+                                    "Failed to enqueue message; message will be lost"
+                                );
+                            }
+                        }
                     }
                 }
             }
 
-            if let Some(QsVirtualClientHint::PromoteStagedKeyPackages(batch_id)) =
-                message.virtual_client_hint
-            {
-                self.promote_staged_key_packages(&client_config.client_id, &batch_id)
-                    .await
+            for client_record in clients_to_notify {
+                client_record
+                    .send_push_notification(
+                        &self.db_pool,
+                        push_notification_provider,
+                        push_token_ear_key.as_ref(),
+                    )
+                    .await;
             }
         }
         Ok(())
     }
 
-    async fn promote_staged_key_packages(
+    /// Enqueues a message for a single client in its own transaction.
+    async fn enqueue_in_own_transaction(
         &self,
-        client_id: &QsClientId,
-        batch_id: &KeyPackageBatchId,
-    ) {
-        if let Err(error) = self
-            .try_promote_staged_key_packages(client_id, batch_id)
-            .await
-        {
-            error!(%error, "Failed to promote staged key packages");
-        }
+        client_id: QsClientId,
+        payload: &DsFanOutPayload,
+    ) -> Result<Option<QsClientRecord>, EnqueueError> {
+        let mut txn = self.db_pool.begin().await?;
+        let client_record =
+            QsClientRecord::enqueue(&mut txn, client_id, self.queues(), payload).await?;
+        txn.commit().await?;
+        Ok(client_record)
     }
 
-    async fn try_promote_staged_key_packages(
-        &self,
+    async fn promote_staged_key_packages(
+        txn: &mut PgTransaction<'_>,
         client_id: &QsClientId,
         batch_id: &KeyPackageBatchId,
-    ) -> Result<(), PromoteStagedKeyPackagesError> {
-        let mut txn = self.db_pool.begin().await?;
-        let user_id = QsClientRecord::load_user_id(&mut *txn, client_id)
-            .await?
-            .ok_or(PromoteStagedKeyPackagesError::ClientNotFound)?;
-        StagedKeyPackages::promote(&mut txn, &user_id, batch_id).await?;
-        txn.commit().await?;
+    ) -> Result<(), EnqueueError> {
+        let Some(user_id) = QsClientRecord::load_user_id(txn.as_mut(), client_id).await? else {
+            // Client was deleted between the DS fan-out and here => nothing to promote. The
+            // fan-out below drops the message for the same reason.
+            warn!(%client_id, "Cannot promote staged key packages: unknown client");
+            return Ok(());
+        };
+        StagedKeyPackages::promote(txn, &user_id, batch_id).await?;
         Ok(())
     }
-}
-
-#[derive(Debug, Error)]
-enum PromoteStagedKeyPackagesError {
-    #[error(transparent)]
-    Sqlx(#[from] sqlx::Error),
-    #[error("Client not found")]
-    ClientNotFound,
 }
 
 #[cfg(test)]

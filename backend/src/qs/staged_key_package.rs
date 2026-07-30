@@ -168,12 +168,27 @@ impl StagedKeyPackages {
         user_id: &QsUserId,
         batch_id: &KeyPackageBatchId,
     ) -> sqlx::Result<()> {
-        // Get the batch ID and lock it for update.
+        // Lock the user record to serialize the promotes (no key, so that we can update the row
+        // depending on this user id).
+        let locked = query_scalar!(
+            r#"SELECT 1 AS "locked!"
+            FROM qs_user_record
+            WHERE user_id = $1
+            FOR NO KEY UPDATE"#,
+            user_id as _,
+        )
+        .fetch_optional(txn.as_mut())
+        .await?;
+        if locked.is_none() {
+            // User is gone => nothing to promote
+            return Ok(());
+        }
 
+        // Get the batch ID and lock it for update.
         let epoch_id = batch_id.epoch_id.as_bytes();
         let Some(batch_id) = query_scalar!(
             "SELECT id FROM qs_staged_key_package_batch
-            where user_id = $1 and epoch_id = $2 and leaf_index = $3 and generation = $4
+            WHERE user_id = $1 AND epoch_id = $2 AND leaf_index = $3 AND generation = $4
             FOR UPDATE",
             user_id as _,
             epoch_id,
@@ -186,6 +201,18 @@ impl StagedKeyPackages {
             // No batch found, nothing to promote => replay defense
             return Ok(());
         };
+
+        // Lock the user's client records in ascending client id order. Must be the same order as in
+        // `load_client_ids` to avoid deadlocks.
+        query!(
+            "SELECT client_id FROM qs_client_record
+            WHERE user_id = $1 AND deleted_at IS NULL
+            ORDER BY client_id
+            FOR UPDATE",
+            user_id as _,
+        )
+        .fetch_all(txn.as_mut())
+        .await?;
 
         // Delete all T key packages for all clients of this user; last resort packages are deleted
         // if the batch contains at least one T last resort key package.
