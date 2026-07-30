@@ -395,7 +395,7 @@ impl CoreUser {
                 vec![self.signing_key()]
             };
 
-        let (group, sender_user_id, member_profile_info) = Box::pin(Group::join_apq_group(
+        let (mut group, sender_user_id, member_profile_info) = Box::pin(Group::join_apq_group(
             welcome_bundle,
             &self.inner.key_store.wai_ear_key,
             txn,
@@ -415,6 +415,18 @@ impl CoreUser {
             };
             let chat = Chat::new_group_chat(group.group_id().clone(), attributes);
             chat.store(&mut *txn).await?;
+
+            // Register the emulation epoch at the epoch we joined into. The
+            // sibling that added us registers at the same epoch when it merges
+            // its Add commit, so both derive the same `EpochId`. Joining does
+            // not go through `Group::merge_pending_commit`, which covers every
+            // later epoch of the self group.
+            let epoch_id = group.register_vc_emulation_epoch(&mut *txn)?;
+            debug!(
+                ?epoch_id,
+                "registered self-group VC emulation epoch on join"
+            );
+
             return Ok(QsMessageOutcome::new_chat(chat.id(), vec![]));
         }
 

@@ -1851,6 +1851,21 @@ impl Group {
         self.pending_diff = None;
         self.send_message_collision_key = None;
         self.clear_commit_failed(&mut *txn).await?;
+
+        // The emulation `EpochId` is derived from this epoch's exporter, so a
+        // self-group epoch change invalidates it. Re-register here: every
+        // emulator client passes through this point when the self group
+        // advances.
+        if AirComponent::is_self_group_context(self.mls_group.extensions()) {
+            let epoch = self.mls_group.epoch();
+            let epoch_id = self.register_vc_emulation_epoch(&mut *txn)?;
+            debug!(
+                ?epoch_id,
+                ?epoch,
+                "registered self-group VC emulation epoch"
+            );
+        }
+
         Ok((event_messages, group_data))
     }
 
@@ -2448,8 +2463,33 @@ impl Group {
             .is_some_and(|list| list.component_ids.contains(&VC_COMPONENT_ID))
     }
 
+    /// Register a virtual-clients emulation epoch for this group's current
+    /// epoch, and return its [`EpochId`].
+    ///
+    /// Only meaningful on the self group, which is the emulation group. The
+    /// emulation state lives on the classical leg; the PQ leg has none.
+    ///
+    /// Idempotent per epoch: registration punctures the exporter, so a repeated
+    /// call in the same epoch returns the recorded [`EpochId`] rather than
+    /// deriving a new one.
+    pub(crate) fn register_vc_emulation_epoch(
+        &mut self,
+        mut connection: impl WriteConnection,
+    ) -> Result<EpochId> {
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
+        let (t_group, _) = self.apq_mls_groups_mut()?;
+        t_group
+            .register_vc_emulation_epoch(provider.crypto(), provider.storage())
+            .context("register VC emulation epoch")
+    }
+
     /// The emulation epoch a commit replacing our leaf has to derive from, or
     /// `None` if this leaf is not shared with sibling emulator clients.
+    ///
+    /// The epoch is registered when the self group advances (see
+    /// [`Group::merge_pending_commit`]), so this is expected to be a lookup of
+    /// the epoch every emulator client already recorded, not a fresh
+    /// registration.
     async fn resolve_vc_emulation_epoch(
         &self,
         txn: &mut WriteDbTransaction<'_>,
