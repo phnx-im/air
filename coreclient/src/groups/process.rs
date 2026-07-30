@@ -16,7 +16,7 @@ use aircommon::{
     },
     utils::removed_client,
 };
-use airprotos::client::component::AirComponent;
+use airprotos::client::{component::AirComponent, self_group::SettingsUpdate};
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use apqmls::{
     ApqMlsGroupMut,
@@ -36,9 +36,14 @@ use tls_codec::DeserializeBytes as TlsDeserializeBytes;
 use tracing::{debug, error, instrument, warn};
 
 use crate::{
-    clients::api_clients::ApiClients, db::access::WriteDbTransaction,
+    clients::{
+        api_clients::ApiClients,
+        user_settings::{SettingChanges, apply_settings_update, merge_settings_update},
+    },
+    db::access::WriteDbTransaction,
     groups::client_auth_info::VerifiableUserCredentialExt,
-    job::pending_chat_operation::PendingChatOperation, key_stores::as_credentials::AsCredentials,
+    job::pending_chat_operation::PendingChatOperation,
+    key_stores::as_credentials::AsCredentials,
 };
 
 use super::{Group, openmls_provider::AirOpenMlsProvider};
@@ -251,6 +256,37 @@ impl Group {
                 bail!("Invalid sender type.")
             }
         };
+
+        // Settings phase. This must run before the pending-op discard below so
+        // the pending setting changes are reconciled against the snapshot this
+        // commit carried before the outbound service can re-issue them.
+        if self.is_self_group() {
+            let updates = self.extract_settings_updates(txn, staged_commit).await;
+            if !updates.is_empty() {
+                // Fold the extracted snapshots into one merged snapshot. This
+                // can be empty when the update decoded to unknown-only fields
+                // sent by a newer sibling; an empty snapshot covers nothing.
+                let mut merged = SettingsUpdate::default();
+                for update in &updates {
+                    merge_settings_update(&mut merged, update).await?;
+                }
+                // Own echo: the DS fanned our own commit back while our
+                // pending commit was already gone. The values are already
+                // applied locally. The commit was accepted, so complete the
+                // pending setting changes it asserted.
+                let own_echo = sender_index == self.mls_group().own_leaf_index();
+                if own_echo {
+                    SettingChanges::complete_sent(txn, &merged).await?;
+                } else {
+                    for update in &updates {
+                        apply_settings_update(txn, update).await?;
+                    }
+                    // Fields a sibling's accepted commit covered are no longer
+                    // ours to change.
+                    SettingChanges::remove_covered(txn, &merged).await?;
+                }
+            }
+        }
 
         self.discard_pending_commit_and_operations(txn, &group_id, staged_commit)
             .await?;
@@ -536,10 +572,15 @@ impl Group {
         Ok(())
     }
 
-    /// Discard any pending commits we have locally and delete any pending
-    /// non-leave chat operations we may have for this group. If it's a leave
-    /// operation, only delete it if it's part of this commit.
-    async fn discard_pending_commit_and_operations(
+    /// Discard our local pending commit and reconcile any pending chat
+    /// operation for this group against the incoming commit.
+    ///
+    /// A pending non-leave operation is deleted. For a settings update this
+    /// only drops the send attempt whose staged commit just became stale: the
+    /// pending [`SettingChanges`] survive and the outbound service re-issues a
+    /// fresh commit from them. A leave operation is deleted only if this
+    /// commit carries our own self-remove.
+    pub(crate) async fn discard_pending_commit_and_operations(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,

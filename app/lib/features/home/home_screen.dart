@@ -99,9 +99,6 @@ class HomeScreenDesktopLayout extends StatelessWidget {
   }
 
   void onResizeEnd(BuildContext context, double panelWidth) {
-    context.read<UserSettingsCubit>().setSidebarWidth(
-      userCubit: context.read(),
-      value: panelWidth,
-    );
+    context.read<UserSettingsCubit>().setSidebarWidth(value: panelWidth);
   }
 }
