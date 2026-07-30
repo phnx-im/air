@@ -190,9 +190,7 @@ impl<'a> CommitBuilder<'a> {
         self
     }
 
-    /// Derive both legs' new leaf key material from the given virtual-client
-    /// emulation epoch, so sibling emulator clients sharing this leaf can
-    /// rederive it instead of dropping out of the group.
+    /// Sets the virtual-client emulation epoch.
     pub fn vc_emulation(mut self, epoch_id: EpochId) -> Self {
         self.values.vc_epoch_id = Some(epoch_id);
         self
@@ -300,11 +298,18 @@ impl<'a> CommitBuilder<'a> {
             AppDataUpdateProposal::update(APQMLS_COMPONENT_ID, apq_info_component_data.data());
 
         // Create the PQ commit first s.t. we can export the PSK for the T group.
-        let mut pq_builder = self
+        let pq_builder = self
             .group
             .pq_group
             .commit_builder()
-            .pipe(|b| self.values.apply::<false>(b))
+            .pipe(|b| self.values.apply::<false>(b));
+        let pq_builder = match &self.values.vc_epoch_id {
+            Some(epoch_id) => {
+                pq_builder.vc_emulation(provider.crypto(), provider.storage(), epoch_id.clone())?
+            }
+            None => pq_builder,
+        };
+        let mut pq_builder = pq_builder
             .add_proposal(Proposal::AppDataUpdate(Box::new(
                 app_data_update_proposal.clone(),
             )))
