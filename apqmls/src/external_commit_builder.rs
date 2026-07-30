@@ -4,6 +4,7 @@
 
 use openmls::{
     component::ComponentData,
+    components::vc_derivation_info::EpochId,
     group::{
         CommitMessageBundle, CreateCommitError, ExternalCommitBuilder, ExternalCommitBuilderError,
         ExternalCommitBuilderFinalizeError, GroupEpoch, LeafNodeLifetimePolicy, MlsGroup,
@@ -56,6 +57,7 @@ pub struct ApqExternalCommitBuilder {
     leaf_node_parameters: Option<(LeafNodeParameters, LeafNodeParameters)>,
     create_group_info: bool,
     t_psk_proposals: Vec<PreSharedKeyProposal>,
+    vc_epoch_id: Option<EpochId>,
 }
 
 impl ApqExternalCommitBuilder {
@@ -100,6 +102,11 @@ impl ApqExternalCommitBuilder {
         self
     }
 
+    pub fn vc_emulation(mut self, epoch_id: EpochId) -> Self {
+        self.vc_epoch_id = Some(epoch_id);
+        self
+    }
+
     pub fn create_group_info(mut self, create_group_info: bool) -> Self {
         self.create_group_info = create_group_info;
         self
@@ -124,6 +131,7 @@ impl ApqExternalCommitBuilder {
             leaf_node_parameters,
             create_group_info,
             t_psk_proposals,
+            vc_epoch_id,
         } = self;
 
         let VerifiableApqGroupInfo {
@@ -177,6 +185,7 @@ impl ApqExternalCommitBuilder {
             component_data.clone(),
             Vec::new(),
             create_group_info,
+            vc_epoch_id.clone(),
             signer.pq_signer(),
         )?;
 
@@ -218,6 +227,7 @@ impl ApqExternalCommitBuilder {
                 component_data,
                 t_psk_proposals,
                 create_group_info,
+                vc_epoch_id,
                 signer.t_signer(),
             )
         })();
@@ -252,6 +262,7 @@ fn build_and_finalize_leg<Provider: OpenMlsProvider>(
     component_data: ComponentData,
     psk_proposals: Vec<PreSharedKeyProposal>,
     create_group_info: bool,
+    vc_epoch_id: Option<EpochId>,
     signer: &impl Signer,
 ) -> Result<(MlsGroup, CommitMessageBundle), ApqExternalCommitBuilderError<Provider::StorageError>>
 {
@@ -265,9 +276,16 @@ fn build_and_finalize_leg<Provider: OpenMlsProvider>(
     if let LeafNodeLifetimePolicy::Skip = validate_lifetimes {
         external_builder = external_builder.skip_lifetime_validation();
     }
-    let mut commit_builder = external_builder
+    let vc_builder = external_builder
         .build_group(provider, group_info, credential_with_key)?
-        .leaf_node_parameters(leaf_node_parameters)
+        .leaf_node_parameters(leaf_node_parameters);
+    let vc_builder = match vc_epoch_id {
+        Some(epoch_id) => {
+            vc_builder.vc_emulation(provider.crypto(), provider.storage(), epoch_id)?
+        }
+        None => vc_builder,
+    };
+    let mut commit_builder = vc_builder
         .add_app_data_update_proposal(app_data_update_proposal)
         .add_psk_proposals(psk_proposals)
         .load_psks(provider.storage())?

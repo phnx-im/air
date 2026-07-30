@@ -1193,6 +1193,7 @@ impl Group {
     }
 
     /// Join an APQ group using an external commit.
+    #[expect(clippy::too_many_arguments)]
     pub(super) async fn join_apq_group_externally(
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
@@ -1201,6 +1202,7 @@ impl Group {
         group_state_ear_key: GroupStateEarKey,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         aad: AadMessage,
+        vc_epoch_id: Option<EpochId>,
     ) -> anyhow::Result<
         Result<(Self, ApqCommitMessageBundle, DecryptedProfileInfos), LeafNodeValidationError>,
     > {
@@ -1270,21 +1272,29 @@ impl Group {
 
         // Build the group
         let mls_group_config = default_mls_group_join_config();
+        let leaf_node_extensions = if vc_epoch_id.is_some() {
+            vc_leaf_node_extensions::<AirComponent>()
+        } else {
+            default_leaf_node_extensions::<AirComponent>()
+        };
         let leaf_node_params = LeafNodeParameters::builder()
             .with_capabilities(default_leaf_node_capabilities())
-            .with_extensions(default_leaf_node_extensions::<AirComponent>())
+            .with_extensions(leaf_node_extensions)
             .build();
 
         let provider = AirOpenMlsProvider::new(txn.as_mut());
-        let res = ApqExternalCommitBuilder::new()
+        let mut builder = ApqExternalCommitBuilder::new()
             .with_ratchet_tree(ratchet_tree)
             .with_proposals(proposals)
             .with_aad(aad.tls_serialize_detached()?)
             .with_config(mls_group_config)
             .skip_lifetime_validation()
             .leaf_node_parameters(leaf_node_params.clone(), leaf_node_params)
-            .create_group_info(true)
-            .build(&provider, signer, credential_with_key, group_info);
+            .create_group_info(true);
+        if let Some(epoch_id) = vc_epoch_id {
+            builder = builder.vc_emulation(epoch_id);
+        }
+        let res = builder.build(&provider, signer, credential_with_key, group_info);
         let (apq_mls_group, commit_bundle) = match res {
             Ok(built) => built,
             Err(ApqExternalCommitBuilderError::BuildCommit(error)) => {
@@ -2027,6 +2037,11 @@ impl Group {
         let own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
         let leaf_node_parameters = Self::update_leaf_node_extensions(own_leaf_node.extensions())?;
 
+        // A leaf shared with sibling emulator clients must be replaced with key
+        // material derived from the emulation epoch, or the siblings cannot
+        // rederive it and drop out of the group.
+        let vc_epoch_id = self.resolve_vc_emulation_epoch(txn).await?;
+
         self.mls_group.set_aad(aad);
         let (mls_message, group_info) = {
             let provider = AirOpenMlsProvider::new(txn.as_mut());
@@ -2036,9 +2051,14 @@ impl Group {
                 builder = builder.propose_group_context_extensions(extensions)?;
             };
 
-            let (mls_message, _welcome_option, group_info_option) = builder
+            let mut builder = builder
                 .force_self_update(true)
-                .leaf_node_parameters(leaf_node_parameters)
+                .leaf_node_parameters(leaf_node_parameters);
+            if let Some(epoch_id) = vc_epoch_id {
+                builder = builder.vc_emulation(provider.crypto(), provider.storage(), epoch_id)?;
+            }
+
+            let (mls_message, _welcome_option, group_info_option) = builder
                 .load_psks(provider.storage())?
                 .create_group_info(true)
                 .build(provider.rand(), provider.crypto(), signer, |_| true)?
@@ -2063,7 +2083,7 @@ impl Group {
     /// Produces a single combined commit via apqmls that forces a self-update of the key material
     /// in both groups. Return [`ApqGroupOperationParamsOut`] so the caller can persist it as
     /// `ApqOther` pending chat operation.
-    pub(super) fn apq_update(
+    pub(super) async fn apq_update(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         signer: &ClientSigningKey,
@@ -2086,13 +2106,19 @@ impl Group {
         let pq_leaf_node_parameters =
             Self::update_leaf_node_extensions(pq_own_leaf_node.extensions())?;
 
+        let vc_epoch_id = self.resolve_vc_emulation_epoch(txn).await?;
+
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
-        let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
-            .force_self_update(true)
-            .leaf_node_parameters(t_leaf_node_parameters, pq_leaf_node_parameters)
-            .create_group_info(true)
-            .finalize(&provider, signer, |_| true, |_| true)?;
+        let mut builder =
+            apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
+                .force_self_update(true)
+                .leaf_node_parameters(t_leaf_node_parameters, pq_leaf_node_parameters)
+                .create_group_info(true);
+        if let Some(epoch_id) = vc_epoch_id {
+            builder = builder.vc_emulation(epoch_id);
+        }
+        let bundle = builder.finalize(&provider, signer, |_| true, |_| true)?;
 
         debug_assert!(bundle.welcome.is_none());
         ensure!(
@@ -2420,6 +2446,21 @@ impl Group {
                     .ok()
             })
             .is_some_and(|list| list.component_ids.contains(&VC_COMPONENT_ID))
+    }
+
+    /// The emulation epoch a commit replacing our leaf has to derive from, or
+    /// `None` if this leaf is not shared with sibling emulator clients.
+    async fn resolve_vc_emulation_epoch(
+        &self,
+        txn: &mut WriteDbTransaction<'_>,
+    ) -> Result<Option<EpochId>> {
+        if !self.own_leaf_is_virtual_client() {
+            return Ok(None);
+        }
+        let mut self_group = self_group::SelfGroup::load(&mut *txn)
+            .await?
+            .context("no self group to derive the emulation epoch from")?;
+        Ok(Some(self_group.register_vc_emulation_epoch(&mut *txn)?))
     }
 
     pub(crate) fn store_connection_offer_psk(

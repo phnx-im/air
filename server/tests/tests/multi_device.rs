@@ -156,17 +156,6 @@ async fn multi_device_linking_session() {
         "new device should see both emulator clients in the self group"
     );
 
-    // The new device must know about all groups from the original client.
-    let new_device_chat_ids = new_device.ordered_chat_ids().await.unwrap();
-    assert!(
-        new_device_chat_ids.contains(&group_chat_id_1),
-        "linked device should have inherited pre-existing group 1"
-    );
-    assert!(
-        new_device_chat_ids.contains(&group_chat_id_2),
-        "linked device should have inherited pre-existing group 2"
-    );
-
     // Both devices surface the self group as a "Notes to self" chat.
     assert_eq!(
         old_device.self_chat_title().await.unwrap().as_deref(),
@@ -178,6 +167,37 @@ async fn multi_device_linking_session() {
         Some("Notes to self"),
         "new device should have a Notes to self chat"
     );
+
+    // Onboarding into the pre-existing groups is queued and processed in the background.
+    new_device.outbound_service().run_once().await;
+
+    // The new device must know about all groups from the original client.
+    let new_device_chat_ids = new_device.ordered_chat_ids().await.unwrap();
+    for (label, chat_id) in [("1", group_chat_id_1), ("2", group_chat_id_2)] {
+        assert!(
+            new_device_chat_ids.contains(&chat_id),
+            "linked device should have inherited pre-existing group {label}"
+        );
+        assert!(
+            !new_device.is_resync_pending(chat_id).await.unwrap(),
+            "onboarding into group {label} should have completed, not still be queued"
+        );
+
+        // `mls_chat_participants` resolves the chat to its MLS group, so `Some`
+        // here is the chat being bound to a group we actually joined.
+        let members = new_device.mls_chat_participants(chat_id).await;
+        assert!(
+            members
+                .as_ref()
+                .is_some_and(|members| members.contains(&alice)),
+            "chat {label} on the linked device should be bound to a joined MLS group, got {members:?}"
+        );
+        assert_eq!(
+            members,
+            old_device.mls_chat_participants(chat_id).await,
+            "linked device should see the same members as the old device in group {label}"
+        );
+    }
 
     // Messages sent into the self group are seen by the other device, in both
     // directions.

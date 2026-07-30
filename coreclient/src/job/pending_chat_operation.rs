@@ -622,7 +622,7 @@ impl PendingChatOperation {
         let mut group = Group::load_with_chat_id_clean_verified(&mut *txn, chat_id)
             .await?
             .with_context(|| format!("Can't find group with chat id {chat_id}"))?;
-        let params = group.group_mut().apq_update(txn, signer)?;
+        let params = group.group_mut().apq_update(txn, signer).await?;
         let job = Self::new(group, OperationType::apq_other(params));
         job.store(txn).await?;
         Ok(job)

@@ -8,7 +8,7 @@ use aircommon::{
     identifiers::QualifiedGroupId,
     messages::{client_ds::AadPayload, client_ds_out::ExternalCommitInfoIn},
 };
-use anyhow::{Context, Result, ensure};
+use anyhow::{Context, Result};
 use apqmls::commit_builder::ApqCommitMessageBundle;
 use openmls::{
     components::vc_derivation_info::EpochId,
@@ -295,10 +295,6 @@ impl Resync {
         let aad = AadPayload::Resync.into();
         if self.pq_group_id.is_some() {
             // APQ group
-            ensure!(
-                self.vc_epoch_id.is_none(),
-                "onboarding an emulator client into an APQ group is not supported yet"
-            );
             let (group, bundle, member_profile_infos) = Group::join_apq_group_externally(
                 txn,
                 api_clients,
@@ -307,6 +303,7 @@ impl Resync {
                 self.group_state_ear_key,
                 self.identity_link_wrapper_key,
                 aad,
+                self.vc_epoch_id,
             )
             .await??;
             Ok((
