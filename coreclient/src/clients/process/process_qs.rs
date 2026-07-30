@@ -564,6 +564,7 @@ impl CoreUser {
             ProcessMessageResult::Processed(processed) => Ok(Some(processed)),
             ProcessMessageResult::Ignored => Ok(None),
             ProcessMessageResult::ResyncRequired => {
+                // TODO(gabriel): once we have a UX for resyncs, we can schedule it here.
                 let vc_epoch_id = if group.own_leaf_is_virtual_client() {
                     Some(Self::register_self_group_vc_emulation_epoch(&mut *txn).await?)
                 } else {
