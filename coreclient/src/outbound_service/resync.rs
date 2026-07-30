@@ -8,9 +8,10 @@ use aircommon::{
     identifiers::QualifiedGroupId,
     messages::{client_ds::AadPayload, client_ds_out::ExternalCommitInfoIn},
 };
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, ensure};
 use apqmls::commit_builder::ApqCommitMessageBundle;
 use openmls::{
+    components::vc_derivation_info::EpochId,
     group::GroupId,
     prelude::{LeafNodeIndex, MlsMessageOut},
 };
@@ -19,8 +20,9 @@ use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::{
-    ChatId,
-    clients::{CoreUser, api_clients::ApiClients},
+    Chat, ChatId,
+    chats::ChatAttributes,
+    clients::{CoreUser, api_clients::ApiClients, multi_device::HigherLevelGroup},
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{DecryptedProfileInfos, Group, ProfileInfo, handle_group_not_found_on_ds},
     job::{operation::OperationData, profile::FetchUserProfileOperation},
@@ -36,7 +38,12 @@ pub(crate) struct Resync {
     pub(crate) pq_group_id: Option<GroupId>,
     pub(crate) group_state_ear_key: GroupStateEarKey,
     pub(crate) identity_link_wrapper_key: IdentityLinkWrapperKey,
+    /// The leaf the external commit evicts. When onboarding an emulator client
+    /// this is the virtual client's prior membership, currently operated by a
+    /// sibling emulator, rather than a leaf of our own.
     pub(crate) original_leaf_index: LeafNodeIndex,
+    /// `Some` if this resync onboards an emulator client into a higher-level group.
+    pub(crate) vc_epoch_id: Option<EpochId>,
 }
 
 impl CoreUser {
@@ -45,6 +52,14 @@ impl CoreUser {
             .await?
             .context("group not found")?;
 
+        // If we share this leaf with sibling emulators, the replacement leaf has
+        // to be derived from the emulation epoch.
+        let vc_epoch_id = if group.own_leaf_is_virtual_client() {
+            Some(Self::register_self_group_vc_emulation_epoch(self.db().write().await?).await?)
+        } else {
+            None
+        };
+
         let resync = Resync {
             chat_id,
             group_id: group.group_id().clone(),
@@ -52,6 +67,7 @@ impl CoreUser {
             group_state_ear_key: group.group_state_ear_key().clone(),
             identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
             original_leaf_index: group.own_index(),
+            vc_epoch_id,
         };
 
         resync.enqueue(self.db().write().await?).await?;
@@ -59,6 +75,70 @@ impl CoreUser {
         self.outbound_service().notify_work();
 
         Ok(())
+    }
+
+    /// Onboard this emulator client into every higher-level group the virtual
+    /// client is already a member of, using variant B (external commit) of the
+    /// mls-virtual-clients draft: create the local chat, then queue a resync that
+    /// evicts the virtual client's prior membership and re-joins on a leaf
+    /// derived from the shared emulation epoch.
+    ///
+    /// Returns the number of groups queued. The external commits themselves run
+    /// in the outbound service, which retries each one independently, so a group
+    /// that is momentarily unreachable does not block linking.
+    pub(crate) async fn enqueue_vc_onboarding(
+        &self,
+        groups: Vec<HigherLevelGroup>,
+    ) -> anyhow::Result<usize> {
+        if groups.is_empty() {
+            return Ok(0);
+        }
+
+        let vc_epoch_id =
+            Self::register_self_group_vc_emulation_epoch(self.db().write().await?).await?;
+
+        let mut queued = 0;
+        for group in groups {
+            let HigherLevelGroup {
+                group_id,
+                pq_group_id,
+                group_state_ear_key,
+                identity_link_wrapper_key,
+                vc_leaf_index,
+                title,
+                picture,
+            } = group;
+
+            let chat_id = ChatId::try_from(&group_id).context("group id is not a chat id")?;
+            let resync = Resync {
+                chat_id,
+                group_id,
+                pq_group_id,
+                group_state_ear_key,
+                identity_link_wrapper_key,
+                original_leaf_index: LeafNodeIndex::new(vc_leaf_index),
+                vc_epoch_id: Some(vc_epoch_id.clone()),
+            };
+
+            // The chat has to exist before the resync is queued:
+            // `resync_queue.chat_id` references it.
+            self.db()
+                .with_write_transaction(async |txn| -> anyhow::Result<()> {
+                    let chat = Chat::new_group_chat(
+                        resync.group_id.clone(),
+                        ChatAttributes { title, picture },
+                    );
+                    chat.store(&mut *txn).await?;
+                    resync.enqueue(&mut *txn).await?;
+                    Ok(())
+                })
+                .await?;
+            queued += 1;
+        }
+
+        self.outbound_service().notify_work();
+
+        Ok(queued)
     }
 }
 
@@ -215,6 +295,10 @@ impl Resync {
         let aad = AadPayload::Resync.into();
         if self.pq_group_id.is_some() {
             // APQ group
+            ensure!(
+                self.vc_epoch_id.is_none(),
+                "onboarding an emulator client into an APQ group is not supported yet"
+            );
             let (group, bundle, member_profile_infos) = Group::join_apq_group_externally(
                 txn,
                 api_clients,
@@ -240,6 +324,7 @@ impl Resync {
                 self.identity_link_wrapper_key,
                 aad,
                 None, // This is not in response to a connection offer.
+                self.vc_epoch_id,
             )
             .await??;
             Ok((
@@ -322,6 +407,7 @@ mod persistence {
             let group_id = GroupIdRefWrapper::from(&self.group_id);
             let pq_group_id = self.pq_group_id.as_ref().map(GroupIdRefWrapper::from);
             let original_leaf_index = self.original_leaf_index.u32() as i32;
+            let vc_epoch_id = self.vc_epoch_id.as_ref().map(EpochId::as_bytes);
             query!(
                 "INSERT INTO resync_queue (
                     group_id,
@@ -329,16 +415,18 @@ mod persistence {
                     chat_id,
                     group_state_ear_key,
                     identity_link_wrapper_key,
-                    original_leaf_index
+                    original_leaf_index,
+                    vc_epoch_id
                 )
-                VALUES (?1, ?2, ?3, ?4, ?5, ?6)
+                VALUES (?1, ?2, ?3, ?4, ?5, ?6, ?7)
                 ON CONFLICT DO NOTHING",
                 group_id,
                 pq_group_id,
                 self.chat_id,
                 self.group_state_ear_key,
                 self.identity_link_wrapper_key,
-                original_leaf_index
+                original_leaf_index,
+                vc_epoch_id
             )
             .execute(connection.as_mut())
             .await?;
@@ -358,6 +446,7 @@ mod persistence {
                 group_state_ear_key: GroupStateEarKey,
                 identity_link_wrapper_key: IdentityLinkWrapperKey,
                 original_leaf_index: i32,
+                vc_epoch_id: Option<Vec<u8>>,
             }
 
             let Some(group_id) = query_scalar!(
@@ -386,7 +475,8 @@ mod persistence {
                     pq_group_id AS "pq_group_id: _",
                     group_state_ear_key AS "group_state_ear_key: _",
                     identity_link_wrapper_key AS "identity_link_wrapper_key: _",
-                    original_leaf_index AS "original_leaf_index: _"
+                    original_leaf_index AS "original_leaf_index: _",
+                    vc_epoch_id AS "vc_epoch_id: _"
                 "#,
                 group_id,
                 task_id,
@@ -400,6 +490,7 @@ mod persistence {
                 group_state_ear_key: record.group_state_ear_key,
                 identity_link_wrapper_key: record.identity_link_wrapper_key,
                 original_leaf_index: LeafNodeIndex::new(record.original_leaf_index as u32),
+                vc_epoch_id: record.vc_epoch_id.map(EpochId::new),
             });
 
             Ok(resync)

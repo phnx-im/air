@@ -564,8 +564,12 @@ impl CoreUser {
             ProcessMessageResult::Processed(processed) => Ok(Some(processed)),
             ProcessMessageResult::Ignored => Ok(None),
             ProcessMessageResult::ResyncRequired => {
-                // TODO: Once we have a UX for resyncs, we should schedule one
-                // here and re-enable the resync test in integration.rs
+                let vc_epoch_id = if group.own_leaf_is_virtual_client() {
+                    Some(Self::register_self_group_vc_emulation_epoch(&mut *txn).await?)
+                } else {
+                    None
+                };
+
                 let _resync = Resync {
                     chat_id,
                     group_id: group.group_id().clone(),
@@ -573,6 +577,7 @@ impl CoreUser {
                     group_state_ear_key: group.group_state_ear_key().clone(),
                     identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
                     original_leaf_index: group.own_index(),
+                    vc_epoch_id,
                 };
                 group.group_mut().mark_commit_failed(&mut *txn).await?;
                 Ok(None)

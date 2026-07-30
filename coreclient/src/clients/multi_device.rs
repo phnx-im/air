@@ -7,7 +7,7 @@ use aircommon::codec::PersistenceCodec;
 use aircommon::credentials::keys::{ClientSigningKey, PreliminaryClientSigningKey};
 use aircommon::crypto::RatchetDecryptionKey;
 use aircommon::crypto::aead::keys::{
-    IdentityLinkWrapperKey, PushTokenEarKey, WelcomeAttributionInfoEarKey,
+    GroupStateEarKey, IdentityLinkWrapperKey, PushTokenEarKey, WelcomeAttributionInfoEarKey,
 };
 use aircommon::crypto::aead::{
     AeadDecryptable, AeadEncryptable, Ciphertext, keys::MultiDeviceLinkingKey,
@@ -50,8 +50,10 @@ use tracing::{debug, error, info, warn};
 use url::Url;
 use uuid::Uuid;
 
+use crate::db::access::WriteConnection;
 use crate::groups::self_group::SelfGroup;
 use crate::{
+    Chat, ChatId,
     clients::{
         CIPHERSUITE, CoreUser,
         api_clients::ApiClients,
@@ -100,6 +102,22 @@ pub(crate) struct ProvisioningPackage {
     // Self-group metadata not carried by the Welcome.
     pub(crate) self_group_id: GroupId,
     pub(crate) identity_link_wrapper_key: IdentityLinkWrapperKey,
+    // The higher-level groups the virtual client is already a member of, which
+    // the new emulator client onboards itself into.
+    pub(crate) groups: Vec<HigherLevelGroup>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub(crate) struct HigherLevelGroup {
+    pub(crate) group_id: GroupId,
+    pub(crate) pq_group_id: Option<GroupId>, // TODO(gabriel): apqmls needs support for this to work
+    pub(crate) group_state_ear_key: GroupStateEarKey,
+    pub(crate) identity_link_wrapper_key: IdentityLinkWrapperKey,
+    pub(crate) vc_leaf_index: u32,
+    /// TODO(gabriel): Chat title and picture are needed rather than decoded from `GroupData`
+    /// because the local chat has to exist *before* the resync can be queued.
+    pub(crate) title: String,
+    pub(crate) picture: Option<Vec<u8>>,
 }
 
 #[derive(Debug)]
@@ -274,7 +292,8 @@ impl CoreUser {
         // 3. hand it to the old device
         // 4. old device adds us via the DS
         // 5. we then process the Welcome that the QS fans out to our fresh queue.
-        let core_user = Self::link_new_device(api_clients, db_path, package).await?;
+        // 6. the old client gives us enough information to onboard ourselves (the new client) into all existing groups.
+        let (core_user, groups) = Self::link_new_device(api_clients, db_path, package).await?;
         info!("bootstrapped linked client");
 
         let self_group_kp = core_user.generate_self_group_key_package().await?;
@@ -285,6 +304,12 @@ impl CoreUser {
 
         core_user.join_self_group_from_queue().await?;
         info!("joined self group");
+
+        let queued = core_user.enqueue_vc_onboarding(groups).await?;
+        info!(
+            queued,
+            "queued onboarding into existing higher-level groups"
+        );
 
         Ok(core_user)
     }
@@ -429,6 +454,7 @@ impl CoreUser {
         let qs_client_id = response.qs_client_id;
 
         let user_profile_key = UserProfileKey::load_own(self.db().read().await?).await?;
+        let groups = self.higher_level_groups(&self_group_id).await?;
 
         Ok(ProvisioningPackage {
             user_id: self.user_id().clone(),
@@ -446,7 +472,60 @@ impl CoreUser {
             user_profile_key,
             self_group_id,
             identity_link_wrapper_key,
+            groups,
         })
+    }
+
+    /// Describe every higher-level group the virtual client is a member of for a
+    /// joining emulator client can onboard itself into each of them.
+    ///
+    /// Skips the emulation group itself and any chat without attributes (connection chats).
+    async fn higher_level_groups(
+        &self,
+        self_group_id: &GroupId,
+    ) -> anyhow::Result<Vec<HigherLevelGroup>> {
+        self.db()
+            .with_read_transaction(async |txn| -> anyhow::Result<_> {
+                let group_ids = Group::load_all_group_ids(&mut *txn).await?;
+                let mut groups = Vec::new();
+
+                // TODO(gabriel): this might be better as a function of the `Group` struct that does it directly in SQL?
+                for group_id in group_ids {
+                    if &group_id == self_group_id {
+                        continue;
+                    }
+                    let Some(group) = Group::load(&mut *txn, &group_id).await? else {
+                        continue;
+                    };
+                    let Ok(chat_id) = ChatId::try_from(&group_id) else {
+                        warn!(?group_id, "group id is not a chat id; skipping group");
+                        continue;
+                    };
+                    let Some(chat) = Chat::load(&mut *txn, &chat_id).await? else {
+                        continue;
+                    };
+                    // TODO(gabriel): convey connection chats too. They need the
+                    // `Contact` record (friendship token, WAI key) on top of the
+                    // group itself.
+                    let Some(attributes) = chat.attributes() else {
+                        debug!(?group_id, "skipping non-group chat");
+                        continue;
+                    };
+
+                    groups.push(HigherLevelGroup {
+                        group_id: group_id.clone(),
+                        pq_group_id: group.pq_group_id(),
+                        group_state_ear_key: group.group_state_ear_key().clone(),
+                        identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
+                        vc_leaf_index: group.own_index().u32(),
+                        title: attributes.title().to_owned(),
+                        picture: attributes.picture().map(<[u8]>::to_vec),
+                    });
+                }
+
+                Ok(groups)
+            })
+            .await
     }
 
     /// The signing key used for this client's leaf in the self group.
@@ -586,32 +665,24 @@ impl CoreUser {
                     .group_mut()
                     .store_update(&mut *txn, None, None)
                     .await?;
+
                 Ok(())
             })
             .await?;
-
-        // Now that the new device is a member, register the VC emulation epoch
-        // at this (post-Add) self-group epoch. The joining device registers at
-        // the same epoch, so both siblings derive the same EpochId.
-        //
-        // NB(gabriel): this is currently just a sanity check, since we don't need the [`EpochId`] here
-        self.register_self_group_vc_emulation_epoch().await?;
 
         Ok(())
     }
 
     /// Register a virtual-clients emulation epoch on the self group.
-    async fn register_self_group_vc_emulation_epoch(&self) -> anyhow::Result<EpochId> {
-        self.db()
-            .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                let mut self_group = SelfGroup::load(&mut *txn)
-                    .await?
-                    .context("self group not found")?;
-                let epoch_id = self_group.register_vc_emulation_epoch(&mut *txn)?;
-                debug!(?epoch_id, "registered self-group VC emulation epoch");
-                Ok(epoch_id)
-            })
-            .await
+    pub(crate) async fn register_self_group_vc_emulation_epoch(
+        mut connection: impl WriteConnection,
+    ) -> anyhow::Result<EpochId> {
+        let mut self_group = SelfGroup::load(&mut connection)
+            .await?
+            .context("self group not found")?;
+        let epoch_id = self_group.register_vc_emulation_epoch(connection)?;
+        debug!(?epoch_id, "registered self-group VC emulation epoch");
+        Ok(epoch_id)
     }
 
     /// Poll our QS queue until the self-group Welcome arrives.
@@ -627,9 +698,7 @@ impl CoreUser {
                 .await?
                 .is_some();
             if already_joined {
-                // Register the VC emulation epoch at the epoch we just joined
-                // into, matching the device that performed the Add.
-                self.register_self_group_vc_emulation_epoch().await?;
+                Self::register_self_group_vc_emulation_epoch(self.db().write().await?).await?;
                 return Ok(());
             }
 
@@ -686,11 +755,15 @@ impl CoreUser {
 
     /// Bootstrap a [`CoreUser`] on a freshly linked device from the
     /// provisioning package received over the secure linking channel.
+    ///
+    /// Also returns the higher-level groups the virtual client is a member of.
+    /// Onboarding into them has to wait until we joined the emulation group, so it
+    /// is not done here yet.
     async fn link_new_device(
         api_clients: ApiClients,
         db_path: &str,
         package: ProvisioningPackage,
-    ) -> anyhow::Result<CoreUser> {
+    ) -> anyhow::Result<(CoreUser, Vec<HigherLevelGroup>)> {
         let air_db = open_air_db(db_path).await?;
         let client_db = open_client_db(&package.user_id, db_path).await?;
         let global_lock = open_lock_file(db_path)?;
@@ -711,6 +784,7 @@ impl CoreUser {
             user_profile_key,
             self_group_id,
             identity_link_wrapper_key: _,
+            groups,
         } = package;
 
         let shared_user_credential = client_signing_key.credential().clone();
@@ -771,8 +845,11 @@ impl CoreUser {
         client_record.finish();
         client_record.store(air_db.write().await?).await?;
 
-        Ok(final_state
-            .final_state()?
-            .into_self_user(client_db, api_clients, global_lock))
+        let core_user =
+            final_state
+                .final_state()?
+                .into_self_user(client_db, api_clients, global_lock);
+
+        Ok((core_user, groups))
     }
 }

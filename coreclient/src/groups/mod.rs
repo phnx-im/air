@@ -66,6 +66,7 @@ use aircommon::{
         default_app_data_dictionary_extension, default_group_required_extensions,
         default_leaf_node_capabilities, default_leaf_node_extensions,
         default_mls_group_join_config, default_sender_ratchet_configuration,
+        vc_leaf_node_extensions,
     },
     time::TimeStamp,
     utils::removed_client,
@@ -103,7 +104,7 @@ use crate::{
 
 use openmls::{
     component::ComponentType,
-    components::vc_derivation_info::GenerationId,
+    components::vc_derivation_info::{EpochId, GenerationId, VC_COMPONENT_ID},
     group::{
         CreateCommitError, ExportSecretError, ExternalCommitBuilder, GroupEpoch, JoinBuilder,
         ProcessedWelcome, ProposalValidationError, UnconfirmedMessage,
@@ -1041,6 +1042,9 @@ impl Group {
         aad: AadMessage,
         // Should be Some if this join is in response to a connection offer.
         connection_offer_hash: Option<ConnectionOfferHash>,
+        // Should be Some if we are joining as an emulator of a virtual client
+        // that is already a member.
+        vc_epoch_id: Option<EpochId>,
     ) -> anyhow::Result<
         Result<
             (Self, MlsMessageOut, MlsMessageOut, DecryptedProfileInfos),
@@ -1094,9 +1098,14 @@ impl Group {
                 None => None,
             };
 
+            let leaf_node_extensions = if vc_epoch_id.is_some() {
+                vc_leaf_node_extensions::<AirComponent>()
+            } else {
+                default_leaf_node_extensions::<AirComponent>()
+            };
             let leaf_node_parameters = LeafNodeParameters::builder()
                 .with_capabilities(default_leaf_node_capabilities())
-                .with_extensions(default_leaf_node_extensions::<AirComponent>())
+                .with_extensions(leaf_node_extensions)
                 .build();
 
             let encrypted_profile_keys_fallback = Self::encrypted_profile_keys_fallback(
@@ -1113,6 +1122,12 @@ impl Group {
                 .with_ratchet_tree(ratchet_tree_in)
                 .build_group(&provider, verifiable_group_info, credential_with_key)?
                 .leaf_node_parameters(leaf_node_parameters);
+
+            // Must come after `leaf_node_parameters`: the VC leaf configuration
+            // is validated against them before an operation secret is spent.
+            if let Some(epoch_id) = vc_epoch_id {
+                builder = builder.vc_emulation(provider.crypto(), provider.storage(), epoch_id)?;
+            }
 
             if let Some(psk_proposal) = psk_proposal {
                 builder = builder.add_psk_proposal(psk_proposal);
@@ -2385,6 +2400,26 @@ impl Group {
 
     pub(crate) fn own_index(&self) -> LeafNodeIndex {
         self.mls_group().own_leaf_index()
+    }
+
+    /// Whether our leaf in this group is operated by a virtual client,
+    /// determined by the leaf advertising `VC_COMPONENT_ID`
+    pub(crate) fn own_leaf_is_virtual_client(&self) -> bool {
+        let Some(own_leaf_node) = self.mls_group().own_leaf_node() else {
+            return false;
+        };
+        own_leaf_node
+            .extensions()
+            .app_data_dictionary()
+            .and_then(|ext| ext.dictionary().get(&ComponentType::AppComponents.into()))
+            .and_then(|data| {
+                ComponentsList::tls_deserialize_exact_bytes(data)
+                    .inspect_err(|error| {
+                        error!(%error, "Failed to deserialize app components");
+                    })
+                    .ok()
+            })
+            .is_some_and(|list| list.component_ids.contains(&VC_COMPONENT_ID))
     }
 
     pub(crate) fn store_connection_offer_psk(
