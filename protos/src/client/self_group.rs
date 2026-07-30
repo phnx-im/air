@@ -87,6 +87,13 @@ pub enum SelfGroupMessage {
 /// does not know the tag. Receivers leave the local value of absent fields
 /// unchanged.
 ///
+/// The format carries no intent: it cannot express which fields the sender
+/// meant to change, only which values it holds. A commit that changes one
+/// setting therefore also covers a sibling device's in-flight change to an
+/// unrelated setting, and cancels it. DS commit order decides which one wins.
+/// Fixing that would take a per-field intent tag, worth adding if the loss of
+/// concurrent changes becomes a problem as more synced settings arrive.
+///
 /// ## CDDL Definition
 ///
 /// ```cddl

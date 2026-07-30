@@ -724,16 +724,15 @@ impl PendingChatOperation {
 
     /// Stages a self-group commit carrying the settings update and stores it as
     /// a pending chat operation.
+    ///
+    /// Takes the loaded self-group, because the caller has to check it for a
+    /// pending commit itself to tell a transient one apart from a failure.
     pub(crate) async fn create_settings_update(
         txn: &mut WriteDbTransaction<'_>,
         signer: &ClientSigningKey,
-        self_group_id: &GroupId,
+        mut group: VerifiedGroup,
         update: SettingsUpdate,
     ) -> anyhow::Result<Self> {
-        let mut group = Group::load_clean_verified(&mut *txn, self_group_id)
-            .await?
-            .with_context(|| format!("Can't find self group with id {self_group_id:?}"))?;
-
         let params = group
             .group_mut()
             .stage_settings_update(txn, signer, &update)

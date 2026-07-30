@@ -193,6 +193,37 @@ void main() {
       verify(() => userSettingsCubit.setReadReceipts(value: false)).called(1);
     });
 
+    testWidgets('a submit failing after the screen closed is not an error', (
+      tester,
+    ) async {
+      tester.view.physicalSize = physicalSize;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+      });
+
+      when(() => userCubit.state).thenReturn(MockUiUser(id: 1, usernames: []));
+      when(
+        () => userSettingsCubit.setReadReceipts(value: any(named: 'value')),
+      ).thenAnswer(
+        (_) => Future<void>.delayed(
+          const Duration(milliseconds: 100),
+          () => throw Exception('failed to set read receipts'),
+        ),
+      );
+
+      await tester.pumpWidget(buildSubject());
+      await tester.tap(find.text('Read receipts'));
+
+      // Closing the screen flushes the pending submit, so the failure arrives
+      // after the switch state is gone. There is nothing left to revert, and
+      // trying to revert it anyway would throw.
+      await tester.pumpWidget(const SizedBox());
+      verify(() => userSettingsCubit.setReadReceipts(value: false)).called(1);
+
+      await tester.pump(const Duration(milliseconds: 200));
+      expect(tester.takeException(), isNull);
+    });
+
     testWidgets('a settings state update does not feed back into a submit', (
       tester,
     ) async {

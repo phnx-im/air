@@ -4,7 +4,7 @@
 
 use airprotos::client::self_group::SettingsUpdate;
 use anyhow::bail;
-use tracing::error;
+use tracing::{error, warn};
 
 use crate::{
     clients::{CoreUser, own_client_info::OwnClientInfo},
@@ -161,7 +161,20 @@ impl SettingChanges {
         }
 
         if !already_touched && let Some(bytes) = current {
-            T::decode(bytes)?.apply_to_update(&mut pending.previous);
+            // A stored value we cannot decode is treated as unset, matching the
+            // read path in `user_setting`. A rollback then deletes the row, so
+            // the setting degrades to its default instead of the toggle failing
+            // for good.
+            match T::decode(bytes) {
+                Ok(value) => value.apply_to_update(&mut pending.previous),
+                Err(error) => {
+                    warn!(
+                        %error,
+                        setting = T::KEY,
+                        "Failed to decode the stored user setting, treating the previous value as unset"
+                    );
+                }
+            }
         }
         value.apply_to_update(&mut pending.changes);
 
@@ -773,6 +786,35 @@ mod tests {
         .await?;
 
         assert_eq!(stored_read_receipts(&pool).await?, None);
+        Ok(())
+    }
+
+    /// A stored value that does not decode does not block the change. It counts
+    /// as no previous value, so a rollback deletes the row and the setting falls
+    /// back to its default.
+    #[sqlx::test]
+    async fn record_treats_undecodable_previous_as_unset(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+
+        // Two bytes never decode to a `ReadReceiptsSetting`.
+        UserSettingRecord::store(pool.write().await?, ReadReceiptsSetting::KEY, vec![7, 7]).await?;
+
+        pool.with_write_transaction(async |txn| -> anyhow::Result<()> {
+            assert!(SettingChanges::record(txn, &ReadReceiptsSetting(true)).await?);
+
+            let pending = SettingChanges::load(&mut *txn)
+                .await?
+                .expect("the change must be pending");
+            assert_eq!(pending.changes, read_receipts_update(true));
+            assert_eq!(
+                pending.previous.send_read_receipts, None,
+                "an undecodable previous value must be recorded as unset"
+            );
+            Ok(())
+        })
+        .await?;
+
+        assert_eq!(stored_read_receipts(&pool).await?, Some(true));
         Ok(())
     }
 

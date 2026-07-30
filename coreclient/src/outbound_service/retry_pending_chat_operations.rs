@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use airprotos::client::self_group::SettingsUpdate;
+use anyhow::Context as _;
 use tokio_util::sync::CancellationToken;
 use tracing::{debug, error};
 use uuid::Uuid;
@@ -12,6 +13,7 @@ use crate::{
         own_client_info::OwnClientInfo,
         user_settings::{SettingChanges, SettingsUpdateExt},
     },
+    groups::Group,
     job::{JobError, pending_chat_operation::PendingChatOperation},
     outbound_service::{OutboundServiceContext, error::OutboundServiceRunError},
 };
@@ -76,10 +78,11 @@ impl OutboundServiceContext {
     ///
     /// The commit carries the full current settings state and is stored as a
     /// [`PendingChatOperation`], the send attempt behind the pending changes.
-    /// A no-op when no changes are pending, when there is no self-group, or
-    /// when a self-group operation is already in flight (including one parked
-    /// on a wrong-epoch rejection, which waits for the winning commit to
-    /// arrive through the queue and delete it).
+    /// A no-op when no changes are pending, when there is no self-group, when
+    /// a self-group operation is already in flight (including one parked on a
+    /// wrong-epoch rejection, which waits for the winning commit to arrive
+    /// through the queue and delete it), or when the self-group carries a
+    /// pending commit that no operation row belongs to.
     async fn ensure_settings_operation(&self) -> anyhow::Result<()> {
         let info = OwnClientInfo::load(self.db.read().await?).await?;
         let Some(self_group_id) = info.self_group_id else {
@@ -101,9 +104,21 @@ impl OutboundServiceContext {
                     return Ok(());
                 }
 
+                let group = Group::load_verified(&mut *txn, &self_group_id)
+                    .await?
+                    .with_context(|| format!("Can't find self group with id {self_group_id:?}"))?;
+
+                // The linking flow stages the self-group add commit without an
+                // operation row and merges it only after the DS roundtrip. A
+                // pending commit without an operation row is therefore a normal
+                // transient state, not a failure. The next wake retries.
+                if let Err(error) = group.ensure_clean() {
+                    debug!(%error, "Self group has a pending commit, deferring setting changes");
+                    return Ok(());
+                }
+
                 let update = SettingsUpdate::collect(&mut *txn).await?;
-                PendingChatOperation::create_settings_update(txn, &signer, &self_group_id, update)
-                    .await?;
+                PendingChatOperation::create_settings_update(txn, &signer, group, update).await?;
                 Ok(())
             })
             .await

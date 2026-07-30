@@ -295,13 +295,16 @@ impl CoreUser {
         }
 
         // Our settings commit was accepted: complete the pending setting
-        // changes it asserted before the operation is deleted. Boxed because
-        // the loaded operation carries the full group state.
-        Box::pin(PendingChatOperation::complete_settings_intent(
-            &mut *txn,
-            group.group_id(),
-        ))
-        .await?;
+        // changes it asserted before the operation is deleted. Only self-group
+        // commits can carry a settings update. Boxed because the loaded
+        // operation carries the full group state.
+        if group.is_self_group() {
+            Box::pin(PendingChatOperation::complete_settings_intent(
+                &mut *txn,
+                group.group_id(),
+            ))
+            .await?;
+        }
 
         // Delete the pending chat operation
         PendingChatOperation::delete(txn, group.group_id()).await?;

@@ -368,7 +368,12 @@ class _CommonSettings extends HookWidget {
               // The submit failed, so the cubit state did not move. Revert the
               // optimistic local flip to match it.
               _log.severe("Failed to set read receipts: $e", e);
-              readReceipts.value = settingsCubit.state.readReceipts;
+              // The flush on dispose submits a pending tap during unmount, so
+              // this can fail after the notifier is gone. There is no UI left
+              // to revert then, and writing to a disposed notifier throws.
+              if (context.mounted) {
+                readReceipts.value = settingsCubit.state.readReceipts;
+              }
             }
           },
           value: readReceipts,
