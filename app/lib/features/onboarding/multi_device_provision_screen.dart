@@ -345,7 +345,7 @@ class _CountdownRing extends HookWidget {
         final remaining = (controller.value * duration.inSeconds).ceil();
         final ringColor = remaining <= warnThreshold.inSeconds
             ? colors.function.warning.primary
-            : colors.function.success;
+            : colors.function.success.primary;
 
         return SizedBox(
           width: size,

@@ -430,7 +430,7 @@ class _InvitationCodesBadge extends StatelessWidget {
       width: 40,
       height: 24,
       decoration: BoxDecoration(
-        color: colors.function.success,
+        color: colors.function.success.primary,
         borderRadius: BorderRadius.circular(Radii.full),
       ),
       child: Center(

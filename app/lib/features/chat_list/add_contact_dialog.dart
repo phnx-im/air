@@ -183,7 +183,7 @@ class _Description extends StatelessWidget {
       (final errorMessage?, _) => (errorMessage, colors.function.danger),
       (null, true) => (
         loc.newConnectionDialog_handleExists(username),
-        colors.function.success,
+        colors.function.success.primary,
       ),
       (null, false) => (
         loc.newConnectionDialog_newConnectionDescription,
