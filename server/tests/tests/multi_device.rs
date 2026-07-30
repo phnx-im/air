@@ -217,6 +217,24 @@ async fn multi_device_linking_session() {
     )
     .await;
 
+    // The old device has to follow the onboarding external commit onto the
+    // virtual client's new leaf. Drain its queue, then check both emulators
+    // agree on the epoch and the shared leaf index -- if they don't, they have
+    // diverging key schedules and messages between them cannot decrypt.
+    let pending = old_device.qs_fetch_messages().await.unwrap();
+    old_device.fully_process_qs_messages(pending).await;
+    assert_eq!(
+        old_device
+            .group_epoch_and_own_index(group_chat_id_1)
+            .await
+            .unwrap(),
+        new_device
+            .group_epoch_and_own_index(group_chat_id_1)
+            .await
+            .unwrap(),
+        "both emulator clients must land on the same epoch and shared leaf"
+    );
+
     // Messages sent into one of the existing groups are seen by both devices.
     send_and_receive(
         old_device,

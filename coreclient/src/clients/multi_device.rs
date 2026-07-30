@@ -658,13 +658,22 @@ impl CoreUser {
                     .epoch();
                 if stored_epoch > group.mls_group().epoch() {
                     debug!("self-group add commit already merged by the queue handler");
-                    return Ok(());
+                } else {
+                    group.merge_pending_commit(txn, None, ds_timestamp).await?;
+                    group
+                        .group_mut()
+                        .store_update(&mut *txn, None, None)
+                        .await?;
                 }
-                group.merge_pending_commit(txn, None, ds_timestamp).await?;
-                group
-                    .group_mut()
-                    .store_update(&mut *txn, None, None)
-                    .await?;
+
+                // Register the emulation epoch at this (post-Add) epoch of the
+                // emulation group. The joining emulator client registers at the
+                // same epoch when it processes the Welcome, so both derive the
+                // same `EpochId` -- and with it the operation secret tree they
+                // need to follow each other's virtual-client commits. Without
+                // this, the joining client's onboarding commit fails here with
+                // `MissingEmulationEpochState` and the two clients diverge.
+                Self::register_self_group_vc_emulation_epoch(&mut *txn).await?;
 
                 Ok(())
             })

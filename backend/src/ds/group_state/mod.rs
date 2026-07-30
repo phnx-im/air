@@ -27,7 +27,7 @@ use mls_assist::{
     openmls::{
         components::vc_derivation_info::VC_COMPONENT_ID,
         group::GroupId,
-        prelude::{GroupEpoch, LeafNodeIndex, StagedCommit},
+        prelude::{GroupEpoch, LeafNode, LeafNodeIndex, StagedCommit},
         treesync::RatchetTree,
     },
     provider_traits::MlsAssistProvider,
@@ -255,8 +255,14 @@ impl DsGroupState {
     fn leaf_is_virtual_client(&self, leaf_index: LeafNodeIndex) -> bool {
         self.group()
             .leaf(leaf_index)
-            .and_then(|leaf| leaf.extensions().app_data_dictionary())
-            .is_some_and(|dict| dict.dictionary().contains(&VC_COMPONENT_ID))
+            .is_some_and(leaf_node_is_virtual_client)
+    }
+
+    /// The queue reference recorded for `leaf_index`, if any.
+    pub(super) fn queue_config_at(&self, leaf_index: LeafNodeIndex) -> Option<QsReference> {
+        self.member_profiles
+            .get(&leaf_index)
+            .map(|profile| profile.client_queue_config.clone())
     }
 
     pub(crate) fn qs_client_ref_by_index(
@@ -461,6 +467,19 @@ impl From<SerializableDsGroupStateV2> for EncryptableDsGroupState {
     fn from(serializable: SerializableDsGroupStateV2) -> Self {
         EncryptableDsGroupState::V2(serializable)
     }
+}
+
+/// Returns `true` if the leaf carries a `VC_COMPONENT_ID` entry in its
+/// `AppDataDictionary` extension, i.e. it is operated by a virtual client.
+///
+/// This is the encrypted derivation info that a commit built via
+/// `CommitBuilder::vc_emulation` injects, so it identifies a leaf that emulator
+/// clients actually share -- not merely one that advertises support for the
+/// virtual-clients component.
+pub(super) fn leaf_node_is_virtual_client(leaf: &LeafNode) -> bool {
+    leaf.extensions()
+        .app_data_dictionary()
+        .is_some_and(|dict| dict.dictionary().contains(&VC_COMPONENT_ID))
 }
 
 impl AeadEncryptable<GroupStateEarKey, EncryptedDsGroupStateCtype> for EncryptableDsGroupState {}

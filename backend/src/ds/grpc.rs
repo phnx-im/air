@@ -1196,18 +1196,23 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     ));
                 }
 
-                let destination_clients: Vec<_> = group_state
+                let mut destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
                     .collect();
                 let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
-                let group_message = group_state.resync_client(external_commit, sender_index)?;
+                let outcome = group_state.resync_client(external_commit, sender_index)?;
+
+                // A sibling emulator client took over the virtual client's leaf;
+                // the leaf's previous occupant has to process the commit to follow
+                // onto it.
+                destination_clients.extend(outcome.sibling_queue);
 
                 group_state.proposals.clear();
 
                 let timestamp = self
                     .fan_out_message_without_notifications(
-                        group_message,
+                        outcome.message,
                         destination_clients,
                         broadcast_to_all_client_queues,
                     )
@@ -1250,11 +1255,11 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                            ear_key: _,
                        }: ApqVerificationData<'_, ApqResyncPayload>| {
                     // Collect destination clients *before* the commit is accepted.
-                    let destination_clients: Vec<_> = t_group_state
+                    let mut destination_clients: Vec<_> = t_group_state
                         .other_destination_clients(t_sender_index)
                         .collect();
 
-                    let serialized_apq_message = DsGroupState::apq_resync_client(
+                    let outcome = DsGroupState::apq_resync_client(
                         t_group_state,
                         pq_group_state,
                         t_external_commit,
@@ -1262,12 +1267,16 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         t_sender_index,
                     )?;
 
+                    // A sibling emulator client took over the virtual client's
+                    // leaf; its previous occupant has to follow onto it.
+                    destination_clients.extend(outcome.sibling_queue);
+
                     t_group_state.proposals.clear();
                     pq_group_state.proposals.clear();
 
                     let timestamp = TimeStamp::now();
                     let apq_payload =
-                        QsQueueMessagePayload::apq_mls_message(timestamp, serialized_apq_message);
+                        QsQueueMessagePayload::apq_mls_message(timestamp, outcome.message);
 
                     Ok(ApqFanOut {
                         broadcast: (apq_payload, destination_clients),
