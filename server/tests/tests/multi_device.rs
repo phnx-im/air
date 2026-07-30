@@ -83,6 +83,11 @@ async fn multi_device_linking_session() {
     let server_url = setup.server_url();
     let alice = setup.add_user().await;
 
+    // Alice already has two groups before the new device is linked. The
+    // linked device should inherit them, not just the self-group.
+    let group_chat_id_1 = setup.create_group(&alice).await;
+    let group_chat_id_2 = setup.create_group(&alice).await;
+
     let (session_tx, mut session_rx) = tokio::sync::mpsc::channel(1);
 
     let new_device_task = tokio::spawn(async move {
@@ -149,6 +154,17 @@ async fn multi_device_linking_session() {
         new_device.self_group_member_count().await.unwrap(),
         Some(2),
         "new device should see both emulator clients in the self group"
+    );
+
+    // The new device must know about all groups from the original client.
+    let new_device_chat_ids = new_device.ordered_chat_ids().await.unwrap();
+    assert!(
+        new_device_chat_ids.contains(&group_chat_id_1),
+        "linked device should have inherited pre-existing group 1"
+    );
+    assert!(
+        new_device_chat_ids.contains(&group_chat_id_2),
+        "linked device should have inherited pre-existing group 2"
     );
 
     // Both devices surface the self group as a "Notes to self" chat.
