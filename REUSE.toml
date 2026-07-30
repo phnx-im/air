@@ -154,13 +154,13 @@ SPDX-FileCopyrightText = "2025 Phoenix R&D GmbH <hello@phnx.im>"
 SPDX-License-Identifier = "CC-BY-SA-4.0"
 
 [[annotations]]
-path = "app/lib/ds/foundations/icons/svg/**"
+path = "app/lib/ds/foundations/svg/**"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2025 Phoenix R&D GmbH <hello@phnx.im>"
 SPDX-License-Identifier = "CC-BY-SA-4.0"
 
 [[annotations]]
-path = "**/app_icons.dart"
+path = "app/lib/ds/foundations/icons.dart"
 precedence = "aggregate"
 SPDX-FileCopyrightText = "2025 Phoenix R&D GmbH <hello@phnx.im>"
 SPDX-License-Identifier = "AGPL-3.0-or-later"
