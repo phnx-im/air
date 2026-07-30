@@ -476,7 +476,7 @@ impl CoreUser {
         })
     }
 
-    /// Describe every higher-level group the virtual client is a member of for a
+    /// Describe every higher-level group the virtual client is a member of, so a
     /// joining emulator client can onboard itself into each of them.
     ///
     /// Skips the emulation group itself and any chat without attributes (connection chats).

@@ -42,7 +42,8 @@ async fn send_and_receive(sender: &CoreUser, devices: &[&CoreUser], chat_id: Cha
         assert_eq!(
             received_content.content(),
             &content,
-            "self-group message should round-trip"
+            "message should round-trip {}",
+            device.own_user_profile().await.unwrap().display_name,
         );
     }
 }
@@ -260,7 +261,7 @@ async fn multi_device_linking_session() {
     let bob_client = setup.get_user(&bob).user();
     send_and_receive(
         bob_client,
-        &[&new_client, &old_client],
+        &[&new_client, old_client],
         chat_id_1,
         "hello from the old device",
     )
