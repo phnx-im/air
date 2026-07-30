@@ -47,17 +47,11 @@ class AttachmentFile extends HookWidget {
             children: [
               Text(
                 attachment.filename,
-                style: TextStyle(
-                  fontSize: BodyFontSize.base.size,
-                  color: color,
-                ),
+                style: typeScale.body.regular.style(color: color),
               ),
               Text(
                 loc.bytesToHumanReadable(attachment.size),
-                style: TextStyle(
-                  fontSize: BodyFontSize.small2.size,
-                  color: color,
-                ),
+                style: typeScale.body.xs.style(color: color),
               ),
             ],
           ),

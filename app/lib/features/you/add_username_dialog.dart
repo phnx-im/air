@@ -43,9 +43,8 @@ class AddUsernameDialog extends HookWidget {
             Center(
               child: Text(
                 loc.usernameScreen_title,
-                style: TextStyle(
-                  fontSize: HeaderFontSize.h4.size,
-                  fontWeight: FontWeight.bold,
+                style: typeScale.header.regular.style(
+                  weight: Weight.emphasized,
                 ),
               ),
             ),
@@ -87,10 +86,7 @@ class AddUsernameDialog extends HookWidget {
               padding: const EdgeInsets.symmetric(horizontal: S.s8),
               child: Text(
                 loc.usernameScreen_description,
-                style: TextStyle(
-                  color: colors.text.tertiary,
-                  fontSize: BodyFontSize.small2.size,
-                ),
+                style: typeScale.body.xs.style(color: colors.text.tertiary),
               ),
             ),
 

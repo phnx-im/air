@@ -519,7 +519,7 @@ class _ContextMenuState extends State<ContextMenu> {
   }
 
   double _measureMenuWidth(BuildContext context, double maxWidth) {
-    final textStyle = TextStyle(fontSize: LabelFontSize.base.size);
+    final textStyle = typeScale.body.regular.style();
     final textScaler = MediaQuery.textScalerOf(context);
     final textDirection = Directionality.of(context);
     final trailingIconSize = IconTheme.of(context).size ?? 24.0;

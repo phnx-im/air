@@ -45,10 +45,7 @@ class DeleteAccountDialog extends HookWidget {
           Center(
             child: Text(
               loc.deleteAccountScreen_title,
-              style: TextStyle(
-                fontSize: HeaderFontSize.h4.size,
-                fontWeight: FontWeight.bold,
-              ),
+              style: typeScale.header.regular.style(weight: Weight.emphasized),
             ),
           ),
           const SizedBox(height: S.s24),
@@ -61,10 +58,7 @@ class DeleteAccountDialog extends HookWidget {
 
           Text(
             loc.deleteAccountScreen_explanatoryText,
-            style: TextStyle(
-              color: colors.text.secondary,
-              fontSize: BodyFontSize.base.size,
-            ),
+            style: typeScale.body.regular.style(color: colors.text.secondary),
           ),
 
           const SizedBox(height: S.s12),
@@ -88,10 +82,7 @@ class DeleteAccountDialog extends HookWidget {
             padding: const EdgeInsets.symmetric(horizontal: S.s8),
             child: Text(
               loc.deleteAccountScreen_confirmationInputLabel,
-              style: TextStyle(
-                color: colors.text.tertiary,
-                fontSize: BodyFontSize.small2.size,
-              ),
+              style: typeScale.body.xs.style(color: colors.text.tertiary),
             ),
           ),
 

@@ -5,7 +5,6 @@
 import 'package:air/core/api/markdown.dart';
 import 'package:air/core/api/message_content.dart';
 
-const jumboEmojiScale = 2.5;
 const maxEmojiCount = 5;
 
 // Comprehensive emoji regex covering:

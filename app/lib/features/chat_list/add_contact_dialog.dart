@@ -50,9 +50,8 @@ class AddContactDialog extends HookWidget {
             Center(
               child: Text(
                 loc.newConnectionDialog_newConnectionTitle,
-                style: TextStyle(
-                  fontSize: HeaderFontSize.h4.size,
-                  fontWeight: FontWeight.bold,
+                style: typeScale.header.regular.style(
+                  weight: Weight.emphasized,
                 ),
               ),
             ),
@@ -63,10 +62,7 @@ class AddContactDialog extends HookWidget {
               padding: const EdgeInsets.symmetric(horizontal: S.s8),
               child: Text(
                 loc.newConnectionDialog_inputLabel,
-                style: TextStyle(
-                  fontSize: LabelFontSize.small2.size,
-                  color: colors.text.quaternary,
-                ),
+                style: typeScale.body.xs.style(color: colors.text.quaternary),
               ),
             ),
 
@@ -191,10 +187,7 @@ class _Description extends StatelessWidget {
       ),
     };
 
-    return Text(
-      text,
-      style: TextStyle(color: color, fontSize: BodyFontSize.small2.size),
-    );
+    return Text(text, style: typeScale.body.xs.style(color: color));
   }
 }
 

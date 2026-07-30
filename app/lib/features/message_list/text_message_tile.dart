@@ -58,8 +58,7 @@ final _log = Logger('MessageTile');
 const double _bubbleMaxWidthFactor = 5 / 6;
 // Match the hover react button to a single-line message bubble.
 final double _hoverReactSize =
-    BodyFontSize.base.size * BodyFontSize.lineHeight +
-    messageVerticalPadding * 2;
+    typeScale.body.regular.lineHeightPx + messageVerticalPadding * 2;
 // Width the hover affordance occupies beside the bubble: the reply and react
 // buttons, the gap between them, and the gap to the bubble.
 final double _hoverAffordanceWidth = 2 * _hoverReactSize + 2 * S.s8;
@@ -1015,19 +1014,17 @@ class _MessageMetadataRowState extends State<_MessageMetadataRow> {
                 if (showMessageStatus) const SizedBox(width: S.s4),
                 if (showMessageStatus && isError)
                   Text(
-                    style: TextStyle(
+                    style: typeScale.body.xs.style(
                       color: SemanticColors.of(
                         context,
                       ).function.warning.primary,
-                      fontSize: LabelFontSize.small2.size,
                     ),
                     loc.messageBubble_failedToSend,
                   ),
                 if (showMessageStatus && isSending && _showSending)
                   Text(
-                    style: TextStyle(
+                    style: typeScale.body.xs.style(
                       color: SemanticColors.of(context).text.tertiary,
-                      fontSize: LabelFontSize.small2.size,
                     ),
                     loc.messageBubble_sending,
                   ),
@@ -1107,11 +1104,9 @@ class _MessageContent extends StatelessWidget {
             padding: _messagePadding,
             child: Text(
               loc.textMessage_hiddenPlaceholder,
-              style: TextStyle(
-                fontStyle: FontStyle.italic,
-                fontSize: BodyFontSize.base.size,
-                color: colors.text.tertiary,
-              ),
+              style: typeScale.body.regular
+                  .style(color: colors.text.tertiary)
+                  .copyWith(fontStyle: FontStyle.italic),
             ),
           ),
         ),
@@ -1150,7 +1145,7 @@ class _MessageContent extends StatelessWidget {
               ? nakedPadding.copyWith(bottom: isEdited ? 0 : null)
               : _messagePadding.copyWith(bottom: isEdited ? 0 : null),
           child: Column(
-            spacing: BodyFontSize.base.size,
+            spacing: typeScale.body.regular.fontSize,
             crossAxisAlignment: CrossAxisAlignment.start,
             children: selectableBlocks,
           ),
@@ -1307,11 +1302,9 @@ class _DeletedMessageContent extends StatelessWidget {
             padding: _messagePadding,
             child: Text(
               deletedText,
-              style: TextStyle(
-                fontStyle: FontStyle.italic,
-                fontSize: BodyFontSize.base.size,
-                color: colors.text.tertiary,
-              ),
+              style: typeScale.body.regular
+                  .style(color: colors.text.tertiary)
+                  .copyWith(fontStyle: FontStyle.italic),
             ),
           ),
         ),

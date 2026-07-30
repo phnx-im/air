@@ -634,10 +634,7 @@ class _SwitchField extends StatelessWidget {
           children: [
             Text(
               label,
-              style: TextStyle(
-                color: colors.text.primary,
-                fontSize: BodyFontSize.base.size,
-              ),
+              style: typeScale.body.regular.style(color: colors.text.primary),
             ),
             const Spacer(),
             Switch(

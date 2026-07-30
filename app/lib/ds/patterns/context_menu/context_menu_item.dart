@@ -98,7 +98,7 @@ class ContextMenuItem extends ContextMenuEntry {
             Expanded(
               child: Text(
                 label,
-                style: TextStyle(fontSize: LabelFontSize.base.size),
+                style: typeScale.body.regular.style(),
                 maxLines: 1,
                 softWrap: false,
                 overflow: TextOverflow.ellipsis,

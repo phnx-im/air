@@ -2,7 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat_details/contact_details_view.dart';
 import 'package:air/features/chat_details/mute_button.dart';
@@ -180,7 +179,6 @@ void main() {
         tester.view.resetPhysicalSize();
         tester.view.resetDevicePixelRatio();
       });
-      useDeviceType(DeviceType.desktop);
 
       await tester.pumpWidget(
         buildSubject(
@@ -195,6 +193,6 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/contact_details_mute_menu_desktop.png'),
       );
-    });
+    }, variant: desktopPlatform);
   });
 }

@@ -45,9 +45,8 @@ class ChatListHeader extends StatelessWidget {
                 child: isMobile
                     ? Text(
                         loc.homeTab_chats,
-                        style: TextStyle(
-                          fontSize: LabelFontSize.base.size,
-                          fontWeight: FontWeight.bold,
+                        style: typeScale.body.regular.style(
+                          weight: Weight.emphasized,
                         ),
                       )
                     : null,

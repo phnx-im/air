@@ -184,10 +184,7 @@ class _LanguagePicker extends StatelessWidget {
               const SizedBox(width: S.s12),
               Text(
                 option.label,
-                style: TextStyle(
-                  fontSize: LabelFontSize.base.size,
-                  color: colors.text.primary,
-                ),
+                style: typeScale.body.regular.style(color: colors.text.primary),
               ),
             ],
           ),
@@ -204,8 +201,7 @@ class _TermsOfUseText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseTextStyle = TextStyle(
-      fontSize: LabelFontSize.small2.size,
+    final baseTextStyle = typeScale.body.xs.style(
       color: SemanticColors.of(context).text.tertiary,
     );
 

@@ -59,9 +59,8 @@ class LinkedDevicesView extends HookWidget {
               children: [
                 Text(
                   loc.linkedDevicesScreen_thisDevice,
-                  style: TextStyle(
-                    fontSize: LabelFontSize.base.size,
-                    fontWeight: FontWeight.bold,
+                  style: typeScale.body.regular.style(
+                    weight: Weight.emphasized,
                     color: colors.text.secondary,
                   ),
                 ),
@@ -73,9 +72,8 @@ class LinkedDevicesView extends HookWidget {
                 const SizedBox(height: S.s24),
                 Text(
                   loc.linkedDevicesScreen_linkedDevices,
-                  style: TextStyle(
-                    fontSize: LabelFontSize.base.size,
-                    fontWeight: FontWeight.bold,
+                  style: typeScale.body.regular.style(
+                    weight: Weight.emphasized,
                     color: colors.text.secondary,
                   ),
                 ),
@@ -94,10 +92,7 @@ class LinkedDevicesView extends HookWidget {
                 const SizedBox(height: S.s8),
                 Text(
                   loc.linkedDevicesScreen_editNameHint,
-                  style: TextStyle(
-                    fontSize: LabelFontSize.small2.size,
-                    color: colors.text.quaternary,
-                  ),
+                  style: typeScale.body.xs.style(color: colors.text.quaternary),
                 ),
                 const SizedBox(height: S.s24),
                 AppButton(
@@ -114,8 +109,7 @@ class LinkedDevicesView extends HookWidget {
                   child: Text(
                     loc.linkedDevicesScreen_deviceCount(5, 5),
                     textAlign: .center,
-                    style: TextStyle(
-                      fontSize: LabelFontSize.small2.size,
+                    style: typeScale.body.xs.style(
                       color: colors.text.quaternary,
                     ),
                   ),
@@ -139,10 +133,7 @@ class _EncryptionNotice extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final colors = SemanticColors.of(context);
-    final textStyle = TextStyle(
-      fontSize: LabelFontSize.small2.size,
-      color: colors.text.quaternary,
-    );
+    final textStyle = typeScale.body.xs.style(color: colors.text.quaternary);
 
     return Column(
       mainAxisAlignment: .center,
@@ -210,8 +201,7 @@ class _SingleDevice extends StatelessWidget {
                 children: [
                   Text(
                     deviceName,
-                    style: TextStyle(
-                      fontSize: LabelFontSize.base.size,
+                    style: typeScale.body.regular.style(
                       color: colors.text.primary,
                     ),
                   ),
@@ -219,10 +209,7 @@ class _SingleDevice extends StatelessWidget {
                     loc.linkedDevicesScreen_linkedOn(
                       dateFormat.format(linkedAt),
                     ),
-                    style: TextStyle(
-                      fontSize: LabelFontSize.small2.size,
-                      color: colors.text.tertiary,
-                    ),
+                    style: typeScale.body.xs.style(color: colors.text.tertiary),
                   ),
                 ],
               ),

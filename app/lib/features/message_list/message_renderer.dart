@@ -27,20 +27,17 @@ Widget buildBlockElement(
   return switch (block) {
     BlockElement_Paragraph(:final field0) => () {
       final jumbo = isJumboEmoji(field0);
+      final color = isSender
+          ? SemanticColors.of(context).message.selfText
+          : SemanticColors.of(context).message.otherText;
       return Text.rich(
         TextSpan(
           children: field0
               .map((child) => buildInlineElement(context, child, isSender))
               .toList(),
-          style: TextStyle(
-            color: isSender
-                ? SemanticColors.of(context).message.selfText
-                : SemanticColors.of(context).message.otherText,
-            fontSize: jumbo
-                ? BodyFontSize.base.size * jumboEmojiScale
-                : BodyFontSize.base.size,
-            height: jumbo ? 1.1 : BodyFontSize.lineHeight,
-          ),
+          style: jumbo
+              ? typeScale.emoji.jumbo.style(color: color)
+              : typeScale.body.regular.style(color: color),
         ),
         softWrap: true,
         textWidthBasis: TextWidthBasis.longestLine,
@@ -51,9 +48,8 @@ Widget buildBlockElement(
         children: field0
             .map((child) => buildInlineElement(context, child, isSender))
             .toList(),
-        style: TextStyle(
-          fontSize: BodyFontSize.large1.size,
-          fontWeight: FontWeight.bold,
+        style: typeScale.body.m.style(
+          weight: Weight.emphasized,
           color: isSender
               ? SemanticColors.of(context).message.selfText
               : SemanticColors.of(context).message.otherText,
@@ -77,7 +73,7 @@ Widget buildBlockElement(
             : SemanticColors.of(context).message.otherQuoteBackground,
       ),
       child: Column(
-        spacing: BodyFontSize.base.size,
+        spacing: typeScale.body.regular.fontSize,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: field0
             .map((inner) => buildBlockElement(context, inner.element, isSender))
@@ -94,18 +90,16 @@ Widget buildBlockElement(
               children: [
                 Text.rich(
                   const TextSpan(text: " \u2022 "),
-                  style: TextStyle(
+                  style: typeScale.body.regular.style(
                     color: isSender
                         ? SemanticColors.of(context).message.selfListPrefix
                         : SemanticColors.of(context).message.otherListPrefix,
-                    fontSize: BodyFontSize.base.size,
-                    height: BodyFontSize.lineHeight,
                   ),
                 ),
                 Flexible(
                   fit: FlexFit.loose,
                   child: Column(
-                    spacing: BodyFontSize.base.size,
+                    spacing: typeScale.body.regular.fontSize,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: items
                         .map(
@@ -135,21 +129,19 @@ Widget buildBlockElement(
                   Text.rich(
                     TextSpan(
                       text: " ${offset + BigInt.from(item.$1)}.  ",
-                      style: TextStyle(
+                      style: typeScale.body.regular.style(
                         color: isSender
                             ? SemanticColors.of(context).message.selfListPrefix
                             : SemanticColors.of(
                                 context,
                               ).message.otherListPrefix,
-                        fontSize: BodyFontSize.base.size,
-                        height: BodyFontSize.lineHeight,
                       ),
                     ),
                   ),
                   Flexible(
                     fit: FlexFit.loose,
                     child: Column(
-                      spacing: BodyFontSize.base.size,
+                      spacing: typeScale.body.regular.fontSize,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: item.$2
                           .map(
@@ -188,7 +180,7 @@ Widget buildBlockElement(
                   child: DefaultTextStyle(
                     style: const TextStyle(fontWeight: FontWeight.bold),
                     child: Column(
-                      spacing: BodyFontSize.base.size,
+                      spacing: typeScale.body.regular.fontSize,
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: itemBlocks
@@ -216,7 +208,7 @@ Widget buildBlockElement(
                       vertical: S.s4,
                     ),
                     child: Column(
-                      spacing: BodyFontSize.base.size,
+                      spacing: typeScale.body.regular.fontSize,
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: itemBlocks
@@ -247,13 +239,13 @@ Widget buildBlockElement(
     BlockElement_CodeBlock(:final field0) => Text.rich(
       TextSpan(
         text: field0.map((e) => e.value).join('\n'),
-        style: TextStyle(
-          fontFamily: getSystemMonospaceFontFamily(),
-          fontSize: BodyFontSize.small2.size,
-          color: isSender
-              ? SemanticColors.of(context).message.selfText
-              : SemanticColors.of(context).message.otherText,
-        ),
+        style: typeScale.body.xs
+            .style(
+              color: isSender
+                  ? SemanticColors.of(context).message.selfText
+                  : SemanticColors.of(context).message.otherText,
+            )
+            .withSystemMonospace(),
       ),
     ),
     BlockElement_Error(:final field0) => Container(
@@ -291,10 +283,7 @@ InlineSpan buildInlineElement(
     ),
     InlineElement_Code(:final field0) => TextSpan(
       text: field0,
-      style: TextStyle(
-        fontFamily: getSystemMonospaceFontFamily(),
-        fontSize: BodyFontSize.small2.size,
-      ),
+      style: typeScale.body.xs.style().withSystemMonospace(),
     ),
     InlineElement_Link(:final destUrl, :final children) => TextSpan(
       children: children
@@ -422,26 +411,21 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
                 children: [
                   Text(
                     loc.linkConfirmation_title,
-                    style: TextStyle(
-                      fontSize: HeaderFontSize.h4.size,
-                      fontWeight: .bold,
+                    style: typeScale.header.regular.style(
+                      weight: Weight.emphasized,
                     ),
                   ),
                   Text(
                     loc.linkConfirmation_description,
                     textAlign: .center,
-                    style: TextStyle(
+                    style: typeScale.body.regular.style(
                       color: colors.text.secondary,
-                      fontSize: BodyFontSize.base.size,
                     ),
                   ),
                   Text(
                     uri.toString(),
                     textAlign: .center,
-                    style: TextStyle(
-                      color: colors.text.primary,
-                      fontSize: BodyFontSize.small2.size,
-                    ),
+                    style: typeScale.body.xs.style(color: colors.text.primary),
                   ),
                 ],
               ),
@@ -700,10 +684,7 @@ class CustomTextEditingController extends TextEditingController {
               )
               .toList(),
         ),
-        style: TextStyle(
-          fontFamily: getSystemMonospaceFontFamily(),
-          fontSize: BodyFontSize.small2.size,
-        ),
+        style: typeScale.body.xs.style().withSystemMonospace(),
       ),
       BlockElement_Error() => TextSpan(
         text: utf8.decode(raw.sublist(block.start, block.end)),
@@ -728,10 +709,7 @@ class CustomTextEditingController extends TextEditingController {
       ),
       InlineElement_Code() => TextSpan(
         text: utf8.decode(raw.sublist(inline.start, inline.end)),
-        style: TextStyle(
-          fontFamily: getSystemMonospaceFontFamily(),
-          fontSize: BodyFontSize.small2.size,
-        ),
+        style: typeScale.body.xs.style().withSystemMonospace(),
       ),
       InlineElement_Link() => TextSpan(
         text: utf8.decode(raw.sublist(inline.start, inline.end)),

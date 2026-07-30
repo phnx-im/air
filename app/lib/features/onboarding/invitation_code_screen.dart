@@ -172,10 +172,7 @@ class _InvitationCodeTextField extends HookWidget {
           padding: const EdgeInsets.only(left: S.s8),
           child: Text(
             loc.invitationCodeScreen_inputLabel,
-            style: TextStyle(
-              fontSize: LabelFontSize.small2.size,
-              color: colors.text.quaternary,
-            ),
+            style: typeScale.body.xs.style(color: colors.text.quaternary),
           ),
         ),
         TextFormField(
@@ -183,10 +180,7 @@ class _InvitationCodeTextField extends HookWidget {
           decoration: InputDecoration(
             hintText: loc.invitationCodeScreen_inputHint,
             fillColor: colors.backgroundBase.tertiary,
-            helperStyle: TextStyle(
-              fontSize: LabelFontSize.small2.size,
-              color: colors.text.quaternary,
-            ),
+            helperStyle: typeScale.body.xs.style(color: colors.text.quaternary),
           ),
           maxLength: 8,
           inputFormatters: [
@@ -258,9 +252,8 @@ class _JoinButton extends StatelessWidget {
             )
           : Text(
               loc.invitationCodeScreen_actionButton,
-              style: TextStyle(
+              style: typeScale.body.regular.style(
                 color: colors.function.neutral.toggleWhite,
-                fontSize: LabelFontSize.base.size,
               ),
             ),
     );

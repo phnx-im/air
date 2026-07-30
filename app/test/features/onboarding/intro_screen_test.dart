@@ -3,7 +3,6 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
-import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/features/onboarding/intro_screen.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
@@ -30,24 +29,19 @@ void main() {
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
     });
 
-    Widget buildSubject({bool desktop = false}) => MultiBlocProvider(
+    Widget buildSubject() => MultiBlocProvider(
       providers: [
         BlocProvider<LoadableUserCubit>.value(value: loadableUserCubit),
         BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
         BlocProvider<AppLocaleCubit>(create: (_) => AppLocaleCubit()),
       ],
       child: Builder(
-        builder: (context) {
-          final theme = testThemeData(MediaQuery.platformBrightnessOf(context));
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
-            theme: desktop
-                ? theme.copyWith(platform: desktopTargetPlatform())
-                : theme,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            home: const IntroScreen(),
-          );
-        },
+        builder: (context) => MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const IntroScreen(),
+        ),
       ),
     );
 
@@ -70,15 +64,14 @@ void main() {
       addTearDown(() {
         binding.platformDispatcher.views.first.resetPhysicalSize();
       });
-      useDeviceType(DeviceType.desktop);
 
-      await tester.pumpWidget(buildSubject(desktop: true));
+      await tester.pumpWidget(buildSubject());
       await tester.pumpAndSettle();
 
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/intro_screen_desktop.png'),
       );
-    });
+    }, variant: desktopPlatform);
   });
 }

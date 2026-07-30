@@ -137,10 +137,9 @@ class _TabBarItem extends StatelessWidget {
             const SizedBox(height: TabBarTokens.labelGap),
             Text(
               _label(context, tab),
-              style: TextStyle(
-                fontSize: LabelFontSize.small2.size,
+              style: typeScale.body.xs.style(
                 color: color,
-                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                weight: active ? Weight.emphasized : Weight.regular,
               ),
             ),
           ],

@@ -58,9 +58,8 @@ class TimestampState extends State<Timestamp> {
     return SelectionContainer.disabled(
       child: Text(
         localizedTimestamp,
-        style: TextStyle(
+        style: typeScale.body.xs.style(
           color: SemanticColors.of(context).text.tertiary,
-          fontSize: LabelFontSize.small2.size,
         ),
       ),
     );

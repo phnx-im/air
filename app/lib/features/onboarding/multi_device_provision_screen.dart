@@ -241,10 +241,9 @@ class _NumberedBullet extends StatelessWidget {
     final colors = SemanticColors.of(context);
 
     return Text(
-      style: TextStyle(
-        fontSize: BodyFontSize.base.size,
+      style: typeScale.body.regular.style(
+        weight: Weight.emphasized,
         color: colors.text.primary,
-        fontWeight: FontWeight.bold,
       ),
       "$index.",
     );
@@ -274,8 +273,7 @@ class _LinkingInstructionsList extends StatelessWidget {
               _NumberedBullet(idx + 1),
               Flexible(
                 child: Text(
-                  style: TextStyle(
-                    fontSize: LabelFontSize.base.size,
+                  style: typeScale.body.regular.style(
                     color: colors.text.primary,
                   ),
                   line,
@@ -303,10 +301,7 @@ class _ConnectingView extends StatelessWidget {
       children: [
         Text(
           loc.linkingDeviceScreen_connecting,
-          style: TextStyle(
-            fontSize: LabelFontSize.base.size,
-            color: colors.text.secondary,
-          ),
+          style: typeScale.body.regular.style(color: colors.text.secondary),
         ),
         const CircularProgressIndicator(),
       ],
@@ -370,12 +365,14 @@ class _CountdownRing extends HookWidget {
               ),
               Text(
                 "$remaining",
-                style: TextStyle(
-                  fontSize: LabelFontSize.base.size,
-                  fontWeight: FontWeight.bold,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                  color: colors.text.primary,
-                ),
+                style: typeScale.body.regular
+                    .style(
+                      weight: Weight.emphasized,
+                      color: colors.text.primary,
+                    )
+                    .copyWith(
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
               ),
             ],
           ),
@@ -452,8 +449,7 @@ class _AwaitingLinkView extends StatelessWidget {
               Text(
                 loc.linkingDeviceScreen_separator,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: LabelFontSize.base.size,
+                style: typeScale.body.regular.style(
                   color: colors.text.tertiary,
                 ),
               ),
@@ -461,22 +457,21 @@ class _AwaitingLinkView extends StatelessWidget {
               Text(
                 loc.linkingDeviceScreen_numericCode,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: LabelFontSize.small1.size,
-                  color: colors.text.primary,
-                ),
+                style: typeScale.body.s.style(color: colors.text.primary),
               ),
               const SizedBox(height: S.s8),
               Text(
                 code.spacedInGroupsOf(4),
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: HeaderFontSize.h1.size,
-                  fontWeight: FontWeight.bold,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                  letterSpacing: 4,
-                  color: colors.text.primary,
-                ),
+                style: typeScale.header.xl
+                    .style(
+                      weight: Weight.emphasized,
+                      color: colors.text.primary,
+                    )
+                    .copyWith(
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                      letterSpacing: 4,
+                    ),
               ),
             ],
           ),
@@ -515,10 +510,7 @@ class _LinkingView extends StatelessWidget {
       children: [
         Text(
           loc.linkingDeviceScreen_linking,
-          style: TextStyle(
-            fontSize: LabelFontSize.base.size,
-            color: colors.text.secondary,
-          ),
+          style: typeScale.body.regular.style(color: colors.text.secondary),
         ),
         const CircularProgressIndicator(),
       ],

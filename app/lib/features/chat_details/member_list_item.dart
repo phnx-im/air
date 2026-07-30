@@ -38,10 +38,7 @@ class MemberListItem extends StatelessWidget {
       leading: UserAvatar(profile: profile, size: S.s32),
       title: Text(
         displayName,
-        style: TextStyle(
-          fontSize: LabelFontSize.base.size,
-          color: colors.text.primary,
-        ),
+        style: typeScale.body.regular.style(color: colors.text.primary),
         overflow: TextOverflow.ellipsis,
       ),
       trailing: trailing,

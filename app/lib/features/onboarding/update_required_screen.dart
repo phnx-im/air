@@ -83,9 +83,8 @@ class UpdateRequiredView extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: S.s16),
                     child: Text(
                       loc.appOutdatedScreen_message,
-                      style: TextStyle(
-                        fontSize: HeaderFontSize.h2.size,
-                        fontWeight: FontWeight.bold,
+                      style: typeScale.header.l.style(
+                        weight: Weight.emphasized,
                       ),
                       textAlign: .center,
                     ),
@@ -97,8 +96,7 @@ class UpdateRequiredView extends StatelessWidget {
                     padding: const EdgeInsets.symmetric(horizontal: S.s16),
                     child: Text(
                       loc.appOutdatedScreen_description,
-                      style: TextStyle(
-                        fontSize: BodyFontSize.base.size,
+                      style: typeScale.body.regular.style(
                         color: colors.text.secondary,
                       ),
                       textAlign: .center,
@@ -127,9 +125,8 @@ class UpdateRequiredView extends StatelessWidget {
                               ),
                           child: Text(
                             loc.appOutdatedScreen_action,
-                            style: TextStyle(
+                            style: typeScale.body.regular.style(
                               color: colors.function.neutral.toggleWhite,
-                              fontSize: LabelFontSize.base.size,
                             ),
                           ),
                         ),

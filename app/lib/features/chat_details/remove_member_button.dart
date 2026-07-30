@@ -70,10 +70,7 @@ class RemoveMemberButton extends StatelessWidget {
       ),
       child: Text(
         loc.removeUserButton_text,
-        style: TextStyle(
-          fontSize: compact
-              ? LabelFontSize.small1.size
-              : LabelFontSize.base.size,
+        style: (compact ? typeScale.body.s : typeScale.body.regular).style(
           color: compact ? colors.text.primary : colors.function.neutral.white,
         ),
       ),

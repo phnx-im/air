@@ -60,10 +60,7 @@ class SafetyCodeView extends StatelessWidget {
 
           Text(
             profile.displayName,
-            style: TextStyle(
-              fontSize: HeaderFontSize.h1.size,
-              fontWeight: FontWeight.bold,
-            ),
+            style: typeScale.header.xl.style(weight: Weight.emphasized),
           ),
 
           const SizedBox(height: S.s24),
@@ -74,10 +71,7 @@ class SafetyCodeView extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: S.s16),
             child: Text(
-              style: TextStyle(
-                fontSize: BodyFontSize.small1.size,
-                color: colors.text.tertiary,
-              ),
+              style: typeScale.body.s.style(color: colors.text.tertiary),
               loc.safetyCodeScreen_safetyCodeExplanation(profile.displayName),
             ),
           ),
@@ -104,12 +98,14 @@ class _SafetyCode extends HookWidget {
     final loc = AppLocalizations.of(context);
     final colors = SemanticColors.of(context);
 
-    final codeStyle = TextStyle(
-      fontSize: BodyFontSize.base.size,
-      fontFamily: getSystemMonospaceFontFamily(),
-      height: 1.5,
-      color: safetyCode.hasData ? colors.text.primary : colors.text.tertiary,
-    );
+    final codeStyle = typeScale.body.regular
+        .style(
+          color: safetyCode.hasData
+              ? colors.text.primary
+              : colors.text.tertiary,
+        )
+        .withSystemMonospace()
+        .copyWith(height: 1.5);
 
     return InkWell(
       onTap: safetyCode.hasData
@@ -145,10 +141,7 @@ class _SafetyCode extends HookWidget {
                 const SizedBox(width: S.s8),
                 Text(
                   loc.safetyCodeScreen_tapToCopy,
-                  style: TextStyle(
-                    fontSize: BodyFontSize.small1.size,
-                    color: colors.text.tertiary,
-                  ),
+                  style: typeScale.body.s.style(color: colors.text.tertiary),
                 ),
               ],
             ),

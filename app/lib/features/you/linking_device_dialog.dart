@@ -115,10 +115,7 @@ class _LinkModalHeader extends StatelessWidget {
           ),
         Text(
           title,
-          style: TextStyle(
-            fontSize: BodyFontSize.base.size,
-            fontWeight: FontWeight.bold,
-          ),
+          style: typeScale.body.regular.style(weight: Weight.emphasized),
         ),
       ],
     );
@@ -142,10 +139,7 @@ class _LinkChooserPage extends StatelessWidget {
     final colors = SemanticColors.of(context);
     final loc = AppLocalizations.of(context);
 
-    final labelStyle = TextStyle(
-      color: colors.text.secondary,
-      fontSize: LabelFontSize.small1.size,
-    );
+    final labelStyle = typeScale.body.s.style(color: colors.text.secondary);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -184,10 +178,7 @@ class _LinkChooserPage extends StatelessWidget {
         const SizedBox(height: S.s16),
         Text(
           loc.linkedDevicesScreen_linkDialog_warning,
-          style: TextStyle(
-            color: colors.function.danger,
-            fontSize: BodyFontSize.small2.size,
-          ),
+          style: typeScale.body.xs.style(color: colors.function.danger),
         ),
       ],
     );
@@ -407,13 +398,12 @@ class _NumericCodePage extends HookWidget {
     final loc = AppLocalizations.of(context);
     final controller = useTextEditingController();
 
-    final codeStyle = TextStyle(
-      fontSize: HeaderFontSize.h1.size,
-      fontWeight: FontWeight.bold,
-      fontFeatures: const [FontFeature.tabularFigures()],
-      letterSpacing: 4,
-      color: colors.text.primary,
-    );
+    final codeStyle = typeScale.header.xl
+        .style(weight: Weight.emphasized, color: colors.text.primary)
+        .copyWith(
+          fontFeatures: const [FontFeature.tabularFigures()],
+          letterSpacing: 4,
+        );
 
     void onEditingComplete() {
       final code = controller.text.digitsOnly(); // remove all spaces
@@ -431,10 +421,7 @@ class _NumericCodePage extends HookWidget {
         const SizedBox(height: S.s24),
         Text(
           loc.linkedDevicesScreen_linkDialog_numericCodeInstructions,
-          style: TextStyle(
-            color: colors.text.secondary,
-            fontSize: LabelFontSize.small1.size,
-          ),
+          style: typeScale.body.s.style(color: colors.text.secondary),
         ),
         const SizedBox(height: S.s16),
         TextField(
@@ -588,10 +575,7 @@ class _LinkStatusView extends StatelessWidget {
         Text(
           message,
           textAlign: TextAlign.center,
-          style: TextStyle(
-            color: colors.text.secondary,
-            fontSize: LabelFontSize.small1.size,
-          ),
+          style: typeScale.body.s.style(color: colors.text.secondary),
         ),
         const SizedBox(height: S.s24),
         const Center(child: CircularProgressIndicator()),
@@ -626,10 +610,7 @@ class _LinkErrorView extends StatelessWidget {
         Text(
           message,
           textAlign: TextAlign.center,
-          style: TextStyle(
-            color: colors.text.primary,
-            fontSize: BodyFontSize.small2.size,
-          ),
+          style: typeScale.body.xs.style(color: colors.text.primary),
         ),
         const SizedBox(height: S.s24),
         AppButton(
@@ -686,10 +667,7 @@ class _LinkDeviceName extends StatelessWidget {
         ),
         Text(
           loc.linkingDeviceScreen_linking_confirm_edit_subtitle,
-          style: TextStyle(
-            color: colors.text.tertiary,
-            fontSize: LabelFontSize.small2.size,
-          ),
+          style: typeScale.body.xs.style(color: colors.text.tertiary),
         ),
       ],
     );
@@ -726,10 +704,7 @@ class _LinkConfirmView extends HookWidget {
         const SizedBox(height: S.s16),
         Text(
           loc.linkingDeviceScreen_linking_confirm_body,
-          style: TextStyle(
-            color: colors.function.danger,
-            fontSize: LabelFontSize.small1.size,
-          ),
+          style: typeScale.body.s.style(color: colors.function.danger),
         ),
         const SizedBox(height: S.s16),
         InkWell(
@@ -744,10 +719,7 @@ class _LinkConfirmView extends HookWidget {
               Expanded(
                 child: Text(
                   loc.linkingDeviceScreen_linking_confirm_checkbox,
-                  style: TextStyle(
-                    color: colors.text.primary,
-                    fontSize: LabelFontSize.small1.size,
-                  ),
+                  style: typeScale.body.s.style(color: colors.text.primary),
                 ),
               ),
             ],

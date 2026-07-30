@@ -101,12 +101,12 @@ class _SystemMessageText extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final textStyle = TextStyle(
-      color: SemanticColors.of(context).text.tertiary,
-      fontSize: LabelFontSize.small1.size,
+    final tertiary = SemanticColors.of(context).text.tertiary;
+    final textStyle = typeScale.body.s.style(color: tertiary);
+    final profileNameStyle = typeScale.body.s.style(
+      color: tertiary,
+      weight: Weight.emphasized,
     );
-
-    final profileNameStyle = textStyle.copyWith(fontWeight: FontWeight.bold);
 
     final messageText = switch (message) {
       UiSystemMessage_Add(field0: final userId, field1: final contactId) => () {
@@ -332,12 +332,12 @@ class _SystemMessageText extends StatelessWidget {
 RichText buildSystemMessageText(BuildContext context, UiSystemMessage message) {
   final loc = AppLocalizations.of(context);
 
-  final textStyle = TextStyle(
-    color: SemanticColors.of(context).text.tertiary,
-    fontSize: LabelFontSize.small1.size,
+  final tertiary = SemanticColors.of(context).text.tertiary;
+  final textStyle = typeScale.body.s.style(color: tertiary);
+  final profileNameStyle = typeScale.body.s.style(
+    color: tertiary,
+    weight: Weight.emphasized,
   );
-
-  final profileNameStyle = textStyle.copyWith(fontWeight: FontWeight.bold);
 
   final messageText = switch (message) {
     UiSystemMessage_Add(field0: final userId, field1: final contactId) => () {
@@ -565,11 +565,9 @@ class _ErrorMessageContent extends StatelessWidget {
       alignment: AlignmentDirectional.topStart,
       child: Text(
         message.message,
-        style: TextStyle(
-          color: Primitives.chromatic(Hue.red, Shade.s500),
-          fontSize: LabelFontSize.small2.size,
-          height: 1.0,
-        ),
+        style: typeScale.body.xs
+            .style(color: Primitives.chromatic(Hue.red, Shade.s500))
+            .copyWith(height: 1.0),
       ),
     );
   }

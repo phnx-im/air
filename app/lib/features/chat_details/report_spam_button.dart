@@ -35,8 +35,7 @@ class ReportSpamButton extends StatelessWidget {
       ),
       child: Text(
         loc.reportSpamButton_text,
-        style: TextStyle(
-          fontSize: LabelFontSize.base.size,
+        style: typeScale.body.regular.style(
           color: SemanticColors.of(context).text.primary,
         ),
       ),

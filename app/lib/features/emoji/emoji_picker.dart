@@ -147,18 +147,12 @@ class _SearchField extends StatelessWidget {
         controller: controller,
         autofocus: true,
         textInputAction: TextInputAction.search,
-        style: TextStyle(
-          fontSize: FontSizes.base.size,
-          color: colors.text.primary,
-        ),
+        style: typeScale.body.regular.style(color: colors.text.primary),
         decoration: InputDecoration(
           filled: true,
           fillColor: colors.fill.tertiary,
           hintText: 'Search emoji',
-          hintStyle: TextStyle(
-            fontSize: FontSizes.base.size,
-            color: colors.text.tertiary,
-          ),
+          hintStyle: typeScale.body.regular.style(color: colors.text.tertiary),
           prefixIcon: Padding(
             padding: const EdgeInsets.only(left: S.s12, right: S.s8),
             child: AppIcon.search(size: 18, color: colors.text.tertiary),

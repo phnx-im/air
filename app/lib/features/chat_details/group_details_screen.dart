@@ -88,9 +88,8 @@ class GroupDetailsScreen extends StatelessWidget {
                         child: Text(
                           chat.title,
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: HeaderFontSize.h1.size,
-                            fontWeight: FontWeight.bold,
+                          style: typeScale.header.xl.style(
+                            weight: Weight.emphasized,
                           ),
                         ),
                       ),
@@ -98,8 +97,7 @@ class GroupDetailsScreen extends StatelessWidget {
                       Text(
                         loc.groupDetails_groupDescription,
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: BodyFontSize.base.size,
+                        style: typeScale.body.regular.style(
                           color: colors.text.secondary,
                         ),
                       ),
@@ -238,10 +236,7 @@ class _PeoplePreview extends HookWidget {
           padding: const EdgeInsets.all(S.s12),
           child: Text(
             loc.groupDetails_memberCount(memberIds.length),
-            style: TextStyle(
-              fontSize: LabelFontSize.base.size,
-              fontWeight: FontWeight.bold,
-            ),
+            style: typeScale.body.regular.style(weight: Weight.emphasized),
           ),
         ),
         Column(
@@ -377,7 +372,7 @@ class _ActionsRow extends StatelessWidget {
                     const SizedBox(width: S.s16),
                     Text(
                       loc.groupDetails_addPeople,
-                      style: TextStyle(fontSize: BodyFontSize.base.size),
+                      style: typeScale.body.regular.style(),
                     ),
                   ],
                 ),
@@ -399,7 +394,7 @@ class _ActionsRow extends StatelessWidget {
                   children: [
                     Text(
                       loc.groupDetails_seeAll,
-                      style: TextStyle(fontSize: BodyFontSize.base.size),
+                      style: typeScale.body.regular.style(),
                     ),
                     const SizedBox(width: S.s12),
                     Container(

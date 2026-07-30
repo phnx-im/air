@@ -63,10 +63,7 @@ class ChatDebugInfoView extends HookWidget {
             padding: const EdgeInsets.all(S.s16),
             child: Text(
               error.toString(),
-              style: TextStyle(
-                fontSize: BodyFontSize.small1.size,
-                color: colors.text.secondary,
-              ),
+              style: typeScale.body.s.style(color: colors.text.secondary),
             ),
           ),
         ),
@@ -290,9 +287,8 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: S.s8),
       child: Text(
         title.toUpperCase(),
-        style: TextStyle(
-          fontSize: BodyFontSize.small2.size,
-          fontWeight: FontWeight.bold,
+        style: typeScale.body.xs.style(
+          weight: Weight.emphasized,
           color: colors.text.tertiary,
         ),
       ),
@@ -312,12 +308,9 @@ class _CardSectionHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
       child: Text(
         title,
-        style: TextStyle(
-          fontSize: BodyFontSize.small2.size,
-          fontWeight: FontWeight.w600,
-          color: colors.text.tertiary,
-          letterSpacing: 0.3,
-        ),
+        style: typeScale.body.xs
+            .style(color: colors.text.tertiary)
+            .copyWith(fontWeight: FontWeight.w600, letterSpacing: 0.3),
       ),
     );
   }
@@ -369,10 +362,7 @@ class _InfoRow extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = SemanticColors.of(context);
 
-    var valueStyle = TextStyle(
-      fontSize: BodyFontSize.small1.size,
-      color: colors.text.primary,
-    );
+    var valueStyle = typeScale.body.s.style(color: colors.text.primary);
     if (monospace) {
       valueStyle = valueStyle.withSystemMonospace();
     }
@@ -397,10 +387,7 @@ class _InfoRow extends StatelessWidget {
               width: 200,
               child: Text(
                 label,
-                style: TextStyle(
-                  fontSize: BodyFontSize.small1.size,
-                  color: colors.text.tertiary,
-                ),
+                style: typeScale.body.s.style(color: colors.text.tertiary),
               ),
             ),
             Expanded(child: Text(value, style: valueStyle)),
@@ -543,9 +530,8 @@ class _MemberCard extends StatelessWidget {
               children: [
                 Text(
                   'Leaf $leafIndex',
-                  style: TextStyle(
-                    fontSize: BodyFontSize.small1.size,
-                    fontWeight: FontWeight.bold,
+                  style: typeScale.body.s.style(
+                    weight: Weight.emphasized,
                     color: colors.text.primary,
                   ),
                 ),
@@ -564,10 +550,9 @@ class _MemberCard extends StatelessWidget {
                     ),
                     child: Text(
                       'self',
-                      style: TextStyle(
-                        fontSize: BodyFontSize.small2.size,
+                      style: typeScale.body.xs.style(
                         color: colors.accentBrand.primary,
-                        fontWeight: FontWeight.bold,
+                        weight: Weight.emphasized,
                       ),
                     ),
                   ),
@@ -650,10 +635,7 @@ class _ChipListRow extends StatelessWidget {
               width: 200,
               child: Text(
                 label,
-                style: TextStyle(
-                  fontSize: BodyFontSize.small1.size,
-                  color: colors.text.tertiary,
-                ),
+                style: typeScale.body.s.style(color: colors.text.tertiary),
               ),
             ),
             Expanded(
@@ -686,10 +668,9 @@ class _Chip extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: BodyFontSize.small2.size,
-          color: colors.text.secondary,
-        ).withSystemMonospace(),
+        style: typeScale.body.xs
+            .style(color: colors.text.secondary)
+            .withSystemMonospace(),
       ),
     );
   }

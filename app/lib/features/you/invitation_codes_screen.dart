@@ -211,11 +211,13 @@ class _InvitationCodeItem extends StatelessWidget {
             Expanded(
               child: Text(
                 code.code,
-                style: TextStyle(
-                  fontSize: BodyFontSize.base.size,
-                  color: colors.text.primary,
-                  decoration: code.copied ? TextDecoration.lineThrough : null,
-                ),
+                style: typeScale.body.regular
+                    .style(color: colors.text.primary)
+                    .copyWith(
+                      decoration: code.copied
+                          ? TextDecoration.lineThrough
+                          : null,
+                    ),
               ),
             ),
             const SizedBox(width: S.s12),
@@ -266,11 +268,9 @@ class _InvitationTokenItem extends StatelessWidget {
           children: [
             Text(
               AppLocalizations.of(context).invitationCodesScreen_tapToGetCode,
-              style: TextStyle(
-                fontSize: BodyFontSize.base.size,
-                fontStyle: FontStyle.italic,
-                color: colors.text.tertiary,
-              ),
+              style: typeScale.body.regular
+                  .style(color: colors.text.tertiary)
+                  .copyWith(fontStyle: FontStyle.italic),
             ),
             const Spacer(),
             AppIcon.circleDashed(size: 24, color: colors.text.tertiary),
@@ -318,10 +318,7 @@ class _InvitationCodeEmptyItem extends StatelessWidget {
           Expanded(
             child: Text(
               AppLocalizations.of(context).invitationCodesScreen_empty,
-              style: TextStyle(
-                fontSize: BodyFontSize.base.size,
-                color: colors.text.tertiary,
-              ),
+              style: typeScale.body.regular.style(color: colors.text.tertiary),
             ),
           ),
         ],
@@ -337,10 +334,7 @@ class _InfoText extends StatelessWidget {
   Widget build(BuildContext context) {
     final colors = SemanticColors.of(context);
 
-    final style = TextStyle(
-      fontSize: BodyFontSize.small1.size,
-      color: colors.text.quaternary,
-    );
+    final style = typeScale.body.s.style(color: colors.text.quaternary);
 
     final loc = AppLocalizations.of(context);
 

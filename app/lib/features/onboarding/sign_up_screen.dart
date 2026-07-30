@@ -248,10 +248,7 @@ class _DisplayNameTextField extends HookWidget {
           padding: const EdgeInsets.only(left: S.s8),
           child: Text(
             loc.signUpScreen_displayNameInputName,
-            style: TextStyle(
-              fontSize: LabelFontSize.small2.size,
-              color: colors.text.quaternary,
-            ),
+            style: typeScale.body.xs.style(color: colors.text.quaternary),
           ),
         ),
         TextFormField(
@@ -355,9 +352,8 @@ class _SignUpButton extends StatelessWidget {
             )
           : Text(
               loc.signUpScreen_actionButton,
-              style: TextStyle(
+              style: typeScale.body.regular.style(
                 color: colors.function.neutral.toggleWhite,
-                fontSize: LabelFontSize.base.size,
               ),
             ),
     );

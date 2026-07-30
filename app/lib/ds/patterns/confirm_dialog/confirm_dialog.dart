@@ -44,10 +44,7 @@ class ConfirmDialog extends StatelessWidget {
           Center(
             child: Text(
               title,
-              style: TextStyle(
-                fontSize: HeaderFontSize.h4.size,
-                fontWeight: FontWeight.bold,
-              ),
+              style: typeScale.header.regular.style(weight: Weight.emphasized),
             ),
           ),
 
@@ -55,10 +52,7 @@ class ConfirmDialog extends StatelessWidget {
 
           Text(
             message,
-            style: TextStyle(
-              color: colors.text.secondary,
-              fontSize: BodyFontSize.base.size,
-            ),
+            style: typeScale.body.regular.style(color: colors.text.secondary),
           ),
 
           const SizedBox(height: S.s24),

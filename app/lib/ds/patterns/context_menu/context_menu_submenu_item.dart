@@ -143,7 +143,7 @@ class _ContextMenuSubmenuItemWidgetState
               Expanded(
                 child: Text(
                   item.label,
-                  style: TextStyle(fontSize: LabelFontSize.base.size),
+                  style: typeScale.body.regular.style(),
                   maxLines: 1,
                   softWrap: false,
                   overflow: TextOverflow.ellipsis,
@@ -251,7 +251,7 @@ class _ContextMenuSubmenuItemWidgetState
   }
 
   double _measureSubmenuWidth(BuildContext context, double maxWidth) {
-    final textStyle = TextStyle(fontSize: LabelFontSize.base.size);
+    final textStyle = typeScale.body.regular.style();
     final textScaler = MediaQuery.textScalerOf(context);
     final textDirection = Directionality.of(context);
     final items = widget.item.subItems;

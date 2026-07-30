@@ -83,10 +83,7 @@ class ContactRequestDialog extends HookWidget {
         children: [
           Text(
             loc.contactRequestDialog_title,
-            style: TextStyle(
-              fontSize: HeaderFontSize.h4.size,
-              fontWeight: FontWeight.bold,
-            ),
+            style: typeScale.header.regular.style(weight: Weight.emphasized),
           ),
 
           const SizedBox(height: S.s32),
@@ -107,10 +104,7 @@ class ContactRequestDialog extends HookWidget {
             const SizedBox(height: S.s8),
             Text(
               loc.contactRequestDialog_avatarHint,
-              style: TextStyle(
-                fontSize: LabelFontSize.small2.size,
-                color: colors.text.tertiary,
-              ),
+              style: typeScale.body.xs.style(color: colors.text.tertiary),
             ),
           ],
 
@@ -118,10 +112,7 @@ class ContactRequestDialog extends HookWidget {
 
           Text(
             message,
-            style: TextStyle(
-              fontSize: BodyFontSize.base.size,
-              color: colors.text.secondary,
-            ),
+            style: typeScale.body.regular.style(color: colors.text.secondary),
             textAlign: .center,
           ),
 

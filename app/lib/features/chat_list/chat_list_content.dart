@@ -34,7 +34,12 @@ import 'package:system_date_time_format/system_date_time_format.dart';
 import 'package:air/features/chat_list/chat_list_cubit.dart';
 
 const _previewLineHeight = 1.28;
-final _previewFontSize = BodyFontSize.small1.size;
+final _previewFontSize = typeScale.body.s.fontSize;
+
+/// Preview text carries a measured line height rather than the token's own, so
+/// it stays in step with [_twoLinePreviewHeight].
+TextStyle _previewStyle(Color color) =>
+    typeScale.body.s.style(color: color).copyWith(height: _previewLineHeight);
 
 /// Measures the height of two lines of preview text, caching the result
 /// as long as the text direction and scaler remain unchanged.
@@ -396,11 +401,9 @@ class _BlockedBadge extends StatelessWidget {
         const SizedBox(width: S.s4),
         Text(
           loc.chatList_blocked,
-          style: TextStyle(
-            fontSize: BodyFontSize.small2.size,
-            fontStyle: FontStyle.italic,
-            color: color,
-          ),
+          style: typeScale.body.xs
+              .style(color: color)
+              .copyWith(fontStyle: FontStyle.italic),
         ),
       ],
     );
@@ -490,11 +493,11 @@ class _UnreadBadge extends StatelessWidget {
       ),
       child: Text(
         badgeText,
-        style: TextStyle(
-          color: SemanticColors.of(context).function.neutral.toggleWhite,
-          fontSize: LabelFontSize.small2.size,
-          height: 1,
-        ),
+        style: typeScale.body.xs
+            .style(
+              color: SemanticColors.of(context).function.neutral.toggleWhite,
+            )
+            .copyWith(height: 1),
       ),
     );
   }
@@ -533,12 +536,9 @@ class _LastMessage extends StatelessWidget {
     if (isHidden) {
       return Text(
         loc.textMessage_hiddenPlaceholder,
-        style: TextStyle(
-          fontSize: _previewFontSize,
-          height: _previewLineHeight,
-          fontStyle: FontStyle.italic,
-          color: color.text.tertiary,
-        ),
+        style: _previewStyle(
+          color.text.tertiary,
+        ).copyWith(fontStyle: FontStyle.italic),
       );
     }
 
@@ -551,19 +551,14 @@ class _LastMessage extends StatelessWidget {
     if (isDeleted) {
       return Text(
         loc.textMessage_deleted,
-        style: TextStyle(
-          fontSize: _previewFontSize,
-          height: _previewLineHeight,
-          fontStyle: FontStyle.italic,
-          color: color.text.tertiary,
-        ),
+        style: _previewStyle(
+          color.text.tertiary,
+        ).copyWith(fontStyle: FontStyle.italic),
       );
     }
 
-    final readStyle = TextStyle(
-      fontSize: _previewFontSize,
-      height: _previewLineHeight,
-      color: Color.alphaBlend(
+    final readStyle = _previewStyle(
+      Color.alphaBlend(
         color.text.tertiary,
         ChatListContainer.backgroundColor(context),
       ),
@@ -707,11 +702,9 @@ class _LastUpdatedState extends State<_LastUpdated> {
       baselineType: TextBaseline.alphabetic,
       child: Text(
         _displayTimestamp,
-        style: TextStyle(
-          color: SemanticColors.of(context).text.tertiary,
-          fontSize: LabelFontSize.small3.size,
-          height: 1.0,
-        ),
+        style: typeScale.body.mini
+            .style(color: SemanticColors.of(context).text.tertiary)
+            .copyWith(height: 1.0),
       ),
     );
   }
@@ -731,12 +724,12 @@ class _ChatTitle extends StatelessWidget {
         title,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: LabelFontSize.base.size,
-          height: _previewLineHeight,
-          fontWeight: FontWeight.bold,
-          color: SemanticColors.of(context).text.primary,
-        ),
+        style: typeScale.body.regular
+            .style(
+              weight: Weight.emphasized,
+              color: SemanticColors.of(context).text.primary,
+            )
+            .copyWith(height: _previewLineHeight),
       ),
     );
   }

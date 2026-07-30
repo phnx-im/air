@@ -230,9 +230,8 @@ class _AddButton extends StatelessWidget {
               )
             : Text(
                 loc.usernameOnboarding_addButton,
-                style: TextStyle(
+                style: typeScale.body.regular.style(
                   color: colors.function.neutral.toggleWhite,
-                  fontSize: LabelFontSize.base.size,
                 ),
               ),
       ),
@@ -267,10 +266,7 @@ class _UsernameTextField extends StatelessWidget {
           padding: const EdgeInsets.only(left: S.s8),
           child: Text(
             loc.usernameOnboarding_usernameInputName,
-            style: TextStyle(
-              fontSize: LabelFontSize.small2.size,
-              color: colors.text.quaternary,
-            ),
+            style: typeScale.body.xs.style(color: colors.text.quaternary),
           ),
         ),
         TextFormField(
@@ -293,10 +289,7 @@ class _UsernameTextField extends StatelessWidget {
         ),
         Text(
           loc.usernameOnboarding_syntax,
-          style: TextStyle(
-            fontSize: LabelFontSize.small2.size,
-            color: colors.text.quaternary,
-          ),
+          style: typeScale.body.xs.style(color: colors.text.quaternary),
         ),
       ],
     );

@@ -43,10 +43,9 @@ import 'package:air/features/message_list/text_message_tile.dart'
     show messageHorizontalPadding;
 
 final _log = Logger("MessageComposer");
-final double _composerFontSize = BodyFontSize.base.size;
 const double _inputVerticalPadding = S.s12;
 final double _composerButtonSize =
-    _composerFontSize * BodyFontSize.lineHeight + 2 * _inputVerticalPadding;
+    typeScale.body.regular.lineHeightPx + 2 * _inputVerticalPadding;
 
 class MessageComposer extends StatefulWidget {
   const MessageComposer({
@@ -709,10 +708,7 @@ class _MessageInput extends StatelessWidget {
                 const SizedBox(width: S.s8),
                 Text(
                   loc.composer_editMessage,
-                  style: TextStyle(
-                    fontSize: LabelFontSize.small1.size,
-                    color: color.text.tertiary,
-                  ),
+                  style: typeScale.body.s.style(color: color.text.tertiary),
                 ),
               ],
             ),
@@ -762,12 +758,9 @@ class _MessageInput extends StatelessWidget {
           child: TextField(
             focusNode: _focusNode,
             controller: _controller,
-            style: TextStyle(
-              fontSize: _composerFontSize,
-              height: BodyFontSize.lineHeight,
-              leadingDistribution: TextLeadingDistribution.even,
-              color: color.text.primary,
-            ),
+            style: typeScale.body.regular
+                .style(color: color.text.primary)
+                .copyWith(leadingDistribution: TextLeadingDistribution.even),
             minLines: 1,
             maxLines: 10,
             textAlignVertical: TextAlignVertical.center,
@@ -1092,9 +1085,8 @@ class InReplyToBubble extends StatelessWidget {
             if (senderDisplayName != null)
               Text(
                 senderDisplayName,
-                style: TextStyle(
-                  fontSize: LabelFontSize.small1.size,
-                  fontWeight: FontWeight.bold,
+                style: typeScale.body.s.style(
+                  weight: Weight.emphasized,
                   color: color.text.primary,
                 ),
                 maxLines: 1,
@@ -1102,10 +1094,7 @@ class InReplyToBubble extends StatelessWidget {
               ),
             Text(
               contentPreview,
-              style: TextStyle(
-                fontSize: LabelFontSize.small1.size,
-                color: color.text.secondary,
-              ),
+              style: typeScale.body.s.style(color: color.text.secondary),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),

@@ -39,10 +39,7 @@ class UnblockContactButton extends StatelessWidget {
       ),
       child: Text(
         loc.unblockContactButton_text,
-        style: TextStyle(
-          fontSize: LabelFontSize.base.size,
-          color: colors.text.primary,
-        ),
+        style: typeScale.body.regular.style(color: colors.text.primary),
       ),
     );
   }

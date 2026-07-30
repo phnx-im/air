@@ -40,7 +40,7 @@ class MuteButton extends StatelessWidget {
             isMuted
                 ? loc.contactDetailsScreen_unmute
                 : loc.contactDetailsScreen_mute,
-            style: TextStyle(fontSize: LabelFontSize.base.size),
+            style: typeScale.body.regular.style(),
           ),
         ],
       ),

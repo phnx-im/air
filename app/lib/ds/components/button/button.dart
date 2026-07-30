@@ -87,9 +87,9 @@ class AppButton extends StatelessWidget {
       AppButtonSize.large => const Size.square(S.s24),
     };
 
-    final labelSize = switch (size) {
-      AppButtonSize.small => LabelFontSize.small2.size,
-      AppButtonSize.large => LabelFontSize.base.size,
+    final labelToken = switch (size) {
+      AppButtonSize.small => typeScale.body.xs,
+      AppButtonSize.large => typeScale.body.regular,
     };
 
     final borderRadius = switch (size) {
@@ -147,10 +147,7 @@ class AppButton extends StatelessWidget {
                 child: Center(
                   child: Text(
                     label,
-                    style: TextStyle(
-                      color: foregroundColor,
-                      fontSize: labelSize,
-                    ),
+                    style: labelToken.style(color: foregroundColor),
                   ),
                 ),
               ),

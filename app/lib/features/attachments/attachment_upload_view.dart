@@ -68,9 +68,8 @@ class AttachmentUploadView extends HookWidget {
                       const SizedBox(height: S.s12),
                       Text(
                         p.basename(file.path),
-                        style: TextStyle(
+                        style: typeScale.body.regular.style(
                           color: colors.text.primary,
-                          fontSize: LabelFontSize.base.size,
                         ),
                       ),
                     ],

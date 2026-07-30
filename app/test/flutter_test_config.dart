@@ -7,7 +7,6 @@ import 'dart:io';
 
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/foundations/monospace.dart';
 
 import 'helpers.dart';
@@ -15,7 +14,10 @@ import 'helpers.dart';
 /// The threshold for golden file comparisons to pass (between 0 and 1 as percent)
 const goldenThreshold = 0.0;
 
-/// The physical size of the screen in the test environment
+/// The physical size of the screen in the test environment. It pairs with the
+/// `TargetPlatform.android` that `defaultTargetPlatform` reports under
+/// `FLUTTER_TEST`, which is what drives the typescale and `DeviceType`. Tests
+/// depicting another platform pin it with a `TargetPlatformVariant`.
 const pixel8ScreenSize = Size(1080, 2400);
 
 /// The device pixel ratio of the test environment
@@ -28,7 +30,6 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
     await _loadFonts();
     _setGoldenFileComparatorWithThreshold(goldenThreshold);
     _setPhysicalScreenSize(binding, pixel8ScreenSize, pixel8DevicePixelRatio);
-    _setDeviceType(DeviceType.phone);
   });
 
   await testMain();
@@ -148,13 +149,6 @@ void _setPhysicalScreenSize(
   addTearDown(() {
     binding.platformDispatcher.views.first.resetPhysicalSize();
   });
-}
-
-/// The global viewport is a phone, so the device type has to match it. Tests
-/// that widen the viewport pin the desktop device type themselves.
-void _setDeviceType(DeviceType deviceType) {
-  DeviceType.debugOverride = deviceType;
-  addTearDown(() => DeviceType.debugOverride = null);
 }
 
 void _mockSystemDateTimeFormatChannel(TestWidgetsFlutterBinding binding) {

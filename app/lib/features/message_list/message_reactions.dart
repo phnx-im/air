@@ -729,7 +729,7 @@ class _ReactionChip extends StatelessWidget {
   final VoidCallback? onTap;
 
   static TextStyle textStyle({Color? color}) =>
-      TextStyle(fontSize: BodyFontSize.base.size, color: color);
+      typeScale.body.regular.style(color: color);
 
   @override
   Widget build(BuildContext context) {
@@ -1025,8 +1025,7 @@ class _ReactionTab extends StatelessWidget {
           ),
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: BodyFontSize.large1.size,
+            style: typeScale.body.m.style(
               color: selected ? colors.text.primary : colors.text.secondary,
             ),
           ),
@@ -1066,10 +1065,7 @@ class _ReactorRow extends StatelessWidget {
             child: Text(
               name,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: FontSizes.base.size,
-                color: colors.text.primary,
-              ),
+              style: typeScale.body.regular.style(color: colors.text.primary),
             ),
           ),
           if (onRemove != null) ...[
@@ -1080,8 +1076,7 @@ class _ReactorRow extends StatelessWidget {
                 onTap: onRemove,
                 child: Text(
                   loc.messageList_reactions_remove,
-                  style: TextStyle(
-                    fontSize: FontSizes.base.size,
+                  style: typeScale.body.regular.style(
                     color: colors.function.danger,
                   ),
                 ),
@@ -1089,7 +1084,7 @@ class _ReactorRow extends StatelessWidget {
             ),
             const SizedBox(width: S.s12),
           ],
-          Text(emoji, style: TextStyle(fontSize: BodyFontSize.large1.size)),
+          Text(emoji, style: typeScale.body.m.style()),
         ],
       ),
     );

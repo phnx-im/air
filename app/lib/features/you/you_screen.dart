@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:io';
-
 import 'package:air/core/core.dart';
 import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
@@ -95,10 +93,7 @@ class YouView extends StatelessWidget {
         clipBehavior: Clip.none,
         title: Text(
           loc.userSettingsScreen_title,
-          style: TextStyle(
-            fontSize: LabelFontSize.base.size,
-            fontWeight: FontWeight.bold,
-          ),
+          style: typeScale.body.regular.style(weight: Weight.emphasized),
         ),
         leading: AppBarBackButton(
           backgroundColor: colors.backgroundElevated.primary,
@@ -173,10 +168,7 @@ class _MobileHeader extends StatelessWidget {
       child: Center(
         child: Text(
           title,
-          style: TextStyle(
-            fontSize: LabelFontSize.base.size,
-            fontWeight: FontWeight.bold,
-          ),
+          style: typeScale.body.regular.style(weight: Weight.emphasized),
         ),
       ),
     );
@@ -436,10 +428,7 @@ class _InvitationCodesBadge extends StatelessWidget {
       child: Center(
         child: Text(
           availableInvitationCodes.toString(),
-          style: TextStyle(
-            color: colors.function.neutral.white,
-            fontSize: LabelFontSize.small2.size,
-          ),
+          style: typeScale.body.xs.style(color: colors.function.neutral.white),
         ),
       ),
     );
@@ -545,13 +534,12 @@ class _DesktopSettings extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The slider carries the user's own factor, which systemInterfaceScale
+    // multiplies rather than replaces, so it starts at 100% everywhere.
     final interfaceScale = useState(
       useMemoized(() {
         final value = context.read<UserSettingsCubit>().state.interfaceScale;
-        var isLinuxAndScaled =
-            Platform.isLinux &&
-            WidgetsBinding.instance.platformDispatcher.textScaleFactor >= 1.5;
-        return 100 * (value ?? (isLinuxAndScaled ? 1.5 : 1.0));
+        return 100 * (value ?? 1.0);
       }),
     );
 
@@ -563,7 +551,7 @@ class _DesktopSettings extends HookWidget {
         children: [
           Text(
             loc.userSettingsScreen_interfaceScale,
-            style: TextStyle(fontSize: BodyFontSize.base.size),
+            style: typeScale.body.regular.style(),
           ),
           const SizedBox(width: S.s12),
           Expanded(
@@ -620,7 +608,7 @@ class _HelpSection extends HookWidget {
             children: [
               Text(
                 loc.helpScreen_contactUs,
-                style: TextStyle(fontSize: BodyFontSize.base.size),
+                style: typeScale.body.regular.style(),
               ),
             ],
           ),
@@ -640,10 +628,10 @@ class _HelpSection extends HookWidget {
             children: [
               Text(
                 loc.helpScreen_versionInfo,
-                style: TextStyle(fontSize: BodyFontSize.base.size),
+                style: typeScale.body.regular.style(),
               ),
               const Spacer(),
-              Text(version, style: TextStyle(fontSize: BodyFontSize.base.size)),
+              Text(version, style: typeScale.body.regular.style()),
             ],
           ),
         ),
@@ -659,7 +647,7 @@ class _HelpSection extends HookWidget {
             children: [
               Text(
                 loc.helpScreen_licenses,
-                style: TextStyle(fontSize: BodyFontSize.base.size),
+                style: typeScale.body.regular.style(),
               ),
             ],
           ),
@@ -693,8 +681,7 @@ class _AccountSection extends StatelessWidget {
             children: [
               Text(
                 loc.userSettingsScreen_deleteAccount,
-                style: TextStyle(
-                  fontSize: BodyFontSize.base.size,
+                style: typeScale.body.regular.style(
                   color: SemanticColors.of(context).function.danger,
                 ),
               ),
@@ -717,8 +704,7 @@ class FieldLabel extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: S.s8),
       child: Text(
         text,
-        style: TextStyle(
-          fontSize: LabelFontSize.small2.size,
+        style: typeScale.body.xs.style(
           color: SemanticColors.of(context).text.quaternary,
         ),
       ),
@@ -737,10 +723,9 @@ class _SectionHeader extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: S.s8),
       child: Text(
         text,
-        style: TextStyle(
-          fontSize: LabelFontSize.base.size,
+        style: typeScale.body.regular.style(
+          weight: Weight.emphasized,
           color: SemanticColors.of(context).text.secondary,
-          fontWeight: FontWeight.bold,
         ),
       ),
     );
@@ -778,7 +763,7 @@ class _SwitchField extends HookWidget {
       onTap: handleTap,
       child: Row(
         children: [
-          Text(label, style: TextStyle(fontSize: BodyFontSize.base.size)),
+          Text(label, style: typeScale.body.regular.style()),
           const Spacer(),
           Switch(
             value: value.value,
@@ -805,7 +790,7 @@ class _FieldContainer extends StatelessWidget {
     return DefaultTextStyle(
       style: Theme.of(context).textTheme.bodyLarge!.copyWith(
         color: colors.text.primary,
-        fontSize: BodyFontSize.base.size,
+        fontSize: typeScale.body.regular.fontSize,
       ),
       child: InkWell(
         onTap: onTap,

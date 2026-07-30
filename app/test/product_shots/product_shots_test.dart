@@ -11,7 +11,6 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/foundations/primitives.dart';
 import 'package:air/features/navigation/app_tab_bar.dart';
 import 'package:air/features/home/home_screen.dart';
@@ -173,7 +172,7 @@ void main() {
       "Chat List (iOS)",
       hostPlatform: 'macos',
       physicalSize: iosPhysicalSize,
-      deviceType: DeviceType.phone,
+      targetPlatform: TargetPlatform.iOS,
       (tester) async {
         await tester.pumpWidget(buildSubject(ProductShotPlatform.ios));
         await _precacheImages(tester);
@@ -191,7 +190,7 @@ void main() {
       "Chat List (Android)",
       hostPlatform: 'linux',
       physicalSize: androidPhysicalSize,
-      deviceType: DeviceType.phone,
+      targetPlatform: TargetPlatform.android,
       (tester) async {
         await tester.pumpWidget(buildSubject(ProductShotPlatform.android));
         await _precacheImages(tester);
@@ -331,7 +330,7 @@ void main() {
       "Private Chat (iOS)",
       hostPlatform: "macos",
       physicalSize: iosPhysicalSize,
-      deviceType: DeviceType.phone,
+      targetPlatform: TargetPlatform.iOS,
       (tester) async {
         await tester.pumpWidget(buildSubject(ProductShotPlatform.ios));
         await _precacheImages(tester);
@@ -349,7 +348,7 @@ void main() {
       "Private Chat (Android)",
       hostPlatform: "linux",
       physicalSize: androidPhysicalSize,
-      deviceType: DeviceType.phone,
+      targetPlatform: TargetPlatform.android,
       (tester) async {
         await tester.pumpWidget(buildSubject(ProductShotPlatform.android));
         await _precacheImages(tester);
@@ -470,7 +469,7 @@ void main() {
       "Group Chat (iOS)",
       hostPlatform: "macos",
       physicalSize: iosPhysicalSize,
-      deviceType: DeviceType.phone,
+      targetPlatform: TargetPlatform.iOS,
       (tester) async {
         await tester.pumpWidget(buildSubject(ProductShotPlatform.ios));
         await _precacheImages(tester);
@@ -488,7 +487,7 @@ void main() {
       "Group Chat (Android)",
       hostPlatform: "linux",
       physicalSize: androidPhysicalSize,
-      deviceType: DeviceType.phone,
+      targetPlatform: TargetPlatform.android,
       (tester) async {
         await tester.pumpWidget(buildSubject(ProductShotPlatform.android));
         await _precacheImages(tester);
@@ -618,9 +617,7 @@ void main() {
 
               return MaterialApp(
                 debugShowCheckedModeBanner: false,
-                theme: testLightTheme.copyWith(
-                  platform: desktopTargetPlatform(),
-                ),
+                theme: testLightTheme,
                 themeMode: ThemeMode.light,
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
                 home: Material(
@@ -642,7 +639,7 @@ void main() {
       "Private Chat (macOS)",
       hostPlatform: "macos",
       physicalSize: macosPhysicalSize,
-      deviceType: DeviceType.desktop,
+      targetPlatform: TargetPlatform.macOS,
       (tester) async {
         final chat = chats[0];
         when(() => navigationCubit.state).thenReturn(
@@ -682,7 +679,7 @@ void main() {
       "Group Chat (macOS)",
       hostPlatform: "macos",
       physicalSize: macosPhysicalSize,
-      deviceType: DeviceType.desktop,
+      targetPlatform: TargetPlatform.macOS,
       (tester) async {
         final chat = chats[4];
         when(() => navigationCubit.state).thenReturn(
@@ -720,31 +717,36 @@ void main() {
 
 /// [hostPlatform] is the OS that records the shot, not the device it depicts:
 /// the iOS shots are recorded on macOS because that is where the San Francisco
-/// system font is available. [deviceType] is the depicted device.
+/// system font is available. [targetPlatform] is the depicted platform, which
+/// drives the typescale and the device type independently of the host.
 void testProductShot(
   String description,
   WidgetTesterCallback callback, {
   required String hostPlatform,
   required Size physicalSize,
-  required DeviceType deviceType,
+  required TargetPlatform targetPlatform,
 }) async {
-  testWidgets(description, (tester) async {
-    debugDisableShadows = false;
+  testWidgets(
+    description,
+    (tester) async {
+      debugDisableShadows = false;
 
-    tester.view.physicalSize = physicalSize;
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
-    useDeviceType(deviceType);
+      tester.view.physicalSize = physicalSize;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
 
-    try {
-      await callback(tester);
-    } finally {
-      debugDisableShadows = true;
-    }
-  }, skip: Platform.operatingSystem != hostPlatform);
+      try {
+        await callback(tester);
+      } finally {
+        debugDisableShadows = true;
+      }
+    },
+    skip: Platform.operatingSystem != hostPlatform,
+    variant: TargetPlatformVariant.only(targetPlatform),
+  );
 }
 
 /// Preload all images in the widget tree.

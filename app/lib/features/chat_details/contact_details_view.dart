@@ -89,10 +89,7 @@ class ContactDetailsView extends StatelessWidget {
 
           Text(
             profile.displayName,
-            style: TextStyle(
-              fontSize: HeaderFontSize.h1.size,
-              fontWeight: FontWeight.bold,
-            ),
+            style: typeScale.header.xl.style(weight: Weight.emphasized),
           ),
 
           const SizedBox(height: S.s16),
@@ -110,7 +107,7 @@ class ContactDetailsView extends StatelessWidget {
                 const SizedBox(width: S.s8),
                 Text(
                   loc.contactDetailsScreen_chat,
-                  style: TextStyle(fontSize: LabelFontSize.base.size),
+                  style: typeScale.body.regular.style(),
                 ),
               ],
             ),
@@ -131,7 +128,7 @@ class ContactDetailsView extends StatelessWidget {
                 const SizedBox(width: S.s8),
                 Text(
                   loc.contactDetailsScreen_viewSafetyCode,
-                  style: TextStyle(fontSize: LabelFontSize.base.size),
+                  style: typeScale.body.regular.style(),
                 ),
               ],
             ),
@@ -256,10 +253,7 @@ class _AddContactDialog extends HookWidget {
           Center(
             child: Text(
               loc.addContactDialog_title,
-              style: TextStyle(
-                fontSize: HeaderFontSize.h4.size,
-                fontWeight: FontWeight.bold,
-              ),
+              style: typeScale.header.regular.style(weight: Weight.emphasized),
             ),
           ),
 
@@ -267,10 +261,7 @@ class _AddContactDialog extends HookWidget {
 
           Text(
             loc.addContactDialog_content(displayName, groupTitle),
-            style: TextStyle(
-              color: colors.text.secondary,
-              fontSize: BodyFontSize.base.size,
-            ),
+            style: typeScale.body.regular.style(color: colors.text.secondary),
           ),
 
           const SizedBox(height: S.s24),
@@ -284,7 +275,7 @@ class _AddContactDialog extends HookWidget {
                   },
                   child: Text(
                     loc.addContactDialog_cancel,
-                    style: TextStyle(fontSize: LabelFontSize.base.size),
+                    style: typeScale.body.regular.style(),
                   ),
                 ),
               ),
@@ -309,7 +300,7 @@ class _AddContactDialog extends HookWidget {
                   ),
                   child: Text(
                     loc.addContactDialog_confirm,
-                    style: TextStyle(fontSize: LabelFontSize.base.size),
+                    style: typeScale.body.regular.style(),
                   ),
                 ),
               ),

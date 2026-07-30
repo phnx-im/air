@@ -42,10 +42,7 @@ class ContactUsScreen extends StatelessWidget {
         clipBehavior: Clip.none,
         title: Text(
           loc.contactUsScreen_title,
-          style: TextStyle(
-            fontSize: LabelFontSize.base.size,
-            fontWeight: FontWeight.bold,
-          ),
+          style: typeScale.body.regular.style(weight: Weight.emphasized),
         ),
         leading: AppBarBackButton(
           backgroundColor: colors.backgroundElevated.primary,
@@ -240,7 +237,7 @@ class _EmailForm extends HookWidget {
                       },
                 child: Text(
                   loc.contactUsScreen_composeEmail,
-                  style: TextStyle(fontSize: LabelFontSize.base.size),
+                  style: typeScale.body.regular.style(),
                 ),
               ),
             ),

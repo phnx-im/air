@@ -133,7 +133,7 @@ class _Avatar extends StatelessWidget {
                 displayName.characters.firstOrNull?.toUpperCase() ?? "",
                 style: TextTheme.of(context).labelMedium!.copyWith(
                   color: colors.function.neutral.white,
-                  fontSize: LabelFontSize.small2.size * size / 28,
+                  fontSize: typeScale.body.xs.fontSize * size / 28,
                 ),
               ),
             ),
