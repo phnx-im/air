@@ -564,28 +564,29 @@ mod test {
         assert_eq!(2, context.counter.load(Ordering::SeqCst));
     }
 
+    /// Each notification of a started service triggers another run, and the returned future
+    /// resolves once that run is done.
     #[tokio::test]
     async fn wait_for_idle() {
+        init_test_tracing();
+
         let context = DelayedCounterContext::default();
         let service = OutboundService::with_context(context.clone(), global_lock());
 
         service.start().await;
-        sleep(Duration::from_millis(100)).await; // +1
-        service.notify_work();
-        sleep(Duration::from_millis(100)).await; // +1
-        service.notify_work().await; // +1
-        assert_eq!(3, context.counter.load(Ordering::SeqCst));
-    }
+        assert_eq!(1, context.counter.load(Ordering::SeqCst));
 
-    #[tokio::test]
-    async fn notify_work_triggers_another_run() {
-        let context = DelayedCounterContext::default();
-        let service = OutboundService::with_context(context.clone(), global_lock());
-
-        service.start().await;
-        service.notify_work().await;
-
+        // The run is triggered by the call itself. The future is only a handle to wait for
+        // idle, also when held and awaited later. Waiting on the done futures instead of
+        // sleeping keeps the test deterministic. A notification sent while a run is still in
+        // flight coalesces with that run, so timing-based waits can observe fewer runs under
+        // load.
+        let idle = service.notify_work();
+        idle.await;
         assert_eq!(2, context.counter.load(Ordering::SeqCst));
+
+        service.notify_work().await;
+        assert_eq!(3, context.counter.load(Ordering::SeqCst));
     }
 
     #[tokio::test]
