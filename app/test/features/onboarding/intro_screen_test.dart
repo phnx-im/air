@@ -29,24 +29,19 @@ void main() {
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
     });
 
-    Widget buildSubject({bool desktop = false}) => MultiBlocProvider(
+    Widget buildSubject() => MultiBlocProvider(
       providers: [
         BlocProvider<LoadableUserCubit>.value(value: loadableUserCubit),
         BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
         BlocProvider<AppLocaleCubit>(create: (_) => AppLocaleCubit()),
       ],
       child: Builder(
-        builder: (context) {
-          final theme = testThemeData(MediaQuery.platformBrightnessOf(context));
-          return MaterialApp(
-            debugShowCheckedModeBanner: false,
-            theme: desktop
-                ? theme.copyWith(platform: desktopTargetPlatform())
-                : theme,
-            localizationsDelegates: AppLocalizations.localizationsDelegates,
-            home: const IntroScreen(),
-          );
-        },
+        builder: (context) => MaterialApp(
+          debugShowCheckedModeBanner: false,
+          theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+          localizationsDelegates: AppLocalizations.localizationsDelegates,
+          home: const IntroScreen(),
+        ),
       ),
     );
 
@@ -70,13 +65,13 @@ void main() {
         binding.platformDispatcher.views.first.resetPhysicalSize();
       });
 
-      await tester.pumpWidget(buildSubject(desktop: true));
+      await tester.pumpWidget(buildSubject());
       await tester.pumpAndSettle();
 
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/intro_screen_desktop.png'),
       );
-    });
+    }, variant: desktopPlatform);
   });
 }

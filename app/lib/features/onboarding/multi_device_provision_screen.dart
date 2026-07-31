@@ -6,11 +6,8 @@ import 'package:air/core/core.dart';
 import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/constrained_width/constrained_width.dart';
-import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:air/util/formatting.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
@@ -95,7 +92,7 @@ class MultiDeviceProvisionScreen extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     // Can be set by the hidden input field
     final domain = context.select(
@@ -191,22 +188,21 @@ class MultiDeviceProvisionScreen extends HookWidget {
       appBar: AppBar(
         clipBehavior: Clip.none,
         leading: AppBarBackButton(
-          backgroundColor: colors.backgroundElevated.primary,
+          backgroundColor: palette.backgroundElevated.primary,
         ),
         title: Text(
           loc.linkingDeviceScreen_header,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        toolbarHeight: DeviceType.isDesktop ? 100 : null,
-        backgroundColor: colors.backgroundBase.secondary,
+        backgroundColor: palette.backgroundBase.secondary,
       ),
-      backgroundColor: colors.backgroundBase.secondary,
+      backgroundColor: palette.backgroundBase.secondary,
       body: SafeArea(
         child: Center(
           child: ConstrainedWidth(
             width: 500,
             child: Padding(
-              padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+              padding: const EdgeInsets.symmetric(horizontal: S.s16),
               child: switch (phase.value) {
                 _Connecting() => const _ConnectingView(),
                 _AwaitingLink(:final code, :final qrcodeSvg) =>
@@ -238,13 +234,12 @@ class _NumberedBullet extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Text(
-      style: TextStyle(
-        fontSize: BodyFontSize.base.size,
-        color: colors.text.primary,
-        fontWeight: FontWeight.bold,
+      style: typeScale.body.regular.style(
+        weight: Weight.emphasized,
+        color: palette.text.primary,
       ),
       "$index.",
     );
@@ -258,15 +253,15 @@ class _LinkingInstructionsList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Column(
-      spacing: Spacing.px4,
+      spacing: S.s4,
       mainAxisAlignment: .center,
       children: [
         for (final (idx, line) in lines.indexed)
           Row(
-            spacing: Spacing.px8,
+            spacing: S.s8,
             mainAxisAlignment: .start,
             crossAxisAlignment: .baseline,
             textBaseline: TextBaseline.alphabetic,
@@ -274,9 +269,8 @@ class _LinkingInstructionsList extends StatelessWidget {
               _NumberedBullet(idx + 1),
               Flexible(
                 child: Text(
-                  style: TextStyle(
-                    fontSize: LabelFontSize.base.size,
-                    color: colors.text.primary,
+                  style: typeScale.body.regular.style(
+                    color: palette.text.primary,
                   ),
                   line,
                 ),
@@ -295,18 +289,15 @@ class _ConnectingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Column(
       mainAxisAlignment: .center,
-      spacing: Spacing.px16,
+      spacing: S.s16,
       children: [
         Text(
           loc.linkingDeviceScreen_connecting,
-          style: TextStyle(
-            fontSize: LabelFontSize.base.size,
-            color: colors.text.secondary,
-          ),
+          style: typeScale.body.regular.style(color: palette.text.secondary),
         ),
         const CircularProgressIndicator(),
       ],
@@ -329,7 +320,7 @@ class _CountdownRing extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     final controller = useAnimationController(duration: duration);
 
@@ -344,8 +335,8 @@ class _CountdownRing extends HookWidget {
       builder: (context, _) {
         final remaining = (controller.value * duration.inSeconds).ceil();
         final ringColor = remaining <= warnThreshold.inSeconds
-            ? colors.function.warning
-            : colors.function.success;
+            ? palette.function.warning.primary
+            : palette.function.success.primary;
 
         return SizedBox(
           width: size,
@@ -361,21 +352,23 @@ class _CountdownRing extends HookWidget {
                     padding: const EdgeInsets.all(1),
                     child: CircularProgressIndicator(
                       value: controller.value,
-                      strokeWidth: 2,
+                      strokeWidth: StrokeWidth.px2,
                       color: ringColor,
-                      backgroundColor: colors.backgroundBase.tertiary,
+                      backgroundColor: palette.backgroundBase.tertiary,
                     ),
                   ),
                 ),
               ),
               Text(
                 "$remaining",
-                style: TextStyle(
-                  fontSize: LabelFontSize.base.size,
-                  fontWeight: FontWeight.bold,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                  color: colors.text.primary,
-                ),
+                style: typeScale.body.regular
+                    .style(
+                      weight: Weight.emphasized,
+                      color: palette.text.primary,
+                    )
+                    .copyWith(
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                    ),
               ),
             ],
           ),
@@ -388,9 +381,9 @@ class _CountdownRing extends HookWidget {
 /// Map colors of the QR code generated on the Rust side to the custom
 /// colors of the design system we use in Flutter.
 class _LinkQrCodeSvgColorMapper extends ColorMapper {
-  const _LinkQrCodeSvgColorMapper({required this.colors});
+  const _LinkQrCodeSvgColorMapper({required this.palette});
 
-  final CustomColorScheme colors;
+  final SemanticPalette palette;
 
   @override
   Color substitute(
@@ -400,8 +393,8 @@ class _LinkQrCodeSvgColorMapper extends ColorMapper {
     Color color,
   ) {
     return switch (color) {
-      Colors.black => colors.function.toggleBlack,
-      Colors.white => colors.backgroundBase.secondary,
+      Colors.black => palette.function.neutral.toggleBlack,
+      Colors.white => palette.backgroundBase.secondary,
       _ => color,
     };
   }
@@ -417,7 +410,7 @@ class _AwaitingLinkView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     final svg = qrcodeSvg;
 
@@ -426,13 +419,13 @@ class _AwaitingLinkView extends StatelessWidget {
         Container(
           width: double.infinity,
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(Spacing.px16),
+            borderRadius: BorderRadius.circular(CornerRadius.px16),
             border: Border.all(
-              color: colors.backgroundBase.quaternary,
-              width: 1,
+              color: palette.backgroundBase.quaternary,
+              width: StrokeWidth.px1,
             ),
           ),
-          padding: const EdgeInsets.all(Spacing.px16),
+          padding: const EdgeInsets.all(S.s16),
           child: Column(
             mainAxisAlignment: .center,
             crossAxisAlignment: .center,
@@ -444,50 +437,48 @@ class _AwaitingLinkView extends StatelessWidget {
                   width: 200,
                   height: 200,
                   // Easily override or set height
-                  colorMapper: _LinkQrCodeSvgColorMapper(colors: colors),
+                  colorMapper: _LinkQrCodeSvgColorMapper(palette: palette),
                   placeholderBuilder: (BuildContext context) =>
                       const CircularProgressIndicator(),
                 ),
-              const SizedBox(height: Spacing.px16),
+              const SizedBox(height: S.s16),
               Text(
                 loc.linkingDeviceScreen_separator,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: LabelFontSize.base.size,
-                  color: colors.text.tertiary,
+                style: typeScale.body.regular.style(
+                  color: palette.text.tertiary,
                 ),
               ),
-              const SizedBox(height: Spacing.px8),
+              const SizedBox(height: S.s8),
               Text(
                 loc.linkingDeviceScreen_numericCode,
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: LabelFontSize.small1.size,
-                  color: colors.text.primary,
-                ),
+                style: typeScale.body.s.style(color: palette.text.primary),
               ),
-              const SizedBox(height: Spacing.px8),
+              const SizedBox(height: S.s8),
               Text(
                 code.spacedInGroupsOf(4),
                 textAlign: TextAlign.center,
-                style: TextStyle(
-                  fontSize: HeaderFontSize.h1.size,
-                  fontWeight: FontWeight.bold,
-                  fontFeatures: const [FontFeature.tabularFigures()],
-                  letterSpacing: 4,
-                  color: colors.text.primary,
-                ),
+                style: typeScale.header.xl
+                    .style(
+                      weight: Weight.emphasized,
+                      color: palette.text.primary,
+                    )
+                    .copyWith(
+                      fontFeatures: const [FontFeature.tabularFigures()],
+                      letterSpacing: 4,
+                    ),
               ),
             ],
           ),
         ),
-        const SizedBox(height: Spacing.px24),
+        const SizedBox(height: S.s24),
         const _CountdownRing(
           duration: Duration(seconds: 59),
           warnThreshold: Duration(seconds: 10),
           size: 48,
         ),
-        const SizedBox(height: Spacing.px32),
+        const SizedBox(height: S.s32),
         _LinkingInstructionsList(
           lines: [
             loc.linkingDeviceScreen_instructions_1,
@@ -507,18 +498,15 @@ class _LinkingView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Column(
       mainAxisAlignment: .center,
-      spacing: Spacing.px16,
+      spacing: S.s16,
       children: [
         Text(
           loc.linkingDeviceScreen_linking,
-          style: TextStyle(
-            fontSize: LabelFontSize.base.size,
-            color: colors.text.secondary,
-          ),
+          style: typeScale.body.regular.style(color: palette.text.secondary),
         ),
         const CircularProgressIndicator(),
       ],

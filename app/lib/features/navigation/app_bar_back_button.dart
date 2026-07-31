@@ -2,10 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/button_icon/glass_circle_button.dart';
-import 'package:air/ds/foundations/icons.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -21,16 +19,16 @@ class AppBarBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Padding(
-      padding: const EdgeInsets.only(left: Spacing.px16),
+      padding: const EdgeInsets.only(left: S.s16),
       child: Align(
         alignment: Alignment.centerLeft,
         child: GlassCircleButton(
           icon: AppIcon.arrowLeft(
             size: 20,
-            color: foregroundColor ?? colors.text.primary,
+            color: foregroundColor ?? palette.text.primary,
           ),
           color: backgroundColor,
           hitTargetSize: 48,

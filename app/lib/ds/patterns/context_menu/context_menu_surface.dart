@@ -3,10 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:flutter/material.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/context_menu/context_menu_item.dart';
-import 'package:air/ds/foundations/effects.dart';
 
 class ContextMenuSurface extends StatelessWidget {
   const ContextMenuSurface({
@@ -50,14 +48,11 @@ class ContextMenuSurface extends StatelessWidget {
     return Container(
       clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
-        color: CustomColorScheme.of(context).backgroundElevated.primary,
-        boxShadow: mediumElevationBoxShadows,
-        borderRadius: BorderRadius.circular(16),
+        color: SemanticPalette.of(context).backgroundElevated.primary,
+        boxShadow: Effect.elevation(Elevation.medium),
+        borderRadius: BorderRadius.circular(CornerRadius.px16),
       ),
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.px16,
-        vertical: Spacing.px8,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),
       child: body,
     );
   }

@@ -2,17 +2,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/ds/foundations/effects.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/emoji/emoji_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'package:air/ds/components/button_icon/glass_circle_button.dart';
 import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
-import 'package:air/ds/foundations/type_scale.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/spacing.dart';
 import 'package:air/platform/haptics.dart';
 
 import 'package:air/ds/components/emoji/centered_emoji.dart';
@@ -20,13 +16,13 @@ import 'package:air/ds/components/emoji/centered_emoji.dart';
 // Picker metrics.
 const double _emojiCellSize = 52;
 const double _emojiGlyphSize = 32;
-const double _panelRadius = Spacing.px20;
-const double _panelPadding = Spacing.px16;
+const double _panelRadius = CornerRadius.px20;
+const double _panelPadding = S.s16;
 const double _searchHeight = 40;
 
 /// Border for the search field.
 final _pillBorder = OutlineInputBorder(
-  borderRadius: BorderRadius.circular(1000),
+  borderRadius: BorderRadius.circular(CornerRadius.full),
   borderSide: BorderSide.none,
 );
 
@@ -80,7 +76,7 @@ class EmojiPicker extends HookWidget {
         Row(
           children: [
             Expanded(child: _SearchField(controller: searchController)),
-            const SizedBox(width: Spacing.px8),
+            const SizedBox(width: S.s8),
             _EmojiComponentButton(
               component: skinTone.value,
               onPressed: () => toneStripOpen.value = !toneStripOpen.value,
@@ -88,10 +84,10 @@ class EmojiPicker extends HookWidget {
           ],
         ),
         if (toneStripOpen.value) ...[
-          const SizedBox(height: Spacing.px8),
+          const SizedBox(height: S.s8),
           _SkinToneStrip(selected: skinTone.value, onSelected: selectTone),
         ],
-        const SizedBox(height: Spacing.px12),
+        const SizedBox(height: S.s12),
         Expanded(
           child: CustomScrollView(
             slivers: [
@@ -101,7 +97,7 @@ class EmojiPicker extends HookWidget {
               )) ...[
                 SliverToBoxAdapter(
                   child: Padding(
-                    padding: const EdgeInsets.all(Spacing.px8),
+                    padding: const EdgeInsets.all(S.s8),
                     child: Text(category, style: theme.textTheme.bodySmall),
                   ),
                 ),
@@ -116,7 +112,7 @@ class EmojiPicker extends HookWidget {
                       skinTone.value,
                     );
                     return Padding(
-                      padding: const EdgeInsets.all(Spacing.px8),
+                      padding: const EdgeInsets.all(S.s8),
                       child: _EmojiCell(
                         emoji: emoji,
                         onTap: () => onSelected(emoji),
@@ -140,37 +136,28 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     return SizedBox(
       height: _searchHeight,
       child: TextField(
         controller: controller,
         autofocus: true,
         textInputAction: TextInputAction.search,
-        style: TextStyle(
-          fontSize: FontSizes.base.size,
-          color: colors.text.primary,
-        ),
+        style: typeScale.body.regular.style(color: palette.text.primary),
         decoration: InputDecoration(
           filled: true,
-          fillColor: colors.fill.tertiary,
+          fillColor: palette.fill.tertiary,
           hintText: 'Search emoji',
-          hintStyle: TextStyle(
-            fontSize: FontSizes.base.size,
-            color: colors.text.tertiary,
-          ),
+          hintStyle: typeScale.body.regular.style(color: palette.text.tertiary),
           prefixIcon: Padding(
-            padding: const EdgeInsets.only(
-              left: Spacing.px12,
-              right: Spacing.px8,
-            ),
-            child: AppIcon.search(size: 18, color: colors.text.tertiary),
+            padding: const EdgeInsets.only(left: S.s12, right: S.s8),
+            child: AppIcon.search(size: 18, color: palette.text.tertiary),
           ),
           prefixIconConstraints: const BoxConstraints(
             minWidth: 0,
             minHeight: 0,
           ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: Spacing.px12),
+          contentPadding: const EdgeInsets.symmetric(horizontal: S.s12),
           // Override the theme's enabled/focused borders (radius 8) so the
           // field is a full pill regardless of its painted height.
           border: _pillBorder,
@@ -193,11 +180,11 @@ class _EmojiComponentButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     return GlassCircleButton(
       size: _searchHeight,
       onPressed: onPressed,
-      color: colors.fill.tertiary,
+      color: palette.fill.tertiary,
       enableBackdropBlur: false,
       shadows: const [],
       icon: CenteredEmoji(
@@ -216,7 +203,7 @@ class _SkinToneStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     return Row(
       children: [
         for (final tone in EmojiSkinVariation.values)
@@ -228,7 +215,7 @@ class _SkinToneStrip extends StatelessWidget {
                 enableBackdropBlur: false,
                 shadows: const [],
                 color: tone == selected
-                    ? colors.backgroundBase.secondary
+                    ? palette.backgroundBase.secondary
                     : Colors.transparent,
                 icon: CenteredEmoji(
                   emoji: '\u{270B}${tone.modifier}',
@@ -284,15 +271,15 @@ class EmojiPickerPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     return Container(
       width: size.width,
       height: size.height,
       padding: const EdgeInsets.all(_panelPadding),
       decoration: BoxDecoration(
-        color: colors.backgroundElevated.primary,
+        color: palette.backgroundElevated.primary,
         borderRadius: BorderRadius.circular(_panelRadius),
-        boxShadow: smallElevationBoxShadows,
+        boxShadow: Effect.elevation(Elevation.small),
       ),
       child: EmojiPicker(
         onSelected: onSelected,
@@ -315,7 +302,7 @@ Future<String?> showEmojiPickerPopover({
     context: context,
     barrierDismissible: true,
     barrierColor:
-        barrierColor ?? CustomColorScheme.of(context).function.barrier,
+        barrierColor ?? SemanticPalette.of(context).function.neutral.scrim,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     transitionDuration: const Duration(milliseconds: 150),
     pageBuilder: (context, animation, secondaryAnimation) =>

@@ -4,10 +4,7 @@
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/primitives.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/type_scale.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -23,9 +20,9 @@ class DisplayMessageTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(vertical: Spacing.px24),
+      padding: const EdgeInsets.symmetric(vertical: S.s24),
       child: Column(
-        spacing: Spacing.px4,
+        spacing: S.s4,
         children: [
           Container(
             child: switch (eventMessage) {
@@ -75,15 +72,15 @@ class _SystemMessageContent extends StatelessWidget {
       _ => Center(
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(Spacing.px16),
+            borderRadius: BorderRadius.circular(CornerRadius.px16),
             border: Border.all(
-              color: CustomColorScheme.of(context).separator.secondary,
-              width: 2,
+              color: SemanticPalette.of(context).separator.secondary,
+              width: StrokeWidth.px2,
             ),
           ),
           padding: const EdgeInsets.symmetric(
-            horizontal: Spacing.px16,
-            vertical: Spacing.px12,
+            horizontal: S.s16,
+            vertical: S.s12,
           ),
           child: _SystemMessageText(message: message),
         ),
@@ -101,12 +98,12 @@ class _SystemMessageText extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final textStyle = TextStyle(
-      color: CustomColorScheme.of(context).text.tertiary,
-      fontSize: LabelFontSize.small1.size,
+    final tertiary = SemanticPalette.of(context).text.tertiary;
+    final textStyle = typeScale.body.s.style(color: tertiary);
+    final profileNameStyle = typeScale.body.s.style(
+      color: tertiary,
+      weight: Weight.emphasized,
     );
-
-    final profileNameStyle = textStyle.copyWith(fontWeight: FontWeight.bold);
 
     final messageText = switch (message) {
       UiSystemMessage_Add(field0: final userId, field1: final contactId) => () {
@@ -332,12 +329,12 @@ class _SystemMessageText extends StatelessWidget {
 RichText buildSystemMessageText(BuildContext context, UiSystemMessage message) {
   final loc = AppLocalizations.of(context);
 
-  final textStyle = TextStyle(
-    color: CustomColorScheme.of(context).text.tertiary,
-    fontSize: LabelFontSize.small1.size,
+  final tertiary = SemanticPalette.of(context).text.tertiary;
+  final textStyle = typeScale.body.s.style(color: tertiary);
+  final profileNameStyle = typeScale.body.s.style(
+    color: tertiary,
+    weight: Weight.emphasized,
   );
-
-  final profileNameStyle = textStyle.copyWith(fontWeight: FontWeight.bold);
 
   final messageText = switch (message) {
     UiSystemMessage_Add(field0: final userId, field1: final contactId) => () {
@@ -565,11 +562,9 @@ class _ErrorMessageContent extends StatelessWidget {
       alignment: AlignmentDirectional.topStart,
       child: Text(
         message.message,
-        style: TextStyle(
-          color: AppColors.red,
-          fontSize: LabelFontSize.small2.size,
-          height: 1.0,
-        ),
+        style: typeScale.body.xs
+            .style(color: Primitive.chromatic(Hue.red, Shade.s500))
+            .copyWith(height: 1.0),
       ),
     );
   }

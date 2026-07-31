@@ -2,9 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/button_icon/glass_circle_button.dart';
-import 'package:air/ds/foundations/icons.dart';
 import 'package:flutter/material.dart';
 
 class AppBarPlusButton extends StatelessWidget {
@@ -15,7 +14,7 @@ class AppBarPlusButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(right: Spacing.px16),
+      padding: const EdgeInsets.only(right: S.s16),
       child: GlassCircleButton(
         icon: const AppIcon.plus(size: 20),
         hitTargetSize: 48,

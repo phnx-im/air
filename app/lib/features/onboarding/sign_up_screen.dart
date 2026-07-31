@@ -5,13 +5,8 @@
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/material/button_styles.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/constrained_width/constrained_width.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
 import 'package:air/util/cached_memory_image.dart';
@@ -28,8 +23,8 @@ class SignUpScreen extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
-    final backgroundColor = colors.backgroundBase.secondary;
+    final palette = SemanticPalette.of(context);
+    final backgroundColor = palette.backgroundBase.secondary;
 
     final formKey = useMemoized(() => GlobalKey<FormState>());
     final showErrors = useState(false);
@@ -40,14 +35,13 @@ class SignUpScreen extends HookWidget {
         automaticallyImplyLeading: false,
         clipBehavior: Clip.none,
         leading: AppBarBackButton(
-          backgroundColor: colors.backgroundElevated.primary,
+          backgroundColor: palette.backgroundElevated.primary,
         ),
         title: Text(
           loc.signUpScreen_header,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        toolbarHeight: DeviceType.isDesktop ? 100 : null,
-        backgroundColor: colors.backgroundBase.secondary,
+        backgroundColor: palette.backgroundBase.secondary,
       ),
       backgroundColor: backgroundColor,
       body: SafeArea(
@@ -62,8 +56,8 @@ class SignUpScreen extends HookWidget {
                         keyboardDismissBehavior:
                             ScrollViewKeyboardDismissBehavior.onDrag,
                         padding: const EdgeInsets.symmetric(
-                          horizontal: Spacing.px16,
-                          vertical: Spacing.px12,
+                          horizontal: S.s16,
+                          vertical: S.s12,
                         ),
                         child: _Form(
                           formKey: formKey,
@@ -74,14 +68,14 @@ class SignUpScreen extends HookWidget {
                   ),
                 ),
                 Container(
-                  padding: const EdgeInsets.symmetric(horizontal: Spacing.px24),
-                  width: isSmallScreen(context) ? double.infinity : null,
+                  padding: const EdgeInsets.symmetric(horizontal: S.s24),
+                  width: context.breakpoint.isSmall ? double.infinity : null,
                   child: _SignUpButton(
                     formKey: formKey,
                     showErrors: showErrors,
                   ),
                 ),
-                const SizedBox(height: Spacing.px16),
+                const SizedBox(height: S.s16),
               ],
             ),
           ),
@@ -102,7 +96,7 @@ class _Form extends HookWidget {
     final loc = AppLocalizations.of(context);
 
     final textFormConstraints = BoxConstraints.tight(
-      isSmallScreen(context)
+      context.breakpoint.isSmall
           ? const Size(double.infinity, 120)
           : const Size(300, 120),
     );
@@ -122,14 +116,14 @@ class _Form extends HookWidget {
               style: Theme.of(context).textTheme.bodyMedium,
               textAlign: TextAlign.left,
             ),
-            const SizedBox(height: Spacing.px32),
+            const SizedBox(height: S.s32),
 
             GestureDetector(
               onTap: () => _pickAvatar(context),
               onLongPress: () => serverFieldVisible.value = true,
               child: const _UserAvatarPicker(),
             ),
-            const SizedBox(height: Spacing.px32),
+            const SizedBox(height: S.s32),
 
             ConstrainedBox(
               constraints: textFormConstraints,
@@ -144,7 +138,7 @@ class _Form extends HookWidget {
                 style: Theme.of(context).textTheme.bodyMedium,
                 textAlign: TextAlign.left,
               ),
-              const SizedBox(height: Spacing.px16),
+              const SizedBox(height: S.s16),
 
               ConstrainedBox(
                 constraints: textFormConstraints,
@@ -154,7 +148,7 @@ class _Form extends HookWidget {
               ),
             ],
 
-            const SizedBox(height: Spacing.px16),
+            const SizedBox(height: S.s16),
           ],
         ),
       ),
@@ -185,7 +179,7 @@ class _UserAvatarPicker extends StatelessWidget {
       (RegistrationCubit cubit) => cubit.state.avatar,
     );
 
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final showPlaceholderIcon = avatar == null;
 
     return SizedBox(
@@ -210,7 +204,7 @@ class _UserAvatarPicker extends StatelessWidget {
               height: size,
               decoration: BoxDecoration(
                 shape: BoxShape.circle,
-                color: colors.fill.tertiary,
+                color: palette.fill.tertiary,
               ),
               alignment: Alignment.center,
               child: const IgnorePointer(
@@ -236,29 +230,26 @@ class _DisplayNameTextField extends HookWidget {
     final displayName = context.read<RegistrationCubit>().state.displayName;
 
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     final focusNode = useFocusNode();
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: Spacing.px8,
+      spacing: S.s8,
       children: [
         Padding(
-          padding: const EdgeInsets.only(left: Spacing.px8),
+          padding: const EdgeInsets.only(left: S.s8),
           child: Text(
             loc.signUpScreen_displayNameInputName,
-            style: TextStyle(
-              fontSize: LabelFontSize.small2.size,
-              color: colors.text.quaternary,
-            ),
+            style: typeScale.body.xs.style(color: palette.text.quaternary),
           ),
         ),
         TextFormField(
           autofocus: true,
           decoration: InputDecoration(
             hintText: loc.signUpScreen_displayNameInputHint,
-            fillColor: colors.backgroundBase.tertiary,
+            fillColor: palette.backgroundBase.tertiary,
           ),
           initialValue: displayName,
           onChanged: (value) {
@@ -287,14 +278,14 @@ class _ServerTextField extends HookWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     final focusNode = useFocusNode();
 
     return TextFormField(
       decoration: InputDecoration(
         hintText: loc.signUpScreen_serverHint,
-        fillColor: colors.backgroundBase.tertiary,
+        fillColor: palette.backgroundBase.tertiary,
       ),
       initialValue: context.read<RegistrationCubit>().state.domain,
       focusNode: focusNode,
@@ -322,14 +313,16 @@ class _SignUpButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final isSigningUp = context.select(
       (RegistrationCubit cubit) => cubit.state.isSigningUp,
     );
     return OutlinedButton(
       style: OutlinedButtonTheme.of(context).style!.copyWith(
-        backgroundColor: WidgetStateProperty.all(colors.accent.primary),
-        foregroundColor: WidgetStateProperty.all(colors.function.toggleWhite),
+        backgroundColor: WidgetStateProperty.all(palette.accentBrand.primary),
+        foregroundColor: WidgetStateProperty.all(
+          palette.function.neutral.toggleWhite,
+        ),
       ),
       onPressed: isSigningUp
           ? null
@@ -345,17 +338,16 @@ class _SignUpButton extends StatelessWidget {
               height: 20,
               width: 20,
               child: CircularProgressIndicator(
-                strokeWidth: 2,
+                strokeWidth: StrokeWidth.px2,
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  colors.function.toggleWhite,
+                  palette.function.neutral.toggleWhite,
                 ),
               ),
             )
           : Text(
               loc.signUpScreen_actionButton,
-              style: TextStyle(
-                color: colors.function.toggleWhite,
-                fontSize: LabelFontSize.base.size,
+              style: typeScale.body.regular.style(
+                color: palette.function.neutral.toggleWhite,
               ),
             ),
     );

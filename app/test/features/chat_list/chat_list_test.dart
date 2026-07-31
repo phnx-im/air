@@ -173,6 +173,6 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/chat_list_mute_menu_desktop.png'),
       );
-    });
+    }, variant: desktopPlatform);
   });
 }

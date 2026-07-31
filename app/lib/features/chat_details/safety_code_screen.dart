@@ -4,12 +4,8 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/scaffold/app_scaffold.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/type_scale.dart';
-import 'package:air/ds/foundations/monospace.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -46,38 +42,32 @@ class SafetyCodeView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Align(
       alignment: Alignment.topCenter,
       child: Column(
         children: [
-          const SizedBox(height: Spacing.px12),
+          const SizedBox(height: S.s12),
 
           UserAvatar(profile: profile, size: 192),
 
-          const SizedBox(height: Spacing.px16),
+          const SizedBox(height: S.s16),
 
           Text(
             profile.displayName,
-            style: TextStyle(
-              fontSize: HeaderFontSize.h1.size,
-              fontWeight: FontWeight.bold,
-            ),
+            style: typeScale.header.xl.style(weight: Weight.emphasized),
           ),
 
-          const SizedBox(height: Spacing.px24),
+          const SizedBox(height: S.s24),
 
           _SafetyCode(userId: profile.userId),
 
-          const SizedBox(height: Spacing.px24),
+          const SizedBox(height: S.s24),
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+            padding: const EdgeInsets.symmetric(horizontal: S.s16),
             child: Text(
-              style: TextStyle(
-                fontSize: BodyFontSize.small1.size,
-                color: colors.text.tertiary,
-              ),
+              style: typeScale.body.s.style(color: palette.text.tertiary),
               loc.safetyCodeScreen_safetyCodeExplanation(profile.displayName),
             ),
           ),
@@ -102,14 +92,16 @@ class _SafetyCode extends HookWidget {
     final (p1, p2, p3) = safetyCode.data?.paragraphs ?? ('', '', '');
 
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
-    final codeStyle = TextStyle(
-      fontSize: BodyFontSize.base.size,
-      fontFamily: getSystemMonospaceFontFamily(),
-      height: 1.5,
-      color: safetyCode.hasData ? colors.text.primary : colors.text.tertiary,
-    );
+    final codeStyle = typeScale.body.regular
+        .style(
+          color: safetyCode.hasData
+              ? palette.text.primary
+              : palette.text.tertiary,
+        )
+        .withSystemMonospace()
+        .copyWith(height: 1.5);
 
     return InkWell(
       onTap: safetyCode.hasData
@@ -127,31 +119,25 @@ class _SafetyCode extends HookWidget {
           : null,
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(12),
-          color: colors.backgroundBase.secondary,
+          borderRadius: BorderRadius.circular(CornerRadius.px12),
+          color: palette.backgroundBase.secondary,
         ),
-        padding: const EdgeInsets.symmetric(
-          vertical: Spacing.px16,
-          horizontal: Spacing.px24,
-        ),
+        padding: const EdgeInsets.symmetric(vertical: S.s16, horizontal: S.s24),
         child: Column(
           children: [
             Text(p1, style: codeStyle),
             Text(p2, style: codeStyle),
             Text(p3, style: codeStyle),
-            const SizedBox(height: Spacing.px24),
+            const SizedBox(height: S.s24),
             Row(
               mainAxisSize: .min,
               mainAxisAlignment: .center,
               children: [
-                AppIcon.copy(color: colors.text.tertiary, size: 16),
-                const SizedBox(width: Spacing.px8),
+                AppIcon.copy(color: palette.text.tertiary, size: 16),
+                const SizedBox(width: S.s8),
                 Text(
                   loc.safetyCodeScreen_tapToCopy,
-                  style: TextStyle(
-                    fontSize: BodyFontSize.small1.size,
-                    color: colors.text.tertiary,
-                  ),
+                  style: typeScale.body.s.style(color: palette.text.tertiary),
                 ),
               ],
             ),

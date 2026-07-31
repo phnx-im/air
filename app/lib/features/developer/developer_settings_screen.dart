@@ -9,16 +9,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:air/core/core.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/primitives.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/platform/method_channel.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
-import 'package:air/ds/foundations/icons.dart';
 import 'package:provider/provider.dart';
 
 import 'package:air/features/developer/user_debug_info_panel.dart';
@@ -197,9 +193,9 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                     ListTile(
                       title: Text(
                         profile?.displayName ?? user.userId.uuid.toString(),
-                        style: Theme.of(
-                          context,
-                        ).textTheme.bodyLarge?.copyWith(color: AppColors.red),
+                        style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                          color: Primitive.chromatic(Hue.red, Shade.s500),
+                        ),
                       ),
                       subtitle: Text("${user.userId}"),
                       trailing: const AppIcon.trash(),
@@ -215,7 +211,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                     title: Text(
                       'Erase All Databases',
                       style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-                        color: AppColors.red,
+                        color: Primitive.chromatic(Hue.red, Shade.s500),
                         fontWeight: FontWeight.bold,
                       ),
                     ),
@@ -234,8 +230,8 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                     const _SectionHeader("Debug Info"),
                     Padding(
                       padding: const EdgeInsets.symmetric(
-                        horizontal: Spacing.px12,
-                        vertical: Spacing.px8,
+                        horizontal: S.s12,
+                        vertical: S.s8,
                       ),
                       child: UserDebugInfoPanel(user: user),
                     ),
@@ -271,8 +267,10 @@ void _confirmDialog({
           ),
           TextButton(
             style: TextButton.styleFrom(
-              backgroundColor: AppColors.red,
-              foregroundColor: CustomColorScheme.of(context).function.white,
+              backgroundColor: Primitive.chromatic(Hue.red, Shade.s500),
+              foregroundColor: SemanticPalette.of(
+                context,
+              ).function.neutral.white,
             ),
             onPressed: onConfirm,
             child: Text(confirmLabel),
@@ -291,10 +289,7 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        vertical: Spacing.px8,
-        horizontal: Spacing.px12,
-      ),
+      padding: const EdgeInsets.symmetric(vertical: S.s8, horizontal: S.s12),
       child: Text(label, style: const TextStyle(fontWeight: FontWeight.bold)),
     );
   }

@@ -9,10 +9,7 @@ import 'dart:ui' as ui;
 import 'package:air/features/attachments/attachment_image_provider.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/blur.dart';
-import 'package:air/ds/foundations/icons.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -338,7 +335,7 @@ class AttachmentImageOverlay extends HookWidget {
     );
     final status = useStream<UiAttachmentStatus>(statusStream);
 
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Align(
       alignment: Alignment.center,
@@ -380,8 +377,8 @@ class AttachmentImageOverlay extends HookWidget {
             alignment: Alignment.center,
             children: [
               CircularProgressIndicator(
-                strokeWidth: 2,
-                valueColor: AlwaysStoppedAnimation<Color>(colors.text.primary),
+                strokeWidth: StrokeWidth.px2,
+                valueColor: AlwaysStoppedAnimation<Color>(palette.text.primary),
                 backgroundColor: Colors.transparent,
                 value: loaded / BigInt.from(size),
               ),
@@ -402,11 +399,11 @@ class AttachmentImageOverlay extends HookWidget {
               (loc) => SnackBar(content: Text(loc.attachment_notFound)),
             );
           },
-          icon: AppIcon.circleAlert(size: 32, color: colors.text.primary),
+          icon: AppIcon.circleAlert(size: 32, color: palette.text.primary),
         ),
         UiAttachmentStatus_Completed() when isAnimationPaused => IgnorePointer(
           child: _BlurredPill(
-            child: AppIcon.rotateCw(size: 24, color: colors.text.primary),
+            child: AppIcon.rotateCw(size: 24, color: palette.text.primary),
           ),
         ),
         null || UiAttachmentStatus_Completed() => const SizedBox.shrink(),
@@ -424,18 +421,15 @@ class _BlurredPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(1000),
+      borderRadius: BorderRadius.circular(CornerRadius.full),
       child: BackdropFilter(
         filter: ui.ImageFilter.blur(
-          sigmaX: kMaterialBlurMedium,
-          sigmaY: kMaterialBlurMedium,
+          sigmaX: Effect.blur(BlurLevel.medium),
+          sigmaY: Effect.blur(BlurLevel.medium),
         ),
         child: ColoredBox(
-          color: CustomColorScheme.of(context).material.tertiary,
-          child: Padding(
-            padding: const EdgeInsets.all(Spacing.px16),
-            child: child,
-          ),
+          color: SemanticPalette.of(context).backgroundMaterial.tertiary,
+          child: Padding(padding: const EdgeInsets.all(S.s16), child: child),
         ),
       ),
     );

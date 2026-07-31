@@ -6,7 +6,7 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/context_menu/context_menu_item.dart';
 import 'package:air/ds/patterns/context_menu/context_menu_surface.dart';
 
@@ -134,9 +134,9 @@ class _MobileMessageActionView extends StatelessWidget {
     // Layout inputs derived from the current overlay and safe areas.
     final mediaQuery = MediaQuery.of(context);
     final size = mediaQuery.size;
-    final safeTop = mediaQuery.padding.top + Spacing.px24;
-    final safeBottom = mediaQuery.padding.bottom + Spacing.px24;
-    const gap = Spacing.px32;
+    final safeTop = mediaQuery.padding.top + S.s24;
+    final safeBottom = mediaQuery.padding.bottom + S.s24;
+    const gap = S.s32;
     final messageHeight = anchorRect.height;
     final messageWidth = anchorRect.width;
 
@@ -284,8 +284,8 @@ class _MobileMessageActionView extends StatelessWidget {
               ),
             if (sheetHeight > 0)
               Positioned(
-                left: alignEnd ? null : Spacing.px24,
-                right: alignEnd ? Spacing.px24 : null,
+                left: alignEnd ? null : S.s24,
+                right: alignEnd ? S.s24 : null,
                 top: sheetTop,
                 child: _MobileContextMenu(
                   animation: animation,

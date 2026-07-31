@@ -4,7 +4,7 @@
 
 import 'dart:math' as math;
 
-import 'package:air/ds/foundations/motion.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/scheduler.dart';
 import 'package:flutter/widgets.dart';
@@ -134,8 +134,8 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
   bool _pendingJumpExecutionFrameCallbackScheduled = false;
   bool _pendingViewportStateFrameCallbackScheduled = false;
 
-  static const _animateDuration = motionRegular;
-  static const _animateCurve = motionEasing;
+  static final _animateDuration = Effect.duration(MotionPreset.regular);
+  static const _animateCurve = Effect.easeOutQuart;
 
   /// Sub-pixel threshold: differences smaller than this are treated as
   /// equal to avoid infinite correction loops from floating-point drift.

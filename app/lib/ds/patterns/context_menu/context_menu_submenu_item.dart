@@ -7,10 +7,7 @@ import 'dart:math' as math;
 
 import 'package:air/ds/patterns/context_menu/context_menu_item.dart';
 import 'package:air/ds/patterns/context_menu/context_menu_surface.dart';
-import 'package:air/ds/foundations/type_scale.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 
@@ -95,7 +92,7 @@ class _ContextMenuSubmenuItemWidgetState
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     Widget? leadingWidget;
     if (item.leading != null) {
@@ -120,8 +117,8 @@ class _ContextMenuSubmenuItemWidgetState
             shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.zero,
             ),
-            foregroundColor: colors.text.primary,
-            padding: const EdgeInsets.symmetric(vertical: Spacing.px4),
+            foregroundColor: palette.text.primary,
+            padding: const EdgeInsets.symmetric(vertical: S.s4),
             alignment: Alignment.centerLeft,
             splashFactory: !Platform.isAndroid ? NoSplash.splashFactory : null,
             overlayColor: Colors.transparent,
@@ -135,24 +132,24 @@ class _ContextMenuSubmenuItemWidgetState
                   width: ContextMenuItem.defaultLeadingWidth,
                   child: leadingWidget,
                 ),
-                const SizedBox(width: Spacing.px8),
+                const SizedBox(width: S.s8),
               ] else if (leadingWidget != null) ...[
                 leadingWidget,
-                const SizedBox(width: Spacing.px8),
+                const SizedBox(width: S.s8),
               ],
               Expanded(
                 child: Text(
                   item.label,
-                  style: TextStyle(fontSize: LabelFontSize.base.size),
+                  style: typeScale.body.regular.style(),
                   maxLines: 1,
                   softWrap: false,
                   overflow: TextOverflow.ellipsis,
                 ),
               ),
-              const SizedBox(width: Spacing.px8),
+              const SizedBox(width: S.s8),
               AppIcon.chevronRight(
                 size: ContextMenuSubmenuItem.chevronSize,
-                color: colors.text.secondary,
+                color: palette.text.secondary,
               ),
             ],
           ),
@@ -199,7 +196,7 @@ class _ContextMenuSubmenuItemWidgetState
         } else {
           anchorRect = itemRect;
         }
-        const gap = Spacing.px4;
+        const gap = S.s4;
         final rightSpace = overlaySize.width - anchorRect.right;
         dx = rightSpace >= submenuWidth + gap
             ? anchorRect.right + gap
@@ -251,7 +248,7 @@ class _ContextMenuSubmenuItemWidgetState
   }
 
   double _measureSubmenuWidth(BuildContext context, double maxWidth) {
-    final textStyle = TextStyle(fontSize: LabelFontSize.base.size);
+    final textStyle = typeScale.body.regular.style();
     final textScaler = MediaQuery.textScalerOf(context);
     final textDirection = Directionality.of(context);
     final items = widget.item.subItems;
@@ -261,7 +258,7 @@ class _ContextMenuSubmenuItemWidgetState
       (item) => item.hasLeading || item.reserveLeadingSpace,
     );
     final leadingWidth = hasAnyLeading
-        ? ContextMenuItem.defaultLeadingWidth + Spacing.px8
+        ? ContextMenuItem.defaultLeadingWidth + S.s8
         : 0.0;
     final trailingIconSize = IconTheme.of(context).size ?? 24.0;
 
@@ -275,12 +272,12 @@ class _ContextMenuSubmenuItemWidgetState
       )..layout();
       var itemWidth = textPainter.width + leadingWidth;
       if (item.trailingIcon != null) {
-        itemWidth += trailingIconSize + Spacing.px8;
+        itemWidth += trailingIconSize + S.s8;
       }
       if (itemWidth > widestItem) widestItem = itemWidth;
     }
 
-    final paddedWidth = widestItem + Spacing.px16 * 2;
+    final paddedWidth = widestItem + S.s16 * 2;
     if (maxWidth <= 0) return paddedWidth;
     return paddedWidth.clamp(0.0, maxWidth);
   }

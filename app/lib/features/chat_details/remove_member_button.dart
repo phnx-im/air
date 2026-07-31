@@ -4,12 +4,9 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/button/button.dart' show AppButtonTone;
 import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
-import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -36,24 +33,23 @@ class RemoveMemberButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
-    final isDesktop = ResponsiveScreen.isDesktop(context);
+    final isDesktop = DeviceType.isDesktop;
 
     return OutlinedButton(
       onPressed: () => _confirmRemoval(context),
       style: ButtonStyle(
         padding: WidgetStatePropertyAll(
           compact
-              ? const EdgeInsets.symmetric(
-                  horizontal: Spacing.px16,
-                  vertical: Spacing.px4,
-                )
+              ? const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s4)
               : null,
         ),
         shape: compact
             ? WidgetStatePropertyAll(
-                RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
+                RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(CornerRadius.px8),
+                ),
               )
             : null,
         minimumSize: compact
@@ -63,19 +59,18 @@ class RemoveMemberButton extends StatelessWidget {
               ),
         visualDensity: compact ? VisualDensity.compact : null,
         backgroundColor: WidgetStatePropertyAll(
-          compact ? colors.backgroundBase.secondary : colors.function.danger,
+          compact ? palette.backgroundBase.secondary : palette.function.danger,
         ),
         overlayColor: WidgetStatePropertyAll(
-          compact ? colors.backgroundBase.secondary : colors.function.danger,
+          compact ? palette.backgroundBase.secondary : palette.function.danger,
         ),
       ),
       child: Text(
         loc.removeUserButton_text,
-        style: TextStyle(
-          fontSize: compact
-              ? LabelFontSize.small1.size
-              : LabelFontSize.base.size,
-          color: compact ? colors.text.primary : colors.function.white,
+        style: (compact ? typeScale.body.s : typeScale.body.regular).style(
+          color: compact
+              ? palette.text.primary
+              : palette.function.neutral.white,
         ),
       ),
     );

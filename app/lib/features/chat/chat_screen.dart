@@ -10,10 +10,7 @@ import 'package:air/features/message_list/scroll_to_bottom_controller.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/message_list/message_cubit.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
-import 'package:air/ds/material/button_styles.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
@@ -79,7 +76,7 @@ class _EmptyChatPane extends StatelessWidget {
     return Center(
       child: Text(
         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-          color: CustomColorScheme.of(context).text.tertiary,
+          color: SemanticPalette.of(context).text.tertiary,
         ),
         loc.chatScreen_emptyChat,
       ),
@@ -213,7 +210,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
             top: null,
             child: SafeArea(
               top: false,
-              minimum: const EdgeInsets.only(bottom: Spacing.px12),
+              minimum: const EdgeInsets.only(bottom: S.s12),
               child: _MeasureHeight(
                 onChange: (height) {
                   _scrollToBottomController.composerHeight.value = height;
@@ -255,9 +252,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
       scrolledUnderElevation: 0,
       elevation: 0,
       clipBehavior: Clip.none,
-      leading: context.responsiveScreenType == ResponsiveScreenType.mobile
-          ? const AppBarBackButton()
-          : null,
+      leading: context.breakpoint.isSmall ? const AppBarBackButton() : null,
       centerTitle: true,
       title: MouseRegion(
         cursor: hasDetails ? SystemMouseCursors.click : .defer,
@@ -288,7 +283,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
           },
           child: Row(
             mainAxisSize: MainAxisSize.min,
-            spacing: Spacing.px12,
+            spacing: S.s12,
             children: [
               ChatAvatar(chatId: chatId, size: 40),
               Flexible(
@@ -298,7 +293,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextTheme.of(context).labelMedium!.copyWith(
-                    color: CustomColorScheme.of(context).text.primary,
+                    color: SemanticPalette.of(context).text.primary,
                   ),
                 ),
               ),
@@ -327,15 +322,15 @@ class _BlockedChatFooter extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final buttonWidth = isSmallScreen(context) ? double.infinity : null;
+    final buttonWidth = context.breakpoint.isSmall ? double.infinity : null;
     return Container(
-      padding: const EdgeInsets.all(Spacing.px16),
+      padding: const EdgeInsets.all(S.s16),
       child: Column(
         children: [
           Text(loc.blockedChatFooter_message(displayName)),
-          const SizedBox(height: Spacing.px16),
+          const SizedBox(height: S.s16),
           Wrap(
-            runSpacing: Spacing.px8,
+            runSpacing: S.s8,
             alignment: WrapAlignment.center,
             children: [
               SizedBox(
@@ -345,12 +340,12 @@ class _BlockedChatFooter extends StatelessWidget {
                   displayName: displayName,
                 ),
               ),
-              const SizedBox(width: Spacing.px16),
+              const SizedBox(width: S.s16),
               SizedBox(
                 width: buttonWidth,
                 child: ReportSpamButton(userId: userId),
               ),
-              const SizedBox(width: Spacing.px16),
+              const SizedBox(width: S.s16),
               SizedBox(
                 width: buttonWidth,
                 child: UnblockContactButton(
@@ -409,12 +404,9 @@ class _PendingCommitFailedBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: CustomColorScheme.of(context).function.warning,
+      color: SemanticPalette.of(context).function.warning.primary,
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.px16,
-          vertical: Spacing.px8,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),
         child: Row(
           children: [
             Expanded(
@@ -445,12 +437,12 @@ class _InactiveChatFooter extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     return Container(
       width: double.infinity,
-      padding: const EdgeInsets.all(Spacing.px16),
+      padding: const EdgeInsets.all(S.s16),
       child: Text(
         loc.inactiveChatFooter_message,
         textAlign: TextAlign.center,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: CustomColorScheme.of(context).text.tertiary,
+          color: SemanticPalette.of(context).text.tertiary,
         ),
       ),
     );

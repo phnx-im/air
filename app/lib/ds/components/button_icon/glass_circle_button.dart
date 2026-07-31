@@ -4,9 +4,7 @@
 
 import 'dart:ui';
 
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/effects.dart';
-import 'package:air/ds/foundations/blur.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
 
 /// Circular glass button used for app bar chrome that floats over content
@@ -21,7 +19,7 @@ class GlassCircleButton extends StatelessWidget {
     this.hitTargetSize,
     this.enableBackdropBlur = true,
     this.color,
-    this.shadows = mediumElevationBoxShadows,
+    this.shadows,
   });
 
   final Widget icon;
@@ -41,13 +39,16 @@ class GlassCircleButton extends StatelessWidget {
   /// look. Pass an opaque color for non-glass surfaces.
   final Color? color;
 
-  /// Drop shadows. Pass an empty list when an ancestor paints shadows for
-  /// the surrounding element (e.g. the message composer).
-  final List<BoxShadow> shadows;
+  /// Drop shadows. Defaults to [Elevation.medium]. Pass an empty list when an
+  /// ancestor paints shadows for the surrounding element (e.g. the message
+  /// composer).
+  final List<BoxShadow>? shadows;
 
   @override
   Widget build(BuildContext context) {
-    final fillColor = color ?? CustomColorScheme.of(context).material.tertiary;
+    final fillColor =
+        color ?? SemanticPalette.of(context).backgroundMaterial.tertiary;
+    final boxShadow = shadows ?? Effect.elevation(Elevation.medium);
     final hitSize = hitTargetSize ?? size;
     final enabled = onPressed != null || onLongPress != null;
 
@@ -60,13 +61,13 @@ class GlassCircleButton extends StatelessWidget {
       width: size,
       height: size,
       child: DecoratedBox(
-        decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: shadows),
+        decoration: BoxDecoration(shape: BoxShape.circle, boxShadow: boxShadow),
         child: enableBackdropBlur
             ? ClipOval(
                 child: BackdropFilter(
                   filter: ImageFilter.blur(
-                    sigmaX: kMaterialBlurMedium,
-                    sigmaY: kMaterialBlurMedium,
+                    sigmaX: Effect.blur(BlurLevel.medium),
+                    sigmaY: Effect.blur(BlurLevel.medium),
                   ),
                   child: fill,
                 ),
@@ -76,7 +77,7 @@ class GlassCircleButton extends StatelessWidget {
     );
 
     if (!enabled) {
-      circle = Opacity(opacity: 0.4, child: circle);
+      circle = Opacity(opacity: Alpha.a40, child: circle);
     }
 
     return MouseRegion(

@@ -3,12 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/components/button/button.dart';
-import 'package:air/ds/foundations/type_scale.dart';
-import 'package:air/ds/foundations/monospace.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
@@ -40,7 +37,7 @@ class ChatDebugInfoView extends HookWidget {
   Widget build(BuildContext context) {
     final debugInfoFuture = useState(useMemoized(loadDebugInfo));
     final snapshot = useFuture(debugInfoFuture.value);
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return AppScaffold(
       title: title,
@@ -60,13 +57,10 @@ class ChatDebugInfoView extends HookWidget {
         ),
         AsyncSnapshot(hasError: true, :final error) => Center(
           child: Padding(
-            padding: const EdgeInsets.all(Spacing.px16),
+            padding: const EdgeInsets.all(S.s16),
             child: Text(
               error.toString(),
-              style: TextStyle(
-                fontSize: BodyFontSize.small1.size,
-                color: colors.text.secondary,
-              ),
+              style: typeScale.body.s.style(color: palette.text.secondary),
             ),
           ),
         ),
@@ -75,8 +69,8 @@ class ChatDebugInfoView extends HookWidget {
             width: 16,
             height: 16,
             child: CircularProgressIndicator(
-              strokeWidth: 2,
-              valueColor: AlwaysStoppedAnimation<Color>(colors.text.primary),
+              strokeWidth: StrokeWidth.px2,
+              valueColor: AlwaysStoppedAnimation<Color>(palette.text.primary),
             ),
           ),
         ),
@@ -107,7 +101,7 @@ class _GroupDebugInfoBody extends StatelessWidget {
 
     return ListView(
       children: [
-        const SizedBox(height: Spacing.px16),
+        const SizedBox(height: S.s16),
         const _SectionHeader('Overview'),
         _InfoCard(
           children: [
@@ -134,7 +128,7 @@ class _GroupDebugInfoBody extends StatelessWidget {
             _InfoRow(label: 'Size', value: _formatBytes(info.sizeBytes)),
           ],
         ),
-        const SizedBox(height: Spacing.px16),
+        const SizedBox(height: S.s16),
         const _SectionHeader('Post-Quantum'),
         if (info.pq == null)
           const _InfoCard(
@@ -167,37 +161,37 @@ class _GroupDebugInfoBody extends StatelessWidget {
             ],
           ),
         if (info.groupData != null) ...[
-          const SizedBox(height: Spacing.px16),
+          const SizedBox(height: S.s16),
           const _SectionHeader('Group Data'),
           _GroupDataInfoCard(data: info.groupData!),
         ],
         if (info.requiredCapabilities != null) ...[
-          const SizedBox(height: Spacing.px16),
+          const SizedBox(height: S.s16),
           const _SectionHeader('Required Capabilities'),
           _RequiredCapabilitiesCard(caps: info.requiredCapabilities!),
         ],
-        const SizedBox(height: Spacing.px16),
+        const SizedBox(height: S.s16),
         _SectionHeader('Members (${sortedMembers.length})'),
         for (final entry in sortedMembers) ...[
-          const SizedBox(height: Spacing.px12),
+          const SizedBox(height: S.s12),
           _MemberCard(
             leafIndex: entry.key,
             caps: entry.value,
             isOwn: entry.key == info.ownLeafIndex,
           ),
         ],
-        const SizedBox(height: Spacing.px32),
+        const SizedBox(height: S.s32),
         _UpdateGroupButton(onTapped: onUpdateGroup, label: "Update group"),
         if (info.pq != null) ...[
-          const SizedBox(height: Spacing.px16),
+          const SizedBox(height: S.s16),
           _UpdateGroupButton(
             onTapped: onUpdateApqGroup,
             label: "Update APQ group",
           ),
         ],
-        const SizedBox(height: Spacing.px16),
+        const SizedBox(height: S.s16),
         _RequestResyncButton(onTapped: onRequestResync),
-        const SizedBox(height: Spacing.px16),
+        const SizedBox(height: S.s16),
         _DeleteLocalChatButton(onTapped: onEraseLocalChat),
       ],
     );
@@ -285,15 +279,14 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: Spacing.px8),
+      padding: const EdgeInsets.symmetric(vertical: S.s8),
       child: Text(
         title.toUpperCase(),
-        style: TextStyle(
-          fontSize: BodyFontSize.small2.size,
-          fontWeight: FontWeight.bold,
-          color: colors.text.tertiary,
+        style: typeScale.body.xs.style(
+          weight: Weight.emphasized,
+          color: palette.text.tertiary,
         ),
       ),
     );
@@ -307,20 +300,14 @@ class _CardSectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.px16,
-        vertical: Spacing.px12,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
       child: Text(
         title,
-        style: TextStyle(
-          fontSize: BodyFontSize.small2.size,
-          fontWeight: FontWeight.w600,
-          color: colors.text.tertiary,
-          letterSpacing: 0.3,
-        ),
+        style: typeScale.body.xs
+            .style(color: palette.text.tertiary)
+            .copyWith(fontWeight: FontWeight.w600, letterSpacing: 0.3),
       ),
     );
   }
@@ -333,11 +320,11 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     return Container(
       decoration: BoxDecoration(
-        color: colors.backgroundBase.secondary,
-        borderRadius: BorderRadius.circular(12),
+        color: palette.backgroundBase.secondary,
+        borderRadius: BorderRadius.circular(CornerRadius.px12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -347,8 +334,8 @@ class _InfoCard extends StatelessWidget {
             if (i < children.length - 1)
               Divider(
                 height: 1,
-                indent: Spacing.px16,
-                color: colors.separator.secondary,
+                indent: S.s16,
+                color: palette.separator.secondary,
               ),
           ],
         ],
@@ -370,12 +357,9 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
-    var valueStyle = TextStyle(
-      fontSize: BodyFontSize.small1.size,
-      color: colors.text.primary,
-    );
+    var valueStyle = typeScale.body.s.style(color: palette.text.primary);
     if (monospace) {
       valueStyle = valueStyle.withSystemMonospace();
     }
@@ -390,12 +374,9 @@ class _InfoRow extends StatelessWidget {
           ),
         );
       },
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(CornerRadius.px12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.px16,
-          vertical: Spacing.px12,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -403,10 +384,7 @@ class _InfoRow extends StatelessWidget {
               width: 200,
               child: Text(
                 label,
-                style: TextStyle(
-                  fontSize: BodyFontSize.small1.size,
-                  color: colors.text.tertiary,
-                ),
+                style: typeScale.body.s.style(color: palette.text.tertiary),
               ),
             ),
             Expanded(child: Text(value, style: valueStyle)),
@@ -528,50 +506,50 @@ class _MemberCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Container(
       decoration: BoxDecoration(
         color: isOwn
-            ? colors.backgroundBase.quaternary
-            : colors.backgroundBase.secondary,
-        borderRadius: BorderRadius.circular(12),
+            ? palette.backgroundBase.quaternary
+            : palette.backgroundBase.secondary,
+        borderRadius: BorderRadius.circular(CornerRadius.px12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(
-              horizontal: Spacing.px16,
-              vertical: Spacing.px12,
+              horizontal: S.s16,
+              vertical: S.s12,
             ),
             child: Row(
               children: [
                 Text(
                   'Leaf $leafIndex',
-                  style: TextStyle(
-                    fontSize: BodyFontSize.small1.size,
-                    fontWeight: FontWeight.bold,
-                    color: colors.text.primary,
+                  style: typeScale.body.s.style(
+                    weight: Weight.emphasized,
+                    color: palette.text.primary,
                   ),
                 ),
                 if (isOwn) ...[
-                  const SizedBox(width: Spacing.px8),
+                  const SizedBox(width: S.s8),
                   Container(
                     padding: const EdgeInsets.symmetric(
                       horizontal: 6,
                       vertical: 2,
                     ),
                     decoration: BoxDecoration(
-                      color: colors.accent.primary.withValues(alpha: 0.15),
-                      borderRadius: BorderRadius.circular(4),
+                      color: palette.accentBrand.primary.withValues(
+                        alpha: Alpha.a15,
+                      ),
+                      borderRadius: BorderRadius.circular(CornerRadius.px4),
                     ),
                     child: Text(
                       'self',
-                      style: TextStyle(
-                        fontSize: BodyFontSize.small2.size,
-                        color: colors.accent.primary,
-                        fontWeight: FontWeight.bold,
+                      style: typeScale.body.xs.style(
+                        color: palette.accentBrand.primary,
+                        weight: Weight.emphasized,
                       ),
                     ),
                   ),
@@ -579,56 +557,24 @@ class _MemberCard extends StatelessWidget {
               ],
             ),
           ),
-          Divider(
-            height: 1,
-            indent: Spacing.px16,
-            color: colors.separator.secondary,
-          ),
+          Divider(height: 1, indent: S.s16, color: palette.separator.secondary),
           _InfoRow(label: 'User ID', value: caps.userId, monospace: true),
-          Divider(
-            height: 1,
-            indent: Spacing.px16,
-            color: colors.separator.secondary,
-          ),
+          Divider(height: 1, indent: S.s16, color: palette.separator.secondary),
           _InfoRow(label: 'Display Name', value: caps.displayName),
-          Divider(
-            height: 1,
-            indent: Spacing.px16,
-            color: colors.separator.secondary,
-          ),
+          Divider(height: 1, indent: S.s16, color: palette.separator.secondary),
           _ChipListRow(label: 'Versions', values: caps.versions),
-          Divider(
-            height: 1,
-            indent: Spacing.px16,
-            color: colors.separator.secondary,
-          ),
+          Divider(height: 1, indent: S.s16, color: palette.separator.secondary),
           _ChipListRow(label: 'Ciphersuites', values: caps.ciphersuites),
-          Divider(
-            height: 1,
-            indent: Spacing.px16,
-            color: colors.separator.secondary,
-          ),
+          Divider(height: 1, indent: S.s16, color: palette.separator.secondary),
           _ChipListRow(label: 'Extensions', values: caps.extensions),
-          Divider(
-            height: 1,
-            indent: Spacing.px16,
-            color: colors.separator.secondary,
-          ),
+          Divider(height: 1, indent: S.s16, color: palette.separator.secondary),
           _ChipListRow(label: 'Proposals', values: caps.proposals),
-          Divider(
-            height: 1,
-            indent: Spacing.px16,
-            color: colors.separator.secondary,
-          ),
+          Divider(height: 1, indent: S.s16, color: palette.separator.secondary),
           _ChipListRow(
             label: 'App Components',
             values: caps.appData?.components ?? [],
           ),
-          Divider(
-            height: 1,
-            indent: Spacing.px16,
-            color: colors.separator.secondary,
-          ),
+          Divider(height: 1, indent: S.s16, color: palette.separator.secondary),
           _ChipListRow(
             label: 'Air Component',
             values: [
@@ -660,7 +606,7 @@ class _ChipListRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     if (values.isEmpty) {
       return _InfoRow(label: label, value: '—');
@@ -676,12 +622,9 @@ class _ChipListRow extends StatelessWidget {
           ),
         );
       },
-      borderRadius: BorderRadius.circular(12),
+      borderRadius: BorderRadius.circular(CornerRadius.px12),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.px16,
-          vertical: Spacing.px12,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
         child: Row(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
@@ -689,16 +632,13 @@ class _ChipListRow extends StatelessWidget {
               width: 200,
               child: Text(
                 label,
-                style: TextStyle(
-                  fontSize: BodyFontSize.small1.size,
-                  color: colors.text.tertiary,
-                ),
+                style: typeScale.body.s.style(color: palette.text.tertiary),
               ),
             ),
             Expanded(
               child: Wrap(
-                spacing: Spacing.px8,
-                runSpacing: Spacing.px8,
+                spacing: S.s8,
+                runSpacing: S.s8,
                 children: [for (final value in values) _Chip(value)],
               ),
             ),
@@ -716,19 +656,18 @@ class _Chip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
       decoration: BoxDecoration(
-        color: colors.fill.primary,
-        borderRadius: BorderRadius.circular(4),
+        color: palette.fill.primary,
+        borderRadius: BorderRadius.circular(CornerRadius.px4),
       ),
       child: Text(
         label,
-        style: TextStyle(
-          fontSize: BodyFontSize.small2.size,
-          color: colors.text.secondary,
-        ).withSystemMonospace(),
+        style: typeScale.body.xs
+            .style(color: palette.text.secondary)
+            .withSystemMonospace(),
       ),
     );
   }

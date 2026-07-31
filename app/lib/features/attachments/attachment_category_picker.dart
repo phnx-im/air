@@ -3,10 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/icons.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
 
 typedef AttachmentCategoryCallback = void Function(AttachmentCategory category);
@@ -72,16 +69,16 @@ class _AttachmentCategoryButton extends StatelessWidget {
           child: IconButton(
             icon: icon,
             style: IconButton.styleFrom(
-              backgroundColor: CustomColorScheme.of(
+              backgroundColor: SemanticPalette.of(
                 context,
               ).backgroundElevated.secondary,
             ),
             onPressed: onPressed,
           ),
         ),
-        const SizedBox(height: Spacing.px8),
+        const SizedBox(height: S.s8),
         Text(label),
-        const SizedBox(height: Spacing.px8),
+        const SizedBox(height: S.s8),
       ],
     );
   }
