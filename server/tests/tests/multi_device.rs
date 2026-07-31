@@ -76,10 +76,10 @@ async fn recv_session_id(
     }
 }
 
-/// Provisions a fresh device and links it to `user_id`'s existing device,
-/// returning the new device. The [`TempDir`] holds the new device's database
-/// and must stay alive as long as the device is used.
-async fn link_new_device(setup: &TestBackend, user_id: &UserId) -> (CoreUser, TempDir) {
+/// Provisions a fresh device and links it to `user_id`'s existing device, returning the new device.
+/// The [`TempDir`] holds the new device's database and must stay alive as long as the device is
+/// used.
+pub(crate) async fn link_new_device(setup: &TestBackend, user_id: &UserId) -> (CoreUser, TempDir) {
     let domain = setup.domain().clone();
     let server_url = setup.server_url();
 
@@ -236,6 +236,8 @@ async fn multi_device_link_with_nonexistent_session_id() {
     ));
 }
 
+// A session can only be claimed once; a second link attempt on the same session ID
+// must fail even when called by the same user.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Test second link attempt returns error", skip_all)]
 async fn multi_device_second_link_attempt_returns_error() {
