@@ -157,7 +157,6 @@ async fn multi_device_linking_session() {
     let (session_tx, mut session_rx) = tokio::sync::mpsc::channel(1);
 
     let new_device_task = tokio::spawn(async move {
-        // Fresh device: its own (temporary) database location.
         let tmp = TempDir::new().unwrap();
         let db_path = tmp.path().to_str().unwrap();
         let new_device =
@@ -170,7 +169,6 @@ async fn multi_device_linking_session() {
 
     let session_id = recv_session_id(&mut session_rx).await;
 
-    // The old device scans/types the session ID and drives linking.
     setup
         .get_user(&alice)
         .user()
@@ -181,8 +179,6 @@ async fn multi_device_linking_session() {
 
     let (new_client, _tmp) = new_device_task.await.unwrap();
 
-    // The new device is bootstrapped as a second emulator of the same virtual
-    // client: it shares the QsUserId and self-group, but has its own queue.
     let old_client = setup.get_user(&alice).user();
     assert_eq!(
         new_client.qs_user_id(),
@@ -210,7 +206,6 @@ async fn multi_device_linking_session() {
         "linked device must know the shared self group"
     );
 
-    // Both devices are now members of the self group.
     assert_eq!(
         old_client.self_group_member_count().await.unwrap(),
         Some(2),
@@ -222,7 +217,6 @@ async fn multi_device_linking_session() {
         "new device should see both emulator clients in the self group"
     );
 
-    // Both devices surface the self group as a "Notes to self" chat.
     assert_eq!(
         old_client.self_chat_title().await.unwrap().as_deref(),
         Some("Notes to self"),
@@ -249,8 +243,6 @@ async fn multi_device_linking_session() {
             "onboarding into group {label} should have completed, not still be queued"
         );
 
-        // `mls_chat_participants` resolves the chat to its MLS group, so `Some`
-        // here is the chat being bound to a group we actually joined.
         let members = new_client.mls_chat_participants(chat_id).await;
         assert!(
             members
@@ -265,26 +257,24 @@ async fn multi_device_linking_session() {
         );
     }
 
-    // Messages sent into the self group are seen by the other device, in both
-    // directions.
+    // Messages sent into the self group are seen by the other device.
     let self_chat_id = ChatId::try_from(old_device_self_group.group_id()).unwrap();
     send_and_receive(
         old_client,
         &[&new_client],
         self_chat_id,
-        "hello from the old device",
+        "hello from the old device in self-group",
     )
     .await;
     send_and_receive(
         &new_client,
         &[old_client],
         self_chat_id,
-        "hello back from the new device",
+        "hello back from the new device in self-group",
     )
     .await;
 
-    // The old device has to follow the onboarding external commit onto the
-    // virtual client's new leaf.
+    // The old device has to follow the onboarding external commit onto the virtual client's new leaf.
     let pending = old_client.qs_fetch_messages().await.unwrap();
     old_client.fully_process_qs_messages(pending).await;
     assert_eq!(
@@ -300,20 +290,22 @@ async fn multi_device_linking_session() {
     );
 
     // Messages sent into one of the existing groups are seen by both clients.
-    send_and_receive(
-        old_client,
-        &[&new_client],
-        chat_id_1,
-        "hello from the old device",
-    )
-    .await;
-    send_and_receive(
-        &new_client,
-        &[old_client],
-        chat_id_1,
-        "hello back from the new device",
-    )
-    .await;
+    for chat_id in [chat_id_1, chat_id_2] {
+        send_and_receive(
+            old_client,
+            &[&new_client],
+            chat_id,
+            "hello from the old device",
+        )
+        .await;
+        send_and_receive(
+            &new_client,
+            &[old_client],
+            chat_id,
+            "hello back from the new device",
+        )
+        .await;
+    }
 
     // Messages received from a 3rd party are seen by both clients.
     let bob_client = setup.get_user(&bob).user();
@@ -350,7 +342,7 @@ async fn multi_device_linking_session() {
             .group_epoch_and_own_index(chat_id_1)
             .await
             .unwrap(),
-        "both emulator clients must stay on the same epoch and shared leaf after an add"
+        "both emulator clients must stay on the same epoch and shared leaf after an invite+add"
     );
 
     let bob_client = setup.get_user(&bob).user();

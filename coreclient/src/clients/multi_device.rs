@@ -496,19 +496,15 @@ impl CoreUser {
     ) -> anyhow::Result<Vec<HigherLevelGroup>> {
         self.db()
             .with_read_transaction(async |txn| -> anyhow::Result<_> {
-                let group_ids = Group::load_all_group_ids(&mut *txn).await?;
+                let key_material = Group::load_all_key_material(&mut *txn).await?;
                 let mut groups = Vec::new();
 
-                // TODO(gabriel): this might be better as a function of the `Group` struct that does it directly in SQL?
-                for group_id in group_ids {
-                    if &group_id == self_group_id {
+                for group in key_material {
+                    if &group.group_id == self_group_id {
                         continue;
                     }
-                    let Some(group) = Group::load(&mut *txn, &group_id).await? else {
-                        continue;
-                    };
-                    let Ok(chat_id) = ChatId::try_from(&group_id) else {
-                        warn!(?group_id, "group id is not a chat id; skipping group");
+                    let Ok(chat_id) = ChatId::try_from(&group.group_id) else {
+                        warn!(group_id = ?group.group_id, "group id is not a chat id; skipping group");
                         continue;
                     };
                     let Some(chat) = Chat::load(&mut *txn, &chat_id).await? else {
@@ -518,16 +514,22 @@ impl CoreUser {
                     // `Contact` record (friendship token, WAI key) on top of the
                     // group itself.
                     if chat.attributes().is_none() {
-                        debug!(?group_id, "skipping non-group chat");
+                        debug!(group_id = ?group.group_id, "skipping non-group chat");
                         continue;
                     }
+                    let Some(vc_leaf_index) =
+                        Group::load_own_leaf_index(txn.as_mut(), &group.group_id)
+                    else {
+                        warn!(group_id = ?group.group_id, "no own leaf index; skipping group");
+                        continue;
+                    };
 
                     groups.push(HigherLevelGroup {
-                        group_id: group_id.clone(),
-                        pq_group_id: group.pq_group_id(),
-                        group_state_ear_key: group.group_state_ear_key().clone(),
-                        identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
-                        vc_leaf_index: group.own_index().u32(),
+                        group_id: group.group_id,
+                        pq_group_id: group.pq_group_id,
+                        group_state_ear_key: group.group_state_ear_key,
+                        identity_link_wrapper_key: group.identity_link_wrapper_key,
+                        vc_leaf_index: vc_leaf_index.u32(),
                     });
                 }
 
