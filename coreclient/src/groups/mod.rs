@@ -2548,9 +2548,12 @@ async fn verify_member_credentials(
     is_self_group: bool,
 ) -> anyhow::Result<Vec<StorableUserCredential>> {
     let unverified_credentials = classify_member_credentials(
-        mls_group
-            .members()
-            .map(|member| (member.credential, SignaturePublicKey::from(member.signature_key))),
+        mls_group.members().map(|member| {
+            (
+                member.credential,
+                SignaturePublicKey::from(member.signature_key),
+            )
+        }),
         is_self_group,
     )?;
 
@@ -2897,7 +2900,9 @@ mod member_credential_validation_tests {
         let error = validate_self_group_add_credential(roster.into_iter(), &added)
             .expect_err("user credential should be rejected");
         assert!(
-            error.to_string().contains("expected a self-group credential"),
+            error
+                .to_string()
+                .contains("expected a self-group credential"),
             "unexpected error: {error:#}"
         );
     }

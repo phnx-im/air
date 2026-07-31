@@ -414,33 +414,42 @@ impl Group {
             // Verify that T/PQ added user signature keys match
             verify_pq_added_signature_keys(staged_commit, pq_staged_commit)?;
 
-            // Collect the verifiable credentials
-            let mut verifiable_credentials = Vec::with_capacity(number_of_adds);
-            for ap in staged_commit.add_proposals() {
-                let credential = ap.add_proposal().key_package().leaf_node().credential();
-                let credential = LeafCredential::from_credential(credential)?
-                    .into_user()
-                    .context("adding self-group members is not yet supported")?;
-                verifiable_credentials.push(credential);
-            }
-
-            let as_credentials = AsCredentials::fetch_for_verification(
-                &mut *txn,
-                api_clients,
-                verifiable_credentials.iter(),
-            )
-            .await?;
-            // Compute the sender identity before the `&mut self` call below.
+            // Compute the sender identity before the `&mut self` calls below.
             let sender_identity = sender_credential.room_policy_identity()?;
-            let credentials = self
-                .process_adds(&sender_identity, staged_commit, &mut *txn, &as_credentials)
+
+            if self.is_self_group() {
+                // A self-group add links a new device of the own user. Its leaf
+                // carries a self-group credential without AS material, and the
+                // own user profile needs no fetching, so there are no profile
+                // infos to collect.
+                self.process_self_group_adds(&sender_identity, staged_commit)?;
+            } else {
+                // Collect the verifiable credentials
+                let mut verifiable_credentials = Vec::with_capacity(number_of_adds);
+                for ap in staged_commit.add_proposals() {
+                    let credential = ap.add_proposal().key_package().leaf_node().credential();
+                    let credential = LeafCredential::from_credential(credential)?
+                        .into_user()
+                        .context("expected a user credential in a regular-group add")?;
+                    verifiable_credentials.push(credential);
+                }
+
+                let as_credentials = AsCredentials::fetch_for_verification(
+                    &mut *txn,
+                    api_clients,
+                    verifiable_credentials.iter(),
+                )
                 .await?;
-            // Match up user credentials and new UserProfileKeys
-            let new_profile_infos: Vec<_> = credentials
-                .into_iter()
-                .zip(group_operation_payload.new_encrypted_user_profile_keys)
-                .collect();
-            encrypted_profile_infos.extend(new_profile_infos);
+                let credentials = self
+                    .process_adds(&sender_identity, staged_commit, &mut *txn, &as_credentials)
+                    .await?;
+                // Match up user credentials and new UserProfileKeys
+                let new_profile_infos: Vec<_> = credentials
+                    .into_iter()
+                    .zip(group_operation_payload.new_encrypted_user_profile_keys)
+                    .collect();
+                encrypted_profile_infos.extend(new_profile_infos);
+            }
         }
 
         // Process updates if there are any.
@@ -687,7 +696,7 @@ impl Group {
             // Verify the credential
             let credential = LeafCredential::from_credential(leaf_node.credential())?
                 .into_user()
-                .context("adding self-group members is not yet supported")?;
+                .context("expected a user credential in a regular-group add")?;
             let credential =
                 credential.verify_and_validate(leaf_node.signature_key(), None, as_credentials)?;
 
@@ -710,6 +719,30 @@ impl Group {
         //   names).
 
         Ok(credentials)
+    }
+
+    /// Process the add proposals of a self-group commit. Added leaves carry a
+    /// self-group credential, which holds no AS material to verify: openmls
+    /// has already checked the leaf signature, so only the credential type,
+    /// client id uniqueness, and the room policy (keyed on client ids) are
+    /// checked.
+    fn process_self_group_adds(
+        &self,
+        sender_identity: &[u8],
+        staged_commit: &StagedCommit,
+    ) -> Result<()> {
+        for proposal in staged_commit.add_proposals() {
+            let leaf_node = proposal.add_proposal().key_package().leaf_node();
+            self.validate_self_group_add(leaf_node.credential())?;
+
+            let credential = LeafCredential::from_credential(leaf_node.credential())?;
+            self.verify_role_change_identity(
+                sender_identity,
+                credential.room_policy_identity()?,
+                RoleIndex::Regular,
+            )?;
+        }
+        Ok(())
     }
 
     fn process_resync(&self, credential: &Credential, staged_commit: &StagedCommit) -> Result<()> {

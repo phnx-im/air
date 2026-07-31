@@ -636,3 +636,47 @@ async fn multi_device_settings_race_converges() {
     // The self group is still usable after the race.
     send_and_receive(old_device, &new_device, chat_id, "still in sync").await;
 }
+
+// Linking a third device fans the add commit out to the existing non-initiating
+// device, which must process the self-group add without desynchronizing.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test third device link keeps siblings in sync", skip_all)]
+async fn multi_device_third_device_link() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+
+    let (second_device, _tmp2) = link_new_device(&setup, &alice).await;
+    // Bring the second device fully up to date before the third link.
+    drain_queue(&second_device).await;
+
+    let (third_device, _tmp3) = link_new_device(&setup, &alice).await;
+
+    // The second device processes the add commit for the third device.
+    let messages = second_device.qs_fetch_messages().await.unwrap();
+    let processed = second_device.fully_process_qs_messages(messages).await;
+    assert!(
+        processed.errors.is_empty(),
+        "second device failed to process the third-device add: {:?}",
+        processed.errors
+    );
+
+    // All three devices agree on the membership.
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    for (device, name) in [
+        (old_device, "old device"),
+        (&second_device, "second device"),
+        (&third_device, "third device"),
+    ] {
+        assert_eq!(
+            device.self_group_member_count().await.unwrap(),
+            Some(3),
+            "{name} should see all three emulator clients in the self group"
+        );
+    }
+
+    // The second device is still in sync: a message from the old device
+    // round-trips.
+    let chat_id = self_chat_id(&second_device).await;
+    send_and_receive(old_device, &second_device, chat_id, "three devices").await;
+}
