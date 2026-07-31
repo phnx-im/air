@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "SELECT\n                chat_id AS \"chat_id: _\",\n                chat_title,\n                chat_picture,\n                group_id AS \"group_id: _\",\n                last_read AS \"last_read: _\",\n                (SELECT timestamp FROM message\n                    WHERE chat_id = chat.chat_id\n                    ORDER BY timestamp DESC\n                    LIMIT 1\n                ) AS \"last_message_at: _\",\n                connection_user_uuid AS \"connection_user_uuid: _\",\n                connection_user_domain AS \"connection_user_domain: _\",\n                connection_user_handle AS \"connection_user_handle: _\",\n                is_confirmed_connection,\n                is_active,\n                is_incoming,\n                blocked_contact.user_uuid IS NOT NULL AS \"is_blocked!: _\",\n                muted_until AS \"muted_until: _\"\n            FROM chat\n            LEFT JOIN blocked_contact ON blocked_contact.user_uuid = chat.connection_user_uuid\n                AND blocked_contact.user_domain = chat.connection_user_domain\n            WHERE chat_id = ?",
+  "query": "SELECT\n                chat_id AS \"chat_id: _\",\n                chat_title,\n                chat_picture,\n                group_id AS \"group_id: _\",\n                last_read AS \"last_read: _\",\n                (SELECT timestamp FROM message\n                    WHERE chat_id = chat.chat_id\n                    ORDER BY timestamp DESC\n                    LIMIT 1\n                ) AS \"last_message_at: _\",\n                connection_user_uuid AS \"connection_user_uuid: _\",\n                connection_user_domain AS \"connection_user_domain: _\",\n                connection_user_handle AS \"connection_user_handle: _\",\n                is_confirmed_connection,\n                is_active,\n                is_incoming,\n                blocked_contact.user_uuid IS NOT NULL AS \"is_blocked!: _\",\n                muted_until AS \"muted_until: _\",\n                notified_until AS \"notified_until: _\"\n            FROM chat\n                LEFT JOIN blocked_contact\n                ON blocked_contact.user_uuid = chat.connection_user_uuid\n                AND blocked_contact.user_domain = chat.connection_user_domain\n            WHERE group_id = ?",
   "describe": {
     "columns": [
       {
@@ -151,6 +151,17 @@
             "name": "muted_until"
           }
         }
+      },
+      {
+        "name": "notified_until: _",
+        "ordinal": 14,
+        "type_info": "Datetime",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "notified_until"
+          }
+        }
       }
     ],
     "parameters": {
@@ -170,8 +181,9 @@
       false,
       false,
       false,
+      true,
       true
     ]
   },
-  "hash": "cd456915063447015fc5f1663820901fe11e77b96104d2b810f2919c2a8bb851"
+  "hash": "41d343043b4520c57771193583be1078fae3b066387bdfd7b11417b760b717a9"
 }

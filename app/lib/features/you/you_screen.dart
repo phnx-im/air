@@ -28,6 +28,7 @@ import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
+import 'package:logging/logging.dart';
 import 'package:package_info_plus/package_info_plus.dart';
 
 import 'package:air/features/you/add_username_dialog.dart';
@@ -35,6 +36,8 @@ import 'package:air/features/you/change_display_name_dialog.dart';
 import 'package:air/features/you/contact_us_screen.dart';
 import 'package:air/features/you/delete_account_dialog.dart';
 import 'package:air/features/you/remove_username_dialog.dart';
+
+final _log = Logger('YouScreen');
 
 class YouScreen extends StatelessWidget {
   const YouScreen({super.key});
@@ -329,9 +332,24 @@ class _CommonSettings extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final readReceipts = useState(
-      useMemoized(() => context.read<UserSettingsCubit>().state.readReceipts),
+    // Captured here rather than read inside the submit callback: a debounced
+    // submit can fire while the widget is being disposed, when context
+    // lookups are no longer allowed.
+    final settingsCubit = context.read<UserSettingsCubit>();
+    final readReceiptsSetting = context.select(
+      (UserSettingsCubit cubit) => cubit.state.readReceipts,
     );
+    // The subscription above also provides the initial value: useState only
+    // reads its argument on the first build.
+    final readReceipts = useState(readReceiptsSetting);
+    // Converge the local switch onto the cubit state. This moves the switch
+    // for out-of-band changes (a sibling device update or a rollback) and
+    // confirms it after a successful submit. The optimistic local flip
+    // survives because the cubit state only changes on success.
+    useEffect(() {
+      readReceipts.value = readReceiptsSetting;
+      return null;
+    }, [readReceiptsSetting]);
     final bool isDeveloper = context.select(
       (UserSettingsCubit cubit) => cubit.state.isDeveloper,
     );
@@ -344,11 +362,20 @@ class _CommonSettings extends HookWidget {
         if (isDeveloper) const _Devices(),
         const _LanguageSettings(),
         _SwitchField(
-          onSubmit: (value) {
-            context.read<UserSettingsCubit>().setReadReceipts(
-              userCubit: context.read(),
-              value: value,
-            );
+          onSubmit: (value) async {
+            try {
+              await settingsCubit.setReadReceipts(value: value);
+            } catch (e) {
+              // The submit failed, so the cubit state did not move. Revert the
+              // optimistic local flip to match it.
+              _log.severe("Failed to set read receipts: $e", e);
+              // The flush on dispose submits a pending tap during unmount, so
+              // this can fail after the notifier is gone. There is no UI left
+              // to revert then, and writing to a disposed notifier throws.
+              if (context.mounted) {
+                readReceipts.value = settingsCubit.state.readReceipts;
+              }
+            }
           },
           value: readReceipts,
           label: loc.userSettingsScreen_readReceipts,
@@ -445,12 +472,11 @@ class _LanguageSettings extends StatelessWidget {
     return LanguagePickerMenu(
       onLocaleSelected: (locale) async {
         context.read<AppLocaleCubit>().setLocale(locale);
-        final user = context.read<LoadableUserCubit>().state.loadedUser;
-        if (user == null) {
+        // Before login there is no user to persist the locale to.
+        if (context.read<LoadableUserCubit>().state.loadedUser == null) {
           return;
         }
         await context.read<UserSettingsCubit>().setLocale(
-          user: user,
           value: locale.languageCode,
         );
       },
@@ -501,8 +527,12 @@ class _Devices extends StatelessWidget {
 class _MobileSettings extends HookWidget {
   @override
   Widget build(BuildContext context) {
+    // Captured here rather than read inside the submit callback: a debounced
+    // submit can fire while the widget is being disposed, when context
+    // lookups are no longer allowed.
+    final settingsCubit = context.read<UserSettingsCubit>();
     final sendOnEnter = useState(
-      useMemoized(() => context.read<UserSettingsCubit>().state.sendOnEnter),
+      useMemoized(() => settingsCubit.state.sendOnEnter),
     );
 
     final loc = AppLocalizations.of(context);
@@ -514,10 +544,7 @@ class _MobileSettings extends HookWidget {
           label: loc.userSettingsScreen_sendWithEnter,
           value: sendOnEnter,
           onSubmit: (value) {
-            context.read<UserSettingsCubit>().setSendOnEnter(
-              userCubit: context.read(),
-              value: value,
-            );
+            settingsCubit.setSendOnEnter(value: value);
           },
         ),
 
@@ -565,7 +592,6 @@ class _DesktopSettings extends HookWidget {
               onChanged: (value) => interfaceScale.value = value,
               onChangeEnd: (value) {
                 context.read<UserSettingsCubit>().setInterfaceScale(
-                  userCubit: context.read(),
                   value: value / 100,
                 );
               },
@@ -750,13 +776,20 @@ class _SwitchField extends HookWidget {
     final debouncer = useMemoized(
       () => Debouncer(delay: const Duration(milliseconds: 500)),
     );
-    useEffect(() => debouncer.dispose, []);
+    // Flush on dispose: a tap still waiting out the debounce delay when the
+    // screen closes is submitted, not dropped.
+    useEffect(() => debouncer.flush, [debouncer]);
 
+    // Only user taps schedule a submit. Programmatic writes to `value` (such
+    // as an owner converging it onto cubit state) never do, so a state update
+    // cannot re-trigger a submit and loop back on itself. Each tap captures
+    // its intended value, and the debouncer retains only the latest action.
     final handleTap = useCallback(() {
+      final submittedValue = !value.value;
+      value.value = submittedValue;
       debouncer.run(() {
-        onSubmit(value.value);
+        onSubmit(submittedValue);
       });
-      value.value = !value.value;
     }, [onSubmit, value]);
 
     return _FieldContainer(

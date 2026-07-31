@@ -116,6 +116,10 @@ func sendNotification(identifier: UUID, title: String, body: String, chatId: UUI
   content.body = body
   content.sound = UNNotificationSound.default
   content.userInfo["chatId"] = chatId?.uuidString
+  // Group the per-message notifications by chat in the notification center
+  if let chatId = chatId {
+    content.threadIdentifier = chatId.uuidString
+  }
 
   let request = UNNotificationRequest(
     identifier: identifier.uuidString,
