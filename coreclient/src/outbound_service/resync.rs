@@ -257,9 +257,7 @@ impl Resync {
         Ok((chat_id, member_profile_infos))
     }
 
-    /// Create the local chat for a group we just onboarded into, taking title
-    /// and picture from the group's `GroupData` -- the same source a Welcome
-    /// uses. An external group profile is not inline, so it is fetched later.
+    /// Create the local chat for a group we just onboarded into.
     async fn create_chat(
         txn: &mut WriteDbTransaction<'_>,
         group: &Group,
@@ -269,8 +267,6 @@ impl Resync {
         let group_data = GroupData::decode(&group_data_bytes)?;
         let (title, group_profile_part) = group_data.into_parts(group.identity_link_wrapper_key());
         let title = title.context("No group title")?;
-        // Only used to attribute "title changed" messages, which an initial
-        // fetch does not produce.
         let sender_id = signer.credential().user_id().clone();
 
         let picture = CoreUser::resolve_group_profile_part(
@@ -530,9 +526,8 @@ mod persistence {
             mut connection: impl ReadConnection,
             chat_id: &ChatId,
         ) -> sqlx::Result<bool> {
-            // Matches either the stored chat_id or the one the group_id maps to: an
-            // onboarding resync has no chat yet, and a resync for a group that is
-            // gone from the DS can carry a chat_id its group_id does not map to.
+            // Matches either the stored chat_id or group_id: an onboarding resync
+            // has no chat yet, but an existing group does.
             struct QueuedIds {
                 chat_id: Option<ChatId>,
                 group_id: GroupIdWrapper,

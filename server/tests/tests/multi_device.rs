@@ -4,7 +4,7 @@
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{
-    ChatId, Message, ReadReceiptsSetting,
+    ChatId, ChatStatus, Message, ReadReceiptsSetting,
     clients::{
         CoreUser,
         multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
@@ -389,6 +389,27 @@ async fn multi_device_linking_session() {
         "after a member was removed",
     )
     .await;
+
+    // And for a deletion, which replaces the shared leaf as well. Without
+    // following it the linked device never learns the group is gone.
+    setup.delete_group(chat_id_1, &alice).await;
+
+    let pending = new_client.qs_fetch_messages().await.unwrap();
+    let processed = new_client.fully_process_qs_messages(pending).await;
+    assert!(
+        processed.errors.is_empty(),
+        "linked device failed to follow the delete commit: {:?}",
+        processed.errors
+    );
+    let deleted_chat = new_client
+        .chat(&chat_id_1)
+        .await
+        .expect("linked device should still know the deleted chat");
+    assert!(
+        matches!(deleted_chat.status(), ChatStatus::Inactive(_)),
+        "linked device should see the deleted group as inactive, got {:?}",
+        deleted_chat.status()
+    );
 }
 
 // Linking with a session ID that was never registered returns an error.

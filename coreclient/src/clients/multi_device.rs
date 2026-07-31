@@ -455,7 +455,7 @@ impl CoreUser {
         let qs_client_id = response.qs_client_id;
 
         let user_profile_key = UserProfileKey::load_own(self.db().read().await?).await?;
-        let groups = self.higher_level_groups(&self_group_id).await?;
+        let groups = self.higher_level_groups().await?;
 
         // Snapshot the current synced settings so the new device starts with
         // our values. An empty update means we have no stored settings, which
@@ -490,19 +490,13 @@ impl CoreUser {
     /// joining emulator client can onboard itself into each of them.
     ///
     /// Skips the emulation group itself and any chat without attributes (connection chats).
-    async fn higher_level_groups(
-        &self,
-        self_group_id: &GroupId,
-    ) -> anyhow::Result<Vec<HigherLevelGroup>> {
+    async fn higher_level_groups(&self) -> anyhow::Result<Vec<HigherLevelGroup>> {
         self.db()
             .with_read_transaction(async |txn| -> anyhow::Result<_> {
                 let key_material = Group::load_all_key_material(&mut *txn).await?;
                 let mut groups = Vec::new();
 
                 for group in key_material {
-                    if &group.group_id == self_group_id {
-                        continue;
-                    }
                     let Ok(chat_id) = ChatId::try_from(&group.group_id) else {
                         warn!(group_id = ?group.group_id, "group id is not a chat id; skipping group");
                         continue;

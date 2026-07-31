@@ -527,8 +527,8 @@ impl Group {
             .collect())
     }
 
-    /// Loads the key material of every group in a single query, without
-    /// reconstructing the MLS state that [`Self::load`] deserializes.
+    /// Loads the key material of every group (except the self-group) in a single query
+    /// without reconstructing the MLS state that [`Self::load`] deserializes.
     pub(crate) async fn load_all_key_material(
         mut connection: impl ReadConnection,
     ) -> sqlx::Result<Vec<GroupKeyMaterial>> {
@@ -539,6 +539,9 @@ impl Group {
             identity_link_wrapper_key: IdentityLinkWrapperKey,
         }
 
+        let self_group_id = OwnClientInfo::load_self_group_id(&mut connection).await?;
+        let self_group_id = self_group_id.as_ref().map(GroupIdRefWrapper::from);
+
         let rows = query_as!(
             SqlKeyMaterial,
             r#"SELECT
@@ -548,7 +551,9 @@ impl Group {
                 identity_link_wrapper_key AS "identity_link_wrapper_key: _"
             FROM "group" g
             LEFT JOIN pq_group pq ON pq.t_group_id = g.group_id
+            WHERE g.group_id IS NOT ?
             "#,
+            self_group_id,
         )
         .fetch_all(connection.as_mut())
         .await?;
