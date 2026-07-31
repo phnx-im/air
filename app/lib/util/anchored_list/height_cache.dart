@@ -20,27 +20,24 @@ import 'dart:collection';
 ///    between older and newer messages. Without this, the average would
 ///    oscillate as pages are swapped, causing scrollbar jitter.
 ///
-/// [averageHeight] is derived from the estimate window using exponential
-/// moving average (EMA) smoothing, which dampens short-term fluctuations
-/// when a burst of unusually tall or short items is measured.
+/// [averageHeight] is the plain mean of the estimate window, and so a pure
+/// function of it: re-measuring an item at the same height leaves the
+/// average untouched. That matters because heights are recorded during
+/// layout, layout can run several passes per frame, and the average feeds
+/// the scroll extent estimate. An average that drifted per measurement
+/// would change the extent between passes of the same frame, making the
+/// viewport correct itself over and over.
+///
+/// The window size is what damps bursts of unusually tall or short items: a
+/// single outlier moves the mean by only 1/n of its deviation.
 class AnchoredListHeightCache {
   AnchoredListHeightCache({
     this.defaultHeight = 50.0,
-    this.estimateWarmupSamples = 8,
-    this.estimateSmoothingFactor = 0.25,
     this.maxRetainedEstimates = 256,
-  }) : _estimatedAverageHeight = defaultHeight;
+  });
 
   /// Fallback height for items never measured.
   final double defaultHeight;
-
-  /// Number of samples before EMA smoothing kicks in. During warmup the
-  /// average is computed directly to converge quickly from the default.
-  final int estimateWarmupSamples;
-
-  /// EMA alpha: 0.25 means ~25% weight on the new sample, ~75% on the
-  /// running average. Lower values smooth more aggressively.
-  final double estimateSmoothingFactor;
 
   /// Cap on the estimate window size. Oldest entries are evicted first.
   final int maxRetainedEstimates;
@@ -54,20 +51,20 @@ class AnchoredListHeightCache {
       LinkedHashMap<Object, double>();
   double _totalHeight = 0;
   double _estimatedTotalHeight = 0;
-  double _estimatedAverageHeight;
 
   int get cachedCount => _heights.length;
   double get totalHeight => _totalHeight;
 
-  double get averageHeight =>
-      _estimatedHeights.isNotEmpty ? _estimatedAverageHeight : defaultHeight;
+  double get averageHeight => _estimatedHeights.isEmpty
+      ? defaultHeight
+      : _estimatedTotalHeight / _estimatedHeights.length;
 
   double getHeight(Object id) => _heights[id] ?? defaultHeight;
 
   double? lookupHeight(Object id) => _heights[id];
 
   /// Records a measured height for [id]. Updates both the exact cache and
-  /// the estimate window, then refreshes the smoothed average.
+  /// the estimate window.
   void setHeight(Object id, double height) {
     final old = _heights[id];
     _heights[id] = height;
@@ -81,7 +78,6 @@ class AnchoredListHeightCache {
     _estimatedHeights[id] = height;
     _estimatedTotalHeight += height;
     _trimEstimatedHeights();
-    _refreshAverageEstimate();
   }
 
   /// Removes [id] from the exact cache only. The estimate window
@@ -97,7 +93,6 @@ class AnchoredListHeightCache {
     _estimatedHeights.clear();
     _totalHeight = 0;
     _estimatedTotalHeight = 0;
-    _estimatedAverageHeight = defaultHeight;
   }
 
   /// Evicts the oldest entries when the estimate window exceeds its cap.
@@ -109,28 +104,5 @@ class AnchoredListHeightCache {
         _estimatedTotalHeight -= removed;
       }
     }
-  }
-
-  /// Recomputes the smoothed average height.
-  ///
-  /// During warmup (≤ [estimateWarmupSamples]), uses the true average so
-  /// the estimate converges quickly from [defaultHeight]. After warmup,
-  /// applies EMA so that a sudden burst of tall/short items doesn't
-  /// cause the scroll extent to jump.
-  void _refreshAverageEstimate() {
-    if (_estimatedHeights.isEmpty) {
-      _estimatedAverageHeight = defaultHeight;
-      return;
-    }
-
-    final targetAverage = _estimatedTotalHeight / _estimatedHeights.length;
-    if (_estimatedHeights.length <= estimateWarmupSamples) {
-      _estimatedAverageHeight = targetAverage;
-      return;
-    }
-
-    // EMA: new_avg = old_avg + α × (sample_avg − old_avg)
-    _estimatedAverageHeight +=
-        (targetAverage - _estimatedAverageHeight) * estimateSmoothingFactor;
   }
 }
