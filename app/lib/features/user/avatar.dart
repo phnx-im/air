@@ -99,7 +99,7 @@ class _Avatar extends StatelessWidget {
             targetHeight: targetSize,
           )
         : null;
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final gradient = _AvatarGradient.fromUuid(gradientKey);
 
     return GestureDetector(
@@ -121,7 +121,7 @@ class _Avatar extends StatelessWidget {
                       end: Alignment.bottomRight,
                     )
                   : null,
-              color: foregroundImage != null ? colors.text.quaternary : null,
+              color: foregroundImage != null ? palette.text.quaternary : null,
             ),
             child: CircleAvatar(
               radius: size / 2,
@@ -130,7 +130,7 @@ class _Avatar extends StatelessWidget {
               child: Text(
                 displayName.characters.firstOrNull?.toUpperCase() ?? "",
                 style: TextTheme.of(context).labelMedium!.copyWith(
-                  color: colors.function.neutral.white,
+                  color: palette.function.neutral.white,
                   fontSize: typeScale.body.xs.fontSize * size / 28,
                 ),
               ),
@@ -164,7 +164,7 @@ class _AvatarGradient {
   /// hue to [Hue] re-colors existing avatars.
   static final _gradients = [
     for (final hue in Hue.values)
-      (Primitives.chromatic(hue, _start), Primitives.chromatic(hue, _end)),
+      (Primitive.chromatic(hue, _start), Primitive.chromatic(hue, _end)),
   ];
 
   static int _gradientIndexForUuid(UuidValue? uuid) {

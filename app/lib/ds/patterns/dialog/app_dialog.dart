@@ -22,7 +22,7 @@ class AppDialog extends StatelessWidget {
     return Dialog(
       backgroundColor: backgroundColor,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(Radii.px24),
+        borderRadius: BorderRadius.circular(CornerRadius.px24),
       ),
       child: Container(
         constraints: BoxConstraints(maxWidth: maxWidth ?? 340),
@@ -58,7 +58,7 @@ class AppDialogContainer extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 360),
         decoration: BoxDecoration(
           color: backgroundColor,
-          borderRadius: BorderRadius.circular(Radii.px24),
+          borderRadius: BorderRadius.circular(CornerRadius.px24),
         ),
         padding: const EdgeInsets.only(
           left: S.s16,
@@ -103,7 +103,7 @@ class AppDialogProgressButton extends HookWidget {
               width: 16,
               height: 16,
               child: CircularProgressIndicator(
-                strokeWidth: Strokes.px2,
+                strokeWidth: StrokeWidth.px2,
                 valueColor: progressColor != null
                     ? AlwaysStoppedAnimation<Color>(progressColor!)
                     : null,
@@ -123,6 +123,6 @@ const appDialogInputDecoration = InputDecoration(
 );
 
 const _outlineInputBorder = OutlineInputBorder(
-  borderRadius: BorderRadius.all(Radius.circular(Radii.px16)),
+  borderRadius: BorderRadius.all(Radius.circular(CornerRadius.px16)),
   borderSide: BorderSide(width: 0, style: BorderStyle.none),
 );

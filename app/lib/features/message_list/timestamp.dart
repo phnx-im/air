@@ -58,7 +58,7 @@ class TimestampState extends State<Timestamp> {
       child: Text(
         localizedTimestamp,
         style: typeScale.body.xs.style(
-          color: SemanticColors.of(context).text.tertiary,
+          color: SemanticPalette.of(context).text.tertiary,
         ),
       ),
     );

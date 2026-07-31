@@ -8,19 +8,19 @@ import 'package:flutter/material.dart';
 
 // === Buttons ===
 
-extension on SemanticColors {
+extension on SemanticPalette {
   Color get activeButtonColor => backgroundBase.quaternary;
   Color get inactiveButtonColor => backgroundBase.secondary;
 }
 
 class CustomTextButtonStyle extends ButtonStyle {
   CustomTextButtonStyle({
-    required SemanticColors colorScheme,
+    required SemanticPalette palette,
     required TextTheme baselineTextTheme,
   }) : super(
          foregroundColor: WidgetStateProperty.fromMap({
-           WidgetState.disabled: colorScheme.text.quaternary,
-           WidgetState.any: colorScheme.text.secondary,
+           WidgetState.disabled: palette.text.quaternary,
+           WidgetState.any: palette.text.secondary,
          }),
          overlayColor: WidgetStateProperty.all(Colors.transparent),
          surfaceTintColor: WidgetStateProperty.all(Colors.transparent),
@@ -34,20 +34,20 @@ class CustomTextButtonStyle extends ButtonStyle {
 
 class CustomOutlineButtonStyle extends ButtonStyle {
   CustomOutlineButtonStyle({
-    required SemanticColors colorScheme,
+    required SemanticPalette palette,
     required TextTheme baselineTextTheme,
   }) : super(
          foregroundColor: WidgetStateProperty<Color>.fromMap({
-           WidgetState.disabled: colorScheme.text.quaternary,
-           WidgetState.any: colorScheme.text.primary,
+           WidgetState.disabled: palette.text.quaternary,
+           WidgetState.any: palette.text.primary,
          }),
          backgroundColor: WidgetStateProperty<Color>.fromMap({
-           WidgetState.disabled: colorScheme.inactiveButtonColor,
-           WidgetState.any: colorScheme.activeButtonColor,
+           WidgetState.disabled: palette.inactiveButtonColor,
+           WidgetState.any: palette.activeButtonColor,
          }),
          overlayColor: WidgetStateProperty<Color>.fromMap({
-           WidgetState.disabled: colorScheme.inactiveButtonColor,
-           WidgetState.any: colorScheme.activeButtonColor,
+           WidgetState.disabled: palette.inactiveButtonColor,
+           WidgetState.any: palette.activeButtonColor,
          }),
          mouseCursor: const WidgetStateProperty<MouseCursor>.fromMap({
            WidgetState.disabled: SystemMouseCursors.basic,
@@ -70,7 +70,7 @@ class CustomOutlineButtonStyle extends ButtonStyle {
                width: 0,
                style: BorderStyle.none,
              ),
-             borderRadius: BorderRadius.circular(Radii.px12),
+             borderRadius: BorderRadius.circular(CornerRadius.px12),
            ),
          ),
          textStyle: WidgetStatePropertyAll(baselineTextTheme.labelLarge!),

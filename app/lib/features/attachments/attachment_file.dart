@@ -106,11 +106,13 @@ class _AttachmentFileStatus extends HookWidget {
             );
           },
           style: IconButton.styleFrom(
-            backgroundColor: SemanticColors.of(context).backgroundBase.tertiary,
+            backgroundColor: SemanticPalette.of(
+              context,
+            ).backgroundBase.tertiary,
           ),
           icon: AppIcon.upload(
             size: 32,
-            color: SemanticColors.of(context).text.secondary,
+            color: SemanticPalette.of(context).text.secondary,
           ),
         ),
         UiAttachmentStatus_Pending() ||
@@ -122,19 +124,21 @@ class _AttachmentFileStatus extends HookWidget {
             );
           },
           style: IconButton.styleFrom(
-            backgroundColor: SemanticColors.of(context).backgroundBase.tertiary,
+            backgroundColor: SemanticPalette.of(
+              context,
+            ).backgroundBase.tertiary,
           ),
           icon: AppIcon.download(
             size: 32,
-            color: SemanticColors.of(context).text.secondary,
+            color: SemanticPalette.of(context).text.secondary,
           ),
         ),
         UiAttachmentStatus_Progress(field0: final loaded) => Stack(
           alignment: Alignment.center,
           children: [
             CircularProgressIndicator(
-              strokeWidth: Strokes.px2,
-              backgroundColor: color.withValues(alpha: Opacities.alpha10),
+              strokeWidth: StrokeWidth.px2,
+              backgroundColor: color.withValues(alpha: Alpha.a10),
               valueColor: AlwaysStoppedAnimation<Color>(color),
               value: loaded / BigInt.from(size),
             ),

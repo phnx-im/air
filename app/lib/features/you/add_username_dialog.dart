@@ -28,7 +28,7 @@ class AddUsernameDialog extends HookWidget {
     final controller = useTextEditingController();
     final focusNode = useFocusNode();
 
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
 
     return AppDialog(
@@ -64,7 +64,7 @@ class AddUsernameDialog extends HookWidget {
               decoration: appDialogInputDecoration.copyWith(
                 hintText: loc.usernameScreen_inputHint,
                 filled: true,
-                fillColor: colors.backgroundBase.secondary,
+                fillColor: palette.backgroundBase.secondary,
               ),
               onFieldSubmitted: (_) {
                 focusNode.requestFocus();
@@ -84,7 +84,7 @@ class AddUsernameDialog extends HookWidget {
               padding: const EdgeInsets.symmetric(horizontal: S.s8),
               child: Text(
                 loc.usernameScreen_description,
-                style: typeScale.body.xs.style(color: colors.text.tertiary),
+                style: typeScale.body.xs.style(color: palette.text.tertiary),
               ),
             ),
 
@@ -112,16 +112,16 @@ class AddUsernameDialog extends HookWidget {
                     ),
                     style: ButtonStyle(
                       backgroundColor: WidgetStatePropertyAll(
-                        colors.accentBrand.primary,
+                        palette.accentBrand.primary,
                       ),
                       overlayColor: WidgetStatePropertyAll(
-                        colors.accentBrand.primary,
+                        palette.accentBrand.primary,
                       ),
                       foregroundColor: WidgetStatePropertyAll(
-                        colors.function.neutral.toggleWhite,
+                        palette.function.neutral.toggleWhite,
                       ),
                     ),
-                    progressColor: colors.function.neutral.toggleWhite,
+                    progressColor: palette.function.neutral.toggleWhite,
                     inProgress: inProgress,
                     child: Text(loc.usernameScreen_confirm),
                   ),

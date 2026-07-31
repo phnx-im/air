@@ -40,7 +40,7 @@ class _MuteDurationContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final theme = Theme.of(context);
 
     return Column(
@@ -51,7 +51,7 @@ class _MuteDurationContent extends StatelessWidget {
           loc.muteDurationSheet_title,
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.bold,
-            color: colors.text.primary,
+            color: palette.text.primary,
           ),
           textAlign: TextAlign.center,
         ),
@@ -59,7 +59,7 @@ class _MuteDurationContent extends StatelessWidget {
         Text(
           loc.muteDurationSheet_body,
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: colors.text.secondary,
+            color: palette.text.secondary,
             height: 1.4,
           ),
           textAlign: TextAlign.center,

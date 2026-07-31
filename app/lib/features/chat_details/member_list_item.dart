@@ -25,7 +25,7 @@ class MemberListItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final displayName = displayNameOverride ?? profile.displayName;
 
     return ListTile(
@@ -36,11 +36,11 @@ class MemberListItem extends StatelessWidget {
       leading: UserAvatar(profile: profile, size: S.s32),
       title: Text(
         displayName,
-        style: typeScale.body.regular.style(color: colors.text.primary),
+        style: typeScale.body.regular.style(color: palette.text.primary),
         overflow: TextOverflow.ellipsis,
       ),
       trailing: trailing,
-      hoverColor: colors.backgroundBase.secondary.withValues(alpha: 0.3),
+      hoverColor: palette.backgroundBase.secondary.withValues(alpha: 0.3),
     );
   }
 }

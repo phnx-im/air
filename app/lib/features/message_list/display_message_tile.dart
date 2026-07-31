@@ -72,10 +72,10 @@ class _SystemMessageContent extends StatelessWidget {
       _ => Center(
         child: Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(Radii.px16),
+            borderRadius: BorderRadius.circular(CornerRadius.px16),
             border: Border.all(
-              color: SemanticColors.of(context).separator.secondary,
-              width: Strokes.px2,
+              color: SemanticPalette.of(context).separator.secondary,
+              width: StrokeWidth.px2,
             ),
           ),
           padding: const EdgeInsets.symmetric(
@@ -98,7 +98,7 @@ class _SystemMessageText extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final tertiary = SemanticColors.of(context).text.tertiary;
+    final tertiary = SemanticPalette.of(context).text.tertiary;
     final textStyle = typeScale.body.s.style(color: tertiary);
     final profileNameStyle = typeScale.body.s.style(
       color: tertiary,
@@ -329,7 +329,7 @@ class _SystemMessageText extends StatelessWidget {
 RichText buildSystemMessageText(BuildContext context, UiSystemMessage message) {
   final loc = AppLocalizations.of(context);
 
-  final tertiary = SemanticColors.of(context).text.tertiary;
+  final tertiary = SemanticPalette.of(context).text.tertiary;
   final textStyle = typeScale.body.s.style(color: tertiary);
   final profileNameStyle = typeScale.body.s.style(
     color: tertiary,
@@ -563,7 +563,7 @@ class _ErrorMessageContent extends StatelessWidget {
       child: Text(
         message.message,
         style: typeScale.body.xs
-            .style(color: Primitives.chromatic(Hue.red, Shade.s500))
+            .style(color: Primitive.chromatic(Hue.red, Shade.s500))
             .copyWith(height: 1.0),
       ),
     );

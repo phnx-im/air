@@ -35,7 +35,7 @@ class CupertinoScrimPageTransitionsBuilder extends PageTransitionsBuilder {
             child: FadeTransition(
               opacity: animation,
               child: ColoredBox(
-                color: Colors.black.withValues(alpha: Opacities.alpha20),
+                color: Colors.black.withValues(alpha: Alpha.a20),
               ),
             ),
           ),

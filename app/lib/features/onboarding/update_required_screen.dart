@@ -38,7 +38,7 @@ class UpdateRequiredView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
 
     return Scaffold(
@@ -48,9 +48,9 @@ class UpdateRequiredView extends StatelessWidget {
           loc.appOutdatedScreen_title,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        backgroundColor: colors.backgroundBase.secondary,
+        backgroundColor: palette.backgroundBase.secondary,
       ),
-      backgroundColor: colors.backgroundBase.secondary,
+      backgroundColor: palette.backgroundBase.secondary,
       body: SafeArea(
         child: Padding(
           padding: const EdgeInsets.symmetric(horizontal: S.s16),
@@ -66,7 +66,7 @@ class UpdateRequiredView extends StatelessWidget {
                     child: SvgPicture.asset(
                       'assets/images/logo.svg',
                       colorFilter: ColorFilter.mode(
-                        colors.text.primary,
+                        palette.text.primary,
                         BlendMode.srcIn,
                       ),
                     ),
@@ -92,7 +92,7 @@ class UpdateRequiredView extends StatelessWidget {
                     child: Text(
                       loc.appOutdatedScreen_description,
                       style: typeScale.body.regular.style(
-                        color: colors.text.secondary,
+                        color: palette.text.secondary,
                       ),
                       textAlign: .center,
                     ),
@@ -112,16 +112,16 @@ class UpdateRequiredView extends StatelessWidget {
                           style: OutlinedButtonTheme.of(context).style!
                               .copyWith(
                                 backgroundColor: WidgetStateProperty.all(
-                                  colors.accentBrand.primary,
+                                  palette.accentBrand.primary,
                                 ),
                                 foregroundColor: WidgetStateProperty.all(
-                                  colors.function.neutral.toggleWhite,
+                                  palette.function.neutral.toggleWhite,
                                 ),
                               ),
                           child: Text(
                             loc.appOutdatedScreen_action,
                             style: typeScale.body.regular.style(
-                              color: colors.function.neutral.toggleWhite,
+                              color: palette.function.neutral.toggleWhite,
                             ),
                           ),
                         ),

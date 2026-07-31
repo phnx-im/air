@@ -44,7 +44,7 @@ class _RotatingSendIconState extends State<RotatingSendIcon>
       turns: _controller,
       child: AppIcon.circleDashed(
         size: 16,
-        color: SemanticColors.of(context).text.tertiary,
+        color: SemanticPalette.of(context).text.tertiary,
       ),
     );
   }
@@ -135,7 +135,7 @@ class _MessageStatusIndicatorState extends State<MessageStatusIndicator> {
       return AppIcon.circleAlert(
         key: const ValueKey('error'),
         size: 16,
-        color: SemanticColors.of(context).function.warning.primary,
+        color: SemanticPalette.of(context).function.warning.primary,
       );
     }
     final iconType = switch (widget.status) {
@@ -170,9 +170,9 @@ class MessageStatusIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
-    final color = colors.text.tertiary;
+    final color = palette.text.tertiary;
     return switch (statusIcon) {
       MessageStatusIconType.sent => AppIcon.check(size: size, color: color),
       MessageStatusIconType.delivered => AppIcon.checkCheck(

@@ -23,8 +23,8 @@ Widget buildBlockElement(
     BlockElement_Paragraph(:final field0) => () {
       final jumbo = isJumboEmoji(field0);
       final color = isSender
-          ? SemanticColors.of(context).message.selfText
-          : SemanticColors.of(context).message.otherText;
+          ? SemanticPalette.of(context).message.selfText
+          : SemanticPalette.of(context).message.otherText;
       return Text.rich(
         TextSpan(
           children: field0
@@ -46,26 +46,28 @@ Widget buildBlockElement(
         style: typeScale.body.m.style(
           weight: Weight.emphasized,
           color: isSender
-              ? SemanticColors.of(context).message.selfText
-              : SemanticColors.of(context).message.otherText,
+              ? SemanticPalette.of(context).message.selfText
+              : SemanticPalette.of(context).message.otherText,
         ),
       ),
     ),
     BlockElement_Quote(:final field0) => Container(
       padding: const EdgeInsets.symmetric(horizontal: S.s12, vertical: S.s8),
       decoration: BoxDecoration(
-        borderRadius: const BorderRadius.all(Radius.circular(Radii.px12)),
+        borderRadius: const BorderRadius.all(
+          Radius.circular(CornerRadius.px12),
+        ),
         border: Border(
           left: BorderSide(
             color: isSender
-                ? SemanticColors.of(context).message.selfQuoteBorder
-                : SemanticColors.of(context).message.otherQuoteBorder,
-            width: Strokes.px4,
+                ? SemanticPalette.of(context).message.selfQuoteBorder
+                : SemanticPalette.of(context).message.otherQuoteBorder,
+            width: StrokeWidth.px4,
           ),
         ),
         color: isSender
-            ? SemanticColors.of(context).message.selfQuoteBackground
-            : SemanticColors.of(context).message.otherQuoteBackground,
+            ? SemanticPalette.of(context).message.selfQuoteBackground
+            : SemanticPalette.of(context).message.otherQuoteBackground,
       ),
       child: Column(
         spacing: typeScale.body.regular.fontSize,
@@ -87,8 +89,8 @@ Widget buildBlockElement(
                   const TextSpan(text: " \u2022 "),
                   style: typeScale.body.regular.style(
                     color: isSender
-                        ? SemanticColors.of(context).message.selfListPrefix
-                        : SemanticColors.of(context).message.otherListPrefix,
+                        ? SemanticPalette.of(context).message.selfListPrefix
+                        : SemanticPalette.of(context).message.otherListPrefix,
                   ),
                 ),
                 Flexible(
@@ -126,8 +128,8 @@ Widget buildBlockElement(
                       text: " ${offset + BigInt.from(item.$1)}.  ",
                       style: typeScale.body.regular.style(
                         color: isSender
-                            ? SemanticColors.of(context).message.selfListPrefix
-                            : SemanticColors.of(
+                            ? SemanticPalette.of(context).message.selfListPrefix
+                            : SemanticPalette.of(
                                 context,
                               ).message.otherListPrefix,
                       ),
@@ -157,10 +159,10 @@ Widget buildBlockElement(
     BlockElement_Table(:final head, :final rows) => Table(
       border: TableBorder.all(
         color: isSender
-            ? SemanticColors.of(context).message.selfTableBorder
-            : SemanticColors.of(context).message.otherTableBorder,
-        width: Strokes.px2,
-        borderRadius: BorderRadius.circular(Radii.px8),
+            ? SemanticPalette.of(context).message.selfTableBorder
+            : SemanticPalette.of(context).message.otherTableBorder,
+        width: StrokeWidth.px2,
+        borderRadius: BorderRadius.circular(CornerRadius.px8),
       ),
       defaultColumnWidth: const IntrinsicColumnWidth(),
       children: [
@@ -227,8 +229,8 @@ Widget buildBlockElement(
       width: 100,
       child: Divider(
         color: isSender
-            ? SemanticColors.of(context).message.selfText
-            : SemanticColors.of(context).message.otherText,
+            ? SemanticPalette.of(context).message.selfText
+            : SemanticPalette.of(context).message.otherText,
       ),
     ),
     BlockElement_CodeBlock(:final field0) => Text.rich(
@@ -237,8 +239,8 @@ Widget buildBlockElement(
         style: typeScale.body.xs
             .style(
               color: isSender
-                  ? SemanticColors.of(context).message.selfText
-                  : SemanticColors.of(context).message.otherText,
+                  ? SemanticPalette.of(context).message.selfText
+                  : SemanticPalette.of(context).message.otherText,
             )
             .withSystemMonospace(),
       ),
@@ -248,11 +250,11 @@ Widget buildBlockElement(
       decoration: BoxDecoration(
         border: Border(
           left: BorderSide(
-            color: SemanticColors.of(context).separator.primary,
-            width: Strokes.px4,
+            color: SemanticPalette.of(context).separator.primary,
+            width: StrokeWidth.px4,
           ),
         ),
-        color: SemanticColors.of(context).function.warning.primary,
+        color: SemanticPalette.of(context).function.warning.primary,
       ),
       child: Text.rich(TextSpan(text: field0)),
     ),
@@ -265,7 +267,7 @@ InlineSpan buildInlineElement(
   bool isSender, {
   Uri? destUrl,
 }) {
-  final colors = SemanticColors.of(context);
+  final palette = SemanticPalette.of(context);
   return switch (inline.element) {
     InlineElement_Text(:final field0) => TextSpan(
       text: field0,
@@ -292,8 +294,8 @@ InlineSpan buildInlineElement(
           )
           .toList(),
       style: TextStyle(
-        color: colors.function.link,
-        decorationColor: colors.function.link,
+        color: palette.function.link,
+        decorationColor: palette.function.link,
         decoration: TextDecoration.underline,
       ),
     ),
@@ -348,14 +350,14 @@ InlineSpan buildInlineElement(
             ? AppIcon.squareCheck(
                 size: 20,
                 color: isSender
-                    ? colors.message.selfCheckboxCheck
-                    : colors.message.otherCheckboxCheck,
+                    ? palette.message.selfCheckboxCheck
+                    : palette.message.otherCheckboxCheck,
               )
             : AppIcon.square(
                 size: 20,
                 color: isSender
-                    ? colors.message.selfCheckboxCheck
-                    : colors.message.otherCheckboxCheck,
+                    ? palette.message.selfCheckboxCheck
+                    : palette.message.otherCheckboxCheck,
               ),
       ),
     ),
@@ -393,7 +395,7 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
     context: context,
     builder: (dialogContext) {
       final loc = AppLocalizations.of(context);
-      final colors = SemanticColors.of(dialogContext);
+      final palette = SemanticPalette.of(dialogContext);
 
       return AppDialog(
         child: Column(
@@ -414,13 +416,13 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
                     loc.linkConfirmation_description,
                     textAlign: .center,
                     style: typeScale.body.regular.style(
-                      color: colors.text.secondary,
+                      color: palette.text.secondary,
                     ),
                   ),
                   Text(
                     uri.toString(),
                     textAlign: .center,
-                    style: typeScale.body.xs.style(color: colors.text.primary),
+                    style: typeScale.body.xs.style(color: palette.text.primary),
                   ),
                 ],
               ),
@@ -445,13 +447,13 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
                     },
                     style: ButtonStyle(
                       backgroundColor: WidgetStatePropertyAll(
-                        colors.accentBrand.primary,
+                        palette.accentBrand.primary,
                       ),
                       overlayColor: WidgetStatePropertyAll(
-                        colors.accentBrand.primary,
+                        palette.accentBrand.primary,
                       ),
                       foregroundColor: WidgetStatePropertyAll(
-                        colors.function.neutral.toggleWhite,
+                        palette.function.neutral.toggleWhite,
                       ),
                     ),
                     child: Text(loc.linkConfirmation_openLink),
@@ -470,7 +472,7 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
 
 // The style used for formatting characters like * or >
 TextStyle highlightStyle(BuildContext context) =>
-    TextStyle(color: SemanticColors.of(context).function.link);
+    TextStyle(color: SemanticPalette.of(context).function.link);
 
 class CustomTextEditingController extends TextEditingController {
   // Keep track of where widgets are, so the cursor can treat it as one unit
@@ -638,7 +640,7 @@ class CustomTextEditingController extends TextEditingController {
       ),
       BlockElement_Quote(:final field0) => TextSpan(
         children: buildWrappedBlock(context, block.start, block.end, field0),
-        style: TextStyle(color: Primitives.neutral(NeutralShade.s600)),
+        style: TextStyle(color: Primitive.neutral(NeutralShade.s600)),
       ),
       BlockElement_UnorderedList(:final field0) => TextSpan(
         children: buildWrappedBlock(
@@ -684,8 +686,8 @@ class CustomTextEditingController extends TextEditingController {
       BlockElement_Error() => TextSpan(
         text: utf8.decode(raw.sublist(block.start, block.end)),
         style: TextStyle(
-          color: SemanticColors.of(context).function.danger,
-          decorationColor: SemanticColors.of(context).function.danger,
+          color: SemanticPalette.of(context).function.danger,
+          decorationColor: SemanticPalette.of(context).function.danger,
           decoration: TextDecoration.underline,
           decorationStyle: TextDecorationStyle.wavy,
         ),
@@ -709,8 +711,8 @@ class CustomTextEditingController extends TextEditingController {
       InlineElement_Link() => TextSpan(
         text: utf8.decode(raw.sublist(inline.start, inline.end)),
         style: TextStyle(
-          color: SemanticColors.of(context).function.link,
-          decorationColor: SemanticColors.of(context).function.link,
+          color: SemanticPalette.of(context).function.link,
+          decorationColor: SemanticPalette.of(context).function.link,
           decoration: TextDecoration.underline,
         ),
       ),

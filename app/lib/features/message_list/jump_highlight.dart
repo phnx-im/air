@@ -125,7 +125,7 @@ class _JumpHighlightState extends State<JumpHighlight>
 
   @override
   Widget build(BuildContext context) {
-    final highlightColor = SemanticColors.of(context).function.link;
+    final highlightColor = SemanticPalette.of(context).function.link;
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, child) {

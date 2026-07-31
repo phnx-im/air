@@ -19,7 +19,7 @@ class AppBarBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Padding(
       padding: const EdgeInsets.only(left: S.s16),
@@ -28,7 +28,7 @@ class AppBarBackButton extends StatelessWidget {
         child: GlassCircleButton(
           icon: AppIcon.arrowLeft(
             size: 20,
-            color: foregroundColor ?? colors.text.primary,
+            color: foregroundColor ?? palette.text.primary,
           ),
           color: backgroundColor,
           hitTargetSize: 48,

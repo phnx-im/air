@@ -47,9 +47,9 @@ class _HomeScreenMobileLayout extends StatelessWidget {
       children: [
         Positioned.fill(
           child: AnimatedSwitcher(
-            duration: Effects.duration(MotionPreset.regular),
-            switchInCurve: Effects.easeOutQuart,
-            switchOutCurve: Effects.easeOutQuart,
+            duration: Effect.duration(MotionPreset.regular),
+            switchInCurve: Effect.easeOutQuart,
+            switchOutCurve: Effect.easeOutQuart,
             transitionBuilder: tabSwitchTransition,
             child: switch (activeTab) {
               HomeTab.chats => const ChatListContainer(
@@ -81,7 +81,7 @@ class HomeScreenDesktopLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: SemanticColors.of(context).backgroundBase.primary,
+      backgroundColor: SemanticPalette.of(context).backgroundBase.primary,
       body: Row(
         children: [
           ResizablePanel(

@@ -33,7 +33,7 @@ class RemoveMemberButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     final isDesktop = DeviceType.isDesktop;
 
@@ -48,7 +48,7 @@ class RemoveMemberButton extends StatelessWidget {
         shape: compact
             ? WidgetStatePropertyAll(
                 RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(Radii.px8),
+                  borderRadius: BorderRadius.circular(CornerRadius.px8),
                 ),
               )
             : null,
@@ -59,16 +59,18 @@ class RemoveMemberButton extends StatelessWidget {
               ),
         visualDensity: compact ? VisualDensity.compact : null,
         backgroundColor: WidgetStatePropertyAll(
-          compact ? colors.backgroundBase.secondary : colors.function.danger,
+          compact ? palette.backgroundBase.secondary : palette.function.danger,
         ),
         overlayColor: WidgetStatePropertyAll(
-          compact ? colors.backgroundBase.secondary : colors.function.danger,
+          compact ? palette.backgroundBase.secondary : palette.function.danger,
         ),
       ),
       child: Text(
         loc.removeUserButton_text,
         style: (compact ? typeScale.body.s : typeScale.body.regular).style(
-          color: compact ? colors.text.primary : colors.function.neutral.white,
+          color: compact
+              ? palette.text.primary
+              : palette.function.neutral.white,
         ),
       ),
     );

@@ -63,7 +63,7 @@ class DateLabelPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: ShapeDecoration(
-        color: SemanticColors.of(context).backgroundBase.secondary,
+        color: SemanticPalette.of(context).backgroundBase.secondary,
         shape: const StadiumBorder(),
       ),
       child: Padding(
@@ -71,7 +71,7 @@ class DateLabelPill extends StatelessWidget {
         child: Text(
           label,
           style: TextTheme.of(context).bodySmall?.copyWith(
-            color: SemanticColors.of(context).text.secondary,
+            color: SemanticPalette.of(context).text.secondary,
           ),
         ),
       ),

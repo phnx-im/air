@@ -47,8 +47,8 @@ class GlassCircleButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final fillColor =
-        color ?? SemanticColors.of(context).backgroundMaterial.tertiary;
-    final boxShadow = shadows ?? Effects.elevation(Elevation.medium);
+        color ?? SemanticPalette.of(context).backgroundMaterial.tertiary;
+    final boxShadow = shadows ?? Effect.elevation(Elevation.medium);
     final hitSize = hitTargetSize ?? size;
     final enabled = onPressed != null || onLongPress != null;
 
@@ -66,8 +66,8 @@ class GlassCircleButton extends StatelessWidget {
             ? ClipOval(
                 child: BackdropFilter(
                   filter: ImageFilter.blur(
-                    sigmaX: Effects.blur(BlurLevel.medium),
-                    sigmaY: Effects.blur(BlurLevel.medium),
+                    sigmaX: Effect.blur(BlurLevel.medium),
+                    sigmaY: Effect.blur(BlurLevel.medium),
                   ),
                   child: fill,
                 ),
@@ -77,7 +77,7 @@ class GlassCircleButton extends StatelessWidget {
     );
 
     if (!enabled) {
-      circle = Opacity(opacity: Opacities.alpha40, child: circle);
+      circle = Opacity(opacity: Alpha.a40, child: circle);
     }
 
     return MouseRegion(

@@ -24,7 +24,7 @@ class BlockContactButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     final isDesktop = DeviceType.isDesktop;
 
@@ -41,7 +41,7 @@ class BlockContactButton extends StatelessWidget {
         children: [
           Text(
             loc.blockContactButton_text,
-            style: typeScale.body.regular.style(color: colors.text.primary),
+            style: typeScale.body.regular.style(color: palette.text.primary),
           ),
         ],
       ),

@@ -89,7 +89,7 @@ class GroupMembersView extends HookWidget {
     final query = useState("");
 
     final loc = AppLocalizations.of(context);
-    final colorScheme = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     final sortedMembers = useMemoized(() {
       final youValue = loc.chatList_you.toLowerCase();
@@ -141,8 +141,8 @@ class GroupMembersView extends HookWidget {
                     itemCount: sortedMembers.length,
                     separatorBuilder: (context, index) => Divider(
                       height: 1,
-                      thickness: Strokes.px1,
-                      color: colorScheme.backgroundBase.primary,
+                      thickness: StrokeWidth.px1,
+                      color: palette.backgroundBase.primary,
                     ),
                     itemBuilder: (context, index) => _GroupMemberTile(
                       chatId: chatId,

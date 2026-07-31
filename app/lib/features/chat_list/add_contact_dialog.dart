@@ -36,7 +36,7 @@ class AddContactDialog extends HookWidget {
     final focusNode = useFocusNode();
 
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return AppDialog(
       child: Form(
@@ -60,7 +60,7 @@ class AddContactDialog extends HookWidget {
               padding: const EdgeInsets.symmetric(horizontal: S.s8),
               child: Text(
                 loc.newConnectionDialog_inputLabel,
-                style: typeScale.body.xs.style(color: colors.text.quaternary),
+                style: typeScale.body.xs.style(color: palette.text.quaternary),
               ),
             ),
 
@@ -75,7 +75,7 @@ class AddContactDialog extends HookWidget {
               decoration: appDialogInputDecoration.copyWith(
                 hintText: loc.newConnectionDialog_usernamePlaceholder,
                 filled: true,
-                fillColor: colors.backgroundBase.secondary,
+                fillColor: palette.backgroundBase.secondary,
               ),
               onChanged: (value) {
                 errorMessage.value = null;
@@ -171,17 +171,17 @@ class _Description extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     final (text, color) = switch ((errorMessage, hasUsernameHash)) {
-      (final errorMessage?, _) => (errorMessage, colors.function.danger),
+      (final errorMessage?, _) => (errorMessage, palette.function.danger),
       (null, true) => (
         loc.newConnectionDialog_handleExists(username),
-        colors.function.success.primary,
+        palette.function.success.primary,
       ),
       (null, false) => (
         loc.newConnectionDialog_newConnectionDescription,
-        colors.text.tertiary,
+        palette.text.tertiary,
       ),
     };
 

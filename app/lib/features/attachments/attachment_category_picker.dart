@@ -69,7 +69,7 @@ class _AttachmentCategoryButton extends StatelessWidget {
           child: IconButton(
             icon: icon,
             style: IconButton.styleFrom(
-              backgroundColor: SemanticColors.of(
+              backgroundColor: SemanticPalette.of(
                 context,
               ).backgroundElevated.secondary,
             ),

@@ -43,7 +43,7 @@ class GroupDetailsScreen extends StatelessWidget {
     }
 
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return AppScaffold(
       title: chat.title,
@@ -95,7 +95,7 @@ class GroupDetailsScreen extends StatelessWidget {
                         loc.groupDetails_groupDescription,
                         textAlign: TextAlign.center,
                         style: typeScale.body.regular.style(
-                          color: colors.text.secondary,
+                          color: palette.text.secondary,
                         ),
                       ),
                       const SizedBox(height: S.s8),
@@ -223,7 +223,7 @@ class _PeoplePreview extends HookWidget {
       [memberIds, profiles],
     );
 
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
 
     return Column(
@@ -249,8 +249,8 @@ class _PeoplePreview extends HookWidget {
               if (i < previewIds.length)
                 Divider(
                   height: 1,
-                  thickness: Strokes.px1,
-                  color: colors.backgroundBase.primary,
+                  thickness: StrokeWidth.px1,
+                  color: palette.backgroundBase.primary,
                 ),
             ],
             _ActionsRow(
@@ -284,19 +284,19 @@ class _PeoplePreviewEntry extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final displayName = isSelf ? loc.chatList_you : profile.displayName;
 
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     final borderRadius = switch (position) {
-      _PeopleEntryPosition.single => BorderRadius.circular(Radii.px16),
+      _PeopleEntryPosition.single => BorderRadius.circular(CornerRadius.px16),
       _PeopleEntryPosition.first => const BorderRadius.vertical(
-        top: Radius.circular(Radii.px16),
+        top: Radius.circular(CornerRadius.px16),
       ),
       _PeopleEntryPosition.middle => BorderRadius.zero,
       _PeopleEntryPosition.last => BorderRadius.zero,
     };
 
     return Material(
-      color: colors.backgroundBase.secondary,
+      color: palette.backgroundBase.secondary,
       borderRadius: borderRadius,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: S.s16),
@@ -321,21 +321,21 @@ class _ActionsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
     final borderRadius = switch (position) {
-      _PeopleEntryPosition.single => BorderRadius.circular(Radii.px16),
+      _PeopleEntryPosition.single => BorderRadius.circular(CornerRadius.px16),
       _PeopleEntryPosition.first => const BorderRadius.vertical(
-        top: Radius.circular(Radii.px16),
+        top: Radius.circular(CornerRadius.px16),
       ),
       _PeopleEntryPosition.last => const BorderRadius.vertical(
-        bottom: Radius.circular(Radii.px16),
+        bottom: Radius.circular(CornerRadius.px16),
       ),
       _PeopleEntryPosition.middle => BorderRadius.zero,
     };
 
     return Material(
-      color: colors.backgroundBase.secondary,
+      color: palette.backgroundBase.secondary,
       borderRadius: borderRadius,
       child: Row(
         children: [
@@ -355,14 +355,14 @@ class _ActionsRow extends StatelessWidget {
                       height: 32,
                       width: 32,
                       decoration: BoxDecoration(
-                        color: colors.backgroundElevated.primary,
-                        borderRadius: BorderRadius.circular(Radii.px16),
+                        color: palette.backgroundElevated.primary,
+                        borderRadius: BorderRadius.circular(CornerRadius.px16),
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(S.s8),
                         child: AppIcon.plus(
                           size: 16,
-                          color: colors.function.neutral.toggleBlack,
+                          color: palette.function.neutral.toggleBlack,
                         ),
                       ),
                     ),
@@ -398,14 +398,14 @@ class _ActionsRow extends StatelessWidget {
                       height: 32,
                       width: 32,
                       decoration: BoxDecoration(
-                        color: colors.backgroundElevated.primary,
-                        borderRadius: BorderRadius.circular(Radii.px16),
+                        color: palette.backgroundElevated.primary,
+                        borderRadius: BorderRadius.circular(CornerRadius.px16),
                       ),
                       child: Padding(
                         padding: const EdgeInsets.all(S.s8),
                         child: AppIcon.arrowRight(
                           size: 16,
-                          color: colors.function.neutral.toggleBlack,
+                          color: palette.function.neutral.toggleBlack,
                         ),
                       ),
                     ),

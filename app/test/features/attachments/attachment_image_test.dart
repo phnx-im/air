@@ -48,11 +48,11 @@ class _ImageTestBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(Radii.px20),
+      borderRadius: BorderRadius.circular(CornerRadius.px20),
       child: Container(
         constraints: const BoxConstraints(maxHeight: 300, maxWidth: 300),
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(Radii.px20),
+          borderRadius: BorderRadius.circular(CornerRadius.px20),
         ),
         child: AttachmentImage(
           attachment: file.copyWith(attachmentId: attachmentId),

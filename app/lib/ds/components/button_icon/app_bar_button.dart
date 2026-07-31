@@ -33,7 +33,7 @@ class AppBarButton extends StatelessWidget {
             tapTargetSize: MaterialTapTargetSize.shrinkWrap,
             visualDensity: VisualDensity.compact,
             shape: RoundedRectangleBorder(
-              borderRadius: BorderRadius.circular(Radii.px8),
+              borderRadius: BorderRadius.circular(CornerRadius.px8),
             ),
           ),
           child: child,

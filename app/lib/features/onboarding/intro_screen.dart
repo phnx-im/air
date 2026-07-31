@@ -34,7 +34,7 @@ class IntroScreen extends HookWidget {
 
     final loc = AppLocalizations.of(context);
 
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     final serverFieldVisible = useState(false);
 
@@ -55,7 +55,7 @@ class IntroScreen extends HookWidget {
     }
 
     return Scaffold(
-      backgroundColor: colors.backgroundBase.secondary,
+      backgroundColor: palette.backgroundBase.secondary,
       body: SafeArea(
         child: Stack(
           children: [
@@ -70,7 +70,7 @@ class IntroScreen extends HookWidget {
                   child: SvgPicture.asset(
                     'assets/images/logo.svg',
                     colorFilter: ColorFilter.mode(
-                      colors.text.primary,
+                      palette.text.primary,
                       BlendMode.srcIn,
                     ),
                   ),
@@ -150,7 +150,7 @@ class _LanguagePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return LanguagePickerMenu(
       onLocaleSelected: (locale) async {
@@ -172,15 +172,17 @@ class _LanguagePicker extends StatelessWidget {
                 height: 36,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: colors.backgroundBase.tertiary,
+                  color: palette.backgroundBase.tertiary,
                   shape: BoxShape.circle,
                 ),
-                child: AppIcon.globe(color: colors.text.secondary, size: 18),
+                child: AppIcon.globe(color: palette.text.secondary, size: 18),
               ),
               const SizedBox(width: S.s12),
               Text(
                 option.label,
-                style: typeScale.body.regular.style(color: colors.text.primary),
+                style: typeScale.body.regular.style(
+                  color: palette.text.primary,
+                ),
               ),
             ],
           ),
@@ -198,7 +200,7 @@ class _TermsOfUseText extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final baseTextStyle = typeScale.body.xs.style(
-      color: SemanticColors.of(context).text.tertiary,
+      color: SemanticPalette.of(context).text.tertiary,
     );
 
     final linkText = loc.introScreen_termsLinkText;
@@ -213,7 +215,7 @@ class _TermsOfUseText extends StatelessWidget {
     final afterLink = agreement.substring(linkStart + linkText.length);
 
     final linkStyle = baseTextStyle.copyWith(
-      color: SemanticColors.of(context).function.link,
+      color: SemanticPalette.of(context).function.link,
     );
 
     return Text.rich(
@@ -248,13 +250,13 @@ class _ServerTextField extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final focusNode = useFocusNode();
 
     return TextFormField(
       decoration: InputDecoration(
         hintText: loc.introScreen_serverHint,
-        fillColor: colors.backgroundBase.tertiary,
+        fillColor: palette.backgroundBase.tertiary,
       ),
       initialValue: context.read<RegistrationCubit>().state.domain,
       focusNode: focusNode,

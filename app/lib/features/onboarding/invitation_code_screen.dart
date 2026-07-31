@@ -21,8 +21,8 @@ class InvitationCodeScreen extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
-    final backgroundColor = colors.backgroundBase.secondary;
+    final palette = SemanticPalette.of(context);
+    final backgroundColor = palette.backgroundBase.secondary;
 
     final formKey = useMemoized(() => GlobalKey<FormState>());
     final showErrors = useState(false);
@@ -32,13 +32,13 @@ class InvitationCodeScreen extends HookWidget {
       appBar: AppBar(
         clipBehavior: Clip.none,
         leading: AppBarBackButton(
-          backgroundColor: colors.backgroundElevated.primary,
+          backgroundColor: palette.backgroundElevated.primary,
         ),
         title: Text(
           loc.invitationCodeScreen_header,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        backgroundColor: colors.backgroundBase.secondary,
+        backgroundColor: palette.backgroundBase.secondary,
       ),
       backgroundColor: backgroundColor,
       body: SafeArea(
@@ -150,7 +150,7 @@ class _InvitationCodeTextField extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     final focusNode = useFocusNode();
 
@@ -167,15 +167,17 @@ class _InvitationCodeTextField extends HookWidget {
           padding: const EdgeInsets.only(left: S.s8),
           child: Text(
             loc.invitationCodeScreen_inputLabel,
-            style: typeScale.body.xs.style(color: colors.text.quaternary),
+            style: typeScale.body.xs.style(color: palette.text.quaternary),
           ),
         ),
         TextFormField(
           autofocus: true,
           decoration: InputDecoration(
             hintText: loc.invitationCodeScreen_inputHint,
-            fillColor: colors.backgroundBase.tertiary,
-            helperStyle: typeScale.body.xs.style(color: colors.text.quaternary),
+            fillColor: palette.backgroundBase.tertiary,
+            helperStyle: typeScale.body.xs.style(
+              color: palette.text.quaternary,
+            ),
           ),
           maxLength: 8,
           inputFormatters: [
@@ -213,16 +215,16 @@ class _JoinButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final isCheckingInvitationCode = context.select(
       (RegistrationCubit cubit) => cubit.state.isCheckingInvitationCode,
     );
 
     return OutlinedButton(
       style: OutlinedButtonTheme.of(context).style!.copyWith(
-        backgroundColor: WidgetStateProperty.all(colors.accentBrand.primary),
+        backgroundColor: WidgetStateProperty.all(palette.accentBrand.primary),
         foregroundColor: WidgetStateProperty.all(
-          colors.function.neutral.toggleWhite,
+          palette.function.neutral.toggleWhite,
         ),
       ),
       onPressed: isCheckingInvitationCode
@@ -239,16 +241,16 @@ class _JoinButton extends StatelessWidget {
               height: 20,
               width: 20,
               child: CircularProgressIndicator(
-                strokeWidth: Strokes.px2,
+                strokeWidth: StrokeWidth.px2,
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  colors.function.neutral.toggleWhite,
+                  palette.function.neutral.toggleWhite,
                 ),
               ),
             )
           : Text(
               loc.invitationCodeScreen_actionButton,
               style: typeScale.body.regular.style(
-                color: colors.function.neutral.toggleWhite,
+                color: palette.function.neutral.toggleWhite,
               ),
             ),
     );
@@ -264,14 +266,14 @@ class _ServerTextField extends HookWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     final focusNode = useFocusNode();
 
     return TextFormField(
       decoration: InputDecoration(
         hintText: loc.signUpScreen_serverHint,
-        fillColor: colors.backgroundBase.tertiary,
+        fillColor: palette.backgroundBase.tertiary,
       ),
       initialValue: context.read<RegistrationCubit>().state.domain,
       focusNode: focusNode,

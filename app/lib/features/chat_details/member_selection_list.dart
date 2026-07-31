@@ -57,8 +57,8 @@ class MemberSelectionList extends HookWidget {
       itemCount: sortedContacts.length,
       separatorBuilder: (context, index) => Divider(
         height: 1,
-        thickness: Strokes.px1,
-        color: SemanticColors.of(context).backgroundBase.primary,
+        thickness: StrokeWidth.px1,
+        color: SemanticPalette.of(context).backgroundBase.primary,
       ),
       itemBuilder: (context, index) {
         final contact = sortedContacts[index];
@@ -72,7 +72,7 @@ class MemberSelectionList extends HookWidget {
             hasEncryptedGroupProfiles && (!isApq || hasPqGroups);
 
         return Opacity(
-          opacity: hasSupportedClient ? 1.0 : Opacities.alpha50,
+          opacity: hasSupportedClient ? 1.0 : Alpha.a50,
           child: MemberListItem(
             profile: profile,
             onTap: hasSupportedClient
@@ -87,9 +87,9 @@ class MemberSelectionList extends HookWidget {
             trailing: hasSupportedClient
                 ? Checkbox(
                     value: isSelected,
-                    checkColor: SemanticColors.of(context).text.secondary,
+                    checkColor: SemanticPalette.of(context).text.secondary,
                     fillColor: WidgetStateProperty.all(
-                      SemanticColors.of(context).fill.tertiary,
+                      SemanticPalette.of(context).fill.tertiary,
                     ),
                     focusColor: Colors.transparent,
                     hoverColor: Colors.transparent,
@@ -97,7 +97,7 @@ class MemberSelectionList extends HookWidget {
                     side: BorderSide.none,
                     shape: const RoundedRectangleBorder(
                       borderRadius: BorderRadius.all(
-                        Radius.circular(Radii.px4),
+                        Radius.circular(CornerRadius.px4),
                       ),
                     ),
                     onChanged: (_) => onToggle(contact),

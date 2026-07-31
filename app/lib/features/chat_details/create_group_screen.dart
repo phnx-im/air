@@ -193,7 +193,7 @@ class _CreateGroupDetailsStep extends HookWidget {
     final showHelperText = nameFocusNode.hasFocus && !isGroupNameValid;
 
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -222,9 +222,9 @@ class _CreateGroupDetailsStep extends HookWidget {
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
-                      strokeWidth: Strokes.px2,
+                      strokeWidth: StrokeWidth.px2,
                       valueColor: AlwaysStoppedAnimation<Color>(
-                        colors.text.primary,
+                        palette.text.primary,
                       ),
                     ),
                   )
@@ -275,7 +275,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                               : loc.groupCreationDetails_groupNameHint,
                           hintStyle: Theme.of(context).textTheme.displayLarge
                               ?.copyWith(
-                                color: colors.text.quaternary,
+                                color: palette.text.quaternary,
                                 fontWeight: FontWeight.bold,
                               ),
                           border: InputBorder.none,
@@ -291,7 +291,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                           loc.groupCreationDetails_groupNameHelper,
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: colors.text.tertiary),
+                              ?.copyWith(color: palette.text.tertiary),
                         ),
                       ),
                     ],
@@ -320,7 +320,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                           final isSupported =
                               features?.isSupported(isApq: isApq) ?? false;
                           return Opacity(
-                            opacity: isSupported ? 1.0 : Opacities.alpha50,
+                            opacity: isSupported ? 1.0 : Alpha.a50,
                             child: _SelectedParticipant(
                               profile: profile,
                               onRemove: () => _removeContact(context, userId),
@@ -334,7 +334,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                           loc.groupCreationDetails_emptySelection,
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: colors.text.tertiary),
+                              ?.copyWith(color: palette.text.tertiary),
                         ),
                       ),
                   ],
@@ -444,16 +444,16 @@ class _GroupPicturePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     return InkWell(
       onTap: onPick,
-      borderRadius: BorderRadius.circular(Radii.full),
+      borderRadius: BorderRadius.circular(CornerRadius.full),
       child: Ink(
         width: 192,
         height: 192,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: colors.backgroundBase.quaternary,
+          color: palette.backgroundBase.quaternary,
           image: picture != null
               ? DecorationImage(image: MemoryImage(picture!), fit: BoxFit.cover)
               : null,
@@ -521,7 +521,7 @@ class _SelectedParticipant extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     return SizedBox(
       width: 72,
       child: Column(
@@ -541,16 +541,16 @@ class _SelectedParticipant extends StatelessWidget {
                     height: 16,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: colors.text.primary,
+                      color: palette.text.primary,
                       border: Border.all(
-                        color: colors.backgroundBase.primary,
-                        width: Strokes.px1,
+                        color: palette.backgroundBase.primary,
+                        width: StrokeWidth.px1,
                       ),
                     ),
                     child: Center(
                       child: AppIcon.x(
                         size: 10,
-                        color: colors.backgroundBase.primary,
+                        color: palette.backgroundBase.primary,
                       ),
                     ),
                   ),
@@ -581,18 +581,18 @@ class _CircularBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: S.s16),
       child: InkWell(
         onTap: onPressed,
-        borderRadius: BorderRadius.circular(Radii.full),
+        borderRadius: BorderRadius.circular(CornerRadius.full),
         child: Ink(
           width: 32,
           height: 32,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: colors.backgroundBase.secondary,
+            color: palette.backgroundBase.secondary,
           ),
           child: const Center(child: AppIcon.arrowLeft(size: 16)),
         ),
@@ -615,14 +615,14 @@ class _SwitchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return InkWell(
       onTap: () => onChanged(!value),
       child: Container(
         decoration: BoxDecoration(
-          color: colors.backgroundBase.secondary,
-          borderRadius: BorderRadius.circular(Radii.px16),
+          color: palette.backgroundBase.secondary,
+          borderRadius: BorderRadius.circular(CornerRadius.px16),
         ),
         padding: const EdgeInsets.symmetric(horizontal: S.s12),
         height: 42,
@@ -630,7 +630,7 @@ class _SwitchField extends StatelessWidget {
           children: [
             Text(
               label,
-              style: typeScale.body.regular.style(color: colors.text.primary),
+              style: typeScale.body.regular.style(color: palette.text.primary),
             ),
             const Spacer(),
             Switch(

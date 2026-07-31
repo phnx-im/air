@@ -49,7 +49,7 @@ class EditDialog extends HookWidget {
     final length = useState(initialValue.characters.length);
 
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     final description = this.description;
     final maxLength = this.maxLength;
@@ -79,7 +79,7 @@ class EditDialog extends HookWidget {
                     null,
             decoration: appDialogInputDecoration.copyWith(
               filled: true,
-              fillColor: colors.backgroundBase.secondary,
+              fillColor: palette.backgroundBase.secondary,
             ),
             onChanged: (value) {
               isValid.value = validator(value);
@@ -98,7 +98,7 @@ class EditDialog extends HookWidget {
               padding: const EdgeInsets.symmetric(horizontal: S.s8),
               child: Text(
                 loc.editDialog_characters_remaining(length.value, maxLength),
-                style: typeScale.body.xs.style(color: colors.text.tertiary),
+                style: typeScale.body.xs.style(color: palette.text.tertiary),
               ),
             ),
             const SizedBox(height: S.s12),
@@ -109,7 +109,7 @@ class EditDialog extends HookWidget {
               padding: const EdgeInsets.symmetric(horizontal: S.s8),
               child: Text(
                 description,
-                style: typeScale.body.xs.style(color: colors.text.tertiary),
+                style: typeScale.body.xs.style(color: palette.text.tertiary),
               ),
             ),
 

@@ -20,15 +20,15 @@ class AppIconBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Container(
       padding: EdgeInsets.all(size / 2),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: backgroundColor ?? colors.backgroundBase.tertiary,
+        color: backgroundColor ?? palette.backgroundBase.tertiary,
         shape: BoxShape.rectangle,
-        borderRadius: BorderRadius.circular(Radii.px12),
+        borderRadius: BorderRadius.circular(CornerRadius.px12),
       ),
       child: AppIcon(type: type, size: size),
     );

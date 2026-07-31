@@ -21,7 +21,7 @@ extension BlurLevelRadius on BlurLevel {
   };
 }
 
-/// Named motion duration presets. All share [Effects.easeOutQuart].
+/// Named motion duration presets. All share [Effect.easeOutQuart].
 /// [none] is 0ms -- for opting a state-change out of animation entirely
 /// (e.g. reduce-motion fallback, or pre-mount initial values).
 enum MotionPreset {
@@ -36,7 +36,7 @@ enum MotionPreset {
 }
 
 extension MotionPresetDuration on MotionPreset {
-  /// Animation duration. Theme-independent. Pair with [Effects.easeOutQuart].
+  /// Animation duration. Theme-independent. Pair with [Effect.easeOutQuart].
   Duration get duration => switch (this) {
     MotionPreset.none => Duration.zero,
     MotionPreset.instant => const Duration(milliseconds: 50),
@@ -54,7 +54,7 @@ extension MotionPresetDuration on MotionPreset {
 /// Static where the other resolved foundations are instances: the shadow tint
 /// is the mode-invariant neutral black, and blur and motion carry no theme
 /// dependency at all, so nothing here varies with brightness.
-abstract final class Effects {
+abstract final class Effect {
   /// Stacked drop shadows for the given elevation.
   static List<BoxShadow> elevation(Elevation e) => _shadows[e]!;
 

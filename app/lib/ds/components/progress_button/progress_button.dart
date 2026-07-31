@@ -45,7 +45,7 @@ class ProgressButton extends HookWidget {
               height: buttonFontSize,
               child: CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  SemanticColors.of(context).text.secondary,
+                  SemanticPalette.of(context).text.secondary,
                 ),
                 backgroundColor: Colors.transparent,
               ),

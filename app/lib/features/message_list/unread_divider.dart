@@ -19,13 +19,15 @@ class UnreadDivider extends StatelessWidget {
       child: Row(
         children: [
           Expanded(
-            child: Divider(color: SemanticColors.of(context).separator.primary),
+            child: Divider(
+              color: SemanticPalette.of(context).separator.primary,
+            ),
           ),
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: S.s16),
             child: DecoratedBox(
               decoration: ShapeDecoration(
-                color: SemanticColors.of(context).function.neutral.toggleBlack,
+                color: SemanticPalette.of(context).function.neutral.toggleBlack,
                 shape: const StadiumBorder(),
               ),
               child: Padding(
@@ -36,7 +38,7 @@ class UnreadDivider extends StatelessWidget {
                 child: Text(
                   label,
                   style: TextTheme.of(context).bodySmall?.copyWith(
-                    color: SemanticColors.of(
+                    color: SemanticPalette.of(
                       context,
                     ).function.neutral.toggleWhite,
                   ),
@@ -45,7 +47,9 @@ class UnreadDivider extends StatelessWidget {
             ),
           ),
           Expanded(
-            child: Divider(color: SemanticColors.of(context).separator.primary),
+            child: Divider(
+              color: SemanticPalette.of(context).separator.primary,
+            ),
           ),
         ],
       ),

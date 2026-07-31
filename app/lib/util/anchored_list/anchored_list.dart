@@ -134,8 +134,8 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
   bool _pendingJumpExecutionFrameCallbackScheduled = false;
   bool _pendingViewportStateFrameCallbackScheduled = false;
 
-  static final _animateDuration = Effects.duration(MotionPreset.regular);
-  static const _animateCurve = Effects.easeOutQuart;
+  static final _animateDuration = Effect.duration(MotionPreset.regular);
+  static const _animateCurve = Effect.easeOutQuart;
 
   /// Sub-pixel threshold: differences smaller than this are treated as
   /// equal to avoid infinite correction loops from floating-point drift.

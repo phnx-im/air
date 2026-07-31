@@ -44,7 +44,7 @@ enum NeutralShade {
 }
 
 /// The primitive palette.
-abstract final class Primitives {
+abstract final class Primitive {
   static Color neutral(NeutralShade shade) {
     final color = _neutral[shade];
     if (color == null) {

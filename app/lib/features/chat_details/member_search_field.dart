@@ -18,7 +18,7 @@ class MemberSearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final customColorScheme = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     return Padding(
       padding: const EdgeInsets.only(
         left: S.s16,
@@ -41,11 +41,11 @@ class MemberSearchField extends StatelessWidget {
             minHeight: 28,
           ),
           hintText: hintText,
-          hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: customColorScheme.text.quaternary,
-          ),
+          hintStyle: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: palette.text.quaternary),
           border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(Radii.px12),
+            borderRadius: BorderRadius.circular(CornerRadius.px12),
           ),
         ),
       ),

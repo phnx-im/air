@@ -475,7 +475,7 @@ class AppIcon extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final color = this.color ?? SemanticColors.of(context).text.primary;
+    final color = this.color ?? SemanticPalette.of(context).text.primary;
     return createCompatVectorGraphic(
       loader: compiledSvgLoader(type),
       width: size,

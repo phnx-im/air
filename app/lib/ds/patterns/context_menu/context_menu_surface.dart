@@ -48,9 +48,9 @@ class ContextMenuSurface extends StatelessWidget {
     return Container(
       clipBehavior: Clip.hardEdge,
       decoration: BoxDecoration(
-        color: SemanticColors.of(context).backgroundElevated.primary,
-        boxShadow: Effects.elevation(Elevation.medium),
-        borderRadius: BorderRadius.circular(Radii.px16),
+        color: SemanticPalette.of(context).backgroundElevated.primary,
+        boxShadow: Effect.elevation(Elevation.medium),
+        borderRadius: BorderRadius.circular(CornerRadius.px16),
       ),
       padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),
       child: body,

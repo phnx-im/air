@@ -92,7 +92,7 @@ class _ContextMenuSubmenuItemWidgetState
   @override
   Widget build(BuildContext context) {
     final item = widget.item;
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     Widget? leadingWidget;
     if (item.leading != null) {
@@ -117,7 +117,7 @@ class _ContextMenuSubmenuItemWidgetState
             shape: const RoundedRectangleBorder(
               borderRadius: BorderRadius.zero,
             ),
-            foregroundColor: colors.text.primary,
+            foregroundColor: palette.text.primary,
             padding: const EdgeInsets.symmetric(vertical: S.s4),
             alignment: Alignment.centerLeft,
             splashFactory: !Platform.isAndroid ? NoSplash.splashFactory : null,
@@ -149,7 +149,7 @@ class _ContextMenuSubmenuItemWidgetState
               const SizedBox(width: S.s8),
               AppIcon.chevronRight(
                 size: ContextMenuSubmenuItem.chevronSize,
-                color: colors.text.secondary,
+                color: palette.text.secondary,
               ),
             ],
           ),

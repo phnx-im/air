@@ -86,8 +86,8 @@ class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
   @override
   SuggestionOverlayStyle overlayStyle(BuildContext context) {
     return SuggestionOverlayStyle(
-      backgroundColor: SemanticColors.of(context).backgroundElevated.primary,
-      borderRadius: BorderRadius.circular(Radii.px16),
+      backgroundColor: SemanticPalette.of(context).backgroundElevated.primary,
+      borderRadius: BorderRadius.circular(CornerRadius.px16),
       elevation: 8,
       maxWidth: 320,
     );
@@ -100,10 +100,10 @@ class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
     Emoji suggestion,
     bool isHighlighted,
   ) {
-    final scheme = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final backgroundColor = isHighlighted
-        ? scheme.fill.primary
-        : scheme.backgroundElevated.primary;
+        ? palette.fill.primary
+        : palette.backgroundElevated.primary;
     return Container(
       color: backgroundColor,
       padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),
@@ -114,7 +114,7 @@ class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
           Expanded(
             child: Text(
               ':${suggestion.shortName}:',
-              style: typeScale.body.regular.style(color: scheme.text.primary),
+              style: typeScale.body.regular.style(color: palette.text.primary),
             ),
           ),
         ],

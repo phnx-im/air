@@ -55,7 +55,7 @@ class ContactRequestDialog extends HookWidget {
       (UsersCubit c) => c.state.profile(userId: sender),
     );
 
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
 
     final showImage = useState(false);
@@ -74,7 +74,7 @@ class ContactRequestDialog extends HookWidget {
     };
 
     return AppDialogContainer(
-      backgroundColor: colors.backgroundBase.secondary,
+      backgroundColor: palette.backgroundBase.secondary,
       maxWidth: 360,
       child: Column(
         mainAxisSize: MainAxisSize.min,
@@ -102,7 +102,7 @@ class ContactRequestDialog extends HookWidget {
             const SizedBox(height: S.s8),
             Text(
               loc.contactRequestDialog_avatarHint,
-              style: typeScale.body.xs.style(color: colors.text.tertiary),
+              style: typeScale.body.xs.style(color: palette.text.tertiary),
             ),
           ],
 
@@ -110,7 +110,7 @@ class ContactRequestDialog extends HookWidget {
 
           Text(
             message,
-            style: typeScale.body.regular.style(color: colors.text.secondary),
+            style: typeScale.body.regular.style(color: palette.text.secondary),
             textAlign: .center,
           ),
 

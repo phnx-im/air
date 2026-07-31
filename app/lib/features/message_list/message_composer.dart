@@ -192,8 +192,8 @@ class _MessageComposerState extends State<MessageComposer>
       return const SizedBox.shrink();
     }
 
-    final color = SemanticColors.of(context);
-    final materialColor = color.backgroundMaterial.tertiary;
+    final palette = SemanticPalette.of(context);
+    final materialColor = palette.backgroundMaterial.tertiary;
 
     Widget composerButton({required Widget icon, VoidCallback? onPressed}) {
       return GlassCircleButton(
@@ -314,8 +314,8 @@ class _MessageComposerState extends State<MessageComposer>
                       clipper: clipper,
                       child: BackdropFilter(
                         filter: ImageFilter.blur(
-                          sigmaX: Effects.blur(BlurLevel.medium),
-                          sigmaY: Effects.blur(BlurLevel.medium),
+                          sigmaX: Effect.blur(BlurLevel.medium),
+                          sigmaY: Effect.blur(BlurLevel.medium),
                           bounds: clipBounds,
                         ),
                         child: const SizedBox.expand(),
@@ -685,7 +685,7 @@ class _MessageInput extends StatelessWidget {
     );
 
     final loc = AppLocalizations.of(context);
-    final color = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -698,12 +698,12 @@ class _MessageInput extends StatelessWidget {
               children: [
                 AppIcon.pencil(
                   size: 20,
-                  color: SemanticColors.of(context).text.tertiary,
+                  color: SemanticPalette.of(context).text.tertiary,
                 ),
                 const SizedBox(width: S.s8),
                 Text(
                   loc.composer_editMessage,
-                  style: typeScale.body.s.style(color: color.text.tertiary),
+                  style: typeScale.body.s.style(color: palette.text.tertiary),
                 ),
               ],
             ),
@@ -718,7 +718,7 @@ class _MessageInput extends StatelessWidget {
                   padding: const EdgeInsets.only(top: S.s4, right: S.s4),
                   child: InReplyToBubble(
                     inReplyTo: inReplyToMessage,
-                    backgroundColor: color.fill.secondary,
+                    backgroundColor: palette.fill.secondary,
                     stretch: true,
                   ),
                 ),
@@ -727,7 +727,7 @@ class _MessageInput extends StatelessWidget {
                   right: 0,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: color.backgroundElevated.primary,
+                      color: palette.backgroundElevated.primary,
                       shape: BoxShape.circle,
                     ),
                     constraints: BoxConstraints.tight(const Size.square(20)),
@@ -754,7 +754,7 @@ class _MessageInput extends StatelessWidget {
             focusNode: _focusNode,
             controller: _controller,
             style: typeScale.body.regular
-                .style(color: color.text.primary)
+                .style(color: palette.text.primary)
                 .copyWith(leadingDistribution: TextLeadingDistribution.even),
             minLines: 1,
             maxLines: 10,
@@ -768,7 +768,7 @@ class _MessageInput extends StatelessWidget {
               hintText: loc.composer_inputHint(chatTitle ?? ""),
               hintMaxLines: 1,
               hintStyle: TextStyle(
-                color: color.text.tertiary,
+                color: palette.text.tertiary,
                 overflow: TextOverflow.ellipsis,
               ),
             ).copyWith(filled: false),
@@ -991,7 +991,7 @@ class _ComposerShadowPainter extends CustomPainter {
       Path.combine(PathOperation.difference, outerPath, interiorPath),
     );
 
-    for (final shadow in Effects.elevation(Elevation.large)) {
+    for (final shadow in Effect.elevation(Elevation.large)) {
       canvas.drawPath(
         _buildComposerPath(
           size,
@@ -1035,7 +1035,7 @@ class InReplyToBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final color = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     // there are a few reasons why a message can't be resolved, for example:
     // a message was deleted locally (only for me) or you joined a group
@@ -1069,7 +1069,10 @@ class InReplyToBubble extends StatelessWidget {
     final innerContent = Container(
       decoration: BoxDecoration(
         border: Border(
-          left: BorderSide(color: color.separator.primary, width: Strokes.px1),
+          left: BorderSide(
+            color: palette.separator.primary,
+            width: StrokeWidth.px1,
+          ),
         ),
       ),
       child: Padding(
@@ -1082,14 +1085,14 @@ class InReplyToBubble extends StatelessWidget {
                 senderDisplayName,
                 style: typeScale.body.s.style(
                   weight: Weight.emphasized,
-                  color: color.text.primary,
+                  color: palette.text.primary,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
             Text(
               contentPreview,
-              style: typeScale.body.s.style(color: color.text.secondary),
+              style: typeScale.body.s.style(color: palette.text.secondary),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -1101,7 +1104,7 @@ class InReplyToBubble extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: S.s12, vertical: S.s8),
       decoration: BoxDecoration(
-        borderRadius: const BorderRadius.all(Radius.circular(Radii.px8)),
+        borderRadius: const BorderRadius.all(Radius.circular(CornerRadius.px8)),
         color: backgroundColor,
       ),
       child: showJumpIcon
@@ -1111,7 +1114,10 @@ class InReplyToBubble extends StatelessWidget {
                 PositionedDirectional(
                   top: 0,
                   end: 0,
-                  child: AppIcon.arrowUp(size: 12, color: color.text.tertiary),
+                  child: AppIcon.arrowUp(
+                    size: 12,
+                    color: palette.text.tertiary,
+                  ),
                 ),
               ],
             )

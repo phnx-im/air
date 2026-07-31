@@ -35,10 +35,10 @@ class AttachmentUploadView extends HookWidget {
     );
     final isImage = useFuture(isImageFut);
 
-    final colors = darkSemanticColors;
+    final palette = darkSemanticPalette;
 
     return Scaffold(
-      backgroundColor: colors.function.neutral.black,
+      backgroundColor: palette.function.neutral.black,
       body: Focus(
         autofocus: true,
         onKeyEvent: (node, event) {
@@ -66,7 +66,7 @@ class AttachmentUploadView extends HookWidget {
                       Text(
                         p.basename(file.path),
                         style: typeScale.body.regular.style(
-                          color: colors.text.primary,
+                          color: palette.text.primary,
                         ),
                       ),
                     ],
@@ -78,8 +78,11 @@ class AttachmentUploadView extends HookWidget {
                 right: S.s16,
                 child: SafeArea(
                   child: GlassCircleButton(
-                    icon: AppIcon.arrowUp(size: 20, color: colors.text.primary),
-                    color: colors.backgroundMaterial.tertiary,
+                    icon: AppIcon.arrowUp(
+                      size: 20,
+                      color: palette.text.primary,
+                    ),
+                    color: palette.backgroundMaterial.tertiary,
                     onPressed: () {
                       onUpload();
                       Navigator.of(context).pop();
@@ -93,21 +96,21 @@ class AttachmentUploadView extends HookWidget {
                 left: 0,
                 right: 0,
                 child: Container(
-                  color: darkSemanticColors.backgroundElevated.primary
+                  color: darkSemanticPalette.backgroundElevated.primary
                       .withValues(alpha: 0.7),
                   child: AppBar(
                     automaticallyImplyLeading: false,
                     clipBehavior: Clip.none,
                     title: Text(
                       title,
-                      style: TextStyle(color: colors.text.primary),
+                      style: TextStyle(color: palette.text.primary),
                     ),
                     actions: [
                       AppBarXButton(
                         onPressed: () => Navigator.of(context).maybePop(),
-                        foregroundColor: colors.text.primary,
+                        foregroundColor: palette.text.primary,
                         backgroundColor:
-                            darkSemanticColors.backgroundBase.secondary,
+                            darkSemanticPalette.backgroundBase.secondary,
                       ),
                     ],
                     backgroundColor: Colors.transparent,

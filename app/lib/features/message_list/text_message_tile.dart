@@ -57,8 +57,8 @@ final double _hoverReactSize =
 // Width the hover affordance occupies beside the bubble: the reply and react
 // buttons, the gap between them, and the gap to the bubble.
 final double _hoverAffordanceWidth = 2 * _hoverReactSize + 2 * S.s8;
-const double largeCornerRadius = Radii.px12;
-const double smallCornerRadius = Radii.px12;
+const double largeCornerRadius = CornerRadius.px12;
+const double smallCornerRadius = CornerRadius.px12;
 const double messageHorizontalPadding = S.s12;
 const double messageVerticalPadding = S.s8;
 // Gap between consecutive bubbles of the same flight.
@@ -253,8 +253,8 @@ class _IncomingMessageTile extends StatelessWidget {
           children: [
             AnimatedPadding(
               // Tracks the animated reserve in [BubbleWithReactions].
-              duration: Effects.duration(MotionPreset.short),
-              curve: Effects.easeOutQuart,
+              duration: Effect.duration(MotionPreset.short),
+              curve: Effect.easeOutQuart,
               padding: EdgeInsets.only(
                 bottom: reactionsReservedBelow(context, reactions.isNotEmpty),
               ),
@@ -365,7 +365,7 @@ class _MessageView extends HookWidget {
     }, [contextMenuController]);
 
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     final plainBody = contentMessage.content.plainBody?.trim();
     final platform = Theme.of(context).platform;
@@ -520,7 +520,10 @@ class _MessageView extends HookWidget {
       if (!isDeleted)
         MessageAction(
           label: loc.messageContextMenu_delete,
-          leading: AppIcon.trash(size: iconSize, color: colors.function.danger),
+          leading: AppIcon.trash(
+            size: iconSize,
+            color: palette.function.danger,
+          ),
           isDestructive: true,
           insertSeparatorBefore: true,
           onSelected: () => isSender
@@ -530,7 +533,10 @@ class _MessageView extends HookWidget {
       if (isDeleted)
         MessageAction(
           label: loc.messageContextMenu_delete,
-          leading: AppIcon.trash(size: iconSize, color: colors.function.danger),
+          leading: AppIcon.trash(
+            size: iconSize,
+            color: palette.function.danger,
+          ),
           isDestructive: true,
           onSelected: () =>
               _showDeleteForMeDialog(context: context, messageId: messageId),
@@ -598,7 +604,7 @@ class _MessageView extends HookWidget {
       );
       if (!enableSelection && isReplyable) {
         bubble = SwipeToReplyBubble(
-          icon: AppIcon.cornerLeft(size: 16, color: colors.text.secondary),
+          icon: AppIcon.cornerLeft(size: 16, color: palette.text.secondary),
           child: bubble,
         );
       }
@@ -747,18 +753,18 @@ class _MessageView extends HookWidget {
       key: reactButtonKey,
       size: _hoverReactSize,
       color: isSender
-          ? colors.message.selfBackground
-          : colors.message.otherBackground,
-      icon: AppIcon.smilePlus(size: 18, color: colors.text.secondary),
+          ? palette.message.selfBackground
+          : palette.message.otherBackground,
+      icon: AppIcon.smilePlus(size: 18, color: palette.text.secondary),
       onPressed: () => openReactionMenu(anchorKey: reactButtonKey),
       shadows: const [],
     );
     final hoverReplyButton = GlassCircleButton(
       size: _hoverReactSize,
       color: isSender
-          ? colors.message.selfBackground
-          : colors.message.otherBackground,
-      icon: AppIcon.cornerLeft(size: 18, color: colors.text.secondary),
+          ? palette.message.selfBackground
+          : palette.message.otherBackground,
+      icon: AppIcon.cornerLeft(size: 18, color: palette.text.secondary),
       onPressed: () {
         context.read<ChatDetailsCubit>().replyToMessage(messageId: messageId);
       },
@@ -769,8 +775,8 @@ class _MessageView extends HookWidget {
     // centers it on the bubble itself (not the bubble + reaction chips),
     // in sync with the animated reserve in [BubbleWithReactions].
     final hoverAffordance = AnimatedPadding(
-      duration: Effects.duration(MotionPreset.short),
-      curve: Effects.easeOutQuart,
+      duration: Effect.duration(MotionPreset.short),
+      curve: Effect.easeOutQuart,
       padding: EdgeInsets.only(
         bottom: reactionsReservedBelow(context, reactions.isNotEmpty),
         left: isSender ? 0 : S.s8,
@@ -1005,7 +1011,7 @@ class _MessageMetadataRowState extends State<_MessageMetadataRow> {
                 if (showMessageStatus && isError)
                   Text(
                     style: typeScale.body.xs.style(
-                      color: SemanticColors.of(
+                      color: SemanticPalette.of(
                         context,
                       ).function.warning.primary,
                     ),
@@ -1014,7 +1020,7 @@ class _MessageMetadataRowState extends State<_MessageMetadataRow> {
                 if (showMessageStatus && isSending && _showSending)
                   Text(
                     style: typeScale.body.xs.style(
-                      color: SemanticColors.of(context).text.tertiary,
+                      color: SemanticPalette.of(context).text.tertiary,
                     ),
                     loc.messageBubble_sending,
                   ),
@@ -1061,7 +1067,7 @@ class _MessageContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final inReplyTo = inReplyToMessage;
     final bool isReply = inReplyTo != null;
     final bool isDeleted = content.isDeleted;
@@ -1095,7 +1101,7 @@ class _MessageContent extends StatelessWidget {
             child: Text(
               loc.textMessage_hiddenPlaceholder,
               style: typeScale.body.regular
-                  .style(color: colors.text.tertiary)
+                  .style(color: palette.text.tertiary)
                   .copyWith(fontStyle: FontStyle.italic),
             ),
           ),
@@ -1191,7 +1197,7 @@ class _MessageContent extends StatelessWidget {
                 ),
                 child: InReplyToBubble(
                   inReplyTo: inReplyTo,
-                  backgroundColor: colors.fill.secondary,
+                  backgroundColor: palette.fill.secondary,
                 ),
               ),
             ),
@@ -1206,8 +1212,8 @@ class _MessageContent extends StatelessWidget {
 
     final borderRadius = _messageBorderRadius(isSender, flightPosition);
     final baseColor = isSender
-        ? colors.message.selfBackground
-        : colors.message.otherBackground;
+        ? palette.message.selfBackground
+        : palette.message.otherBackground;
     final bubbleContent = DefaultTextStyle.merge(
       child: Column(
         crossAxisAlignment: .end,
@@ -1225,8 +1231,8 @@ class _MessageContent extends StatelessWidget {
                   loc.textMessage_edited,
                   style: Theme.of(context).textTheme.bodySmall!.copyWith(
                     color: isSender
-                        ? colors.message.selfEditedLabel
-                        : colors.message.otherEditedLabel,
+                        ? palette.message.selfEditedLabel
+                        : palette.message.otherEditedLabel,
                   ),
                 ),
               ),
@@ -1265,7 +1271,7 @@ class _DeletedMessageContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     final deletedText = isSender
         ? loc.textMessage_deletedBySelf
@@ -1277,8 +1283,8 @@ class _DeletedMessageContent extends StatelessWidget {
                 .displayName,
           );
     final borderColor = isSender
-        ? colors.message.selfBackground
-        : colors.message.otherBackground;
+        ? palette.message.selfBackground
+        : palette.message.otherBackground;
 
     return Padding(
       padding: const EdgeInsets.only(bottom: messageFollowUpGap),
@@ -1293,7 +1299,7 @@ class _DeletedMessageContent extends StatelessWidget {
             child: Text(
               deletedText,
               style: typeScale.body.regular
-                  .style(color: colors.text.tertiary)
+                  .style(color: palette.text.tertiary)
                   .copyWith(fontStyle: FontStyle.italic),
             ),
           ),
@@ -1359,9 +1365,9 @@ class _DisplayName extends StatelessWidget {
     return SelectionContainer.disabled(
       child: Text(
         displayName,
-        style: TextTheme.of(
-          context,
-        ).bodyMedium!.copyWith(color: SemanticColors.of(context).text.tertiary),
+        style: TextTheme.of(context).bodyMedium!.copyWith(
+          color: SemanticPalette.of(context).text.tertiary,
+        ),
         overflow: TextOverflow.ellipsis,
       ),
     );
@@ -1385,8 +1391,8 @@ class _FileAttachmentContent extends StatelessWidget {
         attachment: attachment,
         isSender: isSender,
         color: isSender
-            ? SemanticColors.of(context).message.selfText
-            : SemanticColors.of(context).message.otherText,
+            ? SemanticPalette.of(context).message.selfText
+            : SemanticPalette.of(context).message.otherText,
       ),
     );
   }

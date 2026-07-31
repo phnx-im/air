@@ -76,7 +76,7 @@ class _EmptyChatPane extends StatelessWidget {
     return Center(
       child: Text(
         style: Theme.of(context).textTheme.bodyLarge?.copyWith(
-          color: SemanticColors.of(context).text.tertiary,
+          color: SemanticPalette.of(context).text.tertiary,
         ),
         loc.chatScreen_emptyChat,
       ),
@@ -293,7 +293,7 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                   style: TextTheme.of(context).labelMedium!.copyWith(
-                    color: SemanticColors.of(context).text.primary,
+                    color: SemanticPalette.of(context).text.primary,
                   ),
                 ),
               ),
@@ -404,7 +404,7 @@ class _PendingCommitFailedBanner extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Material(
-      color: SemanticColors.of(context).function.warning.primary,
+      color: SemanticPalette.of(context).function.warning.primary,
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),
         child: Row(
@@ -442,7 +442,7 @@ class _InactiveChatFooter extends StatelessWidget {
         loc.inactiveChatFooter_message,
         textAlign: TextAlign.center,
         style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-          color: SemanticColors.of(context).text.tertiary,
+          color: SemanticPalette.of(context).text.tertiary,
         ),
       ),
     );

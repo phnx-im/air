@@ -24,7 +24,7 @@ class UserDebugInfoPanel extends HookWidget {
     final snapshot = useFuture(
       useMemoized(() => user.userDebugInfo(), [refreshKey.value]),
     );
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return switch (snapshot) {
       AsyncSnapshot(hasData: true, :final data) => _UserDebugInfoBody(
@@ -37,7 +37,7 @@ class UserDebugInfoPanel extends HookWidget {
           padding: const EdgeInsets.all(S.s16),
           child: Text(
             error.toString(),
-            style: typeScale.body.s.style(color: colors.text.secondary),
+            style: typeScale.body.s.style(color: palette.text.secondary),
           ),
         ),
       ),
@@ -46,8 +46,8 @@ class UserDebugInfoPanel extends HookWidget {
           width: 16,
           height: 16,
           child: CircularProgressIndicator(
-            strokeWidth: Strokes.px2,
-            valueColor: AlwaysStoppedAnimation<Color>(colors.text.primary),
+            strokeWidth: StrokeWidth.px2,
+            valueColor: AlwaysStoppedAnimation<Color>(palette.text.primary),
           ),
         ),
       ),
@@ -157,14 +157,14 @@ class _SectionHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     return Padding(
       padding: const EdgeInsets.symmetric(vertical: S.s8),
       child: Text(
         title.toUpperCase(),
         style: typeScale.body.xs.style(
           weight: Weight.emphasized,
-          color: colors.text.tertiary,
+          color: palette.text.tertiary,
         ),
       ),
     );
@@ -178,24 +178,24 @@ class _InfoCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     if (children.isEmpty) {
       return Container(
         decoration: BoxDecoration(
-          color: colors.backgroundBase.secondary,
-          borderRadius: BorderRadius.circular(Radii.px12),
+          color: palette.backgroundBase.secondary,
+          borderRadius: BorderRadius.circular(CornerRadius.px12),
         ),
         padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
         child: Text(
           '—',
-          style: typeScale.body.s.style(color: colors.text.tertiary),
+          style: typeScale.body.s.style(color: palette.text.tertiary),
         ),
       );
     }
     return Container(
       decoration: BoxDecoration(
-        color: colors.backgroundBase.secondary,
-        borderRadius: BorderRadius.circular(Radii.px12),
+        color: palette.backgroundBase.secondary,
+        borderRadius: BorderRadius.circular(CornerRadius.px12),
       ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -206,7 +206,7 @@ class _InfoCard extends StatelessWidget {
               Divider(
                 height: 1,
                 indent: S.s16,
-                color: colors.separator.secondary,
+                color: palette.separator.secondary,
               ),
           ],
         ],
@@ -230,9 +230,9 @@ class _InfoRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
-    var valueStyle = typeScale.body.s.style(color: colors.text.primary);
+    var valueStyle = typeScale.body.s.style(color: palette.text.primary);
     if (monospace) {
       valueStyle = valueStyle.withSystemMonospace();
     }
@@ -247,7 +247,7 @@ class _InfoRow extends StatelessWidget {
           ),
         );
       },
-      borderRadius: BorderRadius.circular(Radii.px12),
+      borderRadius: BorderRadius.circular(CornerRadius.px12),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
         child: Row(
@@ -257,7 +257,7 @@ class _InfoRow extends StatelessWidget {
               width: 200,
               child: Text(
                 label,
-                style: typeScale.body.s.style(color: colors.text.tertiary),
+                style: typeScale.body.s.style(color: palette.text.tertiary),
               ),
             ),
             const SizedBox(width: S.s12),
@@ -277,14 +277,14 @@ class _TriggerButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     return IconButton(
       onPressed: onPressed,
       visualDensity: VisualDensity.compact,
       padding: EdgeInsets.zero,
       constraints: const BoxConstraints(),
       tooltip: 'Run now',
-      icon: Icon(Icons.play_arrow, size: 20, color: colors.text.primary),
+      icon: Icon(Icons.play_arrow, size: 20, color: palette.text.primary),
     );
   }
 }

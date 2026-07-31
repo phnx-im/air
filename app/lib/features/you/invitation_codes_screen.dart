@@ -41,11 +41,11 @@ class InvitationCodesView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return AppScaffold(
       title: loc.invitationCodesScreen_title,
-      backgroundColor: colors.backgroundBase.secondary,
+      backgroundColor: palette.backgroundBase.secondary,
       child: Align(
         alignment: Alignment.topCenter,
         child: Container(
@@ -150,7 +150,7 @@ class _InvitationCodesList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     final invitationCodes = context.select(
       (InvitationCodesCubit cubit) => cubit.state.codes,
@@ -158,8 +158,8 @@ class _InvitationCodesList extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: colors.backgroundElevated.primary,
-        borderRadius: BorderRadius.circular(Radii.px16),
+        color: palette.backgroundElevated.primary,
+        borderRadius: BorderRadius.circular(CornerRadius.px16),
       ),
       child: Column(
         children: invitationCodes.isEmpty
@@ -176,8 +176,8 @@ class _InvitationCodesList extends StatelessWidget {
                       if (code != invitationCodes.last)
                         Divider(
                           height: 1,
-                          thickness: Strokes.px1,
-                          color: colors.separator.primary,
+                          thickness: StrokeWidth.px1,
+                          color: palette.separator.primary,
                         ),
                     ],
                   )
@@ -194,12 +194,12 @@ class _InvitationCodeItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return InkWell(
       onTap: () => _handleCopy(context),
       mouseCursor: SystemMouseCursors.click,
-      borderRadius: BorderRadius.circular(Radii.px16),
+      borderRadius: BorderRadius.circular(CornerRadius.px16),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
         child: Row(
@@ -208,7 +208,7 @@ class _InvitationCodeItem extends StatelessWidget {
               child: Text(
                 code.code,
                 style: typeScale.body.regular
-                    .style(color: colors.text.primary)
+                    .style(color: palette.text.primary)
                     .copyWith(
                       decoration: code.copied
                           ? TextDecoration.lineThrough
@@ -217,7 +217,7 @@ class _InvitationCodeItem extends StatelessWidget {
               ),
             ),
             const SizedBox(width: S.s12),
-            AppIcon.copy(size: 24, color: colors.text.tertiary),
+            AppIcon.copy(size: 24, color: palette.text.tertiary),
           ],
         ),
       ),
@@ -252,12 +252,12 @@ class _InvitationTokenItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return InkWell(
       onTap: () => _handleUnlock(context),
       mouseCursor: SystemMouseCursors.click,
-      borderRadius: BorderRadius.circular(Radii.px16),
+      borderRadius: BorderRadius.circular(CornerRadius.px16),
       child: Padding(
         padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
         child: Row(
@@ -265,11 +265,11 @@ class _InvitationTokenItem extends StatelessWidget {
             Text(
               AppLocalizations.of(context).invitationCodesScreen_tapToGetCode,
               style: typeScale.body.regular
-                  .style(color: colors.text.tertiary)
+                  .style(color: palette.text.tertiary)
                   .copyWith(fontStyle: FontStyle.italic),
             ),
             const Spacer(),
-            AppIcon.circleDashed(size: 24, color: colors.text.tertiary),
+            AppIcon.circleDashed(size: 24, color: palette.text.tertiary),
           ],
         ),
       ),
@@ -305,7 +305,7 @@ class _InvitationCodeEmptyItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Padding(
       padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
@@ -314,7 +314,7 @@ class _InvitationCodeEmptyItem extends StatelessWidget {
           Expanded(
             child: Text(
               AppLocalizations.of(context).invitationCodesScreen_empty,
-              style: typeScale.body.regular.style(color: colors.text.tertiary),
+              style: typeScale.body.regular.style(color: palette.text.tertiary),
             ),
           ),
         ],
@@ -328,9 +328,9 @@ class _InfoText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
-    final style = typeScale.body.s.style(color: colors.text.quaternary);
+    final style = typeScale.body.s.style(color: palette.text.quaternary);
 
     final loc = AppLocalizations.of(context);
 

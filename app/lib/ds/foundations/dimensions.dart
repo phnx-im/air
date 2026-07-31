@@ -30,7 +30,7 @@ abstract final class S {
 }
 
 /// Named corner radius tokens.
-abstract final class Radii {
+abstract final class CornerRadius {
   static const double px0 = 0.0;
   static const double px1 = 1.0;
   static const double px2 = 2.0;
@@ -49,7 +49,7 @@ abstract final class Radii {
 }
 
 /// Named stroke widths: borders, dividers, and painted outlines.
-abstract final class Strokes {
+abstract final class StrokeWidth {
   static const double px0 = 0.0;
   static const double px0_5 = 0.5;
   static const double px1 = 1.0;
@@ -60,18 +60,18 @@ abstract final class Strokes {
 }
 
 /// Named opacity tokens as 0-1 alphas.
-abstract final class Opacities {
-  static const double alpha0 = 0.0;
-  static const double alpha5 = 0.05;
-  static const double alpha10 = 0.10;
-  static const double alpha15 = 0.15;
-  static const double alpha20 = 0.20;
-  static const double alpha40 = 0.40;
-  static const double alpha50 = 0.50;
-  static const double alpha60 = 0.60;
-  static const double alpha80 = 0.80;
-  static const double alpha85 = 0.85;
-  static const double alpha90 = 0.90;
-  static const double alpha95 = 0.95;
-  static const double alpha100 = 1.0;
+abstract final class Alpha {
+  static const double a0 = 0.0;
+  static const double a5 = 0.05;
+  static const double a10 = 0.10;
+  static const double a15 = 0.15;
+  static const double a20 = 0.20;
+  static const double a40 = 0.40;
+  static const double a50 = 0.50;
+  static const double a60 = 0.60;
+  static const double a80 = 0.80;
+  static const double a85 = 0.85;
+  static const double a90 = 0.90;
+  static const double a95 = 0.95;
+  static const double a100 = 1.0;
 }

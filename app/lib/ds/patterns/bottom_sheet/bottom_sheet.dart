@@ -28,7 +28,7 @@ Future<T?> showBottomSheetModal<T>({
     barrierDismissible: isDismissible,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     barrierColor:
-        barrierColor ?? SemanticColors.of(context).function.neutral.scrim,
+        barrierColor ?? SemanticPalette.of(context).function.neutral.scrim,
     transitionDuration: animationDuration,
     transitionBuilder: (context, animation, secondaryAnimation, child) => child,
     pageBuilder: (context, animation, secondaryAnimation) {
@@ -71,7 +71,7 @@ class _BottomSheetModal extends StatefulWidget {
 class _BottomSheetModalState extends State<_BottomSheetModal>
     with SingleTickerProviderStateMixin {
   static const _sheetBorderRadius = BorderRadius.vertical(
-    top: Radius.circular(Radii.px28),
+    top: Radius.circular(CornerRadius.px28),
   );
   static const double _handleHeight = 4;
   static const double _handleTopSpacing = S.s8;
@@ -184,7 +184,7 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
       mediaQuery.viewPadding.bottom,
       mediaQuery.viewInsets.bottom,
     );
-    final colorScheme = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final basePadding =
         widget.contentPadding ??
         const EdgeInsets.fromLTRB(S.s24, S.s32, S.s24, S.s8);
@@ -237,7 +237,7 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
                             bottom: _handleTopSpacing,
                           ),
                           child: _BottomSheetHandle(
-                            color: colorScheme.backgroundElevated.primary,
+                            color: palette.backgroundElevated.primary,
                           ),
                         ),
                       ),
@@ -253,7 +253,7 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
                         child: ClipRRect(
                           borderRadius: _sheetBorderRadius,
                           child: Material(
-                            color: colorScheme.backgroundElevated.primary,
+                            color: palette.backgroundElevated.primary,
                             child: SingleChildScrollView(
                               padding: contentPadding,
                               child: widget.builder(context),
@@ -285,7 +285,7 @@ class _BottomSheetHandle extends StatelessWidget {
       height: 4,
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(Radii.full),
+        borderRadius: BorderRadius.circular(CornerRadius.full),
       ),
     );
   }
@@ -326,7 +326,7 @@ class BottomSheetDialogContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -337,7 +337,7 @@ class BottomSheetDialogContent extends StatelessWidget {
             title!,
             style: textTheme.titleLarge!.copyWith(
               fontWeight: FontWeight.bold,
-              color: colors.text.primary,
+              color: palette.text.primary,
             ),
             textAlign: titleAlignment,
           ),
@@ -346,7 +346,7 @@ class BottomSheetDialogContent extends StatelessWidget {
           Text(
             description!,
             style: textTheme.bodyMedium?.copyWith(
-              color: colors.text.secondary,
+              color: palette.text.secondary,
               height: 1.4,
             ),
             textAlign: descriptionAlignment,

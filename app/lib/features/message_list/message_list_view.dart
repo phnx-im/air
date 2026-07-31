@@ -356,7 +356,7 @@ class _MessageListViewState extends State<MessageListView>
     // this threshold so they stay in sync.
     final swapTopThreshold = pillTop - S.s32;
     // Solid color for the safe area
-    final bgColor = SemanticColors.of(context).backgroundBase.primary;
+    final bgColor = SemanticPalette.of(context).backgroundBase.primary;
 
     Widget buildAnchoredList({double bottomPadding = 0.0}) {
       Widget list = NotificationListener<ScrollNotification>(
@@ -611,11 +611,11 @@ const double _keyboardDismissDragThreshold = S.s64;
 /// How long an incoming message id stays eligible for the entrance animation.
 /// Chosen comfortably larger than the animation duration so the tile always
 /// has time to mount and play the animation once.
-final Duration _animationWindow = Effects.duration(MotionPreset.long);
+final Duration _animationWindow = Effect.duration(MotionPreset.long);
 
 /// Delay between scroll settling and the floating date header fading out,
 /// so the label remains briefly readable after the user stops scrolling.
-final Duration _floatingHeaderHideDelay = Effects.duration(MotionPreset.long);
+final Duration _floatingHeaderHideDelay = Effect.duration(MotionPreset.long);
 
 /// Owns a [MessageCubit] for a single message tile.
 ///

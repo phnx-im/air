@@ -18,7 +18,7 @@ class ChatListContainer extends StatelessWidget {
   final bool isStandalone;
 
   static Color backgroundColor(BuildContext context) {
-    return SemanticColors.of(context).backgroundBase.secondary;
+    return SemanticPalette.of(context).backgroundBase.secondary;
   }
 
   @override

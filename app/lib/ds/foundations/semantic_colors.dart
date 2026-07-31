@@ -41,7 +41,7 @@ class BackgroundElevated {
 }
 
 /// Translucent fills for frosted-glass surfaces. The fill alpha is baked in,
-/// so these pair directly with a sigma from `Effects.blur`.
+/// so these pair directly with a sigma from `Effect.blur`.
 class BackgroundMaterial {
   final Color primary, secondary, tertiary, quaternary;
 
@@ -53,10 +53,10 @@ class BackgroundMaterial {
   });
 }
 
-class TextColors {
+class TextPalette {
   final Color primary, secondary, tertiary, quaternary;
 
-  const TextColors({
+  const TextPalette({
     required this.primary,
     required this.secondary,
     required this.tertiary,
@@ -64,16 +64,16 @@ class TextColors {
   });
 }
 
-class SeparatorColors {
+class SeparatorPalette {
   final Color primary, secondary;
 
-  const SeparatorColors({required this.primary, required this.secondary});
+  const SeparatorPalette({required this.primary, required this.secondary});
 }
 
-class FillColors {
+class FillPalette {
   final Color primary, secondary, tertiary;
 
-  const FillColors({
+  const FillPalette({
     required this.primary,
     required this.secondary,
     required this.tertiary,
@@ -108,13 +108,13 @@ class FunctionSuccess {
   const FunctionSuccess({required this.primary, required this.secondary});
 }
 
-class FunctionColors {
+class FunctionPalette {
   final FunctionNeutral neutral;
   final Color link, danger;
   final FunctionSuccess success;
   final FunctionWarning warning;
 
-  const FunctionColors({
+  const FunctionPalette({
     required this.neutral,
     required this.link,
     required this.danger,
@@ -125,7 +125,7 @@ class FunctionColors {
 
 /// Message-bubble colors. An Air-specific extension of the design system:
 /// the reference DS carries these in its message-bubble pattern tokens.
-class MessageColors {
+class MessagePalette {
   final Color selfBackground, otherBackground;
   final Color selfText, otherText;
   final Color selfListPrefix, otherListPrefix;
@@ -137,7 +137,7 @@ class MessageColors {
   final Color selfCheckboxCheck, otherCheckboxCheck;
   final Color selfEditedLabel, otherEditedLabel;
 
-  const MessageColors({
+  const MessagePalette({
     required this.selfBackground,
     required this.otherBackground,
     required this.selfText,
@@ -175,11 +175,8 @@ sealed class TonedRef {
 
   Color resolve() {
     final base = switch (this) {
-      NeutralRef(:final shade) => Primitives.neutral(shade),
-      ChromaticRef(:final hue, :final shade) => Primitives.chromatic(
-        hue,
-        shade,
-      ),
+      NeutralRef(:final shade) => Primitive.neutral(shade),
+      ChromaticRef(:final hue, :final shade) => Primitive.chromatic(hue, shade),
     };
     return opacity == 1.0 ? base : base.withValues(alpha: opacity);
   }
@@ -422,18 +419,18 @@ extension SemanticColorAlias on SemanticColor {
   Color resolve(Brightness brightness) => alias.resolve(brightness);
 }
 
-class SemanticColors {
+class SemanticPalette {
   final AccentBrand accentBrand;
   final BackgroundBase backgroundBase;
   final BackgroundElevated backgroundElevated;
   final BackgroundMaterial backgroundMaterial;
-  final TextColors text;
-  final SeparatorColors separator;
-  final FillColors fill;
-  final FunctionColors function;
-  final MessageColors message;
+  final TextPalette text;
+  final SeparatorPalette separator;
+  final FillPalette fill;
+  final FunctionPalette function;
+  final MessagePalette message;
 
-  const SemanticColors({
+  const SemanticPalette({
     required this.accentBrand,
     required this.backgroundBase,
     required this.backgroundElevated,
@@ -445,9 +442,9 @@ class SemanticColors {
     required this.message,
   });
 
-  factory SemanticColors.from(Brightness brightness) {
+  factory SemanticPalette.from(Brightness brightness) {
     Color r(SemanticColor slot) => slot.resolve(brightness);
-    return SemanticColors(
+    return SemanticPalette(
       accentBrand: AccentBrand(
         primary: r(SemanticColor.accentBrandPrimary),
         secondary: r(SemanticColor.accentBrandSecondary),
@@ -474,22 +471,22 @@ class SemanticColors {
         tertiary: r(SemanticColor.backgroundMaterialTertiary),
         quaternary: r(SemanticColor.backgroundMaterialQuaternary),
       ),
-      text: TextColors(
+      text: TextPalette(
         primary: r(SemanticColor.textPrimary),
         secondary: r(SemanticColor.textSecondary),
         tertiary: r(SemanticColor.textTertiary),
         quaternary: r(SemanticColor.textQuaternary),
       ),
-      separator: SeparatorColors(
+      separator: SeparatorPalette(
         primary: r(SemanticColor.separatorPrimary),
         secondary: r(SemanticColor.separatorSecondary),
       ),
-      fill: FillColors(
+      fill: FillPalette(
         primary: r(SemanticColor.fillPrimary),
         secondary: r(SemanticColor.fillSecondary),
         tertiary: r(SemanticColor.fillTertiary),
       ),
-      function: FunctionColors(
+      function: FunctionPalette(
         neutral: FunctionNeutral(
           white: r(SemanticColor.functionNeutralWhite),
           black: r(SemanticColor.functionNeutralBlack),
@@ -510,69 +507,71 @@ class SemanticColors {
         ),
       ),
       message: brightness == Brightness.dark
-          ? _darkMessageColors
-          : _lightMessageColors,
+          ? _darkMessagePalette
+          : _lightMessagePalette,
     );
   }
 
-  static SemanticColors of(BuildContext context) {
+  static SemanticPalette of(BuildContext context) {
     return MediaQuery.platformBrightnessOf(context) == Brightness.dark
-        ? darkSemanticColors
-        : lightSemanticColors;
+        ? darkSemanticPalette
+        : lightSemanticPalette;
   }
 }
 
-final SemanticColors lightSemanticColors = SemanticColors.from(
+final SemanticPalette lightSemanticPalette = SemanticPalette.from(
   Brightness.light,
 );
 
-final SemanticColors darkSemanticColors = SemanticColors.from(Brightness.dark);
+final SemanticPalette darkSemanticPalette = SemanticPalette.from(
+  Brightness.dark,
+);
 
 /// Message-bubble colors are the one bundle without aliases: they are an
 /// Air-specific extension that the reference DS carries in its message-bubble
 /// pattern tokens rather than in the semantic palette.
-final MessageColors _lightMessageColors = MessageColors(
-  selfBackground: Primitives.neutral(NeutralShade.s150),
-  otherBackground: Primitives.neutral(NeutralShade.s100),
-  selfText: Primitives.neutral(NeutralShade.s1000),
-  otherText: Primitives.neutral(NeutralShade.s1000),
-  selfListPrefix: Primitives.neutral(NeutralShade.s800),
-  otherListPrefix: Primitives.neutral(NeutralShade.s800),
-  selfQuoteBorder: Primitives.chromatic(Hue.blue, Shade.s500),
-  otherQuoteBorder: Primitives.chromatic(Hue.blue, Shade.s500),
-  selfQuoteBackground: Primitives.chromatic(Hue.blue, Shade.s50),
-  otherQuoteBackground: Primitives.chromatic(Hue.blue, Shade.s50),
-  selfTableBorder: Primitives.neutral(NeutralShade.s300),
-  otherTableBorder: Primitives.neutral(NeutralShade.s300),
-  selfCheckboxBorder: Primitives.neutral(NeutralShade.s400),
-  otherCheckboxBorder: Primitives.neutral(NeutralShade.s400),
-  selfCheckboxFill: Primitives.neutral(NeutralShade.s200),
-  otherCheckboxFill: Primitives.neutral(NeutralShade.s200),
-  selfCheckboxCheck: Primitives.neutral(NeutralShade.s1000),
-  otherCheckboxCheck: Primitives.neutral(NeutralShade.s1000),
-  selfEditedLabel: Primitives.neutral(NeutralShade.s600),
-  otherEditedLabel: Primitives.neutral(NeutralShade.s600),
+final MessagePalette _lightMessagePalette = MessagePalette(
+  selfBackground: Primitive.neutral(NeutralShade.s150),
+  otherBackground: Primitive.neutral(NeutralShade.s100),
+  selfText: Primitive.neutral(NeutralShade.s1000),
+  otherText: Primitive.neutral(NeutralShade.s1000),
+  selfListPrefix: Primitive.neutral(NeutralShade.s800),
+  otherListPrefix: Primitive.neutral(NeutralShade.s800),
+  selfQuoteBorder: Primitive.chromatic(Hue.blue, Shade.s500),
+  otherQuoteBorder: Primitive.chromatic(Hue.blue, Shade.s500),
+  selfQuoteBackground: Primitive.chromatic(Hue.blue, Shade.s50),
+  otherQuoteBackground: Primitive.chromatic(Hue.blue, Shade.s50),
+  selfTableBorder: Primitive.neutral(NeutralShade.s300),
+  otherTableBorder: Primitive.neutral(NeutralShade.s300),
+  selfCheckboxBorder: Primitive.neutral(NeutralShade.s400),
+  otherCheckboxBorder: Primitive.neutral(NeutralShade.s400),
+  selfCheckboxFill: Primitive.neutral(NeutralShade.s200),
+  otherCheckboxFill: Primitive.neutral(NeutralShade.s200),
+  selfCheckboxCheck: Primitive.neutral(NeutralShade.s1000),
+  otherCheckboxCheck: Primitive.neutral(NeutralShade.s1000),
+  selfEditedLabel: Primitive.neutral(NeutralShade.s600),
+  otherEditedLabel: Primitive.neutral(NeutralShade.s600),
 );
 
-final MessageColors _darkMessageColors = MessageColors(
-  selfBackground: Primitives.neutral(NeutralShade.s850),
-  otherBackground: Primitives.neutral(NeutralShade.s900),
-  selfText: Primitives.neutral(NeutralShade.s0),
-  otherText: Primitives.neutral(NeutralShade.s0),
-  selfListPrefix: Primitives.neutral(NeutralShade.s200),
-  otherListPrefix: Primitives.neutral(NeutralShade.s200),
-  selfQuoteBorder: Primitives.chromatic(Hue.blue, Shade.s600),
-  otherQuoteBorder: Primitives.chromatic(Hue.blue, Shade.s600),
-  selfQuoteBackground: Primitives.chromatic(Hue.blue, Shade.s800),
-  otherQuoteBackground: Primitives.chromatic(Hue.blue, Shade.s800),
-  selfTableBorder: Primitives.neutral(NeutralShade.s800),
-  otherTableBorder: Primitives.neutral(NeutralShade.s800),
-  selfCheckboxBorder: Primitives.neutral(NeutralShade.s600),
-  otherCheckboxBorder: Primitives.neutral(NeutralShade.s600),
-  selfCheckboxFill: Primitives.neutral(NeutralShade.s700),
-  otherCheckboxFill: Primitives.neutral(NeutralShade.s700),
-  selfCheckboxCheck: Primitives.neutral(NeutralShade.s0),
-  otherCheckboxCheck: Primitives.neutral(NeutralShade.s0),
-  selfEditedLabel: Primitives.neutral(NeutralShade.s400),
-  otherEditedLabel: Primitives.neutral(NeutralShade.s400),
+final MessagePalette _darkMessagePalette = MessagePalette(
+  selfBackground: Primitive.neutral(NeutralShade.s850),
+  otherBackground: Primitive.neutral(NeutralShade.s900),
+  selfText: Primitive.neutral(NeutralShade.s0),
+  otherText: Primitive.neutral(NeutralShade.s0),
+  selfListPrefix: Primitive.neutral(NeutralShade.s200),
+  otherListPrefix: Primitive.neutral(NeutralShade.s200),
+  selfQuoteBorder: Primitive.chromatic(Hue.blue, Shade.s600),
+  otherQuoteBorder: Primitive.chromatic(Hue.blue, Shade.s600),
+  selfQuoteBackground: Primitive.chromatic(Hue.blue, Shade.s800),
+  otherQuoteBackground: Primitive.chromatic(Hue.blue, Shade.s800),
+  selfTableBorder: Primitive.neutral(NeutralShade.s800),
+  otherTableBorder: Primitive.neutral(NeutralShade.s800),
+  selfCheckboxBorder: Primitive.neutral(NeutralShade.s600),
+  otherCheckboxBorder: Primitive.neutral(NeutralShade.s600),
+  selfCheckboxFill: Primitive.neutral(NeutralShade.s700),
+  otherCheckboxFill: Primitive.neutral(NeutralShade.s700),
+  selfCheckboxCheck: Primitive.neutral(NeutralShade.s0),
+  otherCheckboxCheck: Primitive.neutral(NeutralShade.s0),
+  selfEditedLabel: Primitive.neutral(NeutralShade.s400),
+  otherEditedLabel: Primitive.neutral(NeutralShade.s400),
 );

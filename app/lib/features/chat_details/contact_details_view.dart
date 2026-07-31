@@ -240,7 +240,7 @@ class _AddContactDialog extends HookWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return AppDialog(
       child: Column(
@@ -258,7 +258,7 @@ class _AddContactDialog extends HookWidget {
 
           Text(
             loc.addContactDialog_content(displayName, groupTitle),
-            style: typeScale.body.regular.style(color: colors.text.secondary),
+            style: typeScale.body.regular.style(color: palette.text.secondary),
           ),
 
           const SizedBox(height: S.s24),
@@ -283,16 +283,16 @@ class _AddContactDialog extends HookWidget {
                 child: AppDialogProgressButton(
                   onPressed: (inProgress) =>
                       _handleSendChatRequest(context, inProgress),
-                  progressColor: colors.function.neutral.toggleWhite,
+                  progressColor: palette.function.neutral.toggleWhite,
                   style: ButtonStyle(
                     backgroundColor: WidgetStatePropertyAll(
-                      colors.accentBrand.primary,
+                      palette.accentBrand.primary,
                     ),
                     overlayColor: WidgetStatePropertyAll(
-                      colors.accentBrand.primary,
+                      palette.accentBrand.primary,
                     ),
                     foregroundColor: WidgetStatePropertyAll(
-                      colors.function.neutral.toggleWhite,
+                      palette.function.neutral.toggleWhite,
                     ),
                   ),
                   child: Text(

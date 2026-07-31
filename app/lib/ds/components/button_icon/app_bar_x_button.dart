@@ -20,14 +20,14 @@ class AppBarXButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Padding(
       padding: const EdgeInsets.only(right: S.s24),
       child: GlassCircleButton(
         icon: AppIcon.x(
           size: 20,
-          color: foregroundColor ?? colors.text.primary,
+          color: foregroundColor ?? palette.text.primary,
         ),
         color: backgroundColor,
         hitTargetSize: 48,

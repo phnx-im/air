@@ -74,8 +74,8 @@ class _ResizablePanelState extends State<ResizablePanel> {
                         shape: BoxShape.rectangle,
                         border: Border(
                           left: BorderSide(
-                            width: Strokes.px1,
-                            color: SemanticColors.of(
+                            width: StrokeWidth.px1,
+                            color: SemanticPalette.of(
                               context,
                             ).separator.secondary,
                           ),

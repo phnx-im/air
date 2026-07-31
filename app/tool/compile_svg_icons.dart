@@ -114,7 +114,7 @@ Future<void> main() async {
   buffer.writeln('  @override');
   buffer.writeln('  Widget build(BuildContext context) {');
   buffer.writeln(
-    '    final color = this.color ?? SemanticColors.of(context).text.primary;',
+    '    final color = this.color ?? SemanticPalette.of(context).text.primary;',
   );
   buffer.writeln('    return createCompatVectorGraphic(');
   buffer.writeln('      loader: compiledSvgLoader(type),');

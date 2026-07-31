@@ -40,38 +40,34 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     final foregroundColor = switch ((type, state, tone)) {
       (.primary, .inactive, .danger) =>
-        colors.function.neutral.white.withValues(alpha: Opacities.alpha50),
+        palette.function.neutral.white.withValues(alpha: Alpha.a50),
       (.primary, .inactive, .normal) =>
-        colors.function.neutral.toggleWhite.withValues(
-          alpha: Opacities.alpha50,
-        ),
-      (.primary, _, .danger) => colors.function.neutral.white,
-      (.primary, _, .normal) => colors.function.neutral.toggleWhite,
-      (.secondary, .inactive, .danger) => colors.function.danger.withValues(
-        alpha: Opacities.alpha50,
+        palette.function.neutral.toggleWhite.withValues(alpha: Alpha.a50),
+      (.primary, _, .danger) => palette.function.neutral.white,
+      (.primary, _, .normal) => palette.function.neutral.toggleWhite,
+      (.secondary, .inactive, .danger) => palette.function.danger.withValues(
+        alpha: Alpha.a50,
       ),
       (.secondary, .inactive, _) =>
-        colors.function.neutral.toggleBlack.withValues(
-          alpha: Opacities.alpha50,
-        ),
-      (.secondary, _, .danger) => colors.function.danger,
-      (.secondary, _, _) => colors.function.neutral.toggleBlack,
+        palette.function.neutral.toggleBlack.withValues(alpha: Alpha.a50),
+      (.secondary, _, .danger) => palette.function.danger,
+      (.secondary, _, _) => palette.function.neutral.toggleBlack,
     };
 
     final backgroundColor = switch ((type, tone)) {
-      (.primary, .danger) => colors.function.danger,
-      (.primary, .normal) => colors.accentBrand.primary,
-      (.secondary, _) => colors.accentBrand.tertiary,
+      (.primary, .danger) => palette.function.danger,
+      (.primary, .normal) => palette.accentBrand.primary,
+      (.secondary, _) => palette.accentBrand.tertiary,
     };
 
     const Border? border = null;
 
     final iconColor = switch ((type, state)) {
-      (.secondary, _) => colors.text.primary,
+      (.secondary, _) => palette.text.primary,
       _ => foregroundColor,
     };
 
@@ -91,8 +87,8 @@ class AppButton extends StatelessWidget {
     };
 
     final borderRadius = switch (size) {
-      AppButtonSize.small => Radii.px8,
-      AppButtonSize.large => Radii.px12,
+      AppButtonSize.small => CornerRadius.px8,
+      AppButtonSize.large => CornerRadius.px12,
     };
 
     return OutlinedButton(
@@ -130,7 +126,7 @@ class AppButton extends StatelessWidget {
                 height: iconSize.height,
                 child: CircularProgressIndicator(
                   color: foregroundColor,
-                  strokeWidth: Strokes.px2,
+                  strokeWidth: StrokeWidth.px2,
                 ),
               ),
 

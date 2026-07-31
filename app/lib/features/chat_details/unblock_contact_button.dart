@@ -26,7 +26,7 @@ class UnblockContactButton extends StatelessWidget {
 
     final isDesktop = DeviceType.isDesktop;
 
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return OutlinedButton(
       onPressed: () => _unblock(context),
@@ -37,7 +37,7 @@ class UnblockContactButton extends StatelessWidget {
       ),
       child: Text(
         loc.unblockContactButton_text,
-        style: typeScale.body.regular.style(color: colors.text.primary),
+        style: typeScale.body.regular.style(color: palette.text.primary),
       ),
     );
   }

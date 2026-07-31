@@ -19,8 +19,8 @@ class ContextMenuSeparator extends ContextMenuEntry {
       padding: const EdgeInsets.symmetric(vertical: S.s8),
       child: Divider(
         height: 0,
-        thickness: Strokes.px1,
-        color: SemanticColors.of(context).separator.primary,
+        thickness: StrokeWidth.px1,
+        color: SemanticPalette.of(context).separator.primary,
       ),
     );
   }
@@ -66,10 +66,10 @@ class ContextMenuItem extends ContextMenuEntry {
   @override
   Widget build(BuildContext context) {
     final leadingWidget = buildLeading(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final foregroundColor = isDestructive
-        ? colors.function.danger
-        : colors.text.primary;
+        ? palette.function.danger
+        : palette.text.primary;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: TextButton(

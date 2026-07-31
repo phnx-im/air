@@ -16,13 +16,13 @@ import 'package:air/ds/components/emoji/centered_emoji.dart';
 // Picker metrics.
 const double _emojiCellSize = 52;
 const double _emojiGlyphSize = 32;
-const double _panelRadius = Radii.px20;
+const double _panelRadius = CornerRadius.px20;
 const double _panelPadding = S.s16;
 const double _searchHeight = 40;
 
 /// Border for the search field.
 final _pillBorder = OutlineInputBorder(
-  borderRadius: BorderRadius.circular(Radii.full),
+  borderRadius: BorderRadius.circular(CornerRadius.full),
   borderSide: BorderSide.none,
 );
 
@@ -136,22 +136,22 @@ class _SearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     return SizedBox(
       height: _searchHeight,
       child: TextField(
         controller: controller,
         autofocus: true,
         textInputAction: TextInputAction.search,
-        style: typeScale.body.regular.style(color: colors.text.primary),
+        style: typeScale.body.regular.style(color: palette.text.primary),
         decoration: InputDecoration(
           filled: true,
-          fillColor: colors.fill.tertiary,
+          fillColor: palette.fill.tertiary,
           hintText: 'Search emoji',
-          hintStyle: typeScale.body.regular.style(color: colors.text.tertiary),
+          hintStyle: typeScale.body.regular.style(color: palette.text.tertiary),
           prefixIcon: Padding(
             padding: const EdgeInsets.only(left: S.s12, right: S.s8),
-            child: AppIcon.search(size: 18, color: colors.text.tertiary),
+            child: AppIcon.search(size: 18, color: palette.text.tertiary),
           ),
           prefixIconConstraints: const BoxConstraints(
             minWidth: 0,
@@ -180,11 +180,11 @@ class _EmojiComponentButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     return GlassCircleButton(
       size: _searchHeight,
       onPressed: onPressed,
-      color: colors.fill.tertiary,
+      color: palette.fill.tertiary,
       enableBackdropBlur: false,
       shadows: const [],
       icon: CenteredEmoji(
@@ -203,7 +203,7 @@ class _SkinToneStrip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     return Row(
       children: [
         for (final tone in EmojiSkinVariation.values)
@@ -215,7 +215,7 @@ class _SkinToneStrip extends StatelessWidget {
                 enableBackdropBlur: false,
                 shadows: const [],
                 color: tone == selected
-                    ? colors.backgroundBase.secondary
+                    ? palette.backgroundBase.secondary
                     : Colors.transparent,
                 icon: CenteredEmoji(
                   emoji: '\u{270B}${tone.modifier}',
@@ -271,15 +271,15 @@ class EmojiPickerPanel extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     return Container(
       width: size.width,
       height: size.height,
       padding: const EdgeInsets.all(_panelPadding),
       decoration: BoxDecoration(
-        color: colors.backgroundElevated.primary,
+        color: palette.backgroundElevated.primary,
         borderRadius: BorderRadius.circular(_panelRadius),
-        boxShadow: Effects.elevation(Elevation.small),
+        boxShadow: Effect.elevation(Elevation.small),
       ),
       child: EmojiPicker(
         onSelected: onSelected,
@@ -302,7 +302,7 @@ Future<String?> showEmojiPickerPopover({
     context: context,
     barrierDismissible: true,
     barrierColor:
-        barrierColor ?? SemanticColors.of(context).function.neutral.scrim,
+        barrierColor ?? SemanticPalette.of(context).function.neutral.scrim,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     transitionDuration: const Duration(milliseconds: 150),
     pageBuilder: (context, animation, secondaryAnimation) =>

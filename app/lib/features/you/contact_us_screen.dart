@@ -30,7 +30,7 @@ class ContactUsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     final theme = Theme.of(context);
 
@@ -42,13 +42,13 @@ class ContactUsScreen extends StatelessWidget {
           style: typeScale.body.regular.style(weight: Weight.emphasized),
         ),
         leading: AppBarBackButton(
-          backgroundColor: colors.backgroundElevated.primary,
+          backgroundColor: palette.backgroundElevated.primary,
         ),
         actions: null,
-        backgroundColor: colors.backgroundBase.secondary,
+        backgroundColor: palette.backgroundBase.secondary,
         centerTitle: true,
       ),
-      backgroundColor: colors.backgroundBase.secondary,
+      backgroundColor: palette.backgroundBase.secondary,
       body: SafeArea(
         minimum: const EdgeInsets.only(bottom: S.s32 + S.s8),
         child: Padding(
@@ -71,7 +71,7 @@ class ContactUsScreen extends StatelessWidget {
                     enabledBorder: _outlineInputBorder,
                     focusedBorder: _outlineInputBorder,
                     filled: true,
-                    fillColor: colors.backgroundBase.tertiary,
+                    fillColor: palette.backgroundBase.tertiary,
                   ),
                 ),
                 child: _EmailForm(
@@ -186,7 +186,7 @@ class _EmailForm extends HookWidget {
                           width: 18,
                           height: 18,
                           child: CircularProgressIndicator(
-                            strokeWidth: Strokes.px2,
+                            strokeWidth: StrokeWidth.px2,
                           ),
                         ),
                       ),
@@ -206,13 +206,13 @@ class _EmailForm extends HookWidget {
 
             // Submit Button
             Opacity(
-              opacity: isUploadingLogs.value ? Opacities.alpha40 : 1.0,
+              opacity: isUploadingLogs.value ? Alpha.a40 : 1.0,
               child: OutlinedButton(
                 style: const ButtonStyle(
                   shape: WidgetStatePropertyAll(
                     RoundedRectangleBorder(
                       borderRadius: BorderRadius.all(
-                        Radius.circular(Radii.px12),
+                        Radius.circular(CornerRadius.px12),
                       ),
                     ),
                   ),
@@ -290,6 +290,6 @@ class _UrlLauncher implements UrlLauncher {
 }
 
 const _outlineInputBorder = OutlineInputBorder(
-  borderRadius: BorderRadius.all(Radius.circular(Radii.px16)),
+  borderRadius: BorderRadius.all(Radius.circular(CornerRadius.px16)),
   borderSide: BorderSide(width: 0, style: BorderStyle.none),
 );

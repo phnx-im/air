@@ -37,12 +37,12 @@ class LinkedDevicesView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final platform = Theme.of(context).platform;
 
     return AppScaffold(
       title: loc.linkedDevicesScreen_title,
-      backgroundColor: colors.backgroundBase.primary,
+      backgroundColor: palette.backgroundBase.primary,
       child: Align(
         alignment: Alignment.topCenter,
         child: Container(
@@ -57,7 +57,7 @@ class LinkedDevicesView extends HookWidget {
                   loc.linkedDevicesScreen_thisDevice,
                   style: typeScale.body.regular.style(
                     weight: Weight.emphasized,
-                    color: colors.text.secondary,
+                    color: palette.text.secondary,
                   ),
                 ),
                 const SizedBox(height: S.s8),
@@ -70,7 +70,7 @@ class LinkedDevicesView extends HookWidget {
                   loc.linkedDevicesScreen_linkedDevices,
                   style: typeScale.body.regular.style(
                     weight: Weight.emphasized,
-                    color: colors.text.secondary,
+                    color: palette.text.secondary,
                   ),
                 ),
                 const SizedBox(height: S.s8),
@@ -88,7 +88,9 @@ class LinkedDevicesView extends HookWidget {
                 const SizedBox(height: S.s8),
                 Text(
                   loc.linkedDevicesScreen_editNameHint,
-                  style: typeScale.body.xs.style(color: colors.text.quaternary),
+                  style: typeScale.body.xs.style(
+                    color: palette.text.quaternary,
+                  ),
                 ),
                 const SizedBox(height: S.s24),
                 AppButton(
@@ -106,7 +108,7 @@ class LinkedDevicesView extends HookWidget {
                     loc.linkedDevicesScreen_deviceCount(5, 5),
                     textAlign: .center,
                     style: typeScale.body.xs.style(
-                      color: colors.text.quaternary,
+                      color: palette.text.quaternary,
                     ),
                   ),
                 ),
@@ -128,8 +130,8 @@ class _EncryptionNotice extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
-    final textStyle = typeScale.body.xs.style(color: colors.text.quaternary);
+    final palette = SemanticPalette.of(context);
+    final textStyle = typeScale.body.xs.style(color: palette.text.quaternary);
 
     return Column(
       mainAxisAlignment: .center,
@@ -139,7 +141,7 @@ class _EncryptionNotice extends StatelessWidget {
         GestureDetector(
           child: Text(
             loc.linkedDevicesScreen_encryptionNotice_learnMore,
-            style: textStyle.copyWith(color: colors.function.link),
+            style: textStyle.copyWith(color: palette.function.link),
           ),
           onTap: () => showBottomSheetDialog(
             context: context,
@@ -167,15 +169,15 @@ class _SingleDevice extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toString();
     final dateFormat = DateFormat.yMMMMd(locale).addPattern("'at'").add_jm();
 
     return Container(
       decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(Radii.px16),
-        color: colors.backgroundBase.secondary,
+        borderRadius: BorderRadius.circular(CornerRadius.px16),
+        color: palette.backgroundBase.secondary,
       ),
       padding: const EdgeInsets.all(S.s12),
       child: Row(
@@ -184,7 +186,7 @@ class _SingleDevice extends StatelessWidget {
           AppIconBadge(
             type: .laptop,
             size: 24,
-            backgroundColor: colors.backgroundBase.quaternary,
+            backgroundColor: palette.backgroundBase.quaternary,
           ),
           Expanded(
             child: GestureDetector(
@@ -198,14 +200,16 @@ class _SingleDevice extends StatelessWidget {
                   Text(
                     deviceName,
                     style: typeScale.body.regular.style(
-                      color: colors.text.primary,
+                      color: palette.text.primary,
                     ),
                   ),
                   Text(
                     loc.linkedDevicesScreen_linkedOn(
                       dateFormat.format(linkedAt),
                     ),
-                    style: typeScale.body.xs.style(color: colors.text.tertiary),
+                    style: typeScale.body.xs.style(
+                      color: palette.text.tertiary,
+                    ),
                   ),
                 ],
               ),
@@ -213,7 +217,7 @@ class _SingleDevice extends StatelessWidget {
           ),
           GestureDetector(
             onTap: () => _unlinkDevice(context),
-            child: AppIcon.trash(color: colors.function.danger, size: 24),
+            child: AppIcon.trash(color: palette.function.danger, size: 24),
           ),
         ],
       ),

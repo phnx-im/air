@@ -27,7 +27,7 @@ class DeleteContactButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     final isDesktop = DeviceType.isDesktop;
 
@@ -37,13 +37,13 @@ class DeleteContactButton extends StatelessWidget {
         minimumSize: WidgetStatePropertyAll(
           Size(isDesktop ? 320 : double.infinity, 0),
         ),
-        backgroundColor: WidgetStatePropertyAll(colors.function.danger),
-        overlayColor: WidgetStatePropertyAll(colors.function.danger),
+        backgroundColor: WidgetStatePropertyAll(palette.function.danger),
+        overlayColor: WidgetStatePropertyAll(palette.function.danger),
       ),
       child: Text(
         loc.deleteContactButton_text,
         style: typeScale.body.regular.style(
-          color: colors.function.neutral.white,
+          color: palette.function.neutral.white,
         ),
       ),
     );

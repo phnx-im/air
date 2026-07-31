@@ -24,22 +24,22 @@ void showErrorBannerStandalone(
     return;
   }
 
-  final colors = SemanticColors.of(context);
+  final palette = SemanticPalette.of(context);
   final loc = AppLocalizations.of(context);
 
   scaffoldMessengerKey.currentState?.showMaterialBanner(
     MaterialBanner(
-      backgroundColor: colors.function.danger,
+      backgroundColor: palette.function.danger,
       elevation: 0,
       dividerColor: Colors.transparent,
       leading: AppIcon.circleAlert(
         size: 32,
-        color: colors.function.neutral.white,
+        color: palette.function.neutral.white,
       ),
       padding: const EdgeInsets.all(20),
       content: Text(
         errorDescription(loc),
-        style: TextStyle(color: colors.function.neutral.white),
+        style: TextStyle(color: palette.function.neutral.white),
       ),
       actions: [
         Builder(
@@ -47,7 +47,7 @@ void showErrorBannerStandalone(
             return TextButton(
               child: Text(
                 loc.errorBanner_ok,
-                style: TextStyle(color: colors.function.neutral.white),
+                style: TextStyle(color: palette.function.neutral.white),
               ),
               onPressed: () {
                 ScaffoldMessenger.of(context).hideCurrentMaterialBanner();

@@ -53,8 +53,8 @@ class YouView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
-    final bgColor = colors.backgroundBase.primary;
+    final palette = SemanticPalette.of(context);
+    final bgColor = palette.backgroundBase.primary;
 
     final content = Padding(
       padding: const EdgeInsets.symmetric(horizontal: S.s16),
@@ -94,7 +94,7 @@ class YouView extends StatelessWidget {
           style: typeScale.body.regular.style(weight: Weight.emphasized),
         ),
         leading: AppBarBackButton(
-          backgroundColor: colors.backgroundElevated.primary,
+          backgroundColor: palette.backgroundElevated.primary,
         ),
         automaticallyImplyLeading: false,
         actions: null,
@@ -263,7 +263,7 @@ class _UsernamesSection extends StatelessWidget {
 
     final loc = AppLocalizations.of(context);
 
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -288,7 +288,7 @@ class _UsernamesSection extends StatelessWidget {
                     },
                     child: AppIcon.trash(
                       size: 24,
-                      color: colors.function.danger,
+                      color: palette.function.danger,
                     ),
                   ),
                 ],
@@ -308,7 +308,7 @@ class _UsernamesSection extends StatelessWidget {
               children: [
                 Text(
                   loc.userSettingsScreen_usernamePlaceholder,
-                  style: TextStyle(color: colors.text.quaternary),
+                  style: TextStyle(color: palette.text.quaternary),
                 ),
               ],
             ),
@@ -388,7 +388,7 @@ class _InviteCodes extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return _FieldContainer(
       onTap: () {
@@ -405,7 +405,7 @@ class _InviteCodes extends StatelessWidget {
       },
       child: Row(
         children: [
-          AppIcon.users(color: colors.text.secondary, size: 24),
+          AppIcon.users(color: palette.text.secondary, size: 24),
 
           const SizedBox(width: S.s12),
 
@@ -438,19 +438,19 @@ class _InvitationCodesBadge extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Container(
       width: 40,
       height: 24,
       decoration: BoxDecoration(
-        color: colors.function.success.primary,
-        borderRadius: BorderRadius.circular(Radii.full),
+        color: palette.function.success.primary,
+        borderRadius: BorderRadius.circular(CornerRadius.full),
       ),
       child: Center(
         child: Text(
           availableInvitationCodes.toString(),
-          style: typeScale.body.xs.style(color: colors.function.neutral.white),
+          style: typeScale.body.xs.style(color: palette.function.neutral.white),
         ),
       ),
     );
@@ -462,7 +462,7 @@ class _LanguageSettings extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return LanguagePickerMenu(
       onLocaleSelected: (locale) async {
@@ -480,7 +480,7 @@ class _LanguageSettings extends StatelessWidget {
           onTap: onTap,
           child: Row(
             children: [
-              AppIcon.globe(color: colors.text.secondary, size: 24),
+              AppIcon.globe(color: palette.text.secondary, size: 24),
               const SizedBox(width: S.s12),
               Expanded(child: Text(option.label)),
             ],
@@ -497,7 +497,7 @@ class _Devices extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return _FieldContainer(
       onTap: () {
@@ -510,7 +510,7 @@ class _Devices extends StatelessWidget {
       },
       child: Row(
         children: [
-          AppIcon.laptop(color: colors.text.secondary, size: 24),
+          AppIcon.laptop(color: palette.text.secondary, size: 24),
           const SizedBox(width: S.s12),
           Expanded(child: Text(loc.userSettingsScreen_devices)),
         ],
@@ -583,7 +583,7 @@ class _DesktopSettings extends HookWidget {
               divisions: ((300 - 50) / 10).truncate(),
               value: interfaceScale.value,
               label: interfaceScale.value.truncate().toString(),
-              activeColor: SemanticColors.of(context).text.secondary,
+              activeColor: SemanticPalette.of(context).text.secondary,
               onChanged: (value) => interfaceScale.value = value,
               onChangeEnd: (value) {
                 context.read<UserSettingsCubit>().setInterfaceScale(
@@ -703,7 +703,7 @@ class _AccountSection extends StatelessWidget {
               Text(
                 loc.userSettingsScreen_deleteAccount,
                 style: typeScale.body.regular.style(
-                  color: SemanticColors.of(context).function.danger,
+                  color: SemanticPalette.of(context).function.danger,
                 ),
               ),
             ],
@@ -726,7 +726,7 @@ class FieldLabel extends StatelessWidget {
       child: Text(
         text,
         style: typeScale.body.xs.style(
-          color: SemanticColors.of(context).text.quaternary,
+          color: SemanticPalette.of(context).text.quaternary,
         ),
       ),
     );
@@ -746,7 +746,7 @@ class _SectionHeader extends StatelessWidget {
         text,
         style: typeScale.body.regular.style(
           weight: Weight.emphasized,
-          color: SemanticColors.of(context).text.secondary,
+          color: SemanticPalette.of(context).text.secondary,
         ),
       ),
     );
@@ -813,19 +813,19 @@ class _FieldContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return DefaultTextStyle(
       style: Theme.of(context).textTheme.bodyLarge!.copyWith(
-        color: colors.text.primary,
+        color: palette.text.primary,
         fontSize: typeScale.body.regular.fontSize,
       ),
       child: InkWell(
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            color: colors.backgroundBase.secondary,
-            borderRadius: BorderRadius.circular(Radii.px16),
+            color: palette.backgroundBase.secondary,
+            borderRadius: BorderRadius.circular(CornerRadius.px16),
           ),
           padding: const EdgeInsets.symmetric(horizontal: S.s12),
           height: height,

@@ -48,7 +48,7 @@ class LinkDeviceModal extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final page = useState(_LinkPage.chooser);
     // The linking code being driven on the [_LinkPage.linking] page.
     final sessionId = useState<String?>(null);
@@ -57,7 +57,7 @@ class LinkDeviceModal extends HookWidget {
 
     return AppDialog(
       maxWidth: 500,
-      backgroundColor: colors.backgroundBase.quaternary,
+      backgroundColor: palette.backgroundBase.quaternary,
       child: switch (page.value) {
         _LinkPage.chooser => _LinkChooserPage(
           onScanQrCode: () => page.value = _LinkPage.scanQrCode,
@@ -96,7 +96,7 @@ class _LinkModalHeader extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Stack(
       alignment: Alignment.center,
@@ -105,8 +105,8 @@ class _LinkModalHeader extends StatelessWidget {
           Align(
             alignment: Alignment.centerLeft,
             child: GlassCircleButton(
-              icon: AppIcon.arrowLeft(size: 20, color: colors.text.primary),
-              color: colors.accentBrand.quaternary,
+              icon: AppIcon.arrowLeft(size: 20, color: palette.text.primary),
+              color: palette.accentBrand.quaternary,
               onPressed: onBack,
             ),
           ),
@@ -133,10 +133,10 @@ class _LinkChooserPage extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
 
-    final labelStyle = typeScale.body.s.style(color: colors.text.secondary);
+    final labelStyle = typeScale.body.s.style(color: palette.text.secondary);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -175,7 +175,7 @@ class _LinkChooserPage extends StatelessWidget {
         const SizedBox(height: S.s16),
         Text(
           loc.linkedDevicesScreen_linkDialog_warning,
-          style: typeScale.body.xs.style(color: colors.function.danger),
+          style: typeScale.body.xs.style(color: palette.function.danger),
         ),
       ],
     );
@@ -215,7 +215,7 @@ class _ScanQrCodePageState extends State<_ScanQrCodePage> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
 
     return Column(
@@ -230,9 +230,9 @@ class _ScanQrCodePageState extends State<_ScanQrCodePage> {
         AspectRatio(
           aspectRatio: 1,
           child: ClipRRect(
-            borderRadius: BorderRadius.circular(Radii.px16),
+            borderRadius: BorderRadius.circular(CornerRadius.px16),
             child: ColoredBox(
-              color: colors.backgroundBase.secondary,
+              color: palette.backgroundBase.secondary,
               child: _isQrCodeScannerSupported
                   ? MobileScanner(
                       tapToFocus: true,
@@ -243,7 +243,7 @@ class _ScanQrCodePageState extends State<_ScanQrCodePage> {
                   : Center(
                       child: AppIcon.qrCode(
                         size: 64,
-                        color: colors.text.quaternary,
+                        color: palette.text.quaternary,
                       ),
                     ),
             ),
@@ -263,12 +263,12 @@ class _CornerBrackets extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Padding(
       padding: const EdgeInsets.all(S.s24),
       child: CustomPaint(
-        painter: _CornerBracketsPainter(color: colors.text.quaternary),
+        painter: _CornerBracketsPainter(color: palette.text.quaternary),
         child: child ?? const SizedBox.expand(),
       ),
     );
@@ -283,11 +283,11 @@ class _ScannerPlaceholder extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return _CornerBrackets(
       child: Center(
-        child: AppIcon.camera(size: 32, color: colors.text.quaternary),
+        child: AppIcon.camera(size: 32, color: palette.text.quaternary),
       ),
     );
   }
@@ -391,12 +391,12 @@ class _NumericCodePage extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
     final controller = useTextEditingController();
 
     final codeStyle = typeScale.header.xl
-        .style(weight: Weight.emphasized, color: colors.text.primary)
+        .style(weight: Weight.emphasized, color: palette.text.primary)
         .copyWith(
           fontFeatures: const [FontFeature.tabularFigures()],
           letterSpacing: 4,
@@ -418,7 +418,7 @@ class _NumericCodePage extends HookWidget {
         const SizedBox(height: S.s24),
         Text(
           loc.linkedDevicesScreen_linkDialog_numericCodeInstructions,
-          style: typeScale.body.s.style(color: colors.text.secondary),
+          style: typeScale.body.s.style(color: palette.text.secondary),
         ),
         const SizedBox(height: S.s16),
         TextField(
@@ -434,13 +434,13 @@ class _NumericCodePage extends HookWidget {
           style: codeStyle,
           decoration: appDialogInputDecoration.copyWith(
             filled: true,
-            fillColor: colors.backgroundBase.secondary,
+            fillColor: palette.backgroundBase.secondary,
             contentPadding: const EdgeInsets.symmetric(
               vertical: S.s24,
               horizontal: S.s8,
             ),
             hintText: "0000 0000",
-            hintStyle: codeStyle.copyWith(color: colors.text.quaternary),
+            hintStyle: codeStyle.copyWith(color: palette.text.quaternary),
           ),
         ),
         const SizedBox(height: S.s24),
@@ -561,7 +561,7 @@ class _LinkStatusView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -572,7 +572,7 @@ class _LinkStatusView extends StatelessWidget {
         Text(
           message,
           textAlign: TextAlign.center,
-          style: typeScale.body.s.style(color: colors.text.secondary),
+          style: typeScale.body.s.style(color: palette.text.secondary),
         ),
         const SizedBox(height: S.s24),
         const Center(child: CircularProgressIndicator()),
@@ -596,7 +596,7 @@ class _LinkErrorView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -607,7 +607,7 @@ class _LinkErrorView extends StatelessWidget {
         Text(
           message,
           textAlign: TextAlign.center,
-          style: typeScale.body.xs.style(color: colors.text.primary),
+          style: typeScale.body.xs.style(color: palette.text.primary),
         ),
         const SizedBox(height: S.s24),
         AppButton(
@@ -628,7 +628,7 @@ class _LinkDeviceName extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Column(
       spacing: S.s8,
@@ -636,8 +636,8 @@ class _LinkDeviceName extends StatelessWidget {
       children: [
         Container(
           decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(Radii.px16),
-            color: colors.backgroundBase.secondary,
+            borderRadius: BorderRadius.circular(CornerRadius.px16),
+            color: palette.backgroundBase.secondary,
           ),
           padding: const EdgeInsets.only(left: S.s12, right: S.s12),
           child: Row(
@@ -664,7 +664,7 @@ class _LinkDeviceName extends StatelessWidget {
         ),
         Text(
           loc.linkingDeviceScreen_linking_confirm_edit_subtitle,
-          style: typeScale.body.xs.style(color: colors.text.tertiary),
+          style: typeScale.body.xs.style(color: palette.text.tertiary),
         ),
       ],
     );
@@ -682,7 +682,7 @@ class _LinkConfirmView extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final checked = useState(false);
 
     final platform = Theme.of(context).platform;
@@ -701,12 +701,12 @@ class _LinkConfirmView extends HookWidget {
         const SizedBox(height: S.s16),
         Text(
           loc.linkingDeviceScreen_linking_confirm_body,
-          style: typeScale.body.s.style(color: colors.function.danger),
+          style: typeScale.body.s.style(color: palette.function.danger),
         ),
         const SizedBox(height: S.s16),
         InkWell(
           onTap: () => checked.value = !checked.value,
-          borderRadius: BorderRadius.circular(Radii.px8),
+          borderRadius: BorderRadius.circular(CornerRadius.px8),
           child: Row(
             children: [
               Checkbox(
@@ -716,7 +716,7 @@ class _LinkConfirmView extends HookWidget {
               Expanded(
                 child: Text(
                   loc.linkingDeviceScreen_linking_confirm_checkbox,
-                  style: typeScale.body.s.style(color: colors.text.primary),
+                  style: typeScale.body.s.style(color: palette.text.primary),
                 ),
               ),
             ],

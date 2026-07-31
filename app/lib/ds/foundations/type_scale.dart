@@ -107,7 +107,7 @@ class TypeScale {
 
   /// Build a typography bundle for the given operating system.
   factory TypeScale.forPlatform(TargetPlatform os) {
-    final defaults = TypeScaleDefaults.forPlatform(os);
+    final defaults = TypeScaleConfig.forPlatform(os);
     return TypeScale.build(
       os: os,
       base: defaults.base,
@@ -201,8 +201,8 @@ class TypeScale {
 
 /// Default base / min / max font sizes for a [TargetPlatform]'s typescale.
 @immutable
-class TypeScaleDefaults {
-  const TypeScaleDefaults({
+class TypeScaleConfig {
+  const TypeScaleConfig({
     required this.base,
     required this.min,
     required this.max,
@@ -212,16 +212,13 @@ class TypeScaleDefaults {
   final double max;
 
   /// Per-OS body baseline, seeded from each platform's HIG/design guidelines.
-  static TypeScaleDefaults forPlatform(TargetPlatform os) => switch (os) {
-    TargetPlatform.iOS => const TypeScaleDefaults(base: 17, min: 12, max: 48),
-    TargetPlatform.android || TargetPlatform.fuchsia => const TypeScaleDefaults(
-      base: 16,
-      min: 12,
-      max: 48,
-    ),
+  static TypeScaleConfig forPlatform(TargetPlatform os) => switch (os) {
+    TargetPlatform.iOS => const TypeScaleConfig(base: 17, min: 12, max: 48),
+    TargetPlatform.android ||
+    TargetPlatform.fuchsia => const TypeScaleConfig(base: 16, min: 12, max: 48),
     TargetPlatform.macOS ||
     TargetPlatform.windows ||
-    TargetPlatform.linux => const TypeScaleDefaults(base: 14, min: 11, max: 40),
+    TargetPlatform.linux => const TypeScaleConfig(base: 14, min: 11, max: 40),
   };
 }
 

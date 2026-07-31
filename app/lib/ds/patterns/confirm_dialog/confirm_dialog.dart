@@ -31,7 +31,7 @@ class ConfirmDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final cancel = this.cancel;
 
     return AppDialog(
@@ -50,7 +50,7 @@ class ConfirmDialog extends StatelessWidget {
 
           Text(
             message,
-            style: typeScale.body.regular.style(color: colors.text.secondary),
+            style: typeScale.body.regular.style(color: palette.text.secondary),
           ),
 
           const SizedBox(height: S.s24),

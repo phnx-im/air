@@ -64,10 +64,10 @@ void main() {
   });
 
   group('Chat List Product Shots', () {
-    final backgroundColor = Primitives.neutral(NeutralShade.s100);
-    final titleColor = Primitives.neutral(NeutralShade.s800);
-    final subtitleColor = Primitives.neutral(NeutralShade.s600);
-    final frameColor = Primitives.neutral(NeutralShade.s300);
+    final backgroundColor = Primitive.neutral(NeutralShade.s100);
+    final titleColor = Primitive.neutral(NeutralShade.s800);
+    final subtitleColor = Primitive.neutral(NeutralShade.s600);
+    final frameColor = Primitive.neutral(NeutralShade.s300);
     const title = 'Secure messaging\nfor everyone.';
     const subtitle = 'Everything in Air is\nend-to-end encrypted.';
 
@@ -206,10 +206,10 @@ void main() {
   });
 
   group("Private Chat", () {
-    final backgroundColor = Primitives.chromatic(Hue.orange, Shade.s50);
-    final titleColor = Primitives.chromatic(Hue.orange, Shade.s800);
-    final subtitleColor = Primitives.chromatic(Hue.orange, Shade.s600);
-    final frameColor = Primitives.chromatic(Hue.orange, Shade.s300);
+    final backgroundColor = Primitive.chromatic(Hue.orange, Shade.s50);
+    final titleColor = Primitive.chromatic(Hue.orange, Shade.s800);
+    final subtitleColor = Primitive.chromatic(Hue.orange, Shade.s600);
+    final frameColor = Primitive.chromatic(Hue.orange, Shade.s300);
     const title = 'Connect with friends.';
     const subtitle = 'Send messages in private chats.';
 
@@ -364,10 +364,10 @@ void main() {
   });
 
   group("Group Chat", () {
-    final backgroundColor = Primitives.chromatic(Hue.blue, Shade.s50);
-    final titleColor = Primitives.chromatic(Hue.blue, Shade.s800);
-    final subtitleColor = Primitives.chromatic(Hue.blue, Shade.s600);
-    final frameColor = Primitives.chromatic(Hue.blue, Shade.s300);
+    final backgroundColor = Primitive.chromatic(Hue.blue, Shade.s50);
+    final titleColor = Primitive.chromatic(Hue.blue, Shade.s800);
+    final subtitleColor = Primitive.chromatic(Hue.blue, Shade.s600);
+    final frameColor = Primitive.chromatic(Hue.blue, Shade.s300);
     const title = 'Create group chats.';
     const subtitle = 'Message with multiple people.';
 
@@ -656,10 +656,10 @@ void main() {
         // as the hero image and carries the lead store copy.
         await tester.pumpWidget(
           buildSubject(
-            backgroundColor: Primitives.neutral(NeutralShade.s100),
-            titleColor: Primitives.neutral(NeutralShade.s800),
-            subtitleColor: Primitives.neutral(NeutralShade.s600),
-            frameColor: Primitives.neutral(NeutralShade.s300),
+            backgroundColor: Primitive.neutral(NeutralShade.s100),
+            titleColor: Primitive.neutral(NeutralShade.s800),
+            subtitleColor: Primitive.neutral(NeutralShade.s600),
+            frameColor: Primitive.neutral(NeutralShade.s300),
             title: 'Secure messaging for everyone.',
             subtitle: 'Everything in Air is end-to-end encrypted.',
           ),
@@ -694,10 +694,10 @@ void main() {
 
         await tester.pumpWidget(
           buildSubject(
-            backgroundColor: Primitives.chromatic(Hue.blue, Shade.s50),
-            titleColor: Primitives.chromatic(Hue.blue, Shade.s800),
-            subtitleColor: Primitives.chromatic(Hue.blue, Shade.s600),
-            frameColor: Primitives.chromatic(Hue.blue, Shade.s300),
+            backgroundColor: Primitive.chromatic(Hue.blue, Shade.s50),
+            titleColor: Primitive.chromatic(Hue.blue, Shade.s800),
+            subtitleColor: Primitive.chromatic(Hue.blue, Shade.s600),
+            frameColor: Primitive.chromatic(Hue.blue, Shade.s300),
             title: 'Create group chats.',
             subtitle: 'Message with multiple people.',
           ),

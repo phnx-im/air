@@ -140,16 +140,16 @@ class _BubbleWithReactionsState extends State<BubbleWithReactions>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: Effects.duration(MotionPreset.short),
+      duration: Effect.duration(MotionPreset.short),
       value: widget.reactions.isEmpty ? 0.0 : 1.0,
     );
     _controller.addStatusListener(_onStatusChanged);
     _reveal = CurvedAnimation(
       parent: _controller,
-      curve: Effects.easeOutQuart,
+      curve: Effect.easeOutQuart,
       // Mirrored so removal collapses the reserve in sync with the
       // AnimatedPaddings tracking it in the message tile.
-      reverseCurve: const FlippedCurve(Effects.easeOutQuart),
+      reverseCurve: const FlippedCurve(Effect.easeOutQuart),
     );
     _chipScale = Tween<double>(begin: 0.6, end: 1.0).animate(_reveal);
     if (widget.reactions.isNotEmpty) {
@@ -415,7 +415,7 @@ class QuickReactionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final emojis = [
       for (final item in quickReactionEmojis) _applyQuickTone(item, skinTone),
     ];
@@ -429,11 +429,11 @@ class QuickReactionBar extends StatelessWidget {
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: S.s8, vertical: S.s8),
       decoration: BoxDecoration(
-        color: colors.backgroundElevated.primary,
+        color: palette.backgroundElevated.primary,
         borderRadius: BorderRadius.circular(
           (quickReactionBarTapSize + S.s8) / 2,
         ),
-        boxShadow: Effects.elevation(Elevation.medium),
+        boxShadow: Effect.elevation(Elevation.medium),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -446,8 +446,8 @@ class QuickReactionBar extends StatelessWidget {
             hitTargetSize: quickReactionBarTapSize,
             enableBackdropBlur: false,
             shadows: const [],
-            color: colors.backgroundBase.secondary,
-            icon: AppIcon.plus(size: 18, color: colors.text.secondary),
+            color: palette.backgroundBase.secondary,
+            icon: AppIcon.plus(size: 18, color: palette.text.secondary),
           ),
         ],
       ),
@@ -478,7 +478,7 @@ Future<void> showQuickReactionMenu({
   return showGeneralDialog(
     context: context,
     barrierDismissible: true,
-    barrierColor: SemanticColors.of(context).function.neutral.scrim,
+    barrierColor: SemanticPalette.of(context).function.neutral.scrim,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     transitionDuration: const Duration(milliseconds: 150),
     pageBuilder: (context, animation, secondaryAnimation) =>
@@ -663,7 +663,7 @@ class _QuickReactionButtonState extends State<_QuickReactionButton>
     super.initState();
     _pulse = AnimationController(
       vsync: this,
-      duration: Effects.duration(MotionPreset.short),
+      duration: Effect.duration(MotionPreset.short),
     );
     _scale = TweenSequence<double>([
       TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.25), weight: 40),
@@ -729,7 +729,7 @@ class _ReactionChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final count = reaction.users.length;
     final chipHeight = reactionChipHeightOf(context);
 
@@ -748,11 +748,11 @@ class _ReactionChip extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             color: isMine
-                ? colors.message.selfBackground
-                : colors.message.otherBackground,
+                ? palette.message.selfBackground
+                : palette.message.otherBackground,
             borderRadius: BorderRadius.circular(chipHeight / 2),
             border: Border.all(
-              color: colors.backgroundBase.primary,
+              color: palette.backgroundBase.primary,
               width: reactionChipBorderWidth,
             ),
           ),
@@ -769,7 +769,7 @@ class _ReactionChip extends StatelessWidget {
                 const SizedBox(width: S.s4),
                 Text(
                   '$count',
-                  style: textStyle(color: colors.text.tertiary),
+                  style: textStyle(color: palette.text.tertiary),
                   textHeightBehavior: const TextHeightBehavior(
                     leadingDistribution: .even,
                   ),
@@ -799,7 +799,7 @@ class _OverflowChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final chipHeight = reactionChipHeightOf(context);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -814,16 +814,16 @@ class _OverflowChip extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             color: isSender
-                ? colors.message.selfBackground
-                : colors.message.otherBackground,
+                ? palette.message.selfBackground
+                : palette.message.otherBackground,
             borderRadius: BorderRadius.circular(chipHeight / 2),
-            border: Border.all(color: colors.backgroundBase.primary),
+            border: Border.all(color: palette.backgroundBase.primary),
           ),
           alignment: Alignment.center,
           child: Text(
             '+$count',
             textAlign: TextAlign.center,
-            style: _ReactionChip.textStyle(color: colors.text.tertiary),
+            style: _ReactionChip.textStyle(color: palette.text.tertiary),
           ),
         ),
       ),
@@ -851,7 +851,7 @@ Future<void> showWhoReactedSheet({
       profiles[user] ??= usersCubit.state.profile(userId: user);
     }
   }
-  final barrierColor = SemanticColors.of(context).function.neutral.scrim;
+  final barrierColor = SemanticPalette.of(context).function.neutral.scrim;
   final sheet = WhoReactedSheet(
     reactions: reactions,
     profiles: profiles,
@@ -876,7 +876,7 @@ Future<void> showWhoReactedSheet({
     pageBuilder: (context, animation, secondaryAnimation) =>
         const SizedBox.shrink(),
     transitionBuilder: (dialogContext, animation, secondaryAnimation, child) {
-      final colors = SemanticColors.of(dialogContext);
+      final palette = SemanticPalette.of(dialogContext);
       return FadeTransition(
         opacity: animation,
         child: Center(
@@ -887,9 +887,9 @@ Future<void> showWhoReactedSheet({
               height: whoReactedPanelSize.height,
               padding: const EdgeInsets.all(S.s16),
               decoration: BoxDecoration(
-                color: colors.backgroundElevated.primary,
-                borderRadius: BorderRadius.circular(Radii.px20),
-                boxShadow: Effects.elevation(Elevation.small),
+                color: palette.backgroundElevated.primary,
+                borderRadius: BorderRadius.circular(CornerRadius.px20),
+                boxShadow: Effect.elevation(Elevation.small),
               ),
               child: sheet,
             ),
@@ -1004,7 +1004,7 @@ class _ReactionTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     return Padding(
       padding: const EdgeInsets.only(right: S.s4),
       child: GestureDetector(
@@ -1015,14 +1015,14 @@ class _ReactionTab extends StatelessWidget {
           padding: const EdgeInsets.symmetric(horizontal: S.s12),
           decoration: BoxDecoration(
             color: selected
-                ? colors.backgroundBase.secondary
+                ? palette.backgroundBase.secondary
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(reactionTabHeight / 2),
           ),
           child: Text(
             label,
             style: typeScale.body.m.style(
-              color: selected ? colors.text.primary : colors.text.secondary,
+              color: selected ? palette.text.primary : palette.text.secondary,
             ),
           ),
         ),
@@ -1046,7 +1046,7 @@ class _ReactorRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
     return SizedBox(
       height: reactorRowHeight,
@@ -1061,7 +1061,7 @@ class _ReactorRow extends StatelessWidget {
             child: Text(
               name,
               overflow: TextOverflow.ellipsis,
-              style: typeScale.body.regular.style(color: colors.text.primary),
+              style: typeScale.body.regular.style(color: palette.text.primary),
             ),
           ),
           if (onRemove != null) ...[
@@ -1073,7 +1073,7 @@ class _ReactorRow extends StatelessWidget {
                 child: Text(
                   loc.messageList_reactions_remove,
                   style: typeScale.body.regular.style(
-                    color: colors.function.danger,
+                    color: palette.function.danger,
                   ),
                 ),
               ),

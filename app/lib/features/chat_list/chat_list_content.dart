@@ -134,7 +134,7 @@ class _ChatSeparator extends StatelessWidget {
     // On desktop the separator above and below the active item is made
     // transparent so the selection background reads as a single rounded
     // surface while the row height stays constant.
-    var color = SemanticColors.of(context).separator.secondary;
+    var color = SemanticPalette.of(context).separator.secondary;
     if (!isMobile) {
       final openChatId = context.select(
         (NavigationCubit cubit) => cubit.state.openChatId,
@@ -145,7 +145,7 @@ class _ChatSeparator extends StatelessWidget {
     }
     return Divider(
       height: 0.5,
-      thickness: Strokes.px0_5,
+      thickness: StrokeWidth.px0_5,
       indent: S.s16 + S.s48 + S.s12,
       endIndent: S.s16,
       color: color,
@@ -164,7 +164,7 @@ class _NoChats extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: S.s16),
       child: Text(
         loc.chatList_emptyMessage,
-        style: TextStyle(color: SemanticColors.of(context).text.secondary),
+        style: TextStyle(color: SemanticPalette.of(context).text.secondary),
       ),
     );
   }
@@ -273,7 +273,7 @@ class _ListTileState extends State<_ListTile> {
           padding: const EdgeInsets.fromLTRB(S.s16, S.s16, S.s16, S.s12),
           decoration: BoxDecoration(
             color: isSelected
-                ? SemanticColors.of(context).backgroundElevated.primary
+                ? SemanticPalette.of(context).backgroundElevated.primary
                 : null,
           ),
           child: Builder(
@@ -319,7 +319,7 @@ class _ListTileTop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tertiaryColor = SemanticColors.of(context).text.tertiary;
+    final tertiaryColor = SemanticPalette.of(context).text.tertiary;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       spacing: S.s12,
@@ -389,7 +389,7 @@ class _BlockedBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final color = SemanticColors.of(context).text.tertiary;
+    final color = SemanticPalette.of(context).text.tertiary;
     return Row(
       children: [
         AppIcon.ban(size: 16, color: color),
@@ -457,7 +457,7 @@ class _PendingCommitFailedIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppIcon.circleAlert(
       size: 16,
-      color: SemanticColors.of(context).function.warning.primary,
+      color: SemanticPalette.of(context).function.warning.primary,
     );
   }
 }
@@ -473,7 +473,7 @@ class _UnreadBadge extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final backgroundColor = SemanticColors.of(
+    final backgroundColor = SemanticPalette.of(
       context,
     ).function.neutral.toggleBlack;
 
@@ -484,13 +484,13 @@ class _UnreadBadge extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: S.s8),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(Radii.full),
+        borderRadius: BorderRadius.circular(CornerRadius.full),
       ),
       child: Text(
         badgeText,
         style: typeScale.body.xs
             .style(
-              color: SemanticColors.of(context).function.neutral.toggleWhite,
+              color: SemanticPalette.of(context).function.neutral.toggleWhite,
             )
             .copyWith(height: 1),
       ),
@@ -510,7 +510,7 @@ class _LastMessage extends StatelessWidget {
       (NavigationCubit cubit) => cubit.state.chatId == chat.id,
     );
 
-    final color = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
 
     final lastMessage = chat.lastMessage;
@@ -532,7 +532,7 @@ class _LastMessage extends StatelessWidget {
       return Text(
         loc.textMessage_hiddenPlaceholder,
         style: _previewStyle(
-          color.text.tertiary,
+          palette.text.tertiary,
         ).copyWith(fontStyle: FontStyle.italic),
       );
     }
@@ -547,14 +547,14 @@ class _LastMessage extends StatelessWidget {
       return Text(
         loc.textMessage_deleted,
         style: _previewStyle(
-          color.text.tertiary,
+          palette.text.tertiary,
         ).copyWith(fontStyle: FontStyle.italic),
       );
     }
 
     final readStyle = _previewStyle(
       Color.alphaBlend(
-        color.text.tertiary,
+        palette.text.tertiary,
         ChatListContainer.backgroundColor(context),
       ),
     );
@@ -698,7 +698,7 @@ class _LastUpdatedState extends State<_LastUpdated> {
       child: Text(
         _displayTimestamp,
         style: typeScale.body.mini
-            .style(color: SemanticColors.of(context).text.tertiary)
+            .style(color: SemanticPalette.of(context).text.tertiary)
             .copyWith(height: 1.0),
       ),
     );
@@ -722,7 +722,7 @@ class _ChatTitle extends StatelessWidget {
         style: typeScale.body.regular
             .style(
               weight: Weight.emphasized,
-              color: SemanticColors.of(context).text.primary,
+              color: SemanticPalette.of(context).text.primary,
             )
             .copyWith(height: _previewLineHeight),
       ),

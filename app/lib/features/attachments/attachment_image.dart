@@ -335,7 +335,7 @@ class AttachmentImageOverlay extends HookWidget {
     );
     final status = useStream<UiAttachmentStatus>(statusStream);
 
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Align(
       alignment: Alignment.center,
@@ -377,8 +377,8 @@ class AttachmentImageOverlay extends HookWidget {
             alignment: Alignment.center,
             children: [
               CircularProgressIndicator(
-                strokeWidth: Strokes.px2,
-                valueColor: AlwaysStoppedAnimation<Color>(colors.text.primary),
+                strokeWidth: StrokeWidth.px2,
+                valueColor: AlwaysStoppedAnimation<Color>(palette.text.primary),
                 backgroundColor: Colors.transparent,
                 value: loaded / BigInt.from(size),
               ),
@@ -399,11 +399,11 @@ class AttachmentImageOverlay extends HookWidget {
               (loc) => SnackBar(content: Text(loc.attachment_notFound)),
             );
           },
-          icon: AppIcon.circleAlert(size: 32, color: colors.text.primary),
+          icon: AppIcon.circleAlert(size: 32, color: palette.text.primary),
         ),
         UiAttachmentStatus_Completed() when isAnimationPaused => IgnorePointer(
           child: _BlurredPill(
-            child: AppIcon.rotateCw(size: 24, color: colors.text.primary),
+            child: AppIcon.rotateCw(size: 24, color: palette.text.primary),
           ),
         ),
         null || UiAttachmentStatus_Completed() => const SizedBox.shrink(),
@@ -421,14 +421,14 @@ class _BlurredPill extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return ClipRRect(
-      borderRadius: BorderRadius.circular(Radii.full),
+      borderRadius: BorderRadius.circular(CornerRadius.full),
       child: BackdropFilter(
         filter: ui.ImageFilter.blur(
-          sigmaX: Effects.blur(BlurLevel.medium),
-          sigmaY: Effects.blur(BlurLevel.medium),
+          sigmaX: Effect.blur(BlurLevel.medium),
+          sigmaY: Effect.blur(BlurLevel.medium),
         ),
         child: ColoredBox(
-          color: SemanticColors.of(context).backgroundMaterial.tertiary,
+          color: SemanticPalette.of(context).backgroundMaterial.tertiary,
           child: Padding(padding: const EdgeInsets.all(S.s16), child: child),
         ),
       ),

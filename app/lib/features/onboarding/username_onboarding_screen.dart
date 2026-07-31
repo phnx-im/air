@@ -21,8 +21,8 @@ class UsernameOnboardingScreen extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
-    final Color backgroundColor = colors.backgroundBase.secondary;
+    final palette = SemanticPalette.of(context);
+    final Color backgroundColor = palette.backgroundBase.secondary;
     final registrationState = context.watch<RegistrationCubit>().state;
     final initialHandle = UsernameInputFormatter.normalize(
       registrationState.usernameSuggestion ?? '',
@@ -201,16 +201,16 @@ class _AddButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: S.s24),
       width: context.breakpoint.isSmall ? double.infinity : null,
       child: OutlinedButton(
         style: OutlinedButtonTheme.of(context).style!.copyWith(
-          backgroundColor: WidgetStateProperty.all(colors.accentBrand.primary),
+          backgroundColor: WidgetStateProperty.all(palette.accentBrand.primary),
           foregroundColor: WidgetStateProperty.all(
-            colors.function.neutral.toggleWhite,
+            palette.function.neutral.toggleWhite,
           ),
         ),
         onPressed: isSubmitting ? null : onPressed,
@@ -219,16 +219,16 @@ class _AddButton extends StatelessWidget {
                 height: 20,
                 width: 20,
                 child: CircularProgressIndicator(
-                  strokeWidth: Strokes.px2,
+                  strokeWidth: StrokeWidth.px2,
                   valueColor: AlwaysStoppedAnimation<Color>(
-                    colors.function.neutral.toggleWhite,
+                    palette.function.neutral.toggleWhite,
                   ),
                 ),
               )
             : Text(
                 loc.usernameOnboarding_addButton,
                 style: typeScale.body.regular.style(
-                  color: colors.function.neutral.toggleWhite,
+                  color: palette.function.neutral.toggleWhite,
                 ),
               ),
       ),
@@ -254,7 +254,7 @@ class _UsernameTextField extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       spacing: S.s8,
@@ -263,7 +263,7 @@ class _UsernameTextField extends StatelessWidget {
           padding: const EdgeInsets.only(left: S.s8),
           child: Text(
             loc.usernameOnboarding_usernameInputName,
-            style: typeScale.body.xs.style(color: colors.text.quaternary),
+            style: typeScale.body.xs.style(color: palette.text.quaternary),
           ),
         ),
         TextFormField(
@@ -273,7 +273,7 @@ class _UsernameTextField extends StatelessWidget {
           textInputAction: TextInputAction.done,
           decoration: InputDecoration(
             hintText: loc.usernameOnboarding_usernameInputHint,
-            fillColor: colors.backgroundBase.tertiary,
+            fillColor: palette.backgroundBase.tertiary,
           ),
           inputFormatters: const [UsernameInputFormatter()],
           onChanged: (_) {
@@ -286,7 +286,7 @@ class _UsernameTextField extends StatelessWidget {
         ),
         Text(
           loc.usernameOnboarding_syntax,
-          style: typeScale.body.xs.style(color: colors.text.quaternary),
+          style: typeScale.body.xs.style(color: palette.text.quaternary),
         ),
       ],
     );

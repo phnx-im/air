@@ -42,7 +42,7 @@ class SafetyCodeView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Align(
       alignment: Alignment.topCenter,
@@ -67,7 +67,7 @@ class SafetyCodeView extends StatelessWidget {
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: S.s16),
             child: Text(
-              style: typeScale.body.s.style(color: colors.text.tertiary),
+              style: typeScale.body.s.style(color: palette.text.tertiary),
               loc.safetyCodeScreen_safetyCodeExplanation(profile.displayName),
             ),
           ),
@@ -92,13 +92,13 @@ class _SafetyCode extends HookWidget {
     final (p1, p2, p3) = safetyCode.data?.paragraphs ?? ('', '', '');
 
     final loc = AppLocalizations.of(context);
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     final codeStyle = typeScale.body.regular
         .style(
           color: safetyCode.hasData
-              ? colors.text.primary
-              : colors.text.tertiary,
+              ? palette.text.primary
+              : palette.text.tertiary,
         )
         .withSystemMonospace()
         .copyWith(height: 1.5);
@@ -119,8 +119,8 @@ class _SafetyCode extends HookWidget {
           : null,
       child: Container(
         decoration: BoxDecoration(
-          borderRadius: BorderRadius.circular(Radii.px12),
-          color: colors.backgroundBase.secondary,
+          borderRadius: BorderRadius.circular(CornerRadius.px12),
+          color: palette.backgroundBase.secondary,
         ),
         padding: const EdgeInsets.symmetric(vertical: S.s16, horizontal: S.s24),
         child: Column(
@@ -133,11 +133,11 @@ class _SafetyCode extends HookWidget {
               mainAxisSize: .min,
               mainAxisAlignment: .center,
               children: [
-                AppIcon.copy(color: colors.text.tertiary, size: 16),
+                AppIcon.copy(color: palette.text.tertiary, size: 16),
                 const SizedBox(width: S.s8),
                 Text(
                   loc.safetyCodeScreen_tapToCopy,
-                  style: typeScale.body.s.style(color: colors.text.tertiary),
+                  style: typeScale.body.s.style(color: palette.text.tertiary),
                 ),
               ],
             ),

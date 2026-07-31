@@ -48,7 +48,7 @@ class ImageViewer extends HookWidget {
     final initialScale = useRef<double?>(null);
     final pendingTapTimer = useRef<Timer?>(null);
 
-    final colors = darkSemanticColors;
+    final palette = darkSemanticPalette;
 
     useEffect(
       () => () {
@@ -127,7 +127,7 @@ class ImageViewer extends HookWidget {
     }
 
     return Scaffold(
-      backgroundColor: colors.function.neutral.black,
+      backgroundColor: palette.function.neutral.black,
       body: Focus(
         autofocus: true,
         onKeyEvent: (node, event) {
@@ -199,7 +199,7 @@ class _ZoomableImage extends HookWidget {
     final baseScale = useRef<double?>(null);
     final currentScale = useRef<double?>(null);
 
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
 
     useEffect(
       () => () {
@@ -269,7 +269,7 @@ class _ZoomableImage extends HookWidget {
             return Center(
               child: CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  colors.backgroundBase.tertiary,
+                  palette.backgroundBase.tertiary,
                 ),
                 value: event.expectedTotalBytes != null
                     ? event.cumulativeBytesLoaded / event.expectedTotalBytes!
@@ -303,8 +303,8 @@ class _ViewerOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foregroundColor = darkSemanticColors.text.primary;
-    final backgroundColor = darkSemanticColors.backgroundElevated.primary
+    final foregroundColor = darkSemanticPalette.text.primary;
+    final backgroundColor = darkSemanticPalette.backgroundElevated.primary
         .withValues(alpha: 0.7);
 
     return Positioned(
@@ -325,7 +325,7 @@ class _ViewerOverlay extends StatelessWidget {
                 AppBarXButton(
                   onPressed: () => Navigator.of(context).maybePop(),
                   foregroundColor: foregroundColor,
-                  backgroundColor: darkSemanticColors.backgroundBase.secondary,
+                  backgroundColor: darkSemanticPalette.backgroundBase.secondary,
                 ),
               ],
               backgroundColor: Colors.transparent,

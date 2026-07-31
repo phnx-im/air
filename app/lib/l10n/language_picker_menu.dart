@@ -42,7 +42,7 @@ class _LanguagePickerMenuState extends State<LanguagePickerMenu> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = SemanticColors.of(context);
+    final palette = SemanticPalette.of(context);
     final storedLocale = context.select(
       (UserSettingsCubit cubit) => cubit.state.locale,
     );
@@ -68,7 +68,7 @@ class _LanguagePickerMenuState extends State<LanguagePickerMenu> {
         ContextMenuItem(
           label: option.label,
           leading: option.locale.languageCode == resolvedLocale.languageCode
-              ? AppIcon.check(size: 16, color: colors.text.secondary)
+              ? AppIcon.check(size: 16, color: palette.text.secondary)
               : null,
           onPressed: () {
             unawaited(widget.onLocaleSelected(option.locale));

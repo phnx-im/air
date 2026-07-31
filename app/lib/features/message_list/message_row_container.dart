@@ -119,7 +119,7 @@ class _AnimatedMessageState extends State<_AnimatedMessage>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: Effects.duration(MotionPreset.short),
+      duration: Effect.duration(MotionPreset.short),
     );
     _controller.forward();
   }
@@ -142,7 +142,7 @@ class _AnimatedMessageState extends State<_AnimatedMessage>
 
     final animation = CurvedAnimation(
       parent: _controller,
-      curve: Effects.easeOutQuart,
+      curve: Effect.easeOutQuart,
     );
 
     return Container(

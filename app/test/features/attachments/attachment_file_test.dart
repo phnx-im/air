@@ -23,10 +23,10 @@ final file = UiAttachment(
 );
 
 List<(Color, Color)> testColors(BuildContext context) {
-  final colors = SemanticColors.of(context);
+  final palette = SemanticPalette.of(context);
   return [
-    (colors.message.selfText, colors.message.selfBackground),
-    (colors.message.otherText, colors.message.otherBackground),
+    (palette.message.selfText, palette.message.selfBackground),
+    (palette.message.otherText, palette.message.otherBackground),
   ];
 }
 
@@ -57,7 +57,7 @@ class _FileTestBubble extends StatelessWidget {
       padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(Radii.px20),
+        borderRadius: BorderRadius.circular(CornerRadius.px20),
       ),
       child: AttachmentFile(
         attachment: attachment ?? file.copyWith(attachmentId: attachmentId),
