@@ -2,8 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+use aircommon::identifiers::UserId;
 use aircoreclient::{
-    ChatId, Message,
+    ChatId, Message, ReadReceiptsSetting,
     clients::{
         CoreUser,
         multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
@@ -76,6 +77,61 @@ async fn recv_session_id(
         MultiDeviceProvisionStep::SessionId(session_id) => session_id,
         MultiDeviceProvisionStep::Linking => panic!("unexpected Linking step before session id"),
     }
+}
+
+/// Provisions a fresh device and links it to `user_id`'s existing device,
+/// returning the new device. The [`TempDir`] holds the new device's database
+/// and must stay alive as long as the device is used.
+async fn link_new_device(setup: &TestBackend, user_id: &UserId) -> (CoreUser, TempDir) {
+    let domain = setup.domain().clone();
+    let server_url = setup.server_url();
+
+    let (session_tx, mut session_rx) = tokio::sync::mpsc::channel(1);
+
+    let new_device_task = tokio::spawn(async move {
+        let tmp = TempDir::new().unwrap();
+        let db_path = tmp.path().to_str().unwrap();
+        let new_device =
+            CoreUser::multi_device_provision_client(db_path, domain, Some(server_url), session_tx)
+                .await
+                .unwrap();
+        (new_device, tmp)
+    });
+
+    let session_id = recv_session_id(&mut session_rx).await;
+
+    setup
+        .get_user(user_id)
+        .user()
+        .multi_device_link_client(session_id, ignore_connected(), auto_confirm())
+        .await
+        .unwrap()
+        .unwrap();
+
+    new_device_task.await.unwrap()
+}
+
+/// Fetches and processes all messages in the device's queue.
+async fn drain_queue(user: &CoreUser) {
+    let messages = user.qs_fetch_messages().await.unwrap();
+    user.fully_process_qs_messages(messages).await;
+}
+
+/// The device's locally stored read-receipts setting. `None` means unset.
+async fn read_receipts(user: &CoreUser) -> Option<bool> {
+    user.user_setting::<ReadReceiptsSetting>()
+        .await
+        .map(|ReadReceiptsSetting(value)| value)
+}
+
+/// The chat ID of the device's self-group chat.
+async fn self_chat_id(user: &CoreUser) -> ChatId {
+    let self_group = user
+        .self_group()
+        .await
+        .unwrap()
+        .expect("device should have a self group");
+    ChatId::try_from(self_group.group_id()).unwrap()
 }
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -495,4 +551,187 @@ async fn multi_device_concurrent_linking_sessions_dont_interfere() {
         setup.get_user(&bob).user().qs_user_id()
     );
     assert_ne!(alice_device.qs_user_id(), bob_device.qs_user_id());
+}
+
+// A settings change on one device reaches the linked device through a
+// self-group commit, in both directions. This is also the proof that the DS
+// passes commits carrying AppEphemeral proposals through.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test settings sync across linked devices", skip_all)]
+async fn multi_device_settings_sync() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+
+    // Bring both devices to the self-group's latest epoch.
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    // Nothing was set before linking, so the linking payload carried an empty
+    // snapshot and the new device starts unset.
+    assert_eq!(read_receipts(&new_device).await, None);
+
+    // Two quick toggles: both are applied locally right away and fold into
+    // one pending change. Before the outbound service runs, no commit exists.
+    let chat_id = self_chat_id(old_device).await;
+    old_device
+        .set_synced_user_setting(&ReadReceiptsSetting(true))
+        .await
+        .unwrap();
+    old_device
+        .set_synced_user_setting(&ReadReceiptsSetting(false))
+        .await
+        .unwrap();
+    assert_eq!(read_receipts(old_device).await, Some(false));
+    assert!(old_device.has_pending_setting_changes().await.unwrap());
+    assert!(
+        old_device
+            .pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .is_none(),
+        "the commit is only staged when the outbound service runs"
+    );
+
+    // The outbound service stages a commit from the current state and sends
+    // it. Success completes the pending change.
+    old_device.outbound_service().run_once().await;
+    assert!(!old_device.has_pending_setting_changes().await.unwrap());
+    assert!(
+        old_device
+            .pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .is_none(),
+        "the operation should be gone after a successful send"
+    );
+
+    // The linked device applies the folded update when processing its queue.
+    drain_queue(&new_device).await;
+    assert_eq!(read_receipts(&new_device).await, Some(false));
+
+    // No feedback loop: applying a sibling's update records no pending change
+    // and issues no commit on the receiving device.
+    assert!(!new_device.has_pending_setting_changes().await.unwrap());
+    new_device.outbound_service().run_once().await;
+    assert!(
+        new_device
+            .pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .is_none(),
+        "applying an incoming update must not issue a commit"
+    );
+
+    // And back in the other direction, from the new device.
+    new_device
+        .set_synced_user_setting(&ReadReceiptsSetting(true))
+        .await
+        .unwrap();
+    new_device.outbound_service().run_once().await;
+    drain_queue(old_device).await;
+    assert_eq!(read_receipts(old_device).await, Some(true));
+}
+
+// A setting stored before any linking travels to the new device in the
+// provisioning package and is applied during bootstrap.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test settings travel in the linking payload", skip_all)]
+async fn multi_device_settings_in_linking_payload() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+
+    // No self-group exists yet, so the setting is only stored locally.
+    let old_device = setup.get_user(&alice).user();
+    old_device
+        .set_synced_user_setting(&ReadReceiptsSetting(false))
+        .await
+        .unwrap();
+    assert_eq!(read_receipts(old_device).await, Some(false));
+
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+
+    // The new device starts from the snapshot in the provisioning package,
+    // without processing any queue messages.
+    assert_eq!(read_receipts(&new_device).await, Some(false));
+}
+
+// Both devices change the setting before processing each other's commit. The
+// DS accepts the first commit and rejects the second with a wrong epoch. The
+// loser gives the setting up when it processes the winner's commit, so both
+// devices converge on the DS-order winner.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test settings race converges on the DS order", skip_all)]
+async fn multi_device_settings_race_converges() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    // Both devices toggle while at the same epoch. The outbound runs stage
+    // conflicting commits against that epoch.
+    old_device
+        .set_synced_user_setting(&ReadReceiptsSetting(true))
+        .await
+        .unwrap();
+    new_device
+        .set_synced_user_setting(&ReadReceiptsSetting(false))
+        .await
+        .unwrap();
+
+    // The old device reaches the DS first and wins.
+    old_device.outbound_service().run_once().await;
+
+    // The new device's commit is rejected with a wrong epoch. The operation
+    // parks until the winning commit arrives through the queue, the pending
+    // change stays, and the optimistic value stays in place for now.
+    new_device.outbound_service().run_once().await;
+    let chat_id = self_chat_id(&new_device).await;
+    let parked = new_device
+        .pending_chat_operation_info(chat_id)
+        .await
+        .unwrap()
+        .expect("losing operation should be parked");
+    assert_eq!(parked.request_status, "waiting_for_queue_response");
+    assert!(new_device.has_pending_setting_changes().await.unwrap());
+    assert_eq!(read_receipts(&new_device).await, Some(false));
+
+    // Processing the winner's commit applies its snapshot, deletes the parked
+    // operation, and drops the covered field from the pending changes, so
+    // nothing is re-issued.
+    drain_queue(&new_device).await;
+    assert_eq!(read_receipts(&new_device).await, Some(true));
+    assert!(
+        new_device
+            .pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .is_none(),
+        "losing operation should be deleted"
+    );
+    assert!(
+        !new_device.has_pending_setting_changes().await.unwrap(),
+        "covered pending change should be dropped"
+    );
+
+    // Nothing left to send: another outbound run stages no new commit.
+    new_device.outbound_service().run_once().await;
+    assert!(
+        new_device
+            .pending_chat_operation_info(chat_id)
+            .await
+            .unwrap()
+            .is_none()
+    );
+
+    // The winner's own state is unaffected by its echo.
+    drain_queue(old_device).await;
+    assert_eq!(read_receipts(old_device).await, Some(true));
+
+    // The self group is still usable after the race.
+    send_and_receive(old_device, &[&new_device], chat_id, "still in sync").await;
 }

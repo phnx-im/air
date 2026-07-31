@@ -5,7 +5,7 @@
 use std::time::Instant;
 
 use aircommon::{
-    credentials::{UserCredential, VerifiableUserCredential},
+    credentials::{LeafCredential, UserCredential},
     crypto::{aead::AeadDecryptable, indexed_aead::keys::UserProfileKey},
     identifiers::{MimiId, QualifiedGroupId, UserId},
     messages::{
@@ -344,6 +344,18 @@ impl CoreUser {
                 ds_timestamp,
                 group_messages,
             )
+            .await?;
+        }
+
+        // Our settings commit was accepted: complete the pending setting
+        // changes it asserted before the operation is deleted. Only self-group
+        // commits can carry a settings update. Boxed because the loaded
+        // operation carries the full group state.
+        if group.is_self_group() {
+            Box::pin(PendingChatOperation::complete_settings_intent(
+                &mut *txn,
+                group.group_id(),
+            ))
             .await?;
         }
 
@@ -780,10 +792,9 @@ impl CoreUser {
         } = processed_message;
 
         let sender = processed_message.sender().clone();
-        let sender_user_id =
-            VerifiableUserCredential::from_basic_credential(processed_message.credential())?
-                .user_id()
-                .clone();
+        let sender_user_id = LeafCredential::from_credential(processed_message.credential())?
+            .user_id(group.own_user_id())
+            .clone();
 
         let aad = processed_message.aad().to_vec();
 

@@ -33,6 +33,7 @@ pub use timed_tasks::{APQ_KEY_PACKAGES, KEY_PACKAGES};
 mod chat_message_queue;
 mod chat_messages;
 mod error;
+mod key_packages;
 mod profile;
 mod push_tokens;
 mod reaction_queue;
@@ -163,6 +164,12 @@ impl<C: OutboundServiceWork> OutboundService<C> {
     }
 
     pub(crate) fn notify_push_token_update(&self) -> WaitForDoneFuture {
+        self.notify_work()
+    }
+
+    /// Wakes the outbound service to send a freshly enqueued pending chat
+    /// operation.
+    pub(crate) fn notify_pending_chat_operations(&self) -> WaitForDoneFuture {
         self.notify_work()
     }
 

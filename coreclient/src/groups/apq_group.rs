@@ -140,6 +140,7 @@ impl Group {
             }),
             pending_commit_failed: false,
             send_message_collision_key: None,
+            own_user_id: signer.credential().user_id().clone(),
         };
 
         Ok((group, params))
