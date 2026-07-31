@@ -179,6 +179,8 @@ class Notifications {
     companion object JniNotifications {
         const val CHANNEL_ID = "Chats"
         private const val NOTIFICATION_ID = 0
+        private const val GROUP_KEY = "ms.air.CHATS"
+        private const val SUMMARY_TAG = "ms.air.summary"
 
         const val SELECT_NOTIFICATION: String = "SELECT_NOTIFICATION"
 
@@ -243,10 +245,13 @@ class Notifications {
                     .setDefaults(Notification.DEFAULT_ALL)
                     .setPriority(NotificationManagerCompat.IMPORTANCE_HIGH)
                     .addExtras(extras)
+                    .setGroup(GROUP_KEY)
+                    .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
                     .build()
 
             NotificationManagerCompat.from(context)
                 .notify(content.identifier, NOTIFICATION_ID, notification)
+            postGroupSummary(context)
         }
 
         @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
@@ -300,12 +305,36 @@ class Notifications {
                     .setShortcutId(chatUuid)
                     .setLocusId(LocusIdCompat(chatUuid))
                     .setOnlyAlertOnce(!conversation.alert)
+                    .setGroup(GROUP_KEY)
+                    .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
                     .build()
 
             pushConversationShortcut(context, content, chatUuid, conversation)
 
             NotificationManagerCompat.from(context)
                 .notify(content.identifier, NOTIFICATION_ID, notification)
+            postGroupSummary(context)
+        }
+
+        // Posts the group summary that bundles all chat notifications under the
+        // app name. Idempotent, silent (children alert).
+        @RequiresPermission(Manifest.permission.POST_NOTIFICATIONS)
+        private fun postGroupSummary(context: Context) {
+            val pendingIntent = PendingIntent.getActivity(
+                context,
+                SUMMARY_TAG.hashCode(),
+                Intent(context, MainActivity::class.java),
+                PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+            )
+            val summary = NotificationCompat.Builder(context, CHANNEL_ID)
+                .setSmallIcon(R.drawable.ic_notification)
+                .setContentIntent(pendingIntent)
+                .setGroup(GROUP_KEY)
+                .setGroupSummary(true)
+                .setGroupAlertBehavior(NotificationCompat.GROUP_ALERT_CHILDREN)
+                .setOnlyAlertOnce(true)
+                .build()
+            NotificationManagerCompat.from(context).notify(SUMMARY_TAG, NOTIFICATION_ID, summary)
         }
 
         private fun isNotificationDisplayed(context: Context, tag: String): Boolean =
@@ -510,6 +539,7 @@ class Notifications {
         fun getActiveNotifications(context: Context): Array<NotificationHandle> {
             return NotificationManagerCompat.from(context).activeNotifications
                 .mapNotNull { sbn ->
+                    if (sbn.tag == SUMMARY_TAG) return@mapNotNull null
                     NotificationHandle(
                         sbn.tag,
                         sbn.notification.extras.getString(EXTRAS_CHAT_ID_KEY)
@@ -523,6 +553,15 @@ class Notifications {
                 context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
             for (identifier in identifiers) {
                 notificationManager.cancel(identifier, NOTIFICATION_ID)
+            }
+
+            // The summary is not auto-removed on programmatic cancel and would
+            // linger as an empty notification. `cancel` is asynchronous, so the
+            // just-cancelled identifiers may still be listed as active.
+            val hasChildren = NotificationManagerCompat.from(context).activeNotifications
+                .any { it.id == NOTIFICATION_ID && it.tag != SUMMARY_TAG && it.tag !in identifiers }
+            if (!hasChildren) {
+                notificationManager.cancel(SUMMARY_TAG, NOTIFICATION_ID)
             }
         }
     }
