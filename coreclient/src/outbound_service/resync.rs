@@ -22,7 +22,7 @@ use tracing::{error, info};
 use uuid::Uuid;
 
 use crate::{
-    Chat, ChatId,
+    Chat, ChatId, ChatMessage, SystemMessage,
     chats::{ChatAttributes, GroupDataExt},
     clients::{CoreUser, api_clients::ApiClients, multi_device::HigherLevelGroup},
     db::access::{WriteConnection, WriteDbTransaction},
@@ -268,19 +268,25 @@ impl Resync {
         let (title, group_profile_part) = group_data.into_parts(group.identity_link_wrapper_key());
         let title = title.context("No group title")?;
         let sender_id = signer.credential().user_id().clone();
+        let ds_timestamp = TimeStamp::now();
 
         let picture = CoreUser::resolve_group_profile_part(
             &mut *txn,
             group.group_id(),
             &sender_id,
-            TimeStamp::now(),
+            ds_timestamp,
             group_profile_part,
             true,
         )
         .await?;
+
         let chat =
             Chat::new_group_chat(group.group_id().clone(), ChatAttributes { title, picture });
         chat.store(&mut *txn).await?;
+
+        let system_message =
+            ChatMessage::new_system_message(chat.id(), ds_timestamp, SystemMessage::Onboarded);
+        system_message.store(&mut *txn).await?;
 
         Ok(chat.id())
     }

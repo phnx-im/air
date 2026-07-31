@@ -767,6 +767,10 @@ class AppLocalizationsEn extends AppLocalizations {
   String get systemMessage_userCreatedGroup_suffix => ' created the group';
 
   @override
+  String get systemMessage_onboarded =>
+      'This client has been onboarded into the group after linking.';
+
+  @override
   String get timestamp_now => 'Now';
 
   @override

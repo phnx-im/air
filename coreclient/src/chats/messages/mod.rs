@@ -575,6 +575,8 @@ pub enum SystemMessage {
     /// We requested a connection with another user through a group.
     NewDirectConnectionChat(UserId),
     CreateGroup(UserId),
+    /// We got onboarded into a group after linking.
+    Onboarded,
 }
 
 impl SystemMessage {
@@ -652,6 +654,7 @@ impl SystemMessage {
                 let user_display_name = core_user.user_profile(user_id).await.display_name;
                 format!("{user_display_name} created the group")
             }
+            SystemMessage::Onboarded => todo!(),
         }
     }
 }

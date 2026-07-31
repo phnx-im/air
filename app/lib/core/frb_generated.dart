@@ -10990,6 +10990,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return UiSystemMessage_CreateGroup(
           dco_decode_box_autoadd_ui_user_id(raw[1]),
         );
+      case 11:
+        return UiSystemMessage_Onboarded();
       default:
         throw Exception("unreachable");
     }
@@ -14741,6 +14743,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 10:
         var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
         return UiSystemMessage_CreateGroup(var_field0);
+      case 11:
+        return UiSystemMessage_Onboarded();
       default:
         throw UnimplementedError('');
     }
@@ -18565,6 +18569,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case UiSystemMessage_CreateGroup(field0: final field0):
         sse_encode_i_32(10, serializer);
         sse_encode_box_autoadd_ui_user_id(field0, serializer);
+      case UiSystemMessage_Onboarded():
+        sse_encode_i_32(11, serializer);
     }
   }
 

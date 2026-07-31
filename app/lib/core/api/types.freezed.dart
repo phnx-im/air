@@ -3031,6 +3031,38 @@ as UiUserId,
 }
 
 /// @nodoc
+
+
+class UiSystemMessage_Onboarded extends UiSystemMessage {
+  const UiSystemMessage_Onboarded(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiSystemMessage_Onboarded);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UiSystemMessage.onboarded()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
 mixin _$UiUsername {
 
  String get plaintext;

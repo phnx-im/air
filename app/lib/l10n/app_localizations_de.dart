@@ -783,6 +783,10 @@ class AppLocalizationsDe extends AppLocalizations {
       ' hat die Gruppe erstellt';
 
   @override
+  String get systemMessage_onboarded =>
+      'This client has been onboarded into the group after linking.';
+
+  @override
   String get timestamp_now => 'Jetzt';
 
   @override

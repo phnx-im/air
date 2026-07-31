@@ -478,6 +478,7 @@ sealed class UiSystemMessage with _$UiSystemMessage {
       UiSystemMessage_NewDirectConnectionChat;
   const factory UiSystemMessage.createGroup(UiUserId field0) =
       UiSystemMessage_CreateGroup;
+  const factory UiSystemMessage.onboarded() = UiSystemMessage_Onboarded;
 }
 
 /// UI representation of an [`UserId`]
