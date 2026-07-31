@@ -222,10 +222,20 @@ impl<C: OutboundServiceWork> OutboundServiceTask<C> {
             };
 
             {
-                let _guard = global_lock
-                    .lock()
-                    .await
-                    .expect("fatal: failed to acquire global lock");
+                let _guard = match global_lock.lock().await {
+                    Ok(guard) => guard,
+                    Err(error) => {
+                        error!(
+                            %error,
+                            "failed to acquire global lock, skipping outbound service run"
+                        );
+                        // This run is skipped and the periodic wake retries the work soon. That is
+                        // why the ticker is not reset here. The task must stay alive, because all
+                        // awaiters of the done token would hang forever otherwise.
+                        run_token.mark_as_done();
+                        continue;
+                    }
+                };
                 debug!("starting doing work in background task");
                 self.context.work(run_token.cancel.clone()).await;
                 debug!("finished work in background task");
@@ -478,6 +488,32 @@ mod test {
         assert_eq!(1, context.counter.load(Ordering::SeqCst));
     }
 
+    #[cfg(not(target_os = "android"))]
+    #[tokio::test]
+    async fn lock_failure_does_not_kill_background_task() {
+        init_test_tracing();
+
+        let lock = GlobalLock::from_path("/nonexistent/outbound-service.lock")
+            .expect("failed to create the global lock");
+        let context = DelayedCounterContext::default();
+        let service = OutboundService::with_context(context.clone(), lock);
+
+        timeout(Duration::from_secs(5), service.start())
+            .await
+            .expect("start must not hang when the lock cannot be acquired");
+
+        // Without the lock the work never runs.
+        assert_eq!(0, context.counter.load(Ordering::SeqCst));
+
+        // The background task is still alive and keeps serving new requests.
+        timeout(Duration::from_secs(5), service.notify_work())
+            .await
+            .expect("notify_work must not hang when the lock cannot be acquired");
+        timeout(Duration::from_secs(5), service.stop())
+            .await
+            .expect("stop must not hang when the lock cannot be acquired");
+    }
+
     /// A short wake interval used in tests so the periodic ticker fires quickly.
     const TEST_WAKE_INTERVAL: Duration = Duration::from_millis(20);
 
@@ -564,28 +600,29 @@ mod test {
         assert_eq!(2, context.counter.load(Ordering::SeqCst));
     }
 
+    /// Each notification of a started service triggers another run, and the returned future
+    /// resolves once that run is done.
     #[tokio::test]
     async fn wait_for_idle() {
+        init_test_tracing();
+
         let context = DelayedCounterContext::default();
         let service = OutboundService::with_context(context.clone(), global_lock());
 
         service.start().await;
-        sleep(Duration::from_millis(100)).await; // +1
-        service.notify_work();
-        sleep(Duration::from_millis(100)).await; // +1
-        service.notify_work().await; // +1
-        assert_eq!(3, context.counter.load(Ordering::SeqCst));
-    }
+        assert_eq!(1, context.counter.load(Ordering::SeqCst));
 
-    #[tokio::test]
-    async fn notify_work_triggers_another_run() {
-        let context = DelayedCounterContext::default();
-        let service = OutboundService::with_context(context.clone(), global_lock());
-
-        service.start().await;
-        service.notify_work().await;
-
+        // The run is triggered by the call itself. The future is only a handle to wait for
+        // idle, also when held and awaited later. Waiting on the done futures instead of
+        // sleeping keeps the test deterministic. A notification sent while a run is still in
+        // flight coalesces with that run, so timing-based waits can observe fewer runs under
+        // load.
+        let idle = service.notify_work();
+        idle.await;
         assert_eq!(2, context.counter.load(Ordering::SeqCst));
+
+        service.notify_work().await;
+        assert_eq!(3, context.counter.load(Ordering::SeqCst));
     }
 
     #[tokio::test]

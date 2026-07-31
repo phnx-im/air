@@ -8,11 +8,8 @@ import 'package:air/features/chat_details/remove_member_button.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/features/user/avatar.dart';
@@ -81,21 +78,18 @@ class ContactDetailsView extends StatelessWidget {
       alignment: Alignment.topCenter,
       child: Column(
         children: [
-          const SizedBox(height: Spacing.px12),
+          const SizedBox(height: S.s12),
 
           UserAvatar(profile: profile, size: 192),
 
-          const SizedBox(height: Spacing.px16),
+          const SizedBox(height: S.s16),
 
           Text(
             profile.displayName,
-            style: TextStyle(
-              fontSize: HeaderFontSize.h1.size,
-              fontWeight: FontWeight.bold,
-            ),
+            style: typeScale.header.xl.style(weight: Weight.emphasized),
           ),
 
-          const SizedBox(height: Spacing.px16),
+          const SizedBox(height: S.s16),
 
           OutlinedButton(
             onPressed: () => _handleChat(context),
@@ -107,16 +101,16 @@ class ContactDetailsView extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const AppIcon.messageCircle(size: 16),
-                const SizedBox(width: Spacing.px8),
+                const SizedBox(width: S.s8),
                 Text(
                   loc.contactDetailsScreen_chat,
-                  style: TextStyle(fontSize: LabelFontSize.base.size),
+                  style: typeScale.body.regular.style(),
                 ),
               ],
             ),
           ),
 
-          const SizedBox(height: Spacing.px16),
+          const SizedBox(height: S.s16),
 
           OutlinedButton(
             onPressed: () => _handleViewSafetyNumber(context, profile.userId),
@@ -128,17 +122,17 @@ class ContactDetailsView extends StatelessWidget {
               mainAxisSize: MainAxisSize.min,
               children: [
                 const AppIcon.shield(size: 16),
-                const SizedBox(width: Spacing.px8),
+                const SizedBox(width: S.s8),
                 Text(
                   loc.contactDetailsScreen_viewSafetyCode,
-                  style: TextStyle(fontSize: LabelFontSize.base.size),
+                  style: typeScale.body.regular.style(),
                 ),
               ],
             ),
           ),
 
           if (relationship is ContactRelationship) ...[
-            const SizedBox(height: Spacing.px16),
+            const SizedBox(height: S.s16),
             const MuteButton(),
           ],
 
@@ -148,7 +142,7 @@ class ContactDetailsView extends StatelessWidget {
 
           if (relationship case ContactRelationship())
             if (relationship case ContactRelationship(:final isBlocked)) ...[
-              const SizedBox(height: Spacing.px16),
+              const SizedBox(height: S.s16),
               isBlocked
                   ? UnblockContactButton(
                       userId: profile.userId,
@@ -161,7 +155,7 @@ class ContactDetailsView extends StatelessWidget {
             ],
 
           if (relationship case ContactRelationship(:final contactChatId)) ...[
-            const SizedBox(height: Spacing.px16),
+            const SizedBox(height: S.s16),
             DeleteContactButton(
               chatId: contactChatId,
               displayName: profile.displayName,
@@ -172,7 +166,7 @@ class ContactDetailsView extends StatelessWidget {
             :final groupChatId,
             :final canKick,
           ) when canKick) ...[
-            const SizedBox(height: Spacing.px16),
+            const SizedBox(height: S.s16),
             RemoveMemberButton(
               chatId: groupChatId,
               memberId: profile.userId,
@@ -246,7 +240,7 @@ class _AddContactDialog extends HookWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return AppDialog(
       child: Column(
@@ -256,24 +250,18 @@ class _AddContactDialog extends HookWidget {
           Center(
             child: Text(
               loc.addContactDialog_title,
-              style: TextStyle(
-                fontSize: HeaderFontSize.h4.size,
-                fontWeight: FontWeight.bold,
-              ),
+              style: typeScale.header.regular.style(weight: Weight.emphasized),
             ),
           ),
 
-          const SizedBox(height: Spacing.px8),
+          const SizedBox(height: S.s8),
 
           Text(
             loc.addContactDialog_content(displayName, groupTitle),
-            style: TextStyle(
-              color: colors.text.secondary,
-              fontSize: BodyFontSize.base.size,
-            ),
+            style: typeScale.body.regular.style(color: palette.text.secondary),
           ),
 
-          const SizedBox(height: Spacing.px24),
+          const SizedBox(height: S.s24),
 
           Row(
             children: [
@@ -284,30 +272,32 @@ class _AddContactDialog extends HookWidget {
                   },
                   child: Text(
                     loc.addContactDialog_cancel,
-                    style: TextStyle(fontSize: LabelFontSize.base.size),
+                    style: typeScale.body.regular.style(),
                   ),
                 ),
               ),
 
-              const SizedBox(width: Spacing.px12),
+              const SizedBox(width: S.s12),
 
               Expanded(
                 child: AppDialogProgressButton(
                   onPressed: (inProgress) =>
                       _handleSendChatRequest(context, inProgress),
-                  progressColor: colors.function.toggleWhite,
+                  progressColor: palette.function.neutral.toggleWhite,
                   style: ButtonStyle(
                     backgroundColor: WidgetStatePropertyAll(
-                      colors.accent.primary,
+                      palette.accentBrand.primary,
                     ),
-                    overlayColor: WidgetStatePropertyAll(colors.accent.primary),
+                    overlayColor: WidgetStatePropertyAll(
+                      palette.accentBrand.primary,
+                    ),
                     foregroundColor: WidgetStatePropertyAll(
-                      colors.function.toggleWhite,
+                      palette.function.neutral.toggleWhite,
                     ),
                   ),
                   child: Text(
                     loc.addContactDialog_confirm,
-                    style: TextStyle(fontSize: LabelFontSize.base.size),
+                    style: typeScale.body.regular.style(),
                   ),
                 ),
               ),

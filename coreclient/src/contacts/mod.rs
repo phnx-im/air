@@ -5,7 +5,7 @@
 use std::iter;
 
 use aircommon::{
-    credentials::VerifiableUserCredential,
+    credentials::LeafCredential,
     crypto::{
         aead::keys::{FriendshipPackageEarKey, WelcomeAttributionInfoEarKey},
         indexed_aead::keys::UserProfileKey,
@@ -97,8 +97,9 @@ impl Contact {
                 key_package.t_credential()
             }
         };
-        let verifiable_user_credential =
-            VerifiableUserCredential::from_basic_credential(user_credential)?;
+        let verifiable_user_credential = LeafCredential::from_credential(user_credential)?
+            .into_user()
+            .context("expected a user credential in a contact key package")?;
         let as_credential = connection
             .with_transaction(async |txn| {
                 AsCredentials::fetch_for_verification(

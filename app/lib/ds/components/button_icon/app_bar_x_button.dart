@@ -2,10 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/button_icon/glass_circle_button.dart';
-import 'package:air/ds/foundations/icons.dart';
 import 'package:flutter/material.dart';
 
 class AppBarXButton extends StatelessWidget {
@@ -22,14 +20,14 @@ class AppBarXButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Padding(
-      padding: const EdgeInsets.only(right: Spacing.px24),
+      padding: const EdgeInsets.only(right: S.s24),
       child: GlassCircleButton(
         icon: AppIcon.x(
           size: 20,
-          color: foregroundColor ?? colors.text.primary,
+          color: foregroundColor ?? palette.text.primary,
         ),
         color: backgroundColor,
         hitTargetSize: 48,

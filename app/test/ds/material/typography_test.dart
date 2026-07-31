@@ -4,7 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import '../../helpers.dart';
 
 void main() {
@@ -17,7 +17,7 @@ void main() {
           home: Scaffold(
             body: SafeArea(
               child: Padding(
-                padding: const EdgeInsets.symmetric(vertical: Spacing.px12),
+                padding: const EdgeInsets.symmetric(vertical: S.s12),
                 child: Center(child: widget),
               ),
             ),
@@ -105,5 +105,44 @@ void main() {
         matchesGoldenFile('goldens/typography_font_styles.png'),
       );
     });
+
+    // The typescale leaves `fontFamily` unset, so the theme fills in the family
+    // Material's `Typography` picks for the target platform.
+    for (final platform in TargetPlatform.values) {
+      testWidgets(
+        'resolves a real font on $platform',
+        (tester) async {
+          late TextStyle style;
+          await tester.pumpWidget(
+            buildSubject(
+              Builder(
+                builder: (context) {
+                  style = Theme.of(context).textTheme.bodyMedium!;
+                  return const SizedBox.shrink();
+                },
+              ),
+            ),
+          );
+
+          // The fallback font gives every glyph the same advance, so a
+          // narrow and a wide string measure identically when the family
+          // is missing.
+          expect(
+            _textWidth('iii', style),
+            lessThan(_textWidth('WWW', style)),
+            reason: 'no font registered for ${style.fontFamily}',
+          );
+        },
+        variant: TargetPlatformVariant.only(platform),
+      );
+    }
   });
+}
+
+double _textWidth(String text, TextStyle style) {
+  final painter = TextPainter(
+    text: TextSpan(text: text, style: style),
+    textDirection: TextDirection.ltr,
+  )..layout();
+  return painter.width;
 }

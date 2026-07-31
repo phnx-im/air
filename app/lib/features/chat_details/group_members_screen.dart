@@ -5,9 +5,7 @@
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
@@ -91,7 +89,7 @@ class GroupMembersView extends HookWidget {
     final query = useState("");
 
     final loc = AppLocalizations.of(context);
-    final colorScheme = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     final sortedMembers = useMemoized(() {
       final youValue = loc.chatList_you.toLowerCase();
@@ -137,14 +135,14 @@ class GroupMembersView extends HookWidget {
                 Expanded(
                   child: ListView.separated(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: Spacing.px16,
-                      vertical: Spacing.px12,
+                      horizontal: S.s16,
+                      vertical: S.s12,
                     ),
                     itemCount: sortedMembers.length,
                     separatorBuilder: (context, index) => Divider(
                       height: 1,
-                      thickness: 1,
-                      color: colorScheme.backgroundBase.primary,
+                      thickness: StrokeWidth.px1,
+                      color: palette.backgroundBase.primary,
                     ),
                     itemBuilder: (context, index) => _GroupMemberTile(
                       chatId: chatId,

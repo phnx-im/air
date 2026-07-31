@@ -193,6 +193,6 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/contact_details_mute_menu_desktop.png'),
       );
-    });
+    }, variant: desktopPlatform);
   });
 }

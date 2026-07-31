@@ -6,9 +6,7 @@ import 'dart:async';
 
 import 'package:air/features/emoji/emoji_data.dart';
 import 'package:air/features/emoji/emoji_repository.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/type_scale.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/message_list/widgets/suggestion_overlay.dart';
 import 'package:air/features/message_list/widgets/text_autocomplete.dart';
 import 'package:flutter/material.dart';
@@ -88,8 +86,8 @@ class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
   @override
   SuggestionOverlayStyle overlayStyle(BuildContext context) {
     return SuggestionOverlayStyle(
-      backgroundColor: CustomColorScheme.of(context).backgroundElevated.primary,
-      borderRadius: BorderRadius.circular(Spacing.px16),
+      backgroundColor: SemanticPalette.of(context).backgroundElevated.primary,
+      borderRadius: BorderRadius.circular(CornerRadius.px16),
       elevation: 8,
       maxWidth: 320,
     );
@@ -102,30 +100,21 @@ class EmojiAutocompleteStrategy implements TextAutocompleteStrategy<Emoji> {
     Emoji suggestion,
     bool isHighlighted,
   ) {
-    final scheme = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final backgroundColor = isHighlighted
-        ? scheme.fill.primary
-        : scheme.backgroundElevated.primary;
+        ? palette.fill.primary
+        : palette.backgroundElevated.primary;
     return Container(
       color: backgroundColor,
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.px16,
-        vertical: Spacing.px8,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),
       child: Row(
         children: [
-          Text(
-            suggestion.emoji,
-            style: TextStyle(fontSize: BodyFontSize.large1.size),
-          ),
-          const SizedBox(width: Spacing.px8),
+          Text(suggestion.emoji, style: typeScale.body.m.style()),
+          const SizedBox(width: S.s8),
           Expanded(
             child: Text(
               ':${suggestion.shortName}:',
-              style: TextStyle(
-                fontSize: BodyFontSize.base.size,
-                color: scheme.text.primary,
-              ),
+              style: typeScale.body.regular.style(color: palette.text.primary),
             ),
           ),
         ],

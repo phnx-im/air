@@ -1,9 +1,7 @@
 // SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/icons.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
 
 class MemberSearchField extends StatelessWidget {
@@ -20,13 +18,13 @@ class MemberSearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final customColorScheme = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     return Padding(
       padding: const EdgeInsets.only(
-        left: Spacing.px16,
-        right: Spacing.px16,
-        top: Spacing.px24,
-        bottom: Spacing.px8,
+        left: S.s16,
+        right: S.s16,
+        top: S.s24,
+        bottom: S.s8,
       ),
       child: TextField(
         controller: controller,
@@ -43,10 +41,12 @@ class MemberSearchField extends StatelessWidget {
             minHeight: 28,
           ),
           hintText: hintText,
-          hintStyle: Theme.of(context).textTheme.bodyMedium?.copyWith(
-            color: customColorScheme.text.quaternary,
+          hintStyle: Theme.of(
+            context,
+          ).textTheme.bodyMedium?.copyWith(color: palette.text.quaternary),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(CornerRadius.px12),
           ),
-          border: OutlineInputBorder(borderRadius: BorderRadius.circular(12)),
         ),
       ),
     );

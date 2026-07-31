@@ -4,8 +4,7 @@
 
 import 'dart:async';
 import 'dart:math' as math;
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:flutter/material.dart';
 
@@ -29,7 +28,7 @@ Future<T?> showBottomSheetModal<T>({
     barrierDismissible: isDismissible,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     barrierColor:
-        barrierColor ?? CustomColorScheme.of(context).function.barrier,
+        barrierColor ?? SemanticPalette.of(context).function.neutral.scrim,
     transitionDuration: animationDuration,
     transitionBuilder: (context, animation, secondaryAnimation, child) => child,
     pageBuilder: (context, animation, secondaryAnimation) {
@@ -72,10 +71,10 @@ class _BottomSheetModal extends StatefulWidget {
 class _BottomSheetModalState extends State<_BottomSheetModal>
     with SingleTickerProviderStateMixin {
   static const _sheetBorderRadius = BorderRadius.vertical(
-    top: Radius.circular(28),
+    top: Radius.circular(CornerRadius.px28),
   );
   static const double _handleHeight = 4;
-  static const double _handleTopSpacing = Spacing.px8;
+  static const double _handleTopSpacing = S.s8;
 
   late final CurvedAnimation _appearAnimation;
   late final Animation<double> _slideAnimation;
@@ -185,15 +184,10 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
       mediaQuery.viewPadding.bottom,
       mediaQuery.viewInsets.bottom,
     );
-    final colorScheme = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final basePadding =
         widget.contentPadding ??
-        const EdgeInsets.fromLTRB(
-          Spacing.px24,
-          Spacing.px32,
-          Spacing.px24,
-          Spacing.px8,
-        );
+        const EdgeInsets.fromLTRB(S.s24, S.s32, S.s24, S.s8);
     final contentPadding = basePadding.add(
       EdgeInsets.only(bottom: bottomPadding),
     );
@@ -243,7 +237,7 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
                             bottom: _handleTopSpacing,
                           ),
                           child: _BottomSheetHandle(
-                            color: colorScheme.backgroundElevated.primary,
+                            color: palette.backgroundElevated.primary,
                           ),
                         ),
                       ),
@@ -259,7 +253,7 @@ class _BottomSheetModalState extends State<_BottomSheetModal>
                         child: ClipRRect(
                           borderRadius: _sheetBorderRadius,
                           child: Material(
-                            color: colorScheme.backgroundElevated.primary,
+                            color: palette.backgroundElevated.primary,
                             child: SingleChildScrollView(
                               padding: contentPadding,
                               child: widget.builder(context),
@@ -291,7 +285,7 @@ class _BottomSheetHandle extends StatelessWidget {
       height: 4,
       decoration: BoxDecoration(
         color: color,
-        borderRadius: BorderRadius.circular(999),
+        borderRadius: BorderRadius.circular(CornerRadius.full),
       ),
     );
   }
@@ -332,7 +326,7 @@ class BottomSheetDialogContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final textTheme = Theme.of(context).textTheme;
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Column(
       mainAxisSize: MainAxisSize.min,
@@ -343,22 +337,22 @@ class BottomSheetDialogContent extends StatelessWidget {
             title!,
             style: textTheme.titleLarge!.copyWith(
               fontWeight: FontWeight.bold,
-              color: colors.text.primary,
+              color: palette.text.primary,
             ),
             textAlign: titleAlignment,
           ),
         if (description != null) ...[
-          const SizedBox(height: Spacing.px16),
+          const SizedBox(height: S.s16),
           Text(
             description!,
             style: textTheme.bodyMedium?.copyWith(
-              color: colors.text.secondary,
+              color: palette.text.secondary,
               height: 1.4,
             ),
             textAlign: descriptionAlignment,
           ),
         ],
-        const SizedBox(height: Spacing.px24),
+        const SizedBox(height: S.s24),
         if (primaryActionText != null)
           AppButton(
             type: primaryType,
@@ -375,7 +369,7 @@ class BottomSheetDialogContent extends StatelessWidget {
             label: primaryActionText!,
           ),
         if (secondaryActionText != null) ...[
-          const SizedBox(height: Spacing.px16),
+          const SizedBox(height: S.s16),
           AppButton(
             type: secondaryType,
             tone: secondaryTone,

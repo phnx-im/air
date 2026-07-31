@@ -17,17 +17,29 @@ ThemeData testThemeData(Brightness brightness) {
   );
 }
 
-final ThemeData testLightTheme = testThemeData(Brightness.light);
-final ThemeData testDarkTheme = testThemeData(Brightness.dark);
+/// A getter rather than a `final` because the theme it wraps resolves the
+/// typescale and the appbar height from the target platform, which a test can
+/// pin after this library is first loaded.
+ThemeData get testLightTheme => testThemeData(Brightness.light);
 
 /// Maps the host OS to the matching desktop [TargetPlatform] so widget goldens
 /// render the same desktop code path the app ships on that OS, keeping the
 /// per-platform golden variants consistent with their host.
-TargetPlatform desktopTargetPlatform() {
+TargetPlatform _desktopTargetPlatform() {
   if (Platform.isMacOS) return TargetPlatform.macOS;
   if (Platform.isWindows) return TargetPlatform.windows;
   return TargetPlatform.linux;
 }
+
+/// Renders a test as the desktop platform the host OS ships. Widening the
+/// viewport alone only moves the `Breakpoint`, not the typescale or the density
+/// that `DeviceType` drives.
+///
+/// A `variant:` rather than a call inside the test body: the binding verifies
+/// that no foundation debug variable is still set at the end of the body, and
+/// only a variant's teardown runs before that check.
+TargetPlatformVariant get desktopPlatform =>
+    TargetPlatformVariant.only(_desktopTargetPlatform());
 
 extension IntTestExtension on int {
   ChatId chatId() => ChatId(uuid: _intToUuidValue(this));

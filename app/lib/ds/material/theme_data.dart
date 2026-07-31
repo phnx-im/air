@@ -4,13 +4,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/material/button_styles.dart';
-import 'package:air/ds/foundations/primitives.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/material/cupertino_scrim_transition.dart';
 import 'package:air/ds/material/text_theme.dart';
-import 'package:air/ds/foundations/type_scale.dart';
 
 ThemeData darkTheme = themeData(Brightness.dark);
 ThemeData lightTheme = themeData(Brightness.light);
@@ -18,9 +15,9 @@ ThemeData lightTheme = themeData(Brightness.light);
 ThemeData themeData(Brightness brightness) {
   final baselineTheme = ThemeData(brightness: brightness);
 
-  final colorScheme = switch (brightness) {
-    Brightness.dark => darkCustomColorScheme,
-    Brightness.light => lightCustomColorScheme,
+  final palette = switch (brightness) {
+    Brightness.dark => darkSemanticPalette,
+    Brightness.light => lightSemanticPalette,
   };
 
   // AppBar title style
@@ -34,49 +31,48 @@ ThemeData themeData(Brightness brightness) {
   return ThemeData(
     colorScheme: ColorScheme(
       brightness: brightness,
-      primary: colorScheme.text.primary,
-      onPrimary: colorScheme.backgroundBase.primary,
-      secondary: colorScheme.text.secondary,
-      onSecondary: colorScheme.backgroundBase.primary,
-      surface: colorScheme.backgroundBase.primary,
-      onSurface: colorScheme.text.primary,
-      error: colorScheme.function.danger,
-      onError: colorScheme.text.primary,
+      primary: palette.text.primary,
+      onPrimary: palette.backgroundBase.primary,
+      secondary: palette.text.secondary,
+      onSecondary: palette.backgroundBase.primary,
+      surface: palette.backgroundBase.primary,
+      onSurface: palette.text.primary,
+      error: palette.function.danger,
+      onError: palette.text.primary,
     ),
     appBarTheme: AppBarTheme(
-      backgroundColor: colorScheme.backgroundBase.primary,
+      backgroundColor: palette.backgroundBase.primary,
       elevation: 0,
-      iconTheme: IconThemeData(color: colorScheme.text.primary),
+      iconTheme: IconThemeData(color: palette.text.primary),
       centerTitle: true,
-      toolbarHeight: DeviceType.isDesktop ? 100 : null,
       systemOverlayStyle: brightness == Brightness.light
           ? SystemUiOverlayStyle.dark
           : SystemUiOverlayStyle.light,
       titleTextStyle: (mergedAppBarTitleStyle ?? const TextStyle()).copyWith(
-        color: colorScheme.text.primary,
-        fontSize: LabelFontSize.base.size,
+        color: palette.text.primary,
+        fontSize: typeScale.body.regular.fontSize,
       ),
     ),
-    scaffoldBackgroundColor: colorScheme.backgroundBase.primary,
+    scaffoldBackgroundColor: palette.backgroundBase.primary,
     textTheme: customTextScheme,
-    canvasColor: colorScheme.backgroundBase.primary,
-    cardColor: colorScheme.backgroundBase.primary,
+    canvasColor: palette.backgroundBase.primary,
+    cardColor: palette.backgroundBase.primary,
     dialogTheme: DialogThemeData(
-      backgroundColor: colorScheme.backgroundBase.primary,
-      surfaceTintColor: colorScheme.backgroundBase.primary,
+      backgroundColor: palette.backgroundBase.primary,
+      surfaceTintColor: palette.backgroundBase.primary,
     ),
     splashColor: Colors.transparent,
     highlightColor: Colors.transparent,
     hoverColor: Colors.transparent,
     outlinedButtonTheme: OutlinedButtonThemeData(
       style: CustomOutlineButtonStyle(
-        colorScheme: colorScheme,
+        palette: palette,
         baselineTextTheme: baselineTheme.textTheme,
       ),
     ),
     textButtonTheme: TextButtonThemeData(
       style: CustomTextButtonStyle(
-        colorScheme: colorScheme,
+        palette: palette,
         baselineTextTheme: baselineTheme.textTheme,
       ),
     ),
@@ -88,20 +84,17 @@ ThemeData themeData(Brightness brightness) {
       ),
     ),
     textSelectionTheme: TextSelectionThemeData(
-      cursorColor: AppColors.blue[300],
+      cursorColor: Primitive.chromatic(Hue.blue, Shade.s300),
     ),
     inputDecorationTheme: InputDecorationTheme(
       border: InputBorder.none,
-      hintStyle: TextStyle(
-        color: colorScheme.text.quaternary,
-        fontSize: LabelFontSize.small1.size,
-      ),
+      hintStyle: typeScale.body.s.style(color: palette.text.quaternary),
       focusedBorder: _textInputBorder,
       enabledBorder: _textInputBorder,
       errorBorder: _textInputBorder,
       focusedErrorBorder: _textInputBorder,
       filled: true,
-      fillColor: colorScheme.backgroundBase.secondary,
+      fillColor: palette.backgroundBase.secondary,
     ),
     pageTransitionsTheme: PageTransitionsTheme(
       // We want a scrim for iOS and macOS to visually separate the new page
@@ -113,11 +106,11 @@ ThemeData themeData(Brightness brightness) {
       },
     ),
     switchTheme: SwitchThemeData(
-      thumbColor: WidgetStateProperty.all(colorScheme.text.secondary),
-      trackOutlineColor: WidgetStateProperty.all(colorScheme.separator.primary),
+      thumbColor: WidgetStateProperty.all(palette.text.secondary),
+      trackOutlineColor: WidgetStateProperty.all(palette.separator.primary),
       trackColor: WidgetStateProperty.resolveWith(
         (states) => states.contains(WidgetState.selected)
-            ? colorScheme.backgroundElevated.quaternary
+            ? palette.backgroundElevated.quaternary
             : Colors.transparent,
       ),
     ),
@@ -126,7 +119,7 @@ ThemeData themeData(Brightness brightness) {
 
 final _textInputBorder = OutlineInputBorder(
   borderSide: const BorderSide(width: 0, style: BorderStyle.none),
-  borderRadius: BorderRadius.circular(8),
+  borderRadius: BorderRadius.circular(CornerRadius.px8),
 );
 
 /// Scroll behavior that matches Flutter's base [ScrollBehavior] physics:

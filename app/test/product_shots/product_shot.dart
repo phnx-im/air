@@ -87,24 +87,28 @@ class ProductShot extends StatelessWidget {
                 children: [
                   SizedBox(
                     height: headerHeight,
-                    child: Center(
-                      child: Column(
-                        mainAxisAlignment: MainAxisAlignment.start,
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          SizedBox(height: headerHeight * 0.05),
-                          _ShotTitle(
-                            text: title,
-                            color: titleColor,
-                            size: fontReference,
-                          ),
-                          SizedBox(height: headerHeight * 0.05),
-                          _ShotSubtitle(
-                            text: subtitle,
-                            color: subtitleColor,
-                            size: fontReference,
-                          ),
-                        ],
+                    child: Align(
+                      alignment: Alignment.topCenter,
+                      child: FittedBox(
+                        fit: BoxFit.scaleDown,
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.start,
+                          crossAxisAlignment: CrossAxisAlignment.center,
+                          children: [
+                            SizedBox(height: headerHeight * 0.05),
+                            _ShotTitle(
+                              text: title,
+                              color: titleColor,
+                              size: fontReference,
+                            ),
+                            SizedBox(height: headerHeight * 0.05),
+                            _ShotSubtitle(
+                              text: subtitle,
+                              color: subtitleColor,
+                              size: fontReference,
+                            ),
+                          ],
+                        ),
                       ),
                     ),
                   ),

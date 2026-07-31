@@ -4,8 +4,7 @@
 import 'package:air/features/attachments/attachment_file.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -24,10 +23,10 @@ final file = UiAttachment(
 );
 
 List<(Color, Color)> testColors(BuildContext context) {
-  final colors = CustomColorScheme.of(context);
+  final palette = SemanticPalette.of(context);
   return [
-    (colors.message.selfText, colors.message.selfBackground),
-    (colors.message.otherText, colors.message.otherBackground),
+    (palette.message.selfText, palette.message.selfBackground),
+    (palette.message.otherText, palette.message.otherBackground),
   ];
 }
 
@@ -55,13 +54,10 @@ class _FileTestBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.px16,
-        vertical: Spacing.px8,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s8),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(Spacing.px20),
+        borderRadius: BorderRadius.circular(CornerRadius.px20),
       ),
       child: AttachmentFile(
         attachment: attachment ?? file.copyWith(attachmentId: attachmentId),
@@ -106,11 +102,11 @@ void main() {
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
                 home: Scaffold(
                   body: Padding(
-                    padding: const EdgeInsets.all(Spacing.px16),
+                    padding: const EdgeInsets.all(S.s16),
                     child: SizedBox(
                       width: double.infinity,
                       child: Column(
-                        spacing: Spacing.px16,
+                        spacing: S.s16,
                         crossAxisAlignment: .end,
                         children: children(context),
                       ),

@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/components/button/button.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/type_scale.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
@@ -12,11 +11,8 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/material/button_styles.dart';
 import 'package:air/platform/notification_permissions.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:flutter_svg/svg.dart';
@@ -38,12 +34,12 @@ class IntroScreen extends HookWidget {
 
     final loc = AppLocalizations.of(context);
 
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     final serverFieldVisible = useState(false);
 
     final textFormConstraints = BoxConstraints.tight(
-      isSmallScreen(context)
+      context.breakpoint.isSmall
           ? const Size(double.infinity, 120)
           : const Size(300, 120),
     );
@@ -59,7 +55,7 @@ class IntroScreen extends HookWidget {
     }
 
     return Scaffold(
-      backgroundColor: colors.backgroundBase.secondary,
+      backgroundColor: palette.backgroundBase.secondary,
       body: SafeArea(
         child: Stack(
           children: [
@@ -74,7 +70,7 @@ class IntroScreen extends HookWidget {
                   child: SvgPicture.asset(
                     'assets/images/logo.svg',
                     colorFilter: ColorFilter.mode(
-                      colors.text.primary,
+                      palette.text.primary,
                       BlendMode.srcIn,
                     ),
                   ),
@@ -84,7 +80,7 @@ class IntroScreen extends HookWidget {
             const Align(
               alignment: Alignment.topLeft,
               child: Padding(
-                padding: EdgeInsets.only(left: Spacing.px24, top: Spacing.px24),
+                padding: EdgeInsets.only(left: S.s24, top: S.s24),
                 child: _LanguagePicker(),
               ),
             ),
@@ -92,24 +88,24 @@ class IntroScreen extends HookWidget {
               Align(
                 alignment: Alignment.bottomCenter,
                 child: ConstrainedWidth(
-                  width: isSmallScreen(context) ? double.infinity : 320,
+                  width: context.breakpoint.isSmall ? double.infinity : 320,
                   child: Padding(
-                    padding: isSmallScreen(context)
-                        ? const EdgeInsets.symmetric(horizontal: Spacing.px16)
+                    padding: context.breakpoint.isSmall
+                        ? const EdgeInsets.symmetric(horizontal: S.s16)
                         : EdgeInsets.zero,
                     child: Column(
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.center,
                       children: [
                         _TermsOfUseText(loc: loc),
-                        const SizedBox(height: Spacing.px16),
+                        const SizedBox(height: S.s16),
                         if (serverFieldVisible.value) ...[
                           Text(
                             loc.introScreen_serverLabel,
                             style: Theme.of(context).textTheme.bodyMedium,
                             textAlign: TextAlign.left,
                           ),
-                          const SizedBox(height: Spacing.px16),
+                          const SizedBox(height: S.s16),
 
                           ConstrainedBox(
                             constraints: textFormConstraints,
@@ -125,7 +121,7 @@ class IntroScreen extends HookWidget {
                             onPressed: openLinking,
                             onLongPress: () => serverFieldVisible.value = true,
                           ),
-                          const SizedBox(height: Spacing.px8),
+                          const SizedBox(height: S.s8),
                         ],
                         AppButton(
                           type: .primary,
@@ -136,7 +132,7 @@ class IntroScreen extends HookWidget {
                             context.read<NavigationCubit>().openSignUp();
                           },
                         ),
-                        const SizedBox(height: Spacing.px16),
+                        const SizedBox(height: S.s16),
                       ],
                     ),
                   ),
@@ -154,7 +150,7 @@ class _LanguagePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return LanguagePickerMenu(
       onLocaleSelected: (locale) async {
@@ -176,17 +172,16 @@ class _LanguagePicker extends StatelessWidget {
                 height: 36,
                 alignment: Alignment.center,
                 decoration: BoxDecoration(
-                  color: colors.backgroundBase.tertiary,
+                  color: palette.backgroundBase.tertiary,
                   shape: BoxShape.circle,
                 ),
-                child: AppIcon.globe(color: colors.text.secondary, size: 18),
+                child: AppIcon.globe(color: palette.text.secondary, size: 18),
               ),
-              const SizedBox(width: Spacing.px12),
+              const SizedBox(width: S.s12),
               Text(
                 option.label,
-                style: TextStyle(
-                  fontSize: LabelFontSize.base.size,
-                  color: colors.text.primary,
+                style: typeScale.body.regular.style(
+                  color: palette.text.primary,
                 ),
               ),
             ],
@@ -204,9 +199,8 @@ class _TermsOfUseText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final baseTextStyle = TextStyle(
-      fontSize: LabelFontSize.small2.size,
-      color: CustomColorScheme.of(context).text.tertiary,
+    final baseTextStyle = typeScale.body.xs.style(
+      color: SemanticPalette.of(context).text.tertiary,
     );
 
     final linkText = loc.introScreen_termsLinkText;
@@ -221,7 +215,7 @@ class _TermsOfUseText extends StatelessWidget {
     final afterLink = agreement.substring(linkStart + linkText.length);
 
     final linkStyle = baseTextStyle.copyWith(
-      color: CustomColorScheme.of(context).function.link,
+      color: SemanticPalette.of(context).function.link,
     );
 
     return Text.rich(
@@ -256,13 +250,13 @@ class _ServerTextField extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final focusNode = useFocusNode();
 
     return TextFormField(
       decoration: InputDecoration(
         hintText: loc.introScreen_serverHint,
-        fillColor: colors.backgroundBase.tertiary,
+        fillColor: palette.backgroundBase.tertiary,
       ),
       initialValue: context.read<RegistrationCubit>().state.domain,
       focusNode: focusNode,

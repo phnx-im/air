@@ -4,8 +4,7 @@
 
 import 'dart:async';
 
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/util/anchored_list/controller.dart';
 import 'package:flutter/widgets.dart';
 
@@ -126,7 +125,7 @@ class _JumpHighlightState extends State<JumpHighlight>
 
   @override
   Widget build(BuildContext context) {
-    final highlightColor = CustomColorScheme.of(context).function.link;
+    final highlightColor = SemanticPalette.of(context).function.link;
     return AnimatedBuilder(
       animation: _animation,
       builder: (context, child) {
@@ -140,8 +139,8 @@ class _JumpHighlightState extends State<JumpHighlight>
                 ? [
                     BoxShadow(
                       color: highlightColor.withValues(alpha: t),
-                      spreadRadius: Spacing.px4,
-                      blurRadius: Spacing.px24,
+                      spreadRadius: S.s4,
+                      blurRadius: S.s24,
                     ),
                   ]
                 : null,

@@ -73,7 +73,7 @@ Future<void> main() async {
   buffer.writeln("// Generated via app/tool/compile_svg_icons.dart");
   buffer.writeln();
   buffer.writeln("import 'dart:convert';");
-  buffer.writeln("import 'package:air/ds/foundations/color_scheme.dart';");
+  buffer.writeln("import 'package:air/ds/foundations/semantic_colors.dart';");
   buffer.writeln("import 'package:flutter/foundation.dart';");
   buffer.writeln("import 'package:flutter/services.dart';");
   buffer.writeln("import 'package:flutter/widgets.dart';");
@@ -114,7 +114,7 @@ Future<void> main() async {
   buffer.writeln('  @override');
   buffer.writeln('  Widget build(BuildContext context) {');
   buffer.writeln(
-    '    final color = this.color ?? CustomColorScheme.of(context).text.primary;',
+    '    final color = this.color ?? SemanticPalette.of(context).text.primary;',
   );
   buffer.writeln('    return createCompatVectorGraphic(');
   buffer.writeln('      loader: compiledSvgLoader(type),');

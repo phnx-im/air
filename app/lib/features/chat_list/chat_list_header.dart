@@ -6,13 +6,10 @@ import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/features/chat_list/add_contact_dialog.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/material/button_styles.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/button_icon/glass_circle_button.dart';
-import 'package:air/ds/foundations/icons.dart';
 import 'package:air/ds/patterns/context_menu/context_menu.dart';
 import 'package:air/ds/patterns/context_menu/context_menu_item.dart';
-import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:flutter/material.dart';
@@ -27,10 +24,10 @@ class ChatListHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final isMobile = isSmallScreen(context);
+    final isMobile = context.breakpoint.isSmall;
 
     return Padding(
-      padding: const EdgeInsets.only(left: Spacing.px20, right: Spacing.px16),
+      padding: const EdgeInsets.only(left: S.s20, right: S.s16),
       child: SizedBox(
         height: kToolbarHeight,
         child: Row(
@@ -45,9 +42,8 @@ class ChatListHeader extends StatelessWidget {
                 child: isMobile
                     ? Text(
                         loc.homeTab_chats,
-                        style: TextStyle(
-                          fontSize: LabelFontSize.base.size,
-                          fontWeight: FontWeight.bold,
+                        style: typeScale.body.regular.style(
+                          weight: Weight.emphasized,
                         ),
                       )
                     : null,
@@ -81,7 +77,7 @@ class _Avatar extends StatelessWidget {
           final profile = context.select(
             (UsersCubit cubit) => cubit.state.profile(userId: null),
           );
-          return UserAvatar(profile: profile, size: Spacing.px32);
+          return UserAvatar(profile: profile, size: S.s32);
         },
       ),
     );
@@ -122,7 +118,7 @@ class _PlusButtonState extends State<_PlusButton> {
         ),
       ],
       // The plus button is different on mobile and desktop
-      child: isSmallScreen(context)
+      child: context.breakpoint.isSmall
           ? GlassCircleButton(
               icon: const AppIcon.plus(size: 20),
               onPressed: contextMenuController.show,

@@ -11,7 +11,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/primitives.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/navigation/app_tab_bar.dart';
 import 'package:air/features/home/home_screen.dart';
 import 'package:air/features/user/user_cubit.dart';
@@ -64,10 +64,10 @@ void main() {
   });
 
   group('Chat List Product Shots', () {
-    final backgroundColor = AppColors.neutral[50]!;
-    final titleColor = AppColors.neutral[800]!;
-    final subtitleColor = AppColors.neutral[600]!;
-    final frameColor = AppColors.neutral[300]!;
+    final backgroundColor = Primitive.neutral(NeutralShade.s100);
+    final titleColor = Primitive.neutral(NeutralShade.s800);
+    final subtitleColor = Primitive.neutral(NeutralShade.s600);
+    final frameColor = Primitive.neutral(NeutralShade.s300);
     const title = 'Secure messaging\nfor everyone.';
     const subtitle = 'Everything in Air is\nend-to-end encrypted.';
 
@@ -172,6 +172,7 @@ void main() {
       "Chat List (iOS)",
       hostPlatform: 'macos',
       physicalSize: iosPhysicalSize,
+      targetPlatform: TargetPlatform.iOS,
       (tester) async {
         await tester.pumpWidget(buildSubject(ProductShotPlatform.ios));
         await _precacheImages(tester);
@@ -189,6 +190,7 @@ void main() {
       "Chat List (Android)",
       hostPlatform: 'linux',
       physicalSize: androidPhysicalSize,
+      targetPlatform: TargetPlatform.android,
       (tester) async {
         await tester.pumpWidget(buildSubject(ProductShotPlatform.android));
         await _precacheImages(tester);
@@ -204,10 +206,10 @@ void main() {
   });
 
   group("Private Chat", () {
-    final backgroundColor = AppColors.orange[50]!;
-    final titleColor = AppColors.orange[800]!;
-    final subtitleColor = AppColors.orange[600]!;
-    final frameColor = AppColors.orange[300]!;
+    final backgroundColor = Primitive.chromatic(Hue.orange, Shade.s50);
+    final titleColor = Primitive.chromatic(Hue.orange, Shade.s800);
+    final subtitleColor = Primitive.chromatic(Hue.orange, Shade.s600);
+    final frameColor = Primitive.chromatic(Hue.orange, Shade.s300);
     const title = 'Connect with friends.';
     const subtitle = 'Send messages in private chats.';
 
@@ -328,6 +330,7 @@ void main() {
       "Private Chat (iOS)",
       hostPlatform: "macos",
       physicalSize: iosPhysicalSize,
+      targetPlatform: TargetPlatform.iOS,
       (tester) async {
         await tester.pumpWidget(buildSubject(ProductShotPlatform.ios));
         await _precacheImages(tester);
@@ -345,6 +348,7 @@ void main() {
       "Private Chat (Android)",
       hostPlatform: "linux",
       physicalSize: androidPhysicalSize,
+      targetPlatform: TargetPlatform.android,
       (tester) async {
         await tester.pumpWidget(buildSubject(ProductShotPlatform.android));
         await _precacheImages(tester);
@@ -360,10 +364,10 @@ void main() {
   });
 
   group("Group Chat", () {
-    final backgroundColor = AppColors.blue[50]!;
-    final titleColor = AppColors.blue[800]!;
-    final subtitleColor = AppColors.blue[600]!;
-    final frameColor = AppColors.blue[300]!;
+    final backgroundColor = Primitive.chromatic(Hue.blue, Shade.s50);
+    final titleColor = Primitive.chromatic(Hue.blue, Shade.s800);
+    final subtitleColor = Primitive.chromatic(Hue.blue, Shade.s600);
+    final frameColor = Primitive.chromatic(Hue.blue, Shade.s300);
     const title = 'Create group chats.';
     const subtitle = 'Message with multiple people.';
 
@@ -465,6 +469,7 @@ void main() {
       "Group Chat (iOS)",
       hostPlatform: "macos",
       physicalSize: iosPhysicalSize,
+      targetPlatform: TargetPlatform.iOS,
       (tester) async {
         await tester.pumpWidget(buildSubject(ProductShotPlatform.ios));
         await _precacheImages(tester);
@@ -482,6 +487,7 @@ void main() {
       "Group Chat (Android)",
       hostPlatform: "linux",
       physicalSize: androidPhysicalSize,
+      targetPlatform: TargetPlatform.android,
       (tester) async {
         await tester.pumpWidget(buildSubject(ProductShotPlatform.android));
         await _precacheImages(tester);
@@ -611,9 +617,7 @@ void main() {
 
               return MaterialApp(
                 debugShowCheckedModeBanner: false,
-                theme: testLightTheme.copyWith(
-                  platform: desktopTargetPlatform(),
-                ),
+                theme: testLightTheme,
                 themeMode: ThemeMode.light,
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
                 home: Material(
@@ -635,6 +639,7 @@ void main() {
       "Private Chat (macOS)",
       hostPlatform: "macos",
       physicalSize: macosPhysicalSize,
+      targetPlatform: TargetPlatform.macOS,
       (tester) async {
         final chat = chats[0];
         when(() => navigationCubit.state).thenReturn(
@@ -651,10 +656,10 @@ void main() {
         // as the hero image and carries the lead store copy.
         await tester.pumpWidget(
           buildSubject(
-            backgroundColor: AppColors.neutral[50]!,
-            titleColor: AppColors.neutral[800]!,
-            subtitleColor: AppColors.neutral[600]!,
-            frameColor: AppColors.neutral[300]!,
+            backgroundColor: Primitive.neutral(NeutralShade.s100),
+            titleColor: Primitive.neutral(NeutralShade.s800),
+            subtitleColor: Primitive.neutral(NeutralShade.s600),
+            frameColor: Primitive.neutral(NeutralShade.s300),
             title: 'Secure messaging for everyone.',
             subtitle: 'Everything in Air is end-to-end encrypted.',
           ),
@@ -674,6 +679,7 @@ void main() {
       "Group Chat (macOS)",
       hostPlatform: "macos",
       physicalSize: macosPhysicalSize,
+      targetPlatform: TargetPlatform.macOS,
       (tester) async {
         final chat = chats[4];
         when(() => navigationCubit.state).thenReturn(
@@ -688,10 +694,10 @@ void main() {
 
         await tester.pumpWidget(
           buildSubject(
-            backgroundColor: AppColors.blue[50]!,
-            titleColor: AppColors.blue[800]!,
-            subtitleColor: AppColors.blue[600]!,
-            frameColor: AppColors.blue[300]!,
+            backgroundColor: Primitive.chromatic(Hue.blue, Shade.s50),
+            titleColor: Primitive.chromatic(Hue.blue, Shade.s800),
+            subtitleColor: Primitive.chromatic(Hue.blue, Shade.s600),
+            frameColor: Primitive.chromatic(Hue.blue, Shade.s300),
             title: 'Create group chats.',
             subtitle: 'Message with multiple people.',
           ),
@@ -709,28 +715,38 @@ void main() {
   });
 }
 
+/// [hostPlatform] is the OS that records the shot, not the device it depicts:
+/// the iOS shots are recorded on macOS because that is where the San Francisco
+/// system font is available. [targetPlatform] is the depicted platform, which
+/// drives the typescale and the device type independently of the host.
 void testProductShot(
   String description,
   WidgetTesterCallback callback, {
   required String hostPlatform,
   required Size physicalSize,
+  required TargetPlatform targetPlatform,
 }) async {
-  testWidgets(description, (tester) async {
-    debugDisableShadows = false;
+  testWidgets(
+    description,
+    (tester) async {
+      debugDisableShadows = false;
 
-    tester.view.physicalSize = physicalSize;
-    tester.view.devicePixelRatio = 1.0;
-    addTearDown(() {
-      tester.view.resetPhysicalSize();
-      tester.view.resetDevicePixelRatio();
-    });
+      tester.view.physicalSize = physicalSize;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
 
-    try {
-      await callback(tester);
-    } finally {
-      debugDisableShadows = true;
-    }
-  }, skip: Platform.operatingSystem != hostPlatform);
+      try {
+        await callback(tester);
+      } finally {
+        debugDisableShadows = true;
+      }
+    },
+    skip: Platform.operatingSystem != hostPlatform,
+    variant: TargetPlatformVariant.only(targetPlatform),
+  );
 }
 
 /// Preload all images in the widget tree.

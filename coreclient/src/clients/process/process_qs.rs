@@ -5,7 +5,7 @@
 use std::time::Instant;
 
 use aircommon::{
-    credentials::{UserCredential, VerifiableUserCredential},
+    credentials::{LeafCredential, UserCredential},
     crypto::{aead::AeadDecryptable, indexed_aead::keys::UserProfileKey},
     identifiers::{MimiId, QualifiedGroupId, UserId},
     messages::{
@@ -791,10 +791,9 @@ impl CoreUser {
         } = processed_message;
 
         let sender = processed_message.sender().clone();
-        let sender_user_id =
-            VerifiableUserCredential::from_basic_credential(processed_message.credential())?
-                .user_id()
-                .clone();
+        let sender_user_id = LeafCredential::from_credential(processed_message.credential())?
+            .user_id(group.own_user_id())
+            .clone();
 
         let aad = processed_message.tail_aad().to_vec();
 

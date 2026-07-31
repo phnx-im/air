@@ -5,8 +5,7 @@
 import 'dart:async';
 
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
 import 'package:intl/intl.dart';
 
@@ -46,10 +45,7 @@ class _DateDividerState extends State<DateDivider> {
     final label = formatDateLabel(widget.date, DateTime.now(), loc, locale);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.px24,
-        vertical: Spacing.px32,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: S.s24, vertical: S.s32),
       child: Row(
         mainAxisAlignment: MainAxisAlignment.center,
         children: [DateLabelPill(label: label)],
@@ -67,18 +63,15 @@ class DateLabelPill extends StatelessWidget {
   Widget build(BuildContext context) {
     return DecoratedBox(
       decoration: ShapeDecoration(
-        color: CustomColorScheme.of(context).backgroundBase.secondary,
+        color: SemanticPalette.of(context).backgroundBase.secondary,
         shape: const StadiumBorder(),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.px16,
-          vertical: Spacing.px4,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s4),
         child: Text(
           label,
           style: TextTheme.of(context).bodySmall?.copyWith(
-            color: CustomColorScheme.of(context).text.secondary,
+            color: SemanticPalette.of(context).text.secondary,
           ),
         ),
       ),

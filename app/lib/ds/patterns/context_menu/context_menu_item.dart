@@ -3,9 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:io';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/type_scale.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
 
 abstract class ContextMenuEntry extends StatelessWidget {
@@ -18,11 +16,11 @@ class ContextMenuSeparator extends ContextMenuEntry {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(vertical: Spacing.px8),
+      padding: const EdgeInsets.symmetric(vertical: S.s8),
       child: Divider(
         height: 0,
-        thickness: 1,
-        color: CustomColorScheme.of(context).separator.primary,
+        thickness: StrokeWidth.px1,
+        color: SemanticPalette.of(context).separator.primary,
       ),
     );
   }
@@ -68,10 +66,10 @@ class ContextMenuItem extends ContextMenuEntry {
   @override
   Widget build(BuildContext context) {
     final leadingWidget = buildLeading(context);
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final foregroundColor = isDestructive
-        ? colors.function.danger
-        : colors.text.primary;
+        ? palette.function.danger
+        : palette.text.primary;
     return MouseRegion(
       cursor: SystemMouseCursors.click,
       child: TextButton(
@@ -79,7 +77,7 @@ class ContextMenuItem extends ContextMenuEntry {
         style: TextButton.styleFrom(
           shape: const RoundedRectangleBorder(borderRadius: BorderRadius.zero),
           foregroundColor: foregroundColor,
-          padding: const EdgeInsets.symmetric(vertical: Spacing.px4),
+          padding: const EdgeInsets.symmetric(vertical: S.s4),
           alignment: Alignment.centerLeft,
           splashFactory: !Platform.isAndroid ? NoSplash.splashFactory : null,
           overlayColor: Colors.transparent,
@@ -90,22 +88,22 @@ class ContextMenuItem extends ContextMenuEntry {
           children: [
             if (reserveLeadingSpace) ...[
               SizedBox(width: defaultLeadingWidth, child: leadingWidget),
-              const SizedBox(width: Spacing.px8),
+              const SizedBox(width: S.s8),
             ] else if (leadingWidget != null) ...[
               leadingWidget,
-              const SizedBox(width: Spacing.px8),
+              const SizedBox(width: S.s8),
             ],
             Expanded(
               child: Text(
                 label,
-                style: TextStyle(fontSize: LabelFontSize.base.size),
+                style: typeScale.body.regular.style(),
                 maxLines: 1,
                 softWrap: false,
                 overflow: TextOverflow.ellipsis,
               ),
             ),
             if (trailingIcon != null) ...[
-              const SizedBox(width: Spacing.px8),
+              const SizedBox(width: S.s8),
               Icon(trailingIcon),
             ],
           ],

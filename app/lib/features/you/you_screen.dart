@@ -2,17 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:io';
-
 import 'package:air/core/core.dart';
 import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/material/button_styles.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/type_scale.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/you/linked_devices_screen.dart';
 import 'package:air/features/you/invitation_codes_cubit.dart';
 import 'package:air/features/you/invitation_codes_screen.dart';
@@ -60,11 +53,11 @@ class YouView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
-    final bgColor = colors.backgroundBase.primary;
+    final palette = SemanticPalette.of(context);
+    final bgColor = palette.backgroundBase.primary;
 
     final content = Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+      padding: const EdgeInsets.symmetric(horizontal: S.s16),
       child: Align(
         alignment: Alignment.topCenter,
         child: Container(
@@ -76,7 +69,7 @@ class YouView extends StatelessWidget {
       ),
     );
 
-    if (isSmallScreen(context)) {
+    if (context.breakpoint.isSmall) {
       return Scaffold(
         backgroundColor: bgColor,
         body: SafeArea(
@@ -98,13 +91,10 @@ class YouView extends StatelessWidget {
         clipBehavior: Clip.none,
         title: Text(
           loc.userSettingsScreen_title,
-          style: TextStyle(
-            fontSize: LabelFontSize.base.size,
-            fontWeight: FontWeight.bold,
-          ),
+          style: typeScale.body.regular.style(weight: Weight.emphasized),
         ),
         leading: AppBarBackButton(
-          backgroundColor: colors.backgroundElevated.primary,
+          backgroundColor: palette.backgroundElevated.primary,
         ),
         automaticallyImplyLeading: false,
         actions: null,
@@ -134,31 +124,31 @@ class _Sections extends StatelessWidget {
 
         const _UserAvatar(),
 
-        const SizedBox(height: Spacing.px12),
+        const SizedBox(height: S.s12),
         const _DisplayName(),
 
-        const SizedBox(height: Spacing.px24),
+        const SizedBox(height: S.s24),
         const _UsernamesSection(),
 
-        const SizedBox(height: Spacing.px24),
+        const SizedBox(height: S.s24),
         _SectionHeader(text: loc.userSettingsScreen_settingsSection),
 
-        const SizedBox(height: Spacing.px12),
+        const SizedBox(height: S.s12),
         const _CommonSettings(),
 
-        if (isMobilePlatform) const SizedBox(height: Spacing.px12),
+        if (isMobilePlatform) const SizedBox(height: S.s12),
         if (isMobilePlatform) _MobileSettings(),
 
-        if (isDesktopPlatform) const SizedBox(height: Spacing.px12),
+        if (isDesktopPlatform) const SizedBox(height: S.s12),
         if (isDesktopPlatform) const _DesktopSettings(),
 
-        const SizedBox(height: Spacing.px24),
+        const SizedBox(height: S.s24),
         const _HelpSection(),
 
-        const SizedBox(height: Spacing.px24),
+        const SizedBox(height: S.s24),
         const _AccountSection(),
 
-        const SizedBox(height: Spacing.px32 + Spacing.px8),
+        const SizedBox(height: S.s32 + S.s8),
       ],
     );
   }
@@ -176,10 +166,7 @@ class _MobileHeader extends StatelessWidget {
       child: Center(
         child: Text(
           title,
-          style: TextStyle(
-            fontSize: LabelFontSize.base.size,
-            fontWeight: FontWeight.bold,
-          ),
+          style: typeScale.body.regular.style(weight: Weight.emphasized),
         ),
       ),
     );
@@ -241,7 +228,7 @@ class _DisplayName extends StatelessWidget {
       children: [
         FieldLabel(loc.userSettingsScreen_displayNameLabel),
 
-        const SizedBox(height: Spacing.px12),
+        const SizedBox(height: S.s12),
 
         _FieldContainer(
           onTap: () => {
@@ -254,7 +241,7 @@ class _DisplayName extends StatelessWidget {
           child: Row(children: [Text(displayName)]),
         ),
 
-        const SizedBox(height: Spacing.px12),
+        const SizedBox(height: S.s12),
 
         FieldLabel(loc.userSettingsScreen_profileDescription),
       ],
@@ -276,7 +263,7 @@ class _UsernamesSection extends StatelessWidget {
 
     final loc = AppLocalizations.of(context);
 
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
@@ -285,7 +272,7 @@ class _UsernamesSection extends StatelessWidget {
 
         ...usernames.expand(
           (username) => [
-            const SizedBox(height: Spacing.px12),
+            const SizedBox(height: S.s12),
             _FieldContainer(
               child: Row(
                 children: [
@@ -301,7 +288,7 @@ class _UsernamesSection extends StatelessWidget {
                     },
                     child: AppIcon.trash(
                       size: 24,
-                      color: colors.function.danger,
+                      color: palette.function.danger,
                     ),
                   ),
                 ],
@@ -311,7 +298,7 @@ class _UsernamesSection extends StatelessWidget {
         ),
 
         if (usernames.isEmpty || usernames.length < 5) ...[
-          const SizedBox(height: Spacing.px12),
+          const SizedBox(height: S.s12),
           _FieldContainer(
             onTap: () => showDialog(
               context: context,
@@ -321,13 +308,13 @@ class _UsernamesSection extends StatelessWidget {
               children: [
                 Text(
                   loc.userSettingsScreen_usernamePlaceholder,
-                  style: TextStyle(color: colors.text.quaternary),
+                  style: TextStyle(color: palette.text.quaternary),
                 ),
               ],
             ),
           ),
 
-          const SizedBox(height: Spacing.px12),
+          const SizedBox(height: S.s12),
           FieldLabel(loc.userSettingsScreen_userNamesDescription),
         ],
       ],
@@ -364,7 +351,7 @@ class _CommonSettings extends HookWidget {
 
     final loc = AppLocalizations.of(context);
     return Column(
-      spacing: Spacing.px12,
+      spacing: S.s12,
       children: [
         const _InviteCodes(),
         if (isDeveloper) const _Devices(),
@@ -401,7 +388,7 @@ class _InviteCodes extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return _FieldContainer(
       onTap: () {
@@ -418,9 +405,9 @@ class _InviteCodes extends StatelessWidget {
       },
       child: Row(
         children: [
-          AppIcon.users(color: colors.text.secondary, size: 24),
+          AppIcon.users(color: palette.text.secondary, size: 24),
 
-          const SizedBox(width: Spacing.px12),
+          const SizedBox(width: S.s12),
 
           Expanded(child: Text(loc.userSettingsScreen_inviteCodes)),
 
@@ -451,22 +438,19 @@ class _InvitationCodesBadge extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Container(
       width: 40,
       height: 24,
       decoration: BoxDecoration(
-        color: colors.function.success,
-        borderRadius: BorderRadius.circular(1000),
+        color: palette.function.success.primary,
+        borderRadius: BorderRadius.circular(CornerRadius.full),
       ),
       child: Center(
         child: Text(
           availableInvitationCodes.toString(),
-          style: TextStyle(
-            color: colors.function.white,
-            fontSize: LabelFontSize.small2.size,
-          ),
+          style: typeScale.body.xs.style(color: palette.function.neutral.white),
         ),
       ),
     );
@@ -478,7 +462,7 @@ class _LanguageSettings extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return LanguagePickerMenu(
       onLocaleSelected: (locale) async {
@@ -496,8 +480,8 @@ class _LanguageSettings extends StatelessWidget {
           onTap: onTap,
           child: Row(
             children: [
-              AppIcon.globe(color: colors.text.secondary, size: 24),
-              const SizedBox(width: Spacing.px12),
+              AppIcon.globe(color: palette.text.secondary, size: 24),
+              const SizedBox(width: S.s12),
               Expanded(child: Text(option.label)),
             ],
           ),
@@ -513,7 +497,7 @@ class _Devices extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return _FieldContainer(
       onTap: () {
@@ -526,8 +510,8 @@ class _Devices extends StatelessWidget {
       },
       child: Row(
         children: [
-          AppIcon.laptop(color: colors.text.secondary, size: 24),
-          const SizedBox(width: Spacing.px12),
+          AppIcon.laptop(color: palette.text.secondary, size: 24),
+          const SizedBox(width: S.s12),
           Expanded(child: Text(loc.userSettingsScreen_devices)),
         ],
       ),
@@ -559,7 +543,7 @@ class _MobileSettings extends HookWidget {
           },
         ),
 
-        const SizedBox(height: Spacing.px12),
+        const SizedBox(height: S.s12),
 
         FieldLabel(loc.userSettingsScreen_sendWithEnterDescription),
       ],
@@ -572,13 +556,12 @@ class _DesktopSettings extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
+    // The slider carries the user's own factor, which systemInterfaceScale
+    // multiplies rather than replaces, so it starts at 100% everywhere.
     final interfaceScale = useState(
       useMemoized(() {
         final value = context.read<UserSettingsCubit>().state.interfaceScale;
-        var isLinuxAndScaled =
-            Platform.isLinux &&
-            WidgetsBinding.instance.platformDispatcher.textScaleFactor >= 1.5;
-        return 100 * (value ?? (isLinuxAndScaled ? 1.5 : 1.0));
+        return 100 * (value ?? 1.0);
       }),
     );
 
@@ -590,9 +573,9 @@ class _DesktopSettings extends HookWidget {
         children: [
           Text(
             loc.userSettingsScreen_interfaceScale,
-            style: TextStyle(fontSize: BodyFontSize.base.size),
+            style: typeScale.body.regular.style(),
           ),
-          const SizedBox(width: Spacing.px12),
+          const SizedBox(width: S.s12),
           Expanded(
             child: Slider(
               min: 50,
@@ -600,7 +583,7 @@ class _DesktopSettings extends HookWidget {
               divisions: ((300 - 50) / 10).truncate(),
               value: interfaceScale.value,
               label: interfaceScale.value.truncate().toString(),
-              activeColor: CustomColorScheme.of(context).text.secondary,
+              activeColor: SemanticPalette.of(context).text.secondary,
               onChanged: (value) => interfaceScale.value = value,
               onChangeEnd: (value) {
                 context.read<UserSettingsCubit>().setInterfaceScale(
@@ -635,7 +618,7 @@ class _HelpSection extends HookWidget {
       children: [
         _SectionHeader(text: loc.userSettingsScreen_helpSection),
 
-        const SizedBox(height: Spacing.px12),
+        const SizedBox(height: S.s12),
         _FieldContainer(
           onTap: () {
             Navigator.of(context).push(
@@ -646,13 +629,13 @@ class _HelpSection extends HookWidget {
             children: [
               Text(
                 loc.helpScreen_contactUs,
-                style: TextStyle(fontSize: BodyFontSize.base.size),
+                style: typeScale.body.regular.style(),
               ),
             ],
           ),
         ),
 
-        const SizedBox(height: Spacing.px12),
+        const SizedBox(height: S.s12),
         _FieldContainer(
           onTap: () {
             // copy to clipboard
@@ -666,15 +649,15 @@ class _HelpSection extends HookWidget {
             children: [
               Text(
                 loc.helpScreen_versionInfo,
-                style: TextStyle(fontSize: BodyFontSize.base.size),
+                style: typeScale.body.regular.style(),
               ),
               const Spacer(),
-              Text(version, style: TextStyle(fontSize: BodyFontSize.base.size)),
+              Text(version, style: typeScale.body.regular.style()),
             ],
           ),
         ),
 
-        const SizedBox(height: Spacing.px12),
+        const SizedBox(height: S.s12),
         _FieldContainer(
           onTap: () {
             Navigator.of(context).push(
@@ -685,7 +668,7 @@ class _HelpSection extends HookWidget {
             children: [
               Text(
                 loc.helpScreen_licenses,
-                style: TextStyle(fontSize: BodyFontSize.base.size),
+                style: typeScale.body.regular.style(),
               ),
             ],
           ),
@@ -707,7 +690,7 @@ class _AccountSection extends StatelessWidget {
       children: [
         _SectionHeader(text: loc.userSettingsScreen_accountSection),
 
-        const SizedBox(height: Spacing.px12),
+        const SizedBox(height: S.s12),
         _FieldContainer(
           onTap: () {
             showDialog(
@@ -719,9 +702,8 @@ class _AccountSection extends StatelessWidget {
             children: [
               Text(
                 loc.userSettingsScreen_deleteAccount,
-                style: TextStyle(
-                  fontSize: BodyFontSize.base.size,
-                  color: CustomColorScheme.of(context).function.danger,
+                style: typeScale.body.regular.style(
+                  color: SemanticPalette.of(context).function.danger,
                 ),
               ),
             ],
@@ -740,12 +722,11 @@ class FieldLabel extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+      padding: const EdgeInsets.symmetric(horizontal: S.s8),
       child: Text(
         text,
-        style: TextStyle(
-          fontSize: LabelFontSize.small2.size,
-          color: CustomColorScheme.of(context).text.quaternary,
+        style: typeScale.body.xs.style(
+          color: SemanticPalette.of(context).text.quaternary,
         ),
       ),
     );
@@ -760,13 +741,12 @@ class _SectionHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+      padding: const EdgeInsets.symmetric(horizontal: S.s8),
       child: Text(
         text,
-        style: TextStyle(
-          fontSize: LabelFontSize.base.size,
-          color: CustomColorScheme.of(context).text.secondary,
-          fontWeight: FontWeight.bold,
+        style: typeScale.body.regular.style(
+          weight: Weight.emphasized,
+          color: SemanticPalette.of(context).text.secondary,
         ),
       ),
     );
@@ -811,7 +791,7 @@ class _SwitchField extends HookWidget {
       onTap: handleTap,
       child: Row(
         children: [
-          Text(label, style: TextStyle(fontSize: BodyFontSize.base.size)),
+          Text(label, style: typeScale.body.regular.style()),
           const Spacer(),
           Switch(
             value: value.value,
@@ -833,21 +813,21 @@ class _FieldContainer extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return DefaultTextStyle(
       style: Theme.of(context).textTheme.bodyLarge!.copyWith(
-        color: colors.text.primary,
-        fontSize: BodyFontSize.base.size,
+        color: palette.text.primary,
+        fontSize: typeScale.body.regular.fontSize,
       ),
       child: InkWell(
         onTap: onTap,
         child: Container(
           decoration: BoxDecoration(
-            color: colors.backgroundBase.secondary,
-            borderRadius: BorderRadius.circular(Spacing.px16),
+            color: palette.backgroundBase.secondary,
+            borderRadius: BorderRadius.circular(CornerRadius.px16),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: Spacing.px12),
+          padding: const EdgeInsets.symmetric(horizontal: S.s12),
           height: height,
           child: child,
         ),

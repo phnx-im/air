@@ -7,13 +7,8 @@ import 'dart:ui';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/tab_bar/tab_bar_tokens.dart';
-import 'package:air/ds/foundations/effects.dart';
-import 'package:air/ds/foundations/blur.dart';
-import 'package:air/ds/foundations/motion.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:flutter/material.dart';
@@ -31,7 +26,7 @@ class AppTabBar extends StatelessWidget {
         NavigationState_Intro() => HomeTab.chats,
       },
     );
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     final pillWidth = TabBarTokens.tabWidth * HomeTab.values.length;
 
@@ -42,14 +37,14 @@ class AppTabBar extends StatelessWidget {
         child: DecoratedBox(
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(TabBarTokens.pillRadius),
-            boxShadow: largeElevationBoxShadows,
+            boxShadow: Effect.elevation(Elevation.large),
           ),
           child: ClipRRect(
             borderRadius: BorderRadius.circular(TabBarTokens.pillRadius),
             child: BackdropFilter(
               filter: ImageFilter.blur(
-                sigmaX: kMaterialBlurMedium,
-                sigmaY: kMaterialBlurMedium,
+                sigmaX: Effect.blur(BlurLevel.medium),
+                sigmaY: Effect.blur(BlurLevel.medium),
               ),
               child: Material(
                 type: MaterialType.transparency,
@@ -57,7 +52,7 @@ class AppTabBar extends StatelessWidget {
                   width: pillWidth,
                   height: TabBarTokens.height,
                   decoration: BoxDecoration(
-                    color: colors.material.tertiary,
+                    color: palette.backgroundMaterial.tertiary,
                     borderRadius: BorderRadius.circular(
                       TabBarTokens.pillRadius,
                     ),
@@ -65,8 +60,8 @@ class AppTabBar extends StatelessWidget {
                   child: Stack(
                     children: [
                       AnimatedPositioned(
-                        duration: motionShort,
-                        curve: motionEasing,
+                        duration: Effect.duration(MotionPreset.short),
+                        curve: Effect.easeOutQuart,
                         top: 0,
                         bottom: 0,
                         width: TabBarTokens.tabWidth,
@@ -75,7 +70,7 @@ class AppTabBar extends StatelessWidget {
                             : TabBarTokens.tabWidth,
                         child: Container(
                           decoration: BoxDecoration(
-                            color: colors.fill.tertiary,
+                            color: palette.fill.tertiary,
                             borderRadius: BorderRadius.circular(
                               TabBarTokens.pillRadius,
                             ),
@@ -114,8 +109,8 @@ class _TabBarItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
-    final color = active ? colors.text.secondary : colors.text.tertiary;
+    final palette = SemanticPalette.of(context);
+    final color = active ? palette.text.secondary : palette.text.tertiary;
 
     return SizedBox(
       width: TabBarTokens.tabWidth,
@@ -139,10 +134,9 @@ class _TabBarItem extends StatelessWidget {
             const SizedBox(height: TabBarTokens.labelGap),
             Text(
               _label(context, tab),
-              style: TextStyle(
-                fontSize: LabelFontSize.small2.size,
+              style: typeScale.body.xs.style(
                 color: color,
-                fontWeight: active ? FontWeight.w600 : FontWeight.w400,
+                weight: active ? Weight.emphasized : Weight.regular,
               ),
             ),
           ],

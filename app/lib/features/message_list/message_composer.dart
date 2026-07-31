@@ -12,8 +12,7 @@ import 'package:air/l10n/app_localizations_extension.dart';
 import 'package:air/features/emoji/emoji_autocomplete.dart';
 import 'package:air/ds/components/button_icon/glass_circle_button.dart';
 import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
-import 'package:air/ds/foundations/blur.dart';
-import 'package:air/ds/foundations/icons.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/message_list/scroll_to_bottom_controller.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
@@ -29,11 +28,6 @@ import 'package:path_provider/path_provider.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/effects.dart';
-import 'package:air/ds/foundations/type_scale.dart';
 import 'package:provider/provider.dart';
 
 import 'package:air/platform/method_channel.dart'
@@ -44,10 +38,9 @@ import 'package:air/features/message_list/text_message_tile.dart'
     show messageHorizontalPadding;
 
 final _log = Logger("MessageComposer");
-final double _composerFontSize = BodyFontSize.base.size;
-const double _inputVerticalPadding = Spacing.px12;
+const double _inputVerticalPadding = S.s12;
 final double _composerButtonSize =
-    _composerFontSize * BodyFontSize.lineHeight + 2 * _inputVerticalPadding;
+    typeScale.body.regular.lineHeightPx + 2 * _inputVerticalPadding;
 
 class MessageComposer extends StatefulWidget {
   const MessageComposer({
@@ -199,8 +192,8 @@ class _MessageComposerState extends State<MessageComposer>
       return const SizedBox.shrink();
     }
 
-    final color = CustomColorScheme.of(context);
-    final materialColor = color.material.tertiary;
+    final palette = SemanticPalette.of(context);
+    final materialColor = palette.backgroundMaterial.tertiary;
 
     Widget composerButton({required Widget icon, VoidCallback? onPressed}) {
       return GlassCircleButton(
@@ -229,7 +222,7 @@ class _MessageComposerState extends State<MessageComposer>
             color: materialColor,
             borderRadius: BorderRadius.circular(_inputBorderRadius),
           ),
-          padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+          padding: const EdgeInsets.symmetric(horizontal: S.s16),
           child: _MessageInput(
             focusNode: _focusNode,
             controller: _inputController,
@@ -252,7 +245,7 @@ class _MessageComposerState extends State<MessageComposer>
       padding: const EdgeInsets.only(
         left: messageHorizontalPadding,
         right: messageHorizontalPadding,
-        bottom: Spacing.px12,
+        bottom: S.s12,
       ),
       child: ValueListenableBuilder<bool>(
         valueListenable:
@@ -304,7 +297,7 @@ class _MessageComposerState extends State<MessageComposer>
 
           final clipper = _ComposerClipper(
             buttonSize: _buttonSize,
-            spacing: Spacing.px8,
+            spacing: S.s8,
             inputBorderRadius: _inputBorderRadius,
             trailingButtonCount: trailingButtonCount,
           );
@@ -321,8 +314,8 @@ class _MessageComposerState extends State<MessageComposer>
                       clipper: clipper,
                       child: BackdropFilter(
                         filter: ImageFilter.blur(
-                          sigmaX: kMaterialBlurMedium,
-                          sigmaY: kMaterialBlurMedium,
+                          sigmaX: Effect.blur(BlurLevel.medium),
+                          sigmaY: Effect.blur(BlurLevel.medium),
                           bounds: clipBounds,
                         ),
                         child: const SizedBox.expand(),
@@ -335,7 +328,7 @@ class _MessageComposerState extends State<MessageComposer>
                 child: CustomPaint(
                   painter: _ComposerShadowPainter(
                     buttonSize: _buttonSize,
-                    spacing: Spacing.px8,
+                    spacing: S.s8,
                     inputBorderRadius: _inputBorderRadius,
                     trailingButtonCount: trailingButtonCount,
                   ),
@@ -343,7 +336,7 @@ class _MessageComposerState extends State<MessageComposer>
               ),
               Row(
                 crossAxisAlignment: CrossAxisAlignment.end,
-                spacing: Spacing.px8,
+                spacing: S.s8,
                 children: [leftButton, inputField, ?rightButton],
               ),
             ],
@@ -692,7 +685,7 @@ class _MessageInput extends StatelessWidget {
     );
 
     final loc = AppLocalizations.of(context);
-    final color = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Column(
       mainAxisAlignment: MainAxisAlignment.center,
@@ -700,24 +693,17 @@ class _MessageInput extends StatelessWidget {
       children: [
         if (isEditing)
           Padding(
-            padding: const EdgeInsets.only(
-              top: Spacing.px12,
-              left: Spacing.px8,
-              right: Spacing.px8,
-            ),
+            padding: const EdgeInsets.only(top: S.s12, left: S.s8, right: S.s8),
             child: Row(
               children: [
                 AppIcon.pencil(
                   size: 20,
-                  color: CustomColorScheme.of(context).text.tertiary,
+                  color: SemanticPalette.of(context).text.tertiary,
                 ),
-                const SizedBox(width: Spacing.px8),
+                const SizedBox(width: S.s8),
                 Text(
                   loc.composer_editMessage,
-                  style: TextStyle(
-                    fontSize: LabelFontSize.small1.size,
-                    color: color.text.tertiary,
-                  ),
+                  style: typeScale.body.s.style(color: palette.text.tertiary),
                 ),
               ],
             ),
@@ -725,17 +711,14 @@ class _MessageInput extends StatelessWidget {
 
         if (inReplyTo case (_, final inReplyToMessage))
           Padding(
-            padding: const EdgeInsets.only(top: Spacing.px12),
+            padding: const EdgeInsets.only(top: S.s12),
             child: Stack(
               children: [
                 Padding(
-                  padding: const EdgeInsets.only(
-                    top: Spacing.px4,
-                    right: Spacing.px4,
-                  ),
+                  padding: const EdgeInsets.only(top: S.s4, right: S.s4),
                   child: InReplyToBubble(
                     inReplyTo: inReplyToMessage,
-                    backgroundColor: color.fill.secondary,
+                    backgroundColor: palette.fill.secondary,
                     stretch: true,
                   ),
                 ),
@@ -744,15 +727,15 @@ class _MessageInput extends StatelessWidget {
                   right: 0,
                   child: Container(
                     decoration: BoxDecoration(
-                      color: color.backgroundElevated.primary,
+                      color: palette.backgroundElevated.primary,
                       shape: BoxShape.circle,
                     ),
                     constraints: BoxConstraints.tight(const Size.square(20)),
                     child: IconButton(
                       icon: const AppIcon.x(size: 12),
                       constraints: const BoxConstraints(
-                        minHeight: Spacing.px8,
-                        minWidth: Spacing.px8,
+                        minHeight: S.s8,
+                        minWidth: S.s8,
                       ),
                       padding: EdgeInsets.zero,
                       onPressed: () {
@@ -770,12 +753,9 @@ class _MessageInput extends StatelessWidget {
           child: TextField(
             focusNode: _focusNode,
             controller: _controller,
-            style: TextStyle(
-              fontSize: _composerFontSize,
-              height: BodyFontSize.lineHeight,
-              leadingDistribution: TextLeadingDistribution.even,
-              color: color.text.primary,
-            ),
+            style: typeScale.body.regular
+                .style(color: palette.text.primary)
+                .copyWith(leadingDistribution: TextLeadingDistribution.even),
             minLines: 1,
             maxLines: 10,
             textAlignVertical: TextAlignVertical.center,
@@ -788,7 +768,7 @@ class _MessageInput extends StatelessWidget {
               hintText: loc.composer_inputHint(chatTitle ?? ""),
               hintMaxLines: 1,
               hintStyle: TextStyle(
-                color: color.text.tertiary,
+                color: palette.text.tertiary,
                 overflow: TextOverflow.ellipsis,
               ),
             ).copyWith(filled: false),
@@ -1011,7 +991,7 @@ class _ComposerShadowPainter extends CustomPainter {
       Path.combine(PathOperation.difference, outerPath, interiorPath),
     );
 
-    for (final shadow in largeElevationBoxShadows) {
+    for (final shadow in Effect.elevation(Elevation.large)) {
       canvas.drawPath(
         _buildComposerPath(
           size,
@@ -1055,7 +1035,7 @@ class InReplyToBubble extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final color = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     // there are a few reasons why a message can't be resolved, for example:
     // a message was deleted locally (only for me) or you joined a group
@@ -1089,31 +1069,30 @@ class InReplyToBubble extends StatelessWidget {
     final innerContent = Container(
       decoration: BoxDecoration(
         border: Border(
-          left: BorderSide(color: color.separator.primary, width: 1),
+          left: BorderSide(
+            color: palette.separator.primary,
+            width: StrokeWidth.px1,
+          ),
         ),
       ),
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+        padding: const EdgeInsets.symmetric(horizontal: S.s8),
         child: Column(
           crossAxisAlignment: stretch ? .stretch : .start,
           children: [
             if (senderDisplayName != null)
               Text(
                 senderDisplayName,
-                style: TextStyle(
-                  fontSize: LabelFontSize.small1.size,
-                  fontWeight: FontWeight.bold,
-                  color: color.text.primary,
+                style: typeScale.body.s.style(
+                  weight: Weight.emphasized,
+                  color: palette.text.primary,
                 ),
                 maxLines: 1,
                 overflow: TextOverflow.ellipsis,
               ),
             Text(
               contentPreview,
-              style: TextStyle(
-                fontSize: LabelFontSize.small1.size,
-                color: color.text.secondary,
-              ),
+              style: typeScale.body.s.style(color: palette.text.secondary),
               maxLines: 2,
               overflow: TextOverflow.ellipsis,
             ),
@@ -1123,12 +1102,9 @@ class InReplyToBubble extends StatelessWidget {
     );
 
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.px12,
-        vertical: Spacing.px8,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: S.s12, vertical: S.s8),
       decoration: BoxDecoration(
-        borderRadius: const BorderRadius.all(Radius.circular(Spacing.px8)),
+        borderRadius: const BorderRadius.all(Radius.circular(CornerRadius.px8)),
         color: backgroundColor,
       ),
       child: showJumpIcon
@@ -1138,7 +1114,10 @@ class InReplyToBubble extends StatelessWidget {
                 PositionedDirectional(
                   top: 0,
                   end: 0,
-                  child: AppIcon.arrowUp(size: 12, color: color.text.tertiary),
+                  child: AppIcon.arrowUp(
+                    size: 12,
+                    color: palette.text.tertiary,
+                  ),
                 ),
               ],
             )

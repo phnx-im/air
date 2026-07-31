@@ -91,9 +91,7 @@ void main() {
             builder: (context) {
               return MaterialApp(
                 debugShowCheckedModeBanner: false,
-                theme: testThemeData(
-                  MediaQuery.platformBrightnessOf(context),
-                ).copyWith(platform: desktopTargetPlatform()),
+                theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
                 localizationsDelegates: AppLocalizations.localizationsDelegates,
                 home: HomeScreenDesktopLayout(
                   chatList: ChatListView(
@@ -139,7 +137,7 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/home_screen_desktop_empty.png'),
       );
-    });
+    }, variant: desktopPlatform);
 
     testWidgets('desktop layout no chat', (tester) async {
       final binding = TestWidgetsFlutterBinding.ensureInitialized();
@@ -168,7 +166,7 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/home_screen_desktop_no_chat.png'),
       );
-    });
+    }, variant: desktopPlatform);
 
     testWidgets('desktop layout selected chat', (tester) async {
       final binding = TestWidgetsFlutterBinding.ensureInitialized();
@@ -200,7 +198,7 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/home_screen_desktop.png'),
       );
-    });
+    }, variant: desktopPlatform);
 
     testWidgets('desktop layout selected blocked contact', (tester) async {
       final binding = TestWidgetsFlutterBinding.ensureInitialized();
@@ -232,6 +230,6 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/home_screen_desktop_blocked.png'),
       );
-    });
+    }, variant: desktopPlatform);
   });
 }

@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:collection/collection.dart';
@@ -54,15 +53,12 @@ class MemberSelectionList extends HookWidget {
     }, [contacts, profiles, normalizedQuery]);
 
     return ListView.separated(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.px16,
-        vertical: Spacing.px12,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
       itemCount: sortedContacts.length,
       separatorBuilder: (context, index) => Divider(
         height: 1,
-        thickness: 1,
-        color: CustomColorScheme.of(context).backgroundBase.primary,
+        thickness: StrokeWidth.px1,
+        color: SemanticPalette.of(context).backgroundBase.primary,
       ),
       itemBuilder: (context, index) {
         final contact = sortedContacts[index];
@@ -76,7 +72,7 @@ class MemberSelectionList extends HookWidget {
             hasEncryptedGroupProfiles && (!isApq || hasPqGroups);
 
         return Opacity(
-          opacity: hasSupportedClient ? 1.0 : 0.5,
+          opacity: hasSupportedClient ? 1.0 : Alpha.a50,
           child: MemberListItem(
             profile: profile,
             onTap: hasSupportedClient
@@ -91,16 +87,18 @@ class MemberSelectionList extends HookWidget {
             trailing: hasSupportedClient
                 ? Checkbox(
                     value: isSelected,
-                    checkColor: CustomColorScheme.of(context).text.secondary,
+                    checkColor: SemanticPalette.of(context).text.secondary,
                     fillColor: WidgetStateProperty.all(
-                      CustomColorScheme.of(context).fill.tertiary,
+                      SemanticPalette.of(context).fill.tertiary,
                     ),
                     focusColor: Colors.transparent,
                     hoverColor: Colors.transparent,
                     overlayColor: WidgetStateProperty.all(Colors.transparent),
                     side: BorderSide.none,
                     shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.all(Radius.circular(4)),
+                      borderRadius: BorderRadius.all(
+                        Radius.circular(CornerRadius.px4),
+                      ),
                     ),
                     onChanged: (_) => onToggle(contact),
                   )

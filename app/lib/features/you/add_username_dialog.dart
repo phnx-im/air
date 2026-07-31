@@ -4,10 +4,8 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
-import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/util/username_input_formatter.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -30,7 +28,7 @@ class AddUsernameDialog extends HookWidget {
     final controller = useTextEditingController();
     final focusNode = useFocusNode();
 
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
 
     return AppDialog(
@@ -43,13 +41,12 @@ class AddUsernameDialog extends HookWidget {
             Center(
               child: Text(
                 loc.usernameScreen_title,
-                style: TextStyle(
-                  fontSize: HeaderFontSize.h4.size,
-                  fontWeight: FontWeight.bold,
+                style: typeScale.header.regular.style(
+                  weight: Weight.emphasized,
                 ),
               ),
             ),
-            const SizedBox(height: Spacing.px24),
+            const SizedBox(height: S.s24),
 
             TextFormField(
               autocorrect: false,
@@ -67,7 +64,7 @@ class AddUsernameDialog extends HookWidget {
               decoration: appDialogInputDecoration.copyWith(
                 hintText: loc.usernameScreen_inputHint,
                 filled: true,
-                fillColor: colors.backgroundBase.secondary,
+                fillColor: palette.backgroundBase.secondary,
               ),
               onFieldSubmitted: (_) {
                 focusNode.requestFocus();
@@ -81,20 +78,17 @@ class AddUsernameDialog extends HookWidget {
               },
             ),
 
-            const SizedBox(height: Spacing.px12),
+            const SizedBox(height: S.s12),
 
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+              padding: const EdgeInsets.symmetric(horizontal: S.s8),
               child: Text(
                 loc.usernameScreen_description,
-                style: TextStyle(
-                  color: colors.text.tertiary,
-                  fontSize: BodyFontSize.small2.size,
-                ),
+                style: typeScale.body.xs.style(color: palette.text.tertiary),
               ),
             ),
 
-            const SizedBox(height: Spacing.px24),
+            const SizedBox(height: S.s24),
 
             Row(
               children: [
@@ -106,7 +100,7 @@ class AddUsernameDialog extends HookWidget {
                     child: Text(loc.usernameScreen_cancel),
                   ),
                 ),
-                const SizedBox(width: Spacing.px12),
+                const SizedBox(width: S.s12),
                 Expanded(
                   child: AppDialogProgressButton(
                     onPressed: (isSubmitting) => _submit(
@@ -118,16 +112,16 @@ class AddUsernameDialog extends HookWidget {
                     ),
                     style: ButtonStyle(
                       backgroundColor: WidgetStatePropertyAll(
-                        colors.accent.primary,
+                        palette.accentBrand.primary,
                       ),
                       overlayColor: WidgetStatePropertyAll(
-                        colors.accent.primary,
+                        palette.accentBrand.primary,
                       ),
                       foregroundColor: WidgetStatePropertyAll(
-                        colors.function.toggleWhite,
+                        palette.function.neutral.toggleWhite,
                       ),
                     ),
-                    progressColor: colors.function.toggleWhite,
+                    progressColor: palette.function.neutral.toggleWhite,
                     inProgress: inProgress,
                     child: Text(loc.usernameScreen_confirm),
                   ),

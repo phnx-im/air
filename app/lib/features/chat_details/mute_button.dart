@@ -5,9 +5,7 @@
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/mute_chat_sheet.dart';
 import 'package:air/core/core_extension.dart';
-import 'package:air/ds/foundations/type_scale.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -35,12 +33,12 @@ class MuteButton extends StatelessWidget {
           isMuted
               ? const AppIcon.bell(size: 16)
               : const AppIcon.bellOff(size: 16),
-          const SizedBox(width: Spacing.px8),
+          const SizedBox(width: S.s8),
           Text(
             isMuted
                 ? loc.contactDetailsScreen_unmute
                 : loc.contactDetailsScreen_mute,
-            style: TextStyle(fontSize: LabelFontSize.base.size),
+            style: typeScale.body.regular.style(),
           ),
         ],
       ),

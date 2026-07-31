@@ -7,9 +7,7 @@ import 'package:air/core/core.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -17,7 +15,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 Future<void> showMuteChatSheet(BuildContext context) {
   final cubit = context.read<ChatDetailsCubit>();
 
-  if (ResponsiveScreen.isDesktop(context)) {
+  if (DeviceType.isDesktop) {
     return showDialog(
       context: context,
       builder: (dialogContext) => AppDialog(
@@ -42,7 +40,7 @@ class _MuteDurationContent extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final theme = Theme.of(context);
 
     return Column(
@@ -53,47 +51,47 @@ class _MuteDurationContent extends StatelessWidget {
           loc.muteDurationSheet_title,
           style: theme.textTheme.titleLarge?.copyWith(
             fontWeight: FontWeight.bold,
-            color: colors.text.primary,
+            color: palette.text.primary,
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: Spacing.px16),
+        const SizedBox(height: S.s16),
         Text(
           loc.muteDurationSheet_body,
           style: theme.textTheme.bodyMedium?.copyWith(
-            color: colors.text.secondary,
+            color: palette.text.secondary,
             height: 1.4,
           ),
           textAlign: TextAlign.center,
         ),
-        const SizedBox(height: Spacing.px24),
+        const SizedBox(height: S.s24),
         _DurationOption(
           label: loc.muteDurationSheet_1hour,
           mutedUntil: UiChatMutedExtension.inOneHour,
         ),
-        const SizedBox(height: Spacing.px8),
+        const SizedBox(height: S.s8),
         _DurationOption(
           label: loc.muteDurationSheet_8hours,
           mutedUntil: UiChatMutedExtension.inEightHours,
         ),
-        const SizedBox(height: Spacing.px8),
+        const SizedBox(height: S.s8),
         _DurationOption(
           label: loc.muteDurationSheet_untilTomorrow,
           mutedUntil: UiChatMutedExtension.untilTomorrow,
         ),
-        const SizedBox(height: Spacing.px8),
+        const SizedBox(height: S.s8),
         _DurationOption(
           label: loc.muteDurationSheet_untilNextMonday,
           mutedUntil: UiChatMutedExtension.untilNextMonday,
         ),
-        const SizedBox(height: Spacing.px8),
+        const SizedBox(height: S.s8),
         _DurationOption(
           label: loc.muteDurationSheet_always,
           mutedUntil: () => const UiChatMuted.forever(),
         ),
-        const SizedBox(height: Spacing.px8),
-        if (ResponsiveScreen.isDesktop(context)) ...[
-          const SizedBox(height: Spacing.px8),
+        const SizedBox(height: S.s8),
+        if (DeviceType.isDesktop) ...[
+          const SizedBox(height: S.s8),
           AppButton(
             type: AppButtonType.secondary,
             onPressed: () => Navigator.of(context).pop(),

@@ -11,11 +11,7 @@ import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/type_scale.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -197,7 +193,7 @@ class _CreateGroupDetailsStep extends HookWidget {
     final showHelperText = nameFocusNode.hasFocus && !isGroupNameValid;
 
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Scaffold(
       appBar: AppBar(
@@ -226,9 +222,9 @@ class _CreateGroupDetailsStep extends HookWidget {
                     width: 16,
                     height: 16,
                     child: CircularProgressIndicator(
-                      strokeWidth: 2,
+                      strokeWidth: StrokeWidth.px2,
                       valueColor: AlwaysStoppedAnimation<Color>(
-                        colors.text.primary,
+                        palette.text.primary,
                       ),
                     ),
                   )
@@ -245,8 +241,8 @@ class _CreateGroupDetailsStep extends HookWidget {
           behavior: HitTestBehavior.translucent,
           child: SingleChildScrollView(
             padding: const EdgeInsets.symmetric(
-              horizontal: Spacing.px24,
-              vertical: Spacing.px24,
+              horizontal: S.s24,
+              vertical: S.s24,
             ),
             child: Align(
               alignment: Alignment.topCenter,
@@ -263,7 +259,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                         onPick: () => _pickImage(picture),
                       ),
                     ),
-                    const SizedBox(height: Spacing.px32),
+                    const SizedBox(height: S.s32),
                     SizedBox(
                       width: double.infinity,
                       child: TextField(
@@ -279,7 +275,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                               : loc.groupCreationDetails_groupNameHint,
                           hintStyle: Theme.of(context).textTheme.displayLarge
                               ?.copyWith(
-                                color: colors.text.quaternary,
+                                color: palette.text.quaternary,
                                 fontWeight: FontWeight.bold,
                               ),
                           border: InputBorder.none,
@@ -289,18 +285,18 @@ class _CreateGroupDetailsStep extends HookWidget {
                       ),
                     ),
                     if (showHelperText) ...[
-                      const SizedBox(height: Spacing.px8),
+                      const SizedBox(height: S.s8),
                       Center(
                         child: Text(
                           loc.groupCreationDetails_groupNameHelper,
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.bodySmall
-                              ?.copyWith(color: colors.text.tertiary),
+                              ?.copyWith(color: palette.text.tertiary),
                         ),
                       ),
                     ],
                     if (showHiddenSettings.value) ...[
-                      const SizedBox(height: Spacing.px32),
+                      const SizedBox(height: S.s32),
                       _SwitchField(
                         onChanged: (value) {
                           context.read<AddMembersCubit>().enableApq(value);
@@ -309,12 +305,12 @@ class _CreateGroupDetailsStep extends HookWidget {
                         label: "Post-Quantum Encryption",
                       ),
                     ],
-                    const SizedBox(height: Spacing.px32),
+                    const SizedBox(height: S.s32),
                     if (selectedIds.isNotEmpty)
                       Wrap(
                         alignment: WrapAlignment.start,
-                        spacing: Spacing.px16,
-                        runSpacing: Spacing.px16,
+                        spacing: S.s16,
+                        runSpacing: S.s16,
                         children: sortedSelectedIds.map((userId) {
                           final profile = selectedProfiles[userId];
                           if (profile == null) {
@@ -324,7 +320,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                           final isSupported =
                               features?.isSupported(isApq: isApq) ?? false;
                           return Opacity(
-                            opacity: isSupported ? 1.0 : 0.5,
+                            opacity: isSupported ? 1.0 : Alpha.a50,
                             child: _SelectedParticipant(
                               profile: profile,
                               onRemove: () => _removeContact(context, userId),
@@ -338,7 +334,7 @@ class _CreateGroupDetailsStep extends HookWidget {
                           loc.groupCreationDetails_emptySelection,
                           textAlign: TextAlign.center,
                           style: Theme.of(context).textTheme.bodyMedium
-                              ?.copyWith(color: colors.text.tertiary),
+                              ?.copyWith(color: palette.text.tertiary),
                         ),
                       ),
                   ],
@@ -448,16 +444,16 @@ class _GroupPicturePicker extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     return InkWell(
       onTap: onPick,
-      borderRadius: BorderRadius.circular(72),
+      borderRadius: BorderRadius.circular(CornerRadius.full),
       child: Ink(
         width: 192,
         height: 192,
         decoration: BoxDecoration(
           shape: BoxShape.circle,
-          color: colors.backgroundBase.quaternary,
+          color: palette.backgroundBase.quaternary,
           image: picture != null
               ? DecorationImage(image: MemoryImage(picture!), fit: BoxFit.cover)
               : null,
@@ -525,7 +521,7 @@ class _SelectedParticipant extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     return SizedBox(
       width: 72,
       child: Column(
@@ -545,16 +541,16 @@ class _SelectedParticipant extends StatelessWidget {
                     height: 16,
                     decoration: BoxDecoration(
                       shape: BoxShape.circle,
-                      color: colors.text.primary,
+                      color: palette.text.primary,
                       border: Border.all(
-                        color: colors.backgroundBase.primary,
-                        width: 1,
+                        color: palette.backgroundBase.primary,
+                        width: StrokeWidth.px1,
                       ),
                     ),
                     child: Center(
                       child: AppIcon.x(
                         size: 10,
-                        color: colors.backgroundBase.primary,
+                        color: palette.backgroundBase.primary,
                       ),
                     ),
                   ),
@@ -562,7 +558,7 @@ class _SelectedParticipant extends StatelessWidget {
               ),
             ],
           ),
-          const SizedBox(height: Spacing.px8),
+          const SizedBox(height: S.s8),
           Text(
             profile.displayName,
             textAlign: TextAlign.center,
@@ -585,18 +581,18 @@ class _CircularBackButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+      padding: const EdgeInsets.symmetric(horizontal: S.s16),
       child: InkWell(
         onTap: onPressed,
-        borderRadius: BorderRadius.circular(18),
+        borderRadius: BorderRadius.circular(CornerRadius.full),
         child: Ink(
           width: 32,
           height: 32,
           decoration: BoxDecoration(
             shape: BoxShape.circle,
-            color: colors.backgroundBase.secondary,
+            color: palette.backgroundBase.secondary,
           ),
           child: const Center(child: AppIcon.arrowLeft(size: 16)),
         ),
@@ -619,25 +615,22 @@ class _SwitchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return InkWell(
       onTap: () => onChanged(!value),
       child: Container(
         decoration: BoxDecoration(
-          color: colors.backgroundBase.secondary,
-          borderRadius: BorderRadius.circular(Spacing.px16),
+          color: palette.backgroundBase.secondary,
+          borderRadius: BorderRadius.circular(CornerRadius.px16),
         ),
-        padding: const EdgeInsets.symmetric(horizontal: Spacing.px12),
+        padding: const EdgeInsets.symmetric(horizontal: S.s12),
         height: 42,
         child: Row(
           children: [
             Text(
               label,
-              style: TextStyle(
-                color: colors.text.primary,
-                fontSize: BodyFontSize.base.size,
-              ),
+              style: typeScale.body.regular.style(color: palette.text.primary),
             ),
             const Spacer(),
             Switch(

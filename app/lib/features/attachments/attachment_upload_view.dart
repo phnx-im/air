@@ -3,11 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:io';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/button_icon/glass_circle_button.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/platform/method_channel.dart' as platform_utils;
 import 'package:air/ds/components/button_icon/app_bar_x_button.dart';
 import 'package:file_selector/file_selector.dart';
@@ -38,10 +35,10 @@ class AttachmentUploadView extends HookWidget {
     );
     final isImage = useFuture(isImageFut);
 
-    final colors = darkCustomColorScheme;
+    final palette = darkSemanticPalette;
 
     return Scaffold(
-      backgroundColor: colors.function.black,
+      backgroundColor: palette.function.neutral.black,
       body: Focus(
         autofocus: true,
         onKeyEvent: (node, event) {
@@ -65,12 +62,11 @@ class AttachmentUploadView extends HookWidget {
                     mainAxisSize: MainAxisSize.min,
                     children: [
                       const AppIcon.paperclip(size: 64, color: Colors.white),
-                      const SizedBox(height: Spacing.px12),
+                      const SizedBox(height: S.s12),
                       Text(
                         p.basename(file.path),
-                        style: TextStyle(
-                          color: colors.text.primary,
-                          fontSize: LabelFontSize.base.size,
+                        style: typeScale.body.regular.style(
+                          color: palette.text.primary,
                         ),
                       ),
                     ],
@@ -78,12 +74,15 @@ class AttachmentUploadView extends HookWidget {
                 ),
 
               Positioned(
-                bottom: Spacing.px16,
-                right: Spacing.px16,
+                bottom: S.s16,
+                right: S.s16,
                 child: SafeArea(
                   child: GlassCircleButton(
-                    icon: AppIcon.arrowUp(size: 20, color: colors.text.primary),
-                    color: colors.material.tertiary,
+                    icon: AppIcon.arrowUp(
+                      size: 20,
+                      color: palette.text.primary,
+                    ),
+                    color: palette.backgroundMaterial.tertiary,
                     onPressed: () {
                       onUpload();
                       Navigator.of(context).pop();
@@ -97,21 +96,21 @@ class AttachmentUploadView extends HookWidget {
                 left: 0,
                 right: 0,
                 child: Container(
-                  color: darkCustomColorScheme.backgroundElevated.primary
+                  color: darkSemanticPalette.backgroundElevated.primary
                       .withValues(alpha: 0.7),
                   child: AppBar(
                     automaticallyImplyLeading: false,
                     clipBehavior: Clip.none,
                     title: Text(
                       title,
-                      style: TextStyle(color: colors.text.primary),
+                      style: TextStyle(color: palette.text.primary),
                     ),
                     actions: [
                       AppBarXButton(
                         onPressed: () => Navigator.of(context).maybePop(),
-                        foregroundColor: colors.text.primary,
+                        foregroundColor: palette.text.primary,
                         backgroundColor:
-                            darkCustomColorScheme.backgroundBase.secondary,
+                            darkSemanticPalette.backgroundBase.secondary,
                       ),
                     ],
                     backgroundColor: Colors.transparent,

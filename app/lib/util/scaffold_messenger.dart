@@ -4,8 +4,7 @@
 
 import 'package:air/app.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/icons.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 
@@ -25,19 +24,22 @@ void showErrorBannerStandalone(
     return;
   }
 
-  final colors = CustomColorScheme.of(context);
+  final palette = SemanticPalette.of(context);
   final loc = AppLocalizations.of(context);
 
   scaffoldMessengerKey.currentState?.showMaterialBanner(
     MaterialBanner(
-      backgroundColor: colors.function.danger,
+      backgroundColor: palette.function.danger,
       elevation: 0,
       dividerColor: Colors.transparent,
-      leading: AppIcon.circleAlert(size: 32, color: colors.function.white),
+      leading: AppIcon.circleAlert(
+        size: 32,
+        color: palette.function.neutral.white,
+      ),
       padding: const EdgeInsets.all(20),
       content: Text(
         errorDescription(loc),
-        style: TextStyle(color: colors.function.white),
+        style: TextStyle(color: palette.function.neutral.white),
       ),
       actions: [
         Builder(
@@ -45,7 +47,7 @@ void showErrorBannerStandalone(
             return TextButton(
               child: Text(
                 loc.errorBanner_ok,
-                style: TextStyle(color: colors.function.white),
+                style: TextStyle(color: palette.function.neutral.white),
               ),
               onPressed: () {
                 ScaffoldMessenger.of(context).hideCurrentMaterialBanner();

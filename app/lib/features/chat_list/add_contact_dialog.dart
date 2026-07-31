@@ -4,14 +4,12 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
-import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/util/username_input_formatter.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:logging/logging.dart';
@@ -38,7 +36,7 @@ class AddContactDialog extends HookWidget {
     final focusNode = useFocusNode();
 
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return AppDialog(
       child: Form(
@@ -50,27 +48,23 @@ class AddContactDialog extends HookWidget {
             Center(
               child: Text(
                 loc.newConnectionDialog_newConnectionTitle,
-                style: TextStyle(
-                  fontSize: HeaderFontSize.h4.size,
-                  fontWeight: FontWeight.bold,
+                style: typeScale.header.regular.style(
+                  weight: Weight.emphasized,
                 ),
               ),
             ),
 
-            const SizedBox(height: Spacing.px24),
+            const SizedBox(height: S.s24),
 
             Padding(
-              padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+              padding: const EdgeInsets.symmetric(horizontal: S.s8),
               child: Text(
                 loc.newConnectionDialog_inputLabel,
-                style: TextStyle(
-                  fontSize: LabelFontSize.small2.size,
-                  color: colors.text.quaternary,
-                ),
+                style: typeScale.body.xs.style(color: palette.text.quaternary),
               ),
             ),
 
-            const SizedBox(height: Spacing.px8),
+            const SizedBox(height: S.s8),
 
             TextFormField(
               autocorrect: false,
@@ -81,7 +75,7 @@ class AddContactDialog extends HookWidget {
               decoration: appDialogInputDecoration.copyWith(
                 hintText: loc.newConnectionDialog_usernamePlaceholder,
                 filled: true,
-                fillColor: colors.backgroundBase.secondary,
+                fillColor: palette.backgroundBase.secondary,
               ),
               onChanged: (value) {
                 errorMessage.value = null;
@@ -100,11 +94,11 @@ class AddContactDialog extends HookWidget {
               },
             ),
 
-            const SizedBox(height: Spacing.px12),
+            const SizedBox(height: S.s12),
 
             Container(
               constraints: const BoxConstraints(minHeight: 38),
-              padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+              padding: const EdgeInsets.symmetric(horizontal: S.s8),
               child: _Description(
                 hasUsernameHash: usernameHash.value != null,
                 errorMessage: errorMessage.value,
@@ -112,7 +106,7 @@ class AddContactDialog extends HookWidget {
               ),
             ),
 
-            const SizedBox(height: Spacing.px24),
+            const SizedBox(height: S.s24),
 
             Row(
               children: [
@@ -125,7 +119,7 @@ class AddContactDialog extends HookWidget {
                     label: loc.newConnectionDialog_cancel,
                   ),
                 ),
-                const SizedBox(width: Spacing.px12),
+                const SizedBox(width: S.s12),
                 Expanded(
                   child: AppButton(
                     onPressed: () => _SubmitHandler(
@@ -177,24 +171,21 @@ class _Description extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     final (text, color) = switch ((errorMessage, hasUsernameHash)) {
-      (final errorMessage?, _) => (errorMessage, colors.function.danger),
+      (final errorMessage?, _) => (errorMessage, palette.function.danger),
       (null, true) => (
         loc.newConnectionDialog_handleExists(username),
-        colors.function.success,
+        palette.function.success.primary,
       ),
       (null, false) => (
         loc.newConnectionDialog_newConnectionDescription,
-        colors.text.tertiary,
+        palette.text.tertiary,
       ),
     };
 
-    return Text(
-      text,
-      style: TextStyle(color: color, fontSize: BodyFontSize.small2.size),
-    );
+    return Text(text, style: typeScale.body.xs.style(color: color));
   }
 }
 
