@@ -418,7 +418,7 @@ mod derivation_tests {
             },
             kdf::{KdfDerivable, keys::SelfGroupExporterSecret},
         },
-        identifiers::{QualifiedGroupId, UserId},
+        identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
         mls_group_config::{AppComponent, default_group_context_app_data_dictionary_extension},
     };
     use airprotos::client::{
@@ -430,6 +430,7 @@ mod derivation_tests {
     use uuid::Uuid;
 
     use crate::{
+        clients::own_client_info::OwnClientInfo,
         db::access::{DbAccess, WriteConnection, WriteDbTransaction},
         groups::{Group, GroupDataBytes, openmls_provider::AirOpenMlsProvider},
         utils::persistence::open_db_in_memory,
@@ -468,6 +469,24 @@ mod derivation_tests {
             air_component,
         )?;
         Ok(group)
+    }
+
+    /// Loading a group resolves the owner's identity, which requires an own_client_info row.
+    async fn store_own_client_info(
+        txn: &mut WriteDbTransaction<'_>,
+        user_id: UserId,
+    ) -> anyhow::Result<()> {
+        OwnClientInfo {
+            qs_user_id: QsUserId::random(),
+            qs_client_id: QsClientId::random(&mut rand::rng()),
+            user_id,
+            client_id: Uuid::new_v4(),
+            self_group_id: None,
+            self_group_signing_key: None,
+        }
+        .store(&mut *txn)
+        .await?;
+        Ok(())
     }
 
     /// Advances the group's epoch by staging and merging a forced self-update.
@@ -680,13 +699,15 @@ mod derivation_tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn extract_settings_updates_roundtrip() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let (_as_key, signer) = create_test_credentials(UserId::random("example.com".parse()?));
+        let user_id = UserId::random("example.com".parse()?);
+        let (_as_key, signer) = create_test_credentials(user_id.clone());
 
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
         let mut group = create_group(&mut txn, &signer, true)?;
         group.store(&mut txn).await?;
+        store_own_client_info(&mut txn, user_id).await?;
 
         let update = SettingsUpdate {
             send_read_receipts: Some(true),
@@ -716,13 +737,15 @@ mod derivation_tests {
     #[tokio::test(flavor = "multi_thread")]
     async fn extract_settings_updates_tolerates_bad_payloads() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let (_as_key, signer) = create_test_credentials(UserId::random("example.com".parse()?));
+        let user_id = UserId::random("example.com".parse()?);
+        let (_as_key, signer) = create_test_credentials(user_id.clone());
 
         let mut connection = pool.write().await?;
         let mut txn = connection.begin().await?;
 
         let mut group = create_group(&mut txn, &signer, true)?;
         group.store(&mut txn).await?;
+        store_own_client_info(&mut txn, user_id).await?;
 
         // Not valid PersistenceCodec CBOR.
         let garbage = Proposal::AppEphemeral(Box::new(AppEphemeralProposal::new(
