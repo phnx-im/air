@@ -16,6 +16,7 @@ use aircommon::{
     },
     identifiers::{QsReference, SealedClientReference, UserId},
     messages::client_ds::WelcomeInfoParams,
+    mls_group_config::leaf_node_is_virtual_client,
     time::TimeStamp,
 };
 use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent};
@@ -25,9 +26,8 @@ use mls_assist::{
     MlsAssistRustCrypto,
     group::Group,
     openmls::{
-        components::vc_derivation_info::VC_COMPONENT_ID,
         group::GroupId,
-        prelude::{GroupEpoch, LeafNode, LeafNodeIndex, StagedCommit},
+        prelude::{GroupEpoch, LeafNodeIndex, StagedCommit},
         treesync::RatchetTree,
     },
     provider_traits::MlsAssistProvider,
@@ -467,19 +467,6 @@ impl From<SerializableDsGroupStateV2> for EncryptableDsGroupState {
     fn from(serializable: SerializableDsGroupStateV2) -> Self {
         EncryptableDsGroupState::V2(serializable)
     }
-}
-
-/// Returns `true` if the leaf carries a `VC_COMPONENT_ID` entry in its
-/// `AppDataDictionary` extension, i.e. it is operated by a virtual client.
-///
-/// This is the encrypted derivation info that a commit built via
-/// `CommitBuilder::vc_emulation` injects, so it identifies a leaf that emulator
-/// clients actually share -- not merely one that advertises support for the
-/// virtual-clients component.
-pub(super) fn leaf_node_is_virtual_client(leaf: &LeafNode) -> bool {
-    leaf.extensions()
-        .app_data_dictionary()
-        .is_some_and(|dict| dict.dictionary().contains(&VC_COMPONENT_ID))
 }
 
 impl AeadEncryptable<GroupStateEarKey, EncryptedDsGroupStateCtype> for EncryptableDsGroupState {}

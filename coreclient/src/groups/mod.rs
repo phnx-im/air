@@ -68,7 +68,7 @@ use aircommon::{
         default_app_data_dictionary_extension, default_group_required_extensions,
         default_leaf_node_capabilities, default_leaf_node_extensions,
         default_mls_group_join_config, default_sender_ratchet_configuration,
-        vc_leaf_node_extensions,
+        leaf_node_is_virtual_client, vc_leaf_node_extensions,
     },
     time::TimeStamp,
     utils::removed_client,
@@ -106,7 +106,7 @@ use crate::{
 
 use openmls::{
     component::ComponentType,
-    components::vc_derivation_info::{EpochId, GenerationId, VC_COMPONENT_ID},
+    components::vc_derivation_info::{EpochId, GenerationId},
     group::{
         CreateCommitError, ExportSecretError, ExternalCommitBuilder, GroupEpoch, JoinBuilder,
         ProcessedWelcome, ProposalValidationError, UnconfirmedMessage,
@@ -2479,24 +2479,12 @@ impl Group {
         self.mls_group().own_leaf_index()
     }
 
-    /// Whether our leaf in this group is operated by a virtual client,
-    /// determined by the leaf advertising `VC_COMPONENT_ID`
+    /// Whether our leaf in this group is operated by a virtual client, i.e. it is
+    /// shared with sibling emulator clients.
     pub(crate) fn own_leaf_is_virtual_client(&self) -> bool {
-        let Some(own_leaf_node) = self.mls_group().own_leaf_node() else {
-            return false;
-        };
-        own_leaf_node
-            .extensions()
-            .app_data_dictionary()
-            .and_then(|ext| ext.dictionary().get(&ComponentType::AppComponents.into()))
-            .and_then(|data| {
-                ComponentsList::tls_deserialize_exact_bytes(data)
-                    .inspect_err(|error| {
-                        error!(%error, "Failed to deserialize app components");
-                    })
-                    .ok()
-            })
-            .is_some_and(|list| list.component_ids.contains(&VC_COMPONENT_ID))
+        self.mls_group()
+            .own_leaf_node()
+            .is_some_and(leaf_node_is_virtual_client)
     }
 
     /// Register a virtual-clients emulation epoch for this group's current

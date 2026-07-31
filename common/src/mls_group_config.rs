@@ -19,7 +19,7 @@ use mls_assist::{
         },
     },
 };
-use tls_codec::Serialize;
+use tls_codec::{DeserializeBytes, Serialize};
 
 /// An app-level MLS component that can be stored in the app data dictionary of a group, leaf node,
 /// or key package.
@@ -133,6 +133,24 @@ pub fn default_leaf_node_extensions<C: AppComponent>() -> Extensions<LeafNode> {
 pub fn vc_leaf_node_extensions<C: AppComponent>() -> Extensions<LeafNode> {
     Extensions::from_vec(vec![app_data_dictionary_extension::<C>(&[VC_COMPONENT_ID])])
         .expect("invalid extensions")
+}
+
+/// Returns `true` if the leaf is operated by a virtual client.
+///
+/// [`vc_leaf_node_extensions`] adds [`VC_COMPONENT_ID`] to the app data components
+/// it when the leaf is first created for a virtual client, and later commits carry it over.
+pub fn leaf_node_is_virtual_client(leaf: &LeafNode) -> bool {
+    leaf.extensions()
+        .app_data_dictionary()
+        .and_then(|ext| ext.dictionary().get(&ComponentType::AppComponents.into()))
+        .and_then(|data| {
+            ComponentsList::tls_deserialize_exact_bytes(data)
+                .inspect_err(|error| {
+                    tracing::error!(%error, "Failed to deserialize app components");
+                })
+                .ok()
+        })
+        .is_some_and(|list| list.component_ids.contains(&VC_COMPONENT_ID))
 }
 
 /// Extension used in the key package.

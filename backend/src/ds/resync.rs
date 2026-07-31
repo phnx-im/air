@@ -22,7 +22,9 @@ use crate::errors::ResyncClientError;
 
 use super::process::USER_EXPIRATION_DAYS;
 
-use super::group_state::{DsGroupState, leaf_node_is_virtual_client};
+use aircommon::mls_group_config::leaf_node_is_virtual_client;
+
+use super::group_state::DsGroupState;
 
 /// Outcome of a resync: the message to distribute, plus the queue of the leaf the
 /// resync replaced when that leaf is being taken over by a sibling emulator
