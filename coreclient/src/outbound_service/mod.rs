@@ -563,6 +563,8 @@ mod test {
         assert_eq!(2, context.counter.load(Ordering::SeqCst));
     }
 
+    /// Each notification of a started service triggers another run, and the returned future
+    /// resolves once that run is done.
     #[tokio::test]
     async fn wait_for_idle() {
         init_test_tracing();
@@ -570,28 +572,20 @@ mod test {
         let context = DelayedCounterContext::default();
         let service = OutboundService::with_context(context.clone(), global_lock());
 
-        service.start().await; // +1 => counter = 1
-
-        // Trigger a run without awaiting it, then wait for idle via the returned future. Waiting
-        // on the done futures instead of sleeping keeps the test deterministic. A notification
-        // sent while a run is still in flight coalesces with that run, so timing-based waits can
-        // observe fewer runs under load.
-        let idle = service.notify_work(); // +1 => counter = 2
-        idle.await;
-        service.notify_work().await; // +1 => counter = 3
-
-        assert_eq!(3, context.counter.load(Ordering::SeqCst));
-    }
-
-    #[tokio::test]
-    async fn notify_work_triggers_another_run() {
-        let context = DelayedCounterContext::default();
-        let service = OutboundService::with_context(context.clone(), global_lock());
-
         service.start().await;
-        service.notify_work().await;
+        assert_eq!(1, context.counter.load(Ordering::SeqCst));
 
+        // The run is triggered by the call itself. The future is only a handle to wait for
+        // idle, also when held and awaited later. Waiting on the done futures instead of
+        // sleeping keeps the test deterministic. A notification sent while a run is still in
+        // flight coalesces with that run, so timing-based waits can observe fewer runs under
+        // load.
+        let idle = service.notify_work();
+        idle.await;
         assert_eq!(2, context.counter.load(Ordering::SeqCst));
+
+        service.notify_work().await;
+        assert_eq!(3, context.counter.load(Ordering::SeqCst));
     }
 
     #[tokio::test]
