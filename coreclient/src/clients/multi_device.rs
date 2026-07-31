@@ -892,7 +892,6 @@ mod tests {
             "example.com".parse()?,
         ));
         Ok(ProvisioningPackage {
-            user_id,
             client_signing_key,
             qs_user_id: QsUserId::random(),
             qs_user_signing_key: QsUserSigningKey::generate()?,
@@ -911,6 +910,7 @@ mod tests {
             identity_link_wrapper_key: IdentityLinkWrapperKey::random()?,
             synced_settings,
             groups: Vec::new(),
+            user_id,
         })
     }
 

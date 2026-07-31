@@ -735,3 +735,31 @@ async fn multi_device_settings_race_converges() {
     // The self group is still usable after the race.
     send_and_receive(old_device, &[&new_device], chat_id, "still in sync").await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test linking a third device", skip_all)]
+async fn multi_device_linking_a_third_device() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+
+    let (device_2, _tmp_2) = link_new_device(&setup, &alice).await;
+    let (device_3, _tmp_3) = link_new_device(&setup, &alice).await;
+
+    let device_1 = setup.get_user(&alice).user();
+
+    drain_queue(device_1).await;
+    drain_queue(&device_2).await;
+    drain_queue(&device_3).await;
+
+    for (label, device) in [("1", device_1), ("2", &device_2), ("3", &device_3)] {
+        assert_eq!(
+            device.self_group_member_count().await.unwrap(),
+            Some(3),
+            "device {label} should see all three emulator clients in the self group"
+        );
+    }
+
+    let chat_id = self_chat_id(device_1).await;
+    send_and_receive(device_1, &[&device_2, &device_3], chat_id, "from device 1").await;
+    send_and_receive(&device_3, &[device_1, &device_2], chat_id, "from device 3").await;
+}

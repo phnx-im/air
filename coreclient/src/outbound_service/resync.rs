@@ -35,9 +35,9 @@ use crate::{
 };
 
 pub(crate) struct Resync {
-    /// `None` while onboarding an emulator client into a higher-level group: the
-    /// chat is only created once the external commit has succeeded, so a failed
-    /// onboarding leaves no chat bound to a group we never joined.
+    /// `None` while onboarding an emulator client into a higher-level group:
+    /// there is no chat to point at yet, since it is created together with the
+    /// group the external commit joins.
     pub(crate) chat_id: Option<ChatId>,
     pub(crate) group_id: GroupId,
     pub(crate) pq_group_id: Option<GroupId>,
@@ -87,9 +87,6 @@ impl CoreUser {
     /// mls-virtual-clients draft: queue a resync that evicts the virtual
     /// client's prior membership and re-joins on a leaf derived from the shared
     /// emulation epoch.
-    ///
-    /// The chat is created from the group's own `GroupData` once the commit has
-    /// succeeded, so an onboarding that never completes leaves no chat behind.
     ///
     /// Returns the number of groups queued. The external commits themselves run
     /// in the outbound service, which retries each one independently, so a group
@@ -243,22 +240,19 @@ impl Resync {
             Box::pin(self.create_commit(&mut txn, api_clients, signer, external_commit_info))
                 .await
                 .map_err(OutboundServiceError::fatal)?;
+
+        let chat_id = match existing_chat_id {
+            Some(chat_id) => chat_id,
+            None => Self::create_chat(&mut txn, &group, signer)
+                .await
+                .map_err(OutboundServiceError::fatal)?,
+        };
+
         txn.commit()
             .await
             .map_err(OutboundServiceError::recoverable)?;
 
         Self::send_commit(api_clients, signer, &group, commit, original_leaf_index).await?;
-
-        // Onboarding into a group we had no chat for yet. Now that the commit
-        // was accepted and we are a member, derive the chat from the group's own
-        // data. Creating it only here is what keeps a failed onboarding from
-        // leaving behind a chat that is bound to no MLS group.
-        let chat_id = match existing_chat_id {
-            Some(chat_id) => chat_id,
-            None => Self::create_chat(&mut connection, &group, signer)
-                .await
-                .map_err(OutboundServiceError::fatal)?,
-        };
 
         Ok((chat_id, member_profile_infos))
     }
@@ -267,7 +261,7 @@ impl Resync {
     /// and picture from the group's `GroupData` -- the same source a Welcome
     /// uses. An external group profile is not inline, so it is fetched later.
     async fn create_chat(
-        mut connection: impl WriteConnection,
+        txn: &mut WriteDbTransaction<'_>,
         group: &Group,
         signer: &ClientSigningKey,
     ) -> Result<ChatId> {
@@ -279,9 +273,8 @@ impl Resync {
         // fetch does not produce.
         let sender_id = signer.credential().user_id().clone();
 
-        let mut txn = connection.begin().await?;
         let picture = CoreUser::resolve_group_profile_part(
-            &mut txn,
+            &mut *txn,
             group.group_id(),
             &sender_id,
             TimeStamp::now(),
@@ -291,11 +284,9 @@ impl Resync {
         .await?;
         let chat =
             Chat::new_group_chat(group.group_id().clone(), ChatAttributes { title, picture });
-        chat.store(&mut txn).await?;
-        let chat_id = chat.id();
-        txn.commit().await?;
+        chat.store(&mut *txn).await?;
 
-        Ok(chat_id)
+        Ok(chat.id())
     }
 
     async fn fetch_group_info(
@@ -539,13 +530,25 @@ mod persistence {
             mut connection: impl ReadConnection,
             chat_id: &ChatId,
         ) -> sqlx::Result<bool> {
-            let record = query!(
-                "SELECT EXISTS(SELECT 1 FROM resync_queue WHERE chat_id = ? LIMIT 1) AS row_exists",
-                chat_id,
+            // Matches either the stored chat_id or the one the group_id maps to: an
+            // onboarding resync has no chat yet, and a resync for a group that is
+            // gone from the DS can carry a chat_id its group_id does not map to.
+            struct QueuedIds {
+                chat_id: Option<ChatId>,
+                group_id: GroupIdWrapper,
+            }
+
+            let queued = query_as!(
+                QueuedIds,
+                r#"SELECT chat_id AS "chat_id: _", group_id AS "group_id: _" FROM resync_queue"#
             )
-            .fetch_one(connection.as_mut())
+            .fetch_all(connection.as_mut())
             .await?;
-            Ok(record.row_exists == 1)
+
+            Ok(queued.into_iter().any(|queued| {
+                queued.chat_id.as_ref() == Some(chat_id)
+                    || ChatId::try_from(&queued.group_id.0).is_ok_and(|derived| &derived == chat_id)
+            }))
         }
 
         pub(crate) async fn remove(

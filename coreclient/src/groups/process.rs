@@ -42,7 +42,7 @@ use crate::{
         user_settings::{SettingChanges, apply_settings_update, merge_settings_update},
     },
     db::access::WriteDbTransaction,
-    groups::client_auth_info::VerifiableUserCredentialExt,
+    groups::client_auth_info::{StorableUserCredential, VerifiableUserCredentialExt},
     job::pending_chat_operation::PendingChatOperation,
     key_stores::as_credentials::AsCredentials,
 };
@@ -700,6 +700,7 @@ impl Group {
         as_credentials: &HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>,
     ) -> Result<Vec<UserCredential>> {
         let mut credentials = Vec::new();
+        let is_self_group = AirComponent::is_self_group_context(self.mls_group.extensions());
 
         for proposal in staged_commit.add_proposals() {
             let leaf_node = proposal.add_proposal().key_package().leaf_node();
@@ -708,8 +709,18 @@ impl Group {
             let credential = LeafCredential::from_credential(leaf_node.credential())?
                 .into_user()
                 .context("adding self-group members is not yet supported")?;
-            let credential =
-                credential.verify_and_validate(leaf_node.signature_key(), None, as_credentials)?;
+            let credential = if is_self_group {
+                // TODO(gabriel): replace this by using LeafCredential instead.
+                //
+                // A self-group leaf is signed with the joining device's own key
+                // rather than the one its user credential attests, so the
+                // leaf-key binding does not apply. The credential itself is
+                // still verified against the AS, and only our own devices are
+                // ever members of our self group.
+                StorableUserCredential::verify(credential, as_credentials)?
+            } else {
+                credential.verify_and_validate(leaf_node.signature_key(), None, as_credentials)?
+            };
 
             self.verify_role_change(sender_user, credential.user_id(), RoleIndex::Regular)?;
 
