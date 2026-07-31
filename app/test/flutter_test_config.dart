@@ -35,6 +35,18 @@ Future<void> testExecutable(FutureOr<void> Function() testMain) async {
   await testMain();
 }
 
+/// Every family Material's `Typography` selects, keyed by the platform that
+/// picks it. The typescale leaves `fontFamily` unset, so the theme fills in the
+/// family of the platform a test pins, and a family with no font registered
+/// renders every glyph as a filled box.
+const _typographyFamilies = <String>[
+  'Roboto', // android, fuchsia, linux
+  '.AppleSystemUIFont', // macOS
+  'Segoe UI', // windows
+  'CupertinoSystemText', // iOS
+  'CupertinoSystemDisplay', // iOS
+];
+
 Future<void> _loadFonts() async {
   final monospaceFamily = getSystemMonospaceFontFamily();
   // Load MaterialIcons from the Flutter SDK via rootBundle
@@ -43,91 +55,66 @@ Future<void> _loadFonts() async {
   await iconLoader.load();
 
   // Load test-only fonts from disk (not registered in pubspec.yaml)
-  final testFonts = <String, String>{"NotoEmoji": "test/fonts/NotoEmoji.ttf"};
-  final usesSystemMonospace = await _tryLoadSystemMonospaceFont(
-    monospaceFamily,
-  );
-  final usesSanFrancisco = await _tryLoadSanFranciscoFont();
-  if (!usesSystemMonospace) {
-    testFonts[monospaceFamily] = "test/fonts/RobotoMono-Regular.ttf";
-  }
-  if (!usesSanFrancisco) {
-    testFonts["Roboto"] = "test/fonts/Roboto-Regular.ttf";
-  }
-  for (final entry in testFonts.entries) {
-    await _loadFontFromFile(entry.key, entry.value);
+  await _loadFont("NotoEmoji", _readFont("test/fonts/NotoEmoji.ttf"));
+
+  final monospace =
+      _readSystemFont(_systemMonospacePaths) ??
+      _readFont("test/fonts/RobotoMono-Regular.ttf");
+  await _loadFont(monospaceFamily, monospace);
+
+  // Every family gets the same face so that a host renders its whole golden set
+  // in one font, whichever platform a test pins.
+  final text =
+      _readSystemFont(_systemUiFontPaths) ??
+      _readFont("test/fonts/Roboto-Regular.ttf");
+  for (final family in _typographyFamilies) {
+    await _loadFont(family, text);
   }
 }
 
-Future<void> _loadFontFromFile(String family, String path) async {
-  final file = File(path);
-  final bytes = file.readAsBytesSync();
-  final byteData = bytes.buffer.asByteData();
-  final loader = FontLoader(family)..addFont(Future.value(byteData));
+Future<void> _loadFont(String family, ByteData bytes) async {
+  final loader = FontLoader(family)..addFont(Future.value(bytes));
   await loader.load();
 }
 
-Future<bool> _tryLoadSystemMonospaceFont(String family) async {
-  final paths = <String>[
-    if (Platform.isMacOS || Platform.isIOS) ...[
-      '/System/Library/Fonts/Menlo.ttc',
-      '/Library/Fonts/Menlo.ttc',
-    ],
-    if (Platform.isWindows) ...[
-      r'C:\Windows\Fonts\consola.ttf',
-      r'C:\Windows\Fonts\consolab.ttf',
-      r'C:\Windows\Fonts\consolai.ttf',
-      r'C:\Windows\Fonts\consolaz.ttf',
-    ],
-  ];
+ByteData _readFont(String path) =>
+    File(path).readAsBytesSync().buffer.asByteData();
 
+/// The first of [paths] the host actually ships, or null when it ships none.
+ByteData? _readSystemFont(List<String> paths) {
   for (final path in paths) {
     final file = File(path);
-    if (!file.existsSync()) {
-      continue;
+    if (file.existsSync()) {
+      return file.readAsBytesSync().buffer.asByteData();
     }
-
-    final bytes = file.readAsBytesSync();
-    final byteData = bytes.buffer.asByteData();
-    final loader = FontLoader(family)..addFont(Future.value(byteData));
-    await loader.load();
-    return true;
   }
 
-  return false;
+  return null;
 }
 
-Future<bool> _tryLoadSanFranciscoFont() async {
-  if (!Platform.isMacOS) {
-    return false;
-  }
+List<String> get _systemMonospacePaths => <String>[
+  if (Platform.isMacOS || Platform.isIOS) ...[
+    '/System/Library/Fonts/Menlo.ttc',
+    '/Library/Fonts/Menlo.ttc',
+  ],
+  if (Platform.isWindows) ...[
+    r'C:\Windows\Fonts\consola.ttf',
+    r'C:\Windows\Fonts\consolab.ttf',
+    r'C:\Windows\Fonts\consolai.ttf',
+    r'C:\Windows\Fonts\consolaz.ttf',
+  ],
+];
 
-  const sfPaths = [
+/// Only macOS contributes a path: San Francisco is the one system UI font we
+/// can read from a stable location. Windows and Linux fall back to the
+/// in-source Roboto so their goldens do not drift with an OS font update.
+List<String> get _systemUiFontPaths => <String>[
+  if (Platform.isMacOS || Platform.isIOS) ...[
     '/System/Library/Fonts/SFNS.ttf',
     '/System/Library/Fonts/SFNSText.ttf',
     '/System/Library/Fonts/SFNSDisplay.ttf',
-  ];
-  const familyAliases = ['SF Pro Text', 'SF Pro', 'SFNS', 'SF', 'Roboto'];
-
-  for (final path in sfPaths) {
-    final file = File(path);
-    if (!file.existsSync()) {
-      continue;
-    }
-
-    final bytes = file.readAsBytesSync();
-    final byteData = bytes.buffer.asByteData();
-
-    for (final family in familyAliases) {
-      final loader = FontLoader(family)..addFont(Future.value(byteData));
-      await loader.load();
-    }
-
-    return true;
-  }
-
-  return false;
-}
+  ],
+];
 
 void _setGoldenFileComparatorWithThreshold(double threshold) {
   assert(goldenFileComparator is LocalFileComparator);
