@@ -1,0 +1,98 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                qs_user_id AS \"qs_user_id: _\",\n                qs_client_id AS \"qs_client_id: _\",\n                user_uuid AS \"user_uuid: _\",\n                user_domain AS \"user_domain: _\",\n                client_id AS \"client_id: _\",\n                self_group_id AS \"self_group_id: _\",\n                self_group_signing_key AS \"self_group_signing_key: _\"\n            FROM own_client_info",
+  "describe": {
+    "columns": [
+      {
+        "name": "qs_user_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "own_client_info",
+            "name": "qs_user_id"
+          }
+        }
+      },
+      {
+        "name": "qs_client_id: _",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "own_client_info",
+            "name": "qs_client_id"
+          }
+        }
+      },
+      {
+        "name": "user_uuid: _",
+        "ordinal": 2,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "own_client_info",
+            "name": "user_uuid"
+          }
+        }
+      },
+      {
+        "name": "user_domain: _",
+        "ordinal": 3,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "own_client_info",
+            "name": "user_domain"
+          }
+        }
+      },
+      {
+        "name": "client_id: _",
+        "ordinal": 4,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "own_client_info",
+            "name": "client_id"
+          }
+        }
+      },
+      {
+        "name": "self_group_id: _",
+        "ordinal": 5,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "own_client_info",
+            "name": "self_group_id"
+          }
+        }
+      },
+      {
+        "name": "self_group_signing_key: _",
+        "ordinal": 6,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "own_client_info",
+            "name": "self_group_signing_key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      true
+    ]
+  },
+  "hash": "e6f9a58d92d399776d3a33635e964b940679e309129014e6519156b045560a32"
+}

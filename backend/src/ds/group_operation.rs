@@ -105,6 +105,11 @@ impl DsGroupState {
             return Err(GroupOperationError::InvalidMessage);
         };
 
+        if !self.self_group_flag_unchanged(staged_commit) {
+            warn!("Commit would toggle the self-group flag");
+            return Err(GroupOperationError::InvalidMessage);
+        }
+
         // Perform validation depending on the type of message
         let sender_index = match processed_message.sender() {
             Sender::Member(leaf_index) => SenderIndex::Member(*leaf_index),
@@ -377,6 +382,10 @@ impl DsGroupState {
                 warn!("PQ message content is not a staged commit");
                 return Err(GroupOperationError::InvalidMessage);
             };
+            if !pq_group_state.self_group_flag_unchanged(pq_staged_commit) {
+                warn!("PQ commit would toggle the self-group flag");
+                return Err(GroupOperationError::InvalidMessage);
+            }
             let pq_sender_index = match processed_assisted_message
                 .processed_message
                 .pq_message

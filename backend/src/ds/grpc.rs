@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::{LeafCredential, UserCredential, keys::ClientVerifyingKey},
+    credentials::{LeafCredential, keys::ClientVerifyingKey},
     crypto::{
         aead::keys::GroupStateEarKey,
         signatures::{
@@ -39,7 +39,6 @@ use mls_assist::{
 use semver::Version;
 use sqlx::{PgConnection, PgTransaction};
 use thiserror::Error;
-use tls_codec::DeserializeBytes;
 use tokio::task::{JoinError, JoinSet};
 use tonic::{Request, Response, Status, async_trait};
 use tracing::{error, warn};
@@ -677,18 +676,16 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
     ) -> Result<Response<CreateGroupResponse>, Status> {
         let request = request.into_inner();
 
-        // TODO: signature verification?
-        let request = request.into_inner();
-        let payload = request.payload.ok_or_missing_field("payload")?;
+        // First use the unverified payload. It is verified below against the creator's user
+        // credential.
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
         let qgid = payload.validated_qgid(&self.ds.own_domain)?;
         let ear_key = payload.ear_key()?;
-
-        let reserved_group_id = self
-            .ds
-            .claim_reserved_group_id(qgid.group_uuid())
-            .await
-            .ok_or_else(|| Status::invalid_argument("unreserved group id"))?;
 
         // create group
         let group_info: MlsMessageIn = payload
@@ -714,26 +711,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             Status::internal("failed to create group")
         })?;
 
-        // Extract user id
-        let members = group.members().collect::<Vec<_>>();
-
-        let &[own_leaf] = &members.as_slice() else {
-            error!(members = %members.len(), "group must have exactly one member");
-            return Err(Status::invalid_argument(
-                "group must have exactly one member",
-            ));
-        };
-
         let credential =
-            UserCredential::tls_deserialize_exact_bytes(own_leaf.credential.serialized_content())
-                .map_err(|_| Status::invalid_argument("invalid credential"))?;
-        let user_id = credential.user_id().uuid();
+            Self::creator_credential(&group, payload.creator_user_credential.as_ref())?;
 
         // Configure the rate-limiting
         let rl_key = RlKey::new(
             b"ds",
             b"reserve_group_id",
-            &[b"user_uuid", user_id.as_bytes()],
+            &[b"user_uuid", credential.user_id().uuid().as_bytes()],
         );
         let config = RlConfig {
             max_requests: 100,
@@ -748,6 +733,17 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 "Too many requests, please try again later",
             ));
         }
+
+        // Now we can verify the payload
+        let payload: CreateGroupPayload = request
+            .verify(credential.verifying_key())
+            .map_err(InvalidSignature)?;
+
+        let reserved_group_id = self
+            .ds
+            .claim_reserved_group_id(qgid.group_uuid())
+            .await
+            .ok_or_else(|| Status::invalid_argument("unreserved group id"))?;
 
         // encrypt and store group state
         let encrypted_user_profile_key = payload
@@ -839,7 +835,10 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             &creator_client_reference,
             &room_state,
         )?;
-        let t_user_credential = Self::extract_credential(&t_group_state.group)?;
+        let t_user_credential = Self::creator_credential(
+            &t_group_state.group,
+            payload.creator_user_credential.as_ref(),
+        )?;
 
         // Configure and apply rate-limiting
         let rl_key = RlKey::new(
@@ -872,6 +871,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             &creator_client_reference,
             &room_state,
         )?;
+        if payload.creator_user_credential.is_some() {
+            Self::require_self_group_context(&pq_group_state.group)?;
+        }
 
         // Check that the t and pq client signature keys match
         Self::verify_signing_key(&t_group_state.group, &pq_group_state.group)?;

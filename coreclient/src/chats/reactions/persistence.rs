@@ -2,12 +2,18 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::identifiers::{Fqdn, MimiId, UserId};
+use aircommon::{
+    codec::BlobDecoded,
+    identifiers::{Fqdn, MimiId, UserId},
+    time::TimeStamp,
+};
+use chrono::{DateTime, Utc};
 use sqlx::{query, query_as, query_scalar};
 use uuid::Uuid;
 
 use crate::{
-    ChatId,
+    ChatId, ChatMessage, MessageId,
+    chats::messages::persistence::{SqlChatMessage, VersionedMessage},
     db::access::{ReadConnection, WriteConnection},
 };
 
@@ -43,6 +49,56 @@ impl From<SqlReaction> for Reaction {
             emoji,
             created_at,
         }
+    }
+}
+
+/// A reaction row joined with its target message row.
+struct SqlReactionWithTarget {
+    reaction_mimi_id: MimiId,
+    target_mimi_id: MimiId,
+    chat_id: ChatId,
+    sender_user_uuid: Uuid,
+    sender_user_domain: Fqdn,
+    emoji: String,
+    created_at: TimeStamp,
+    message_id: MessageId,
+    message_mimi_id: Option<MimiId>,
+    timestamp: TimeStamp,
+    message_sender_user_uuid: Option<Uuid>,
+    message_sender_user_domain: Option<Fqdn>,
+    content: BlobDecoded<VersionedMessage>,
+    sent: bool,
+    status: i64,
+    edited_at: Option<TimeStamp>,
+    is_blocked: bool,
+    in_reply_to_mimi_id: Option<MimiId>,
+}
+
+impl From<SqlReactionWithTarget> for (Reaction, ChatMessage) {
+    fn from(row: SqlReactionWithTarget) -> Self {
+        let reaction = Reaction {
+            reaction_mimi_id: row.reaction_mimi_id,
+            target_mimi_id: row.target_mimi_id,
+            chat_id: row.chat_id,
+            sender: UserId::new(row.sender_user_uuid, row.sender_user_domain),
+            emoji: row.emoji,
+            created_at: row.created_at,
+        };
+        let message = ChatMessage::from(SqlChatMessage {
+            message_id: row.message_id,
+            mimi_id: row.message_mimi_id,
+            chat_id: row.chat_id,
+            timestamp: row.timestamp,
+            sender_user_uuid: row.message_sender_user_uuid,
+            sender_user_domain: row.message_sender_user_domain,
+            content: row.content,
+            sent: row.sent,
+            status: row.status,
+            edited_at: row.edited_at,
+            is_blocked: row.is_blocked,
+            in_reply_to_mimi_id: row.in_reply_to_mimi_id,
+        });
+        (reaction, message)
     }
 }
 
@@ -134,6 +190,63 @@ impl Reaction {
         .await?
             != 0;
         Ok(exists)
+    }
+
+    /// Load all newest reactions on the messages of the own user in a chat, together with their
+    /// target message.
+    ///
+    /// Only reactions with a `created_at > since` are loaded (all of them if since is `None`),
+    /// capped at `limit`, newest first, excluding own reactions.
+    pub(crate) async fn load_own_message_reactions_since(
+        mut connection: impl ReadConnection,
+        chat_id: ChatId,
+        own_user: &UserId,
+        since: Option<DateTime<Utc>>,
+        limit: u32,
+    ) -> sqlx::Result<Vec<(Reaction, ChatMessage)>> {
+        let own_uuid = own_user.uuid();
+        let own_domain = own_user.domain();
+        query_as!(
+            SqlReactionWithTarget,
+            r#"SELECT
+                r.reaction_mimi_id AS "reaction_mimi_id: _",
+                r.target_mimi_id AS "target_mimi_id: _",
+                r.chat_id AS "chat_id: _",
+                r.sender_user_uuid AS "sender_user_uuid: _",
+                r.sender_user_domain AS "sender_user_domain: _",
+                r.emoji,
+                r.created_at AS "created_at: _",
+                m.message_id AS "message_id: _",
+                m.mimi_id AS "message_mimi_id: _",
+                m.timestamp AS "timestamp: _",
+                m.sender_user_uuid AS "message_sender_user_uuid: _",
+                m.sender_user_domain AS "message_sender_user_domain: _",
+                m.content AS "content: _",
+                m.sent,
+                m.status,
+                m.edited_at AS "edited_at: _",
+                b.user_uuid IS NOT NULL AS "is_blocked!: _",
+                m.in_reply_to_mimi_id AS "in_reply_to_mimi_id: _"
+            FROM reaction r
+            INNER JOIN message m ON m.mimi_id = r.target_mimi_id
+            LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid
+                AND b.user_domain = m.sender_user_domain
+            WHERE r.chat_id = ?1
+                AND (?2 IS NULL OR r.created_at > ?2)
+                AND m.sender_user_uuid = ?3
+                AND m.sender_user_domain = ?4
+                AND (r.sender_user_uuid != ?3 OR r.sender_user_domain != ?4)
+            ORDER BY r.created_at DESC, r.reaction_mimi_id DESC
+            LIMIT ?5"#,
+            chat_id,
+            since,
+            own_uuid,
+            own_domain,
+            limit,
+        )
+        .fetch_all(connection.as_mut())
+        .await
+        .map(|rows| rows.into_iter().map(From::from).collect())
     }
 
     /// Load all reactions on a given message, oldest first.

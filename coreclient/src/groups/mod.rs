@@ -14,6 +14,7 @@ pub(crate) mod openmls_provider;
 pub(crate) mod persistence;
 pub(crate) mod process;
 pub(crate) mod self_group;
+pub(crate) mod self_group_message_key;
 
 use apqmls::{
     authentication::ApqCredentialWithKey,
@@ -157,6 +158,7 @@ impl PartialCreateGroupParams {
             group_info: self.group_info,
             room_state: self.room_state,
             pq,
+            creator_user_credential: None,
         }
     }
 }
@@ -340,6 +342,13 @@ impl Group {
 
     pub(crate) fn pq_mut(&mut self) -> Option<&mut PqGroup> {
         self.pq.as_mut()
+    }
+
+    /// Whether the group has a commit that the DS rejected and that has not
+    /// been reconciled yet.
+    #[cfg(test)]
+    pub(crate) fn commit_failed(&self) -> bool {
+        self.pending_commit_failed
     }
 
     pub(crate) async fn mark_commit_failed(
@@ -656,6 +665,12 @@ impl Group {
             )
         };
 
+        // Self-groups are only ever joined during device linking, which uses the APQ join path.
+        ensure!(
+            !AirComponent::is_self_group_context(mls_group.extensions()),
+            "refusing to join a group marked as self-group"
+        );
+
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &mls_group, false).await?;
 
@@ -859,9 +874,16 @@ impl Group {
         // added by an existing one), relax member-credential verification: our
         // own leaf uses a self-signed basic credential for the MVP. See the
         // device-linking plan.
-        let is_self_group = OwnClientInfo::is_own_self_group(&mut *txn, t_mls_group.group_id())
-            .await
-            .unwrap_or(false);
+        let is_self_group =
+            OwnClientInfo::is_own_self_group(&mut *txn, t_mls_group.group_id()).await?;
+        // A group flagged as self-group may only be joined during device linking, i.e. when it is
+        // recorded as our own self-group. Conversely, our own self-group must carry the flag,
+        // since it gets the relaxed member-credential verification below.
+        ensure!(
+            AirComponent::is_self_group_context(t_mls_group.extensions()) == is_self_group
+                && AirComponent::is_self_group_context(pq_mls_group.extensions()) == is_self_group,
+            "self-group flag does not match the recorded self-group"
+        );
         let credentials =
             verify_member_credentials(txn, api_clients, &t_mls_group, is_self_group).await?;
         let self_updated_at = TimeStamp::now();
@@ -1128,11 +1150,16 @@ impl Group {
             )
         };
 
+        // A group flagged as self-group must be recorded as our own self-group and vice versa.
+        let is_self_group =
+            OwnClientInfo::is_own_self_group(&mut *txn, mls_group.group_id()).await?;
+        ensure!(
+            AirComponent::is_self_group_context(mls_group.extensions()) == is_self_group,
+            "self-group flag does not match the recorded self-group"
+        );
+
         // Phase 3: Verify the user credentials. Relaxed for the self group:
         // a linked device's leaf presents a foreign credential for the MVP.
-        let is_self_group = OwnClientInfo::is_own_self_group(&mut *txn, mls_group.group_id())
-            .await
-            .unwrap_or(false);
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &mls_group, is_self_group).await?;
 
@@ -1265,11 +1292,16 @@ impl Group {
         };
         let (t_group, pq_group) = apq_mls_group.into_groups();
 
+        // A group flagged as self-group must be recorded as our own self-group and vice versa.
+        let is_self_group = OwnClientInfo::is_own_self_group(&mut *txn, t_group.group_id()).await?;
+        ensure!(
+            AirComponent::is_self_group_context(t_group.extensions()) == is_self_group
+                && AirComponent::is_self_group_context(pq_group.extensions()) == is_self_group,
+            "self-group flag does not match the recorded self-group"
+        );
+
         // Verify credentials (T only). Relaxed for the self group: a linked
         // device's leaf presents a foreign credential for the MVP.
-        let is_self_group = OwnClientInfo::is_own_self_group(&mut *txn, t_group.group_id())
-            .await
-            .unwrap_or(false);
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &t_group, is_self_group).await?;
 

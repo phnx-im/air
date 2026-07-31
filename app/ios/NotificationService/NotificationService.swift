@@ -57,7 +57,7 @@ struct IncomingNotificationContent: Codable {
 
 struct NotificationBatch: Codable {
     let badgeCount: UInt32
-    let removals: [String]
+    let removals: [UUID]
     let additions: [NotificationContent]
 }
 
@@ -224,12 +224,17 @@ class NotificationService: UNNotificationServiceExtension {
         let center = UNUserNotificationCenter.current()
         let dispatchGroup = DispatchGroup()
 
-        // Remove notifications
-        center.removeDeliveredNotifications(withIdentifiers: batch.removals)
+        // Remove notifications of the chats whose rebuild set became empty
+        removeChatNotifications(
+            chatIds: batch.removals, center: center, dispatchGroup: dispatchGroup)
 
-        // When Rust does not return any notifications, we don't want to show anything
+        // When Rust does not return any notifications, we don't want to show anything.
+        // Still wait for the removals: iOS may suspend the extension right after the
+        // content handler runs.
         if batch.additions.isEmpty {
-            completeNotification(nil, badge: batch.badgeCount)
+            dispatchGroup.notify(queue: DispatchQueue.main) {
+                self.completeNotification(nil, badge: batch.badgeCount)
+            }
             return
         }
 
@@ -247,6 +252,8 @@ class NotificationService: UNNotificationServiceExtension {
                 newContent.sound = UNNotificationSound.default
                 if let chatId = notificationContent.chatId {
                     newContent.userInfo["chatId"] = chatId.uuid.uuidString
+                    // Group the per-message notifications by chat
+                    newContent.threadIdentifier = chatId.uuid.uuidString
                 }
                 let request = UNNotificationRequest(
                     identifier: notificationContent.identifier.uuidString,
@@ -273,6 +280,8 @@ class NotificationService: UNNotificationServiceExtension {
                 content.sound = UNNotificationSound.default
                 if let chatId = lastNotification.chatId {
                     content.userInfo["chatId"] = chatId.uuid.uuidString
+                    // Group the per-message notifications by chat
+                    content.threadIdentifier = chatId.uuid.uuidString
                 }
             }
             // Add the badge number
@@ -281,6 +290,37 @@ class NotificationService: UNNotificationServiceExtension {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.1) {
                 self.completeNotification(content)
             }
+        }
+    }
+
+    // Removes delivered notifications belonging to the given chats.
+    //
+    // Notifications are matched by the chat id in their `userInfo`, not by request
+    // identifier: identifiers are random per notification.
+    private func removeChatNotifications(
+        chatIds: [UUID],
+        center: UNUserNotificationCenter,
+        dispatchGroup: DispatchGroup
+    ) {
+        guard !chatIds.isEmpty else { return }
+        dispatchGroup.enter()
+        center.getDeliveredNotifications { delivered in
+            let chatIds = Set(chatIds)
+            let identifiers =
+                delivered
+                .filter { notification in
+                    guard
+                        let chatIdStr = notification.request.content.userInfo["chatId"]
+                            as? String,
+                        let chatId = UUID(uuidString: chatIdStr)
+                    else { return false }
+                    return chatIds.contains(chatId)
+                }
+                .map { $0.request.identifier }
+            if !identifiers.isEmpty {
+                center.removeDeliveredNotifications(withIdentifiers: identifiers)
+            }
+            dispatchGroup.leave()
         }
     }
 

@@ -15,7 +15,7 @@ use crate::{
     clients::{
         CoreUser,
         event_loop::{ClientOperation, RemoteQueueEvent},
-        process::process_qs::QsProcessEventResult,
+        process::qs_stream::QsProcessEventResult,
     },
 };
 

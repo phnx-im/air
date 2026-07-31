@@ -93,6 +93,11 @@ impl DsGroupState {
             return Err(ResyncClientError::InvalidMessage);
         };
 
+        if !self.self_group_flag_unchanged(staged_commit_message) {
+            error!("Commit would toggle the self-group flag");
+            return Err(ResyncClientError::InvalidMessage);
+        }
+
         // Check if it's an external commit.
         if !matches!(processed_message.sender(), Sender::NewMemberCommit) {
             return Err(ResyncClientError::InvalidMessage);
@@ -189,6 +194,13 @@ impl DsGroupState {
             error!("Invalid message content; expected staged commit");
             return Err(ResyncClientError::InvalidMessage);
         };
+
+        if !t_group_state.self_group_flag_unchanged(t_staged_commit)
+            || !pq_group_state.self_group_flag_unchanged(pq_staged_commit)
+        {
+            error!("Commit would toggle the self-group flag");
+            return Err(ResyncClientError::InvalidMessage);
+        }
 
         let (Sender::NewMemberCommit, Sender::NewMemberCommit) =
             (t_processed_message.sender(), pq_processed_message.sender())

@@ -1,0 +1,135 @@
+// SPDX-FileCopyrightText: 2024 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import 'dart:async';
+import 'dart:typed_data';
+
+import 'package:air/core/core.dart';
+import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/platform/method_channel.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:freezed_annotation/freezed_annotation.dart';
+
+/// Wrapper of the [UserCubitBase] that implements a [StateStreamableSource]
+///
+// See <https://github.com/phnx-im/air/issues/248>
+class UserCubit implements StateStreamableSource<UiUser> {
+  UserCubit({
+    required User user,
+    required NavigationCubit navigationCubit,
+    required Stream<AppState> appStateStream,
+  }) : _impl = UserCubitBase(user: user, navigation: navigationCubit.base) {
+    _appStateSubscription = appStateStream.listen((appState) {
+      _appState = appState;
+      _impl.setAppState(appState: appState);
+    });
+  }
+
+  final UserCubitBase _impl;
+  late final StreamSubscription<AppState> _appStateSubscription;
+  AppState _appState = AppState.foreground;
+
+  UserCubitBase get impl => _impl;
+  AppState get appState => _appState;
+
+  @override
+  FutureOr<void> close() {
+    _appStateSubscription.cancel();
+    _impl.close();
+  }
+
+  @override
+  bool get isClosed => _impl.isClosed;
+
+  @override
+  UiUser get state => _impl.state;
+
+  @override
+  Stream<UiUser> get stream => _impl.stream();
+
+  // Cubit methods
+
+  Future<void> setProfile({String? displayName, Uint8List? profilePicture}) =>
+      _impl.setProfile(
+        displayName: displayName,
+        profilePicture: profilePicture,
+      );
+
+  @useResult
+  Future<InviteUsersError?> addUserToChat(
+    ChatId chatId,
+    List<UiUserId> userIds,
+  ) => _impl.addUsersToChat(chatId, userIds);
+
+  Future<void> removeUserFromChat(ChatId chatId, UiUserId userId) =>
+      _impl.removeUserFromChat(chatId, userId);
+
+  Future<void> leaveChat(ChatId chatId) => _impl.leaveChat(chatId);
+
+  Future<void> deleteChat(ChatId chatId) => _impl.deleteChat(chatId);
+
+  Future<void> devEraseChat(ChatId chatId) => _impl.devEraseChat(chatId);
+
+  Future<List<UiContact>> get contacts => _impl.contacts;
+
+  Future<bool> addUsername(UiUsername username) =>
+      _impl.addUsername(username: username);
+
+  Future<void> removeUsername(UiUsername username) =>
+      _impl.removeUsername(username: username);
+
+  Future<List<UiContact>> addableContacts(ChatId chatId) =>
+      _impl.addableContacts(chatId: chatId);
+
+  Future<void> blockContact(UiUserId userId) =>
+      _impl.blockContact(userId: userId);
+
+  Future<void> unblockContact(UiUserId userId) =>
+      _impl.unblockContact(userId: userId);
+
+  Future<void> reportSpam(UiUserId spammerId) =>
+      _impl.reportSpam(spammerId: spammerId);
+
+  Future<void> deleteAccount({required String confirmationText}) async =>
+      _impl.deleteAccount(
+        dbPath: await dbPath(),
+        confirmationText: confirmationText,
+      );
+
+  Future<UiContact?> contact({required UiUserId userId}) =>
+      _impl.contact(userId: userId);
+
+  Future<ChatId> addContactFromGroup({
+    required ChatId chatId,
+    required UiUserId userId,
+  }) => _impl.addContactFromGroup(chatId: chatId, userId: userId);
+
+  Future<UsernameHash?> checkUsernameExists({required UiUsername username}) =>
+      _impl.checkUsernameExists(username: username);
+
+  Future<intArray12> safetyCodes(UiUserId userId) =>
+      _impl.safetyCodes(otherUserId: userId);
+
+  Future<String> uploadLogs() async {
+    final cacheDir = await getCacheDirectory();
+    return _impl.uploadLogs(cacheDir: cacheDir);
+  }
+
+  /// Drives the acceptor side of linking. Connects to the relay, emits
+  /// [MultiDeviceLinkEvent_AwaitingConfirmation] once connected, then completes
+  /// the handshake after the user approves via [confirmation].
+  Stream<MultiDeviceLinkEvent> linkDevice(
+    String sessionId,
+    MultiDeviceLinkConfirmation confirmation,
+  ) => multiDeviceLinkClient(
+    userCubit: _impl,
+    sessionId: sessionId,
+    confirmation: confirmation,
+  );
+
+  /// Extracts a linking code from a scanned QR payload, validating it targets
+  /// this user's home server. Returns null if it isn't a linking URL for us.
+  String? parseLinkingUrl(String url) =>
+      _impl.parseMultiDeviceLinkingUrl(url: url);
+}

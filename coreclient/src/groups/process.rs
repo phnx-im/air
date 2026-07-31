@@ -16,6 +16,7 @@ use aircommon::{
     },
     utils::removed_client,
 };
+use airprotos::client::{component::AirComponent, self_group::SettingsUpdate};
 use anyhow::{Context, Result, anyhow, bail, ensure};
 use apqmls::{
     ApqMlsGroupMut,
@@ -26,8 +27,8 @@ use mimi_room_policy::RoleIndex;
 use openmls::{
     group::{ProcessMessageError, ValidationError},
     prelude::{
-        Credential, GroupId, LeafNodeIndex, ProcessedMessage, ProcessedMessageContent, Proposal,
-        ProtocolMessage, Sender, SignaturePublicKey, StagedCommit,
+        Credential, GroupId, LeafNodeIndex, MlsGroup, ProcessedMessage, ProcessedMessageContent,
+        Proposal, ProtocolMessage, Sender, SignaturePublicKey, StagedCommit,
     },
 };
 use openmls_traits::OpenMlsProvider;
@@ -35,9 +36,14 @@ use tls_codec::DeserializeBytes as TlsDeserializeBytes;
 use tracing::{debug, error, instrument, warn};
 
 use crate::{
-    clients::api_clients::ApiClients, db::access::WriteDbTransaction,
+    clients::{
+        api_clients::ApiClients,
+        user_settings::{SettingChanges, apply_settings_update, merge_settings_update},
+    },
+    db::access::WriteDbTransaction,
     groups::client_auth_info::VerifiableUserCredentialExt,
-    job::pending_chat_operation::PendingChatOperation, key_stores::as_credentials::AsCredentials,
+    job::pending_chat_operation::PendingChatOperation,
+    key_stores::as_credentials::AsCredentials,
 };
 
 use super::{Group, openmls_provider::AirOpenMlsProvider};
@@ -225,6 +231,13 @@ impl Group {
         let staged_commit = expect_staged_commit(processed_message)?;
         let pq_staged_commit = pq_processed_message.map(expect_staged_commit).transpose()?;
 
+        // The self-group flag is set at group creation and must never change. Reject any commit
+        // whose proposals (AppDataUpdate or GroupContextExtensions) would toggle it.
+        ensure_self_group_flag_unchanged(&self.mls_group, staged_commit)?;
+        if let (Some(pq_group), Some(pq_staged_commit)) = (self.pq.as_ref(), pq_staged_commit) {
+            ensure_self_group_flag_unchanged(&pq_group.mls_group, pq_staged_commit)?;
+        }
+
         // For an external commit (resync, join connection group), the sender's new leaf lives in
         // the commit's update path and is not visible in the live tree until the commit is merged.
         // Bind the T and PQ legs here, regardless of which AAD payload the commit carries.
@@ -243,6 +256,37 @@ impl Group {
                 bail!("Invalid sender type.")
             }
         };
+
+        // Settings phase. This must run before the pending-op discard below so
+        // the pending setting changes are reconciled against the snapshot this
+        // commit carried before the outbound service can re-issue them.
+        if self.is_self_group() {
+            let updates = self.extract_settings_updates(txn, staged_commit).await;
+            if !updates.is_empty() {
+                // Fold the extracted snapshots into one merged snapshot. This
+                // can be empty when the update decoded to unknown-only fields
+                // sent by a newer sibling; an empty snapshot covers nothing.
+                let mut merged = SettingsUpdate::default();
+                for update in &updates {
+                    merge_settings_update(&mut merged, update).await?;
+                }
+                // Own echo: the DS fanned our own commit back while our
+                // pending commit was already gone. The values are already
+                // applied locally. The commit was accepted, so complete the
+                // pending setting changes it asserted.
+                let own_echo = sender_index == self.mls_group().own_leaf_index();
+                if own_echo {
+                    SettingChanges::complete_sent(txn, &merged).await?;
+                } else {
+                    for update in &updates {
+                        apply_settings_update(txn, update).await?;
+                    }
+                    // Fields a sibling's accepted commit covered are no longer
+                    // ours to change.
+                    SettingChanges::remove_covered(txn, &merged).await?;
+                }
+            }
+        }
 
         self.discard_pending_commit_and_operations(txn, &group_id, staged_commit)
             .await?;
@@ -535,10 +579,15 @@ impl Group {
         Ok(())
     }
 
-    /// Discard any pending commits we have locally and delete any pending
-    /// non-leave chat operations we may have for this group. If it's a leave
-    /// operation, only delete it if it's part of this commit.
-    async fn discard_pending_commit_and_operations(
+    /// Discard our local pending commit and reconcile any pending chat
+    /// operation for this group against the incoming commit.
+    ///
+    /// A pending non-leave operation is deleted. For a settings update this
+    /// only drops the send attempt whose staged commit just became stale: the
+    /// pending [`SettingChanges`] survive and the outbound service re-issues a
+    /// fresh commit from them. A leave operation is deleted only if this
+    /// commit carries our own self-remove.
+    pub(crate) async fn discard_pending_commit_and_operations(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
@@ -770,6 +819,20 @@ impl Group {
     }
 }
 
+/// Verify that merging `staged_commit` keeps the self-group flag of the group
+/// context's [`AirComponent`] unchanged. The flag is fixed at group creation.
+fn ensure_self_group_flag_unchanged(
+    mls_group: &MlsGroup,
+    staged_commit: &StagedCommit,
+) -> Result<()> {
+    ensure!(
+        AirComponent::is_self_group_context(staged_commit.group_context().extensions())
+            == AirComponent::is_self_group_context(mls_group.extensions()),
+        "commit would toggle the self-group flag"
+    );
+    Ok(())
+}
+
 /// Extract the staged commit from a processed message. Errors if the message
 /// is not a staged commit message.
 fn expect_staged_commit(processed_message: &ProcessedMessage) -> Result<&StagedCommit> {
@@ -782,8 +845,8 @@ fn expect_staged_commit(processed_message: &ProcessedMessage) -> Result<&StagedC
 
 /// Pair the new and old leaf credential of a member transition for AS verification.
 ///
-/// Returns `None` when both are self-group credentials, which carry no AS material to verify or
-/// store. Mixed pairs are rejected: a leaf must not change its credential type.
+/// Returns `None` when both are self-group credentials with the same client id, since they carry no
+/// AS material to verify or store. Mixed pairs and client id changes are rejected.
 fn user_credential_transition(
     new: LeafCredential,
     old: LeafCredential,
@@ -791,7 +854,13 @@ fn user_credential_transition(
 ) -> Result<Option<(VerifiableUserCredential, VerifiableUserCredential)>> {
     match (new, old) {
         (LeafCredential::User(new), LeafCredential::User(old)) => Ok(Some((new, old))),
-        (LeafCredential::SelfGroup(_), LeafCredential::SelfGroup(_)) => Ok(None),
+        (LeafCredential::SelfGroup(new), LeafCredential::SelfGroup(old)) => {
+            ensure!(
+                new.client_id() == old.client_id(),
+                "self-group client id changed in {context}"
+            );
+            Ok(None)
+        }
         (LeafCredential::User(_), LeafCredential::SelfGroup(_))
         | (LeafCredential::SelfGroup(_), LeafCredential::User(_)) => {
             bail!("mismatched leaf credential types in {context}")
@@ -879,9 +948,40 @@ fn validate_join_connection_group_commit(
 
 #[cfg(test)]
 mod tests {
+    use aircommon::credentials::SelfGroupCredential;
     use openmls::prelude::LeafNodeIndex;
+    use uuid::Uuid;
 
     use super::*;
+
+    fn self_group_credential(client_id: u128) -> LeafCredential {
+        LeafCredential::SelfGroup(SelfGroupCredential::new(Uuid::from_u128(client_id)))
+    }
+
+    #[test]
+    fn self_group_transition_preserves_client_id() -> anyhow::Result<()> {
+        let transition = user_credential_transition(
+            self_group_credential(1),
+            self_group_credential(1),
+            "update path",
+        )?;
+
+        assert!(transition.is_none());
+        Ok(())
+    }
+
+    #[test]
+    fn self_group_transition_rejects_client_id_change() {
+        for context in ["update path", "resync"] {
+            let transition = user_credential_transition(
+                self_group_credential(2),
+                self_group_credential(1),
+                context,
+            );
+
+            assert!(transition.is_err(), "{context}");
+        }
+    }
 
     #[test]
     fn join_connection_group_validation_enforces_operation_shape() {

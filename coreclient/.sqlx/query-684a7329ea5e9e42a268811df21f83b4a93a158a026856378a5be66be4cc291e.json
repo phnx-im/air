@@ -1,0 +1,225 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                r.reaction_mimi_id AS \"reaction_mimi_id: _\",\n                r.target_mimi_id AS \"target_mimi_id: _\",\n                r.chat_id AS \"chat_id: _\",\n                r.sender_user_uuid AS \"sender_user_uuid: _\",\n                r.sender_user_domain AS \"sender_user_domain: _\",\n                r.emoji,\n                r.created_at AS \"created_at: _\",\n                m.message_id AS \"message_id: _\",\n                m.mimi_id AS \"message_mimi_id: _\",\n                m.timestamp AS \"timestamp: _\",\n                m.sender_user_uuid AS \"message_sender_user_uuid: _\",\n                m.sender_user_domain AS \"message_sender_user_domain: _\",\n                m.content AS \"content: _\",\n                m.sent,\n                m.status,\n                m.edited_at AS \"edited_at: _\",\n                b.user_uuid IS NOT NULL AS \"is_blocked!: _\",\n                m.in_reply_to_mimi_id AS \"in_reply_to_mimi_id: _\"\n            FROM reaction r\n            INNER JOIN message m ON m.mimi_id = r.target_mimi_id\n            LEFT JOIN blocked_contact b ON b.user_uuid = m.sender_user_uuid\n                AND b.user_domain = m.sender_user_domain\n            WHERE r.chat_id = ?1\n                AND (?2 IS NULL OR r.created_at > ?2)\n                AND m.sender_user_uuid = ?3\n                AND m.sender_user_domain = ?4\n                AND (r.sender_user_uuid != ?3 OR r.sender_user_domain != ?4)\n            ORDER BY r.created_at DESC, r.reaction_mimi_id DESC\n            LIMIT ?5",
+  "describe": {
+    "columns": [
+      {
+        "name": "reaction_mimi_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "reaction_mimi_id"
+          }
+        }
+      },
+      {
+        "name": "target_mimi_id: _",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "target_mimi_id"
+          }
+        }
+      },
+      {
+        "name": "chat_id: _",
+        "ordinal": 2,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "chat_id"
+          }
+        }
+      },
+      {
+        "name": "sender_user_uuid: _",
+        "ordinal": 3,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "sender_user_uuid"
+          }
+        }
+      },
+      {
+        "name": "sender_user_domain: _",
+        "ordinal": 4,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "sender_user_domain"
+          }
+        }
+      },
+      {
+        "name": "emoji",
+        "ordinal": 5,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "emoji"
+          }
+        }
+      },
+      {
+        "name": "created_at: _",
+        "ordinal": 6,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "reaction",
+            "name": "created_at"
+          }
+        }
+      },
+      {
+        "name": "message_id: _",
+        "ordinal": 7,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "message_id"
+          }
+        }
+      },
+      {
+        "name": "message_mimi_id: _",
+        "ordinal": 8,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "mimi_id"
+          }
+        }
+      },
+      {
+        "name": "timestamp: _",
+        "ordinal": 9,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "timestamp"
+          }
+        }
+      },
+      {
+        "name": "message_sender_user_uuid: _",
+        "ordinal": 10,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "sender_user_uuid"
+          }
+        }
+      },
+      {
+        "name": "message_sender_user_domain: _",
+        "ordinal": 11,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "sender_user_domain"
+          }
+        }
+      },
+      {
+        "name": "content: _",
+        "ordinal": 12,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "content"
+          }
+        }
+      },
+      {
+        "name": "sent",
+        "ordinal": 13,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "sent"
+          }
+        }
+      },
+      {
+        "name": "status",
+        "ordinal": 14,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "status"
+          }
+        }
+      },
+      {
+        "name": "edited_at: _",
+        "ordinal": 15,
+        "type_info": "Text",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "edited_at"
+          }
+        }
+      },
+      {
+        "name": "is_blocked!: _",
+        "ordinal": 16,
+        "type_info": "Integer",
+        "origin": "Expression"
+      },
+      {
+        "name": "in_reply_to_mimi_id: _",
+        "ordinal": 17,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "message",
+            "name": "in_reply_to_mimi_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 5
+    },
+    "nullable": [
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true,
+      true,
+      false,
+      false,
+      false,
+      true,
+      false,
+      true
+    ]
+  },
+  "hash": "684a7329ea5e9e42a268811df21f83b4a93a158a026856378a5be66be4cc291e"
+}
