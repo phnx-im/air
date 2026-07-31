@@ -487,10 +487,6 @@ mod test {
         assert_eq!(1, context.counter.load(Ordering::SeqCst));
     }
 
-    /// A failing lock must not kill the background task.
-    ///
-    /// The lock file lives in a directory which does not exist, so every acquisition fails fast.
-    /// The Android global lock is an in-process mutex which never fails, hence the cfg gate.
     #[cfg(not(target_os = "android"))]
     #[tokio::test]
     async fn lock_failure_does_not_kill_background_task() {
