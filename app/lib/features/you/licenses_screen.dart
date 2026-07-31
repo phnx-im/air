@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
 import 'package:flutter/material.dart';
 
@@ -21,10 +21,7 @@ class LicensesScreen extends StatelessWidget {
         leading: const AppBarBackButton(),
       ),
       body: const SafeArea(
-        child: Padding(
-          padding: EdgeInsets.all(Spacing.px16),
-          child: Text("TODO"),
-        ),
+        child: Padding(padding: EdgeInsets.all(S.s16), child: Text("TODO")),
       ),
     );
   }

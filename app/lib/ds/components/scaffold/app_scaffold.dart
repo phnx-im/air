@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
 import 'package:flutter/material.dart';
 
@@ -42,11 +42,7 @@ class AppScaffold extends StatelessWidget {
             : null,
       ),
       body: SafeArea(
-        minimum: const EdgeInsets.only(
-          left: Spacing.px16,
-          right: Spacing.px16,
-          bottom: 40,
-        ),
+        minimum: const EdgeInsets.only(left: S.s16, right: S.s16, bottom: 40),
         child: child,
       ),
     );

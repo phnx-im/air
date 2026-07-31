@@ -5,8 +5,7 @@
 import 'dart:async';
 
 import 'package:air/ds/components/button_icon/glass_circle_button.dart';
-import 'package:air/ds/foundations/effects.dart';
-import 'package:air/ds/foundations/motion.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:flutter/material.dart';
@@ -14,10 +13,6 @@ import 'package:flutter/services.dart';
 
 import 'package:air/core/core.dart';
 import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
-import 'package:air/ds/foundations/type_scale.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/spacing.dart';
 import 'package:air/platform/haptics.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -46,10 +41,10 @@ const double quickReactionBarTapSize = 44;
 const double quickReactionBarMoreSize = 36;
 
 /// Fixed height of the reaction bar
-const double quickReactionBarHeight = quickReactionBarTapSize + Spacing.px8;
+const double quickReactionBarHeight = quickReactionBarTapSize + S.s8;
 
 /// Extra vertical space between the hit point and where the reaction bar opens
-const double quickReactionMenuGap = Spacing.px12;
+const double quickReactionMenuGap = S.s12;
 
 /// Compact reaction chip metrics (excluding border thickness)
 const double reactionChipSpacing = 1;
@@ -63,19 +58,19 @@ double reactionChipHeightOf(BuildContext context) =>
     MediaQuery.textScalerOf(context).scale(reactionChipHeight);
 
 /// Inner padding of a reaction chip
-const double reactionChipHorizontalPadding = Spacing.px8;
+const double reactionChipHorizontalPadding = S.s8;
 
 /// Border thickness of a reaction chip
 const double reactionChipBorderWidth = 1.5;
 
 /// How far the chips overlap the bottom border of the message bubble
-const double reactionsMessageBubbleOverlap = Spacing.px8;
+const double reactionsMessageBubbleOverlap = S.s8;
 
 /// Gap below the chips before the timestamp / next message.
-const double reactionsGapBelow = Spacing.px8;
+const double reactionsGapBelow = S.s8;
 
 /// Aligning the chips
-const double reactionsHorizontalInset = Spacing.px8;
+const double reactionsHorizontalInset = S.s8;
 
 /// Vertical space [BubbleWithReactions] reserves below the bubble for the chips
 /// that overlap its bottom edge.
@@ -145,16 +140,16 @@ class _BubbleWithReactionsState extends State<BubbleWithReactions>
     super.initState();
     _controller = AnimationController(
       vsync: this,
-      duration: motionShort,
+      duration: Effect.duration(MotionPreset.short),
       value: widget.reactions.isEmpty ? 0.0 : 1.0,
     );
     _controller.addStatusListener(_onStatusChanged);
     _reveal = CurvedAnimation(
       parent: _controller,
-      curve: motionEasing,
+      curve: Effect.easeOutQuart,
       // Mirrored so removal collapses the reserve in sync with the
       // AnimatedPaddings tracking it in the message tile.
-      reverseCurve: const FlippedCurve(motionEasing),
+      reverseCurve: const FlippedCurve(Effect.easeOutQuart),
     );
     _chipScale = Tween<double>(begin: 0.6, end: 1.0).animate(_reveal);
     if (widget.reactions.isNotEmpty) {
@@ -291,8 +286,7 @@ class MessageReactions extends StatelessWidget {
     double chipWidth(UiReaction reaction) {
       var width = chipChrome + measure(reaction.emoji, chipTextStyle);
       if (reaction.users.length >= 2) {
-        width +=
-            Spacing.px4 + measure('${reaction.users.length}', chipTextStyle);
+        width += S.s4 + measure('${reaction.users.length}', chipTextStyle);
       }
       return width;
     }
@@ -421,7 +415,7 @@ class QuickReactionBar extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final emojis = [
       for (final item in quickReactionEmojis) _applyQuickTone(item, skinTone),
     ];
@@ -433,16 +427,13 @@ class QuickReactionBar extends StatelessWidget {
       const TextStyle(fontSize: quickReactionBarGlyphSize),
     );
     return Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.px8,
-        vertical: Spacing.px8,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: S.s8, vertical: S.s8),
       decoration: BoxDecoration(
-        color: colors.backgroundElevated.primary,
+        color: palette.backgroundElevated.primary,
         borderRadius: BorderRadius.circular(
-          (quickReactionBarTapSize + Spacing.px8) / 2,
+          (quickReactionBarTapSize + S.s8) / 2,
         ),
-        boxShadow: mediumElevationBoxShadows,
+        boxShadow: Effect.elevation(Elevation.medium),
       ),
       child: Row(
         mainAxisSize: MainAxisSize.min,
@@ -455,8 +446,8 @@ class QuickReactionBar extends StatelessWidget {
             hitTargetSize: quickReactionBarTapSize,
             enableBackdropBlur: false,
             shadows: const [],
-            color: colors.backgroundBase.secondary,
-            icon: AppIcon.plus(size: 18, color: colors.text.secondary),
+            color: palette.backgroundBase.secondary,
+            icon: AppIcon.plus(size: 18, color: palette.text.secondary),
           ),
         ],
       ),
@@ -487,7 +478,7 @@ Future<void> showQuickReactionMenu({
   return showGeneralDialog(
     context: context,
     barrierDismissible: true,
-    barrierColor: CustomColorScheme.of(context).function.barrier,
+    barrierColor: SemanticPalette.of(context).function.neutral.scrim,
     barrierLabel: MaterialLocalizations.of(context).modalBarrierDismissLabel,
     transitionDuration: const Duration(milliseconds: 150),
     pageBuilder: (context, animation, secondaryAnimation) =>
@@ -572,10 +563,10 @@ class _QuickReactionMenuOverlay extends StatelessWidget {
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
     final safeArea = EdgeInsets.only(
-      top: mediaQuery.padding.top + Spacing.px8,
-      bottom: mediaQuery.padding.bottom + Spacing.px8,
-      left: Spacing.px8,
-      right: Spacing.px8,
+      top: mediaQuery.padding.top + S.s8,
+      bottom: mediaQuery.padding.bottom + S.s8,
+      left: S.s8,
+      right: S.s8,
     );
 
     final overlayBox =
@@ -670,7 +661,10 @@ class _QuickReactionButtonState extends State<_QuickReactionButton>
   @override
   void initState() {
     super.initState();
-    _pulse = AnimationController(vsync: this, duration: motionShort);
+    _pulse = AnimationController(
+      vsync: this,
+      duration: Effect.duration(MotionPreset.short),
+    );
     _scale = TweenSequence<double>([
       TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.25), weight: 40),
       TweenSequenceItem(tween: Tween(begin: 1.25, end: 1.0), weight: 60),
@@ -731,11 +725,11 @@ class _ReactionChip extends StatelessWidget {
   final VoidCallback? onTap;
 
   static TextStyle textStyle({Color? color}) =>
-      TextStyle(fontSize: BodyFontSize.base.size, color: color);
+      typeScale.body.regular.style(color: color);
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final count = reaction.users.length;
     final chipHeight = reactionChipHeightOf(context);
 
@@ -754,11 +748,11 @@ class _ReactionChip extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             color: isMine
-                ? colors.message.selfBackground
-                : colors.message.otherBackground,
+                ? palette.message.selfBackground
+                : palette.message.otherBackground,
             borderRadius: BorderRadius.circular(chipHeight / 2),
             border: Border.all(
-              color: colors.backgroundBase.primary,
+              color: palette.backgroundBase.primary,
               width: reactionChipBorderWidth,
             ),
           ),
@@ -772,10 +766,10 @@ class _ReactionChip extends StatelessWidget {
               // [CenteredEmoji].
               CenteredEmoji(emoji: reaction.emoji, style: textStyle()),
               if (count >= 2) ...[
-                const SizedBox(width: Spacing.px4),
+                const SizedBox(width: S.s4),
                 Text(
                   '$count',
-                  style: textStyle(color: colors.text.tertiary),
+                  style: textStyle(color: palette.text.tertiary),
                   textHeightBehavior: const TextHeightBehavior(
                     leadingDistribution: .even,
                   ),
@@ -805,7 +799,7 @@ class _OverflowChip extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final chipHeight = reactionChipHeightOf(context);
     return MouseRegion(
       cursor: SystemMouseCursors.click,
@@ -820,16 +814,16 @@ class _OverflowChip extends StatelessWidget {
           ),
           decoration: BoxDecoration(
             color: isSender
-                ? colors.message.selfBackground
-                : colors.message.otherBackground,
+                ? palette.message.selfBackground
+                : palette.message.otherBackground,
             borderRadius: BorderRadius.circular(chipHeight / 2),
-            border: Border.all(color: colors.backgroundBase.primary),
+            border: Border.all(color: palette.backgroundBase.primary),
           ),
           alignment: Alignment.center,
           child: Text(
             '+$count',
             textAlign: TextAlign.center,
-            style: _ReactionChip.textStyle(color: colors.text.tertiary),
+            style: _ReactionChip.textStyle(color: palette.text.tertiary),
           ),
         ),
       ),
@@ -857,7 +851,7 @@ Future<void> showWhoReactedSheet({
       profiles[user] ??= usersCubit.state.profile(userId: user);
     }
   }
-  final barrierColor = CustomColorScheme.of(context).function.barrier;
+  final barrierColor = SemanticPalette.of(context).function.neutral.scrim;
   final sheet = WhoReactedSheet(
     reactions: reactions,
     profiles: profiles,
@@ -882,7 +876,7 @@ Future<void> showWhoReactedSheet({
     pageBuilder: (context, animation, secondaryAnimation) =>
         const SizedBox.shrink(),
     transitionBuilder: (dialogContext, animation, secondaryAnimation, child) {
-      final colors = CustomColorScheme.of(dialogContext);
+      final palette = SemanticPalette.of(dialogContext);
       return FadeTransition(
         opacity: animation,
         child: Center(
@@ -891,11 +885,11 @@ Future<void> showWhoReactedSheet({
             child: Container(
               width: whoReactedPanelSize.width,
               height: whoReactedPanelSize.height,
-              padding: const EdgeInsets.all(Spacing.px16),
+              padding: const EdgeInsets.all(S.s16),
               decoration: BoxDecoration(
-                color: colors.backgroundElevated.primary,
-                borderRadius: BorderRadius.circular(Spacing.px20),
-                boxShadow: smallElevationBoxShadows,
+                color: palette.backgroundElevated.primary,
+                borderRadius: BorderRadius.circular(CornerRadius.px20),
+                boxShadow: Effect.elevation(Elevation.small),
               ),
               child: sheet,
             ),
@@ -972,7 +966,7 @@ class WhoReactedSheet extends HookWidget {
             ],
           ),
         ),
-        const SizedBox(height: Spacing.px12),
+        const SizedBox(height: S.s12),
         Expanded(
           child: ListView.builder(
             padding: EdgeInsets.zero,
@@ -1010,26 +1004,25 @@ class _ReactionTab extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     return Padding(
-      padding: const EdgeInsets.only(right: Spacing.px4),
+      padding: const EdgeInsets.only(right: S.s4),
       child: GestureDetector(
         behavior: HitTestBehavior.opaque,
         onTap: onTap,
         child: Container(
           alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: Spacing.px12),
+          padding: const EdgeInsets.symmetric(horizontal: S.s12),
           decoration: BoxDecoration(
             color: selected
-                ? colors.backgroundBase.secondary
+                ? palette.backgroundBase.secondary
                 : Colors.transparent,
             borderRadius: BorderRadius.circular(reactionTabHeight / 2),
           ),
           child: Text(
             label,
-            style: TextStyle(
-              fontSize: BodyFontSize.large1.size,
-              color: selected ? colors.text.primary : colors.text.secondary,
+            style: typeScale.body.m.style(
+              color: selected ? palette.text.primary : palette.text.secondary,
             ),
           ),
         ),
@@ -1053,7 +1046,7 @@ class _ReactorRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
     return SizedBox(
       height: reactorRowHeight,
@@ -1063,15 +1056,12 @@ class _ReactorRow extends StatelessWidget {
             UserAvatar(profile: profile!, size: reactorAvatarSize)
           else
             const SizedBox(width: reactorAvatarSize, height: reactorAvatarSize),
-          const SizedBox(width: Spacing.px12),
+          const SizedBox(width: S.s12),
           Expanded(
             child: Text(
               name,
               overflow: TextOverflow.ellipsis,
-              style: TextStyle(
-                fontSize: FontSizes.base.size,
-                color: colors.text.primary,
-              ),
+              style: typeScale.body.regular.style(color: palette.text.primary),
             ),
           ),
           if (onRemove != null) ...[
@@ -1082,16 +1072,15 @@ class _ReactorRow extends StatelessWidget {
                 onTap: onRemove,
                 child: Text(
                   loc.messageList_reactions_remove,
-                  style: TextStyle(
-                    fontSize: FontSizes.base.size,
-                    color: colors.function.danger,
+                  style: typeScale.body.regular.style(
+                    color: palette.function.danger,
                   ),
                 ),
               ),
             ),
-            const SizedBox(width: Spacing.px12),
+            const SizedBox(width: S.s12),
           ],
-          Text(emoji, style: TextStyle(fontSize: BodyFontSize.large1.size)),
+          Text(emoji, style: typeScale.body.m.style()),
         ],
       ),
     );

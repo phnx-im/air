@@ -7,13 +7,8 @@ import 'dart:typed_data';
 
 import 'package:air/core/api/markdown.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/primitives.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/type_scale.dart';
-import 'package:air/ds/foundations/monospace.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:air/features/emoji/jumbo_emoji.dart';
@@ -27,20 +22,17 @@ Widget buildBlockElement(
   return switch (block) {
     BlockElement_Paragraph(:final field0) => () {
       final jumbo = isJumboEmoji(field0);
+      final color = isSender
+          ? SemanticPalette.of(context).message.selfText
+          : SemanticPalette.of(context).message.otherText;
       return Text.rich(
         TextSpan(
           children: field0
               .map((child) => buildInlineElement(context, child, isSender))
               .toList(),
-          style: TextStyle(
-            color: isSender
-                ? CustomColorScheme.of(context).message.selfText
-                : CustomColorScheme.of(context).message.otherText,
-            fontSize: jumbo
-                ? BodyFontSize.base.size * jumboEmojiScale
-                : BodyFontSize.base.size,
-            height: jumbo ? 1.1 : BodyFontSize.lineHeight,
-          ),
+          style: jumbo
+              ? typeScale.emoji.jumbo.style(color: color)
+              : typeScale.body.regular.style(color: color),
         ),
         softWrap: true,
         textWidthBasis: TextWidthBasis.longestLine,
@@ -51,36 +43,34 @@ Widget buildBlockElement(
         children: field0
             .map((child) => buildInlineElement(context, child, isSender))
             .toList(),
-        style: TextStyle(
-          fontSize: BodyFontSize.large1.size,
-          fontWeight: FontWeight.bold,
+        style: typeScale.body.m.style(
+          weight: Weight.emphasized,
           color: isSender
-              ? CustomColorScheme.of(context).message.selfText
-              : CustomColorScheme.of(context).message.otherText,
+              ? SemanticPalette.of(context).message.selfText
+              : SemanticPalette.of(context).message.otherText,
         ),
       ),
     ),
     BlockElement_Quote(:final field0) => Container(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.px12,
-        vertical: Spacing.px8,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: S.s12, vertical: S.s8),
       decoration: BoxDecoration(
-        borderRadius: const BorderRadius.all(Radius.circular(12)),
+        borderRadius: const BorderRadius.all(
+          Radius.circular(CornerRadius.px12),
+        ),
         border: Border(
           left: BorderSide(
             color: isSender
-                ? CustomColorScheme.of(context).message.selfQuoteBorder
-                : CustomColorScheme.of(context).message.otherQuoteBorder,
-            width: 4,
+                ? SemanticPalette.of(context).message.selfQuoteBorder
+                : SemanticPalette.of(context).message.otherQuoteBorder,
+            width: StrokeWidth.px4,
           ),
         ),
         color: isSender
-            ? CustomColorScheme.of(context).message.selfQuoteBackground
-            : CustomColorScheme.of(context).message.otherQuoteBackground,
+            ? SemanticPalette.of(context).message.selfQuoteBackground
+            : SemanticPalette.of(context).message.otherQuoteBackground,
       ),
       child: Column(
-        spacing: BodyFontSize.base.size,
+        spacing: typeScale.body.regular.fontSize,
         crossAxisAlignment: CrossAxisAlignment.start,
         children: field0
             .map((inner) => buildBlockElement(context, inner.element, isSender))
@@ -97,18 +87,16 @@ Widget buildBlockElement(
               children: [
                 Text.rich(
                   const TextSpan(text: " \u2022 "),
-                  style: TextStyle(
+                  style: typeScale.body.regular.style(
                     color: isSender
-                        ? CustomColorScheme.of(context).message.selfListPrefix
-                        : CustomColorScheme.of(context).message.otherListPrefix,
-                    fontSize: BodyFontSize.base.size,
-                    height: BodyFontSize.lineHeight,
+                        ? SemanticPalette.of(context).message.selfListPrefix
+                        : SemanticPalette.of(context).message.otherListPrefix,
                   ),
                 ),
                 Flexible(
                   fit: FlexFit.loose,
                   child: Column(
-                    spacing: BodyFontSize.base.size,
+                    spacing: typeScale.body.regular.fontSize,
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: items
                         .map(
@@ -138,23 +126,19 @@ Widget buildBlockElement(
                   Text.rich(
                     TextSpan(
                       text: " ${offset + BigInt.from(item.$1)}.  ",
-                      style: TextStyle(
+                      style: typeScale.body.regular.style(
                         color: isSender
-                            ? CustomColorScheme.of(
-                                context,
-                              ).message.selfListPrefix
-                            : CustomColorScheme.of(
+                            ? SemanticPalette.of(context).message.selfListPrefix
+                            : SemanticPalette.of(
                                 context,
                               ).message.otherListPrefix,
-                        fontSize: BodyFontSize.base.size,
-                        height: BodyFontSize.lineHeight,
                       ),
                     ),
                   ),
                   Flexible(
                     fit: FlexFit.loose,
                     child: Column(
-                      spacing: BodyFontSize.base.size,
+                      spacing: typeScale.body.regular.fontSize,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: item.$2
                           .map(
@@ -175,10 +159,10 @@ Widget buildBlockElement(
     BlockElement_Table(:final head, :final rows) => Table(
       border: TableBorder.all(
         color: isSender
-            ? CustomColorScheme.of(context).message.selfTableBorder
-            : CustomColorScheme.of(context).message.otherTableBorder,
-        width: 2,
-        borderRadius: BorderRadius.circular(8),
+            ? SemanticPalette.of(context).message.selfTableBorder
+            : SemanticPalette.of(context).message.otherTableBorder,
+        width: StrokeWidth.px2,
+        borderRadius: BorderRadius.circular(CornerRadius.px8),
       ),
       defaultColumnWidth: const IntrinsicColumnWidth(),
       children: [
@@ -187,13 +171,13 @@ Widget buildBlockElement(
               .map(
                 (itemBlocks) => Padding(
                   padding: const EdgeInsets.symmetric(
-                    horizontal: Spacing.px12,
-                    vertical: Spacing.px4,
+                    horizontal: S.s12,
+                    vertical: S.s4,
                   ),
                   child: DefaultTextStyle(
                     style: const TextStyle(fontWeight: FontWeight.bold),
                     child: Column(
-                      spacing: BodyFontSize.base.size,
+                      spacing: typeScale.body.regular.fontSize,
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: itemBlocks
@@ -217,11 +201,11 @@ Widget buildBlockElement(
                 .map(
                   (itemBlocks) => Padding(
                     padding: const EdgeInsets.symmetric(
-                      horizontal: Spacing.px12,
-                      vertical: Spacing.px4,
+                      horizontal: S.s12,
+                      vertical: S.s4,
                     ),
                     child: Column(
-                      spacing: BodyFontSize.base.size,
+                      spacing: typeScale.body.regular.fontSize,
                       mainAxisSize: MainAxisSize.min,
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: itemBlocks
@@ -245,20 +229,20 @@ Widget buildBlockElement(
       width: 100,
       child: Divider(
         color: isSender
-            ? CustomColorScheme.of(context).message.selfText
-            : CustomColorScheme.of(context).message.otherText,
+            ? SemanticPalette.of(context).message.selfText
+            : SemanticPalette.of(context).message.otherText,
       ),
     ),
     BlockElement_CodeBlock(:final field0) => Text.rich(
       TextSpan(
         text: field0.map((e) => e.value).join('\n'),
-        style: TextStyle(
-          fontFamily: getSystemMonospaceFontFamily(),
-          fontSize: BodyFontSize.small2.size,
-          color: isSender
-              ? CustomColorScheme.of(context).message.selfText
-              : CustomColorScheme.of(context).message.otherText,
-        ),
+        style: typeScale.body.xs
+            .style(
+              color: isSender
+                  ? SemanticPalette.of(context).message.selfText
+                  : SemanticPalette.of(context).message.otherText,
+            )
+            .withSystemMonospace(),
       ),
     ),
     BlockElement_Error(:final field0) => Container(
@@ -266,11 +250,11 @@ Widget buildBlockElement(
       decoration: BoxDecoration(
         border: Border(
           left: BorderSide(
-            color: CustomColorScheme.of(context).separator.primary,
-            width: 4,
+            color: SemanticPalette.of(context).separator.primary,
+            width: StrokeWidth.px4,
           ),
         ),
-        color: CustomColorScheme.of(context).function.warning,
+        color: SemanticPalette.of(context).function.warning.primary,
       ),
       child: Text.rich(TextSpan(text: field0)),
     ),
@@ -283,7 +267,7 @@ InlineSpan buildInlineElement(
   bool isSender, {
   Uri? destUrl,
 }) {
-  final colors = CustomColorScheme.of(context);
+  final palette = SemanticPalette.of(context);
   return switch (inline.element) {
     InlineElement_Text(:final field0) => TextSpan(
       text: field0,
@@ -296,10 +280,7 @@ InlineSpan buildInlineElement(
     ),
     InlineElement_Code(:final field0) => TextSpan(
       text: field0,
-      style: TextStyle(
-        fontFamily: getSystemMonospaceFontFamily(),
-        fontSize: BodyFontSize.small2.size,
-      ),
+      style: typeScale.body.xs.style().withSystemMonospace(),
     ),
     InlineElement_Link(:final destUrl, :final children) => TextSpan(
       children: children
@@ -313,8 +294,8 @@ InlineSpan buildInlineElement(
           )
           .toList(),
       style: TextStyle(
-        color: colors.function.link,
-        decorationColor: colors.function.link,
+        color: palette.function.link,
+        decorationColor: palette.function.link,
         decoration: TextDecoration.underline,
       ),
     ),
@@ -364,19 +345,19 @@ InlineSpan buildInlineElement(
     InlineElement_TaskListMarker(:final field0) => WidgetSpan(
       alignment: PlaceholderAlignment.middle,
       child: Padding(
-        padding: const EdgeInsets.only(left: Spacing.px4, right: Spacing.px8),
+        padding: const EdgeInsets.only(left: S.s4, right: S.s8),
         child: field0
             ? AppIcon.squareCheck(
                 size: 20,
                 color: isSender
-                    ? colors.message.selfCheckboxCheck
-                    : colors.message.otherCheckboxCheck,
+                    ? palette.message.selfCheckboxCheck
+                    : palette.message.otherCheckboxCheck,
               )
             : AppIcon.square(
                 size: 20,
                 color: isSender
-                    ? colors.message.selfCheckboxCheck
-                    : colors.message.otherCheckboxCheck,
+                    ? palette.message.selfCheckboxCheck
+                    : palette.message.otherCheckboxCheck,
               ),
       ),
     ),
@@ -414,7 +395,7 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
     context: context,
     builder: (dialogContext) {
       final loc = AppLocalizations.of(context);
-      final colors = CustomColorScheme.of(dialogContext);
+      final palette = SemanticPalette.of(dialogContext);
 
       return AppDialog(
         child: Column(
@@ -423,36 +404,31 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
           children: [
             Center(
               child: Column(
-                spacing: Spacing.px8,
+                spacing: S.s8,
                 children: [
                   Text(
                     loc.linkConfirmation_title,
-                    style: TextStyle(
-                      fontSize: HeaderFontSize.h4.size,
-                      fontWeight: .bold,
+                    style: typeScale.header.regular.style(
+                      weight: Weight.emphasized,
                     ),
                   ),
                   Text(
                     loc.linkConfirmation_description,
                     textAlign: .center,
-                    style: TextStyle(
-                      color: colors.text.secondary,
-                      fontSize: BodyFontSize.base.size,
+                    style: typeScale.body.regular.style(
+                      color: palette.text.secondary,
                     ),
                   ),
                   Text(
                     uri.toString(),
                     textAlign: .center,
-                    style: TextStyle(
-                      color: colors.text.primary,
-                      fontSize: BodyFontSize.small2.size,
-                    ),
+                    style: typeScale.body.xs.style(color: palette.text.primary),
                   ),
                 ],
               ),
             ),
 
-            const SizedBox(height: Spacing.px24),
+            const SizedBox(height: S.s24),
             Row(
               children: [
                 Expanded(
@@ -463,7 +439,7 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
                     child: Text(loc.linkConfirmation_cancel),
                   ),
                 ),
-                const SizedBox(width: Spacing.px12),
+                const SizedBox(width: S.s12),
                 Expanded(
                   child: OutlinedButton(
                     onPressed: () {
@@ -471,13 +447,13 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
                     },
                     style: ButtonStyle(
                       backgroundColor: WidgetStatePropertyAll(
-                        colors.accent.primary,
+                        palette.accentBrand.primary,
                       ),
                       overlayColor: WidgetStatePropertyAll(
-                        colors.accent.primary,
+                        palette.accentBrand.primary,
                       ),
                       foregroundColor: WidgetStatePropertyAll(
-                        colors.function.toggleWhite,
+                        palette.function.neutral.toggleWhite,
                       ),
                     ),
                     child: Text(loc.linkConfirmation_openLink),
@@ -496,7 +472,7 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
 
 // The style used for formatting characters like * or >
 TextStyle highlightStyle(BuildContext context) =>
-    TextStyle(color: CustomColorScheme.of(context).function.link);
+    TextStyle(color: SemanticPalette.of(context).function.link);
 
 class CustomTextEditingController extends TextEditingController {
   // Keep track of where widgets are, so the cursor can treat it as one unit
@@ -664,7 +640,7 @@ class CustomTextEditingController extends TextEditingController {
       ),
       BlockElement_Quote(:final field0) => TextSpan(
         children: buildWrappedBlock(context, block.start, block.end, field0),
-        style: TextStyle(color: AppColors.neutral[600]),
+        style: TextStyle(color: Primitive.neutral(NeutralShade.s600)),
       ),
       BlockElement_UnorderedList(:final field0) => TextSpan(
         children: buildWrappedBlock(
@@ -705,16 +681,13 @@ class CustomTextEditingController extends TextEditingController {
               )
               .toList(),
         ),
-        style: TextStyle(
-          fontFamily: getSystemMonospaceFontFamily(),
-          fontSize: BodyFontSize.small2.size,
-        ),
+        style: typeScale.body.xs.style().withSystemMonospace(),
       ),
       BlockElement_Error() => TextSpan(
         text: utf8.decode(raw.sublist(block.start, block.end)),
         style: TextStyle(
-          color: CustomColorScheme.of(context).function.danger,
-          decorationColor: CustomColorScheme.of(context).function.danger,
+          color: SemanticPalette.of(context).function.danger,
+          decorationColor: SemanticPalette.of(context).function.danger,
           decoration: TextDecoration.underline,
           decorationStyle: TextDecorationStyle.wavy,
         ),
@@ -733,16 +706,13 @@ class CustomTextEditingController extends TextEditingController {
       ),
       InlineElement_Code() => TextSpan(
         text: utf8.decode(raw.sublist(inline.start, inline.end)),
-        style: TextStyle(
-          fontFamily: getSystemMonospaceFontFamily(),
-          fontSize: BodyFontSize.small2.size,
-        ),
+        style: typeScale.body.xs.style().withSystemMonospace(),
       ),
       InlineElement_Link() => TextSpan(
         text: utf8.decode(raw.sublist(inline.start, inline.end)),
         style: TextStyle(
-          color: CustomColorScheme.of(context).function.link,
-          decorationColor: CustomColorScheme.of(context).function.link,
+          color: SemanticPalette.of(context).function.link,
+          decorationColor: SemanticPalette.of(context).function.link,
           decoration: TextDecoration.underline,
         ),
       ),

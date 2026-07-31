@@ -5,12 +5,8 @@
 import 'dart:io';
 
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/material/button_styles.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/constrained_width/constrained_width.dart';
-import 'package:air/ds/foundations/type_scale.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';
@@ -42,7 +38,7 @@ class UpdateRequiredView extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
 
     return Scaffold(
@@ -52,58 +48,51 @@ class UpdateRequiredView extends StatelessWidget {
           loc.appOutdatedScreen_title,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        toolbarHeight: DeviceType.isDesktop ? 100 : null,
-        backgroundColor: colors.backgroundBase.secondary,
+        backgroundColor: palette.backgroundBase.secondary,
       ),
-      backgroundColor: colors.backgroundBase.secondary,
+      backgroundColor: palette.backgroundBase.secondary,
       body: SafeArea(
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+          padding: const EdgeInsets.symmetric(horizontal: S.s16),
           child: Center(
             child: ConstrainedWidth(
               child: Column(
                 crossAxisAlignment: .center,
                 children: [
-                  const SizedBox(height: 3 * Spacing.px96),
+                  const SizedBox(height: 3 * S.s96),
 
                   SizedBox(
                     width: 104,
                     child: SvgPicture.asset(
                       'assets/images/logo.svg',
                       colorFilter: ColorFilter.mode(
-                        colors.text.primary,
+                        palette.text.primary,
                         BlendMode.srcIn,
                       ),
                     ),
                   ),
 
-                  const SizedBox(height: 2 * Spacing.px96),
+                  const SizedBox(height: 2 * S.s96),
 
                   Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: Spacing.px16,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: S.s16),
                     child: Text(
                       loc.appOutdatedScreen_message,
-                      style: TextStyle(
-                        fontSize: HeaderFontSize.h2.size,
-                        fontWeight: FontWeight.bold,
+                      style: typeScale.header.l.style(
+                        weight: Weight.emphasized,
                       ),
                       textAlign: .center,
                     ),
                   ),
 
-                  const SizedBox(height: Spacing.px16),
+                  const SizedBox(height: S.s16),
 
                   Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: Spacing.px16,
-                    ),
+                    padding: const EdgeInsets.symmetric(horizontal: S.s16),
                     child: Text(
                       loc.appOutdatedScreen_description,
-                      style: TextStyle(
-                        fontSize: BodyFontSize.base.size,
-                        color: colors.text.secondary,
+                      style: typeScale.body.regular.style(
+                        color: palette.text.secondary,
                       ),
                       textAlign: .center,
                     ),
@@ -114,33 +103,32 @@ class UpdateRequiredView extends StatelessWidget {
                   if (showUpdateButton)
                     Center(
                       child: Container(
-                        padding: const EdgeInsets.symmetric(
-                          horizontal: Spacing.px24,
-                        ),
-                        width: isSmallScreen(context) ? double.infinity : null,
+                        padding: const EdgeInsets.symmetric(horizontal: S.s24),
+                        width: context.breakpoint.isSmall
+                            ? double.infinity
+                            : null,
                         child: OutlinedButton(
                           onPressed: _handleUpdateNow,
                           style: OutlinedButtonTheme.of(context).style!
                               .copyWith(
                                 backgroundColor: WidgetStateProperty.all(
-                                  colors.accent.primary,
+                                  palette.accentBrand.primary,
                                 ),
                                 foregroundColor: WidgetStateProperty.all(
-                                  colors.function.toggleWhite,
+                                  palette.function.neutral.toggleWhite,
                                 ),
                               ),
                           child: Text(
                             loc.appOutdatedScreen_action,
-                            style: TextStyle(
-                              color: colors.function.toggleWhite,
-                              fontSize: LabelFontSize.base.size,
+                            style: typeScale.body.regular.style(
+                              color: palette.function.neutral.toggleWhite,
                             ),
                           ),
                         ),
                       ),
                     ),
 
-                  const SizedBox(height: Spacing.px16),
+                  const SizedBox(height: S.s16),
                 ],
               ),
             ),

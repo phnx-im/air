@@ -4,9 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/type_scale.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/ds/patterns/dialog/show_confirmation_dialog.dart';
 import 'package:flutter/material.dart';
@@ -26,9 +24,9 @@ class UnblockContactButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final isDesktop = ResponsiveScreen.isDesktop(context);
+    final isDesktop = DeviceType.isDesktop;
 
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return OutlinedButton(
       onPressed: () => _unblock(context),
@@ -39,10 +37,7 @@ class UnblockContactButton extends StatelessWidget {
       ),
       child: Text(
         loc.unblockContactButton_text,
-        style: TextStyle(
-          fontSize: LabelFontSize.base.size,
-          color: colors.text.primary,
-        ),
+        style: typeScale.body.regular.style(color: palette.text.primary),
       ),
     );
   }

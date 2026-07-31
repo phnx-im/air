@@ -5,7 +5,7 @@
 import 'dart:async';
 
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
-import 'package:air/ds/foundations/motion.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -99,8 +99,8 @@ class _FloatingDateHeaderState extends State<FloatingDateHeader> {
         builder: (context, child) {
           return AnimatedOpacity(
             opacity: widget.scrollActive.value ? 1.0 : 0.0,
-            duration: motionRegular,
-            curve: motionEasing,
+            duration: Effect.duration(MotionPreset.regular),
+            curve: Effect.easeOutQuart,
             child: child,
           );
         },
@@ -132,7 +132,7 @@ class _FloatingDateHeaderState extends State<FloatingDateHeader> {
                 locale,
               );
               return AnimatedSwitcher(
-                duration: motionShort,
+                duration: Effect.duration(MotionPreset.short),
                 switchInCurve: Curves.easeOut,
                 switchOutCurve: Curves.easeOut,
                 transitionBuilder: (child, animation) =>

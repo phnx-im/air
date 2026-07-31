@@ -2,9 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
 
 /// An [AppIcon] wrapped in a rounded/circular background.
@@ -22,15 +20,15 @@ class AppIconBadge extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Container(
       padding: EdgeInsets.all(size / 2),
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: backgroundColor ?? colors.backgroundBase.tertiary,
+        color: backgroundColor ?? palette.backgroundBase.tertiary,
         shape: BoxShape.rectangle,
-        borderRadius: BorderRadius.circular(Spacing.px12),
+        borderRadius: BorderRadius.circular(CornerRadius.px12),
       ),
       child: AppIcon(type: type, size: size),
     );

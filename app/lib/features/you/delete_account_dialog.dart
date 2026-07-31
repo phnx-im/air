@@ -3,16 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/type_scale.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/platform/haptics.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
@@ -34,7 +31,7 @@ class DeleteAccountDialog extends HookWidget {
       text: (this.isConfirmed) ? _confirmationText : "",
     );
 
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
 
     return AppDialog(
@@ -45,29 +42,26 @@ class DeleteAccountDialog extends HookWidget {
           Center(
             child: Text(
               loc.deleteAccountScreen_title,
-              style: TextStyle(
-                fontSize: HeaderFontSize.h4.size,
-                fontWeight: FontWeight.bold,
-              ),
+              style: typeScale.header.regular.style(weight: Weight.emphasized),
             ),
           ),
-          const SizedBox(height: Spacing.px24),
+          const SizedBox(height: S.s24),
 
           Center(
-            child: AppIcon.circleAlert(size: 40, color: colors.function.danger),
+            child: AppIcon.circleAlert(
+              size: 40,
+              color: palette.function.danger,
+            ),
           ),
 
-          const SizedBox(height: Spacing.px24),
+          const SizedBox(height: S.s24),
 
           Text(
             loc.deleteAccountScreen_explanatoryText,
-            style: TextStyle(
-              color: colors.text.secondary,
-              fontSize: BodyFontSize.base.size,
-            ),
+            style: typeScale.body.regular.style(color: palette.text.secondary),
           ),
 
-          const SizedBox(height: Spacing.px12),
+          const SizedBox(height: S.s12),
 
           TextFormField(
             autocorrect: false,
@@ -76,26 +70,23 @@ class DeleteAccountDialog extends HookWidget {
             decoration: appDialogInputDecoration.copyWith(
               hintText: loc.deleteAccountScreen_confirmationInputHint,
               filled: true,
-              fillColor: colors.backgroundBase.secondary,
+              fillColor: palette.backgroundBase.secondary,
             ),
             onChanged: (value) =>
                 isConfirmed.value = value == _confirmationText,
           ),
 
-          const SizedBox(height: Spacing.px12),
+          const SizedBox(height: S.s12),
 
           Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+            padding: const EdgeInsets.symmetric(horizontal: S.s8),
             child: Text(
               loc.deleteAccountScreen_confirmationInputLabel,
-              style: TextStyle(
-                color: colors.text.tertiary,
-                fontSize: BodyFontSize.small2.size,
-              ),
+              style: typeScale.body.xs.style(color: palette.text.tertiary),
             ),
           ),
 
-          const SizedBox(height: Spacing.px24),
+          const SizedBox(height: S.s24),
 
           Row(
             children: [
@@ -106,14 +97,14 @@ class DeleteAccountDialog extends HookWidget {
                   },
                   style: ButtonStyle(
                     backgroundColor: WidgetStatePropertyAll(
-                      colors.accent.quaternary,
+                      palette.accentBrand.quaternary,
                     ),
                   ),
                   child: Text(loc.editDisplayNameScreen_cancel),
                 ),
               ),
 
-              const SizedBox(width: Spacing.px12),
+              const SizedBox(width: S.s12),
 
               Expanded(
                 child: AppDialogProgressButton(
@@ -123,12 +114,14 @@ class DeleteAccountDialog extends HookWidget {
                       : null,
                   style: ButtonStyle(
                     backgroundColor: WidgetStatePropertyAll(
-                      colors.function.danger,
+                      palette.function.danger,
                     ),
                     foregroundColor: WidgetStateProperty.resolveWith(
                       (states) => states.contains(WidgetState.disabled)
-                          ? colors.function.white.withValues(alpha: 0.7)
-                          : colors.function.white,
+                          ? palette.function.neutral.white.withValues(
+                              alpha: 0.7,
+                            )
+                          : palette.function.neutral.white,
                     ),
                   ),
                   child: Text(loc.deleteAccountScreen_confirmButtonText),

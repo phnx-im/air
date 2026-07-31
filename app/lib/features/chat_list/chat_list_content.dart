@@ -14,12 +14,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/message_list/display_message_tile.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
-import 'package:air/ds/material/button_styles.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/type_scale.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
@@ -34,7 +29,12 @@ import 'package:system_date_time_format/system_date_time_format.dart';
 import 'package:air/features/chat_list/chat_list_cubit.dart';
 
 const _previewLineHeight = 1.28;
-final _previewFontSize = BodyFontSize.small1.size;
+final _previewFontSize = typeScale.body.s.fontSize;
+
+/// Preview text carries a measured line height rather than the token's own, so
+/// it stays in step with [_twoLinePreviewHeight].
+TextStyle _previewStyle(Color color) =>
+    typeScale.body.s.style(color: color).copyWith(height: _previewLineHeight);
 
 /// Measures the height of two lines of preview text, caching the result
 /// as long as the text direction and scaler remain unchanged.
@@ -130,11 +130,11 @@ class _ChatSeparator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final isMobile = isSmallScreen(context);
+    final isMobile = context.breakpoint.isSmall;
     // On desktop the separator above and below the active item is made
     // transparent so the selection background reads as a single rounded
     // surface while the row height stays constant.
-    var color = CustomColorScheme.of(context).separator.secondary;
+    var color = SemanticPalette.of(context).separator.secondary;
     if (!isMobile) {
       final openChatId = context.select(
         (NavigationCubit cubit) => cubit.state.openChatId,
@@ -145,9 +145,9 @@ class _ChatSeparator extends StatelessWidget {
     }
     return Divider(
       height: 0.5,
-      thickness: 0.5,
-      indent: Spacing.px16 + Spacing.px48 + Spacing.px12,
-      endIndent: Spacing.px16,
+      thickness: StrokeWidth.px0_5,
+      indent: S.s16 + S.s48 + S.s12,
+      endIndent: S.s16,
       color: color,
     );
   }
@@ -161,10 +161,10 @@ class _NoChats extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     return Container(
       alignment: AlignmentDirectional.center,
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+      padding: const EdgeInsets.symmetric(horizontal: S.s16),
       child: Text(
         loc.chatList_emptyMessage,
-        style: TextStyle(color: CustomColorScheme.of(context).text.secondary),
+        style: TextStyle(color: SemanticPalette.of(context).text.secondary),
       ),
     );
   }
@@ -200,7 +200,7 @@ class _ListTileState extends State<_ListTile> {
       (ChatDetailsCubit cubit) => cubit.state.chat?.isMuted ?? false,
     );
     final isSelected = currentChatId == widget.chatId;
-    final isDesktop = ResponsiveScreen.isDesktop(context);
+    final isDesktop = DeviceType.isDesktop;
 
     return ContextMenu(
       direction: ContextMenuDirection.right,
@@ -270,15 +270,10 @@ class _ListTileState extends State<_ListTile> {
         },
         behavior: HitTestBehavior.opaque,
         child: Container(
-          padding: const EdgeInsets.fromLTRB(
-            Spacing.px16,
-            Spacing.px16,
-            Spacing.px16,
-            Spacing.px12,
-          ),
+          padding: const EdgeInsets.fromLTRB(S.s16, S.s16, S.s16, S.s12),
           decoration: BoxDecoration(
             color: isSelected
-                ? CustomColorScheme.of(context).backgroundElevated.primary
+                ? SemanticPalette.of(context).backgroundElevated.primary
                 : null,
           ),
           child: Builder(
@@ -292,7 +287,7 @@ class _ListTileState extends State<_ListTile> {
               return Row(
                 mainAxisAlignment: MainAxisAlignment.spaceBetween,
                 crossAxisAlignment: .start,
-                spacing: Spacing.px12,
+                spacing: S.s12,
                 children: [
                   ChatAvatar(chatId: chat.id, size: 48),
                   Expanded(
@@ -324,15 +319,15 @@ class _ListTileTop extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final tertiaryColor = CustomColorScheme.of(context).text.tertiary;
+    final tertiaryColor = SemanticPalette.of(context).text.tertiary;
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      spacing: Spacing.px12,
+      spacing: S.s12,
       children: [
         Expanded(
           child: Row(
             mainAxisSize: MainAxisSize.min,
-            spacing: Spacing.px4,
+            spacing: S.s4,
             children: [
               Flexible(child: _ChatTitle(title: chat.title)),
               if (chat.isMuted) AppIcon.bellOff(size: 16, color: tertiaryColor),
@@ -368,7 +363,7 @@ class _ListTileBottom extends StatelessWidget {
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: .center,
-      spacing: Spacing.px12,
+      spacing: S.s12,
       children: [
         if (!isBlocked)
           Expanded(
@@ -394,18 +389,16 @@ class _BlockedBadge extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final color = CustomColorScheme.of(context).text.tertiary;
+    final color = SemanticPalette.of(context).text.tertiary;
     return Row(
       children: [
         AppIcon.ban(size: 16, color: color),
-        const SizedBox(width: Spacing.px4),
+        const SizedBox(width: S.s4),
         Text(
           loc.chatList_blocked,
-          style: TextStyle(
-            fontSize: BodyFontSize.small2.size,
-            fontStyle: FontStyle.italic,
-            color: color,
-          ),
+          style: typeScale.body.xs
+              .style(color: color)
+              .copyWith(fontStyle: FontStyle.italic),
         ),
       ],
     );
@@ -451,7 +444,7 @@ class _TrailingIndicator extends StatelessWidget {
     if (lastSender != ownClientId) return const SizedBox.shrink();
 
     return Padding(
-      padding: const EdgeInsets.only(right: Spacing.px8),
+      padding: const EdgeInsets.only(right: S.s8),
       child: MessageStatusIndicator(status: lastMessage.status),
     );
   }
@@ -464,7 +457,7 @@ class _PendingCommitFailedIndicator extends StatelessWidget {
   Widget build(BuildContext context) {
     return AppIcon.circleAlert(
       size: 16,
-      color: CustomColorScheme.of(context).function.warning,
+      color: SemanticPalette.of(context).function.warning.primary,
     );
   }
 }
@@ -480,24 +473,26 @@ class _UnreadBadge extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final backgroundColor = CustomColorScheme.of(context).function.toggleBlack;
+    final backgroundColor = SemanticPalette.of(
+      context,
+    ).function.neutral.toggleBlack;
 
     final badgeText = count <= 100 ? "$count" : "100+";
     return Container(
       alignment: AlignmentDirectional.center,
       constraints: const BoxConstraints(minHeight: 24, minWidth: 40),
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+      padding: const EdgeInsets.symmetric(horizontal: S.s8),
       decoration: BoxDecoration(
         color: backgroundColor,
-        borderRadius: BorderRadius.circular(1000),
+        borderRadius: BorderRadius.circular(CornerRadius.full),
       ),
       child: Text(
         badgeText,
-        style: TextStyle(
-          color: CustomColorScheme.of(context).function.toggleWhite,
-          fontSize: LabelFontSize.small2.size,
-          height: 1,
-        ),
+        style: typeScale.body.xs
+            .style(
+              color: SemanticPalette.of(context).function.neutral.toggleWhite,
+            )
+            .copyWith(height: 1),
       ),
     );
   }
@@ -515,7 +510,7 @@ class _LastMessage extends StatelessWidget {
       (NavigationCubit cubit) => cubit.state.chatId == chat.id,
     );
 
-    final color = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
 
     final lastMessage = chat.lastMessage;
@@ -536,12 +531,9 @@ class _LastMessage extends StatelessWidget {
     if (isHidden) {
       return Text(
         loc.textMessage_hiddenPlaceholder,
-        style: TextStyle(
-          fontSize: _previewFontSize,
-          height: _previewLineHeight,
-          fontStyle: FontStyle.italic,
-          color: color.text.tertiary,
-        ),
+        style: _previewStyle(
+          palette.text.tertiary,
+        ).copyWith(fontStyle: FontStyle.italic),
       );
     }
 
@@ -554,20 +546,15 @@ class _LastMessage extends StatelessWidget {
     if (isDeleted) {
       return Text(
         loc.textMessage_deleted,
-        style: TextStyle(
-          fontSize: _previewFontSize,
-          height: _previewLineHeight,
-          fontStyle: FontStyle.italic,
-          color: color.text.tertiary,
-        ),
+        style: _previewStyle(
+          palette.text.tertiary,
+        ).copyWith(fontStyle: FontStyle.italic),
       );
     }
 
-    final readStyle = TextStyle(
-      fontSize: _previewFontSize,
-      height: _previewLineHeight,
-      color: Color.alphaBlend(
-        color.text.tertiary,
+    final readStyle = _previewStyle(
+      Color.alphaBlend(
+        palette.text.tertiary,
         ChatListContainer.backgroundColor(context),
       ),
     );
@@ -706,15 +693,13 @@ class _LastUpdatedState extends State<_LastUpdated> {
   @override
   Widget build(BuildContext context) {
     return Baseline(
-      baseline: Spacing.px12,
+      baseline: S.s12,
       baselineType: TextBaseline.alphabetic,
       child: Text(
         _displayTimestamp,
-        style: TextStyle(
-          color: CustomColorScheme.of(context).text.tertiary,
-          fontSize: LabelFontSize.small3.size,
-          height: 1.0,
-        ),
+        style: typeScale.body.mini
+            .style(color: SemanticPalette.of(context).text.tertiary)
+            .copyWith(height: 1.0),
       ),
     );
   }
@@ -728,18 +713,18 @@ class _ChatTitle extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Baseline(
-      baseline: Spacing.px16,
+      baseline: S.s16,
       baselineType: TextBaseline.alphabetic,
       child: Text(
         title,
         maxLines: 1,
         overflow: TextOverflow.ellipsis,
-        style: TextStyle(
-          fontSize: LabelFontSize.base.size,
-          height: _previewLineHeight,
-          fontWeight: FontWeight.bold,
-          color: CustomColorScheme.of(context).text.primary,
-        ),
+        style: typeScale.body.regular
+            .style(
+              weight: Weight.emphasized,
+              color: SemanticPalette.of(context).text.primary,
+            )
+            .copyWith(height: _previewLineHeight),
       ),
     );
   }

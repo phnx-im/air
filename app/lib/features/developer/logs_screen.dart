@@ -8,8 +8,7 @@ import 'package:air/platform/method_channel.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:air/core/core.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/device_type.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
 import 'package:share_plus/share_plus.dart';
 
@@ -95,7 +94,6 @@ class LogsScreenView extends StatelessWidget {
         appBar: AppBar(
           clipBehavior: Clip.none,
           title: const Text('Logs'),
-          toolbarHeight: DeviceType.isDesktop ? 100 : null,
           leading: const AppBarBackButton(),
           actions: [
             PopupMenuButton(
@@ -124,7 +122,7 @@ class LogsScreenView extends StatelessWidget {
         ),
         body: SafeArea(
           child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+            padding: const EdgeInsets.symmetric(horizontal: S.s8),
             child: TabBarView(
               children: [
                 _LogsView(logs: appLogs),

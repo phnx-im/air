@@ -6,10 +6,9 @@ import 'dart:async';
 
 import 'package:air/l10n/app_locale_cubit.dart';
 import 'package:air/l10n/language_options.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/context_menu/context_menu.dart';
 import 'package:air/ds/patterns/context_menu/context_menu_item.dart';
-import 'package:air/ds/foundations/icons.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -43,7 +42,7 @@ class _LanguagePickerMenuState extends State<LanguagePickerMenu> {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final storedLocale = context.select(
       (UserSettingsCubit cubit) => cubit.state.locale,
     );
@@ -69,7 +68,7 @@ class _LanguagePickerMenuState extends State<LanguagePickerMenu> {
         ContextMenuItem(
           label: option.label,
           leading: option.locale.languageCode == resolvedLocale.languageCode
-              ? AppIcon.check(size: 16, color: colors.text.secondary)
+              ? AppIcon.check(size: 16, color: palette.text.secondary)
               : null,
           onPressed: () {
             unawaited(widget.onLocaleSelected(option.locale));

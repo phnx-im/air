@@ -4,6 +4,7 @@
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
+import 'package:air/ds/foundations/foundations.dart';
 
 /// [PageTransitionsBuilder] that mirrors [CupertinoPageTransitionsBuilder] and
 /// adds a translucent scrim over the outgoing route, because Cupertino's native
@@ -33,7 +34,9 @@ class CupertinoScrimPageTransitionsBuilder extends PageTransitionsBuilder {
           child: IgnorePointer(
             child: FadeTransition(
               opacity: animation,
-              child: ColoredBox(color: Colors.black.withValues(alpha: 0.2)),
+              child: ColoredBox(
+                color: Colors.black.withValues(alpha: Alpha.a20),
+              ),
             ),
           ),
         ),

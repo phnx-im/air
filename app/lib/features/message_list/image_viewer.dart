@@ -7,9 +7,7 @@ import 'dart:math' as math;
 
 import 'package:air/features/attachments/attachment_image_provider.dart';
 import 'package:air/core/core.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
-import 'package:air/ds/foundations/icons.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/button_icon/app_bar_x_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
@@ -50,7 +48,7 @@ class ImageViewer extends HookWidget {
     final initialScale = useRef<double?>(null);
     final pendingTapTimer = useRef<Timer?>(null);
 
-    final colors = darkCustomColorScheme;
+    final palette = darkSemanticPalette;
 
     useEffect(
       () => () {
@@ -59,7 +57,7 @@ class ImageViewer extends HookWidget {
       [],
     );
 
-    final isDesktop = ResponsiveScreen.isDesktop(context);
+    final isDesktop = DeviceType.isDesktop;
     final enableVerticalDrag = !isDesktop && isAtBaseScale.value;
     final backgroundOpacity = isDesktop
         ? 1.0
@@ -129,7 +127,7 @@ class ImageViewer extends HookWidget {
     }
 
     return Scaffold(
-      backgroundColor: colors.function.black,
+      backgroundColor: palette.function.neutral.black,
       body: Focus(
         autofocus: true,
         onKeyEvent: (node, event) {
@@ -201,7 +199,7 @@ class _ZoomableImage extends HookWidget {
     final baseScale = useRef<double?>(null);
     final currentScale = useRef<double?>(null);
 
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     useEffect(
       () => () {
@@ -271,7 +269,7 @@ class _ZoomableImage extends HookWidget {
             return Center(
               child: CircularProgressIndicator(
                 valueColor: AlwaysStoppedAnimation<Color>(
-                  colors.backgroundBase.tertiary,
+                  palette.backgroundBase.tertiary,
                 ),
                 value: event.expectedTotalBytes != null
                     ? event.cumulativeBytesLoaded / event.expectedTotalBytes!
@@ -305,8 +303,8 @@ class _ViewerOverlay extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final foregroundColor = darkCustomColorScheme.text.primary;
-    final backgroundColor = darkCustomColorScheme.backgroundElevated.primary
+    final foregroundColor = darkSemanticPalette.text.primary;
+    final backgroundColor = darkSemanticPalette.backgroundElevated.primary
         .withValues(alpha: 0.7);
 
     return Positioned(
@@ -327,8 +325,7 @@ class _ViewerOverlay extends StatelessWidget {
                 AppBarXButton(
                   onPressed: () => Navigator.of(context).maybePop(),
                   foregroundColor: foregroundColor,
-                  backgroundColor:
-                      darkCustomColorScheme.backgroundBase.secondary,
+                  backgroundColor: darkSemanticPalette.backgroundBase.secondary,
                 ),
               ],
               backgroundColor: Colors.transparent,

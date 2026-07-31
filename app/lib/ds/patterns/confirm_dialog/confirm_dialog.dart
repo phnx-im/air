@@ -3,10 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/components/button/button.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
-import 'package:air/ds/foundations/type_scale.dart';
 import 'package:flutter/material.dart';
 
 /// A dialog for confirming a single action.
@@ -33,7 +31,7 @@ class ConfirmDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final cancel = this.cancel;
 
     return AppDialog(
@@ -44,24 +42,18 @@ class ConfirmDialog extends StatelessWidget {
           Center(
             child: Text(
               title,
-              style: TextStyle(
-                fontSize: HeaderFontSize.h4.size,
-                fontWeight: FontWeight.bold,
-              ),
+              style: typeScale.header.regular.style(weight: Weight.emphasized),
             ),
           ),
 
-          const SizedBox(height: Spacing.px8),
+          const SizedBox(height: S.s8),
 
           Text(
             message,
-            style: TextStyle(
-              color: colors.text.secondary,
-              fontSize: BodyFontSize.base.size,
-            ),
+            style: typeScale.body.regular.style(color: palette.text.secondary),
           ),
 
-          const SizedBox(height: Spacing.px24),
+          const SizedBox(height: S.s24),
 
           Row(
             children: [
@@ -74,7 +66,7 @@ class ConfirmDialog extends StatelessWidget {
                   ),
                 ),
 
-                const SizedBox(width: Spacing.px12),
+                const SizedBox(width: S.s12),
               ],
 
               Expanded(

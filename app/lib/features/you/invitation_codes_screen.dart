@@ -4,13 +4,9 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/components/button/button.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/features/you/invitation_codes_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -45,11 +41,11 @@ class InvitationCodesView extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return AppScaffold(
       title: loc.invitationCodesScreen_title,
-      backgroundColor: colors.backgroundBase.secondary,
+      backgroundColor: palette.backgroundBase.secondary,
       child: Align(
         alignment: Alignment.topCenter,
         child: Container(
@@ -60,9 +56,9 @@ class InvitationCodesView extends StatelessWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                const SizedBox(height: Spacing.px16),
+                const SizedBox(height: S.s16),
                 const _InvitationCodesList(),
-                const SizedBox(height: Spacing.px24),
+                const SizedBox(height: S.s24),
                 Row(
                   children: [
                     const Spacer(),
@@ -86,7 +82,7 @@ class InvitationCodesView extends StatelessWidget {
                     const Spacer(),
                   ],
                 ),
-                const SizedBox(height: Spacing.px16),
+                const SizedBox(height: S.s16),
                 Row(
                   children: [
                     const Spacer(),
@@ -109,7 +105,7 @@ class InvitationCodesView extends StatelessWidget {
                     const Spacer(),
                   ],
                 ),
-                const SizedBox(height: Spacing.px24),
+                const SizedBox(height: S.s24),
                 const _InfoText(),
               ],
             ),
@@ -154,7 +150,7 @@ class _InvitationCodesList extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     final invitationCodes = context.select(
       (InvitationCodesCubit cubit) => cubit.state.codes,
@@ -162,8 +158,8 @@ class _InvitationCodesList extends StatelessWidget {
 
     return Container(
       decoration: BoxDecoration(
-        color: colors.backgroundElevated.primary,
-        borderRadius: BorderRadius.circular(Spacing.px16),
+        color: palette.backgroundElevated.primary,
+        borderRadius: BorderRadius.circular(CornerRadius.px16),
       ),
       child: Column(
         children: invitationCodes.isEmpty
@@ -180,8 +176,8 @@ class _InvitationCodesList extends StatelessWidget {
                       if (code != invitationCodes.last)
                         Divider(
                           height: 1,
-                          thickness: 1,
-                          color: colors.separator.primary,
+                          thickness: StrokeWidth.px1,
+                          color: palette.separator.primary,
                         ),
                     ],
                   )
@@ -198,31 +194,30 @@ class _InvitationCodeItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return InkWell(
       onTap: () => _handleCopy(context),
       mouseCursor: SystemMouseCursors.click,
-      borderRadius: BorderRadius.circular(Spacing.px16),
+      borderRadius: BorderRadius.circular(CornerRadius.px16),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.px16,
-          vertical: Spacing.px12,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
         child: Row(
           children: [
             Expanded(
               child: Text(
                 code.code,
-                style: TextStyle(
-                  fontSize: BodyFontSize.base.size,
-                  color: colors.text.primary,
-                  decoration: code.copied ? TextDecoration.lineThrough : null,
-                ),
+                style: typeScale.body.regular
+                    .style(color: palette.text.primary)
+                    .copyWith(
+                      decoration: code.copied
+                          ? TextDecoration.lineThrough
+                          : null,
+                    ),
               ),
             ),
-            const SizedBox(width: Spacing.px12),
-            AppIcon.copy(size: 24, color: colors.text.tertiary),
+            const SizedBox(width: S.s12),
+            AppIcon.copy(size: 24, color: palette.text.tertiary),
           ],
         ),
       ),
@@ -257,29 +252,24 @@ class _InvitationTokenItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return InkWell(
       onTap: () => _handleUnlock(context),
       mouseCursor: SystemMouseCursors.click,
-      borderRadius: BorderRadius.circular(Spacing.px16),
+      borderRadius: BorderRadius.circular(CornerRadius.px16),
       child: Padding(
-        padding: const EdgeInsets.symmetric(
-          horizontal: Spacing.px16,
-          vertical: Spacing.px12,
-        ),
+        padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
         child: Row(
           children: [
             Text(
               AppLocalizations.of(context).invitationCodesScreen_tapToGetCode,
-              style: TextStyle(
-                fontSize: BodyFontSize.base.size,
-                fontStyle: FontStyle.italic,
-                color: colors.text.tertiary,
-              ),
+              style: typeScale.body.regular
+                  .style(color: palette.text.tertiary)
+                  .copyWith(fontStyle: FontStyle.italic),
             ),
             const Spacer(),
-            AppIcon.circleDashed(size: 24, color: colors.text.tertiary),
+            AppIcon.circleDashed(size: 24, color: palette.text.tertiary),
           ],
         ),
       ),
@@ -315,22 +305,16 @@ class _InvitationCodeEmptyItem extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(
-        horizontal: Spacing.px16,
-        vertical: Spacing.px12,
-      ),
+      padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
       child: Row(
         children: [
           Expanded(
             child: Text(
               AppLocalizations.of(context).invitationCodesScreen_empty,
-              style: TextStyle(
-                fontSize: BodyFontSize.base.size,
-                color: colors.text.tertiary,
-              ),
+              style: typeScale.body.regular.style(color: palette.text.tertiary),
             ),
           ),
         ],
@@ -344,22 +328,19 @@ class _InfoText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
-    final style = TextStyle(
-      fontSize: BodyFontSize.small1.size,
-      color: colors.text.quaternary,
-    );
+    final style = typeScale.body.s.style(color: palette.text.quaternary);
 
     final loc = AppLocalizations.of(context);
 
     return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: Spacing.px8),
+      padding: const EdgeInsets.symmetric(horizontal: S.s8),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(loc.invitationCodesScreen_infoText1, style: style),
-          const SizedBox(height: Spacing.px12),
+          const SizedBox(height: S.s12),
           Text(loc.invitationCodesScreen_infoText2, style: style),
         ],
       ),

@@ -7,11 +7,9 @@ import 'package:air/features/chat_list/chat_list_view.dart';
 import 'package:air/features/chat/chat_screen.dart';
 import 'package:air/core/core.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/navigation/app_tab_bar.dart';
 import 'package:air/ds/material/tab_transition.dart';
-import 'package:air/ds/foundations/motion.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/you/you_screen.dart';
 import 'package:air/ds/components/resizable_panel/resizable_panel.dart';
@@ -22,14 +20,13 @@ class HomeScreen extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const desktop = HomeScreenDesktopLayout(
-      chatList: ChatListContainer(isStandalone: false),
-      chat: ChatScreen(),
-    );
-    return const ResponsiveScreen(
-      mobile: _HomeScreenMobileLayout(),
-      tablet: desktop,
-      desktop: desktop,
+    return LayoutBuilder(
+      builder: (context, constraints) => constraints.breakpoint.isSmall
+          ? const _HomeScreenMobileLayout()
+          : const HomeScreenDesktopLayout(
+              chatList: ChatListContainer(isStandalone: false),
+              chat: ChatScreen(),
+            ),
     );
   }
 }
@@ -50,9 +47,9 @@ class _HomeScreenMobileLayout extends StatelessWidget {
       children: [
         Positioned.fill(
           child: AnimatedSwitcher(
-            duration: motionRegular,
-            switchInCurve: motionEasing,
-            switchOutCurve: motionEasing,
+            duration: Effect.duration(MotionPreset.regular),
+            switchInCurve: Effect.easeOutQuart,
+            switchOutCurve: Effect.easeOutQuart,
             transitionBuilder: tabSwitchTransition,
             child: switch (activeTab) {
               HomeTab.chats => const ChatListContainer(
@@ -84,7 +81,7 @@ class HomeScreenDesktopLayout extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: CustomColorScheme.of(context).backgroundBase.primary,
+      backgroundColor: SemanticPalette.of(context).backgroundBase.primary,
       body: Row(
         children: [
           ResizablePanel(

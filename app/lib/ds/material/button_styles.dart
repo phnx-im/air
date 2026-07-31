@@ -2,37 +2,25 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/ds/components/responsive_screen/responsive_screen.dart';
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/material/text_theme.dart';
 import 'package:flutter/material.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-
-// === Devices ===
-
-bool isSmallScreen(BuildContext context) {
-  return MediaQuery.sizeOf(context).width < kMobileBreakpoint;
-}
-
-bool isLargeScreen(BuildContext context) {
-  return MediaQuery.sizeOf(context).width >= kMobileBreakpoint;
-}
 
 // === Buttons ===
 
-extension on CustomColorScheme {
+extension on SemanticPalette {
   Color get activeButtonColor => backgroundBase.quaternary;
   Color get inactiveButtonColor => backgroundBase.secondary;
 }
 
 class CustomTextButtonStyle extends ButtonStyle {
   CustomTextButtonStyle({
-    required CustomColorScheme colorScheme,
+    required SemanticPalette palette,
     required TextTheme baselineTextTheme,
   }) : super(
          foregroundColor: WidgetStateProperty.fromMap({
-           WidgetState.disabled: colorScheme.text.quaternary,
-           WidgetState.any: colorScheme.text.secondary,
+           WidgetState.disabled: palette.text.quaternary,
+           WidgetState.any: palette.text.secondary,
          }),
          overlayColor: WidgetStateProperty.all(Colors.transparent),
          surfaceTintColor: WidgetStateProperty.all(Colors.transparent),
@@ -46,20 +34,20 @@ class CustomTextButtonStyle extends ButtonStyle {
 
 class CustomOutlineButtonStyle extends ButtonStyle {
   CustomOutlineButtonStyle({
-    required CustomColorScheme colorScheme,
+    required SemanticPalette palette,
     required TextTheme baselineTextTheme,
   }) : super(
          foregroundColor: WidgetStateProperty<Color>.fromMap({
-           WidgetState.disabled: colorScheme.text.quaternary,
-           WidgetState.any: colorScheme.text.primary,
+           WidgetState.disabled: palette.text.quaternary,
+           WidgetState.any: palette.text.primary,
          }),
          backgroundColor: WidgetStateProperty<Color>.fromMap({
-           WidgetState.disabled: colorScheme.inactiveButtonColor,
-           WidgetState.any: colorScheme.activeButtonColor,
+           WidgetState.disabled: palette.inactiveButtonColor,
+           WidgetState.any: palette.activeButtonColor,
          }),
          overlayColor: WidgetStateProperty<Color>.fromMap({
-           WidgetState.disabled: colorScheme.inactiveButtonColor,
-           WidgetState.any: colorScheme.activeButtonColor,
+           WidgetState.disabled: palette.inactiveButtonColor,
+           WidgetState.any: palette.activeButtonColor,
          }),
          mouseCursor: const WidgetStateProperty<MouseCursor>.fromMap({
            WidgetState.disabled: SystemMouseCursors.basic,
@@ -68,10 +56,7 @@ class CustomOutlineButtonStyle extends ButtonStyle {
          elevation: WidgetStateProperty.all<double>(0),
          shadowColor: WidgetStateProperty.all<Color>(Colors.transparent),
          padding: WidgetStateProperty.all<EdgeInsetsGeometry>(
-           const EdgeInsets.symmetric(
-             vertical: Spacing.px16,
-             horizontal: Spacing.px16,
-           ),
+           const EdgeInsets.symmetric(vertical: S.s16, horizontal: S.s16),
          ),
          splashFactory: NoSplash.splashFactory,
          surfaceTintColor: WidgetStateProperty.all<Color>(Colors.transparent),
@@ -85,7 +70,7 @@ class CustomOutlineButtonStyle extends ButtonStyle {
                width: 0,
                style: BorderStyle.none,
              ),
-             borderRadius: BorderRadius.circular(12),
+             borderRadius: BorderRadius.circular(CornerRadius.px12),
            ),
          ),
          textStyle: WidgetStatePropertyAll(baselineTextTheme.labelLarge!),

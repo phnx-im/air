@@ -4,10 +4,7 @@
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/type_scale.dart';
-import 'package:air/ds/foundations/icons.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
@@ -31,7 +28,7 @@ class AttachmentFile extends HookWidget {
 
     return Row(
       mainAxisSize: MainAxisSize.min,
-      spacing: Spacing.px16,
+      spacing: S.s16,
       children: [
         _AttachmentFileStatus(
           attachmentId: attachment.attachmentId,
@@ -47,17 +44,11 @@ class AttachmentFile extends HookWidget {
             children: [
               Text(
                 attachment.filename,
-                style: TextStyle(
-                  fontSize: BodyFontSize.base.size,
-                  color: color,
-                ),
+                style: typeScale.body.regular.style(color: color),
               ),
               Text(
                 loc.bytesToHumanReadable(attachment.size),
-                style: TextStyle(
-                  fontSize: BodyFontSize.small2.size,
-                  color: color,
-                ),
+                style: typeScale.body.xs.style(color: color),
               ),
             ],
           ),
@@ -115,13 +106,13 @@ class _AttachmentFileStatus extends HookWidget {
             );
           },
           style: IconButton.styleFrom(
-            backgroundColor: CustomColorScheme.of(
+            backgroundColor: SemanticPalette.of(
               context,
             ).backgroundBase.tertiary,
           ),
           icon: AppIcon.upload(
             size: 32,
-            color: CustomColorScheme.of(context).text.secondary,
+            color: SemanticPalette.of(context).text.secondary,
           ),
         ),
         UiAttachmentStatus_Pending() ||
@@ -133,21 +124,21 @@ class _AttachmentFileStatus extends HookWidget {
             );
           },
           style: IconButton.styleFrom(
-            backgroundColor: CustomColorScheme.of(
+            backgroundColor: SemanticPalette.of(
               context,
             ).backgroundBase.tertiary,
           ),
           icon: AppIcon.download(
             size: 32,
-            color: CustomColorScheme.of(context).text.secondary,
+            color: SemanticPalette.of(context).text.secondary,
           ),
         ),
         UiAttachmentStatus_Progress(field0: final loaded) => Stack(
           alignment: Alignment.center,
           children: [
             CircularProgressIndicator(
-              strokeWidth: 2,
-              backgroundColor: color.withValues(alpha: 0.1),
+              strokeWidth: StrokeWidth.px2,
+              backgroundColor: color.withValues(alpha: Alpha.a10),
               valueColor: AlwaysStoppedAnimation<Color>(color),
               value: loaded / BigInt.from(size),
             ),

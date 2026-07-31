@@ -7,14 +7,12 @@ import 'package:air/features/chat_details/mute_button.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/components/button/button.dart'
     show AppButton, AppButtonTone;
 import 'package:air/ds/components/constrained_width/constrained_width.dart';
 import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
-import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/platform/haptics.dart';
@@ -24,7 +22,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
-import 'package:air/ds/foundations/icons.dart';
 
 import 'package:air/features/chat_details/change_group_title_dialog.dart';
 import 'package:air/features/developer/chat_debug_info_view.dart';
@@ -46,7 +43,7 @@ class GroupDetailsScreen extends StatelessWidget {
     }
 
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     return AppScaffold(
       title: chat.title,
@@ -76,42 +73,40 @@ class GroupDetailsScreen extends StatelessWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.center,
                     children: [
-                      const SizedBox(height: Spacing.px16),
+                      const SizedBox(height: S.s16),
                       ChatAvatar(
                         chatId: chat.id,
                         size: 192,
                         onPressed: () => _selectAvatar(context, chat.id),
                       ),
-                      const SizedBox(height: Spacing.px16),
+                      const SizedBox(height: S.s16),
                       InkWell(
                         onTap: () => _changeGroupTitle(context, chat.title),
                         child: Text(
                           chat.title,
                           textAlign: TextAlign.center,
-                          style: TextStyle(
-                            fontSize: HeaderFontSize.h1.size,
-                            fontWeight: FontWeight.bold,
+                          style: typeScale.header.xl.style(
+                            weight: Weight.emphasized,
                           ),
                         ),
                       ),
-                      const SizedBox(height: Spacing.px8),
+                      const SizedBox(height: S.s8),
                       Text(
                         loc.groupDetails_groupDescription,
                         textAlign: TextAlign.center,
-                        style: TextStyle(
-                          fontSize: BodyFontSize.base.size,
-                          color: colors.text.secondary,
+                        style: typeScale.body.regular.style(
+                          color: palette.text.secondary,
                         ),
                       ),
-                      const SizedBox(height: Spacing.px8),
+                      const SizedBox(height: S.s8),
                       const MuteButton(),
-                      const SizedBox(height: Spacing.px32),
+                      const SizedBox(height: S.s32),
                       _PeoplePreview(memberIds: members),
                     ],
                   ),
                 ),
               ),
-              const SizedBox(height: Spacing.px16),
+              const SizedBox(height: S.s16),
               Row(
                 children: [
                   Expanded(
@@ -121,7 +116,7 @@ class GroupDetailsScreen extends StatelessWidget {
                       label: loc.groupDetails_leaveChat,
                     ),
                   ),
-                  const SizedBox(width: Spacing.px12),
+                  const SizedBox(width: S.s12),
                   Expanded(
                     child: AppButton(
                       onPressed: () => _delete(context, chat),
@@ -228,20 +223,17 @@ class _PeoplePreview extends HookWidget {
       [memberIds, profiles],
     );
 
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
         Padding(
-          padding: const EdgeInsets.all(Spacing.px12),
+          padding: const EdgeInsets.all(S.s12),
           child: Text(
             loc.groupDetails_memberCount(memberIds.length),
-            style: TextStyle(
-              fontSize: LabelFontSize.base.size,
-              fontWeight: FontWeight.bold,
-            ),
+            style: typeScale.body.regular.style(weight: Weight.emphasized),
           ),
         ),
         Column(
@@ -257,8 +249,8 @@ class _PeoplePreview extends HookWidget {
               if (i < previewIds.length)
                 Divider(
                   height: 1,
-                  thickness: 1,
-                  color: colors.backgroundBase.primary,
+                  thickness: StrokeWidth.px1,
+                  color: palette.backgroundBase.primary,
                 ),
             ],
             _ActionsRow(
@@ -292,22 +284,22 @@ class _PeoplePreviewEntry extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final displayName = isSelf ? loc.chatList_you : profile.displayName;
 
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     final borderRadius = switch (position) {
-      _PeopleEntryPosition.single => BorderRadius.circular(16),
+      _PeopleEntryPosition.single => BorderRadius.circular(CornerRadius.px16),
       _PeopleEntryPosition.first => const BorderRadius.vertical(
-        top: Radius.circular(16),
+        top: Radius.circular(CornerRadius.px16),
       ),
       _PeopleEntryPosition.middle => BorderRadius.zero,
       _PeopleEntryPosition.last => BorderRadius.zero,
     };
 
     return Material(
-      color: colors.backgroundBase.secondary,
+      color: palette.backgroundBase.secondary,
       borderRadius: borderRadius,
       child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+        padding: const EdgeInsets.symmetric(horizontal: S.s16),
         child: MemberListItem(
           profile: profile,
           displayNameOverride: displayName,
@@ -329,21 +321,21 @@ class _ActionsRow extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
     final borderRadius = switch (position) {
-      _PeopleEntryPosition.single => BorderRadius.circular(16),
+      _PeopleEntryPosition.single => BorderRadius.circular(CornerRadius.px16),
       _PeopleEntryPosition.first => const BorderRadius.vertical(
-        top: Radius.circular(16),
+        top: Radius.circular(CornerRadius.px16),
       ),
       _PeopleEntryPosition.last => const BorderRadius.vertical(
-        bottom: Radius.circular(16),
+        bottom: Radius.circular(CornerRadius.px16),
       ),
       _PeopleEntryPosition.middle => BorderRadius.zero,
     };
 
     return Material(
-      color: colors.backgroundBase.secondary,
+      color: palette.backgroundBase.secondary,
       borderRadius: borderRadius,
       child: Row(
         children: [
@@ -354,8 +346,8 @@ class _ActionsRow extends StatelessWidget {
               },
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: Spacing.px16,
-                  vertical: Spacing.px12,
+                  horizontal: S.s16,
+                  vertical: S.s12,
                 ),
                 child: Row(
                   children: [
@@ -363,21 +355,21 @@ class _ActionsRow extends StatelessWidget {
                       height: 32,
                       width: 32,
                       decoration: BoxDecoration(
-                        color: colors.backgroundElevated.primary,
-                        borderRadius: BorderRadius.circular(16),
+                        color: palette.backgroundElevated.primary,
+                        borderRadius: BorderRadius.circular(CornerRadius.px16),
                       ),
                       child: Padding(
-                        padding: const EdgeInsets.all(Spacing.px8),
+                        padding: const EdgeInsets.all(S.s8),
                         child: AppIcon.plus(
                           size: 16,
-                          color: colors.function.toggleBlack,
+                          color: palette.function.neutral.toggleBlack,
                         ),
                       ),
                     ),
-                    const SizedBox(width: Spacing.px16),
+                    const SizedBox(width: S.s16),
                     Text(
                       loc.groupDetails_addPeople,
-                      style: TextStyle(fontSize: BodyFontSize.base.size),
+                      style: typeScale.body.regular.style(),
                     ),
                   ],
                 ),
@@ -391,29 +383,29 @@ class _ActionsRow extends StatelessWidget {
               },
               child: Padding(
                 padding: const EdgeInsets.symmetric(
-                  horizontal: Spacing.px16,
-                  vertical: Spacing.px12,
+                  horizontal: S.s16,
+                  vertical: S.s12,
                 ),
                 child: Row(
                   mainAxisAlignment: .end,
                   children: [
                     Text(
                       loc.groupDetails_seeAll,
-                      style: TextStyle(fontSize: BodyFontSize.base.size),
+                      style: typeScale.body.regular.style(),
                     ),
-                    const SizedBox(width: Spacing.px12),
+                    const SizedBox(width: S.s12),
                     Container(
                       height: 32,
                       width: 32,
                       decoration: BoxDecoration(
-                        color: colors.backgroundElevated.primary,
-                        borderRadius: BorderRadius.circular(16),
+                        color: palette.backgroundElevated.primary,
+                        borderRadius: BorderRadius.circular(CornerRadius.px16),
                       ),
                       child: Padding(
-                        padding: const EdgeInsets.all(Spacing.px8),
+                        padding: const EdgeInsets.all(S.s8),
                         child: AppIcon.arrowRight(
                           size: 16,
-                          color: colors.function.toggleBlack,
+                          color: palette.function.neutral.toggleBlack,
                         ),
                       ),
                     ),

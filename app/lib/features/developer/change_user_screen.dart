@@ -4,8 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:air/core/core.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/device_type.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
 import 'package:air/features/user/avatar.dart';
@@ -53,7 +52,6 @@ class ChangeUserScreenView extends StatelessWidget {
       appBar: AppBar(
         clipBehavior: Clip.none,
         title: const Text('Change User'),
-        toolbarHeight: DeviceType.isDesktop ? 100 : null,
         leading: const AppBarBackButton(),
       ),
       body: Center(
@@ -120,11 +118,8 @@ class _ClientRecordsList extends StatelessWidget {
               context,
             ).textTheme.bodySmall?.copyWith(color: textColor),
             leading: Transform.translate(
-              offset: const Offset(0, Spacing.px8),
-              child: UserAvatar(
-                profile: record.userProfile,
-                size: Spacing.px48,
-              ),
+              offset: const Offset(0, S.s8),
+              child: UserAvatar(profile: record.userProfile, size: S.s48),
             ),
             title: Text(record.userProfile.displayName + currentUserSuffix),
             subtitle: Text(

@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/motion.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -62,7 +61,7 @@ class MessageRowContainer extends StatelessWidget {
     };
 
     final tile = ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+      contentPadding: const EdgeInsets.symmetric(horizontal: S.s16),
       dense: true,
       visualDensity: const VisualDensity(horizontal: 0, vertical: -4),
       minVerticalPadding: 0,
@@ -118,7 +117,10 @@ class _AnimatedMessageState extends State<_AnimatedMessage>
   @override
   void initState() {
     super.initState();
-    _controller = AnimationController(vsync: this, duration: motionShort);
+    _controller = AnimationController(
+      vsync: this,
+      duration: Effect.duration(MotionPreset.short),
+    );
     _controller.forward();
   }
 
@@ -138,7 +140,10 @@ class _AnimatedMessageState extends State<_AnimatedMessage>
       UiFlightPosition.single || UiFlightPosition.end => 27.0,
     };
 
-    final animation = CurvedAnimation(parent: _controller, curve: motionEasing);
+    final animation = CurvedAnimation(
+      parent: _controller,
+      curve: Effect.easeOutQuart,
+    );
 
     return Container(
       constraints: BoxConstraints(minHeight: fixedStartHeight),

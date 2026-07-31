@@ -12,7 +12,7 @@ import 'package:air/l10n/supported_locales.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/navigation/app_router.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
-import 'package:air/ds/foundations/device_type.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/material/theme_data.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';

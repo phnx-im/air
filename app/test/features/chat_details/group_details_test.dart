@@ -119,6 +119,6 @@ void main() {
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/group_details_mute_menu_desktop.png'),
       );
-    });
+    }, variant: desktopPlatform);
   });
 }

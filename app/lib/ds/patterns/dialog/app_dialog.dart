@@ -1,7 +1,7 @@
 // SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
-import 'package:air/ds/foundations/spacing.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
@@ -22,15 +22,15 @@ class AppDialog extends StatelessWidget {
     return Dialog(
       backgroundColor: backgroundColor,
       shape: RoundedRectangleBorder(
-        borderRadius: BorderRadius.circular(Spacing.px24),
+        borderRadius: BorderRadius.circular(CornerRadius.px24),
       ),
       child: Container(
         constraints: BoxConstraints(maxWidth: maxWidth ?? 340),
         padding: const EdgeInsets.only(
-          left: Spacing.px16,
-          right: Spacing.px16,
-          top: Spacing.px24,
-          bottom: Spacing.px16,
+          left: S.s16,
+          right: S.s16,
+          top: S.s24,
+          bottom: S.s16,
         ),
         child: child,
       ),
@@ -58,13 +58,13 @@ class AppDialogContainer extends StatelessWidget {
         constraints: const BoxConstraints(maxWidth: 360),
         decoration: BoxDecoration(
           color: backgroundColor,
-          borderRadius: BorderRadius.circular(Spacing.px24),
+          borderRadius: BorderRadius.circular(CornerRadius.px24),
         ),
         padding: const EdgeInsets.only(
-          left: Spacing.px16,
-          right: Spacing.px16,
-          top: Spacing.px24,
-          bottom: Spacing.px16,
+          left: S.s16,
+          right: S.s16,
+          top: S.s24,
+          bottom: S.s16,
         ),
         child: child,
       ),
@@ -103,7 +103,7 @@ class AppDialogProgressButton extends HookWidget {
               width: 16,
               height: 16,
               child: CircularProgressIndicator(
-                strokeWidth: 2,
+                strokeWidth: StrokeWidth.px2,
                 valueColor: progressColor != null
                     ? AlwaysStoppedAnimation<Color>(progressColor!)
                     : null,
@@ -115,10 +115,7 @@ class AppDialogProgressButton extends HookWidget {
 }
 
 const appDialogInputDecoration = InputDecoration(
-  contentPadding: EdgeInsets.symmetric(
-    horizontal: Spacing.px8,
-    vertical: Spacing.px8,
-  ),
+  contentPadding: EdgeInsets.symmetric(horizontal: S.s8, vertical: S.s8),
   isDense: true,
   border: _outlineInputBorder,
   enabledBorder: _outlineInputBorder,
@@ -126,6 +123,6 @@ const appDialogInputDecoration = InputDecoration(
 );
 
 const _outlineInputBorder = OutlineInputBorder(
-  borderRadius: BorderRadius.all(Radius.circular(Spacing.px16)),
+  borderRadius: BorderRadius.all(Radius.circular(CornerRadius.px16)),
   borderSide: BorderSide(width: 0, style: BorderStyle.none),
 );

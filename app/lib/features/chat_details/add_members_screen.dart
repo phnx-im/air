@@ -9,7 +9,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/core/core.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/device_type.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';

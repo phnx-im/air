@@ -2,12 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/ds/foundations/primitives.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/util/cached_memory_image.dart';
 import 'package:provider/provider.dart';
 import 'package:uuid/uuid.dart';
@@ -101,7 +99,7 @@ class _Avatar extends StatelessWidget {
             targetHeight: targetSize,
           )
         : null;
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final gradient = _AvatarGradient.fromUuid(gradientKey);
 
     return GestureDetector(
@@ -123,7 +121,7 @@ class _Avatar extends StatelessWidget {
                       end: Alignment.bottomRight,
                     )
                   : null,
-              color: foregroundImage != null ? colors.text.quaternary : null,
+              color: foregroundImage != null ? palette.text.quaternary : null,
             ),
             child: CircleAvatar(
               radius: size / 2,
@@ -132,8 +130,8 @@ class _Avatar extends StatelessWidget {
               child: Text(
                 displayName.characters.firstOrNull?.toUpperCase() ?? "",
                 style: TextTheme.of(context).labelMedium!.copyWith(
-                  color: colors.function.white,
-                  fontSize: LabelFontSize.small2.size * size / 28,
+                  color: palette.function.neutral.white,
+                  fontSize: typeScale.body.xs.fontSize * size / 28,
                 ),
               ),
             ),
@@ -158,18 +156,15 @@ class _AvatarGradient {
     return _AvatarGradient(start: start, end: end);
   }
 
-  static const _start = 300;
-  static const _end = 700;
+  static const _start = Shade.s300;
+  static const _end = Shade.s700;
 
+  /// One gradient per chromatic hue, in palette order. That order is
+  /// load-bearing: [_gradientIndexForUuid] indexes into this list, so adding a
+  /// hue to [Hue] re-colors existing avatars.
   static final _gradients = [
-    (AppColors.red[_start]!, AppColors.red[_end]!),
-    (AppColors.orange[_start]!, AppColors.orange[_end]!),
-    (AppColors.yellow[_start]!, AppColors.yellow[_end]!),
-    (AppColors.green[_start]!, AppColors.green[_end]!),
-    (AppColors.cyan[_start]!, AppColors.cyan[_end]!),
-    (AppColors.blue[_start]!, AppColors.blue[_end]!),
-    (AppColors.purple[_start]!, AppColors.purple[_end]!),
-    (AppColors.magenta[_start]!, AppColors.magenta[_end]!),
+    for (final hue in Hue.values)
+      (Primitive.chromatic(hue, _start), Primitive.chromatic(hue, _end)),
   ];
 
   static int _gradientIndexForUuid(UuidValue? uuid) {

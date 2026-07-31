@@ -5,11 +5,9 @@ import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
-import 'package:air/ds/foundations/type_scale.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/features/user/avatar.dart' show UserAvatar;
@@ -57,7 +55,7 @@ class ContactRequestDialog extends HookWidget {
       (UsersCubit c) => c.state.profile(userId: sender),
     );
 
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
 
     final showImage = useState(false);
@@ -76,20 +74,17 @@ class ContactRequestDialog extends HookWidget {
     };
 
     return AppDialogContainer(
-      backgroundColor: colors.backgroundBase.secondary,
+      backgroundColor: palette.backgroundBase.secondary,
       maxWidth: 360,
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
           Text(
             loc.contactRequestDialog_title,
-            style: TextStyle(
-              fontSize: HeaderFontSize.h4.size,
-              fontWeight: FontWeight.bold,
-            ),
+            style: typeScale.header.regular.style(weight: Weight.emphasized),
           ),
 
-          const SizedBox(height: Spacing.px32),
+          const SizedBox(height: S.s32),
 
           InkWell(
             onTap: () {
@@ -104,28 +99,22 @@ class ContactRequestDialog extends HookWidget {
           ),
 
           if (senderProfile.profilePicture != null) ...[
-            const SizedBox(height: Spacing.px8),
+            const SizedBox(height: S.s8),
             Text(
               loc.contactRequestDialog_avatarHint,
-              style: TextStyle(
-                fontSize: LabelFontSize.small2.size,
-                color: colors.text.tertiary,
-              ),
+              style: typeScale.body.xs.style(color: palette.text.tertiary),
             ),
           ],
 
-          const SizedBox(height: Spacing.px32),
+          const SizedBox(height: S.s32),
 
           Text(
             message,
-            style: TextStyle(
-              fontSize: BodyFontSize.base.size,
-              color: colors.text.secondary,
-            ),
+            style: typeScale.body.regular.style(color: palette.text.secondary),
             textAlign: .center,
           ),
 
-          const SizedBox(height: Spacing.px32),
+          const SizedBox(height: S.s32),
 
           Row(
             children: [
@@ -138,7 +127,7 @@ class ContactRequestDialog extends HookWidget {
                   label: loc.contactRequestDialog_cancel,
                 ),
               ),
-              const SizedBox(width: Spacing.px12),
+              const SizedBox(width: S.s12),
               const Expanded(child: _AcceptButton()),
             ],
           ),

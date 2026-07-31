@@ -3,10 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/spacing.dart';
-import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/foundations/color_scheme.dart';
-import 'package:air/ds/foundations/type_scale.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
@@ -33,7 +30,7 @@ class ContactUsScreen extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     final theme = Theme.of(context);
 
@@ -42,24 +39,20 @@ class ContactUsScreen extends StatelessWidget {
         clipBehavior: Clip.none,
         title: Text(
           loc.contactUsScreen_title,
-          style: TextStyle(
-            fontSize: LabelFontSize.base.size,
-            fontWeight: FontWeight.bold,
-          ),
+          style: typeScale.body.regular.style(weight: Weight.emphasized),
         ),
         leading: AppBarBackButton(
-          backgroundColor: colors.backgroundElevated.primary,
+          backgroundColor: palette.backgroundElevated.primary,
         ),
         actions: null,
-        backgroundColor: colors.backgroundBase.secondary,
-        toolbarHeight: DeviceType.isDesktop ? 100 : null,
+        backgroundColor: palette.backgroundBase.secondary,
         centerTitle: true,
       ),
-      backgroundColor: colors.backgroundBase.secondary,
+      backgroundColor: palette.backgroundBase.secondary,
       body: SafeArea(
-        minimum: const EdgeInsets.only(bottom: Spacing.px32 + Spacing.px8),
+        minimum: const EdgeInsets.only(bottom: S.s32 + S.s8),
         child: Padding(
-          padding: const EdgeInsets.symmetric(horizontal: Spacing.px16),
+          padding: const EdgeInsets.symmetric(horizontal: S.s16),
           child: Align(
             alignment: Alignment.topCenter,
             child: Container(
@@ -70,15 +63,15 @@ class ContactUsScreen extends StatelessWidget {
                 data: theme.copyWith(
                   inputDecorationTheme: theme.inputDecorationTheme.copyWith(
                     contentPadding: const EdgeInsets.symmetric(
-                      horizontal: Spacing.px8,
-                      vertical: Spacing.px8,
+                      horizontal: S.s8,
+                      vertical: S.s8,
                     ),
                     isDense: true,
                     border: _outlineInputBorder,
                     enabledBorder: _outlineInputBorder,
                     focusedBorder: _outlineInputBorder,
                     filled: true,
-                    fillColor: colors.backgroundBase.tertiary,
+                    fillColor: palette.backgroundBase.tertiary,
                   ),
                 ),
                 child: _EmailForm(
@@ -147,7 +140,7 @@ class _EmailForm extends HookWidget {
         child: Column(
           children: [
             // Spacing for the label of Subject Dropdown field (when selected)
-            const SizedBox(height: Spacing.px8),
+            const SizedBox(height: S.s8),
 
             // Subject Dropdown
             DropdownButtonFormField<String>(
@@ -164,7 +157,7 @@ class _EmailForm extends HookWidget {
               onChanged: (value) => selectedSubject.value = value,
               validator: (value) => _validateSubject(value, loc),
             ),
-            const SizedBox(height: Spacing.px16),
+            const SizedBox(height: S.s16),
 
             // Email Body
             TextFormField(
@@ -177,7 +170,7 @@ class _EmailForm extends HookWidget {
               onSaved: (value) => body.value = value ?? "",
               validator: (value) => _validateBody(value, loc),
             ),
-            const SizedBox(height: Spacing.px8),
+            const SizedBox(height: S.s8),
 
             // Include logs checkbox
             GestureDetector(
@@ -192,7 +185,9 @@ class _EmailForm extends HookWidget {
                         child: SizedBox(
                           width: 18,
                           height: 18,
-                          child: CircularProgressIndicator(strokeWidth: 2),
+                          child: CircularProgressIndicator(
+                            strokeWidth: StrokeWidth.px2,
+                          ),
                         ),
                       ),
                     )
@@ -207,17 +202,17 @@ class _EmailForm extends HookWidget {
                 ],
               ),
             ),
-            const SizedBox(height: Spacing.px8),
+            const SizedBox(height: S.s8),
 
             // Submit Button
             Opacity(
-              opacity: isUploadingLogs.value ? 0.4 : 1.0,
+              opacity: isUploadingLogs.value ? Alpha.a40 : 1.0,
               child: OutlinedButton(
                 style: const ButtonStyle(
                   shape: WidgetStatePropertyAll(
                     RoundedRectangleBorder(
                       borderRadius: BorderRadius.all(
-                        Radius.circular(Spacing.px12),
+                        Radius.circular(CornerRadius.px12),
                       ),
                     ),
                   ),
@@ -238,7 +233,7 @@ class _EmailForm extends HookWidget {
                       },
                 child: Text(
                   loc.contactUsScreen_composeEmail,
-                  style: TextStyle(fontSize: LabelFontSize.base.size),
+                  style: typeScale.body.regular.style(),
                 ),
               ),
             ),
@@ -295,6 +290,6 @@ class _UrlLauncher implements UrlLauncher {
 }
 
 const _outlineInputBorder = OutlineInputBorder(
-  borderRadius: BorderRadius.all(Radius.circular(Spacing.px16)),
+  borderRadius: BorderRadius.all(Radius.circular(CornerRadius.px16)),
   borderSide: BorderSide(width: 0, style: BorderStyle.none),
 );
