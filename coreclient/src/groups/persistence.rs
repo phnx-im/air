@@ -6,7 +6,7 @@ use std::ops::Deref;
 
 use aircommon::{
     codec::{BlobDecoded, BlobEncoded, PersistenceCodec},
-    credentials::{GroupStorageWitness, UserCredential, VerifiableUserCredential},
+    credentials::{GroupStorageWitness, LeafCredential, UserCredential},
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     identifiers::UserId,
     time::TimeStamp,
@@ -23,6 +23,7 @@ use tracing::error;
 use crate::{
     ChatId,
     chats::messages::TimestampedMessage,
+    clients::own_client_info::OwnClientInfo,
     db::access::{ReadConnection, WriteConnection, WriteDbTransaction},
     groups::apq_group::PqGroup,
     utils::persistence::{GroupIdRefWrapper, GroupIdWrapper},
@@ -43,7 +44,11 @@ struct SqlGroup {
 }
 
 impl SqlGroup {
-    fn augment(self, connection: &mut SqliteConnection) -> sqlx::Result<Option<Group>> {
+    fn augment(
+        self,
+        connection: &mut SqliteConnection,
+        own_user_id: UserId,
+    ) -> sqlx::Result<Option<Group>> {
         // TODO: Most likely we want to amortize this loading
         let Some(mls_group) = MlsGroup::load(
             AirOpenMlsProvider::new(connection).storage(),
@@ -64,10 +69,15 @@ impl SqlGroup {
         } else {
             None
         };
-        Ok(Some(self.into_group(mls_group, pq_mls_group)))
+        Ok(Some(self.into_group(mls_group, pq_mls_group, own_user_id)))
     }
 
-    fn into_group(self, mls_group: MlsGroup, pq_mls_group: Option<MlsGroup>) -> Group {
+    fn into_group(
+        self,
+        mls_group: MlsGroup,
+        pq_mls_group: Option<MlsGroup>,
+        own_user_id: UserId,
+    ) -> Group {
         let Self {
             group_id: _,
             pq_group_id: _,
@@ -90,9 +100,8 @@ impl SqlGroup {
             let members: Vec<_> = mls_group
                 .members()
                 .map(|m| -> anyhow::Result<_> {
-                    let credential =
-                        VerifiableUserCredential::from_basic_credential(&m.credential)?;
-                    Ok(credential.user_id().tls_serialize_detached()?)
+                    let credential = LeafCredential::from_credential(&m.credential)?;
+                    Ok(credential.user_id(&own_user_id).tls_serialize_detached()?)
                 })
                 .filter_map(|res| {
                     res.inspect_err(|error| {
@@ -120,6 +129,7 @@ impl SqlGroup {
             pq,
             pending_commit_failed,
             send_message_collision_key: None,
+            own_user_id,
         }
     }
 }
@@ -295,12 +305,24 @@ impl Group {
             .map(VerifiedGroup))
     }
 
+    /// Resolve the own user id and finish loading `sql_group`.
+    async fn finish_load(
+        sql_group: Option<SqlGroup>,
+        mut connection: impl ReadConnection,
+    ) -> sqlx::Result<Option<Self>> {
+        let Some(sql_group) = sql_group else {
+            return Ok(None);
+        };
+        let own_user_id = OwnClientInfo::load_user_id(&mut connection).await?;
+        sql_group.augment(connection.as_mut(), own_user_id)
+    }
+
     pub(crate) async fn load(
         mut connection: impl ReadConnection,
         group_id: &GroupId,
     ) -> sqlx::Result<Option<Self>> {
         let group_id = GroupIdRefWrapper::from(group_id);
-        let Some(sql_group) = query_as!(
+        let sql_group = query_as!(
             SqlGroup,
             r#"SELECT
                 g.group_id AS "group_id: _",
@@ -319,11 +341,8 @@ impl Group {
             group_id
         )
         .fetch_optional(connection.as_mut())
-        .await?
-        else {
-            return Ok(None);
-        };
-        sql_group.augment(connection.as_mut())
+        .await?;
+        Self::finish_load(sql_group, connection).await
     }
 
     /// Same as [`Self::load()`], but load the group via the corresponding chat.
@@ -331,7 +350,7 @@ impl Group {
         mut connection: impl ReadConnection,
         chat_id: ChatId,
     ) -> sqlx::Result<Option<Self>> {
-        let Some(sql_group) = query_as!(
+        let sql_group = query_as!(
             SqlGroup,
             r#"SELECT
                 g.group_id AS "group_id: _",
@@ -351,11 +370,8 @@ impl Group {
             chat_id
         )
         .fetch_optional(connection.as_mut())
-        .await?
-        else {
-            return Ok(None);
-        };
-        sql_group.augment(connection.as_mut())
+        .await?;
+        Self::finish_load(sql_group, connection).await
     }
 
     /// Same as [`Self::load()`], but load the group via the connection chat of the given user.
@@ -365,7 +381,7 @@ impl Group {
     ) -> sqlx::Result<Option<Self>> {
         let user_uuid = user_id.uuid();
         let user_domain = user_id.domain();
-        let Some(sql_group) = query_as!(
+        let sql_group = query_as!(
             SqlGroup,
             r#"SELECT
                 g.group_id AS "group_id: _",
@@ -386,11 +402,8 @@ impl Group {
             user_domain,
         )
         .fetch_optional(connection.as_mut())
-        .await?
-        else {
-            return Ok(None);
-        };
-        sql_group.augment(connection.as_mut())
+        .await?;
+        Self::finish_load(sql_group, connection).await
     }
 
     /// Stores a group update.

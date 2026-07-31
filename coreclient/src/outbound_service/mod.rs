@@ -33,6 +33,7 @@ pub use timed_tasks::{APQ_KEY_PACKAGES, KEY_PACKAGES};
 mod chat_message_queue;
 mod chat_messages;
 mod error;
+mod key_packages;
 mod profile;
 mod push_tokens;
 mod reaction_queue;

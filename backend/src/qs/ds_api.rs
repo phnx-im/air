@@ -3,14 +3,16 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    crypto::hpke::HpkeDecryptable, identifiers::ClientConfig, messages::AirProtocolVersion,
+    crypto::hpke::HpkeDecryptable,
+    identifiers::{ClientConfig, QsClientId},
+    messages::AirProtocolVersion,
 };
 use tls_codec::Serialize;
 use tracing::error;
 
 use crate::{
     messages::{
-        intra_backend::DsFanOutMessage,
+        intra_backend::{DsFanOutMessage, DsFanOutPayload},
         qs_qs::{QsToQsMessage, QsToQsPayload},
     },
     qs::errors::EnqueueError,
@@ -39,6 +41,7 @@ impl Qs {
     ) -> Result<(), QsEnqueueError<N>> {
         let own_domain = self.domain.clone();
         if message.client_reference.client_homeserver_domain != own_domain {
+            // Federated message
             let qs_to_qs_message = QsToQsMessage {
                 protocol_version: AirProtocolVersion::Alpha,
                 sender: own_domain.clone(),
@@ -63,6 +66,7 @@ impl Qs {
                     }
                 })?
         } else {
+            // Local message
             let decryption_key = StorableClientIdDecryptionKey::load(&self.db_pool)
                 .await
                 .map_err(|_| QsEnqueueError::StorageError)?
@@ -94,31 +98,52 @@ impl Qs {
             } else {
                 vec![client_config.client_id]
             };
+
+            // Clients that should be notified with a push notification.
+            let mut clients_to_notify = Vec::new();
+
             for qs_client_id in client_ids {
-                match QsClientRecord::enqueue(
-                    &self.db_pool,
-                    qs_client_id,
-                    self.queues(),
-                    push_notification_provider,
-                    &message.payload,
-                    push_token_ear_key.as_ref(),
-                )
-                .await
+                match self
+                    .enqueue_in_own_transaction(qs_client_id, &message.payload)
+                    .await
                 {
-                    Ok(()) => (),
+                    Ok(client_record) => clients_to_notify.extend(client_record),
                     Err(EnqueueError::ClientNotFound) => {
                         // Sibling was soft-deleted mid fan-out => drop silently
                     }
                     Err(error) => {
                         error!(
-                            %error,
-                            %qs_client_id, "Failed to enqueue message; message will be lost"
+                            %error, %qs_client_id,
+                            "Failed to enqueue message; message will be lost"
                         );
                     }
                 }
             }
+
+            for client_record in clients_to_notify {
+                client_record
+                    .send_push_notification(
+                        &self.db_pool,
+                        push_notification_provider,
+                        push_token_ear_key.as_ref(),
+                    )
+                    .await;
+            }
         }
         Ok(())
+    }
+
+    /// Enqueues a message for a single client in its own transaction.
+    async fn enqueue_in_own_transaction(
+        &self,
+        client_id: QsClientId,
+        payload: &DsFanOutPayload,
+    ) -> Result<Option<QsClientRecord>, EnqueueError> {
+        let mut txn = self.db_pool.begin().await?;
+        let client_record =
+            QsClientRecord::enqueue(&mut txn, client_id, self.queues(), payload).await?;
+        txn.commit().await?;
+        Ok(client_record)
     }
 }
 

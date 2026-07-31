@@ -1301,7 +1301,7 @@ mod tests {
         assert_matches,
         credentials::{keys::ClientSigningKey, test_utils::create_test_credentials},
         crypto::aead::keys::IdentityLinkWrapperKey,
-        identifiers::{QualifiedGroupId, UserId},
+        identifiers::{QsClientId, QsUserId, QualifiedGroupId, UserId},
         mls_group_config::AppComponent,
     };
     use airprotos::{
@@ -1312,8 +1312,8 @@ mod tests {
     use uuid::Uuid;
 
     use crate::{
-        ChatAttributes, db::access::DbAccess, groups::GroupDataBytes,
-        utils::persistence::open_db_in_memory,
+        ChatAttributes, clients::own_client_info::OwnClientInfo, db::access::DbAccess,
+        groups::GroupDataBytes, utils::persistence::open_db_in_memory,
     };
 
     use super::*;
@@ -1332,12 +1332,24 @@ mod tests {
     async fn setup_self_group_settings_op()
     -> anyhow::Result<(DbAccess, PendingChatOperation, ClientSigningKey)> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
-        let (_aic_sk, signing_key) =
-            create_test_credentials(UserId::random("example.com".parse()?));
+        let user_id = UserId::random("example.com".parse()?);
+        let (_aic_sk, signing_key) = create_test_credentials(user_id.clone());
 
         let mut connection = pool.write().await?;
         let job = connection
             .with_transaction(async |txn| -> anyhow::Result<_> {
+                // Loading a group resolves the owner's identity, which requires an
+                // own_client_info row.
+                OwnClientInfo {
+                    qs_user_id: QsUserId::random(),
+                    qs_client_id: QsClientId::random(&mut rand::rng()),
+                    user_id: user_id.clone(),
+                    client_id: Uuid::new_v4(),
+                    self_group_id: None,
+                    self_group_signing_key: None,
+                }
+                .store(&mut *txn)
+                .await?;
                 let t_group_id = GroupId::from(QualifiedGroupId::new(
                     Uuid::new_v4(),
                     "example.com".parse()?,
@@ -1482,6 +1494,18 @@ mod tests {
         )?;
         group.store(&mut connection).await?;
         let group = VerifiedGroup::new_for_test(group);
+
+        // Loading a group resolves the owner's identity, which requires an own_client_info row.
+        OwnClientInfo {
+            qs_user_id: QsUserId::random(),
+            qs_client_id: QsClientId::random(&mut rand::rng()),
+            user_id: user_id.clone(),
+            client_id: Uuid::new_v4(),
+            self_group_id: None,
+            self_group_signing_key: None,
+        }
+        .store(&mut connection)
+        .await?;
 
         let chat = Chat::new_group_chat(
             group_id.clone(),
