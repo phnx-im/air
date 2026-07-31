@@ -461,10 +461,17 @@ void main() {
   });
 
   group('AnchoredList frame safety', () {
-    // Sending shifts every index while the composer collapses and the image
-    // decodes. Each changes maxScrollExtent mid-layout, which used to
-    // dispatch a scroll notification we handled against a half-laid-out
-    // sliver.
+    // Three things have to land on one frame: an insert at index 0 (which
+    // shifts every live child's index), a height change applied during the
+    // viewport's own layout, and a settling ballistic scroll. The settle is
+    // what dispatches a ScrollEndNotification from inside layout, and
+    // handling it there read a half-laid-out sliver, whose moved children
+    // still have a null layoutOffset.
+    //
+    // Images are the common trigger because their row resolves its real
+    // height a frame or more after the insert, at a time nothing
+    // coordinates -- so it can coincide with a settle. A text row is at its
+    // final height on the insert frame itself.
     Widget buildResizingSubject({
       required AnchoredListData<int> data,
       required AnchoredListController controller,
@@ -498,64 +505,65 @@ void main() {
       );
     }
 
-    testWidgets(
-      'sending a tall item at the oldest edge keeps the frame valid',
-      (tester) async {
-        tester.view.physicalSize = const Size(400, 600);
-        tester.view.devicePixelRatio = 1.0;
-        addTearDown(() {
-          tester.view.resetPhysicalSize();
-          tester.view.resetDevicePixelRatio();
-        });
+    testWidgets('sending an image while the list is still settling', (
+      tester,
+    ) async {
+      tester.view.physicalSize = const Size(400, 600);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
 
-        final heights = <int, double>{for (var i = 0; i < 3000; i++) i: 40.0};
-        for (var i = 0; i < 3000; i += 9) {
-          heights[i] = 900.0;
-        }
-        final data = AnchoredListData<int>(List.generate(3000, (i) => i));
-        final controller = AnchoredListController();
-        final bottomPadding = ValueNotifier<double>(80);
-        addTearDown(bottomPadding.dispose);
+      final heights = <int, double>{for (var i = 0; i < 3000; i++) i: 40.0};
+      for (var i = 0; i < 3000; i += 9) {
+        heights[i] = 900.0;
+      }
+      final data = AnchoredListData<int>(List.generate(3000, (i) => i));
+      final controller = AnchoredListController();
+      // Insets stay constant: the row's own decode is the only dimension
+      // change, so nothing here depends on the composer.
+      final bottomPadding = ValueNotifier<double>(80);
+      addTearDown(bottomPadding.dispose);
 
-        await tester.pumpWidget(
-          buildResizingSubject(
-            data: data,
-            controller: controller,
-            heights: heights,
-            bottomPadding: bottomPadding,
-            viewportHeight: 600,
-          ),
-        );
-        await tester.pumpAndSettle();
+      await tester.pumpWidget(
+        buildResizingSubject(
+          data: data,
+          controller: controller,
+          heights: heights,
+          bottomPadding: bottomPadding,
+          viewportHeight: 600,
+        ),
+      );
+      await tester.pumpAndSettle();
 
-        // Scrolled to the oldest loaded message: in a reversed list that puts
-        // pixels at maxScrollExtent, so physics clamps on every layout pass.
-        controller.position!.jumpTo(controller.position!.maxScrollExtent);
-        await tester.pumpAndSettle();
+      // Flick upward and leave the list coasting, so the frames below land
+      // while a ballistic activity is still settling.
+      await tester.fling(
+        find.byType(CustomScrollView),
+        const Offset(0, 300),
+        800,
+      );
+      await tester.pump(const Duration(milliseconds: 40));
 
-        for (var n = 0; n < 10; n++) {
-          final id = 3000 + n;
-          // Composer grows with the attachment preview.
-          bottomPadding.value = 240;
-          data.insert(0, id);
-          heights[id] = 30; // placeholder, before the image decodes
-          await tester.pump();
-          expect(tester.takeException(), isNull, reason: 'insert $n');
+      for (var n = 0; n < 12; n++) {
+        final id = 3000 + n;
+        data.insert(0, id);
+        heights[id] = 30; // placeholder, before the image decodes
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(tester.takeException(), isNull, reason: 'insert $n');
 
-          // The image decodes: the row grows and the composer collapses back.
-          heights[id] = 460;
-          bottomPadding.value = 80;
-          await tester.pump();
-          expect(tester.takeException(), isNull, reason: 'decode $n');
-        }
-      },
-    );
+        heights[id] = 700; // decoded, at its real height
+        await tester.pump(const Duration(milliseconds: 16));
+        expect(tester.takeException(), isNull, reason: 'decode $n');
+      }
+    });
 
     testWidgets('stays valid when padding exceeds the viewport', (
       tester,
     ) async {
-      // Keyboard open plus an image preview in the composer can make the
-      // combined insets taller than the remaining viewport.
+      // bottomPadding tracks the composer, so the keyboard opening can leave
+      // the combined insets taller than the remaining viewport.
       tester.view.physicalSize = const Size(400, 320);
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {
