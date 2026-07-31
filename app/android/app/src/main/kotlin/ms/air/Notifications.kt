@@ -179,8 +179,8 @@ class Notifications {
     companion object JniNotifications {
         const val CHANNEL_ID = "Chats"
         private const val NOTIFICATION_ID = 0
-        private const val GROUP_KEY = "ms.air.CHATS"
-        private const val SUMMARY_TAG = "ms.air.summary"
+        private const val GROUP_KEY = "chats"
+        private const val SUMMARY_TAG = "summary"
 
         const val SELECT_NOTIFICATION: String = "SELECT_NOTIFICATION"
 
