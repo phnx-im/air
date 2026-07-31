@@ -29,7 +29,7 @@ use crate::{
     chats::{GroupDataExt, messages::TimestampedMessage},
     clients::{
         CoreUser, api_clients::ApiClients, own_client_info::OwnClientInfo,
-        update_key::update_chat_attributes,
+        update_key::update_chat_attributes, user_settings::SettingChanges,
     },
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{

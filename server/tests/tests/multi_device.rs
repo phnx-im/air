@@ -135,41 +135,6 @@ async fn self_chat_id(user: &CoreUser) -> ChatId {
 #[tracing::instrument(name = "Test multi-device linking session", skip_all)]
 async fn multi_device_linking_session() {
     let mut setup = TestBackend::single().await;
-    let domain = setup.domain().clone();
-    let server_url = setup.server_url();
-
-    let (session_tx, mut session_rx) = tokio::sync::mpsc::channel(1);
-
-    let new_device_task = tokio::spawn(async move {
-        // Fresh device: its own (temporary) database location.
-        let tmp = TempDir::new().unwrap();
-        let db_path = tmp.path().to_str().unwrap();
-        let new_device =
-            CoreUser::multi_device_provision_client(db_path, domain, Some(server_url), session_tx)
-                .await
-                .unwrap();
-        // Keep `tmp` alive until the CoreUser is returned.
-        (new_device, tmp)
-    });
-
-    let session_id = recv_session_id(&mut session_rx).await;
-
-    // The old device scans/types the session ID and drives linking.
-    setup
-        .get_user(user_id)
-        .user()
-        .multi_device_link_client(session_id, ignore_connected(), auto_confirm())
-        .await
-        .unwrap()
-        .unwrap();
-
-    new_device_task.await.unwrap()
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
-#[tracing::instrument(name = "Test multi-device linking session", skip_all)]
-async fn multi_device_linking_session() {
-    let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
 
     let (new_device, _tmp) = link_new_device(&setup, &alice).await;
@@ -271,8 +236,6 @@ async fn multi_device_link_with_nonexistent_session_id() {
     ));
 }
 
-// A session can only be claimed once; a second link attempt on the same session ID
-// must fail even when called by the same user.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Test second link attempt returns error", skip_all)]
 async fn multi_device_second_link_attempt_returns_error() {
