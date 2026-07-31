@@ -247,6 +247,7 @@ impl OutboundServiceContext {
 
         match task_kind {
             TimedTaskKind::KeyPackageUpload => Box::pin(self.upload_key_packages()).await,
+            TimedTaskKind::KeyPackageUpload => self.upload_key_packages().await,
             TimedTaskKind::UsernameRefresh => self.refresh_usernames().await,
             TimedTaskKind::SelfUpdate => self.self_update(run_token).await,
             TimedTaskKind::TokenReplenishment { operation_type } => {

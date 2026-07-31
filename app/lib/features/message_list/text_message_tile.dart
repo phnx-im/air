@@ -29,7 +29,6 @@ import 'package:air/ds/patterns/context_menu/context_menu_item.dart';
 import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
 import 'package:air/ds/foundations/icons.dart';
 import 'package:air/ds/foundations/type_scale.dart';
-import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/platform/haptics.dart';
@@ -413,16 +412,11 @@ class _MessageView extends HookWidget {
     // quick-reaction strip, whose barrier stays alive underneath so the dim
     // doesn't flicker.
     Future<void> openFullEmojiPicker({Color? barrierColor}) async {
-      // Capture cubits before the await so the picker can persist tone changes.
+      // Capture the cubit before the await so the picker can persist tone
+      // changes.
       final settings = context.read<UserSettingsCubit>();
-      final userCubit = context.read<UserCubit>();
       void onSkinToneChanged(EmojiSkinVariation tone) {
-        unawaited(
-          settings.setDefaultEmojiSkinTone(
-            userCubit: userCubit,
-            value: tone.index,
-          ),
-        );
+        unawaited(settings.setDefaultEmojiSkinTone(value: tone.index));
       }
 
       final emoji = isMobilePlatform

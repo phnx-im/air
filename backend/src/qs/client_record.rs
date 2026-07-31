@@ -290,8 +290,7 @@ pub(crate) mod persistence {
         ///   active.
         ///
         /// The client ids are ordered ascending. Callers lock the client records in that order
-        /// (see `load_for_update`), which keeps the lock order consistent with the staged key
-        /// package promote and avoids deadlocks between the two.
+        /// (see `load_for_update`), which keeps the lock order consistent and avoids deadlocks.
         pub(in crate::qs) async fn load_client_ids(
             connection: impl PgExecutor<'_>,
             client_id: &QsClientId,

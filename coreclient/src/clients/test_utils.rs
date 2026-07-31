@@ -217,6 +217,14 @@ impl CoreUser {
         Ok(Resync::is_pending_for_chat(connection, &chat_id).await?)
     }
 
+    /// Whether any setting changes are still waiting to be synchronized.
+    pub async fn has_pending_setting_changes(&self) -> anyhow::Result<bool> {
+        use crate::clients::user_settings::SettingChanges;
+        Ok(SettingChanges::load(self.db().read().await?)
+            .await?
+            .is_some())
+    }
+
     /// Returns (operation_type, request_status, number_of_attempts) for the
     /// pending chat operation of the given chat, if any.
     pub async fn pending_chat_operation_info(

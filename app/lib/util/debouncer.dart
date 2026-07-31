@@ -11,13 +11,29 @@ class Debouncer {
 
   final Duration delay;
   Timer? _timer;
+  VoidCallback? _pending;
 
   void run(VoidCallback action) {
     _timer?.cancel();
-    _timer = Timer(delay, action);
+    _pending = action;
+    _timer = Timer(delay, () {
+      _pending = null;
+      action();
+    });
+  }
+
+  /// Runs a pending action right away instead of waiting out the delay.
+  ///
+  /// A no-op when nothing is pending. Use this on dispose when the action
+  /// must not be dropped.
+  void flush() {
+    final pending = _pending;
+    dispose();
+    pending?.call();
   }
 
   void dispose() {
     _timer?.cancel();
+    _pending = null;
   }
 }

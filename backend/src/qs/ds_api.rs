@@ -105,10 +105,11 @@ impl Qs {
             let mut clients_to_notify = Vec::new();
 
             match &message.virtual_client_hint {
-                // Promote staged key packages
+                // Promote staged key packages: a special case of a fan-out which must be atomic.
+                // That's why we bundle the promotion and fan-out in the same transaction.
                 //
-                // A special cas of the fan-out which must be atomic. Self-group commits are never
-                // broadcast, so in practice this transaction covers a single queue.
+                // Note: Self-group commits are never broadcast, so in practice this transaction
+                // covers only a single enqueue.
                 Some(QsVirtualClientHint::PromoteStagedKeyPackages(batch_id)) => {
                     let mut txn = self
                         .db_pool
@@ -116,8 +117,8 @@ impl Qs {
                         .await
                         .map_err(|_| QsEnqueueError::StorageError)?;
 
-                    // Promote before the fan-out: the user record lock taken by the promote is
-                    // the root of this transaction's lock order.
+                    // Promote before the fan-out: the user record lock taken by the promote is the
+                    // root of this transaction's lock order.
                     Self::promote_staged_key_packages(&mut txn, &client_config.client_id, batch_id)
                         .await?;
 
@@ -134,8 +135,8 @@ impl Qs {
                             Err(EnqueueError::ClientNotFound) => {
                                 // Sibling was soft-deleted mid fan-out => drop silently
                             }
-                            // Anything else aborted the transaction, so the promote is rolled
-                            // back with it. The acting emulator gets no echo and retries.
+                            // Anything else aborted the transaction, so the promote is rolled back
+                            // with it. The acting emulator gets no echo and retries.
                             Err(error) => {
                                 error!(
                                     %error, %qs_client_id,
@@ -150,6 +151,7 @@ impl Qs {
                         .await
                         .map_err(|_| QsEnqueueError::StorageError)?;
                 }
+                // The usual fan-out: enqueue message for each client in its own transaction.
                 None => {
                     for qs_client_id in client_ids {
                         match self
@@ -171,6 +173,7 @@ impl Qs {
                 }
             }
 
+            // Send push notifications for clients that should be notified.
             for client_record in clients_to_notify {
                 client_record
                     .send_push_notification(

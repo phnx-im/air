@@ -12,7 +12,6 @@ import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/primitives.dart';
 import 'package:air/ds/foundations/color_scheme.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
-import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/ds/foundations/spacing.dart';
@@ -131,17 +130,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                     title: const Text("Enable experimental features"),
                     value: isDeveloper,
                     onChanged: (value) {
-                      UserCubit? userCubit;
-                      // in the context where the app is fresh, we don't
-                      // have a UserCubit, but we might still want to toggle
-                      // the feature flags in transient fashion.
-                      try {
-                        userCubit = context.read<UserCubit>();
-                        // ignore: empty_catches
-                      } on ProviderNotFoundException {}
-
                       context.read<UserSettingsCubit>().setIsDeveloper(
-                        userCubit: userCubit,
                         value: value,
                       );
                     },

@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                epoch AS \"epoch!: i64\",\n                key AS \"key!: SelfGroupMessageKey\"\n            FROM self_group_message_key\n            WHERE group_id = ?",
+  "describe": {
+    "columns": [
+      {
+        "name": "epoch!: i64",
+        "ordinal": 0,
+        "type_info": "Integer",
+        "origin": {
+          "Table": {
+            "table": "self_group_message_key",
+            "name": "epoch"
+          }
+        }
+      },
+      {
+        "name": "key!: SelfGroupMessageKey",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "self_group_message_key",
+            "name": "key"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 1
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "cb7f6073465a99fbc16d1be6c5b51f7ac64132b7af42532b3096be8d6d6edc6d"
+}
