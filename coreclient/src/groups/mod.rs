@@ -109,7 +109,6 @@ use openmls::{
         CreateCommitError, ExportSecretError, ExternalCommitBuilder, GroupEpoch, JoinBuilder,
         ProcessedWelcome, ProposalValidationError, UnconfirmedMessage,
     },
-    key_packages::KeyPackageBundle,
     prelude::{
         AppDataDictionaryExtension, BasicCredentialError, Credential, CredentialType,
         CredentialWithKey, Extension, Extensions, GroupId, LeafNode, LeafNodeIndex,
@@ -182,6 +181,29 @@ impl From<(UserCredential, UserProfileKey)> for ProfileInfo {
             user_credential,
             user_profile_key,
         }
+    }
+}
+
+/// Candidate signing keys for the DS `welcome_info` lookups when joining a
+/// group. The right key is the one matching the joiner's leaf credential.
+pub(super) struct JoinSigners<'a> {
+    /// The shared client signing key. Key packages derived from a sibling's
+    /// upload always carry the shared client credential.
+    pub(super) client: &'a ClientSigningKey,
+    /// The self-group signing key, if provisioned. A freshly linked device
+    /// joins the self-group with it.
+    pub(super) self_group: Option<&'a ClientSigningKey>,
+}
+
+impl JoinSigners<'_> {
+    /// The signing key matching the given joiner leaf signature key, if any.
+    fn for_joiner_leaf(&self, signature_key: &SignaturePublicKey) -> Option<&ClientSigningKey> {
+        [Some(self.client), self.self_group]
+            .into_iter()
+            .flatten()
+            .find(|candidate| {
+                &SignaturePublicKey::from(candidate.verifying_key().clone()) == signature_key
+            })
     }
 }
 
@@ -552,29 +574,20 @@ impl Group {
         let mls_group_config = default_mls_group_join_config();
 
         let (processed_welcome, joiner_info) = {
-            // Phase 1: Fetch the right KeyPackageBundle from storage
+            // Phase 1: Resolve our key material for the welcome
             let provider = AirOpenMlsProvider::new(txn.as_mut());
-            let kpb: KeyPackageBundle = welcome_bundle
+            let key_material = welcome_bundle
                 .welcome
                 .welcome
-                .secrets()
-                .iter()
-                .find_map(|egs| {
-                    let kp_hash = egs.new_member();
-                    match provider.storage().key_package(&kp_hash) {
-                        Ok(Some(kpb)) => Some(kpb),
-                        _ => None,
-                    }
-                })
+                .resolve_own_key_material(&provider)?
                 .ok_or(GroupOperationError::MissingKeyPackage)?;
 
             // Phase 2: Process the welcome message
-            let private_key = kpb.init_private_key();
             let info = &[];
             let aad = &[];
             let decryption_key = JoinerInfoDecryptionKey::from((
-                private_key.clone(),
-                kpb.key_package().hpke_init_key().clone(),
+                key_material.init_private_key().clone(),
+                key_material.hpke_init_key().clone(),
             ));
             let joiner_info = DsJoinerInformation::decrypt(
                 welcome_bundle.encrypted_joiner_info,
@@ -623,7 +636,7 @@ impl Group {
             indexed_encrypted_user_profile_keys,
         } = welcome_info;
 
-        let (mls_group, joiner_info, welcome_attribution_info, sender_user_id) = {
+        let (mls_group, joiner_info, verifiable_attribution_info) = {
             // Phase 5: Finish processing the welcome message
             let provider = AirOpenMlsProvider::new(txn.as_mut());
             let staged_welcome = JoinBuilder::new(&provider, processed_welcome)
@@ -641,27 +654,7 @@ impl Group {
             )?
             .into_verifiable(mls_group.group_id().clone(), serialized_welcome);
 
-            let sender_user_id = verifiable_attribution_info.sender();
-            let sender_user_credential =
-                StorableUserCredential::load_by_user_id(&mut *txn, &sender_user_id)
-                    .await?
-                    .ok_or_else(|| {
-                        anyhow!("Could not find user credential of sender in database.")
-                    })?;
-
-            if BlockedContact::check_blocked(&mut *txn, &sender_user_id).await? {
-                bail!(BlockedContactError);
-            }
-
-            let welcome_attribution_info: WelcomeAttributionInfoPayload =
-                verifiable_attribution_info.verify(sender_user_credential.verifying_key())?;
-
-            (
-                mls_group,
-                joiner_info,
-                welcome_attribution_info,
-                sender_user_id,
-            )
+            (mls_group, joiner_info, verifiable_attribution_info)
         };
 
         // Self-groups are only ever joined during device linking, which uses the APQ join path.
@@ -672,6 +665,26 @@ impl Group {
 
         let credentials =
             verify_member_credentials(&mut *txn, api_clients, &mls_group, false).await?;
+
+        let sender_user_id = verifiable_attribution_info.sender();
+        let sender_user_credential =
+            match StorableUserCredential::load_by_user_id(&mut *txn, &sender_user_id).await? {
+                Some(credential) => credential,
+                // A linked device may not know the inviter yet => the inviter is a member, so use
+                // it AS-verified member credentials
+                None => credentials
+                    .iter()
+                    .find(|c| c.user_id() == &sender_user_id)
+                    .cloned()
+                    .context("sender is not a member of the group")?,
+            };
+
+        if BlockedContact::check_blocked(&mut *txn, &sender_user_id).await? {
+            bail!(BlockedContactError);
+        }
+
+        let welcome_attribution_info: WelcomeAttributionInfoPayload =
+            verifiable_attribution_info.verify(sender_user_credential.verifying_key())?;
 
         let group = Self {
             mls_group,
@@ -720,11 +733,7 @@ impl Group {
         welcome_attribution_info_ear_key: &WelcomeAttributionInfoEarKey,
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
-        // Candidate signing keys for the DS `welcome_info` lookups. We pick the
-        // one whose verifying key matches our joiner leaf below. This lets a
-        // freshly linked device use its fresh self-group key for the self-group
-        // welcome while regular groups keep using the shared client key.
-        signers: &[&ClientSigningKey],
+        signers: JoinSigners<'_>,
     ) -> Result<(Self, UserId, DecryptedProfileInfos)> {
         // Phase 1: Serialize welcome and split
         let serialized_welcome = welcome_bundle.welcome.tls_serialize_detached()?;
@@ -732,35 +741,29 @@ impl Group {
         let mls_group_config = default_mls_group_join_config();
         let t_ciphersuite = t_welcome.ciphersuite();
 
-        // Phase 2: Find KeyPackageBundles, decrypt joiner info, process PQ welcome
+        // Phase 2: Resolve T key material, decrypt joiner info, process PQ welcome
         let provider = AirOpenMlsProvider::new(txn.as_mut());
-        let t_kpb: KeyPackageBundle = t_welcome
-            .secrets()
-            .iter()
-            .find_map(|egs| {
-                let kp_hash = egs.new_member();
-                provider.storage().key_package(&kp_hash).ok().flatten()
-            })
+        let t_key_material = t_welcome
+            .resolve_own_key_material(&provider)?
             .ok_or(GroupOperationError::MissingKeyPackage)?;
 
         // The DS keys `welcome_info` on the joiner's leaf signature key, so we
-        // must sign those requests with the matching signing key.
-        let joiner_signature_key = t_kpb.key_package().leaf_node().signature_key();
-        let signer = signers
-            .iter()
-            .copied()
-            .find(|candidate| {
-                &SignaturePublicKey::from(candidate.verifying_key().clone()) == joiner_signature_key
-            })
-            .context("no candidate signing key matches the joiner leaf")?;
+        // must sign those requests with the matching signing key. A key
+        // package derived from a sibling's upload has no local KeyPackage and
+        // always carries the shared client credential.
+        let signer = match t_key_material.key_package_bundle() {
+            Some(bundle) => signers
+                .for_joiner_leaf(bundle.key_package().leaf_node().signature_key())
+                .context("no candidate signing key matches the joiner leaf")?,
+            None => signers.client,
+        };
 
         // DS joiner info is encrypted with the T-key package private key
-        let private_key = t_kpb.init_private_key();
         let info = &[];
         let aad = &[];
         let decryption_key = JoinerInfoDecryptionKey::from((
-            private_key.clone(),
-            t_kpb.key_package().hpke_init_key().clone(),
+            t_key_material.init_private_key().clone(),
+            t_key_material.hpke_init_key().clone(),
         ));
         let joiner_info = DsJoinerInformation::decrypt(
             welcome_bundle.encrypted_joiner_info,
@@ -860,12 +863,6 @@ impl Group {
         if BlockedContact::check_blocked(&mut *txn, &sender_user_id).await? {
             bail!(BlockedContactError);
         }
-        let sender_user_credential =
-            StorableUserCredential::load_by_user_id(&mut *txn, &sender_user_id)
-                .await?
-                .context("Unknown sender user credential")?;
-        let welcome_attribution_info: WelcomeAttributionInfoPayload =
-            verifiable_attribution_info.verify(sender_user_credential.verifying_key())?;
 
         // Phase 6: Construct and persist Group.
         //
@@ -885,6 +882,21 @@ impl Group {
         );
         let credentials =
             verify_member_credentials(txn, api_clients, &t_mls_group, is_self_group).await?;
+
+        let sender_user_credential =
+            match StorableUserCredential::load_by_user_id(&mut *txn, &sender_user_id).await? {
+                Some(credential) => credential,
+                // A linked device may not know the inviter yet => the inviter is a member, so use
+                // it AS-verified member credentials
+                None => credentials
+                    .iter()
+                    .find(|c| c.user_id() == &sender_user_id)
+                    .cloned()
+                    .context("sender is not a member of the group")?,
+            };
+        let welcome_attribution_info: WelcomeAttributionInfoPayload =
+            verifiable_attribution_info.verify(sender_user_credential.verifying_key())?;
+
         let self_updated_at = TimeStamp::now();
         let group = Self {
             identity_link_wrapper_key: welcome_attribution_info.identity_link_wrapper_key().clone(),

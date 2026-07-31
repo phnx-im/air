@@ -53,7 +53,7 @@ use crate::{
     contacts::{PartialContact, PartialContactType},
     db::access::{WriteConnection, WriteDbTransaction},
     groups::{
-        DecryptedProfileInfos, Group, GroupDataBytes, VerifiedGroup,
+        DecryptedProfileInfos, Group, GroupDataBytes, JoinSigners, VerifiedGroup,
         client_auth_info::StorableUserCredential,
         process::{ProcessMessageProcessed, ProcessMessageResult},
     },
@@ -416,19 +416,16 @@ impl CoreUser {
         // WelcomeBundle Phase 1: Join the group. This might involve loading AS credentials or
         // fetching them from the AS.
         let own_client_info = OwnClientInfo::load(&mut *txn).await?;
-        let signers =
-            if let Some(self_group_signer) = own_client_info.self_group_signing_key.as_ref() {
-                vec![self.signing_key(), self_group_signer]
-            } else {
-                vec![self.signing_key()]
-            };
-
+        let signers = JoinSigners {
+            client: self.signing_key(),
+            self_group: own_client_info.self_group_signing_key.as_ref(),
+        };
         let (group, sender_user_id, member_profile_info) = Box::pin(Group::join_apq_group(
             welcome_bundle,
             &self.inner.key_store.wai_ear_key,
             txn,
             &self.inner.api_clients,
-            &signers,
+            signers,
         ))
         .await?;
 

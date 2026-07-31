@@ -380,6 +380,11 @@ async fn multi_device_settings_sync() {
     drain_queue(old_device).await;
     drain_queue(&new_device).await;
 
+    // Initial key package upload
+    new_device.outbound_service().run_once().await;
+    drain_queue(&new_device).await;
+    drain_queue(old_device).await;
+
     // Nothing was set before linking, so the linking payload carried an empty
     // snapshot and the new device starts unset.
     assert_eq!(read_receipts(&new_device).await, None);
