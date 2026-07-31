@@ -5,6 +5,7 @@
 import 'package:air/util/anchored_list/anchored_list.dart';
 import 'package:air/util/anchored_list/controller.dart';
 import 'package:air/util/anchored_list/data.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 
@@ -455,6 +456,147 @@ void main() {
           closeTo(topPadding, 0.5),
           reason: 'item $target landed at $relativeTop, expected $topPadding',
         );
+      }
+    });
+  });
+
+  group('AnchoredList frame safety', () {
+    // Sending shifts every index while the composer collapses and the image
+    // decodes. Each changes maxScrollExtent mid-layout, which used to
+    // dispatch a scroll notification we handled against a half-laid-out
+    // sliver.
+    Widget buildResizingSubject({
+      required AnchoredListData<int> data,
+      required AnchoredListController controller,
+      required Map<int, double> heights,
+      required ValueListenable<double> bottomPadding,
+      required double viewportHeight,
+    }) {
+      return MaterialApp(
+        home: Scaffold(
+          body: SizedBox(
+            width: 400,
+            height: viewportHeight,
+            child: ValueListenableBuilder<double>(
+              valueListenable: bottomPadding,
+              builder: (context, padding, _) => AnchoredList<int>(
+                data: data,
+                controller: controller,
+                idExtractor: (item) => item,
+                canLoadOlder: false,
+                canLoadNewer: false,
+                topPadding: 100,
+                bottomPadding: padding,
+                itemBuilder: (context, item, index) => SizedBox(
+                  height: heights[item] ?? 40,
+                  child: const ColoredBox(color: Colors.blue),
+                ),
+              ),
+            ),
+          ),
+        ),
+      );
+    }
+
+    testWidgets(
+      'sending a tall item at the oldest edge keeps the frame valid',
+      (tester) async {
+        tester.view.physicalSize = const Size(400, 600);
+        tester.view.devicePixelRatio = 1.0;
+        addTearDown(() {
+          tester.view.resetPhysicalSize();
+          tester.view.resetDevicePixelRatio();
+        });
+
+        final heights = <int, double>{for (var i = 0; i < 3000; i++) i: 40.0};
+        for (var i = 0; i < 3000; i += 9) {
+          heights[i] = 900.0;
+        }
+        final data = AnchoredListData<int>(List.generate(3000, (i) => i));
+        final controller = AnchoredListController();
+        final bottomPadding = ValueNotifier<double>(80);
+        addTearDown(bottomPadding.dispose);
+
+        await tester.pumpWidget(
+          buildResizingSubject(
+            data: data,
+            controller: controller,
+            heights: heights,
+            bottomPadding: bottomPadding,
+            viewportHeight: 600,
+          ),
+        );
+        await tester.pumpAndSettle();
+
+        // Scrolled to the oldest loaded message: in a reversed list that puts
+        // pixels at maxScrollExtent, so physics clamps on every layout pass.
+        controller.position!.jumpTo(controller.position!.maxScrollExtent);
+        await tester.pumpAndSettle();
+
+        for (var n = 0; n < 10; n++) {
+          final id = 3000 + n;
+          // Composer grows with the attachment preview.
+          bottomPadding.value = 240;
+          data.insert(0, id);
+          heights[id] = 30; // placeholder, before the image decodes
+          await tester.pump();
+          expect(tester.takeException(), isNull, reason: 'insert $n');
+
+          // The image decodes: the row grows and the composer collapses back.
+          heights[id] = 460;
+          bottomPadding.value = 80;
+          await tester.pump();
+          expect(tester.takeException(), isNull, reason: 'decode $n');
+        }
+      },
+    );
+
+    testWidgets('stays valid when padding exceeds the viewport', (
+      tester,
+    ) async {
+      // Keyboard open plus an image preview in the composer can make the
+      // combined insets taller than the remaining viewport.
+      tester.view.physicalSize = const Size(400, 320);
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      final heights = <int, double>{for (var i = 0; i < 400; i++) i: 40.0};
+      for (var i = 0; i < 400; i += 9) {
+        heights[i] = 620.0;
+      }
+      final data = AnchoredListData<int>(List.generate(400, (i) => i));
+      final controller = AnchoredListController();
+      final bottomPadding = ValueNotifier<double>(240);
+      addTearDown(bottomPadding.dispose);
+
+      await tester.pumpWidget(
+        buildResizingSubject(
+          data: data,
+          controller: controller,
+          heights: heights,
+          bottomPadding: bottomPadding,
+          viewportHeight: 320,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      controller.position!.jumpTo(controller.position!.maxScrollExtent * 0.6);
+      await tester.pumpAndSettle();
+
+      for (var n = 0; n < 6; n++) {
+        final id = 400 + n;
+        data.insert(0, id);
+        heights[id] = 20;
+        await tester.pump();
+        expect(tester.takeException(), isNull, reason: 'insert $n');
+
+        heights[id] = 600;
+        bottomPadding.value = n.isEven ? 90 : 240;
+        await tester.pump();
+        expect(tester.takeException(), isNull, reason: 'decode $n');
       }
     });
   });
