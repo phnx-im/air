@@ -91,16 +91,19 @@ impl DsGroupState {
         }
     }
 
-    pub(crate) fn room_state_change_role(
+    pub(super) fn room_state_change_role(
         &mut self,
-        sender: &[u8],
-        target: Vec<u8>,
+        sender: &RoomPolicyIdentity,
+        target: RoomPolicyIdentity,
         role: RoleIndex,
     ) -> Option<()> {
-        match self
-            .room_state
-            .apply_regular_proposals(sender, &[MimiProposal::ChangeRole { target, role }])
-        {
+        match self.room_state.apply_regular_proposals(
+            &sender.0,
+            &[MimiProposal::ChangeRole {
+                target: target.0,
+                role,
+            }],
+        ) {
             Ok(_) => Some(()),
             Err(e) => {
                 error!(%e, "Change role proposal failed");
@@ -404,16 +407,25 @@ impl SerializableDsGroupStateV2 {
 /// User credentials resolve to the TLS-serialized user id. Self-group credentials carry no user
 /// identity and resolve to the raw client id bytes, which are unique per client. The two forms
 /// cannot collide: a serialized user id is always longer than the 16 client id bytes.
-///
-/// Returns `None` (and logs) if serializing the user id fails.
-pub(super) fn room_policy_identity(credential: &LeafCredential) -> Option<Vec<u8>> {
-    match credential {
-        LeafCredential::User(credential) => credential
-            .user_id()
-            .tls_serialize_detached()
-            .map_err(|error| error!(%error, "Failed to serialize user id"))
-            .ok(),
-        LeafCredential::SelfGroup(credential) => Some(credential.client_id().into_bytes().to_vec()),
+#[derive(Debug, Clone)]
+pub(super) struct RoomPolicyIdentity(Vec<u8>);
+
+impl RoomPolicyIdentity {
+    /// Derive the room-policy identity of `credential`.
+    ///
+    /// Returns `None` (and logs) if serializing the user id fails.
+    pub(super) fn from_credential(credential: &LeafCredential) -> Option<Self> {
+        match credential {
+            LeafCredential::User(credential) => credential
+                .user_id()
+                .tls_serialize_detached()
+                .map_err(|error| error!(%error, "Failed to serialize user id"))
+                .ok()
+                .map(Self),
+            LeafCredential::SelfGroup(credential) => {
+                Some(Self(credential.client_id().into_bytes().to_vec()))
+            }
+        }
     }
 }
 
@@ -429,10 +441,10 @@ fn fallback_room_state(
                 continue;
             }
         };
-        let Some(identity) = room_policy_identity(&credential) else {
+        let Some(identity) = RoomPolicyIdentity::from_credential(&credential) else {
             continue;
         };
-        member_ids.push(identity);
+        member_ids.push(identity.0);
     }
     VerifiedRoomState::fallback_room(member_ids)
 }
