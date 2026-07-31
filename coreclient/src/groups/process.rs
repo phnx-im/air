@@ -25,6 +25,7 @@ use apqmls::{
 };
 use mimi_room_policy::RoleIndex;
 use openmls::{
+    components::vc_derivation_info::VirtualClientsError,
     group::{ProcessMessageError, StageCommitError, ValidationError},
     prelude::{
         Credential, GroupId, LeafNodeIndex, MlsGroup, ProcessedMessage, ProcessedMessageContent,
@@ -110,7 +111,10 @@ impl Group {
                     return Ok(ProcessMessageResult::ResyncRequired);
                 }
                 Err(ProcessMessageError::InvalidCommit(StageCommitError::VirtualClientsError(
-                    error,
+                    error @ VirtualClientsError::MissingEmulationEpochState
+                    | error @ VirtualClientsError::MissingOperationTree
+                    | error @ VirtualClientsError::OperationGenerationConsumed
+                    | error @ VirtualClientsError::OperationGenerationTooDistant,
                 ))) => {
                     // The commit was not built against a virtual client emulation epoch we hold.
                     // Only a resync can get us back onto the same shared leaf.
