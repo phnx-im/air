@@ -102,6 +102,7 @@ impl ApqExternalCommitBuilder {
         self
     }
 
+    /// Sets the virtual-client emulation epoch.
     pub fn vc_emulation(mut self, epoch_id: EpochId) -> Self {
         self.vc_epoch_id = Some(epoch_id);
         self

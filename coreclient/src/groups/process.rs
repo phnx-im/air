@@ -25,7 +25,7 @@ use apqmls::{
 };
 use mimi_room_policy::RoleIndex;
 use openmls::{
-    group::{ProcessMessageError, ValidationError},
+    group::{ProcessMessageError, StageCommitError, ValidationError},
     prelude::{
         Credential, GroupId, LeafNodeIndex, MlsGroup, ProcessedMessage, ProcessedMessageContent,
         Proposal, ProtocolMessage, Sender, SignaturePublicKey, StagedCommit,
@@ -74,7 +74,7 @@ impl Group {
     /// Process inbound message
     ///
     /// Returns the processed message, whether the group was deleted, as well as
-    /// the sender's user credential.
+    /// the sender's user credential
     #[instrument(skip_all, fields(group_id = ?self.group_id()))]
     pub(crate) async fn process_message(
         &mut self,
@@ -107,6 +107,19 @@ impl Group {
                     }
                     // If the message epoch is in the future, we need to re-join
                     // the group.
+                    return Ok(ProcessMessageResult::ResyncRequired);
+                }
+                Err(ProcessMessageError::InvalidCommit(StageCommitError::VirtualClientsError(
+                    error,
+                ))) => {
+                    // The commit was not built against a virtual client emulation epoch we hold.
+                    // Only a resync can get us back onto the same shared leaf.
+                    //
+                    // TODO(gabriel): Like for the other desyncs, there's no automatic resyncing.
+                    error!(
+                        %error,
+                        "Cannot follow a virtual-client commit onto our shared leaf"
+                    );
                     return Ok(ProcessMessageResult::ResyncRequired);
                 }
                 Err(e) => {
@@ -731,6 +744,17 @@ impl Group {
                 }
                 // A future-epoch message means we are behind and the caller
                 // must trigger a resync.
+                return Ok(ProcessMessageResult::ResyncRequired);
+            }
+            Err(ApqProcessMessageError::Processing(ProcessMessageError::InvalidCommit(
+                StageCommitError::VirtualClientsError(error),
+            ))) => {
+                // See the T-only variant: we cannot derive the leaf a sibling
+                // emulator client replaced, so only a resync recovers.
+                error!(
+                    %error,
+                    "Cannot follow a virtual-client APQ commit onto our shared leaf"
+                );
                 return Ok(ProcessMessageResult::ResyncRequired);
             }
             Err(e) => {
