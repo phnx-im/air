@@ -815,7 +815,12 @@ impl Group {
                 return Ok(ProcessMessageResult::ResyncRequired);
             }
             Err(ApqProcessMessageError::Processing(ProcessMessageError::InvalidCommit(
-                StageCommitError::VirtualClientsError(error),
+                StageCommitError::VirtualClientsError(
+                    error @ VirtualClientsError::MissingEmulationEpochState
+                    | error @ VirtualClientsError::MissingOperationTree
+                    | error @ VirtualClientsError::OperationGenerationConsumed
+                    | error @ VirtualClientsError::OperationGenerationTooDistant,
+                ),
             ))) => {
                 // See the T-only variant: we cannot derive the leaf a sibling
                 // emulator client replaced, so only a resync recovers.
