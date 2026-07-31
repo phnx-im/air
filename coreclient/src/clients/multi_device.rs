@@ -110,7 +110,7 @@ pub(crate) struct ProvisioningPackage {
 #[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct HigherLevelGroup {
     pub(crate) group_id: GroupId,
-    pub(crate) pq_group_id: Option<GroupId>, // TODO(gabriel): apqmls needs support for this to work
+    pub(crate) pq_group_id: Option<GroupId>,
     pub(crate) group_state_ear_key: GroupStateEarKey,
     pub(crate) identity_link_wrapper_key: IdentityLinkWrapperKey,
     pub(crate) vc_leaf_index: u32,
