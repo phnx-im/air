@@ -21,30 +21,42 @@ void main() {
     expect(cache.getHeight(2), 50);
   });
 
-  test('dampens extent estimate changes after warmup', () {
-    final cache = AnchoredListHeightCache(
-      defaultHeight: 50,
-      estimateWarmupSamples: 3,
-      estimateSmoothingFactor: 0.25,
-    );
+  test('damps a tall outlier across the estimate window', () {
+    final cache = AnchoredListHeightCache(defaultHeight: 50);
 
-    cache.setHeight(1, 100);
-    cache.setHeight(2, 100);
-    cache.setHeight(3, 100);
+    for (var id = 0; id < 100; id++) {
+      cache.setHeight(id, 100);
+    }
     expect(cache.averageHeight, 100);
 
-    cache.setHeight(4, 500);
+    // One image among a hundred text rows barely moves the estimate.
+    cache.setHeight(100, 500);
+    expect(cache.averageHeight, closeTo(103.96, 0.01));
+  });
 
-    // The raw historical average would jump to 200 here. We damp the update
-    // so the scrollbar estimate changes more gradually as new items are
-    // measured during scrolling.
-    expect(cache.averageHeight, 125);
+  test('re-measuring the same heights leaves the average unchanged', () {
+    // Heights are recorded during layout, and layout can run several passes
+    // per frame over the same children. If re-measuring moved the average,
+    // the scroll extent estimate would differ between passes of one frame
+    // and the viewport would keep correcting itself.
+    final cache = AnchoredListHeightCache(defaultHeight: 50);
+
+    for (var id = 0; id < 20; id++) {
+      cache.setHeight(id, id.isEven ? 40 : 900);
+    }
+    final afterFirstPass = cache.averageHeight;
+
+    for (var pass = 0; pass < 5; pass++) {
+      for (var id = 0; id < 20; id++) {
+        cache.setHeight(id, id.isEven ? 40 : 900);
+      }
+      expect(cache.averageHeight, afterFirstPass);
+    }
   });
 
   test('caps retained historical estimates', () {
     final cache = AnchoredListHeightCache(
       defaultHeight: 50,
-      estimateWarmupSamples: 10,
       maxRetainedEstimates: 2,
     );
 
