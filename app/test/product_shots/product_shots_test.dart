@@ -11,7 +11,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/primitives.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/navigation/app_tab_bar.dart';
 import 'package:air/features/home/home_screen.dart';
 import 'package:air/features/user/user_cubit.dart';

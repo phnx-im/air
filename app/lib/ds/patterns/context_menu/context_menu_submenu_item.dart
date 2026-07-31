@@ -7,10 +7,7 @@ import 'dart:math' as math;
 
 import 'package:air/ds/patterns/context_menu/context_menu_item.dart';
 import 'package:air/ds/patterns/context_menu/context_menu_surface.dart';
-import 'package:air/ds/foundations/type_scale.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/semantic_colors.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 

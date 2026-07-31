@@ -21,7 +21,7 @@ import 'package:air/features/onboarding/invitation_code_screen.dart';
 import 'package:air/features/onboarding/sign_up_screen.dart';
 import 'package:air/features/onboarding/username_onboarding_screen.dart';
 import 'package:air/features/onboarding/multi_device_provision_screen.dart';
-import 'package:air/ds/foundations/breakpoint.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/you/you_screen.dart';
 import 'package:air/core/core.dart';
 

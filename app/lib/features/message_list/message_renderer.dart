@@ -7,13 +7,8 @@ import 'dart:typed_data';
 
 import 'package:air/core/api/markdown.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/primitives.dart';
-import 'package:air/ds/foundations/semantic_colors.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/type_scale.dart';
-import 'package:air/ds/foundations/monospace.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:air/features/emoji/jumbo_emoji.dart';

@@ -2,17 +2,13 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/ds/foundations/effects.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/emoji/emoji_repository.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 import 'package:air/ds/components/button_icon/glass_circle_button.dart';
 import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
-import 'package:air/ds/foundations/type_scale.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/semantic_colors.dart';
-import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/platform/haptics.dart';
 
 import 'package:air/ds/components/emoji/centered_emoji.dart';

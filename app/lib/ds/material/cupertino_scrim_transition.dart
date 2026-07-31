@@ -4,7 +4,7 @@
 
 import 'package:flutter/cupertino.dart';
 import 'package:flutter/material.dart';
-import 'package:air/ds/foundations/dimensions.dart';
+import 'package:air/ds/foundations/foundations.dart';
 
 /// [PageTransitionsBuilder] that mirrors [CupertinoPageTransitionsBuilder] and
 /// adds a translucent scrim over the outgoing route, because Cupertino's native

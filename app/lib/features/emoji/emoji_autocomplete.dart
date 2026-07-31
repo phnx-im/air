@@ -6,9 +6,7 @@ import 'dart:async';
 
 import 'package:air/features/emoji/emoji_data.dart';
 import 'package:air/features/emoji/emoji_repository.dart';
-import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/semantic_colors.dart';
-import 'package:air/ds/foundations/type_scale.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/message_list/widgets/suggestion_overlay.dart';
 import 'package:air/features/message_list/widgets/text_autocomplete.dart';
 import 'package:flutter/material.dart';

@@ -4,8 +4,7 @@
 
 import 'dart:async';
 import 'dart:math' as math;
-import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/semantic_colors.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:flutter/material.dart';
 

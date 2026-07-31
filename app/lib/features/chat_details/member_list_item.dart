@@ -3,9 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/api/types.dart';
-import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/semantic_colors.dart';
-import 'package:air/ds/foundations/type_scale.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:flutter/material.dart';
 

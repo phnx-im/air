@@ -4,8 +4,7 @@
 
 import 'package:air/app.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/semantic_colors.dart';
-import 'package:air/ds/foundations/icons.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
 import 'package:logging/logging.dart';
 

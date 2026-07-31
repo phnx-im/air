@@ -5,12 +5,7 @@
 import 'package:air/core/core.dart';
 import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/foundations/breakpoint.dart';
-import 'package:air/ds/foundations/semantic_colors.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/type_scale.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/you/linked_devices_screen.dart';
 import 'package:air/features/you/invitation_codes_cubit.dart';
 import 'package:air/features/you/invitation_codes_screen.dart';

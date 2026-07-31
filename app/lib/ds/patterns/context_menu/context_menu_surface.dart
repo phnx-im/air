@@ -3,10 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:flutter/material.dart';
-import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/semantic_colors.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/context_menu/context_menu_item.dart';
-import 'package:air/ds/foundations/effects.dart';
 
 class ContextMenuSurface extends StatelessWidget {
   const ContextMenuSurface({

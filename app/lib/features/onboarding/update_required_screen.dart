@@ -5,12 +5,8 @@
 import 'dart:io';
 
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/foundations/breakpoint.dart';
-import 'package:air/ds/foundations/semantic_colors.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/constrained_width/constrained_width.dart';
-import 'package:air/ds/foundations/type_scale.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_svg/flutter_svg.dart';
 import 'package:provider/provider.dart';

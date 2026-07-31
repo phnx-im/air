@@ -2,10 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/ds/foundations/dimensions.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/material/text_theme.dart';
 import 'package:flutter/material.dart';
-import 'package:air/ds/foundations/semantic_colors.dart';
 
 // === Buttons ===
 

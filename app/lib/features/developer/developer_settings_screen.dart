@@ -9,16 +9,12 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:air/core/core.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/primitives.dart';
-import 'package:air/ds/foundations/semantic_colors.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
-import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/platform/method_channel.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
-import 'package:air/ds/foundations/icons.dart';
 import 'package:provider/provider.dart';
 
 import 'package:air/features/developer/user_debug_info_panel.dart';

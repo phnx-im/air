@@ -3,8 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:flutter/material.dart';
-import 'package:air/ds/foundations/semantic_colors.dart';
-import 'package:air/ds/foundations/dimensions.dart';
+import 'package:air/ds/foundations/foundations.dart';
 
 /// Left panel which can be resized by dragging the handle
 class ResizablePanel extends StatefulWidget {

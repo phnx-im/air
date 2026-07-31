@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:flutter/widgets.dart';
-import 'package:air/ds/foundations/dimensions.dart';
+import 'package:air/ds/foundations/foundations.dart';
 
 /// Layout tokens for the floating mobile tab bar.
 abstract final class TabBarTokens {

@@ -5,12 +5,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:air/ds/material/button_styles.dart';
-import 'package:air/ds/foundations/primitives.dart';
-import 'package:air/ds/foundations/semantic_colors.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/material/cupertino_scrim_transition.dart';
 import 'package:air/ds/material/text_theme.dart';
-import 'package:air/ds/foundations/type_scale.dart';
-import 'package:air/ds/foundations/dimensions.dart';
 
 ThemeData darkTheme = themeData(Brightness.dark);
 ThemeData lightTheme = themeData(Brightness.light);

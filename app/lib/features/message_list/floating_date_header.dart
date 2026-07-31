@@ -5,7 +5,7 @@
 import 'dart:async';
 
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
-import 'package:air/ds/foundations/effects.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 

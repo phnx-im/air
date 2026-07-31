@@ -8,11 +8,10 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter/services.dart';
-import 'package:air/ds/foundations/dimensions.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/context_menu/context_menu_item.dart';
 import 'package:air/ds/patterns/context_menu/context_menu_submenu_item.dart';
 import 'package:air/ds/patterns/context_menu/context_menu_surface.dart';
-import 'package:air/ds/foundations/type_scale.dart';
 
 enum ContextMenuDirection { left, right }
 

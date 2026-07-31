@@ -8,8 +8,7 @@ import 'package:air/platform/method_channel.dart';
 import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 import 'package:air/core/core.dart';
-import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/device_type.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
 import 'package:share_plus/share_plus.dart';
 

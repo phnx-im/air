@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/ds/foundations/primitives.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter_test/flutter_test.dart';
 
 void main() {

@@ -4,10 +4,8 @@
 
 import 'dart:ui';
 
-import 'package:air/ds/foundations/semantic_colors.dart';
-import 'package:air/ds/foundations/effects.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
-import 'package:air/ds/foundations/dimensions.dart';
 
 /// Circular glass button used for app bar chrome that floats over content
 /// (back, plus, dismiss, composer actions).

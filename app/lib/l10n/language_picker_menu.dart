@@ -6,10 +6,9 @@ import 'dart:async';
 
 import 'package:air/l10n/app_locale_cubit.dart';
 import 'package:air/l10n/language_options.dart';
-import 'package:air/ds/foundations/semantic_colors.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/context_menu/context_menu.dart';
 import 'package:air/ds/patterns/context_menu/context_menu_item.dart';
-import 'package:air/ds/foundations/icons.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

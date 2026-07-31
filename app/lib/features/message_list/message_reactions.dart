@@ -5,7 +5,7 @@
 import 'dart:async';
 
 import 'package:air/ds/components/button_icon/glass_circle_button.dart';
-import 'package:air/ds/foundations/effects.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:flutter/material.dart';
@@ -13,10 +13,6 @@ import 'package:flutter/services.dart';
 
 import 'package:air/core/core.dart';
 import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
-import 'package:air/ds/foundations/type_scale.dart';
-import 'package:air/ds/foundations/icons.dart';
-import 'package:air/ds/foundations/semantic_colors.dart';
-import 'package:air/ds/foundations/dimensions.dart';
 import 'package:air/platform/haptics.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';

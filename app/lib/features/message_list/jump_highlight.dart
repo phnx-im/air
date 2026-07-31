@@ -4,8 +4,7 @@
 
 import 'dart:async';
 
-import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/semantic_colors.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/util/anchored_list/controller.dart';
 import 'package:flutter/widgets.dart';
 

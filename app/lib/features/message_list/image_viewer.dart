@@ -7,9 +7,7 @@ import 'dart:math' as math;
 
 import 'package:air/features/attachments/attachment_image_provider.dart';
 import 'package:air/core/core.dart';
-import 'package:air/ds/foundations/semantic_colors.dart';
-import 'package:air/ds/foundations/device_type.dart';
-import 'package:air/ds/foundations/icons.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/button_icon/app_bar_x_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/gestures.dart';
