@@ -52,7 +52,6 @@ class UpdateRequiredView extends StatelessWidget {
           loc.appOutdatedScreen_title,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        toolbarHeight: DeviceType.isDesktop ? 100 : null,
         backgroundColor: colors.backgroundBase.secondary,
       ),
       backgroundColor: colors.backgroundBase.secondary,

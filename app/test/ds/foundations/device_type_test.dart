@@ -46,14 +46,13 @@ void main() {
       variant: TargetPlatformVariant.only(TargetPlatform.iOS),
     );
 
-    // The theme resolves both axes at build time, so it only tracks the pinned
-    // platform as long as it is not cached across platforms.
+    // The theme resolves the typescale at build time, so it only tracks the
+    // pinned platform as long as it is not cached across platforms.
     testWidgets(
       'reaches the theme it is built into',
       (tester) async {
         final theme = themeData(Brightness.light);
 
-        expect(theme.appBarTheme.toolbarHeight, 100);
         expect(theme.textTheme.bodyLarge?.fontSize, 14);
       },
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),

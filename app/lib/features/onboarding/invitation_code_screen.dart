@@ -5,7 +5,6 @@
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/dimensions.dart';
-import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/foundations/breakpoint.dart';
 import 'package:air/ds/foundations/semantic_colors.dart';
 import 'package:air/ds/components/constrained_width/constrained_width.dart';
@@ -42,7 +41,6 @@ class InvitationCodeScreen extends HookWidget {
           loc.invitationCodeScreen_header,
           style: const TextStyle(fontWeight: FontWeight.bold),
         ),
-        toolbarHeight: DeviceType.isDesktop ? 100 : null,
         backgroundColor: colors.backgroundBase.secondary,
       ),
       backgroundColor: backgroundColor,

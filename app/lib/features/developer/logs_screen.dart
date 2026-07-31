@@ -95,7 +95,6 @@ class LogsScreenView extends StatelessWidget {
         appBar: AppBar(
           clipBehavior: Clip.none,
           title: const Text('Logs'),
-          toolbarHeight: DeviceType.isDesktop ? 100 : null,
           leading: const AppBarBackButton(),
           actions: [
             PopupMenuButton(

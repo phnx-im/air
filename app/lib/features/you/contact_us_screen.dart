@@ -49,7 +49,6 @@ class ContactUsScreen extends StatelessWidget {
         ),
         actions: null,
         backgroundColor: colors.backgroundBase.secondary,
-        toolbarHeight: DeviceType.isDesktop ? 100 : null,
         centerTitle: true,
       ),
       backgroundColor: colors.backgroundBase.secondary,

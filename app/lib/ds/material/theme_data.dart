@@ -4,7 +4,6 @@
 
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-import 'package:air/ds/foundations/device_type.dart';
 import 'package:air/ds/material/button_styles.dart';
 import 'package:air/ds/foundations/primitives.dart';
 import 'package:air/ds/foundations/semantic_colors.dart';
@@ -49,7 +48,6 @@ ThemeData themeData(Brightness brightness) {
       elevation: 0,
       iconTheme: IconThemeData(color: colorScheme.text.primary),
       centerTitle: true,
-      toolbarHeight: DeviceType.isDesktop ? 100 : null,
       systemOverlayStyle: brightness == Brightness.light
           ? SystemUiOverlayStyle.dark
           : SystemUiOverlayStyle.light,
