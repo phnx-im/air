@@ -522,7 +522,7 @@ impl CoreUser {
     /// Handles the profile part of decoded group data: schedules a fetch for
     /// an external group profile, or returns the picture for the legacy
     /// variant.
-    async fn resolve_group_profile_part(
+    pub(crate) async fn resolve_group_profile_part(
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
         sender_id: &UserId,
@@ -579,7 +579,7 @@ impl CoreUser {
                 // TODO: Once we have a UX for resyncs, we should schedule one
                 // here and re-enable the resync test in integration.rs
                 let _resync = Resync {
-                    chat_id,
+                    chat_id: Some(chat_id),
                     group_id: group.group_id().clone(),
                     pq_group_id: group.pq_group_id(),
                     group_state_ear_key: group.group_state_ear_key().clone(),

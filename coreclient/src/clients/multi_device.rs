@@ -114,10 +114,6 @@ pub(crate) struct HigherLevelGroup {
     pub(crate) group_state_ear_key: GroupStateEarKey,
     pub(crate) identity_link_wrapper_key: IdentityLinkWrapperKey,
     pub(crate) vc_leaf_index: u32,
-    /// TODO(gabriel): Chat title and picture are needed rather than decoded from `GroupData`
-    /// because the local chat has to exist *before* the resync can be queued.
-    pub(crate) title: String,
-    pub(crate) picture: Option<Vec<u8>>,
 }
 
 #[derive(Debug)]
@@ -507,10 +503,10 @@ impl CoreUser {
                     // TODO(gabriel): convey connection chats too. They need the
                     // `Contact` record (friendship token, WAI key) on top of the
                     // group itself.
-                    let Some(attributes) = chat.attributes() else {
+                    if chat.attributes().is_none() {
                         debug!(?group_id, "skipping non-group chat");
                         continue;
-                    };
+                    }
 
                     groups.push(HigherLevelGroup {
                         group_id: group_id.clone(),
@@ -518,8 +514,6 @@ impl CoreUser {
                         group_state_ear_key: group.group_state_ear_key().clone(),
                         identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
                         vc_leaf_index: group.own_index().u32(),
-                        title: attributes.title().to_owned(),
-                        picture: attributes.picture().map(<[u8]>::to_vec),
                     });
                 }
 

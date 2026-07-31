@@ -151,7 +151,7 @@ impl CoreUser {
         let fake_group_id: GroupId = fake_qgid.into();
 
         let resync = Resync {
-            chat_id,
+            chat_id: Some(chat_id),
             group_id: fake_group_id,
             pq_group_id: group.pq_group_id(),
             group_state_ear_key: group.group_state_ear_key().clone(),
