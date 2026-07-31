@@ -560,12 +560,14 @@ impl PendingChatOperation {
         let operation_type = if group.is_apq() {
             let params = group
                 .group_mut()
-                .stage_apq_remove(&mut *txn, signer, target_users)?;
+                .stage_apq_remove(&mut *txn, signer, target_users)
+                .await?;
             OperationType::apq_other(params)
         } else {
             let params = group
                 .group_mut()
-                .stage_remove(&mut *txn, signer, target_users)?;
+                .stage_remove(&mut *txn, signer, target_users)
+                .await?;
             OperationType::other(params)
         };
 
@@ -677,12 +679,15 @@ impl PendingChatOperation {
             Ok(None)
         } else {
             let operation_type = if group.is_apq() {
-                let bundle = group.group_mut().stage_apq_delete(&mut *txn, signer)?;
+                let bundle = group
+                    .group_mut()
+                    .stage_apq_delete(&mut *txn, signer)
+                    .await?;
                 OperationType::ApqDelete {
                     commit: Box::new(bundle),
                 }
             } else {
-                let message = group.group_mut().stage_delete(&mut *txn, signer)?;
+                let message = group.group_mut().stage_delete(&mut *txn, signer).await?;
                 OperationType::Delete(Box::new(message))
             };
             let job = Self::new(group, operation_type);
@@ -760,7 +765,8 @@ impl PendingChatOperation {
                 let operation_type = if !group.is_apq() {
                     let params = group
                         .group_mut()
-                        .stage_invite(&mut *txn, signer, invitees)?
+                        .stage_invite(&mut *txn, signer, invitees)
+                        .await?
                         // Check if we got a leaf node validation error which is domain specific and should
                         // be propagated to the user.
                         .map_err(|validation| {
@@ -770,7 +776,8 @@ impl PendingChatOperation {
                 } else {
                     let params = group
                         .group_mut()
-                        .stage_apq_invite(&mut *txn, signer, signer, invitees)?
+                        .stage_apq_invite(&mut *txn, signer, signer, invitees)
+                        .await?
                         // Check if we got a leaf node validation error which is domain specific and should
                         // be propagated to the user.
                         .map_err(|validation| {

@@ -1350,7 +1350,7 @@ impl Group {
     /// Invite the given list of contacts to join the group.
     ///
     /// Returns the [`GroupOperationParamsOut`] as input for the pending chat operation processing.
-    pub(super) fn stage_invite(
+    pub(super) async fn stage_invite(
         &mut self,
         mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
@@ -1392,14 +1392,17 @@ impl Group {
                 }
             })
             .collect::<Result<Vec<_>>>()?;
+        let vc_epoch_id = self.resolve_vc_emulation_epoch(&mut connection).await?;
+
         let (mls_commit, welcome_option, group_info_option) = {
             let provider = AirOpenMlsProvider::new(connection.as_mut());
             self.mls_group
                 .set_aad(aad_message.tls_serialize_detached()?);
-            let res = self
-                .mls_group
-                .commit_builder()
-                .force_self_update(true)
+            let mut builder = self.mls_group.commit_builder().force_self_update(true);
+            if let Some(epoch_id) = vc_epoch_id {
+                builder = builder.vc_emulation(provider.crypto(), provider.storage(), epoch_id)?;
+            }
+            let res = builder
                 .propose_adds(key_packages)
                 .load_psks(provider.storage())?
                 .create_group_info(true)
@@ -1459,7 +1462,7 @@ impl Group {
     /// self group, where the leaf is signed with a fresh key but the WAI must be
     /// signed with the real user credential key so the joiner can verify it
     /// against the sender's user credential.
-    pub(super) fn stage_apq_invite(
+    pub(super) async fn stage_apq_invite(
         &mut self,
         mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
@@ -1502,26 +1505,30 @@ impl Group {
             })
             .collect::<Result<Vec<_>>>()?;
 
+        let vc_epoch_id = self.resolve_vc_emulation_epoch(&mut connection).await?;
+
         let provider = AirOpenMlsProvider::new(connection.as_mut());
 
         self.mls_group
             .set_aad(aad_message.tls_serialize_detached()?);
 
         let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
-        let bundle =
-            match apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
+        let mut builder =
+            apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
                 .force_self_update(true)
                 .propose_adds(key_packages)
-                .create_group_info(true)
-                .finalize(&provider, signer, |_| true, |_| true)
-            {
-                Ok(bundle) => bundle,
-                // Extract leaf node validation error if any
-                Err(apqmls::commit_builder::CreateCommitError::BuildCommit(error)) => {
-                    return Ok(Err(to_capabilities_mismatch(error)?));
-                }
-                Err(other) => return Err(other.into()),
-            };
+                .create_group_info(true);
+        if let Some(epoch_id) = vc_epoch_id {
+            builder = builder.vc_emulation(epoch_id);
+        }
+        let bundle = match builder.finalize(&provider, signer, |_| true, |_| true) {
+            Ok(bundle) => bundle,
+            // Extract leaf node validation error if any
+            Err(apqmls::commit_builder::CreateCommitError::BuildCommit(error)) => {
+                return Ok(Err(to_capabilities_mismatch(error)?));
+            }
+            Err(other) => return Err(other.into()),
+        };
 
         ensure!(
             bundle.group_info.is_some(),
@@ -1559,7 +1566,7 @@ impl Group {
         Ok(Ok(params))
     }
 
-    pub(super) fn stage_remove(
+    pub(super) async fn stage_remove(
         &mut self,
         mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
@@ -1585,12 +1592,14 @@ impl Group {
         });
         let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
         self.mls_group.set_aad(aad);
+        let vc_epoch_id = self.resolve_vc_emulation_epoch(&mut connection).await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
 
-        let (mls_message, _welcome_option, group_info_option) = self
-            .mls_group
-            .commit_builder()
-            .force_self_update(true)
+        let mut builder = self.mls_group.commit_builder().force_self_update(true);
+        if let Some(epoch_id) = vc_epoch_id {
+            builder = builder.vc_emulation(provider.crypto(), provider.storage(), epoch_id)?;
+        }
+        let (mls_message, _welcome_option, group_info_option) = builder
             .propose_removals(remove_indices)
             .load_psks(provider.storage())?
             .create_group_info(true)
@@ -1610,7 +1619,7 @@ impl Group {
         Ok(params)
     }
 
-    pub(super) fn stage_apq_remove(
+    pub(super) async fn stage_apq_remove(
         &mut self,
         mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
@@ -1631,6 +1640,7 @@ impl Group {
         }
         ensure!(members.is_empty(), "Not all members to remove were found");
 
+        let vc_epoch_id = self.resolve_vc_emulation_epoch(&mut connection).await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
         let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
 
@@ -1640,11 +1650,15 @@ impl Group {
         let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
         t_mls_group.set_aad(aad);
 
-        let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
-            .force_self_update(true)
-            .propose_removals(remove_indices)
-            .create_group_info(true)
-            .finalize(&provider, signer, |_| true, |_| true)?;
+        let mut builder =
+            apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
+                .force_self_update(true)
+                .propose_removals(remove_indices)
+                .create_group_info(true);
+        if let Some(epoch_id) = vc_epoch_id {
+            builder = builder.vc_emulation(epoch_id);
+        }
+        let bundle = builder.finalize(&provider, signer, |_| true, |_| true)?;
 
         debug_assert!(bundle.welcome.is_none());
         ensure!(
@@ -1658,11 +1672,12 @@ impl Group {
         })
     }
 
-    pub(super) fn stage_delete(
+    pub(super) async fn stage_delete(
         &mut self,
         mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
     ) -> anyhow::Result<DeleteGroupParamsOut> {
+        let vc_epoch_id = self.resolve_vc_emulation_epoch(&mut connection).await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
         let remove_indices = self
             .mls_group()
@@ -1681,10 +1696,11 @@ impl Group {
         let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
         self.mls_group.set_aad(aad);
 
-        let (mls_message, _welcome_option, group_info_option) = self
-            .mls_group
-            .commit_builder()
-            .force_self_update(true)
+        let mut builder = self.mls_group.commit_builder().force_self_update(true);
+        if let Some(epoch_id) = vc_epoch_id {
+            builder = builder.vc_emulation(provider.crypto(), provider.storage(), epoch_id)?;
+        }
+        let (mls_message, _welcome_option, group_info_option) = builder
             .propose_removals(remove_indices)
             .load_psks(provider.storage())?
             .create_group_info(true)
@@ -1701,11 +1717,12 @@ impl Group {
         Ok(params)
     }
 
-    pub(super) fn stage_apq_delete(
+    pub(super) async fn stage_apq_delete(
         &mut self,
         mut connection: impl WriteConnection,
         signer: &ClientSigningKey,
     ) -> anyhow::Result<ApqCommitMessageBundle> {
+        let vc_epoch_id = self.resolve_vc_emulation_epoch(&mut connection).await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
 
         let removed_indices = self
@@ -1726,11 +1743,14 @@ impl Group {
         let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
         t_group.set_aad(aad);
 
-        let bundle = apqmls::commit_builder::CommitBuilder::from_groups(t_group, pq_group)
+        let mut builder = apqmls::commit_builder::CommitBuilder::from_groups(t_group, pq_group)
             .force_self_update(true)
             .propose_removals(removed_indices)
-            .create_group_info(true)
-            .finalize(&provider, signer, |_| true, |_| true)?;
+            .create_group_info(true);
+        if let Some(epoch_id) = vc_epoch_id {
+            builder = builder.vc_emulation(epoch_id);
+        }
+        let bundle = builder.finalize(&provider, signer, |_| true, |_| true)?;
         debug_assert!(bundle.welcome.is_none());
         ensure!(
             bundle.group_info.is_some(),
@@ -2055,7 +2075,7 @@ impl Group {
         // A leaf shared with sibling emulator clients must be replaced with key
         // material derived from the emulation epoch, or the siblings cannot
         // rederive it and drop out of the group.
-        let vc_epoch_id = self.resolve_vc_emulation_epoch(txn).await?;
+        let vc_epoch_id = self.resolve_vc_emulation_epoch(&mut *txn).await?;
 
         self.mls_group.set_aad(aad);
         let (mls_message, group_info) = {
@@ -2121,7 +2141,7 @@ impl Group {
         let pq_leaf_node_parameters =
             Self::update_leaf_node_extensions(pq_own_leaf_node.extensions())?;
 
-        let vc_epoch_id = self.resolve_vc_emulation_epoch(txn).await?;
+        let vc_epoch_id = self.resolve_vc_emulation_epoch(&mut *txn).await?;
 
         let provider = AirOpenMlsProvider::new(txn.as_mut());
         let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
@@ -2492,15 +2512,17 @@ impl Group {
     /// registration.
     async fn resolve_vc_emulation_epoch(
         &self,
-        txn: &mut WriteDbTransaction<'_>,
+        mut connection: impl WriteConnection,
     ) -> Result<Option<EpochId>> {
         if !self.own_leaf_is_virtual_client() {
             return Ok(None);
         }
-        let mut self_group = self_group::SelfGroup::load(&mut *txn)
+        let mut self_group = self_group::SelfGroup::load(&mut connection)
             .await?
             .context("no self group to derive the emulation epoch from")?;
-        Ok(Some(self_group.register_vc_emulation_epoch(&mut *txn)?))
+        Ok(Some(
+            self_group.register_vc_emulation_epoch(&mut connection)?,
+        ))
     }
 
     pub(crate) fn store_connection_offer_psk(

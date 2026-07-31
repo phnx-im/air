@@ -610,7 +610,8 @@ impl CoreUser {
                         &self_group_signature_key,
                         self.signing_key(),
                         vec![invitee],
-                    )?
+                    )
+                    .await?
                     .map_err(|validation| {
                         anyhow!("self-group invite leaf validation: {validation:?}")
                     })?;

@@ -87,6 +87,8 @@ async fn multi_device_linking_session() {
     let alice = setup.add_user().await;
     let bob = setup.add_user().await;
     setup.connect_users(&alice, &bob).await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &charlie).await;
 
     // Alice already has two groups before the new device is linked. The
     // linked device should inherit them, not just the self-group.
@@ -264,6 +266,79 @@ async fn multi_device_linking_session() {
         &[&new_client, old_client],
         chat_id_1,
         "hello from the old device",
+    )
+    .await;
+
+    // A commit that replaces the shared leaf for some other reason
+    // has to derive the new leaf from the emulation epoch too,
+    // or the sibling emulator client will break.
+    setup
+        .invite_to_group(chat_id_1, &alice, vec![&charlie])
+        .await;
+
+    let pending = new_client.qs_fetch_messages().await.unwrap();
+    let processed = new_client.fully_process_qs_messages(pending).await;
+    assert!(
+        processed.errors.is_empty(),
+        "linked device failed to follow the add commit: {:?}",
+        processed.errors
+    );
+    assert_eq!(
+        new_client
+            .group_epoch_and_own_index(chat_id_1)
+            .await
+            .unwrap(),
+        setup
+            .get_user(&alice)
+            .user()
+            .group_epoch_and_own_index(chat_id_1)
+            .await
+            .unwrap(),
+        "both emulator clients must stay on the same epoch and shared leaf after an add"
+    );
+
+    let bob_client = setup.get_user(&bob).user();
+    send_and_receive(
+        bob_client,
+        &[&new_client],
+        chat_id_1,
+        "after a member was added",
+    )
+    .await;
+
+    // Same for a removal.
+    setup
+        .remove_from_group(chat_id_1, &alice, vec![&charlie])
+        .await
+        .unwrap();
+
+    let pending = new_client.qs_fetch_messages().await.unwrap();
+    let processed = new_client.fully_process_qs_messages(pending).await;
+    assert!(
+        processed.errors.is_empty(),
+        "linked device failed to follow the remove commit: {:?}",
+        processed.errors
+    );
+    assert_eq!(
+        new_client
+            .group_epoch_and_own_index(chat_id_1)
+            .await
+            .unwrap(),
+        setup
+            .get_user(&alice)
+            .user()
+            .group_epoch_and_own_index(chat_id_1)
+            .await
+            .unwrap(),
+        "both emulator clients must stay on the same epoch and shared leaf after a removal"
+    );
+
+    let bob_client = setup.get_user(&bob).user();
+    send_and_receive(
+        bob_client,
+        &[&new_client],
+        chat_id_1,
+        "after a member was removed",
     )
     .await;
 }
