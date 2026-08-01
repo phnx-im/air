@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{credentials::VerifiableUserCredential, time::Duration, utils::removed_clients};
+use aircommon::{credentials::LeafCredential, time::Duration, utils::removed_clients};
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::{ProcessedAssistedMessage, apq::ApqGroupRef},
@@ -20,21 +20,25 @@ use crate::errors::ResyncClientError;
 
 use super::process::USER_EXPIRATION_DAYS;
 
-use super::group_state::DsGroupState;
+use super::group_state::{DsGroupState, RoomPolicyIdentity};
 
 impl DsGroupState {
     /// Change the room-state role of every removed client to `Outsider`, using `sender` as the
     /// acting party.
     fn change_removed_roles_to_outsider(
         &mut self,
-        sender: &VerifiableUserCredential,
+        sender: &LeafCredential,
         removed_indices: &[LeafNodeIndex],
     ) -> Result<(), ResyncClientError> {
+        let sender_identity =
+            RoomPolicyIdentity::from_credential(sender).ok_or(ResyncClientError::InvalidMessage)?;
         for &removed_index in removed_indices {
             let removed = self
                 .leaf_credential(removed_index)
                 .ok_or(ResyncClientError::InvalidMessage)?;
-            self.room_state_change_role(sender.user_id(), removed.user_id(), RoleIndex::Outsider)
+            let removed_identity = RoomPolicyIdentity::from_credential(&removed)
+                .ok_or(ResyncClientError::InvalidMessage)?;
+            self.room_state_change_role(&sender_identity, removed_identity, RoleIndex::Outsider)
                 .ok_or_else(|| {
                     error!(%removed_index, "Failed to change role of removed client");
                     ResyncClientError::InvalidMessage
