@@ -20,7 +20,7 @@ use crate::errors::ResyncClientError;
 
 use super::process::USER_EXPIRATION_DAYS;
 
-use super::group_state::{DsGroupState, RoomPolicyIdentity};
+use super::group_state::DsGroupState;
 
 impl DsGroupState {
     /// Change the room-state role of every removed client to `Outsider`, using `sender` as the
@@ -30,15 +30,13 @@ impl DsGroupState {
         sender: &LeafCredential,
         removed_indices: &[LeafNodeIndex],
     ) -> Result<(), ResyncClientError> {
-        let sender_identity =
-            RoomPolicyIdentity::from_credential(sender).ok_or(ResyncClientError::InvalidMessage)?;
+        let sender_identity = sender.room_policy_identity();
         for &removed_index in removed_indices {
             let removed = self
                 .leaf_credential(removed_index)
                 .ok_or(ResyncClientError::InvalidMessage)?;
-            let removed_identity = RoomPolicyIdentity::from_credential(&removed)
-                .ok_or(ResyncClientError::InvalidMessage)?;
-            self.room_state_change_role(&sender_identity, removed_identity, RoleIndex::Outsider)
+            let removed_identity = removed.room_policy_identity();
+            self.room_state_change_role(&sender_identity, &removed_identity, RoleIndex::Outsider)
                 .ok_or_else(|| {
                     error!(%removed_index, "Failed to change role of removed client");
                     ResyncClientError::InvalidMessage

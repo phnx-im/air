@@ -88,10 +88,10 @@ impl CoreUser {
                         self.signing_key(),
                     )
                     .await?;
-                    let identity = signer.room_policy_identity()?;
+                    let identity = signer.room_policy_identity();
                     group.room_state_change_role_identity(
                         &identity,
-                        identity.clone(),
+                        &identity,
                         RoleIndex::Outsider,
                     )?;
                     let params = group.stage_leave_group(&mut *txn, &signer)?;

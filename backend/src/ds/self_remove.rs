@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use super::group_state::{DsGroupState, RoomPolicyIdentity};
+use super::group_state::DsGroupState;
 use super::process::USER_EXPIRATION_DAYS;
 use crate::errors::ClientSelfRemovalError;
 use aircommon::{credentials::LeafCredential, time::Duration};
@@ -29,14 +29,9 @@ impl DsGroupState {
                 error!(%error, "Credential of sender is invalid");
                 ClientSelfRemovalError::InvalidMessage
             })?;
-        let sender_identity = RoomPolicyIdentity::from_credential(&sender)
+        let sender_identity = sender.room_policy_identity();
+        self.room_state_change_role(&sender_identity, &sender_identity, RoleIndex::Outsider)
             .ok_or(ClientSelfRemovalError::InvalidMessage)?;
-        self.room_state_change_role(
-            &sender_identity,
-            sender_identity.clone(),
-            RoleIndex::Outsider,
-        )
-        .ok_or(ClientSelfRemovalError::InvalidMessage)?;
 
         Ok(serialized_mls_message)
     }

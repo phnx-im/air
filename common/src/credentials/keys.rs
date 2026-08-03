@@ -23,7 +23,7 @@ use crate::{
     },
 };
 
-use super::{AsCredential, AsIntermediateCredential, SelfGroupCredential};
+use super::{AsCredential, AsIntermediateCredential, RoomPolicyIdentity, SelfGroupCredential};
 
 use crate::crypto::signatures::private_keys::{SigningKey, VerifyingKey};
 
@@ -358,11 +358,13 @@ impl LeafSigningKey {
 
     /// Room-policy identity of the leaf's owner, see
     /// [`LeafCredential::room_policy_identity`](super::LeafCredential::room_policy_identity).
-    pub fn room_policy_identity(&self) -> Result<Vec<u8>, tls_codec::Error> {
+    pub fn room_policy_identity(&self) -> RoomPolicyIdentity {
         match self {
-            LeafSigningKey::User(key) => key.credential().user_id().tls_serialize_detached(),
+            LeafSigningKey::User(key) => {
+                RoomPolicyIdentity::User(key.credential().user_id().clone())
+            }
             LeafSigningKey::SelfGroup(key) => {
-                Ok(key.credential().client_id().into_bytes().to_vec())
+                RoomPolicyIdentity::Client(key.credential().client_id())
             }
         }
     }

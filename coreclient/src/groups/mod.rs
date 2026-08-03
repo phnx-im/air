@@ -30,8 +30,8 @@ use std::collections::{HashMap, HashSet};
 
 use aircommon::{
     credentials::{
-        GroupStorageWitness, LeafCredential, LeafCredentialError, UserCredential,
-        VerifiableUserCredential,
+        GroupStorageWitness, LeafCredential, LeafCredentialError, RoomPolicyIdentity,
+        UserCredential, VerifiableUserCredential,
         keys::{ClientKeyType, ClientSigningKey, ClientVerifyingKey, SelfGroupSigningKey},
     },
     crypto::{
@@ -509,9 +509,9 @@ impl Group {
             .build(&provider, signer, credential_with_key)
             .map_err(|e| anyhow!("Error while creating group: {:?}", e))?;
 
-        let user_id = signer.credential().user_id();
+        let creator_identity = RoomPolicyIdentity::User(signer.credential().user_id().clone());
         let room_state = VerifiedRoomState::new(
-            user_id.tls_serialize_detached()?,
+            creator_identity.to_bytes()?,
             RoomPolicy::default_trusted_private(),
         )?;
 
@@ -1771,10 +1771,10 @@ impl Group {
         staged_commit: Option<&'_ StagedCommit>,
     ) -> Result<()> {
         for (remover, removed) in self.staged_commit_removes(staged_commit) {
-            self.room_state_change_role_identity(&remover, removed, RoleIndex::Outsider)?;
+            self.room_state_change_role_identity(&remover, &removed, RoleIndex::Outsider)?;
         }
         for (adder, added) in self.pending_adds(staged_commit) {
-            self.room_state_change_role_identity(&adder, added, RoleIndex::Regular)?;
+            self.room_state_change_role_identity(&adder, &added, RoleIndex::Regular)?;
         }
 
         Ok(())
@@ -2298,7 +2298,7 @@ impl Group {
     fn staged_commit_removes(
         &self,
         staged_commit: Option<&'_ StagedCommit>,
-    ) -> Vec<(Vec<u8>, Vec<u8>)> {
+    ) -> Vec<(RoomPolicyIdentity, RoomPolicyIdentity)> {
         let Some(staged_commit) = staged_commit.or_else(|| self.mls_group().pending_commit())
         else {
             return Vec::new();
@@ -2349,11 +2349,11 @@ impl Group {
         })
     }
 
-    fn room_identity_at_index(&self, index: LeafNodeIndex) -> Option<Vec<u8>> {
+    fn room_identity_at_index(&self, index: LeafNodeIndex) -> Option<RoomPolicyIdentity> {
         self.mls_group().member_at(index).and_then(|m| {
             LeafCredential::from_credential(&m.credential)
                 .ok()
-                .and_then(|c| c.room_policy_identity().ok())
+                .map(|c| c.room_policy_identity())
         })
     }
 
@@ -2361,7 +2361,7 @@ impl Group {
     pub(crate) fn pending_adds(
         &self,
         staged_commit: Option<&'_ StagedCommit>,
-    ) -> Vec<(Vec<u8>, Vec<u8>)> {
+    ) -> Vec<(RoomPolicyIdentity, RoomPolicyIdentity)> {
         let staged_commit = staged_commit.or_else(|| self.mls_group().pending_commit());
         let mut pending_adds = Vec::new();
         let Some(pending_commit) = staged_commit else {
@@ -2384,23 +2384,22 @@ impl Group {
             ) else {
                 continue;
             };
-            let Ok(added) = added_credential.room_policy_identity() else {
-                continue;
-            };
-            pending_adds.push((adder, added));
+            pending_adds.push((adder, added_credential.room_policy_identity()));
         }
         pending_adds
     }
 
     pub(crate) fn verify_role_change_identity(
         &self,
-        sender: &[u8],
-        target: Vec<u8>,
+        sender: &RoomPolicyIdentity,
+        target: &RoomPolicyIdentity,
         role: RoleIndex,
     ) -> Result<()> {
+        let sender = sender.to_bytes()?;
+        let target = target.to_bytes()?;
         let result = self
             .room_state
-            .can_apply_regular_proposals(sender, &[MimiProposal::ChangeRole { target, role }]);
+            .can_apply_regular_proposals(&sender, &[MimiProposal::ChangeRole { target, role }]);
 
         Ok(result?)
     }
@@ -2411,20 +2410,24 @@ impl Group {
         target: &UserId,
         role: RoleIndex,
     ) -> Result<()> {
-        let sender = sender.tls_serialize_detached()?;
-        let target = target.tls_serialize_detached()?;
-        self.verify_role_change_identity(&sender, target, role)
+        self.verify_role_change_identity(
+            &RoomPolicyIdentity::User(sender.clone()),
+            &RoomPolicyIdentity::User(target.clone()),
+            role,
+        )
     }
 
     pub(crate) fn room_state_change_role_identity(
         &mut self,
-        sender: &[u8],
-        target: Vec<u8>,
+        sender: &RoomPolicyIdentity,
+        target: &RoomPolicyIdentity,
         role: RoleIndex,
     ) -> Result<()> {
+        let sender = sender.to_bytes()?;
+        let target = target.to_bytes()?;
         let result = self
             .room_state
-            .apply_regular_proposals(sender, &[MimiProposal::ChangeRole { target, role }]);
+            .apply_regular_proposals(&sender, &[MimiProposal::ChangeRole { target, role }]);
 
         Ok(result?)
     }
@@ -2435,9 +2438,11 @@ impl Group {
         target: &UserId,
         role: RoleIndex,
     ) -> Result<()> {
-        let sender = sender.tls_serialize_detached()?;
-        let target = target.tls_serialize_detached()?;
-        self.room_state_change_role_identity(&sender, target, role)
+        self.room_state_change_role_identity(
+            &RoomPolicyIdentity::User(sender.clone()),
+            &RoomPolicyIdentity::User(target.clone()),
+            role,
+        )
     }
 
     pub(crate) fn group_data(&self) -> Option<GroupDataBytes> {
@@ -2582,7 +2587,7 @@ async fn verify_member_credentials(
 /// User credentials are returned together with their leaf signature keys for AS verification.
 /// Self-group credentials carry nothing to verify against the AS. They are only accepted inside
 /// the user's own self-group, where room policy is keyed on the client id, so each leaf must
-/// carry a distinct one.
+/// carry a distinct one. Conversely, the self-group accepts only self-group credentials.
 fn classify_member_credentials(
     members: impl Iterator<Item = (Credential, SignaturePublicKey)>,
     is_self_group: bool,
@@ -2592,6 +2597,7 @@ fn classify_member_credentials(
     for (credential, signature_key) in members {
         match LeafCredential::from_credential(&credential) {
             Ok(LeafCredential::User(credential)) => {
+                ensure!(!is_self_group, "user credential in the self-group");
                 unverified_credentials.push((credential, signature_key));
             }
             Ok(LeafCredential::SelfGroup(credential)) => {
@@ -2629,9 +2635,7 @@ fn validate_self_group_add_credential(
                     "client id already present in the self-group"
                 );
             }
-            // Self-groups created before the flip to self-group credentials still carry
-            // user-credential leaves. Client ids cannot collide with them.
-            LeafCredential::User(_) => {}
+            LeafCredential::User(_) => bail!("user credential in the self-group"),
         }
     }
     Ok(())
@@ -2859,22 +2863,23 @@ mod member_credential_validation_tests {
         );
     }
 
-    /// Self-groups created before the flip to self-group credentials still carry
-    /// user-credential leaves.
     #[test]
-    fn user_credentials_in_self_group_roster_are_passed_on_for_verification() {
+    fn user_credential_in_self_group_roster_is_rejected() {
         let members = [
             (user_credential(), signature_key()),
             (self_group_credential(Uuid::from_u128(1)), signature_key()),
         ];
-        let unverified = classify_member_credentials(members.into_iter(), true)
-            .expect("mixed roster should be accepted");
-        assert_eq!(unverified.len(), 1);
+        let error = classify_member_credentials(members.into_iter(), true)
+            .expect_err("user credential in the self-group should be rejected");
+        assert!(
+            error.to_string().contains("user credential"),
+            "unexpected error: {error:#}"
+        );
     }
 
     #[test]
     fn adding_a_fresh_client_id_is_accepted() {
-        let roster = [user_credential(), self_group_credential(Uuid::from_u128(1))];
+        let roster = [self_group_credential(Uuid::from_u128(1))];
         let added = self_group_credential(Uuid::from_u128(2));
         validate_self_group_add_credential(roster.into_iter(), &added)
             .expect("fresh client id should be accepted");

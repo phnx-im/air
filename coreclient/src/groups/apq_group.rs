@@ -113,7 +113,7 @@ impl Group {
             .into_groups();
 
         let room_state = VerifiedRoomState::new(
-            signer.room_policy_identity()?,
+            signer.room_policy_identity().to_bytes()?,
             RoomPolicy::default_trusted_private(),
         )?;
 

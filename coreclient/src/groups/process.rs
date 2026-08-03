@@ -6,8 +6,8 @@ use std::{collections::HashMap, iter};
 
 use aircommon::{
     credentials::{
-        AsIntermediateCredential, AsIntermediateCredentialBody, LeafCredential, UserCredential,
-        VerifiableUserCredential,
+        AsIntermediateCredential, AsIntermediateCredentialBody, LeafCredential, RoomPolicyIdentity,
+        UserCredential, VerifiableUserCredential,
     },
     crypto::{aead::keys::EncryptedUserProfileKey, hash::Hash, indexed_aead::keys::UserProfileKey},
     messages::client_ds::{
@@ -31,7 +31,7 @@ use openmls::{
     },
 };
 use openmls_traits::OpenMlsProvider;
-use tls_codec::{DeserializeBytes as TlsDeserializeBytes, Serialize as _};
+use tls_codec::DeserializeBytes as TlsDeserializeBytes;
 use tracing::{debug, error, instrument, warn};
 
 use crate::{
@@ -415,7 +415,7 @@ impl Group {
             verify_pq_added_signature_keys(staged_commit, pq_staged_commit)?;
 
             // Compute the sender identity before the `&mut self` calls below.
-            let sender_identity = sender_credential.room_policy_identity()?;
+            let sender_identity = sender_credential.room_policy_identity();
 
             if self.is_self_group() {
                 // A self-group add links a new device of the own user. Its leaf
@@ -647,8 +647,8 @@ impl Group {
 
             // Room policy checks
             self.verify_role_change_identity(
-                &sender_credential.room_policy_identity()?,
-                removed_credential.room_policy_identity()?,
+                &sender_credential.room_policy_identity(),
+                &removed_credential.room_policy_identity(),
                 RoleIndex::Outsider,
             )?;
 
@@ -683,7 +683,7 @@ impl Group {
 
     async fn process_adds(
         &mut self,
-        sender_identity: &[u8],
+        sender_identity: &RoomPolicyIdentity,
         staged_commit: &StagedCommit,
         txn: &mut WriteDbTransaction<'_>,
         as_credentials: &HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>,
@@ -702,7 +702,7 @@ impl Group {
 
             self.verify_role_change_identity(
                 sender_identity,
-                credential.user_id().tls_serialize_detached()?,
+                &RoomPolicyIdentity::User(credential.user_id().clone()),
                 RoleIndex::Regular,
             )?;
 
@@ -728,7 +728,7 @@ impl Group {
     /// checked.
     fn process_self_group_adds(
         &self,
-        sender_identity: &[u8],
+        sender_identity: &RoomPolicyIdentity,
         staged_commit: &StagedCommit,
     ) -> Result<()> {
         for proposal in staged_commit.add_proposals() {
@@ -738,7 +738,7 @@ impl Group {
             let credential = LeafCredential::from_credential(leaf_node.credential())?;
             self.verify_role_change_identity(
                 sender_identity,
-                credential.room_policy_identity()?,
+                &credential.room_policy_identity(),
                 RoleIndex::Regular,
             )?;
         }

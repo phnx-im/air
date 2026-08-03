@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use aircommon::{
     codec::PersistenceCodec,
-    credentials::LeafCredential,
+    credentials::{LeafCredential, RoomPolicyIdentity},
     crypto::{
         aead::{
             AeadDecryptable, AeadEncryptable, Ciphertext,
@@ -91,19 +91,28 @@ impl DsGroupState {
         }
     }
 
+    /// Apply a role change to the room state.
+    ///
+    /// Returns `None` (and logs) if either identity fails to serialize or if the room policy
+    /// rejects the change.
     pub(super) fn room_state_change_role(
         &mut self,
         sender: &RoomPolicyIdentity,
-        target: RoomPolicyIdentity,
+        target: &RoomPolicyIdentity,
         role: RoleIndex,
     ) -> Option<()> {
-        match self.room_state.apply_regular_proposals(
-            &sender.0,
-            &[MimiProposal::ChangeRole {
-                target: target.0,
-                role,
-            }],
-        ) {
+        let sender = sender
+            .to_bytes()
+            .map_err(|error| error!(%error, "Failed to serialize sender identity"))
+            .ok()?;
+        let target = target
+            .to_bytes()
+            .map_err(|error| error!(%error, "Failed to serialize target identity"))
+            .ok()?;
+        match self
+            .room_state
+            .apply_regular_proposals(&sender, &[MimiProposal::ChangeRole { target, role }])
+        {
             Ok(_) => Some(()),
             Err(e) => {
                 error!(%e, "Change role proposal failed");
@@ -402,23 +411,6 @@ impl SerializableDsGroupStateV2 {
     }
 }
 
-/// Room-policy identity of a leaf credential, see [`LeafCredential::room_policy_identity`].
-#[derive(Debug, Clone)]
-pub(super) struct RoomPolicyIdentity(Vec<u8>);
-
-impl RoomPolicyIdentity {
-    /// Derive the room-policy identity of `credential`.
-    ///
-    /// Returns `None` (and logs) if serializing the user id fails.
-    pub(super) fn from_credential(credential: &LeafCredential) -> Option<Self> {
-        credential
-            .room_policy_identity()
-            .map_err(|error| error!(%error, "Failed to serialize user id"))
-            .ok()
-            .map(Self)
-    }
-}
-
 fn fallback_room_state(
     members: impl Iterator<Item = mls_assist::openmls::prelude::Member>,
 ) -> VerifiedRoomState {
@@ -431,10 +423,12 @@ fn fallback_room_state(
                 continue;
             }
         };
-        let Some(identity) = RoomPolicyIdentity::from_credential(&credential) else {
-            continue;
-        };
-        member_ids.push(identity.0);
+        match credential.room_policy_identity().to_bytes() {
+            Ok(identity) => member_ids.push(identity),
+            Err(error) => {
+                error!(%error, "Failed to serialize room policy identity; skipping member");
+            }
+        }
     }
     VerifiedRoomState::fallback_room(member_ids)
 }
