@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::VerifiableUserCredential, identifiers::QsReference,
+    credentials::LeafCredential, identifiers::QsReference,
     mls_group_config::leaf_node_is_virtual_client, time::Duration, utils::removed_clients,
 };
 use mimi_room_policy::RoleIndex;
@@ -21,23 +21,12 @@ use tracing::error;
 
 use crate::errors::ResyncClientError;
 
-use super::group_state::DsGroupState;
+use super::group_state::{DsGroupState, RoomPolicyIdentity};
 use super::process::USER_EXPIRATION_DAYS;
 
 /// Outcome of a resync: the message to distribute, plus the queue of the leaf the
 /// resync replaced when that leaf is being taken over by a sibling emulator
 /// client.
-///
-/// The replaced leaf was operated by another emulator client of the same virtual
-/// client, which has to process this commit to follow onto the new leaf.
-/// `other_destination_clients` cannot work this out on its own when the virtual
-/// client takes over a leaf for the first time: it is evaluated before the commit
-/// is processed, when the replaced leaf is not yet a virtual-client leaf -- the
-/// leaf that is one is the one *this commit* installs.
-///
-/// Only set in exactly that case. Once the replaced leaf carries the marker
-/// itself, `other_destination_clients` already yields its queue, and repeating it
-/// here would fan the commit out to every emulator queue twice.
 pub(crate) struct ResyncOutcome {
     pub(crate) message: SerializedMlsMessage,
     pub(crate) sibling_queue: Option<QsReference>,
@@ -48,14 +37,18 @@ impl DsGroupState {
     /// acting party.
     fn change_removed_roles_to_outsider(
         &mut self,
-        sender: &VerifiableUserCredential,
+        sender: &LeafCredential,
         removed_indices: &[LeafNodeIndex],
     ) -> Result<(), ResyncClientError> {
+        let sender_identity =
+            RoomPolicyIdentity::from_credential(sender).ok_or(ResyncClientError::InvalidMessage)?;
         for &removed_index in removed_indices {
             let removed = self
                 .leaf_credential(removed_index)
                 .ok_or(ResyncClientError::InvalidMessage)?;
-            self.room_state_change_role(sender.user_id(), removed.user_id(), RoleIndex::Outsider)
+            let removed_identity = RoomPolicyIdentity::from_credential(&removed)
+                .ok_or(ResyncClientError::InvalidMessage)?;
+            self.room_state_change_role(&sender_identity, removed_identity, RoleIndex::Outsider)
                 .ok_or_else(|| {
                     error!(%removed_index, "Failed to change role of removed client");
                     ResyncClientError::InvalidMessage

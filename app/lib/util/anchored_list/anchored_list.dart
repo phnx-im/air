@@ -526,6 +526,12 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
       return null;
     }
 
+    // A child that moved index has a null layoutOffset until the next layout
+    // pass; childMainAxisPosition would throw on it.
+    if (sliver.childScrollOffset(itemBox) == null) {
+      return null;
+    }
+
     // childMainAxisPosition gives the offset from the sliver's zero edge.
     // In a reversed list the zero edge is at the bottom, so we flip.
     var delta = sliver.childMainAxisPosition(itemBox);
@@ -700,6 +706,19 @@ class _AnchoredListState<T> extends State<AnchoredList<T>> {
   // -- Pagination --
 
   bool _handleScrollNotification(ScrollNotification notification) {
+    // A dimension change during the viewport's own layout can settle a
+    // ballistic activity and dispatch ScrollEndNotification synchronously,
+    // mid-layout. Reading child positions or driving the scroll position
+    // then corrupts the frame, so defer to post-frame and re-read metrics
+    // from the live position.
+    if (SchedulerBinding.instance.schedulerPhase ==
+        SchedulerPhase.persistentCallbacks) {
+      _scheduleViewportStateRefresh();
+      _schedulePaginationCheck();
+      _schedulePendingCommandProcessing();
+      return false;
+    }
+
     if (notification is ScrollUpdateNotification ||
         notification is ScrollEndNotification) {
       _checkPagination(notification.metrics);
