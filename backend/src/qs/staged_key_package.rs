@@ -2,19 +2,14 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use std::time::Duration;
-
 use aircommon::{identifiers::QsUserId, virtual_client::KeyPackageBatchId};
 use apqmls::messages::ApqKeyPackage;
 use chrono::{DateTime, Utc};
 use mls_assist::openmls::key_packages::KeyPackage;
 use sqlx::{PgExecutor, PgPool, PgTransaction, query, query_as, query_scalar};
 use tokio_stream::StreamExt;
-use tokio_util::sync::CancellationToken;
 use tracing::error;
 
-/// How often to run the cleanup task
-const CLEANUP_INTERVAL: Duration = Duration::from_secs(60);
 /// How long to keep a batch of staged key packages around
 const STAGED_KEY_PACKAGES_BATCH_TTL: chrono::Duration = chrono::Duration::minutes(5);
 
@@ -305,17 +300,14 @@ impl StagedKeyPackages {
         Ok(())
     }
 
-    pub(crate) fn spawn_periodic_cleanup(db_pool: PgPool, stop: CancellationToken) {
-        tokio::spawn(stop.run_until_cancelled_owned(async move {
-            let mut interval = tokio::time::interval(CLEANUP_INTERVAL);
-            loop {
-                interval.tick().await;
-                let cutoff = Utc::now() - STAGED_KEY_PACKAGES_BATCH_TTL;
-                if let Err(error) = Self::delete_expired(&db_pool, cutoff).await {
-                    error!(%error, "Failed to delete expired staged key packages");
-                }
-            }
-        }));
+    /// Delete all staged key packages that are expired now.
+    ///
+    /// TTL of a staged key package batch is `STAGED_KEY_PACKAGES_BATCH_TTL`.
+    pub(crate) async fn delete_expired_now(pool: &PgPool) {
+        let cutoff = Utc::now() - STAGED_KEY_PACKAGES_BATCH_TTL;
+        if let Err(error) = Self::delete_expired(pool, cutoff).await {
+            error!(%error, "Failed to delete expired staged key packages");
+        }
     }
 }
 

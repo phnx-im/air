@@ -78,7 +78,7 @@ use crate::{
     air_service::{BackendService, ServiceCreationError},
     errors::StorageError,
     messages::intra_backend::DsFanOutMessage,
-    qs::{queue::Queues, staged_key_package::StagedKeyPackages, user_record::UserRecord},
+    qs::{queue::Queues, user_record::UserRecord},
 };
 
 mod auth;
@@ -127,8 +127,6 @@ impl BackendService for Qs {
                 .await
                 .map_err(|e| ServiceCreationError::InitializationFailed(Box::new(e)))?;
         }
-
-        StagedKeyPackages::spawn_periodic_cleanup(db_pool.clone(), stop.clone());
 
         let queues = Queues::new(db_pool.clone(), stop.clone()).await?;
 

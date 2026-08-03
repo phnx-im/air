@@ -121,6 +121,8 @@ impl Qs {
         key_packages_proto: Vec<queue_service::v1::KeyPackage>,
         apq_key_packages_proto: Vec<queue_service::v1::ApqKeyPackage>,
     ) -> Result<(), QsStageKeyPackagesError> {
+        StagedKeyPackages::delete_expired_now(&self.db_pool).await;
+
         let crypto = OpenMlsRustCrypto::default();
         let protocol_version = ProtocolVersion::default();
 
