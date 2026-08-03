@@ -10,7 +10,7 @@ use aircommon::{
     time::TimeStamp,
 };
 use airprotos::client::group::GroupData;
-use anyhow::{Context, Result};
+use anyhow::{Context, Result, anyhow};
 use apqmls::commit_builder::ApqCommitMessageBundle;
 use openmls::{
     group::GroupId,
@@ -25,7 +25,10 @@ use crate::{
     chats::{ChatAttributes, GroupDataExt},
     clients::{CoreUser, api_clients::ApiClients, multi_device::HigherLevelGroup},
     db::access::{WriteConnection, WriteDbTransaction},
-    groups::{DecryptedProfileInfos, Group, ProfileInfo, handle_group_not_found_on_ds},
+    groups::{
+        DecryptedProfileInfos, Group, ProfileInfo, handle_group_not_found_on_ds,
+        self_group::SelfGroup,
+    },
     job::{operation::OperationData, profile::FetchUserProfileOperation},
     outbound_service::{
         OutboundServiceContext,
@@ -87,44 +90,34 @@ impl CoreUser {
     /// in the outbound service, which retries each one independently, so a group
     /// that is momentarily unreachable does not block linking.
     pub(crate) async fn enqueue_vc_onboarding(
-        &self,
+        txn: &mut WriteDbTransaction<'_>,
         groups: Vec<HigherLevelGroup>,
     ) -> anyhow::Result<usize> {
-        if groups.is_empty() {
-            return Ok(0);
+        let mut queued = 0;
+        for group in groups {
+            let HigherLevelGroup {
+                group_id,
+                pq_group_id,
+                group_state_ear_key,
+                identity_link_wrapper_key,
+                vc_leaf_index,
+            } = group;
+
+            let resync = Resync {
+                chat_id: None,
+                group_id,
+                pq_group_id,
+                group_state_ear_key,
+                identity_link_wrapper_key,
+                original_leaf_index: LeafNodeIndex::new(vc_leaf_index),
+                shares_vc_leaf: true,
+            };
+
+            resync.enqueue(&mut *txn).await?;
+            queued += 1;
         }
 
-        self.db()
-            .with_write_transaction(async |txn| {
-                let mut queued = 0;
-                for group in groups {
-                    let HigherLevelGroup {
-                        group_id,
-                        pq_group_id,
-                        group_state_ear_key,
-                        identity_link_wrapper_key,
-                        vc_leaf_index,
-                    } = group;
-
-                    let resync = Resync {
-                        chat_id: None,
-                        group_id,
-                        pq_group_id,
-                        group_state_ear_key,
-                        identity_link_wrapper_key,
-                        original_leaf_index: LeafNodeIndex::new(vc_leaf_index),
-                        shares_vc_leaf: true,
-                    };
-
-                    resync.enqueue(&mut *txn).await?;
-                    queued += 1;
-                }
-
-                self.outbound_service().notify_work();
-
-                Ok(queued)
-            })
-            .await
+        Ok(queued)
     }
 }
 
@@ -222,6 +215,18 @@ impl Resync {
     ) -> Result<(ChatId, DecryptedProfileInfos), OutboundServiceError> {
         // TODO: We should somehow mark the chat as "resyncing" in the DB and
         // reflect that in the UI.
+
+        if self.shares_vc_leaf
+            && SelfGroup::load(&mut connection)
+                .await
+                .map_err(OutboundServiceError::recoverable)?
+                .is_none()
+        {
+            return Err(OutboundServiceError::recoverable(anyhow!(
+                "self group not joined yet; deferring onboarding of group {:?}",
+                self.group_id
+            )));
+        }
 
         let external_commit_info = self.fetch_group_info(api_clients).await?;
 

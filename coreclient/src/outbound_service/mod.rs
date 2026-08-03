@@ -173,6 +173,12 @@ impl<C: OutboundServiceWork> OutboundService<C> {
         self.notify_work()
     }
 
+    /// Wakes the outbound service to onboard a freshly linked device into the
+    /// virtual client's existing groups.
+    pub(crate) fn notify_vc_onboarding(&self) -> WaitForDoneFuture {
+        self.notify_work()
+    }
+
     /// Runs the background task and waits until it is done.
     ///
     /// If the background is already running, just waits until it is done.

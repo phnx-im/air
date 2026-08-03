@@ -294,7 +294,7 @@ impl CoreUser {
         // 4. old device adds us via the DS
         // 5. we then process the Welcome that the QS fans out to our fresh queue.
         // 6. the old client gives us enough information to onboard ourselves (the new client) into all existing groups.
-        let (core_user, groups) = Self::link_new_device(api_clients, db_path, package).await?;
+        let core_user = Self::link_new_device(api_clients, db_path, package).await?;
         info!("bootstrapped linked client");
 
         let self_group_kp = core_user.generate_self_group_key_package().await?;
@@ -306,11 +306,7 @@ impl CoreUser {
         core_user.join_self_group_from_queue().await?;
         info!("joined self group");
 
-        let queued = core_user.enqueue_vc_onboarding(groups).await?;
-        info!(
-            queued,
-            "queued onboarding into existing higher-level groups"
-        );
+        core_user.outbound_service().notify_vc_onboarding();
 
         Ok(core_user)
     }
@@ -761,14 +757,14 @@ impl CoreUser {
     /// Bootstrap a [`CoreUser`] on a freshly linked device from the
     /// provisioning package received over the secure linking channel.
     ///
-    /// Also returns the higher-level groups the virtual client is a member of.
-    /// Onboarding into them has to wait until we joined the emulation group, so it
-    /// is not done here yet.
+    /// Onboarding into the virtual client's higher-level groups is queued here,
+    /// but only performed once we joined the emulation group: the outbound
+    /// service defers a queued onboarding until the self group is there.
     async fn link_new_device(
         api_clients: ApiClients,
         db_path: &str,
         package: ProvisioningPackage,
-    ) -> anyhow::Result<(CoreUser, Vec<HigherLevelGroup>)> {
+    ) -> anyhow::Result<CoreUser> {
         let air_db = open_air_db(db_path).await?;
         let client_db = open_client_db(&package.user_id, db_path).await?;
         let global_lock = open_lock_file(db_path)?;
@@ -811,8 +807,8 @@ impl CoreUser {
             key_store.signing_key.credential().clone(),
         )?;
 
-        client_db
-            .with_write_transaction(async |txn| -> anyhow::Result<()> {
+        let queued = client_db
+            .with_write_transaction(async |txn| -> anyhow::Result<usize> {
                 StorableUserCredential::new(key_store.signing_key.credential().clone())
                     .store(&mut *txn)
                     .await?;
@@ -845,9 +841,17 @@ impl CoreUser {
                 // has to arrive in the linking payload.
                 apply_settings_update(txn, &synced_settings).await?;
 
-                Ok(())
+                // Queue the onboarding into the groups the virtual client is
+                // already a member of. This is committed before the client
+                // record is finished below, so an interrupted linking (crash, exit)
+                // leaves the onboarding to be picked up.
+                Self::enqueue_vc_onboarding(txn, groups).await
             })
             .await?;
+        info!(
+            queued,
+            "queued onboarding into existing higher-level groups"
+        );
 
         let final_state = UserCreationState::FinalUserState(
             QsRegisteredUserState::new(key_store, qs_user_id, qs_client_id)
@@ -860,12 +864,9 @@ impl CoreUser {
         client_record.finish();
         client_record.store(air_db.write().await?).await?;
 
-        let core_user =
-            final_state
-                .final_state()?
-                .into_self_user(client_db, api_clients, global_lock);
-
-        Ok((core_user, groups))
+        Ok(final_state
+            .final_state()?
+            .into_self_user(client_db, api_clients, global_lock))
     }
 }
 
