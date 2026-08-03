@@ -158,10 +158,12 @@ impl Chat {
             .unwrap_or_default();
         let group_id = self.group_id.as_slice();
         let (is_active, past_members) = match self.status() {
-            ChatStatus::Pending => (false, Vec::new()),
-            ChatStatus::Inactive(inactive_chat) => (false, inactive_chat.past_members().to_vec()),
-            ChatStatus::Active => (true, Vec::new()),
-            ChatStatus::Blocked => (false, Vec::new()),
+            ChatStatus::Pending => (None, Vec::new()),
+            ChatStatus::Inactive(inactive_chat) => {
+                (Some(false), inactive_chat.past_members().to_vec())
+            }
+            ChatStatus::Active => (Some(true), Vec::new()),
+            ChatStatus::Blocked => (Some(false), Vec::new()),
         };
         let (
             is_confirmed_connection,
@@ -1243,6 +1245,29 @@ pub mod tests {
         Chat::set_notified_until(&mut txn, chat.id, earlier).await?;
 
         let loaded = Chat::load(&mut txn, &chat.id).await?.unwrap();
+        assert_eq!(loaded, chat);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn store_load_pending(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+
+        let mut chat = test_chat();
+        chat.status = ChatStatus::Pending;
+        chat.store(&mut txn).await?;
+
+        let loaded = Chat::load(&mut txn, &chat.id).await?.unwrap();
+        assert_eq!(loaded, chat);
+
+        // Joining the group activates the chat.
+        Chat::update_status(&mut txn, chat.id, &ChatStatus::Active).await?;
+        chat.status = ChatStatus::Active;
+
+        let loaded = Chat::load(txn, &chat.id).await?.unwrap();
         assert_eq!(loaded, chat);
 
         Ok(())
