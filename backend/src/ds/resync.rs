@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{credentials::LeafCredential, time::Duration, utils::removed_clients};
+use aircommon::{
+    credentials::LeafCredential, identifiers::QsReference,
+    mls_group_config::leaf_node_is_virtual_client, time::Duration, utils::removed_clients,
+};
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::{ProcessedAssistedMessage, apq::ApqGroupRef},
@@ -18,9 +21,16 @@ use tracing::error;
 
 use crate::errors::ResyncClientError;
 
+use super::group_state::{DsGroupState, RoomPolicyIdentity};
 use super::process::USER_EXPIRATION_DAYS;
 
-use super::group_state::{DsGroupState, RoomPolicyIdentity};
+/// Outcome of a resync: the message to distribute, plus the queue of the leaf the
+/// resync replaced when that leaf is being taken over by a sibling emulator
+/// client.
+pub(crate) struct ResyncOutcome {
+    pub(crate) message: SerializedMlsMessage,
+    pub(crate) sibling_queue: Option<QsReference>,
+}
 
 impl DsGroupState {
     /// Change the room-state role of every removed client to `Outsider`, using `sender` as the
@@ -67,7 +77,7 @@ impl DsGroupState {
         &mut self,
         external_commit: AssistedMessageIn,
         sender_index: LeafNodeIndex,
-    ) -> Result<SerializedMlsMessage, ResyncClientError> {
+    ) -> Result<ResyncOutcome, ResyncClientError> {
         // Process message (but don't apply it yet). This performs mls-assist-level validations.
         let processed_assisted_message_plus = self
             .group()
@@ -131,6 +141,17 @@ impl DsGroupState {
         // Change room state roles of removed clients to outsider.
         self.change_removed_roles_to_outsider(&sender, &removed_indices)?;
 
+        // If the leaf this commit installs is a virtual-client leaf while the one
+        // it replaces is not, the replaced leaf is operated by a sibling emulator
+        // client that must follow onto it. Capture its queue before
+        // `rekey_sender_profile` moves the profile.
+        let sibling_queue = (!self.leaf_is_virtual_client(sender_index)
+            && staged_commit_message
+                .update_path_leaf_node()
+                .is_some_and(leaf_node_is_virtual_client))
+        .then(|| self.queue_config_at(sender_index))
+        .flatten();
+
         // Everything seems to be okay.
         // Now we have to update the group state and distribute.
 
@@ -153,7 +174,10 @@ impl DsGroupState {
 
         self.rekey_sender_profile(sender_index, new_sender_index);
 
-        Ok(processed_assisted_message_plus.serialized_mls_message)
+        Ok(ResyncOutcome {
+            message: processed_assisted_message_plus.serialized_mls_message,
+            sibling_queue,
+        })
     }
 
     pub(crate) fn apq_resync_client(
@@ -162,7 +186,7 @@ impl DsGroupState {
         t_message: AssistedMessageIn,
         pq_message: AssistedMessageIn,
         t_sender_index: LeafNodeIndex,
-    ) -> Result<SerializedMlsMessage, ResyncClientError> {
+    ) -> Result<ResyncOutcome, ResyncClientError> {
         let processed_assisted_message_plus =
             ApqGroupRef::from_groups(&mut t_group_state.group, &mut pq_group_state.group)
                 .process_apq_assisted_message(
@@ -274,6 +298,15 @@ impl DsGroupState {
             return Err(ResyncClientError::InvalidMessage);
         }
 
+        // See the T-only variant: capture the replaced leaf's queue before the
+        // profile is rekeyed, so a sibling emulator client can follow this commit.
+        let sibling_queue = (!t_group_state.leaf_is_virtual_client(t_sender_index)
+            && t_staged_commit
+                .update_path_leaf_node()
+                .is_some_and(leaf_node_is_virtual_client))
+        .then(|| t_group_state.queue_config_at(t_sender_index))
+        .flatten();
+
         // Everything seems to be okay.
         // Now we have to update the group state and distribute.
 
@@ -290,6 +323,9 @@ impl DsGroupState {
         t_group_state.rekey_sender_profile(t_sender_index, t_new_sender_index);
         // Profiles are never maintained in PQ group state
 
-        Ok(processed_assisted_message_plus.serialized_apq_message)
+        Ok(ResyncOutcome {
+            message: processed_assisted_message_plus.serialized_apq_message,
+            sibling_queue,
+        })
     }
 }

@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                c.chat_id AS \"chat_id: _\"\n            FROM chat c\n            INNER JOIN \"group\" g ON g.group_id = c.group_id\n            WHERE (g.self_updated_at IS NULL OR g.self_updated_at < ?1 OR g.pending_commit_failed IS TRUE)\n                AND c.status = ?2\n            ORDER BY g.self_updated_at ASC",
+  "describe": {
+    "columns": [
+      {
+        "name": "chat_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "chat",
+            "name": "chat_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "72a78fc8321003935ed91a1ce3804902557cd869045a8c5e4a178312dc37015c"
+}

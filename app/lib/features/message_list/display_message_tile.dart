@@ -321,6 +321,14 @@ class _SystemMessageText extends StatelessWidget {
           ),
         );
       }(),
+      UiSystemMessage_Onboarded() => RichText(
+        text: TextSpan(
+          style: textStyle,
+          children: [
+            TextSpan(text: loc.systemMessage_onboarded, style: textStyle),
+          ],
+        ),
+      ),
     };
     return messageText;
   }
@@ -547,6 +555,14 @@ RichText buildSystemMessageText(BuildContext context, UiSystemMessage message) {
         ),
       );
     }(),
+    UiSystemMessage_Onboarded() => RichText(
+      text: TextSpan(
+        style: textStyle,
+        children: [
+          TextSpan(text: loc.systemMessage_onboarded, style: textStyle),
+        ],
+      ),
+    ),
   };
   return messageText;
 }

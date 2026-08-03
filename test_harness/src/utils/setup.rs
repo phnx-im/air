@@ -1815,6 +1815,9 @@ fn display_messages_to_string_map(display_messages: Vec<ChatMessage>) -> HashSet
                     SystemMessage::NewDirectConnectionChat(user_id) => {
                         format!("You requested a connection with {user_id:?}").into()
                     },
+                    SystemMessage::Onboarded => {
+                        Some("This client has been onboarded into the group after linking".to_owned())
+                    },
                                     }
             } else {
                 None

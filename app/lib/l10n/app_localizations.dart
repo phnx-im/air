@@ -1359,6 +1359,12 @@ abstract class AppLocalizations {
   /// **' created the group'**
   String get systemMessage_userCreatedGroup_suffix;
 
+  /// No description provided for @systemMessage_onboarded.
+  ///
+  /// In en, this message translates to:
+  /// **'This client has been onboarded into the group after linking.'**
+  String get systemMessage_onboarded;
+
   /// No description provided for @timestamp_now.
   ///
   /// In en, this message translates to:

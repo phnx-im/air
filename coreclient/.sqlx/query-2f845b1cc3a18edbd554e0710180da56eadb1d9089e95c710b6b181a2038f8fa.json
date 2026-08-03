@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT chat_id AS \"chat_id: _\", group_id AS \"group_id: _\" FROM resync_queue",
+  "describe": {
+    "columns": [
+      {
+        "name": "chat_id: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "chat_id"
+          }
+        }
+      },
+      {
+        "name": "group_id: _",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "resync_queue",
+            "name": "group_id"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      true,
+      false
+    ]
+  },
+  "hash": "2f845b1cc3a18edbd554e0710180da56eadb1d9089e95c710b6b181a2038f8fa"
+}
