@@ -9,6 +9,7 @@ use mls_assist::{
     components::ComponentsList,
     openmls::{
         component::{ComponentId, ComponentType},
+        components::vc_derivation_info::VC_COMPONENT_ID,
         group::{MlsGroupJoinConfig, PURE_PLAINTEXT_WIRE_FORMAT_POLICY},
         prelude::{
             AppDataDictionary, AppDataDictionaryExtension, Capabilities, Ciphersuite,
@@ -18,7 +19,8 @@ use mls_assist::{
         },
     },
 };
-use tls_codec::Serialize;
+use tls_codec::{DeserializeBytes, Serialize};
+use tracing::warn;
 
 use crate::credentials::SELF_GROUP_CREDENTIAL_TYPE;
 
@@ -149,6 +151,30 @@ pub fn default_leaf_node_extensions<C: AppComponent>() -> Extensions<LeafNode> {
     default_extensions::<LeafNode, C>()
 }
 
+/// Extensions for a leaf node that is operated by a virtual client.
+pub fn vc_leaf_node_extensions<C: AppComponent>() -> Extensions<LeafNode> {
+    Extensions::from_vec(vec![app_data_dictionary_extension::<C>(&[VC_COMPONENT_ID])])
+        .expect("invalid extensions")
+}
+
+/// Returns `true` if the leaf is operated by a virtual client.
+///
+/// [`vc_leaf_node_extensions`] adds [`VC_COMPONENT_ID`] to the app data components
+/// it when the leaf is first created for a virtual client, and later commits carry it over.
+pub fn leaf_node_is_virtual_client(leaf: &LeafNode) -> bool {
+    leaf.extensions()
+        .app_data_dictionary()
+        .and_then(|ext| ext.dictionary().get(&ComponentType::AppComponents.into()))
+        .and_then(|data| {
+            ComponentsList::tls_deserialize_exact_bytes(data)
+                .inspect_err(|error| {
+                    warn!(%error, "Failed to deserialize app components");
+                })
+                .ok()
+        })
+        .is_some_and(|list| list.component_ids.contains(&VC_COMPONENT_ID))
+}
+
 /// Extension used in the key package.
 pub fn default_key_package_extensions<C: AppComponent>() -> Extensions<KeyPackage> {
     default_extensions::<KeyPackage, C>()
@@ -205,16 +231,23 @@ pub fn default_group_context_app_data_dictionary_extension<C: AppComponent>(
 
 /// Extension which contains the default app data dictionary for the leaf node/key package.
 pub fn default_app_data_dictionary_extension<C: AppComponent>() -> Extension {
+    app_data_dictionary_extension::<C>(&[])
+}
+
+fn app_data_dictionary_extension<C: AppComponent>(
+    extra_component_ids: &[ComponentId],
+) -> Extension {
+    let mut component_ids = vec![C::COMPONENT_ID];
+    component_ids.extend_from_slice(extra_component_ids);
+
     let mut app_data_dictionary = AppDataDictionary::new();
 
     // Advertise that we support the component in the app data dictionary.
     app_data_dictionary.insert(
         ComponentType::AppComponents.into(),
-        ComponentsList {
-            component_ids: vec![C::COMPONENT_ID],
-        }
-        .tls_serialize_detached()
-        .expect("invalid component list"),
+        ComponentsList { component_ids }
+            .tls_serialize_detached()
+            .expect("invalid component list"),
     );
 
     // Add the component to the app data dictionary.

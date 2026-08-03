@@ -151,7 +151,7 @@ class _ChatScreenViewState extends State<ChatScreenView> {
 
     final bool showInactiveFooter =
         switch (status) {
-          UiChatStatus_Inactive() => true,
+          UiChatStatus_Pending() || UiChatStatus_Inactive() => true,
           _ => false,
         } ||
         (isGroupChat && !isCurrentUserMember);

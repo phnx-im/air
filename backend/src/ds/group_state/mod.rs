@@ -16,6 +16,7 @@ use aircommon::{
     },
     identifiers::{QsReference, SealedClientReference},
     messages::client_ds::WelcomeInfoParams,
+    mls_group_config::leaf_node_is_virtual_client,
     time::TimeStamp,
 };
 use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent};
@@ -34,7 +35,7 @@ use mls_assist::{
 use sqlx::PgExecutor;
 use thiserror::Error;
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
-use tracing::error;
+use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::errors::{CborMlsAssistStorage, StorageError};
@@ -213,10 +214,11 @@ impl DsGroupState {
         &self,
         sender_index: LeafNodeIndex,
     ) -> impl Iterator<Item = QsReference> {
+        let is_sender_virtual_client = self.leaf_is_virtual_client(sender_index);
         self.member_profiles
             .iter()
             .filter_map(move |(client_index, client_profile)| {
-                if client_index != &sender_index {
+                if client_index != &sender_index || is_sender_virtual_client {
                     Some(client_profile.client_queue_config.clone())
                 } else {
                     None
@@ -236,7 +238,7 @@ impl DsGroupState {
             .and_then(|ext| ext.dictionary().get(&AIR_COMPONENT_ID))
             .and_then(|data| {
                 AirComponent::from_bytes(data)
-                    .inspect_err(|error| error!(%error, "Failed to deserialize air component"))
+                    .inspect_err(|error| warn!(%error, "Failed to deserialize air component"))
                     .ok()
             })
             .is_some_and(|component| component.is_self_group);
@@ -251,6 +253,20 @@ impl DsGroupState {
         let current_extensions = self.group().group_info().group_context().extensions();
         AirComponent::is_self_group_context(staged_commit.group_context().extensions())
             == AirComponent::is_self_group_context(current_extensions)
+    }
+
+    /// Returns `true` if the leaf declares a `VC_COMPONENT_ID` entry in its `AppDataDictionary` extension.
+    pub(super) fn leaf_is_virtual_client(&self, leaf_index: LeafNodeIndex) -> bool {
+        self.group()
+            .leaf(leaf_index)
+            .is_some_and(leaf_node_is_virtual_client)
+    }
+
+    /// The queue reference recorded for `leaf_index`, if any.
+    pub(super) fn queue_config_at(&self, leaf_index: LeafNodeIndex) -> Option<QsReference> {
+        self.member_profiles
+            .get(&leaf_index)
+            .map(|profile| profile.client_queue_config.clone())
     }
 
     pub(crate) fn qs_client_ref_by_index(

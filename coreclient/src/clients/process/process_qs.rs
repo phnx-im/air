@@ -401,7 +401,7 @@ impl CoreUser {
         // fetching them from the AS.
         let own_client_info = OwnClientInfo::load(&mut *txn).await?;
 
-        let (group, sender_user_id, member_profile_info) = Box::pin(Group::join_apq_group(
+        let (mut group, sender_user_id, member_profile_info) = Box::pin(Group::join_apq_group(
             welcome_bundle,
             &self.inner.key_store.wai_ear_key,
             txn,
@@ -422,6 +422,18 @@ impl CoreUser {
             };
             let chat = Chat::new_group_chat(group.group_id().clone(), attributes);
             chat.store(&mut *txn).await?;
+
+            // Register the emulation epoch at the epoch we joined into. The
+            // sibling that added us registers at the same epoch when it merges
+            // its Add commit, so both derive the same `EpochId`. Joining does
+            // not go through `Group::merge_pending_commit`, which covers every
+            // later epoch of the self group.
+            let epoch_id = group.register_vc_emulation_epoch(&mut *txn)?;
+            debug!(
+                ?epoch_id,
+                "registered self-group VC emulation epoch on join"
+            );
+
             return Ok(QsMessageOutcome::new_chat(chat.id(), vec![]));
         }
 
@@ -517,7 +529,7 @@ impl CoreUser {
     /// Handles the profile part of decoded group data: schedules a fetch for
     /// an external group profile, or returns the picture for the legacy
     /// variant.
-    async fn resolve_group_profile_part(
+    pub(crate) async fn resolve_group_profile_part(
         txn: &mut WriteDbTransaction<'_>,
         group_id: &GroupId,
         sender_id: &UserId,
@@ -574,12 +586,13 @@ impl CoreUser {
                 // TODO: Once we have a UX for resyncs, we should schedule one
                 // here and re-enable the resync test in integration.rs
                 let _resync = Resync {
-                    chat_id,
+                    chat_id: Some(chat_id),
                     group_id: group.group_id().clone(),
                     pq_group_id: group.pq_group_id(),
                     group_state_ear_key: group.group_state_ear_key().clone(),
                     identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
                     original_leaf_index: group.own_index(),
+                    shares_vc_leaf: group.own_leaf_is_virtual_client(),
                 };
                 group.group_mut().mark_commit_failed(&mut *txn).await?;
                 Ok(None)
@@ -1196,7 +1209,8 @@ impl CoreUser {
         // If we were removed, we set the group to inactive.
         if we_were_removed {
             let past_members = group.members().collect();
-            chat.set_inactive(&mut *txn, past_members).await?;
+            chat.set_status(&mut *txn, ChatStatus::inactive(past_members))
+                .await?;
         }
         let (messages_from_commit, group_data_bytes) = group
             .merge_pending_commit(&mut *txn, staged_commit, ds_timestamp)
@@ -1354,13 +1368,19 @@ impl CoreUser {
             bail!(BlockedContactError);
         }
 
-        // Phase 1: Load the group and the sender.
+        // Phase 1: Load the group and the sender. Self-group leaves carry a
+        // self-group credential instead of a user credential, so the sender of
+        // a self-group update is a sibling device of the own user.
         let group = Group::load_verified(&mut *txn, &params.group_id)
             .await?
             .context("No group found")?;
-        let sender_credential = group
-            .credential_at(params.sender_index)?
-            .context("No sender credential found")?;
+        let sender_credential = if group.is_self_group() {
+            self.inner.key_store.signing_key.credential().clone()
+        } else {
+            group
+                .credential_at(params.sender_index)?
+                .context("No sender credential found")?
+        };
         let sender = sender_credential.user_id();
 
         // Phase 2: Decrypt the new user profile key
