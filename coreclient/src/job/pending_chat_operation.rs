@@ -327,9 +327,7 @@ impl PendingChatOperation {
             // TODO: A self-group key package upload parks here until the
             // `DsCommitResponse` arrives via the queue. If that response is
             // lost (the DS dispatches it best-effort), the job is stuck
-            // forever and blocks all further uploads. Eventual backstop:
-            // time out the waiting state, tear down the self-group and let
-            // ensure_self_group recreate it.
+            // forever and blocks all further uploads.
             info!(
                 group_id = ?self.group.group_id(),
                 "Failed to execute PendingChatOperation for group because
