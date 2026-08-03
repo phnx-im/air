@@ -407,6 +407,7 @@ class _MessageListViewState extends State<MessageListView>
     final swapTopThreshold = pillTop - S.s32;
     // Solid color for the safe area
     final bgColor = MessageListView.backgroundColor(context);
+    final newestOwnIndex = _newestOwnIndex(state);
 
     Widget buildAnchoredList({double bottomPadding = 0.0}) {
       // Metrics notifications cover the initial layout and content growth,
@@ -444,7 +445,7 @@ class _MessageListViewState extends State<MessageListView>
               }
             },
             itemBuilder: (context, message, index) {
-              return _buildMessageTile(state, message, index);
+              return _buildMessageTile(state, message, index, newestOwnIndex);
             },
           ),
         ),
@@ -560,12 +561,30 @@ class _MessageListViewState extends State<MessageListView>
     );
   }
 
+  /// Index of the newest message the user sent, or -1 where the chat has none
+  /// to point at.
+  ///
+  /// Withheld while newer rows remain unloaded: the newest own row in the
+  /// window is not necessarily the newest one there is.
+  int _newestOwnIndex(MessageListStateWrapper state) {
+    if (state.hasNewer) return -1;
+    final ownUserId = context.read<UserCubit>().state.userId;
+    final data = state.messageData;
+    for (var i = 0; i < data.length; i++) {
+      final message = data[i].message;
+      if (message is! UiMessage_Content) continue;
+      if (message.field0.sender == ownUserId) return i;
+    }
+    return -1;
+  }
+
   /// Builds a single message row, optionally preceded by date and unread
   /// dividers (in that visual order, top-to-bottom).
   Widget _buildMessageTile(
     MessageListStateWrapper state,
     UiChatMessage message,
     int index,
+    int newestOwnIndex,
   ) {
     final animated = _animatingMessages.contains(message.id);
 
@@ -590,6 +609,7 @@ class _MessageListViewState extends State<MessageListView>
         isConnectionChat: state.isConnectionChat ?? false,
         animated: animated,
         isNewest: isNewest,
+        isNewestOwn: index == newestOwnIndex,
       ),
     );
 

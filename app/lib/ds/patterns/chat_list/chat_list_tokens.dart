@@ -32,7 +32,7 @@ class ChatListTokens {
   final ChatListFadeTokens fades;
 
   static const ChatListTokens phone = ChatListTokens(
-    headerClearance: S.s80,
+    headerClearance: S.s24,
     contentBottomPadding: S.s160,
     fades: ChatListFadeTokens.phone,
   );

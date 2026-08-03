@@ -70,6 +70,7 @@ class TextMessageTile extends HookWidget {
     required this.reactions,
     required this.ownUserId,
     required this.isNewest,
+    required this.isNewestOwn,
     super.key,
   });
 
@@ -86,6 +87,9 @@ class TextMessageTile extends HookWidget {
 
   /// The newest message in the chat.
   final bool isNewest;
+
+  /// The newest message the user sent.
+  final bool isNewestOwn;
 
   @override
   Widget build(BuildContext context) {
@@ -165,16 +169,27 @@ class TextMessageTile extends HookWidget {
   /// The stamp under the bubble, or null where the message carries none.
   ///
   /// The conversation shows its time where the time is the reader's business:
-  /// at the end of the chat, and on a message that still wants attention -- an
-  /// edit, a send in flight, a send that failed. Everywhere else the time is a
-  /// keystroke away, from the hover tooltip or the drag-to-reveal column, and
-  /// the rows stay quiet.
+  /// at the end of the chat, on the reader's own last word in it, and on a
+  /// message that still wants attention -- an edit, a send in flight, a send
+  /// that reached the server but nobody else yet, a send that failed.
+  /// Everywhere else the time is a keystroke away, from the hover tooltip or
+  /// the drag-to-reveal column, and the rows stay quiet.
   Widget? _stamp(BuildContext context) {
     final isEdited = contentMessage.edited;
     final wantsAttention =
         isSender &&
-        (status == UiMessageStatus.sending || status == UiMessageStatus.error);
-    if (!isNewest && !isEdited && !wantsAttention) return null;
+        switch (status) {
+          UiMessageStatus.sending ||
+          UiMessageStatus.sent ||
+          UiMessageStatus.error => true,
+          UiMessageStatus.delivered ||
+          UiMessageStatus.read ||
+          UiMessageStatus.hidden => false,
+        };
+    // The reader's own last message keeps its stamp even once someone has
+    // replied since, so how far it got stays on screen.
+    final isPrimary = isNewest || isNewestOwn;
+    if (!isPrimary && !isEdited && !wantsAttention) return null;
 
     final loc = AppLocalizations.of(context);
     final readReceipts = context.select(
@@ -182,7 +197,7 @@ class TextMessageTile extends HookWidget {
     );
     // An edited message elsewhere in the history surfaces its marker without
     // resurfacing a delivery tick the reader had already left behind.
-    final delivery = isSender && (isNewest || wantsAttention)
+    final delivery = isSender && (isPrimary || wantsAttention)
         ? _deliveryStatus(status, readReceipts: readReceipts)
         : null;
 

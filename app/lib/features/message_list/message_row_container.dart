@@ -19,6 +19,7 @@ class MessageRowContainer extends StatelessWidget {
     required this.isConnectionChat,
     required this.animated,
     required this.isNewest,
+    required this.isNewestOwn,
   });
 
   final bool isConnectionChat;
@@ -31,6 +32,9 @@ class MessageRowContainer extends StatelessWidget {
 
   /// The newest message in the chat.
   final bool isNewest;
+
+  /// The newest message the user sent.
+  final bool isNewestOwn;
 
   @override
   Widget build(BuildContext context) {
@@ -100,6 +104,7 @@ class MessageRowContainer extends StatelessWidget {
               reactions: reactions,
               ownUserId: userId,
               isNewest: isNewest,
+              isNewestOwn: isNewestOwn,
             ),
           ),
           UiMessage_Display(field0: final display) => DisplayMessageTile(

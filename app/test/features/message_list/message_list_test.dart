@@ -924,10 +924,35 @@ void main() {
         reactions: [],
       );
 
+      // The clock the stamp of message [id] carries. The fixtures are old
+      // enough that no stamp is still on its relative tier.
+      String stampLabel(int id) {
+        const locale = 'en_US';
+        return TimeFormats(
+          locale: locale,
+          timePattern: DateFormat.jm(locale).pattern!,
+          datePattern: DateFormat.yMd(locale).pattern!,
+        ).clock(DateTime.parse('2023-01-01T00:0$id:00.000Z').toLocal());
+      }
+
       testWidgets('go on the end of the chat', (tester) async {
-        // Oldest first. Every row is a flight of its own, so a rule keyed on
-        // flight position rather than on the end of the chat would stamp them
-        // all.
+        // Oldest first, and nobody's own: every row is a flight of its own, so
+        // a rule keyed on flight position rather than on the end of the chat
+        // would stamp them all.
+        messageListCubit.setState([
+          stampFixture(1, sender: 2),
+          stampFixture(2, sender: 3),
+          stampFixture(3, sender: 2),
+          stampFixture(4, sender: 3),
+        ]);
+
+        await tester.pumpWidget(buildSubject());
+
+        expect(find.byType(MessageMeta), findsOneWidget);
+        expect(find.text(stampLabel(4)), findsOneWidget);
+      });
+
+      testWidgets("go on the reader's own last message too", (tester) async {
         messageListCubit.setState([
           stampFixture(1, sender: 1),
           stampFixture(2, sender: 2),
@@ -937,23 +962,28 @@ void main() {
 
         await tester.pumpWidget(buildSubject());
 
-        expect(find.byType(MessageMeta), findsOneWidget);
+        // The reader's own last message keeps its stamp even though someone has
+        // replied since, so how far it got stays on screen.
+        expect(find.byType(MessageMeta), findsNWidgets(2));
+        expect(find.text(stampLabel(3)), findsOneWidget);
+        expect(find.text(stampLabel(4)), findsOneWidget);
       });
 
       testWidgets('stay with an edited message wherever it sits', (
         tester,
       ) async {
         messageListCubit.setState([
-          stampFixture(1, sender: 1),
-          stampFixture(2, sender: 2, edited: true),
-          stampFixture(3, sender: 1),
-          stampFixture(4, sender: 2),
+          stampFixture(1, sender: 2),
+          stampFixture(2, sender: 3, edited: true),
+          stampFixture(3, sender: 2),
+          stampFixture(4, sender: 3),
         ]);
 
         await tester.pumpWidget(buildSubject());
 
         // The edited message, and the end of the chat.
         expect(find.byType(MessageMeta), findsNWidgets(2));
+        expect(find.text(stampLabel(2)), findsOneWidget);
       });
 
       testWidgets('stay with a send that failed', (tester) async {
@@ -965,8 +995,41 @@ void main() {
 
         await tester.pumpWidget(buildSubject());
 
-        // The failed send, and the end of the chat.
+        // The failed send, the reader's own last message, and the end of the
+        // chat.
+        expect(find.byType(MessageMeta), findsNWidgets(3));
+        expect(find.text(stampLabel(1)), findsOneWidget);
+      });
+
+      testWidgets('stay with a send nobody has received yet', (tester) async {
+        messageListCubit.setState([
+          stampFixture(1, sender: 1, status: UiMessageStatus.sent),
+          stampFixture(2, sender: 1),
+          stampFixture(3, sender: 2),
+        ]);
+
+        await tester.pumpWidget(buildSubject());
+
+        // The undelivered send, the reader's own last message, and the end of
+        // the chat.
+        expect(find.byType(MessageMeta), findsNWidgets(3));
+        expect(find.text(stampLabel(1)), findsOneWidget);
+      });
+
+      testWidgets('leave a send that landed with someone alone', (
+        tester,
+      ) async {
+        messageListCubit.setState([
+          stampFixture(1, sender: 1, status: UiMessageStatus.delivered),
+          stampFixture(2, sender: 1),
+          stampFixture(3, sender: 2),
+        ]);
+
+        await tester.pumpWidget(buildSubject());
+
+        // Only the reader's own last message and the end of the chat.
         expect(find.byType(MessageMeta), findsNWidgets(2));
+        expect(find.text(stampLabel(1)), findsNothing);
       });
 
       testWidgets('are reachable on hover, beside the bubble and not on it', (
@@ -986,12 +1049,7 @@ void main() {
         //
         // The clock alone, as under a bubble: the pointer reveals the same
         // stamp the meta row would have carried, never a day beside it.
-        const locale = 'en_US';
-        final label = TimeFormats(
-          locale: locale,
-          timePattern: DateFormat.jm(locale).pattern!,
-          datePattern: DateFormat.yMd(locale).pattern!,
-        ).clock(DateTime.parse('2023-01-01T00:02:00.000Z').toLocal());
+        final label = stampLabel(2);
         final body = find.text('Message 2', findRichText: true);
 
         final pointer = await tester.createGesture(
@@ -1023,8 +1081,8 @@ void main() {
       testWidgets('are withheld while newer messages remain unloaded', (
         tester,
       ) async {
-        // Jumped into the middle of a history: the newest row on screen is not
-        // the end of the chat.
+        // Jumped into the middle of a history: neither the newest row on screen
+        // nor the reader's own newest is the last of its kind in the chat.
         messageListCubit.setState([
           stampFixture(1, sender: 1),
           stampFixture(2, sender: 2),

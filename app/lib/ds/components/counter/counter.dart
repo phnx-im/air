@@ -8,7 +8,8 @@ import 'package:flutter/widgets.dart';
 
 /// Pill carrying a count, e.g. a chat's unread messages.
 ///
-/// A pure view: geometry comes from [tokens], color from the palette.
+/// A pure view: geometry comes from [tokens], colors from [CounterTokens]'
+/// palette resolvers.
 class Counter extends StatelessWidget {
   const Counter({super.key, required this.tokens, required this.count});
 
@@ -32,13 +33,16 @@ class Counter extends StatelessWidget {
       padding: tokens.padding,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: palette.fill.secondary,
+        color: CounterTokens.fill(palette),
         borderRadius: BorderRadius.circular(CounterTokens.radius),
       ),
       child: Text(
         label,
         style: typeScale.body.mini
-            .style(color: palette.text.primary, weight: Weight.emphasized)
+            .style(
+              color: CounterTokens.label(palette),
+              weight: Weight.emphasized,
+            )
             .copyWith(height: 1.0),
       ),
     );

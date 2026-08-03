@@ -70,11 +70,11 @@ class _ChatListViewState extends State<ChatListView> {
     // are, so the two densities can never disagree.
     final phone = context.breakpoint.isSmall;
     final safeTop = phone ? MediaQuery.paddingOf(context).top : 0.0;
-    final headerHeight = ListHeaderTokens.of(context).height;
+    final headerHeight = safeTop + ListHeaderTokens.of(context).height;
     final container = AppScrollbar(
       // Start the track below the header rather than letting it run up behind
       // it.
-      trackTop: safeTop + headerHeight,
+      trackTop: headerHeight,
       trackBottom: _scrollbarBottomInset,
       child: ChatListContent(
         createChatDetailsCubit: widget.createChatDetailsCubit,

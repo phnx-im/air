@@ -7,7 +7,9 @@ import 'package:flutter/widgets.dart';
 
 /// Layout tokens for the count pill, per density.
 ///
-/// Geometry only: colors come from the palette at paint time.
+/// Geometry per density, plus the pill's two color roles as palette resolvers.
+/// The pill has no variants, so the roles are fixed and belong here rather than
+/// at the call site.
 @immutable
 class CounterTokens {
   const CounterTokens({
@@ -25,6 +27,14 @@ class CounterTokens {
   final EdgeInsets padding;
 
   static const double radius = CornerRadius.full;
+
+  /// The pill inverts against the surface it sits on, so the count reads at a
+  /// glance in a list of otherwise quiet rows.
+  static Color fill(SemanticPalette palette) =>
+      palette.function.neutral.toggleBlack;
+
+  static Color label(SemanticPalette palette) =>
+      palette.function.neutral.toggleWhite;
 
   static const CounterTokens phone = CounterTokens(
     height: S.s24,
