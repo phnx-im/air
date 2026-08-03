@@ -6,7 +6,7 @@ use aircommon::identifiers::{Fqdn, MimiId, UserId, Username};
 use chrono::{DateTime, Utc};
 use mimi_content::MessageStatus;
 use openmls::group::GroupId;
-use sqlx::{query, query_as, query_scalar};
+use sqlx::{Database, Sqlite, Type, query, query_as, query_scalar};
 use tokio_stream::StreamExt;
 use tracing::info;
 use uuid::Uuid;
@@ -22,6 +22,25 @@ use crate::{
 
 use super::InactiveChat;
 
+/// The `chat.status` column.
+///
+/// This is the chat's own state only. [`ChatStatus::Blocked`] has no
+/// counterpart here, because blocking is a property of the connection user and
+/// is derived from `blocked_contact`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq, sqlx::Decode, sqlx::Encode)]
+#[repr(u8)]
+enum SqlChatStatus {
+    Pending = 0,
+    Active = 1,
+    Inactive = 2,
+}
+
+impl Type<Sqlite> for SqlChatStatus {
+    fn type_info() -> <Sqlite as Database>::TypeInfo {
+        <u32 as Type<Sqlite>>::type_info()
+    }
+}
+
 struct SqlChat {
     chat_id: ChatId,
     chat_title: String,
@@ -33,7 +52,7 @@ struct SqlChat {
     connection_user_domain: Option<Fqdn>,
     connection_user_handle: Option<Username>,
     is_confirmed_connection: bool,
-    is_active: bool,
+    status: SqlChatStatus,
     is_blocked: bool,
     is_incoming: bool,
     muted_until: Option<DateTime<Utc>>,
@@ -53,7 +72,7 @@ impl SqlChat {
             connection_user_domain,
             connection_user_handle,
             is_confirmed_connection,
-            is_active,
+            status: sql_status,
             is_blocked,
             is_incoming,
             muted_until,
@@ -79,10 +98,11 @@ impl SqlChat {
             _ => ChatType::Group(ChatAttributes { title, picture }),
         };
 
-        let status = match (is_active, is_blocked) {
+        let status = match (sql_status, is_blocked) {
             (_, true) => ChatStatus::Blocked,
-            (true, false) => ChatStatus::Active,
-            (false, false) => ChatStatus::Inactive(InactiveChat::new(
+            (SqlChatStatus::Pending, false) => ChatStatus::Pending,
+            (SqlChatStatus::Active, false) => ChatStatus::Active,
+            (SqlChatStatus::Inactive, false) => ChatStatus::Inactive(InactiveChat::new(
                 past_members.into_iter().map(From::from).collect(),
             )),
         };
@@ -105,7 +125,7 @@ impl SqlChat {
         &self,
         connection: impl ReadConnection,
     ) -> sqlx::Result<Vec<SqlPastMember>> {
-        if self.is_active {
+        if self.status != SqlChatStatus::Inactive {
             return Ok(Vec::new());
         }
         Chat::load_past_members(connection, self.chat_id).await
@@ -156,10 +176,15 @@ impl Chat {
             .map(|attrs| attrs.picture())
             .unwrap_or_default();
         let group_id = self.group_id.as_slice();
-        let (is_active, past_members) = match self.status() {
-            ChatStatus::Inactive(inactive_chat) => (false, inactive_chat.past_members().to_vec()),
-            ChatStatus::Active => (true, Vec::new()),
-            ChatStatus::Blocked => (false, Vec::new()),
+        let (status, past_members) = match self.status() {
+            ChatStatus::Pending => (SqlChatStatus::Pending, Vec::new()),
+            ChatStatus::Inactive(inactive_chat) => (
+                SqlChatStatus::Inactive,
+                inactive_chat.past_members().to_vec(),
+            ),
+            ChatStatus::Active => (SqlChatStatus::Active, Vec::new()),
+            // Blocking is not stored in this column.
+            ChatStatus::Blocked => (SqlChatStatus::Inactive, Vec::new()),
         };
         let (
             is_confirmed_connection,
@@ -203,7 +228,7 @@ impl Chat {
                 connection_user_domain,
                 connection_user_handle,
                 is_confirmed_connection,
-                is_active,
+                status,
                 is_incoming
             )
             VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
@@ -216,7 +241,7 @@ impl Chat {
                 connection_user_domain = excluded.connection_user_domain,
                 connection_user_handle = excluded.connection_user_handle,
                 is_confirmed_connection = excluded.is_confirmed_connection,
-                is_active = excluded.is_active,
+                status = excluded.status,
                 is_incoming = excluded.is_incoming",
             self.id,
             title,
@@ -227,7 +252,7 @@ impl Chat {
             connection_user_domain,
             connection_user_handle,
             is_confirmed_connection,
-            is_active,
+            status,
             is_incoming,
         )
         .execute(connection.as_mut())
@@ -275,7 +300,7 @@ impl Chat {
                 connection_user_domain AS "connection_user_domain: _",
                 connection_user_handle AS "connection_user_handle: _",
                 is_confirmed_connection,
-                is_active,
+                status AS "status: _",
                 is_incoming,
                 blocked_contact.user_uuid IS NOT NULL AS "is_blocked!: _",
                 muted_until AS "muted_until: _",
@@ -337,9 +362,10 @@ impl Chat {
             FROM chat c
             INNER JOIN "group" g ON g.group_id = c.group_id
             WHERE (g.self_updated_at IS NULL OR g.self_updated_at < ?1 OR g.pending_commit_failed IS TRUE)
-                AND c.is_active = TRUE
+                AND c.status = ?2
             ORDER BY g.self_updated_at ASC"#,
             until_due_at as _,
+            SqlChatStatus::Active,
         )
         .fetch_all(connection.as_mut())
         .await
@@ -367,7 +393,7 @@ impl Chat {
                 connection_user_domain AS "connection_user_domain: _",
                 connection_user_handle AS "connection_user_handle: _",
                 is_confirmed_connection,
-                is_active,
+                status AS "status: _",
                 is_incoming,
                 blocked_contact.user_uuid IS NOT NULL AS "is_blocked!: _",
                 muted_until AS "muted_until: _",
@@ -420,50 +446,47 @@ impl Chat {
         Ok(())
     }
 
-    pub(super) async fn update_status(
+    pub(crate) async fn update_status(
         mut transaction: impl WriteTransaction,
         chat_id: ChatId,
         status: &ChatStatus,
     ) -> sqlx::Result<()> {
-        match status {
-            ChatStatus::Inactive(inactive) => {
-                query!(
-                    "UPDATE chat SET is_active = false WHERE chat_id = ?",
-                    chat_id,
-                )
+        let sql_status = match status {
+            ChatStatus::Pending => Some(SqlChatStatus::Pending),
+            ChatStatus::Inactive(_) => Some(SqlChatStatus::Inactive),
+            ChatStatus::Active => Some(SqlChatStatus::Active),
+            // This status is a no-op, it is derived from `blocked_contact`
+            ChatStatus::Blocked => None,
+        };
+        if let Some(sql_status) = sql_status {
+            query!(
+                "UPDATE chat SET status = ? WHERE chat_id = ?",
+                sql_status,
+                chat_id,
+            )
+            .execute(transaction.as_mut())
+            .await?;
+        }
+        if let ChatStatus::Inactive(inactive) = status {
+            query!("DELETE FROM chat_past_member WHERE chat_id = ?", chat_id,)
                 .execute(transaction.as_mut())
                 .await?;
-                query!("DELETE FROM chat_past_member WHERE chat_id = ?", chat_id,)
-                    .execute(transaction.as_mut())
-                    .await?;
-                for member in inactive.past_members() {
-                    let uuid = member.uuid();
-                    let domain = member.domain();
-                    query!(
-                        "INSERT OR IGNORE INTO chat_past_member (
-                            chat_id,
-                            member_user_uuid,
-                            member_user_domain
-                        )
-                        VALUES (?, ?, ?)",
+            for member in inactive.past_members() {
+                let uuid = member.uuid();
+                let domain = member.domain();
+                query!(
+                    "INSERT OR IGNORE INTO chat_past_member (
                         chat_id,
-                        uuid,
-                        domain,
+                        member_user_uuid,
+                        member_user_domain
                     )
-                    .execute(transaction.as_mut())
-                    .await?;
-                }
-            }
-            ChatStatus::Active => {
-                query!(
-                    "UPDATE chat SET is_active = true WHERE chat_id = ?",
+                    VALUES (?, ?, ?)",
                     chat_id,
+                    uuid,
+                    domain,
                 )
                 .execute(transaction.as_mut())
                 .await?;
-            }
-            ChatStatus::Blocked => {
-                // This status is a no-op
             }
         }
         transaction.notifier().update(chat_id);
@@ -1233,6 +1256,29 @@ pub mod tests {
         Chat::set_notified_until(&mut txn, chat.id, earlier).await?;
 
         let loaded = Chat::load(&mut txn, &chat.id).await?.unwrap();
+        assert_eq!(loaded, chat);
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn store_load_pending(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut connection = pool.write().await?;
+        let mut txn = connection.begin().await?;
+
+        let mut chat = test_chat();
+        chat.status = ChatStatus::Pending;
+        chat.store(&mut txn).await?;
+
+        let loaded = Chat::load(&mut txn, &chat.id).await?.unwrap();
+        assert_eq!(loaded, chat);
+
+        // Joining the group activates the chat.
+        Chat::update_status(&mut txn, chat.id, &ChatStatus::Active).await?;
+        chat.status = ChatStatus::Active;
+
+        let loaded = Chat::load(txn, &chat.id).await?.unwrap();
         assert_eq!(loaded, chat);
 
         Ok(())

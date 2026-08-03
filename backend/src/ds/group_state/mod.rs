@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use aircommon::{
     codec::PersistenceCodec,
-    credentials::VerifiableUserCredential,
+    credentials::LeafCredential,
     crypto::{
         aead::{
             AeadDecryptable, AeadEncryptable, Ciphertext,
@@ -14,8 +14,9 @@ use aircommon::{
         },
         errors::{DecryptionError, EncryptionError},
     },
-    identifiers::{QsReference, SealedClientReference, UserId},
+    identifiers::{QsReference, SealedClientReference},
     messages::client_ds::WelcomeInfoParams,
+    mls_group_config::leaf_node_is_virtual_client,
     time::TimeStamp,
 };
 use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent};
@@ -34,7 +35,7 @@ use mls_assist::{
 use sqlx::PgExecutor;
 use thiserror::Error;
 use tls_codec::{Serialize as _, TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
-use tracing::error;
+use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::errors::{CborMlsAssistStorage, StorageError};
@@ -91,24 +92,19 @@ impl DsGroupState {
         }
     }
 
-    pub(crate) fn room_state_change_role(
+    pub(super) fn room_state_change_role(
         &mut self,
-        sender: &UserId,
-        target: &UserId,
+        sender: &RoomPolicyIdentity,
+        target: RoomPolicyIdentity,
         role: RoleIndex,
     ) -> Option<()> {
-        let Ok(sender) = sender.tls_serialize_detached() else {
-            return None;
-        };
-
-        let Ok(target) = target.tls_serialize_detached() else {
-            return None;
-        };
-
-        match self
-            .room_state
-            .apply_regular_proposals(&sender, &[MimiProposal::ChangeRole { target, role }])
-        {
+        match self.room_state.apply_regular_proposals(
+            &sender.0,
+            &[MimiProposal::ChangeRole {
+                target: target.0,
+                role,
+            }],
+        ) {
             Ok(_) => Some(()),
             Err(e) => {
                 error!(%e, "Change role proposal failed");
@@ -117,15 +113,15 @@ impl DsGroupState {
         }
     }
 
-    /// Extract and parse the user credential of the leaf at `index`.
+    /// Extract and parse the credential of the leaf at `index`.
     ///
     /// Returns `None` (and logs) if the leaf is missing or its credential is invalid.
-    pub(crate) fn leaf_credential(&self, index: LeafNodeIndex) -> Option<VerifiableUserCredential> {
+    pub(crate) fn leaf_credential(&self, index: LeafNodeIndex) -> Option<LeafCredential> {
         let leaf = self.group().leaf(index).or_else(|| {
             error!(%index, "Leaf node not found");
             None
         })?;
-        VerifiableUserCredential::from_basic_credential(leaf.credential())
+        LeafCredential::from_credential(leaf.credential())
             .map_err(|error| error!(%error, "Credential is invalid"))
             .ok()
     }
@@ -209,10 +205,11 @@ impl DsGroupState {
         &self,
         sender_index: LeafNodeIndex,
     ) -> impl Iterator<Item = QsReference> {
+        let is_sender_virtual_client = self.leaf_is_virtual_client(sender_index);
         self.member_profiles
             .iter()
             .filter_map(move |(client_index, client_profile)| {
-                if client_index != &sender_index {
+                if client_index != &sender_index || is_sender_virtual_client {
                     Some(client_profile.client_queue_config.clone())
                 } else {
                     None
@@ -232,7 +229,7 @@ impl DsGroupState {
             .and_then(|ext| ext.dictionary().get(&AIR_COMPONENT_ID))
             .and_then(|data| {
                 AirComponent::from_bytes(data)
-                    .inspect_err(|error| error!(%error, "Failed to deserialize air component"))
+                    .inspect_err(|error| warn!(%error, "Failed to deserialize air component"))
                     .ok()
             })
             .is_some_and(|component| component.is_self_group);
@@ -247,6 +244,20 @@ impl DsGroupState {
         let current_extensions = self.group().group_info().group_context().extensions();
         AirComponent::is_self_group_context(staged_commit.group_context().extensions())
             == AirComponent::is_self_group_context(current_extensions)
+    }
+
+    /// Returns `true` if the leaf declares a `VC_COMPONENT_ID` entry in its `AppDataDictionary` extension.
+    pub(super) fn leaf_is_virtual_client(&self, leaf_index: LeafNodeIndex) -> bool {
+        self.group()
+            .leaf(leaf_index)
+            .is_some_and(leaf_node_is_virtual_client)
+    }
+
+    /// The queue reference recorded for `leaf_index`, if any.
+    pub(super) fn queue_config_at(&self, leaf_index: LeafNodeIndex) -> Option<QsReference> {
+        self.member_profiles
+            .get(&leaf_index)
+            .map(|profile| profile.client_queue_config.clone())
     }
 
     pub(crate) fn qs_client_ref_by_index(
@@ -407,26 +418,49 @@ impl SerializableDsGroupStateV2 {
     }
 }
 
+/// Room-policy identity of a leaf credential.
+///
+/// User credentials resolve to the TLS-serialized user id. Self-group credentials carry no user
+/// identity and resolve to the raw client id bytes, which are unique per client. The two forms
+/// cannot collide: a serialized user id is always longer than the 16 client id bytes.
+#[derive(Debug, Clone)]
+pub(super) struct RoomPolicyIdentity(Vec<u8>);
+
+impl RoomPolicyIdentity {
+    /// Derive the room-policy identity of `credential`.
+    ///
+    /// Returns `None` (and logs) if serializing the user id fails.
+    pub(super) fn from_credential(credential: &LeafCredential) -> Option<Self> {
+        match credential {
+            LeafCredential::User(credential) => credential
+                .user_id()
+                .tls_serialize_detached()
+                .map_err(|error| error!(%error, "Failed to serialize user id"))
+                .ok()
+                .map(Self),
+            LeafCredential::SelfGroup(credential) => {
+                Some(Self(credential.client_id().into_bytes().to_vec()))
+            }
+        }
+    }
+}
+
 fn fallback_room_state(
     members: impl Iterator<Item = mls_assist::openmls::prelude::Member>,
 ) -> VerifiedRoomState {
     let mut member_ids = Vec::new();
     for member in members {
-        let credential = match VerifiableUserCredential::from_basic_credential(&member.credential) {
+        let credential = match LeafCredential::from_credential(&member.credential) {
             Ok(credential) => credential,
             Err(error) => {
                 error!(%error, "Failed to convert credential; skipping member");
                 continue;
             }
         };
-        let user_id = match credential.user_id().tls_serialize_detached() {
-            Ok(bytes) => bytes,
-            Err(error) => {
-                error!(%error, "Failed to serialize user id; skipping member");
-                continue;
-            }
+        let Some(identity) = RoomPolicyIdentity::from_credential(&credential) else {
+            continue;
         };
-        member_ids.push(user_id);
+        member_ids.push(identity.0);
     }
     VerifiedRoomState::fallback_room(member_ids)
 }

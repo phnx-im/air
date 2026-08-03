@@ -127,6 +127,20 @@ impl Chat {
         }
     }
 
+    pub(crate) fn new_pending_group_chat(group_id: GroupId, attributes: ChatAttributes) -> Self {
+        let id = ChatId::try_from(&group_id).unwrap();
+        Self {
+            id,
+            group_id,
+            last_read: Utc::now(),
+            last_message_at: None,
+            status: ChatStatus::Pending,
+            chat_type: ChatType::Group(attributes),
+            muted_until: None,
+            notified_until: None,
+        }
+    }
+
     pub(crate) fn new_group_chat(group_id: GroupId, attributes: ChatAttributes) -> Self {
         let id = ChatId::try_from(&group_id).unwrap();
         Self {
@@ -232,14 +246,13 @@ impl Chat {
         Ok(())
     }
 
-    pub(crate) async fn set_inactive(
+    pub(crate) async fn set_status(
         &mut self,
         connection: impl WriteTransaction,
-        past_members: Vec<UserId>,
+        status: ChatStatus,
     ) -> sqlx::Result<()> {
-        let new_status = ChatStatus::Inactive(InactiveChat { past_members });
-        Self::update_status(connection, self.id, &new_status).await?;
-        self.status = new_status;
+        Self::update_status(connection, self.id, &status).await?;
+        self.status = status;
         Ok(())
     }
 
@@ -260,9 +273,16 @@ impl Chat {
 
 #[derive(Eq, PartialEq, Debug, Clone, Hash, Serialize, Deserialize)]
 pub enum ChatStatus {
+    Pending,
     Inactive(InactiveChat),
     Active,
     Blocked,
+}
+
+impl ChatStatus {
+    pub fn inactive(past_members: Vec<UserId>) -> Self {
+        ChatStatus::Inactive(InactiveChat { past_members })
+    }
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Hash, Serialize, Deserialize)]

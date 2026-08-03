@@ -543,7 +543,8 @@ impl PendingChatOperation {
                 // is either a delete operation or a leave operation, set the
                 // chat to inactive.
                 if !matches!(chat.status(), ChatStatus::Inactive(_)) && (is_delete || is_leave) {
-                    chat.set_inactive(&mut *txn, past_members).await?;
+                    chat.set_status(&mut *txn, ChatStatus::inactive(past_members))
+                        .await?;
                 }
 
                 let t_self_update_at = Some(ds_timestamp);
@@ -650,12 +651,14 @@ impl PendingChatOperation {
         let operation_type = if group.is_apq() {
             let params = group
                 .group_mut()
-                .stage_apq_remove(&mut *txn, signer, target_users)?;
+                .stage_apq_remove(&mut *txn, signer, target_users)
+                .await?;
             OperationType::apq_other(params)
         } else {
             let params = group
                 .group_mut()
-                .stage_remove(&mut *txn, signer, target_users)?;
+                .stage_remove(&mut *txn, signer, target_users)
+                .await?;
             OperationType::other(params)
         };
 
@@ -712,7 +715,7 @@ impl PendingChatOperation {
         let mut group = Group::load_with_chat_id_clean_verified(&mut *txn, chat_id)
             .await?
             .with_context(|| format!("Can't find group with chat id {chat_id}"))?;
-        let params = group.group_mut().apq_update(txn, signer)?;
+        let params = group.group_mut().apq_update(txn, signer).await?;
         let job = Self::new(group, OperationType::apq_other(params));
         job.store(txn).await?;
         Ok(job)
@@ -790,16 +793,20 @@ impl PendingChatOperation {
         let past_members: Vec<_> = group.members().collect();
 
         if past_members.len() == 1 {
-            chat.set_inactive(txn, past_members).await?;
+            chat.set_status(txn, ChatStatus::inactive(past_members))
+                .await?;
             Ok(None)
         } else {
             let operation_type = if group.is_apq() {
-                let bundle = group.group_mut().stage_apq_delete(&mut *txn, signer)?;
+                let bundle = group
+                    .group_mut()
+                    .stage_apq_delete(&mut *txn, signer)
+                    .await?;
                 OperationType::ApqDelete {
                     commit: Box::new(bundle),
                 }
             } else {
-                let message = group.group_mut().stage_delete(&mut *txn, signer)?;
+                let message = group.group_mut().stage_delete(&mut *txn, signer).await?;
                 OperationType::Delete(Box::new(message))
             };
             let job = Self::new(group, operation_type);
@@ -877,7 +884,8 @@ impl PendingChatOperation {
                 let operation_type = if !group.is_apq() {
                     let params = group
                         .group_mut()
-                        .stage_invite(&mut *txn, signer, invitees)?
+                        .stage_invite(&mut *txn, signer, invitees)
+                        .await?
                         // Check if we got a leaf node validation error which is domain specific and should
                         // be propagated to the user.
                         .map_err(|validation| {
@@ -887,7 +895,8 @@ impl PendingChatOperation {
                 } else {
                     let params = group
                         .group_mut()
-                        .stage_apq_invite(&mut *txn, signer, signer, invitees)?
+                        .stage_apq_invite(&mut *txn, signer, signer, invitees)
+                        .await?
                         // Check if we got a leaf node validation error which is domain specific and should
                         // be propagated to the user.
                         .map_err(|validation| {

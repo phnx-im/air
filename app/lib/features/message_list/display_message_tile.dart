@@ -211,5 +211,6 @@ TextSpan buildSystemMessageText(BuildContext context, UiSystemMessage message) {
     UiSystemMessage_NewDirectConnectionChat(:final field0) => TextSpan(
       text: loc.systemMessage_newDirectConnectionChat(nameOf(field0)),
     ),
+    UiSystemMessage_Onboarded() => TextSpan(text: loc.systemMessage_onboarded),
   };
 }

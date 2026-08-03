@@ -10833,12 +10833,14 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     switch (raw[0]) {
       case 0:
+        return UiChatStatus_Pending();
+      case 1:
         return UiChatStatus_Inactive(
           dco_decode_box_autoadd_ui_inactive_chat(raw[1]),
         );
-      case 1:
-        return UiChatStatus_Active();
       case 2:
+        return UiChatStatus_Active();
+      case 3:
         return UiChatStatus_Blocked();
       default:
         throw Exception("unreachable");
@@ -11133,6 +11135,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         return UiSystemMessage_CreateGroup(
           dco_decode_box_autoadd_ui_user_id(raw[1]),
         );
+      case 11:
+        return UiSystemMessage_Onboarded();
       default:
         throw Exception("unreachable");
     }
@@ -14598,11 +14602,13 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var tag_ = sse_decode_i_32(deserializer);
     switch (tag_) {
       case 0:
+        return UiChatStatus_Pending();
+      case 1:
         var var_field0 = sse_decode_box_autoadd_ui_inactive_chat(deserializer);
         return UiChatStatus_Inactive(var_field0);
-      case 1:
-        return UiChatStatus_Active();
       case 2:
+        return UiChatStatus_Active();
+      case 3:
         return UiChatStatus_Blocked();
       default:
         throw UnimplementedError('');
@@ -14913,6 +14919,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case 10:
         var var_field0 = sse_decode_box_autoadd_ui_user_id(deserializer);
         return UiSystemMessage_CreateGroup(var_field0);
+      case 11:
+        return UiSystemMessage_Onboarded();
       default:
         throw UnimplementedError('');
     }
@@ -18484,13 +18492,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   void sse_encode_ui_chat_status(UiChatStatus self, SseSerializer serializer) {
     // Codec=Sse (Serialization based), see doc to use other codecs
     switch (self) {
-      case UiChatStatus_Inactive(field0: final field0):
+      case UiChatStatus_Pending():
         sse_encode_i_32(0, serializer);
+      case UiChatStatus_Inactive(field0: final field0):
+        sse_encode_i_32(1, serializer);
         sse_encode_box_autoadd_ui_inactive_chat(field0, serializer);
       case UiChatStatus_Active():
-        sse_encode_i_32(1, serializer);
-      case UiChatStatus_Blocked():
         sse_encode_i_32(2, serializer);
+      case UiChatStatus_Blocked():
+        sse_encode_i_32(3, serializer);
     }
   }
 
@@ -18768,6 +18778,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       case UiSystemMessage_CreateGroup(field0: final field0):
         sse_encode_i_32(10, serializer);
         sse_encode_box_autoadd_ui_user_id(field0, serializer);
+      case UiSystemMessage_Onboarded():
+        sse_encode_i_32(11, serializer);
     }
   }
 

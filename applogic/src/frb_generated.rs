@@ -12344,13 +12344,16 @@ impl SseDecode for crate::api::types::UiChatStatus {
         let mut tag_ = <i32>::sse_decode(deserializer);
         match tag_ {
             0 => {
+                return crate::api::types::UiChatStatus::Pending;
+            }
+            1 => {
                 let mut var_field0 = <crate::api::types::UiInactiveChat>::sse_decode(deserializer);
                 return crate::api::types::UiChatStatus::Inactive(var_field0);
             }
-            1 => {
+            2 => {
                 return crate::api::types::UiChatStatus::Active;
             }
-            2 => {
+            3 => {
                 return crate::api::types::UiChatStatus::Blocked;
             }
             _ => {
@@ -12729,6 +12732,9 @@ impl SseDecode for crate::api::types::UiSystemMessage {
             10 => {
                 let mut var_field0 = <crate::api::types::UiUserId>::sse_decode(deserializer);
                 return crate::api::types::UiSystemMessage::CreateGroup(var_field0);
+            }
+            11 => {
+                return crate::api::types::UiSystemMessage::Onboarded;
             }
             _ => {
                 unimplemented!("");
@@ -15178,11 +15184,12 @@ impl flutter_rust_bridge::IntoIntoDart<crate::api::types::UiChatMuted>
 impl flutter_rust_bridge::IntoDart for crate::api::types::UiChatStatus {
     fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
         match self {
+            crate::api::types::UiChatStatus::Pending => [0.into_dart()].into_dart(),
             crate::api::types::UiChatStatus::Inactive(field0) => {
-                [0.into_dart(), field0.into_into_dart().into_dart()].into_dart()
+                [1.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
-            crate::api::types::UiChatStatus::Active => [1.into_dart()].into_dart(),
-            crate::api::types::UiChatStatus::Blocked => [2.into_dart()].into_dart(),
+            crate::api::types::UiChatStatus::Active => [2.into_dart()].into_dart(),
+            crate::api::types::UiChatStatus::Blocked => [3.into_dart()].into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -15665,6 +15672,7 @@ impl flutter_rust_bridge::IntoDart for crate::api::types::UiSystemMessage {
             crate::api::types::UiSystemMessage::CreateGroup(field0) => {
                 [10.into_dart(), field0.into_into_dart().into_dart()].into_dart()
             }
+            crate::api::types::UiSystemMessage::Onboarded => [11.into_dart()].into_dart(),
             _ => {
                 unimplemented!("");
             }
@@ -18261,15 +18269,18 @@ impl SseEncode for crate::api::types::UiChatStatus {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         match self {
-            crate::api::types::UiChatStatus::Inactive(field0) => {
+            crate::api::types::UiChatStatus::Pending => {
                 <i32>::sse_encode(0, serializer);
+            }
+            crate::api::types::UiChatStatus::Inactive(field0) => {
+                <i32>::sse_encode(1, serializer);
                 <crate::api::types::UiInactiveChat>::sse_encode(field0, serializer);
             }
             crate::api::types::UiChatStatus::Active => {
-                <i32>::sse_encode(1, serializer);
+                <i32>::sse_encode(2, serializer);
             }
             crate::api::types::UiChatStatus::Blocked => {
-                <i32>::sse_encode(2, serializer);
+                <i32>::sse_encode(3, serializer);
             }
             _ => {
                 unimplemented!("");
@@ -18587,6 +18598,9 @@ impl SseEncode for crate::api::types::UiSystemMessage {
             crate::api::types::UiSystemMessage::CreateGroup(field0) => {
                 <i32>::sse_encode(10, serializer);
                 <crate::api::types::UiUserId>::sse_encode(field0, serializer);
+            }
+            crate::api::types::UiSystemMessage::Onboarded => {
+                <i32>::sse_encode(11, serializer);
             }
             _ => {
                 unimplemented!("");

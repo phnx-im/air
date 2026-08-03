@@ -104,7 +104,7 @@ where
 
 impl fmt::Display for Fqdn {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
-        write!(f, "{}", &self.domain)
+        write!(f, "{}", self.domain)
     }
 }
 

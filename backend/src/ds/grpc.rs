@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::{UserCredential, keys::ClientVerifyingKey},
+    credentials::{LeafCredential, keys::ClientVerifyingKey},
     crypto::{
         aead::keys::GroupStateEarKey,
         signatures::{
@@ -39,7 +39,6 @@ use mls_assist::{
 use semver::Version;
 use sqlx::{PgConnection, PgTransaction};
 use thiserror::Error;
-use tls_codec::DeserializeBytes;
 use tokio::task::{JoinError, JoinSet};
 use tonic::{Request, Response, Status, async_trait};
 use tracing::{error, warn};
@@ -574,23 +573,32 @@ where
             )),
         }
     })?;
-    let sender_credential = sender_user_credential(group_state, sender_index)?;
-    let payload: P = request
-        .verify(sender_credential.verifying_key())
-        .map_err(InvalidSignature)?;
+    let sender_key = sender_verifying_key(group_state, sender_index)?;
+    let payload: P = request.verify(&sender_key).map_err(InvalidSignature)?;
     Ok((payload, sender_index))
 }
 
-fn sender_user_credential(
+/// The key that authenticates requests from the leaf at `sender_index`.
+///
+/// User credentials embed the user's verifying key. Self-group credentials carry no key
+/// material, so requests are verified against the leaf's own MLS signature key, which is
+/// unique per client.
+fn sender_verifying_key(
     group_state: &DsGroupState,
     sender_index: LeafNodeIndex,
-) -> Result<UserCredential, Status> {
+) -> Result<ClientVerifyingKey, Status> {
     let leaf = group_state
         .group()
         .leaf(sender_index)
         .ok_or_else(|| Status::invalid_argument("unknown sender"))?;
-    UserCredential::tls_deserialize_exact_bytes(leaf.credential().serialized_content())
-        .map_err(|_| Status::invalid_argument("invalid credential"))
+    let credential = LeafCredential::from_credential(leaf.credential())
+        .map_err(|_| Status::invalid_argument("invalid credential"))?;
+    match credential {
+        LeafCredential::User(credential) => Ok(credential.verifying_key().clone()),
+        LeafCredential::SelfGroup(_) => Ok(ClientVerifyingKey::from_bytes(
+            leaf.signature_key().as_slice().to_vec(),
+        )),
+    }
 }
 
 /// Extracted data in leaf verification
@@ -1196,18 +1204,23 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     ));
                 }
 
-                let destination_clients: Vec<_> = group_state
+                let mut destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
                     .collect();
                 let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
-                let group_message = group_state.resync_client(external_commit, sender_index)?;
+                let outcome = group_state.resync_client(external_commit, sender_index)?;
+
+                // A sibling emulator client took over the virtual client's leaf;
+                // the leaf's previous occupant has to process the commit to follow
+                // onto it.
+                destination_clients.extend(outcome.sibling_queue);
 
                 group_state.proposals.clear();
 
                 let timestamp = self
                     .fan_out_message_without_notifications(
-                        group_message,
+                        outcome.message,
                         destination_clients,
                         broadcast_to_all_client_queues,
                     )
@@ -1250,11 +1263,11 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                            ear_key: _,
                        }: ApqVerificationData<'_, ApqResyncPayload>| {
                     // Collect destination clients *before* the commit is accepted.
-                    let destination_clients: Vec<_> = t_group_state
+                    let mut destination_clients: Vec<_> = t_group_state
                         .other_destination_clients(t_sender_index)
                         .collect();
 
-                    let serialized_apq_message = DsGroupState::apq_resync_client(
+                    let outcome = DsGroupState::apq_resync_client(
                         t_group_state,
                         pq_group_state,
                         t_external_commit,
@@ -1262,12 +1275,16 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         t_sender_index,
                     )?;
 
+                    // A sibling emulator client took over the virtual client's
+                    // leaf; its previous occupant has to follow onto it.
+                    destination_clients.extend(outcome.sibling_queue);
+
                     t_group_state.proposals.clear();
                     pq_group_state.proposals.clear();
 
                     let timestamp = TimeStamp::now();
                     let apq_payload =
-                        QsQueueMessagePayload::apq_mls_message(timestamp, serialized_apq_message);
+                        QsQueueMessagePayload::apq_mls_message(timestamp, outcome.message);
 
                     Ok(ApqFanOut {
                         broadcast: (apq_payload, destination_clients),
@@ -1428,10 +1445,8 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .map_err(to_status)?;
 
         // verify signature
-        let sender_credential = sender_user_credential(&group_state, sender_index)?;
-        let payload: SendMessagePayload = request
-            .verify(sender_credential.verifying_key())
-            .map_err(InvalidSignature)?;
+        let sender_key = sender_verifying_key(&group_state, sender_index)?;
+        let payload: SendMessagePayload = request.verify(&sender_key).map_err(InvalidSignature)?;
 
         if let Some(tags) = payload.collision_tags {
             let msg_epoch = message.epoch().as_u64();
@@ -1844,10 +1859,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             &ear_key,
             async |group_state, _group_data| {
                 // verify signature
-                let sender_credential = sender_user_credential(group_state, sender_index)?;
-                let payload: UpdateProfileKeyPayload = request
-                    .verify(sender_credential.verifying_key())
-                    .map_err(InvalidSignature)?;
+                let sender_key = sender_verifying_key(group_state, sender_index)?;
+                let payload: UpdateProfileKeyPayload =
+                    request.verify(&sender_key).map_err(InvalidSignature)?;
 
                 let user_profile_key = payload
                     .encrypted_user_profile_key
@@ -1917,11 +1931,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .await
                     .map_err(to_status)?;
 
-                let sender_credential = sender_user_credential(&group_state, sender_index)?;
+                let sender_key = sender_verifying_key(&group_state, sender_index)?;
 
-                request
-                    .verify(sender_credential.verifying_key())
-                    .map_err(InvalidSignature)?
+                request.verify(&sender_key).map_err(InvalidSignature)?
             }
             StorageObjectType::DebugLogs => {
                 let user_id = payload
@@ -1996,11 +2008,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .await
                     .map_err(to_status)?;
 
-                let sender_credential = sender_user_credential(&group_state, sender_index)?;
+                let sender_key = sender_verifying_key(&group_state, sender_index)?;
 
-                request
-                    .verify(sender_credential.verifying_key())
-                    .map_err(InvalidSignature)?
+                request.verify(&sender_key).map_err(InvalidSignature)?
             }
             StorageObjectType::DebugLogs => {
                 let user_id = payload
@@ -2069,10 +2079,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .map_err(to_status)?;
 
         // verify signature
-        let sender_credential = sender_user_credential(&group_state, sender_index)?;
-        let payload: TargetedMessagePayload = request
-            .verify(sender_credential.verifying_key())
-            .map_err(InvalidSignature)?;
+        let sender_key = sender_verifying_key(&group_state, sender_index)?;
+        let payload: TargetedMessagePayload =
+            request.verify(&sender_key).map_err(InvalidSignature)?;
 
         if let Some(tags) = payload.collision_tags {
             let msg_epoch = message.epoch().as_u64();
