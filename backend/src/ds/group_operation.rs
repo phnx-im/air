@@ -4,7 +4,7 @@
 
 use std::collections::HashSet;
 
-use airprotos::client::virtual_client::extract_key_package_upload;
+use airprotos::client::virtual_client::extract_virtual_client_action;
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::{ApqProcessedAssistedMessagePlus, ProcessedAssistedMessage, apq::ApqGroupRef},
@@ -733,12 +733,12 @@ impl DsGroupState {
 fn extract_virtual_client_hint(
     processed_message: &ProcessedMessage,
 ) -> Result<Option<QsVirtualClientHint>, GroupOperationError> {
-    extract_key_package_upload(processed_message)
+    extract_virtual_client_action(processed_message)
         .map_err(|error| {
             error!(%error, "Failed to extract KeyPackageUpload from safe AAD");
             GroupOperationError::InvalidMessage
         })
-        .map(|upload| upload.map(From::from))
+        .map(|action| action.map(From::from))
 }
 
 pub(crate) type AddedUserInfo = (KeyPackage, EncryptedUserProfileKey);

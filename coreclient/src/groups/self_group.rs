@@ -14,11 +14,13 @@ use aircommon::{
 use airprotos::client::{
     component::AirComponent,
     group::{EncryptedGroupTitle, GroupData},
-    virtual_client::{VIRTUAL_CLIENT_KP_UPLOAD_COMPONENT_ID, extract_key_package_upload},
+    virtual_client::{VirtualClientAction, extract_virtual_client_action},
 };
 use anyhow::{Context, ensure};
 use openmls::{
-    components::vc_derivation_info::{EpochId, KeyPackageUpload, process_vc_key_package_upload},
+    components::vc_derivation_info::{
+        EpochId, KeyPackageUpload, VC_COMPONENT_ID, process_vc_key_package_upload,
+    },
     framing::SafeAadItem,
     group::GroupId,
     prelude::{LeafNodeIndex, ProcessedMessage},
@@ -108,11 +110,9 @@ impl SelfGroup {
         let (t_mls_group, pq_mls_group) = self.group.apq_mls_groups_mut()?;
 
         // SafeAAD hint the DS extracts from the T commit to trigger promotion.
-        let upload_bytes = upload.tls_serialize_detached()?;
-        t_mls_group.set_safe_aad(vec![SafeAadItem::new(
-            VIRTUAL_CLIENT_KP_UPLOAD_COMPONENT_ID,
-            upload_bytes,
-        )])?;
+        let action_bytes =
+            VirtualClientAction::KeyPackageUpload(upload).tls_serialize_detached()?;
+        t_mls_group.set_safe_aad(vec![SafeAadItem::new(VC_COMPONENT_ID, action_bytes)])?;
 
         // Regular AAD tail (required by DS commit validation)
         let aad_payload = AadPayload::GroupOperation(GroupOperationParamsAad {
@@ -188,7 +188,7 @@ impl CoreUser {
         let (group, partial_params, user_profile_key) = self
             .db()
             .with_write_transaction(async move |txn| -> anyhow::Result<_> {
-                let safe_aad_components = Some(vec![VIRTUAL_CLIENT_KP_UPLOAD_COMPONENT_ID]);
+                let safe_aad_components = Some(vec![VC_COMPONENT_ID]);
                 let (group, partial_params) = Group::create_apq_group(
                     &mut *txn,
                     &group_signer,
@@ -263,9 +263,10 @@ impl Group {
         processed_message: &ProcessedMessage,
         sender_index: LeafNodeIndex,
     ) -> anyhow::Result<()> {
-        let Some(upload) = extract_key_package_upload(processed_message)? else {
+        let Some(action) = extract_virtual_client_action(processed_message)? else {
             return Ok(());
         };
+        let VirtualClientAction::KeyPackageUpload(upload) = action;
 
         let own_client_info = OwnClientInfo::load(&mut *txn).await?;
         ensure!(
