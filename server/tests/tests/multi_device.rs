@@ -839,3 +839,73 @@ async fn multi_device_linking_a_third_device() {
     )
     .await;
 }
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test onboarding after the self group advanced", skip_all)]
+async fn multi_device_onboarding_after_self_group_advanced() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+
+    let group_chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(group_chat_id, &alice, vec![&bob])
+        .await;
+
+    let (device_2, _tmp_2) = link_new_device(&setup, &alice).await;
+    device_2.outbound_service().run_once().await;
+
+    // Device 3's onboarding into the group is queued here, but not sent yet.
+    let (device_3, _tmp_3) = link_new_device(&setup, &alice).await;
+
+    // Linking a fourth device advances the self group, so the emulation epoch
+    // current when device 3 was linked is now stale. Device 4 registers
+    // emulation epochs only from its own join onwards, so it cannot follow a
+    // commit derived from that older epoch.
+    let (device_4, _tmp_4) = link_new_device(&setup, &alice).await;
+
+    let device_1 = setup.get_user(&alice).user();
+    for device in [device_1, &device_2, &device_3, &device_4] {
+        drain_queue(device).await;
+    }
+
+    // Device 4 onboards first, so device 3's commit has to be followed by a
+    // device that was not in the self group at device 3's linking epoch.
+    device_4.outbound_service().run_once().await;
+    for device in [device_1, &device_2, &device_3] {
+        drain_queue(device).await;
+    }
+
+    device_3.outbound_service().run_once().await;
+    assert!(
+        !device_3.is_resync_pending(group_chat_id).await.unwrap(),
+        "device 3 should have completed onboarding into the higher-level group"
+    );
+
+    let queued = device_4.qs_fetch_messages().await.unwrap();
+    let processed = device_4.fully_process_qs_messages(queued).await;
+    assert!(
+        processed.errors.is_empty(),
+        "device 4 should be able to follow device 3's onboarding commit"
+    );
+    assert_eq!(
+        device_4
+            .group_epoch_and_own_index(group_chat_id)
+            .await
+            .unwrap(),
+        device_3
+            .group_epoch_and_own_index(group_chat_id)
+            .await
+            .unwrap(),
+        "device 4 should stay on the shared leaf after device 3 onboards"
+    );
+
+    send_and_receive(
+        &device_3,
+        &[device_1, &device_2, &device_4],
+        group_chat_id,
+        "from device 3 after a late onboarding",
+    )
+    .await;
+}
