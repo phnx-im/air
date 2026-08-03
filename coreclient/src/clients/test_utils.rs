@@ -157,7 +157,7 @@ impl CoreUser {
             group_state_ear_key: group.group_state_ear_key().clone(),
             identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
             original_leaf_index: group.own_index(),
-            vc_epoch_id: None,
+            shares_vc_leaf: false,
         };
         resync.enqueue(self.db().write().await?).await?;
         Ok(())

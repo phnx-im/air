@@ -20,6 +20,7 @@ use mls_assist::{
     },
 };
 use tls_codec::{DeserializeBytes, Serialize};
+use tracing::warn;
 
 /// An app-level MLS component that can be stored in the app data dictionary of a group, leaf node,
 /// or key package.
@@ -146,7 +147,7 @@ pub fn leaf_node_is_virtual_client(leaf: &LeafNode) -> bool {
         .and_then(|data| {
             ComponentsList::tls_deserialize_exact_bytes(data)
                 .inspect_err(|error| {
-                    tracing::error!(%error, "Failed to deserialize app components");
+                    warn!(%error, "Failed to deserialize app components");
                 })
                 .ok()
         })

@@ -1,6 +1,6 @@
 {
   "db_name": "SQLite",
-  "query": "UPDATE resync_queue\n                    SET locked_by = ?2\n                    WHERE group_id = ?1\n                RETURNING\n                    chat_id AS \"chat_id: _\",\n                    group_id AS \"group_id: _\",\n                    pq_group_id AS \"pq_group_id: _\",\n                    group_state_ear_key AS \"group_state_ear_key: _\",\n                    identity_link_wrapper_key AS \"identity_link_wrapper_key: _\",\n                    original_leaf_index AS \"original_leaf_index: _\",\n                    vc_epoch_id AS \"vc_epoch_id: _\"\n                ",
+  "query": "UPDATE resync_queue\n                    SET locked_by = ?2\n                    WHERE group_id = ?1\n                RETURNING\n                    chat_id AS \"chat_id: _\",\n                    group_id AS \"group_id: _\",\n                    pq_group_id AS \"pq_group_id: _\",\n                    group_state_ear_key AS \"group_state_ear_key: _\",\n                    identity_link_wrapper_key AS \"identity_link_wrapper_key: _\",\n                    original_leaf_index AS \"original_leaf_index: _\",\n                    shares_vc_leaf AS \"shares_vc_leaf: _\"\n                ",
   "describe": {
     "columns": [
       {
@@ -70,13 +70,13 @@
         }
       },
       {
-        "name": "vc_epoch_id: _",
+        "name": "shares_vc_leaf: _",
         "ordinal": 6,
-        "type_info": "Blob",
+        "type_info": "Bool",
         "origin": {
           "Table": {
             "table": "resync_queue",
-            "name": "vc_epoch_id"
+            "name": "shares_vc_leaf"
           }
         }
       }
@@ -91,8 +91,8 @@
       false,
       false,
       false,
-      true
+      false
     ]
   },
-  "hash": "691cfa212fcc7d1cc2e1e657c0f277a3082ca6694b8f1f01d673353f8919c3c8"
+  "hash": "e2446e1cc09dd34808d59bb536f6edb56a9ad1840e92d92b6d6dc84144865828"
 }

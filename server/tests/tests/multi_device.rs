@@ -33,6 +33,10 @@ async fn send_and_receive(sender: &CoreUser, devices: &[&CoreUser], chat_id: Cha
     for device in devices {
         let qs_messages = device.qs_fetch_messages().await.unwrap();
         let processed = device.fully_process_qs_messages(qs_messages).await;
+        assert!(
+            processed.errors.is_empty(),
+            "some incoming messages failed to be processed, check logs!"
+        );
         let received = processed
             .new_messages
             .last()
@@ -754,12 +758,29 @@ async fn multi_device_settings_race_converges() {
 async fn multi_device_linking_a_third_device() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+
+    // A higher-level group Alice is already a member of. Every device linked
+    // from here on onboards into it with a resync, and unlike the self group its
+    // commits are broadcast to all of Alice's emulator queues.
+    let group_chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(group_chat_id, &alice, vec![&bob])
+        .await;
 
     let (device_2, _tmp_2) = link_new_device(&setup, &alice).await;
+    // Device 2's onboarding replaces Alice's own, not-yet-virtual leaf, and
+    // turns it into a virtual-client leaf.
+    device_2.outbound_service().run_once().await;
+
     let (device_3, _tmp_3) = link_new_device(&setup, &alice).await;
 
     let device_1 = setup.get_user(&alice).user();
 
+    // Empty every queue, so what arrives next is exactly the fan-out of device
+    // 3's onboarding commit: the resync is only enqueued at this point and runs
+    // when device 3's outbound service is driven below.
     drain_queue(device_1).await;
     drain_queue(&device_2).await;
     drain_queue(&device_3).await;
@@ -772,7 +793,49 @@ async fn multi_device_linking_a_third_device() {
         );
     }
 
+    // Device 3 onboards into the higher-level group. The leaf it replaces is
+    // already a virtual-client leaf, so the sibling queue is covered by the
+    // regular destination list; the commit must not be fanned out twice.
+    device_3.outbound_service().run_once().await;
+    for (label, device) in [("1", device_1), ("2", &device_2)] {
+        let queued = device.qs_fetch_messages().await.unwrap();
+        assert_eq!(
+            queued.len(),
+            1,
+            "device {label} should receive device 3's onboarding commit exactly once"
+        );
+        device.fully_process_qs_messages(queued).await;
+    }
+
+    assert!(
+        !device_3.is_resync_pending(group_chat_id).await.unwrap(),
+        "device 3 should have completed onboarding into the higher-level group"
+    );
+    let epoch_and_index = device_1
+        .group_epoch_and_own_index(group_chat_id)
+        .await
+        .unwrap();
+    for (label, device) in [("2", &device_2), ("3", &device_3)] {
+        assert_eq!(
+            device
+                .group_epoch_and_own_index(group_chat_id)
+                .await
+                .unwrap(),
+            epoch_and_index,
+            "device {label} should share the virtual client's leaf and epoch"
+        );
+    }
+
     let chat_id = self_chat_id(device_1).await;
     send_and_receive(device_1, &[&device_2, &device_3], chat_id, "from device 1").await;
     send_and_receive(&device_3, &[device_1, &device_2], chat_id, "from device 3").await;
+
+    // The higher-level group is usable from the newest device.
+    send_and_receive(
+        &device_3,
+        &[device_1, &device_2],
+        group_chat_id,
+        "from device 3 in the group",
+    )
+    .await;
 }

@@ -654,6 +654,38 @@ $UiChatStatusCopyWith(UiChatStatus _, $Res Function(UiChatStatus) __);
 /// @nodoc
 
 
+class UiChatStatus_Pending extends UiChatStatus {
+  const UiChatStatus_Pending(): super._();
+  
+
+
+
+
+
+
+@override
+bool operator ==(Object other) {
+  return identical(this, other) || (other.runtimeType == runtimeType&&other is UiChatStatus_Pending);
+}
+
+
+@override
+int get hashCode => runtimeType.hashCode;
+
+@override
+String toString() {
+  return 'UiChatStatus.pending()';
+}
+
+
+}
+
+
+
+
+/// @nodoc
+
+
 class UiChatStatus_Inactive extends UiChatStatus {
   const UiChatStatus_Inactive(this.field0): super._();
   

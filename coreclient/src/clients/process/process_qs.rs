@@ -597,8 +597,7 @@ impl CoreUser {
                     group_state_ear_key: group.group_state_ear_key().clone(),
                     identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
                     original_leaf_index: group.own_index(),
-                    // TODO: set this correctly, otherwise VC emulators will be kicked out of the group.
-                    vc_epoch_id: None,
+                    shares_vc_leaf: group.own_leaf_is_virtual_client(),
                 };
                 group.group_mut().mark_commit_failed(&mut *txn).await?;
                 Ok(None)
@@ -1215,7 +1214,8 @@ impl CoreUser {
         // If we were removed, we set the group to inactive.
         if we_were_removed {
             let past_members = group.members().collect();
-            chat.set_inactive(&mut *txn, past_members).await?;
+            chat.set_status(&mut *txn, ChatStatus::inactive(past_members))
+                .await?;
         }
         let (messages_from_commit, group_data_bytes) = group
             .merge_pending_commit(&mut *txn, staged_commit, ds_timestamp)

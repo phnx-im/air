@@ -89,7 +89,7 @@ use tls_codec::DeserializeBytes;
 use tracing::{Level, debug, enabled, error, warn};
 
 use crate::{
-    ChatId, SystemMessage,
+    ChatId, ChatStatus, SystemMessage,
     chats::messages::TimestampedMessage,
     clients::{
         api_clients::ApiClients,
@@ -2682,7 +2682,8 @@ pub(crate) async fn handle_group_not_found_on_ds(
     if let Some(mut chat) = crate::Chat::load_by_group_id(&mut *txn, group_id).await?
         && !matches!(chat.status(), crate::ChatStatus::Inactive(_))
     {
-        chat.set_inactive(&mut *txn, past_members).await?;
+        chat.set_status(&mut *txn, ChatStatus::inactive(past_members))
+            .await?;
     }
 
     // Remove any pending resync for this group (FK is on chat_id, not

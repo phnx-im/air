@@ -543,7 +543,8 @@ impl PendingChatOperation {
                 // is either a delete operation or a leave operation, set the
                 // chat to inactive.
                 if !matches!(chat.status(), ChatStatus::Inactive(_)) && (is_delete || is_leave) {
-                    chat.set_inactive(&mut *txn, past_members).await?;
+                    chat.set_status(&mut *txn, ChatStatus::inactive(past_members))
+                        .await?;
                 }
 
                 let t_self_update_at = Some(ds_timestamp);
@@ -792,7 +793,8 @@ impl PendingChatOperation {
         let past_members: Vec<_> = group.members().collect();
 
         if past_members.len() == 1 {
-            chat.set_inactive(txn, past_members).await?;
+            chat.set_status(txn, ChatStatus::inactive(past_members))
+                .await?;
             Ok(None)
         } else {
             let operation_type = if group.is_apq() {

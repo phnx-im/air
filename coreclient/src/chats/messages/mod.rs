@@ -654,7 +654,9 @@ impl SystemMessage {
                 let user_display_name = core_user.user_profile(user_id).await.display_name;
                 format!("{user_display_name} created the group")
             }
-            SystemMessage::Onboarded => todo!(),
+            SystemMessage::Onboarded => {
+                "This client has been onboarded into the group after linking".into()
+            }
         }
     }
 }

@@ -26,6 +26,7 @@ use apqmls::{
 use mimi_room_policy::RoleIndex;
 use openmls::{
     components::vc_derivation_info::VirtualClientsError,
+    framing::errors::{MessageDecryptionError, SecretTreeError},
     group::{ProcessMessageError, StageCommitError, ValidationError},
     prelude::{
         Credential, GroupId, LeafNodeIndex, MlsGroup, ProcessedMessage, ProcessedMessageContent,
@@ -130,6 +131,12 @@ impl Group {
                         "Cannot follow a virtual-client commit onto our shared leaf"
                     );
                     return Ok(ProcessMessageResult::ResyncRequired);
+                }
+                Err(ProcessMessageError::ValidationError(ValidationError::UnableToDecrypt(
+                    MessageDecryptionError::SecretTreeError(SecretTreeError::SecretReuseError),
+                ))) if self.own_leaf_is_virtual_client() => {
+                    debug!("Ignoring our own echoed application message");
+                    return Ok(ProcessMessageResult::Ignored);
                 }
                 Err(e) => {
                     bail!("Could not process message: {e:?}");
@@ -829,6 +836,14 @@ impl Group {
                     "Cannot follow a virtual-client APQ commit onto our shared leaf"
                 );
                 return Ok(ProcessMessageResult::ResyncRequired);
+            }
+            Err(ApqProcessMessageError::Processing(ProcessMessageError::ValidationError(
+                ValidationError::UnableToDecrypt(MessageDecryptionError::SecretTreeError(
+                    SecretTreeError::SecretReuseError,
+                )),
+            ))) if self.own_leaf_is_virtual_client() => {
+                debug!("Ignoring our own echoed APQ application message");
+                return Ok(ProcessMessageResult::Ignored);
             }
             Err(e) => {
                 return Err(e).context("Failed to process APQ message");

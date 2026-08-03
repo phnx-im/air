@@ -609,7 +609,7 @@ impl Group {
     }
 
     /// Returns true if the group with the given ID is active.
-    pub(super) fn is_active(
+    pub(crate) fn is_active(
         mut connection: impl ReadConnection,
         group_id: &GroupId,
     ) -> sqlx::Result<bool> {

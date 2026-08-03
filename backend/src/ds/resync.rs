@@ -2,7 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use aircommon::{credentials::VerifiableUserCredential, time::Duration, utils::removed_clients};
+use aircommon::{
+    credentials::VerifiableUserCredential, identifiers::QsReference,
+    mls_group_config::leaf_node_is_virtual_client, time::Duration, utils::removed_clients,
+};
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::{ProcessedAssistedMessage, apq::ApqGroupRef},
@@ -16,15 +19,10 @@ use mls_assist::{
 };
 use tracing::error;
 
-use aircommon::identifiers::QsReference;
-
 use crate::errors::ResyncClientError;
 
-use super::process::USER_EXPIRATION_DAYS;
-
-use aircommon::mls_group_config::leaf_node_is_virtual_client;
-
 use super::group_state::DsGroupState;
+use super::process::USER_EXPIRATION_DAYS;
 
 /// Outcome of a resync: the message to distribute, plus the queue of the leaf the
 /// resync replaced when that leaf is being taken over by a sibling emulator
@@ -32,9 +30,14 @@ use super::group_state::DsGroupState;
 ///
 /// The replaced leaf was operated by another emulator client of the same virtual
 /// client, which has to process this commit to follow onto the new leaf.
-/// `other_destination_clients` cannot work this out on its own: it is evaluated
-/// before the commit is processed, when the replaced leaf is not yet a
-/// virtual-client leaf -- the leaf that is one is the one *this commit* installs.
+/// `other_destination_clients` cannot work this out on its own when the virtual
+/// client takes over a leaf for the first time: it is evaluated before the commit
+/// is processed, when the replaced leaf is not yet a virtual-client leaf -- the
+/// leaf that is one is the one *this commit* installs.
+///
+/// Only set in exactly that case. Once the replaced leaf carries the marker
+/// itself, `other_destination_clients` already yields its queue, and repeating it
+/// here would fan the commit out to every emulator queue twice.
 pub(crate) struct ResyncOutcome {
     pub(crate) message: SerializedMlsMessage,
     pub(crate) sibling_queue: Option<QsReference>,
@@ -145,14 +148,16 @@ impl DsGroupState {
         // Change room state roles of removed clients to outsider.
         self.change_removed_roles_to_outsider(&sender, &removed_indices)?;
 
-        // If the leaf this commit installs is a virtual-client leaf, the leaf it
-        // replaces is operated by a sibling emulator client that must follow onto
-        // it. Capture its queue before `rekey_sender_profile` moves the profile.
-        let sibling_queue = staged_commit_message
-            .update_path_leaf_node()
-            .is_some_and(leaf_node_is_virtual_client)
-            .then(|| self.queue_config_at(sender_index))
-            .flatten();
+        // If the leaf this commit installs is a virtual-client leaf while the one
+        // it replaces is not, the replaced leaf is operated by a sibling emulator
+        // client that must follow onto it. Capture its queue before
+        // `rekey_sender_profile` moves the profile.
+        let sibling_queue = (!self.leaf_is_virtual_client(sender_index)
+            && staged_commit_message
+                .update_path_leaf_node()
+                .is_some_and(leaf_node_is_virtual_client))
+        .then(|| self.queue_config_at(sender_index))
+        .flatten();
 
         // Everything seems to be okay.
         // Now we have to update the group state and distribute.
@@ -302,11 +307,12 @@ impl DsGroupState {
 
         // See the T-only variant: capture the replaced leaf's queue before the
         // profile is rekeyed, so a sibling emulator client can follow this commit.
-        let sibling_queue = t_staged_commit
-            .update_path_leaf_node()
-            .is_some_and(leaf_node_is_virtual_client)
-            .then(|| t_group_state.queue_config_at(t_sender_index))
-            .flatten();
+        let sibling_queue = (!t_group_state.leaf_is_virtual_client(t_sender_index)
+            && t_staged_commit
+                .update_path_leaf_node()
+                .is_some_and(leaf_node_is_virtual_client))
+        .then(|| t_group_state.queue_config_at(t_sender_index))
+        .flatten();
 
         // Everything seems to be okay.
         // Now we have to update the group state and distribute.

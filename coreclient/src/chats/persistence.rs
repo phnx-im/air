@@ -33,7 +33,7 @@ struct SqlChat {
     connection_user_domain: Option<Fqdn>,
     connection_user_handle: Option<Username>,
     is_confirmed_connection: bool,
-    is_active: bool,
+    is_active: Option<bool>,
     is_blocked: bool,
     is_incoming: bool,
     muted_until: Option<DateTime<Utc>>,
@@ -81,8 +81,9 @@ impl SqlChat {
 
         let status = match (is_active, is_blocked) {
             (_, true) => ChatStatus::Blocked,
-            (true, false) => ChatStatus::Active,
-            (false, false) => ChatStatus::Inactive(InactiveChat::new(
+            (None, false) => ChatStatus::Pending,
+            (Some(true), false) => ChatStatus::Active,
+            (Some(false), false) => ChatStatus::Inactive(InactiveChat::new(
                 past_members.into_iter().map(From::from).collect(),
             )),
         };
@@ -105,7 +106,7 @@ impl SqlChat {
         &self,
         connection: impl ReadConnection,
     ) -> sqlx::Result<Vec<SqlPastMember>> {
-        if self.is_active {
+        if self.is_active == Some(true) {
             return Ok(Vec::new());
         }
         Chat::load_past_members(connection, self.chat_id).await
@@ -157,6 +158,7 @@ impl Chat {
             .unwrap_or_default();
         let group_id = self.group_id.as_slice();
         let (is_active, past_members) = match self.status() {
+            ChatStatus::Pending => (false, Vec::new()),
             ChatStatus::Inactive(inactive_chat) => (false, inactive_chat.past_members().to_vec()),
             ChatStatus::Active => (true, Vec::new()),
             ChatStatus::Blocked => (false, Vec::new()),
@@ -420,12 +422,20 @@ impl Chat {
         Ok(())
     }
 
-    pub(super) async fn update_status(
+    pub(crate) async fn update_status(
         mut transaction: impl WriteTransaction,
         chat_id: ChatId,
         status: &ChatStatus,
     ) -> sqlx::Result<()> {
         match status {
+            ChatStatus::Pending => {
+                query!(
+                    "UPDATE chat SET is_active = NULL WHERE chat_id = ?",
+                    chat_id,
+                )
+                .execute(transaction.as_mut())
+                .await?;
+            }
             ChatStatus::Inactive(inactive) => {
                 query!(
                     "UPDATE chat SET is_active = false WHERE chat_id = ?",

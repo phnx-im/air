@@ -35,7 +35,7 @@ use mls_assist::{
 use sqlx::PgExecutor;
 use thiserror::Error;
 use tls_codec::{Serialize as _, TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
-use tracing::error;
+use tracing::{error, warn};
 use uuid::Uuid;
 
 use crate::errors::{CborMlsAssistStorage, StorageError};
@@ -234,7 +234,7 @@ impl DsGroupState {
             .and_then(|ext| ext.dictionary().get(&AIR_COMPONENT_ID))
             .and_then(|data| {
                 AirComponent::from_bytes(data)
-                    .inspect_err(|error| error!(%error, "Failed to deserialize air component"))
+                    .inspect_err(|error| warn!(%error, "Failed to deserialize air component"))
                     .ok()
             })
             .is_some_and(|component| component.is_self_group);
@@ -252,7 +252,7 @@ impl DsGroupState {
     }
 
     /// Returns `true` if the leaf declares a `VC_COMPONENT_ID` entry in its `AppDataDictionary` extension.
-    fn leaf_is_virtual_client(&self, leaf_index: LeafNodeIndex) -> bool {
+    pub(super) fn leaf_is_virtual_client(&self, leaf_index: LeafNodeIndex) -> bool {
         self.group()
             .leaf(leaf_index)
             .is_some_and(leaf_node_is_virtual_client)
