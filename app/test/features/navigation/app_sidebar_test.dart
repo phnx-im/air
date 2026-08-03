@@ -90,31 +90,56 @@ void main() {
       verify(() => navigationCubit.switchTab(HomeTab.profile)).called(1);
     });
 
-    testWidgets('the active pill sits behind the active cell', (tester) async {
-      useTab(HomeTab.profile);
-      await tester.pumpWidget(buildSubject());
-
+    Finder findPill(WidgetTester tester) {
       final palette = SemanticPalette.of(tester.element(find.byType(NavRail)));
-      final pill = find.byWidgetPredicate(
+      return find.byWidgetPredicate(
         (widget) =>
             widget is DecoratedBox &&
             widget.decoration is BoxDecoration &&
             (widget.decoration as BoxDecoration).color ==
                 palette.backgroundBase.quinary,
       );
+    }
 
-      // Second cell of two, so the pill has moved down by one stride, and the
-      // cell it marks sits inside it.
-      expect(pill, findsOneWidget);
-      expect(
-        tester.getTopLeft(pill).dy,
-        NavRailTokens.paddingTop + NavRailTokens.stride,
-      );
-      expect(
-        tester.getTopLeft(find.text('You')).dy,
-        greaterThan(tester.getTopLeft(pill).dy),
-      );
-    });
+    // Pinned to Linux rather than left on the host's platform: the rail only
+    // reserves the window controls inset on macOS, so the strides below are the
+    // layout of a desktop without it.
+    testWidgets(
+      'the active pill sits behind the active cell',
+      (tester) async {
+        useTab(HomeTab.profile);
+        await tester.pumpWidget(buildSubject());
+
+        final pill = findPill(tester);
+
+        // Second cell of two, so the pill has moved down by one stride, and the
+        // cell it marks sits inside it.
+        expect(pill, findsOneWidget);
+        expect(
+          tester.getTopLeft(pill).dy,
+          NavRailTokens.paddingTop + NavRailTokens.stride,
+        );
+        expect(
+          tester.getTopLeft(find.text('You')).dy,
+          greaterThan(tester.getTopLeft(pill).dy),
+        );
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.linux),
+    );
+
+    testWidgets(
+      'macOS reserves the rail top for the traffic lights',
+      (tester) async {
+        useTab(HomeTab.chats);
+        await tester.pumpWidget(buildSubject());
+
+        expect(
+          tester.getTopLeft(findPill(tester)).dy,
+          NavRailTokens.paddingTop + NavRailTokens.windowControlsInset,
+        );
+      },
+      variant: TargetPlatformVariant.only(TargetPlatform.macOS),
+    );
 
     testWidgets('reserving the window controls pushes the cells down', (
       tester,

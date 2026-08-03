@@ -2,8 +2,6 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:io';
-
 import 'package:air/core/core.dart';
 import 'package:air/ds/components/nav_rail/nav_rail.dart';
 import 'package:air/ds/components/nav_rail/nav_rail_tokens.dart';
@@ -12,6 +10,7 @@ import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
@@ -37,7 +36,11 @@ class AppSidebar extends StatelessWidget {
       // macOS drops the title bar and floats the traffic lights over the
       // rail's top-left. Windows puts its controls on the far right and Linux
       // draws a header bar of its own, so neither needs the reserve.
-      reserveWindowControls: Platform.isMacOS,
+      //
+      // Read from [defaultTargetPlatform] rather than `dart:io` so the rail's
+      // layout is a function of the platform a test pins, not of the host that
+      // records its goldens.
+      reserveWindowControls: defaultTargetPlatform == TargetPlatform.macOS,
       items: [
         for (final tab in tabs)
           NavRailItem(
