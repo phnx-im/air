@@ -232,6 +232,7 @@ impl Resync {
 
         let original_leaf_index = self.original_leaf_index;
         let existing_chat_id = self.chat_id;
+        let ds_timestamp = TimeStamp::now();
 
         let mut txn = connection
             .begin()
@@ -244,7 +245,7 @@ impl Resync {
 
         let chat_id = match existing_chat_id {
             Some(chat_id) => chat_id,
-            None => Self::create_chat(&mut txn, &group, signer)
+            None => Self::create_chat(&mut txn, &group, signer, ds_timestamp)
                 .await
                 .map_err(OutboundServiceError::fatal)?,
         };
@@ -255,9 +256,15 @@ impl Resync {
 
         Self::send_commit(api_clients, signer, &group, commit, original_leaf_index).await?;
 
-        // Mark chat as active once the commit is accepted by the DS
+        // Insert a system message and mark chat as active once the commit is accepted by the DS.
         connection
             .with_transaction(async |txn| -> anyhow::Result<()> {
+                let system_message = ChatMessage::new_system_message(
+                    chat_id,
+                    ds_timestamp,
+                    SystemMessage::Onboarded,
+                );
+                system_message.store(&mut *txn).await?;
                 Chat::update_status(txn, chat_id, &ChatStatus::Active).await?;
                 Ok(())
             })
@@ -272,13 +279,13 @@ impl Resync {
         txn: &mut WriteDbTransaction<'_>,
         group: &Group,
         signer: &ClientSigningKey,
+        ds_timestamp: TimeStamp,
     ) -> Result<ChatId> {
         let group_data_bytes = group.group_data().context("No group data")?;
         let group_data = GroupData::decode(&group_data_bytes)?;
         let (title, group_profile_part) = group_data.into_parts(group.identity_link_wrapper_key());
         let title = title.context("No group title")?;
         let sender_id = signer.credential().user_id().clone();
-        let ds_timestamp = TimeStamp::now();
 
         let picture = CoreUser::resolve_group_profile_part(
             &mut *txn,
@@ -295,10 +302,6 @@ impl Resync {
             ChatAttributes { title, picture },
         );
         chat.store(&mut *txn).await?;
-
-        let system_message =
-            ChatMessage::new_system_message(chat.id(), ds_timestamp, SystemMessage::Onboarded);
-        system_message.store(&mut *txn).await?;
 
         Ok(chat.id())
     }
