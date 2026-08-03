@@ -8,7 +8,8 @@ import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/components/menu/menu_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/popup_menu/popup_menu_tokens.dart';
-import 'package:flutter/material.dart' show MaterialLocalizations;
+import 'package:flutter/material.dart'
+    show Material, MaterialLocalizations, MaterialType;
 import 'package:flutter/widgets.dart';
 
 /// Which corner of a floating menu meets its anchor, and so which way the menu
@@ -131,18 +132,21 @@ class _OverlayMenuPage extends StatelessWidget {
 
     final local = _toOverlaySpace(context, anchor);
 
-    return LayoutBuilder(
-      builder: (context, constraints) => CustomSingleChildLayout(
-        delegate: _PopupMenuLayout(
-          anchor: local,
-          corner: corner,
-          gap: popupTokens.anchorGap,
-          inset: inset,
-        ),
-        child: Menu(
-          tokens: tokens,
-          items: [for (final item in items) _dismissing(context, item)],
-          maxHeight: math.max(0.0, constraints.maxHeight - inset.vertical),
+    return Material(
+      type: MaterialType.transparency,
+      child: LayoutBuilder(
+        builder: (context, constraints) => CustomSingleChildLayout(
+          delegate: _PopupMenuLayout(
+            anchor: local,
+            corner: corner,
+            gap: popupTokens.anchorGap,
+            inset: inset,
+          ),
+          child: Menu(
+            tokens: tokens,
+            items: [for (final item in items) _dismissing(context, item)],
+            maxHeight: math.max(0.0, constraints.maxHeight - inset.vertical),
+          ),
         ),
       ),
     );

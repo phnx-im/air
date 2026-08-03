@@ -527,10 +527,7 @@ class _ToneCard extends StatelessWidget {
         ),
         boxShadow: Effect.elevation(Elevation.medium),
       ),
-      // The card floats in an overlay above the app's Material, where the
-      // inherited default is the framework's fallback style, so it states its
-      // own base instead of taking whatever it lands in.
-      child: DefaultTextStyle(
+      child: DefaultTextStyle.merge(
         style: typeScale.body.s.style(color: palette.text.primary),
         child: Column(
           mainAxisSize: MainAxisSize.min,

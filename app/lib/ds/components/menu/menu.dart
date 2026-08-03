@@ -194,10 +194,7 @@ class _MenuState extends State<Menu> {
           borderRadius: BorderRadius.circular(tokens.radius),
           boxShadow: Effect.elevation(tokens.elevation),
         ),
-        // A menu can sit in an overlay above the app's Material, where the
-        // inherited default is the framework's fallback style, so the card
-        // states its own base instead of taking whatever it lands in.
-        child: DefaultTextStyle(
+        child: DefaultTextStyle.merge(
           style: typeScale.body.s.style(color: palette.text.primary),
           child: body,
         ),

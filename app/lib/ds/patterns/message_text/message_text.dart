@@ -62,7 +62,7 @@ class MessageText extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTextStyle(
+    return DefaultTextStyle.merge(
       style: styleOf(context, isSelf: isSelf, jumbo: jumbo),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
