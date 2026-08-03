@@ -13,6 +13,9 @@
 # Uncomment the line if you want fastlane to automatically update itself
 # update_fastlane
 
+# Shared by the ios and mac platforms below, so it is imported outside both.
+import './apple.rb'
+
 platform :android do
   import './android.rb'
 end

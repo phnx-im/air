@@ -1,0 +1,181 @@
+// SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/core/core.dart';
+import 'package:air/l10n/l10n.dart';
+import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/patterns/dialog/app_dialog.dart';
+import 'package:air/features/user/users_cubit.dart';
+import 'package:air/util/scaffold_messenger.dart';
+import 'package:air/features/user/avatar.dart' show UserAvatar;
+import 'package:flutter/material.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:logging/logging.dart';
+import 'package:provider/provider.dart';
+
+sealed class ContactRequestSource {
+  const ContactRequestSource();
+
+  const factory ContactRequestSource.targetedMessage({
+    required String originChatTitle,
+  }) = _TargetedMessageContactRequest;
+
+  const factory ContactRequestSource.username({required UiUsername username}) =
+      _UsernameContactRequest;
+}
+
+class _TargetedMessageContactRequest extends ContactRequestSource {
+  const _TargetedMessageContactRequest({required this.originChatTitle});
+
+  final String originChatTitle;
+}
+
+class _UsernameContactRequest extends ContactRequestSource {
+  const _UsernameContactRequest({required this.username});
+
+  final UiUsername username;
+}
+
+class ContactRequestDialog extends HookWidget {
+  const ContactRequestDialog({
+    super.key,
+    required this.sender,
+    required this.source,
+  });
+
+  final UiUserId sender;
+  final ContactRequestSource source;
+
+  @override
+  Widget build(BuildContext context) {
+    final senderProfile = context.select(
+      (UsersCubit c) => c.state.profile(userId: sender),
+    );
+
+    final palette = SemanticPalette.of(context);
+    final loc = AppLocalizations.of(context);
+
+    final showImage = useState(false);
+
+    final message = switch (source) {
+      _TargetedMessageContactRequest(:final originChatTitle) =>
+        loc.systemMessage_receivedDirectConnectionRequest(
+          senderProfile.displayName,
+          originChatTitle,
+        ),
+      _UsernameContactRequest(:final username) =>
+        loc.systemMessage_receivedHandleConnectionRequest(
+          senderProfile.displayName,
+          username.plaintext,
+        ),
+    };
+
+    return AppDialogContainer(
+      backgroundColor: palette.backgroundBase.secondary,
+      maxWidth: 360,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text(
+            loc.contactRequestDialog_title,
+            style: typeScale.header.regular.style(weight: Weight.emphasized),
+          ),
+
+          const SizedBox(height: S.s32),
+
+          InkWell(
+            onTap: () {
+              showImage.value = !showImage.value;
+            },
+            child: UserAvatar(
+              profile: senderProfile,
+              size: 96,
+              showInitials: senderProfile.profilePicture == null,
+              showImage: showImage.value,
+            ),
+          ),
+
+          if (senderProfile.profilePicture != null) ...[
+            const SizedBox(height: S.s8),
+            Text(
+              loc.contactRequestDialog_avatarHint,
+              style: typeScale.body.xs.style(color: palette.text.tertiary),
+            ),
+          ],
+
+          const SizedBox(height: S.s32),
+
+          Text(
+            message,
+            style: typeScale.body.regular.style(color: palette.text.secondary),
+            textAlign: .center,
+          ),
+
+          const SizedBox(height: S.s32),
+
+          Row(
+            children: [
+              Expanded(
+                child: AppButton(
+                  onPressed: () {
+                    context.read<NavigationCubit>().closeChat();
+                  },
+                  type: .secondary,
+                  label: loc.contactRequestDialog_cancel,
+                ),
+              ),
+              const SizedBox(width: S.s12),
+              const Expanded(child: _AcceptButton()),
+            ],
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _AcceptButton extends HookWidget {
+  const _AcceptButton();
+
+  @override
+  Widget build(BuildContext context) {
+    final isAccepting = useState(false);
+    final loc = AppLocalizations.of(context);
+    return AppButton(
+      onPressed: () => _onPressed(context, isAccepting),
+      type: .primary,
+      state: isAccepting.value ? AppButtonState.pending : AppButtonState.active,
+      label: loc.contactRequestDialog_confirm,
+    );
+  }
+
+  void _onPressed(BuildContext context, ValueNotifier<bool> isAccepting) async {
+    isAccepting.value = true;
+
+    final chatDetailsCubit = context.read<ChatDetailsCubit>();
+    try {
+      switch (await chatDetailsCubit.acceptContactRequest()) {
+        case null:
+          break; // No error
+        case AcceptContactRequestError_IncompatibleClient(:final reason):
+          Logger.detached("ContactRequestDialog").severe(
+            "Failed to accept contact request due to incompatible client: $reason",
+          );
+          showErrorBannerStandalone(
+            (loc) => loc.contactRequestDialog_error_incompatibleClient,
+          );
+          break;
+      }
+    } catch (e, stackTrace) {
+      Logger.detached(
+        "ContactRequestDialog",
+      ).severe("Failed to accept contact request: $e", e, stackTrace);
+      showErrorBannerStandalone((loc) => loc.contactRequestDialog_error_fatal);
+    } finally {
+      isAccepting.value = false;
+    }
+  }
+}

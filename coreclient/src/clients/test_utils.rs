@@ -115,6 +115,18 @@ impl CoreUser {
             .map(|group| group.mls_group().members().collect()))
     }
 
+    /// The group's epoch and our own leaf index in it.
+    ///
+    /// Two emulator clients of the same virtual client must agree on both once
+    /// one of them has onboarded into the group: they share a single leaf.
+    pub async fn group_epoch_and_own_index(&self, chat_id: ChatId) -> Result<Option<(u64, u32)>> {
+        Ok(self
+            .db()
+            .with_read_transaction(async |txn| Group::load_with_chat_id(txn, chat_id).await)
+            .await?
+            .map(|group| (group.mls_group().epoch().as_u64(), group.own_index().u32())))
+    }
+
     pub async fn group_members(&self, chat_id: ChatId) -> Option<HashSet<UserId>> {
         self.db()
             .with_read_transaction(async |txn| Group::load_with_chat_id(&mut *txn, chat_id).await)
@@ -140,12 +152,13 @@ impl CoreUser {
         let fake_group_id: GroupId = fake_qgid.into();
 
         let resync = Resync {
-            chat_id,
+            chat_id: Some(chat_id),
             group_id: fake_group_id,
             pq_group_id: group.pq_group_id(),
             group_state_ear_key: group.group_state_ear_key().clone(),
             identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
             original_leaf_index: group.own_index(),
+            shares_vc_leaf: false,
         };
         resync.enqueue(self.db().write().await?).await?;
         Ok(())
@@ -154,6 +167,14 @@ impl CoreUser {
     pub async fn is_resync_pending(&self, chat_id: ChatId) -> anyhow::Result<bool> {
         let connection = self.db().read().await?;
         Ok(Resync::is_pending_for_chat(connection, &chat_id).await?)
+    }
+
+    /// Whether any setting changes are still waiting to be synchronized.
+    pub async fn has_pending_setting_changes(&self) -> anyhow::Result<bool> {
+        use crate::clients::user_settings::SettingChanges;
+        Ok(SettingChanges::load(self.db().read().await?)
+            .await?
+            .is_some())
     }
 
     /// Returns (operation_type, request_status, number_of_attempts) for the

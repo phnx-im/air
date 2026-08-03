@@ -409,7 +409,7 @@ final fredMessages = [
               imageMetadata: const UiImageMetadata(
                 blurhash: "LGDv.p%L00kC~qjF4nWCIARjIVj[",
                 width: 1080,
-                height: 800,
+                height: 1080,
               ),
             ),
           ],

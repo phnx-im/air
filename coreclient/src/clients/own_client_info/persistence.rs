@@ -29,13 +29,15 @@ impl OwnClientInfo {
                 qs_client_id,
                 user_uuid,
                 user_domain,
+                client_id,
                 self_group_id,
                 self_group_signing_key
-            ) VALUES (?,  ?, ?, ?, ?, ?)",
+            ) VALUES (?, ?, ?, ?, ?, ?, ?)",
             self.qs_user_id,
             self.qs_client_id,
             uuid,
             domain,
+            self.client_id,
             self_group_id,
             self_group_signing_key
         )
@@ -50,6 +52,7 @@ impl OwnClientInfo {
             qs_client_id: QsClientId,
             user_uuid: Uuid,
             user_domain: Fqdn,
+            client_id: Uuid,
             self_group_id: Option<GroupIdWrapper>,
             self_group_signing_key: Option<ClientSigningKey>,
         }
@@ -60,6 +63,7 @@ impl OwnClientInfo {
                 qs_client_id AS "qs_client_id: _",
                 user_uuid AS "user_uuid: _",
                 user_domain AS "user_domain: _",
+                client_id AS "client_id: _",
                 self_group_id AS "self_group_id: _",
                 self_group_signing_key AS "self_group_signing_key: _"
             FROM own_client_info"#,
@@ -70,9 +74,28 @@ impl OwnClientInfo {
             qs_user_id: sql.qs_user_id,
             qs_client_id: sql.qs_client_id,
             user_id: UserId::new(sql.user_uuid, sql.user_domain),
+            client_id: sql.client_id,
             self_group_id: sql.self_group_id.map(From::from),
             self_group_signing_key: sql.self_group_signing_key,
         })
+    }
+
+    /// Returns the user id of this client.
+    pub(crate) async fn load_user_id(mut connection: impl ReadConnection) -> sqlx::Result<UserId> {
+        struct SqlUserId {
+            user_uuid: Uuid,
+            user_domain: Fqdn,
+        }
+        let sql = sqlx::query_as!(
+            SqlUserId,
+            r#"SELECT
+                user_uuid AS "user_uuid: _",
+                user_domain AS "user_domain: _"
+            FROM own_client_info"#,
+        )
+        .fetch_one(connection.as_mut())
+        .await?;
+        Ok(UserId::new(sql.user_uuid, sql.user_domain))
     }
 
     /// Returns the `self_group_id`.
@@ -100,6 +123,24 @@ impl OwnClientInfo {
         .await?
         .is_some();
         Ok(found)
+    }
+
+    /// Backfill a missing client id with a freshly generated one.
+    ///
+    /// The migration adding the column defaults it to the nil UUID for clients that existed
+    /// before, since sqlite cannot generate valid UUIDs. Runs on every client DB open and is a
+    /// no-op once the id is set.
+    pub(crate) async fn backfill_client_id(mut write: impl WriteConnection) -> sqlx::Result<()> {
+        let client_id = Uuid::new_v4();
+        let nil_client_id = Uuid::nil();
+        query!(
+            "UPDATE own_client_info SET client_id = ? WHERE client_id = ?",
+            client_id,
+            nil_client_id,
+        )
+        .execute(write.as_mut())
+        .await?;
+        Ok(())
     }
 
     pub(crate) async fn set_self_group(
@@ -141,6 +182,7 @@ mod tests {
             qs_user_id: QsUserId::random(),
             qs_client_id: QsClientId::random(&mut rng),
             user_id: UserId::new(Uuid::new_v4(), "localhost".parse().unwrap()),
+            client_id: Uuid::new_v4(),
             self_group_id: Some(GroupId::random(&RustCrypto::default())),
             self_group_signing_key: None,
         };
@@ -151,8 +193,44 @@ mod tests {
         assert_eq!(loaded.qs_user_id, own_client_info.qs_user_id);
         assert_eq!(loaded.qs_client_id, own_client_info.qs_client_id);
         assert_eq!(loaded.user_id, own_client_info.user_id);
+        assert_eq!(loaded.client_id, own_client_info.client_id);
         assert_eq!(loaded.self_group_id, own_client_info.self_group_id);
         assert!(loaded.self_group_signing_key.is_none());
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn backfill_client_id(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut rng = rand::rng();
+
+        // A client that existed before the client-id migration: its client_id defaults to the
+        // nil UUID.
+        sqlx::query(
+            "INSERT INTO own_client_info (qs_user_id, qs_client_id, user_uuid, user_domain)
+            VALUES (?, ?, ?, ?)",
+        )
+        .bind(QsUserId::random())
+        .bind(QsClientId::random(&mut rng))
+        .bind(Uuid::new_v4())
+        .bind("localhost")
+        .execute(pool.write().await?.as_mut())
+        .await?;
+
+        let loaded = OwnClientInfo::load(pool.read().await?).await?;
+        assert!(loaded.client_id.is_nil());
+
+        OwnClientInfo::backfill_client_id(pool.write().await?).await?;
+
+        let loaded = OwnClientInfo::load(pool.read().await?).await?;
+        assert!(!loaded.client_id.is_nil());
+
+        // A second run keeps the id.
+        let client_id = loaded.client_id;
+        OwnClientInfo::backfill_client_id(pool.write().await?).await?;
+        let loaded = OwnClientInfo::load(pool.read().await?).await?;
+        assert_eq!(loaded.client_id, client_id);
 
         Ok(())
     }

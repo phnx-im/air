@@ -16,7 +16,7 @@ use airapiclient::{
 };
 use aircommon::{
     credentials::{
-        ClientCredential, ClientCredentialCsr, ClientCredentialPayload, keys::ClientSigningKey,
+        UserCredential, UserCredentialCsr, UserCredentialPayload, keys::ClientSigningKey,
     },
     crypto::{
         RatchetDecryptionKey,
@@ -233,6 +233,7 @@ impl CoreUser {
             qs_user_id: *final_state.qs_user_id(),
             qs_client_id: *final_state.qs_client_id(),
             user_id: final_state.user_id().clone(),
+            client_id: Uuid::new_v4(),
             self_group_id: None,          // Created lazily on first use
             self_group_signing_key: None, // Same as above
         }
@@ -734,6 +735,22 @@ impl CoreUser {
         self.db()
             .with_write_transaction(async |txn| {
                 Chat::set_muted_until(txn, chat_id, muted_until).await?;
+                Ok(())
+            })
+            .await
+    }
+
+    /// Advance the chat notification watermark.
+    ///
+    /// Called when user dismisses a notification. Never moves backwards.
+    pub async fn set_chat_notified_until(
+        &self,
+        chat_id: ChatId,
+        notified_until: DateTime<Utc>,
+    ) -> anyhow::Result<()> {
+        self.db()
+            .with_write_transaction(async |txn| {
+                Chat::set_notified_until(txn, chat_id, notified_until).await?;
                 Ok(())
             })
             .await

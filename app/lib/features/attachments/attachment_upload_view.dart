@@ -1,0 +1,126 @@
+// SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import 'dart:io';
+import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/components/button_icon/glass_circle_button.dart';
+import 'package:air/platform/method_channel.dart' as platform_utils;
+import 'package:air/ds/components/button_icon/app_bar_x_button.dart';
+import 'package:file_selector/file_selector.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:path/path.dart' as p;
+import 'package:photo_view/photo_view.dart';
+
+class AttachmentUploadView extends HookWidget {
+  const AttachmentUploadView({
+    super.key,
+    required this.title,
+    required this.file,
+    required this.onUpload,
+  });
+
+  final String title;
+  final XFile file;
+  final VoidCallback onUpload;
+
+  @override
+  Widget build(BuildContext context) {
+    final loadedFile = useMemoized(() => File(file.path), [file]);
+    final isImageFut = useMemoized(
+      () => platform_utils.isImageFile(file.path),
+      [file],
+    );
+    final isImage = useFuture(isImageFut);
+
+    final palette = darkSemanticPalette;
+
+    return Scaffold(
+      backgroundColor: palette.function.neutral.black,
+      body: Focus(
+        autofocus: true,
+        onKeyEvent: (node, event) {
+          if (event.logicalKey == LogicalKeyboardKey.escape &&
+              event is KeyDownEvent) {
+            Navigator.pop(context);
+            return KeyEventResult.handled;
+          }
+          return KeyEventResult.ignored;
+        },
+        child: GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          child: Stack(
+            fit: StackFit.expand,
+            children: [
+              if (isImage.data == true)
+                PhotoView(imageProvider: FileImage(loadedFile))
+              else if (isImage.data == false)
+                Center(
+                  child: Column(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      const AppIcon.paperclip(size: 64, color: Colors.white),
+                      const SizedBox(height: S.s12),
+                      Text(
+                        p.basename(file.path),
+                        style: typeScale.body.regular.style(
+                          color: palette.text.primary,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+
+              Positioned(
+                bottom: S.s16,
+                right: S.s16,
+                child: SafeArea(
+                  child: GlassCircleButton(
+                    icon: AppIcon.arrowUp(
+                      size: 20,
+                      color: palette.text.primary,
+                    ),
+                    color: palette.backgroundMaterial.tertiary,
+                    onPressed: () {
+                      onUpload();
+                      Navigator.of(context).pop();
+                    },
+                  ),
+                ),
+              ),
+
+              Positioned(
+                top: 0,
+                left: 0,
+                right: 0,
+                child: Container(
+                  color: darkSemanticPalette.backgroundElevated.primary
+                      .withValues(alpha: 0.7),
+                  child: AppBar(
+                    automaticallyImplyLeading: false,
+                    clipBehavior: Clip.none,
+                    title: Text(
+                      title,
+                      style: TextStyle(color: palette.text.primary),
+                    ),
+                    actions: [
+                      AppBarXButton(
+                        onPressed: () => Navigator.of(context).maybePop(),
+                        foregroundColor: palette.text.primary,
+                        backgroundColor:
+                            darkSemanticPalette.backgroundBase.secondary,
+                      ),
+                    ],
+                    backgroundColor: Colors.transparent,
+                  ),
+                ),
+              ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
+}

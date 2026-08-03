@@ -7,7 +7,7 @@ use aircommon::codec::PersistenceCodec;
 use aircommon::credentials::keys::{ClientSigningKey, PreliminaryClientSigningKey};
 use aircommon::crypto::RatchetDecryptionKey;
 use aircommon::crypto::aead::keys::{
-    IdentityLinkWrapperKey, PushTokenEarKey, WelcomeAttributionInfoEarKey,
+    GroupStateEarKey, IdentityLinkWrapperKey, PushTokenEarKey, WelcomeAttributionInfoEarKey,
 };
 use aircommon::crypto::aead::{
     AeadDecryptable, AeadEncryptable, Ciphertext, keys::MultiDeviceLinkingKey,
@@ -23,6 +23,7 @@ use aircommon::mls_group_config::{
     default_leaf_node_capabilities, default_leaf_node_extensions,
 };
 use airprotos::client::component::AirComponent;
+use airprotos::client::self_group::SettingsUpdate;
 use airprotos::relay_service::v1::{LinkingSessionId, RelayFrame};
 use anyhow::{Context, anyhow, bail};
 use apqmls::authentication::ApqCredentialWithKey;
@@ -48,9 +49,12 @@ use tokio::sync::oneshot;
 use tokio_stream::StreamExt;
 use tracing::{debug, error, info, warn};
 use url::Url;
+use uuid::Uuid;
 
+use crate::db::access::WriteConnection;
 use crate::groups::self_group::SelfGroup;
 use crate::{
+    Chat, ChatId,
     clients::{
         CIPHERSUITE, CoreUser,
         api_clients::ApiClients,
@@ -59,10 +63,11 @@ use crate::{
         own_client_info::OwnClientInfo,
         process::process_qs::ProcessedQsMessages,
         store::{ClientRecord, UserCreationState},
+        user_settings::{SettingsUpdateExt, apply_settings_update},
     },
     contacts::{ContactAddInfos, ContactKeyPackage},
     groups::{
-        Group, PreparedInvitee, client_auth_info::StorableClientCredential,
+        Group, PreparedInvitee, client_auth_info::StorableUserCredential,
         openmls_provider::AirOpenMlsProvider,
     },
     key_stores::{
@@ -79,7 +84,7 @@ const EXPORTER_LABEL: &str = "multi-device-linking";
 /// [`CoreUser`] and join the user's self group.
 #[derive(serde::Serialize, serde::Deserialize)]
 pub(crate) struct ProvisioningPackage {
-    // Identity + AS client credential (shared across devices for the MVP).
+    // Identity + AS user credential (shared across devices for the MVP).
     pub(crate) user_id: UserId,
     pub(crate) client_signing_key: ClientSigningKey,
     // User-level QS key material (shared by all of the user's devices).
@@ -99,6 +104,21 @@ pub(crate) struct ProvisioningPackage {
     // Self-group metadata not carried by the Welcome.
     pub(crate) self_group_id: GroupId,
     pub(crate) identity_link_wrapper_key: IdentityLinkWrapperKey,
+    // Synced user settings snapshot so the new device starts with the
+    // provisioner's values.
+    pub(crate) synced_settings: SettingsUpdate,
+    // The higher-level groups the virtual client is already a member of, which
+    // the new emulator client onboards itself into.
+    pub(crate) groups: Vec<HigherLevelGroup>,
+}
+
+#[derive(serde::Serialize, serde::Deserialize)]
+pub(crate) struct HigherLevelGroup {
+    pub(crate) group_id: GroupId,
+    pub(crate) pq_group_id: Option<GroupId>,
+    pub(crate) group_state_ear_key: GroupStateEarKey,
+    pub(crate) identity_link_wrapper_key: IdentityLinkWrapperKey,
+    pub(crate) vc_leaf_index: u32,
 }
 
 #[derive(Debug)]
@@ -273,6 +293,7 @@ impl CoreUser {
         // 3. hand it to the old device
         // 4. old device adds us via the DS
         // 5. we then process the Welcome that the QS fans out to our fresh queue.
+        // 6. the old client gives us enough information to onboard ourselves (the new client) into all existing groups.
         let core_user = Self::link_new_device(api_clients, db_path, package).await?;
         info!("bootstrapped linked client");
 
@@ -284,6 +305,8 @@ impl CoreUser {
 
         core_user.join_self_group_from_queue().await?;
         info!("joined self group");
+
+        core_user.outbound_service().notify_vc_onboarding();
 
         Ok(core_user)
     }
@@ -428,6 +451,15 @@ impl CoreUser {
         let qs_client_id = response.qs_client_id;
 
         let user_profile_key = UserProfileKey::load_own(self.db().read().await?).await?;
+        let groups = self.higher_level_groups().await?;
+
+        // Snapshot the current synced settings so the new device starts with
+        // our values. An empty update means we have no stored settings, which
+        // the new device applies as a no-op.
+        let synced_settings = self
+            .db()
+            .with_write_transaction(async |txn| SettingsUpdate::collect(txn).await)
+            .await?;
 
         Ok(ProvisioningPackage {
             user_id: self.user_id().clone(),
@@ -445,7 +477,55 @@ impl CoreUser {
             user_profile_key,
             self_group_id,
             identity_link_wrapper_key,
+            synced_settings,
+            groups,
         })
+    }
+
+    /// Describe every higher-level group the virtual client is a member of, so a
+    /// joining emulator client can onboard itself into each of them.
+    ///
+    /// Skips the emulation group itself and any chat without attributes (connection chats).
+    async fn higher_level_groups(&self) -> anyhow::Result<Vec<HigherLevelGroup>> {
+        self.db()
+            .with_read_transaction(async |txn| -> anyhow::Result<_> {
+                let key_material = Group::load_all_key_material(&mut *txn).await?;
+                let mut groups = Vec::new();
+
+                for group in key_material {
+                    let Ok(chat_id) = ChatId::try_from(&group.group_id) else {
+                        warn!(group_id = ?group.group_id, "group id is not a chat id; skipping group");
+                        continue;
+                    };
+                    let Some(chat) = Chat::load(&mut *txn, &chat_id).await? else {
+                        continue;
+                    };
+                    // TODO(gabriel): convey connection chats too. They need the
+                    // `Contact` record (friendship token, WAI key) on top of the
+                    // group itself.
+                    if chat.attributes().is_none() {
+                        debug!(group_id = ?group.group_id, "skipping non-group chat");
+                        continue;
+                    }
+                    let Some(vc_leaf_index) =
+                        Group::load_own_leaf_index(txn.as_mut(), &group.group_id)
+                    else {
+                        warn!(group_id = ?group.group_id, "no own leaf index; skipping group");
+                        continue;
+                    };
+
+                    groups.push(HigherLevelGroup {
+                        group_id: group.group_id,
+                        pq_group_id: group.pq_group_id,
+                        group_state_ear_key: group.group_state_ear_key,
+                        identity_link_wrapper_key: group.identity_link_wrapper_key,
+                        vc_leaf_index: vc_leaf_index.u32(),
+                    });
+                }
+
+                Ok(groups)
+            })
+            .await
     }
 
     /// The signing key used for this client's leaf in the self group.
@@ -524,11 +604,11 @@ impl CoreUser {
                     wai_key: wai_key.clone(),
                     // Only used for its `user_id()` (to bind the profile-key
                     // ciphertext); the new device shares our user id.
-                    client_credential: self.signing_key().credential().clone(),
+                    user_credential: self.signing_key().credential().clone(),
                 };
                 // Sign the commit with the fresh self-group key, but sign the
                 // WAI with the shared client key so the joiner can verify it
-                // against our client credential.
+                // against our user credential.
                 let params = group
                     .group_mut()
                     .stage_apq_invite(
@@ -536,7 +616,8 @@ impl CoreUser {
                         &self_group_signature_key,
                         self.signing_key(),
                         vec![invitee],
-                    )?
+                    )
+                    .await?
                     .map_err(|validation| {
                         anyhow!("self-group invite leaf validation: {validation:?}")
                     })?;
@@ -554,7 +635,7 @@ impl CoreUser {
 
         // Send the commit to the DS. The MLS commit was signed by our leaf
         // (fresh self-group key), but the DS request envelope is signed with the
-        // shared client credential key: the DS authenticates requests against
+        // shared user credential key: the DS authenticates requests against
         // the sender's credential key, not the leaf key.
         let ds_timestamp = api_client
             .ds_apq_group_operation(
@@ -589,28 +670,19 @@ impl CoreUser {
             })
             .await?;
 
-        // Now that the new device is a member, register the VC emulation epoch
-        // at this (post-Add) self-group epoch. The joining device registers at
-        // the same epoch, so both siblings derive the same EpochId.
-        //
-        // NB(gabriel): this is currently just a sanity check, since we don't need the [`EpochId`] here
-        self.register_self_group_vc_emulation_epoch().await?;
-
         Ok(())
     }
 
     /// Register a virtual-clients emulation epoch on the self group.
-    async fn register_self_group_vc_emulation_epoch(&self) -> anyhow::Result<EpochId> {
-        self.db()
-            .with_write_transaction(async |txn| -> anyhow::Result<_> {
-                let mut self_group = SelfGroup::load(&mut *txn)
-                    .await?
-                    .context("self group not found")?;
-                let epoch_id = self_group.register_vc_emulation_epoch(&mut *txn)?;
-                debug!(?epoch_id, "registered self-group VC emulation epoch");
-                Ok(epoch_id)
-            })
-            .await
+    pub(crate) async fn register_self_group_vc_emulation_epoch(
+        mut connection: impl WriteConnection,
+    ) -> anyhow::Result<EpochId> {
+        let mut self_group = SelfGroup::load(&mut connection)
+            .await?
+            .context("self group not found")?;
+        let epoch_id = self_group.register_vc_emulation_epoch(connection)?;
+        debug!(?epoch_id, "registered self-group VC emulation epoch");
+        Ok(epoch_id)
     }
 
     /// Poll our QS queue until the self-group Welcome arrives.
@@ -626,9 +698,8 @@ impl CoreUser {
                 .await?
                 .is_some();
             if already_joined {
-                // Register the VC emulation epoch at the epoch we just joined
-                // into, matching the device that performed the Add.
-                self.register_self_group_vc_emulation_epoch().await?;
+                // The emulation epoch was registered while processing the
+                // self-group Welcome.
                 return Ok(());
             }
 
@@ -685,6 +756,10 @@ impl CoreUser {
 
     /// Bootstrap a [`CoreUser`] on a freshly linked device from the
     /// provisioning package received over the secure linking channel.
+    ///
+    /// Onboarding into the virtual client's higher-level groups is queued here,
+    /// but only performed once we joined the emulation group: the outbound
+    /// service defers a queued onboarding until the self group is there.
     async fn link_new_device(
         api_clients: ApiClients,
         db_path: &str,
@@ -711,9 +786,11 @@ impl CoreUser {
             user_profile_key,
             self_group_id,
             identity_link_wrapper_key: _,
+            synced_settings,
+            groups,
         } = package;
 
-        let shared_client_credential = client_signing_key.credential().clone();
+        let shared_user_credential = client_signing_key.credential().clone();
         let key_store = MemoryUserKeyStore {
             signing_key: client_signing_key,
             qs_client_signing_key,
@@ -731,9 +808,9 @@ impl CoreUser {
             key_store.signing_key.credential().clone(),
         )?;
 
-        client_db
-            .with_write_transaction(async |txn| -> anyhow::Result<()> {
-                StorableClientCredential::new(key_store.signing_key.credential().clone())
+        let queued = client_db
+            .with_write_transaction(async |txn| -> anyhow::Result<usize> {
+                StorableUserCredential::new(key_store.signing_key.credential().clone())
                     .store(&mut *txn)
                     .await?;
                 StorableQsQueueRatchet::initialize(&mut *txn, qs_initial_ratchet_secret).await?;
@@ -743,6 +820,8 @@ impl CoreUser {
                     qs_user_id,
                     qs_client_id,
                     user_id: user_id.clone(),
+                    // Each linked device mints its own client id.
+                    client_id: Uuid::new_v4(),
                     self_group_id: Some(self_group_id),
                     self_group_signing_key: Some(self_group_signing_key),
                 }
@@ -752,14 +831,28 @@ impl CoreUser {
                 // Schedule the fetching operation of our own profile information for when the [`CoreClient`]
                 // starts (or more specifically, when the outbound service runs for the first time.)
                 Self::schedule_fetch_user_profile(
-                    txn,
-                    (shared_client_credential, user_profile_key),
+                    &mut *txn,
+                    (shared_user_credential, user_profile_key),
                 )
                 .await?;
 
-                Ok(())
+                // Seed the synced settings before the device processes any
+                // self-group traffic. A device joining via Welcome cannot
+                // decrypt updates from before its join, so the current state
+                // has to arrive in the linking payload.
+                apply_settings_update(txn, &synced_settings).await?;
+
+                // Queue the onboarding into the groups the virtual client is
+                // already a member of. This is committed before the client
+                // record is finished below, so an interrupted linking (crash, exit)
+                // leaves the onboarding to be picked up.
+                Self::enqueue_vc_onboarding(txn, groups).await
             })
             .await?;
+        info!(
+            queued,
+            "queued onboarding into existing higher-level groups"
+        );
 
         let final_state = UserCreationState::FinalUserState(
             QsRegisteredUserState::new(key_store, qs_user_id, qs_client_id)
@@ -778,5 +871,71 @@ impl CoreUser {
             api_clients,
             global_lock,
         ))
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use aircommon::credentials::test_utils::create_test_credentials;
+    use aircommon::crypto::hpke::ClientIdDecryptionKey;
+    use aircommon::identifiers::QualifiedGroupId;
+    use uuid::Uuid;
+
+    use super::*;
+
+    /// Builds a [`ProvisioningPackage`] with the given synced-settings snapshot
+    /// and otherwise freshly generated key material.
+    fn sample_package(synced_settings: SettingsUpdate) -> anyhow::Result<ProvisioningPackage> {
+        let user_id = UserId::random("example.com".parse()?);
+        let (_as_key, client_signing_key) = create_test_credentials(user_id.clone());
+        let self_group_id = GroupId::from(QualifiedGroupId::new(
+            Uuid::new_v4(),
+            "example.com".parse()?,
+        ));
+        Ok(ProvisioningPackage {
+            client_signing_key,
+            qs_user_id: QsUserId::random(),
+            qs_user_signing_key: QsUserSigningKey::generate()?,
+            friendship_token: FriendshipToken::random()?,
+            push_token_ear_key: PushTokenEarKey::random()?,
+            wai_ear_key: WelcomeAttributionInfoEarKey::random()?,
+            qs_client_id_encryption_key: ClientIdDecryptionKey::generate()?
+                .encryption_key()
+                .clone(),
+            qs_client_id: QsClientId::random(&mut rand::rng()),
+            qs_client_signing_key: QsClientSigningKey::generate()?,
+            qs_queue_decryption_key: RatchetDecryptionKey::generate()?,
+            qs_initial_ratchet_secret: RatchetSecret::random()?,
+            user_profile_key: UserProfileKey::random(&user_id)?,
+            self_group_id,
+            identity_link_wrapper_key: IdentityLinkWrapperKey::random()?,
+            synced_settings,
+            groups: Vec::new(),
+            user_id,
+        })
+    }
+
+    /// A full package roundtrips through the linking channel with its synced
+    /// settings intact.
+    #[test]
+    fn synced_settings_roundtrip_through_linking_channel() -> anyhow::Result<()> {
+        let package = sample_package(SettingsUpdate {
+            send_read_receipts: Some(false),
+        })?;
+        let user_id = package.user_id.clone();
+
+        let key = MultiDeviceLinkingKey::random()?;
+        let frame = LinkingMessage::seal(package, &key)?;
+        let decoded: ProvisioningPackage = LinkingMessage::open(frame.as_slice(), &key)?;
+
+        assert_eq!(
+            decoded.synced_settings,
+            SettingsUpdate {
+                send_read_receipts: Some(false),
+            }
+        );
+        assert_eq!(decoded.user_id, user_id);
+
+        Ok(())
     }
 }

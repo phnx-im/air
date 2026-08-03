@@ -6,7 +6,7 @@ import 'package:air/ds/components/button/button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/theme/theme.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import '../../helpers.dart';
 
 void main() {
@@ -68,7 +68,7 @@ void main() {
           tone: AppButtonTone.danger,
           onPressed: () {},
         ),
-        const SizedBox(height: Spacing.px16),
+        const SizedBox(height: S.s16),
       ],
     ];
 
@@ -80,8 +80,8 @@ void main() {
           localizationsDelegates: AppLocalizations.localizationsDelegates,
           home: Scaffold(
             body: Padding(
-              padding: const EdgeInsets.all(Spacing.px16),
-              child: Column(spacing: Spacing.px8, children: widgets),
+              padding: const EdgeInsets.all(S.s16),
+              child: Column(spacing: S.s8, children: widgets),
             ),
           ),
         );

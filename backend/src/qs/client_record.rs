@@ -4,7 +4,7 @@
 
 use airprotos::{convert::RefInto, queue_service::v1::QueueEventPayload};
 use serde::{Deserialize, Serialize};
-use sqlx::{PgConnection, PgPool};
+use sqlx::{PgConnection, PgPool, PgTransaction};
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 use aircommon::{
@@ -186,6 +186,25 @@ pub(crate) mod persistence {
             }))
         }
 
+        pub(in crate::qs) async fn load_user_id(
+            connection: impl PgExecutor<'_>,
+            client_id: &QsClientId,
+        ) -> sqlx::Result<Option<QsUserId>> {
+            let client_id = client_id.as_uuid();
+            sqlx::query_scalar!(
+                r#"SELECT
+                    user_id as "user_id: QsUserId"
+                FROM
+                    qs_client_record
+                WHERE
+                    client_id = $1
+                    AND deleted_at IS NULL"#,
+                client_id,
+            )
+            .fetch_optional(connection)
+            .await
+        }
+
         pub(in crate::qs) async fn load_verifying_key(
             connection: impl PgExecutor<'_>,
             client_id: &QsClientId,
@@ -269,6 +288,9 @@ pub(crate) mod persistence {
         ///   representative with no remaining devices).
         /// - `Ok(Some(vec![...]))` otherwise. The given client id is included if it is itself
         ///   active.
+        ///
+        /// The client ids are ordered ascending. Callers lock the client records in that order
+        /// (see `load_for_update`), which keeps the lock order consistent and avoids deadlocks.
         pub(in crate::qs) async fn load_client_ids(
             connection: impl PgExecutor<'_>,
             client_id: &QsClientId,
@@ -279,7 +301,8 @@ pub(crate) mod persistence {
                 LEFT JOIN qs_client_record AS other ON
                     other.user_id = c.user_id
                     AND other.deleted_at IS NULL
-                WHERE c.client_id = $1"#,
+                WHERE c.client_id = $1
+                ORDER BY other.client_id"#,
                 client_id.as_uuid(),
             )
             .fetch_all(connection)
@@ -528,99 +551,23 @@ pub(crate) mod persistence {
 
 impl QsClientRecord {
     /// Put a message into the queue.
-    pub(crate) async fn enqueue<P: PushNotificationProvider>(
-        pool: &PgPool,
+    ///
+    /// Returns a QS client record if a push notification should be sent to the client, otherwise
+    /// `None`.
+    pub(crate) async fn enqueue(
+        txn: &mut PgTransaction<'_>,
         client_id: QsClientId,
         queues: &Queues,
-        push_notification_provider: &P,
         msg: &DsFanOutPayload,
-        push_token_key_option: Option<&PushTokenEarKey>,
-    ) -> Result<(), EnqueueError> {
+    ) -> Result<Option<QsClientRecord>, EnqueueError> {
         match msg {
             // Enqueue a queue message.
             // Serialize the message so that we can put it in the queue.
             DsFanOutPayload::QueueMessage(queue_message) => {
                 let (client_record, has_listener) =
-                    Self::do_enqueue(pool, client_id, queues, queue_message).await?;
-
-                // Try to send a notification over the websocket, otherwise use push tokens if available
-                if !has_listener {
-                    trace!("Trying to send push notification");
-
-                    // Send a push notification under the following conditions:
-                    // - there is a push token associated with the queue
-                    // - there is a push token decryption key
-                    // - the decryption is successful
-                    if let Some(ref encrypted_push_token) = client_record.encrypted_push_token
-                        && let Some(ear_key) = push_token_key_option
-                    {
-                        // Attempt to decrypt the push token.
-                        match PushToken::decrypt(ear_key, encrypted_push_token) {
-                            Err(error) => {
-                                error!(%error, "Push token decryption failed");
-                            }
-                            Ok(push_token) => {
-                                trace!("Send push notification");
-
-                                // Send the push notification.
-                                if let Err(e) = push_notification_provider.push(push_token).await {
-                                    match e {
-                                        // The push notification failed for some other reason.
-                                        PushNotificationError::Other(error_description) => {
-                                            error!(
-                                                %error_description,
-                                                "Push notification failed unexpectedly",
-                                            )
-                                        }
-                                        // The token is no longer valid and should be deleted.
-                                        PushNotificationError::InvalidToken(error_description) => {
-                                            info!(
-                                                %error_description,
-                                                "Push notification failed because the token is invalid",
-                                            );
-                                            client_record.delete_push_token(pool).await?;
-                                        }
-                                        // There was a network error when trying to send the push notification.
-                                        PushNotificationError::NetworkError(error) => {
-                                            info!(
-                                                %error,
-                                                "Push notification failed because of a network error",
-                                            )
-                                        }
-                                        PushNotificationError::UnsupportedType => {
-                                            warn!(
-                                                "Push notification failed because the push token type is unsupported",
-                                            )
-                                        }
-                                        PushNotificationError::JwtCreationError(error) => {
-                                            error!(
-                                                error,
-                                                "Push notification failed because the JWT token could not be created",
-                                            )
-                                        }
-                                        PushNotificationError::OAuthError(error) => {
-                                            error!(
-                                                %error,
-                                                "Push notification failed because of an OAuth error",
-                                            )
-                                        }
-                                        PushNotificationError::InvalidConfiguration(error) => {
-                                            error!(
-                                                error,
-                                                "Push notification failed because of an invalid configuration",
-                                            )
-                                        }
-                                        PushNotificationError::InvalidBearer => {
-                                            error!(
-                                                "Push notification failed because of an invalid bearer"
-                                            )
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
+                    Self::do_enqueue(txn, client_id, queues, queue_message).await?;
+                // Only return the client record if the client does *not* have a listener.
+                Ok((!has_listener).then_some(client_record))
             }
             // Dispatch an event message.
             DsFanOutPayload::EventMessage(DsEventMessage {
@@ -638,21 +585,75 @@ impl QsClientRecord {
                     payload: payload.clone(),
                 };
                 queues.send_payload(client_id, payload).await?;
+                Ok(None)
             }
         }
+    }
 
-        // Success!
-        Ok(())
+    /// Tries to send a push notification to the client.
+    ///
+    /// If the token is invalid, the push notification token stored for the client is deleted.
+    ///
+    /// The operation is infallible, all errors are handled inside and logged.
+    pub(crate) async fn send_push_notification(
+        &self,
+        pool: &PgPool,
+        push_notification_provider: &impl PushNotificationProvider,
+        push_token_key: Option<&PushTokenEarKey>,
+    ) {
+        trace!("Trying to send push notification");
+
+        // Send a push notification under the following conditions:
+        // - there is a push token associated with the queue
+        // - there is a push token decryption key
+        // - the decryption is successful
+
+        let Some(encrypted_push_token) = self.encrypted_push_token.as_ref() else {
+            return;
+        };
+        let Some(ear_key) = push_token_key else {
+            return;
+        };
+
+        // Attempt to decrypt the push token.
+        let push_token = match PushToken::decrypt(ear_key, encrypted_push_token) {
+            Ok(push_token) => push_token,
+            Err(error) => {
+                error!(%error, "Push token decryption failed");
+                return;
+            }
+        };
+
+        trace!("Send push notification");
+        if let Err(error) = push_notification_provider.push(push_token).await {
+            match error {
+                PushNotificationError::NetworkError(_) | PushNotificationError::InvalidToken(_) => {
+                    info!(%error, "Failed to send push notification")
+                }
+                PushNotificationError::UnsupportedType => {
+                    warn!(%error, "Failed to send push notification")
+                }
+                _ => {
+                    error!(%error, "Failed to send push notification")
+                }
+            };
+            if let PushNotificationError::InvalidToken(_) = error {
+                self.delete_push_token(pool)
+                    .await
+                    .inspect_err(|error| {
+                        error!(%error, "Failed to delete push token");
+                    })
+                    .ok();
+            }
+        }
     }
 
     async fn do_enqueue(
-        pool: &PgPool,
+        txn: &mut PgTransaction<'_>,
         client_id: QsClientId,
         queues: &Queues,
         queue_message: &QsQueueMessagePayload,
     ) -> Result<(QsClientRecord, bool), EnqueueError> {
-        let mut txn = pool.begin().await?;
-
         let mut client_record = Self::load_for_update(txn.as_mut(), &client_id)
             .await?
             .ok_or(EnqueueError::ClientNotFound)?;
@@ -662,12 +663,10 @@ impl QsClientRecord {
         trace!("Enqueueing message in storage provider");
 
         let has_listener = queues
-            .enqueue(&mut txn, client_id, &queue_message_proto)
+            .enqueue(&mut *txn, client_id, &queue_message_proto)
             .await?;
 
         client_record.update_queue_ratchet(txn.as_mut()).await?;
-
-        txn.commit().await?;
 
         Ok((client_record, has_listener))
     }
@@ -710,13 +709,16 @@ mod tests {
             let pool = pool.clone();
             let queue_notifier = queue_notifier.clone();
             join_set.spawn(async move {
+                let mut txn = pool.begin().await?;
                 QsClientRecord::do_enqueue(
-                    &pool,
+                    &mut txn,
                     client_record.client_id,
                     &queue_notifier,
                     &queue_message_payload,
                 )
-                .await
+                .await?;
+                txn.commit().await?;
+                Ok::<(), anyhow::Error>(())
             });
         }
 

@@ -6,8 +6,8 @@ use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize};
 
 use crate::{
     credentials::{
-        AsCredential, AsCredentialBody, ClientCredentialPayload,
-        VerifiableAsIntermediateCredential, VerifiableClientCredential, keys::ClientSignature,
+        AsCredential, AsCredentialBody, UserCredentialPayload, VerifiableAsIntermediateCredential,
+        VerifiableUserCredential, keys::ClientSignature,
     },
     crypto::{
         hash::Hash,
@@ -39,12 +39,12 @@ pub struct AsCredentialsResponseIn {
 
 #[derive(Debug)]
 pub struct RegisterUserResponseIn {
-    pub client_credential: VerifiableClientCredential,
+    pub user_credential: VerifiableUserCredential,
 }
 
 #[derive(Debug)]
 pub struct RegisterUserParamsIn {
-    pub client_payload: ClientCredentialPayload,
+    pub client_payload: UserCredentialPayload,
     pub encrypted_user_profile: EncryptedUserProfile,
 }
 

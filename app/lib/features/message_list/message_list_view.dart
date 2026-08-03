@@ -1,0 +1,682 @@
+// SPDX-FileCopyrightText: 2024 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import 'dart:async';
+import 'dart:math';
+
+import 'package:air/ds/foundations/foundations.dart';
+import 'package:flutter/foundation.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/core/core.dart';
+import 'package:air/features/user/user_cubit.dart';
+import 'package:air/util/anchored_list/anchored_list.dart';
+import 'package:air/util/anchored_list/controller.dart';
+import 'package:air/ds/components/scroll/edge_fade.dart';
+
+import 'package:air/features/message_list/message_row_container.dart';
+import 'package:air/features/message_list/date_divider.dart';
+import 'package:air/features/message_list/floating_date_header.dart';
+import 'package:air/features/message_list/jump_highlight.dart';
+import 'package:air/features/message_list/message_cubit.dart';
+import 'package:air/features/message_list/message_list_cubit.dart';
+import 'package:air/features/message_list/message_reactions.dart';
+import 'package:air/features/message_list/scroll_to_bottom_controller.dart';
+import 'package:air/features/message_list/unread_divider.dart';
+
+typedef MessageCubitCreate =
+    MessageCubit Function({
+      required UserCubit userCubit,
+      required MessageState initialState,
+    });
+
+class MessageListView extends StatefulWidget {
+  const MessageListView({
+    super.key,
+    this.createMessageCubit = MessageCubit.new,
+    this.scrollToBottomController,
+  });
+
+  final MessageCubitCreate createMessageCubit;
+  final ScrollToBottomController? scrollToBottomController;
+
+  @override
+  State<MessageListView> createState() => _MessageListViewState();
+}
+
+/// Integrates [AnchoredList] with [MessageListCubit] to display a paginated,
+/// scroll-stable chat message list.
+///
+/// Responsibilities beyond rendering:
+///  - Drives the scroll-to-bottom FAB via [ScrollToBottomController].
+///  - Marks the conversation as read up to the newest visible message.
+///  - Routes cubit scroll-to-index commands to the [AnchoredListController].
+class _MessageListViewState extends State<MessageListView>
+    with WidgetsBindingObserver {
+  /// Messages eligible for an entrance animation. Admitted at arrival time
+  /// when the user was visually at the bottom, then evicted after
+  /// [_animationWindow] so the set stays bounded and a tile that remounts
+  /// later (e.g. after scroll-out-and-back) no longer replays the animation.
+  final _animatingMessages = <MessageId>{};
+
+  final _listController = AnchoredListController();
+
+  /// The last message ID passed to [markAsRead], used to avoid redundant calls
+  /// during rapid scroll updates.
+  MessageId? _lastMarkedAsReadId;
+
+  MessageListCubit? _commandsCubit;
+  StreamSubscription<MessageListCommand>? _commandSubscription;
+  StreamSubscription<Set<MessageId>>? _incomingMessagesSubscription;
+  StreamSubscription<JumpedToEvent>? _jumpedToIdSubscription;
+  bool _initialUnreadScrollHandled = false;
+
+  /// When there are unread messages, we automatically scroll to the first
+  /// unread message. During that automatic scroll, we should not mark messages
+  /// as read.
+  bool _awaitingInitialUnreadScroll = false;
+
+  /// Whether the user is currently scrolling (or has scrolled within the
+  /// last [_floatingHeaderHideDelay]). Drives the floating date header's
+  /// fade-in/out so the pill stays out of the way when the user isn't
+  /// actively orienting in the timeline.
+  ///
+  /// We use a [ValueNotifier] (rather than [State.setState]) so the change
+  /// only rebuilds the header itself, not the surrounding tree.
+  final ValueNotifier<bool> _scrollActive = ValueNotifier<bool>(false);
+  Timer? _floatingHeaderHideTimer;
+
+  /// Number of pixels we dragged down the message list since the beginning of
+  /// the drag.
+  double _downwardDragSinceStart = 0;
+  bool _keyboardDismissedThisDrag = false;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addObserver(this);
+    widget.scrollToBottomController?.onScrollToBottom = _scrollToBottom;
+
+    // Drive the scroll-to-bottom button from isAtBottom + hasNewer.
+    _listController.isAtBottom.addListener(_updateShowButton);
+    _listController.newestVisibleId.addListener(
+      _markCurrentVisibleMessageAsRead,
+    );
+    // We listen to events to know when the initial scroll to the first unread
+    // message is complete.
+    _jumpedToIdSubscription = _listController.jumpedToId
+        .where((event) => event.intent == JumpIntent.firstUnread)
+        .listen((_) => _onInitialUnreadScrollSettled());
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    // Idempotent and cheap when already warmed.
+    warmUpReactionEmojis(context);
+    final cubit = context.read<MessageListCubit>();
+    if (identical(cubit, _commandsCubit)) return;
+    _commandSubscription?.cancel();
+    _incomingMessagesSubscription?.cancel();
+    _commandsCubit = cubit;
+    _commandSubscription = cubit.commands.listen(_handleCommand);
+    _incomingMessagesSubscription = cubit.incomingMessages.listen(
+      _admitIncomingAnimations,
+    );
+  }
+
+  @override
+  void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
+    widget.scrollToBottomController?.onScrollToBottom = null;
+    _commandSubscription?.cancel();
+    _incomingMessagesSubscription?.cancel();
+    _jumpedToIdSubscription?.cancel();
+    _listController.isAtBottom.removeListener(_updateShowButton);
+    _listController.newestVisibleId.removeListener(
+      _markCurrentVisibleMessageAsRead,
+    );
+    _listController.dispose();
+    _floatingHeaderHideTimer?.cancel();
+    _scrollActive.dispose();
+    super.dispose();
+  }
+
+  /// Admits freshly-arrived messages to the entrance-animation set iff the
+  /// user is visually at the bottom right now. Messages that don't qualify
+  /// are not tracked at all — no exclusion bookkeeping needed.
+  ///
+  /// Evicts ids after [_animationWindow]: by then the animation has either
+  /// played or the tile was never built, and either way further tracking
+  /// would only grow the set for the lifetime of the view.
+  void _admitIncomingAnimations(Set<MessageId> ids) {
+    if (!_listController.isAtBottom.value) return;
+    _animatingMessages.addAll(ids);
+    Future.delayed(_animationWindow, () {
+      _animatingMessages.removeAll(ids);
+    });
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      // Schedule after a microtask so the AppState stream update reaches
+      // UserCubit before we check userCubit.appState.
+      Future.microtask(_markCurrentVisibleMessageAsRead);
+    }
+  }
+
+  /// Scrolls to the newest message. Two cases:
+  ///  - If newer pages exist beyond the loaded window, ask the cubit to
+  ///    reload from the bottom (jumpToBottom replaces the data).
+  ///  - Otherwise, smoothly animate within the current data.
+  void _scrollToBottom() {
+    final cubit = context.read<MessageListCubit>();
+    if (cubit.state.hasNewer) {
+      cubit.jumpToBottom();
+    } else {
+      _listController.scrollToBottom();
+    }
+  }
+
+  /// Shows the scroll-to-bottom button when the user has scrolled away
+  /// from the bottom or when there are newer messages not yet loaded.
+  void _updateShowButton() {
+    final cubit = context.read<MessageListCubit>();
+    final isAtBottom = _listController.isAtBottom.value;
+    widget.scrollToBottomController?.showButton.value =
+        !isAtBottom || cubit.state.hasNewer;
+  }
+
+  /// Marks the conversation as read up to the newest message currently visible
+  /// in the viewport.
+  ///
+  /// The anchored list computes actual visible items from its measured layout
+  /// and exposes the newest visible ID via its controller, so this avoids the
+  /// old fixed-height approximation based on scroll offset alone.
+  void _markCurrentVisibleMessageAsRead() {
+    // We skip marking messages as read during the automatic initial scroll.
+    if (_awaitingInitialUnreadScroll) return;
+
+    // AnchoredList tracks the newest item currently visible in the viewport
+    // and exposes its ID via the controller. Use that directly instead of
+    // approximating visibility from scroll offset and guessed item heights.
+    final visibleId = _listController.currentNewestVisibleId;
+    if (visibleId is! MessageId) return;
+
+    final userCubit = context.read<UserCubit>();
+    if (userCubit.appState != AppState.foreground) return;
+
+    // Skip duplicate mark-as-read calls while the same message remains the
+    // newest visible item during incremental scroll updates.
+    if (visibleId == _lastMarkedAsReadId) return;
+
+    final state = context.read<MessageListCubit>().state;
+    final message = state.messageById(visibleId);
+    if (message == null) return;
+
+    _lastMarkedAsReadId = message.id;
+    context.read<ChatDetailsCubit>().markAsRead(
+      untilMessageId: message.id,
+      untilTimestamp: message.timestamp,
+    );
+  }
+
+  /// We lift the mark-as-read suppression once the initial scroll to the first
+  /// unread message.
+  void _onInitialUnreadScrollSettled() {
+    if (!_awaitingInitialUnreadScroll || !mounted) return;
+    setState(() {
+      _awaitingInitialUnreadScroll = false;
+    });
+    _markCurrentVisibleMessageAsRead();
+  }
+
+  /// Shows the floating header during active scroll and hides it again
+  /// after [_floatingHeaderHideDelay] of inactivity.
+  bool _handleScrollNotification(ScrollNotification notification) {
+    if (notification is ScrollStartNotification) {
+      _downwardDragSinceStart = 0;
+      _keyboardDismissedThisDrag = false;
+      // This is a user-initiated scroll.
+      if (notification.dragDetails != null) {
+        _onInitialUnreadScrollSettled();
+      }
+    } else if (notification is ScrollUpdateNotification) {
+      _floatingHeaderHideTimer?.cancel();
+      _scrollActive.value = true;
+      _maybeDismissKeyboardOnDrag(notification);
+    } else if (notification is ScrollEndNotification) {
+      _floatingHeaderHideTimer?.cancel();
+      _floatingHeaderHideTimer = Timer(_floatingHeaderHideDelay, () {
+        if (!mounted) return;
+        _scrollActive.value = false;
+      });
+    }
+    return false;
+  }
+
+  /// Dismisses the keyboard once a drag has pulled down past
+  /// [_keyboardDismissDragThreshold].
+  void _maybeDismissKeyboardOnDrag(ScrollUpdateNotification notification) {
+    if (!DeviceType.isPhone || _keyboardDismissedThisDrag) return;
+    final drag = notification.dragDetails;
+    if (drag == null) return;
+    _downwardDragSinceStart = max(0, _downwardDragSinceStart + drag.delta.dy);
+    if (_downwardDragSinceStart < _keyboardDismissDragThreshold) return;
+    _keyboardDismissedThisDrag = true;
+    FocusScope.of(context).unfocus();
+  }
+
+  /// Resolves the timestamp of the message with [id], for the floating
+  /// header. Returns null if the id is unknown or the loaded data has been
+  /// trimmed past it.
+  DateTime? _resolveMessageTimestamp(Object id) {
+    if (id is! MessageId) return null;
+    final state = context.read<MessageListCubit>().state;
+    return state.messageById(id)?.timestamp;
+  }
+
+  void _handleCommand(MessageListCommand command) {
+    switch (command) {
+      case MessageListCommand_ScrollToBottom():
+        _listController.scrollToBottom(duration: Duration.zero);
+      case MessageListCommand_ScrollToId(:final messageId):
+        _listController.goToId(messageId, intent: JumpIntent.quotedMessage);
+    }
+  }
+
+  void _scheduleInitialUnreadScroll(MessageListStateWrapper state) {
+    if (_initialUnreadScrollHandled || state.firstUnreadIndex == null) {
+      return;
+    }
+    final message = state.messageAt(state.firstUnreadIndex!);
+    if (message == null) return;
+
+    _initialUnreadScrollHandled = true;
+    _awaitingInitialUnreadScroll = true;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) {
+        _listController.goToId(message.id, intent: JumpIntent.firstUnread);
+      }
+    });
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final state = context.select((MessageListCubit cubit) => cubit.state);
+
+    // Deferred to avoid side-effects during build.
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (!mounted) return;
+      _updateShowButton();
+    });
+    _scheduleInitialUnreadScroll(state);
+
+    final composerHeightListenable =
+        widget.scrollToBottomController?.composerHeight;
+
+    return JumpHighlightScope(
+      jumpedToId: _listController.jumpedToId,
+      child: _buildList(composerHeightListenable, state),
+    );
+  }
+
+  /// Builds the [AnchoredList], wiring pagination and jump-to-message
+  /// callbacks to the cubit.
+  ///
+  /// When a [composerHeightListenable] is provided, the list's bottom
+  /// padding tracks the composer height so content isn't hidden behind it.
+  Widget _buildList(
+    ValueListenable<double>? composerHeightListenable,
+    MessageListStateWrapper state,
+  ) {
+    // Height of safe area + tool bar
+    final mediaPadding = MediaQuery.paddingOf(context);
+    // Height of the tail of the fade beyon the toolbar
+    const fadeBleeding = S.s48;
+    // Height of the safe area above the toolbar
+    final statusBarHeight = max(mediaPadding.top - kToolbarHeight, 0.0);
+    // Total height of the fade
+    const fadeHeight = kToolbarHeight + fadeBleeding;
+    // Y-coordinate where the fade is fully transparent — content above this
+    // is obstructed by the status bar cover or the fade gradient. Used as
+    // the list's top inset so jumps and the unread divider land below it.
+    final topInset = statusBarHeight + fadeHeight;
+    // Y-coordinate of the floating date pill's top edge. Sits just below
+    // the safe area, in the toolbar zone — the inline divider is hidden
+    // when its pill reaches this slot, making the swap visually in-place.
+    final pillTop = mediaPadding.top + S.s16;
+    // Item-top y-coordinate at or above which the inline-to-floating pill swap
+    // fires. The inline divider's pill sits [S.s32] below the divider's
+    // top, so when an item's top reaches this y, its pill aligns with
+    // [pillTop]. Both the inline-pill hide and the floating-pill show gate on
+    // this threshold so they stay in sync.
+    final swapTopThreshold = pillTop - S.s32;
+    // Solid color for the safe area
+    final bgColor = SemanticPalette.of(context).backgroundBase.primary;
+
+    Widget buildAnchoredList({double bottomPadding = 0.0}) {
+      Widget list = NotificationListener<ScrollNotification>(
+        onNotification: _handleScrollNotification,
+        child: AnchoredList<UiChatMessage>(
+          data: context.read<MessageListCubit>().messageData,
+          controller: _listController,
+          idExtractor: (msg) => msg.id,
+          topPadding: topInset,
+          bottomPadding: bottomPadding,
+          oldestVisibleTopThreshold: swapTopThreshold,
+          canLoadOlder: state.hasOlder,
+          // We should not load newer messages when we scroll to the first
+          // unread message.
+          canLoadNewer: state.hasNewer && !_awaitingInitialUnreadScroll,
+          onLoadOlder: () {
+            context.read<MessageListCubit>().loadOlder();
+          },
+          onLoadNewer: () {
+            context.read<MessageListCubit>().loadNewer();
+          },
+          onLoadAround: (id) async {
+            if (id is MessageId) {
+              await context.read<MessageListCubit>().jumpToMessage(
+                messageId: id,
+              );
+            }
+          },
+          itemBuilder: (context, message, index) {
+            return _buildMessageTile(state, message, index);
+          },
+        ),
+      );
+
+      // On mobile, we want to dismiss the keyboard by tapping anywhere in the
+      // list, except when tapping interactive elements like e.g. links.
+      if (DeviceType.isPhone) {
+        list = GestureDetector(
+          behavior: HitTestBehavior.translucent,
+          onTap: () => FocusScope.of(context).unfocus(),
+          child: list,
+        );
+      }
+      return list;
+    }
+
+    final floatingHeader = Positioned(
+      top: pillTop,
+      left: 0,
+      right: 0,
+      child: Center(
+        child: FloatingDateHeader(
+          oldestVisibleId: _listController.oldestVisibleId,
+          isOldestVisibleHoisted: _listController.isOldestVisibleHoisted,
+          resolveTimestamp: _resolveMessageTimestamp,
+          scrollActive: _scrollActive,
+        ),
+      ),
+    );
+
+    // Status bar cover: solid block above the toolbar.
+    final statusBarCover = Positioned.fill(
+      bottom: null,
+      child: Container(color: bgColor, height: statusBarHeight),
+    );
+    // Header gradient, bleeding into the list
+    final headerFade = Positioned(
+      top: statusBarHeight,
+      left: 0,
+      right: 0,
+      child: EdgeFade(
+        edge: FadeEdge.top,
+        height: fadeHeight,
+        color: bgColor,
+        curve: Curves.easeInOutQuad,
+        solidStop: 0.2,
+      ),
+    );
+
+    if (composerHeightListenable == null) {
+      return Stack(
+        clipBehavior: Clip.none,
+        children: [
+          buildAnchoredList(),
+          statusBarCover,
+          headerFade,
+          floatingHeader,
+        ],
+      );
+    }
+    // Layer the list, a bottom fade gradient, and a manual scrollbar so that:
+    //  - Messages fade out as they approach the composer
+    //  - The scrollbar renders above the fade (not hidden behind it)
+    //  - The scrollbar track stops at the top of the fade, matching the
+    //    visible content area
+    return ValueListenableBuilder<double>(
+      valueListenable: composerHeightListenable,
+      builder: (context, composerHeight, _) {
+        const fadeBleeding = 40;
+        final bottomInset = max(mediaPadding.bottom, S.s12);
+        final listBottomPadding = composerHeight + bottomInset + _bottomGap;
+        final fadeHeight = composerHeight + fadeBleeding;
+
+        // Override MediaQuery padding so the Scrollbar's track ends above
+        // the composer and fade zone.
+        final scrollbarPadding = mediaPadding.copyWith(
+          bottom: listBottomPadding,
+        );
+        // Solid cover below the composer
+        final bottomSafeCover = Positioned.fill(
+          top: null,
+          child: Container(
+            color: bgColor,
+            height:
+                bottomInset +
+                1, // We need this because there can be a small gap sometimes
+          ),
+        );
+        // Fade sitting behind the composer and bleeding into the list
+        final composerFade = Positioned.fill(
+          top: null,
+          bottom: bottomInset,
+          child: EdgeFade(
+            edge: FadeEdge.bottom,
+            height: fadeHeight,
+            color: bgColor,
+            curve: Curves.easeInOutQuad,
+            solidStop: 0.3,
+          ),
+        );
+        return MediaQuery(
+          data: MediaQuery.of(context).copyWith(padding: scrollbarPadding),
+          child: Scrollbar(
+            controller: _listController.scrollController,
+            child: Stack(
+              clipBehavior: Clip.none,
+              children: [
+                // Disable the auto-scrollbar, we have our own above.
+                ScrollConfiguration(
+                  behavior: ScrollConfiguration.of(
+                    context,
+                  ).copyWith(scrollbars: false),
+                  child: buildAnchoredList(bottomPadding: listBottomPadding),
+                ),
+                composerFade,
+                bottomSafeCover,
+                statusBarCover,
+                headerFade,
+                floatingHeader,
+              ],
+            ),
+          ),
+        );
+      },
+    );
+  }
+
+  /// Builds a single message row, optionally preceded by date and unread
+  /// dividers (in that visual order, top-to-bottom).
+  Widget _buildMessageTile(
+    MessageListStateWrapper state,
+    UiChatMessage message,
+    int index,
+  ) {
+    final animated = _animatingMessages.contains(message.id);
+
+    final isFirstUnread =
+        state.firstUnreadIndex != null &&
+        state.messageAt(state.firstUnreadIndex!)?.id == message.id;
+
+    final showDateDivider = _shouldShowDateDivider(state, message, index);
+
+    Widget tile = _MessageTileCubitHost(
+      key: ValueKey(message.id),
+      userCubit: context.read<UserCubit>(),
+      message: message,
+      createMessageCubit: widget.createMessageCubit,
+      child: MessageRowContainer(
+        isConnectionChat: state.isConnectionChat ?? false,
+        animated: animated,
+      ),
+    );
+
+    if (!showDateDivider && !isFirstUnread) return tile;
+
+    final unreadCount = isFirstUnread ? state.unreadCount : 0;
+    // The inline [DateDivider] is hidden (but keeps its layout space) only
+    // once its pill has actually risen to the floating pill's slot — i.e.
+    // when this message is the oldest visible *and* the controller reports
+    // it as hoisted. The floating header gates on the same boolean so the
+    // swap is symmetric.
+    final inlineDivider = showDateDivider
+        ? AnimatedBuilder(
+            animation: Listenable.merge([
+              _listController.oldestVisibleId,
+              _listController.isOldestVisibleHoisted,
+            ]),
+            builder: (context, child) {
+              final isOldest =
+                  _listController.currentOldestVisibleId == message.id;
+              final hoisted = _listController.isOldestVisibleHoisted.value;
+              return Visibility(
+                visible: !(isOldest && hoisted),
+                maintainSize: true,
+                maintainAnimation: true,
+                maintainState: true,
+                child: child!,
+              );
+            },
+            child: DateDivider(date: message.timestamp),
+          )
+        : null;
+    return Column(
+      children: [
+        ?inlineDivider,
+        if (isFirstUnread) UnreadDivider(count: unreadCount),
+        tile,
+      ],
+    );
+  }
+
+  /// True when [message] is the first message of its local day visible in the
+  /// list. We render a divider above the topmost loaded message only when no
+  /// older messages remain to load.
+  bool _shouldShowDateDivider(
+    MessageListStateWrapper state,
+    UiChatMessage message,
+    int index,
+  ) {
+    final olderIndex = index + 1;
+    if (olderIndex >= state.messageData.length) {
+      return !state.hasOlder;
+    }
+    final older = state.messageData[olderIndex];
+    return !_isSameLocalDay(older.timestamp, message.timestamp);
+  }
+}
+
+bool _isSameLocalDay(DateTime a, DateTime b) {
+  final aLocal = a.toLocal();
+  final bLocal = b.toLocal();
+  return aLocal.year == bLocal.year &&
+      aLocal.month == bLocal.month &&
+      aLocal.day == bLocal.day;
+}
+
+const double _bottomGap = S.s16;
+
+/// Downward drag distance to dismiss the keyboard.
+const double _keyboardDismissDragThreshold = S.s64;
+
+/// How long an incoming message id stays eligible for the entrance animation.
+/// Chosen comfortably larger than the animation duration so the tile always
+/// has time to mount and play the animation once.
+final Duration _animationWindow = Effect.duration(MotionPreset.long);
+
+/// Delay between scroll settling and the floating date header fading out,
+/// so the label remains briefly readable after the user stops scrolling.
+final Duration _floatingHeaderHideDelay = Effect.duration(MotionPreset.long);
+
+/// Owns a [MessageCubit] for a single message tile.
+///
+/// Each message gets its own cubit so it can independently manage reactions,
+/// editing state, etc. The cubit is keyed by [ValueKey(message.id)] so
+/// Flutter reuses the widget when the list rebuilds with the same message.
+/// When the message data changes (e.g. content update), the cubit is
+/// recreated to pick up the new state.
+class _MessageTileCubitHost extends StatefulWidget {
+  const _MessageTileCubitHost({
+    required this.userCubit,
+    required this.message,
+    required this.createMessageCubit,
+    required this.child,
+    super.key,
+  });
+
+  final UserCubit userCubit;
+  final UiChatMessage message;
+  final MessageCubitCreate createMessageCubit;
+  final Widget child;
+
+  @override
+  State<_MessageTileCubitHost> createState() => _MessageTileCubitHostState();
+}
+
+class _MessageTileCubitHostState extends State<_MessageTileCubitHost> {
+  late MessageCubit _cubit;
+
+  @override
+  void initState() {
+    super.initState();
+    _cubit = _createCubit();
+  }
+
+  @override
+  void didUpdateWidget(covariant _MessageTileCubitHost oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    // Recreate the cubit when the backing data changes so the tile
+    // reflects the latest message state (e.g. edited content, new status).
+    if (widget.message != oldWidget.message) {
+      _cubit.close();
+      _cubit = _createCubit();
+    }
+  }
+
+  @override
+  void dispose() {
+    _cubit.close();
+    super.dispose();
+  }
+
+  MessageCubit _createCubit() {
+    return widget.createMessageCubit(
+      userCubit: widget.userCubit,
+      initialState: MessageState(message: widget.message),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider<MessageCubit>.value(value: _cubit, child: widget.child);
+  }
+}

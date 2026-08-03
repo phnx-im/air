@@ -1,0 +1,21 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT MAX(created_at) AS \"max_created_at: _\"\n            FROM reaction r\n            JOIN message m ON m.mimi_id = r.target_mimi_id\n            WHERE r.chat_id = ?1 AND m.timestamp <= ?2\n            ",
+  "describe": {
+    "columns": [
+      {
+        "name": "max_created_at: _",
+        "ordinal": 0,
+        "type_info": "Text",
+        "origin": "Expression"
+      }
+    ],
+    "parameters": {
+      "Right": 2
+    },
+    "nullable": [
+      true
+    ]
+  },
+  "hash": "4b82a7a2dfc3a0831caf35af445156e2358e2838975767e745a99675cf926901"
+}

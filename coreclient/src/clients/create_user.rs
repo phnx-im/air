@@ -4,7 +4,7 @@
 
 use crate::{
     DisplayName,
-    groups::client_auth_info::StorableClientCredential,
+    groups::client_auth_info::StorableUserCredential,
     key_stores::{
         MemoryUserKeyStoreBase, as_credentials::AsCredentials, indexed_keys::StorableIndexedKey,
         queue_ratchets::StorableQsQueueRatchet,
@@ -14,7 +14,7 @@ use crate::{
 };
 use aircommon::{
     credentials::{
-        AsIntermediateCredential, VerifiableClientCredential, keys::PreliminaryClientSigningKey,
+        AsIntermediateCredential, VerifiableUserCredential, keys::PreliminaryClientSigningKey,
     },
     crypto::{
         aead::{AeadEncryptable, keys::PushTokenEarKey},
@@ -73,11 +73,11 @@ impl BasicUserData {
             .encryption_key;
 
         // Create CSR for AS to sign
-        let (client_credential_csr, prelim_signing_key) =
-            ClientCredentialCsr::new(self.user_id.clone(), DEFAULT_SIGNATURE_SCHEME)?;
+        let (user_credential_csr, prelim_signing_key) =
+            UserCredentialCsr::new(self.user_id.clone(), DEFAULT_SIGNATURE_SCHEME)?;
 
-        let client_credential_payload = ClientCredentialPayload::new(
-            client_credential_csr,
+        let user_credential_payload = UserCredentialPayload::new(
+            user_credential_csr,
             None,
             *as_intermediate_credential.fingerprint(),
         );
@@ -128,7 +128,7 @@ impl BasicUserData {
         .encrypt_with_index(&user_profile_key)?;
 
         let initial_user_state = InitialUserState {
-            client_credential_payload: client_credential_payload.clone(),
+            user_credential_payload: user_credential_payload.clone(),
             as_intermediate_credential,
             encrypted_push_token,
             encrypted_user_profile,
@@ -146,7 +146,9 @@ impl BasicUserData {
 // a new version in `StorableUserCreationState` must be created.
 #[derive(Serialize, Deserialize)]
 pub(crate) struct InitialUserState {
-    client_credential_payload: ClientCredentialPayload,
+    // Persisted CBOR field name; predates the rename to user credential.
+    #[serde(rename = "client_credential_payload")]
+    user_credential_payload: UserCredentialPayload,
     as_intermediate_credential: AsIntermediateCredential,
     encrypted_push_token: Option<EncryptedPushToken>,
     encrypted_user_profile: EncryptedUserProfile,
@@ -165,7 +167,7 @@ impl InitialUserState {
         let response = api_clients
             .default_client()?
             .as_register_user(
-                self.client_credential_payload.clone(),
+                self.user_credential_payload.clone(),
                 self.encrypted_user_profile.clone(),
                 self.invitation_code.clone(),
             )
@@ -173,14 +175,14 @@ impl InitialUserState {
 
         let post_registration_init_state = PostAsRegistrationState {
             initial_user_state: self,
-            client_credential: response.client_credential,
+            user_credential: response.user_credential,
         };
 
         Ok(post_registration_init_state)
     }
 
     pub(super) fn user_id(&self) -> &UserId {
-        self.client_credential_payload.identity()
+        self.user_credential_payload.identity()
     }
 }
 
@@ -191,7 +193,9 @@ impl InitialUserState {
 #[derive(Serialize, Deserialize)]
 pub(crate) struct PostAsRegistrationState {
     initial_user_state: InitialUserState,
-    client_credential: VerifiableClientCredential,
+    // Persisted CBOR field name; predates the rename to user credential.
+    #[serde(rename = "client_credential")]
+    user_credential: VerifiableUserCredential,
 }
 
 impl PostAsRegistrationState {
@@ -200,7 +204,7 @@ impl PostAsRegistrationState {
         db: &DbAccess,
     ) -> Result<UnfinalizedRegistrationState> {
         let InitialUserState {
-            client_credential_payload: _,
+            user_credential_payload: _,
             as_intermediate_credential,
             encrypted_push_token,
             encrypted_user_profile: _,
@@ -209,18 +213,18 @@ impl PostAsRegistrationState {
             invitation_code: _,
         } = self.initial_user_state;
 
-        let client_credential: ClientCredential = self
-            .client_credential
+        let user_credential: UserCredential = self
+            .user_credential
             .verify(as_intermediate_credential.verifying_key())?;
-        StorableClientCredential::new(client_credential.clone())
+        StorableUserCredential::new(user_credential.clone())
             .store(db.write().await?)
             .await?;
 
         let signing_key =
-            ClientSigningKey::from_prelim_key(key_store.signing_key, client_credential.clone())?;
+            ClientSigningKey::from_prelim_key(key_store.signing_key, user_credential.clone())?;
 
-        // Store the own client credential in the DB
-        StorableClientCredential::new(client_credential.clone())
+        // Store the own user credential in the DB
+        StorableUserCredential::new(user_credential.clone())
             .store(db.write().await?)
             .await?;
 
@@ -247,7 +251,7 @@ impl PostAsRegistrationState {
     }
 
     pub(super) fn user_id(&self) -> &UserId {
-        self.client_credential.user_id()
+        self.user_credential.user_id()
     }
 }
 

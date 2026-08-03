@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::ClientCredential,
+    credentials::UserCredential,
     crypto::signatures::signable::Signable,
     identifiers::UserId,
     messages::{client_as::RegisterUserResponse, client_as_out::RegisterUserParamsIn},
@@ -69,11 +69,11 @@ impl AuthService {
             .ok_or(RegisterUserError::SigningKeyNotFound)?;
 
         // Sign the credential
-        let client_credential: ClientCredential = client_payload
+        let user_credential: UserCredential = client_payload
             .sign(&signing_key)
             .map_err(|_| RegisterUserError::LibraryError)?;
 
-        let user_id = client_credential.user_id();
+        let user_id = user_credential.user_id();
 
         // Create the user entry with the information given in the request
         let mut txn = self.db_pool.begin().await.map_err(|error| {
@@ -87,7 +87,7 @@ impl AuthService {
                 RegisterUserError::StorageError
             })?;
 
-        ClientRecord::new_and_store(txn.as_mut(), client_credential.clone())
+        ClientRecord::new_and_store(txn.as_mut(), user_credential.clone())
             .await
             .map_err(|error| {
                 error!(%error, "Storage provider error");
@@ -108,7 +108,7 @@ impl AuthService {
             RegisterUserError::StorageError
         })?;
 
-        let response = RegisterUserResponse { client_credential };
+        let response = RegisterUserResponse { user_credential };
 
         Ok(response)
     }

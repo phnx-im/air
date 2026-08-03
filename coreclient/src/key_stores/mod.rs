@@ -41,12 +41,13 @@ use serde::{Deserialize, Serialize};
 
 pub(crate) mod as_credentials;
 pub(crate) mod indexed_keys;
+pub(crate) mod key_package_refs;
 pub(crate) mod queue_ratchets;
 
 // For now we persist the key store along with the user. Any key material that gets rotated in the future needs to be persisted separately.
 #[derive(Clone, Serialize, Deserialize)]
 pub(crate) struct MemoryUserKeyStoreBase<K> {
-    // Client credential secret key
+    // User credential secret key
     pub(super) signing_key: K,
     // QS-specific key material
     pub(super) qs_client_signing_key: QsClientSigningKey,

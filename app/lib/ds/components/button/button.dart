@@ -1,10 +1,7 @@
 // SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
-
-import 'package:air/ds/theme/theme.dart';
-import 'package:air/ds/foundations/themes.dart';
-import 'package:air/ds/foundations/font_size.dart';
+import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
 
 enum AppButtonSize { small, large }
@@ -43,58 +40,55 @@ class AppButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final colors = CustomColorScheme.of(context);
+    final palette = SemanticPalette.of(context);
 
     final foregroundColor = switch ((type, state, tone)) {
-      (.primary, .inactive, .danger) => colors.function.white.withValues(
-        alpha: 0.5,
+      (.primary, .inactive, .danger) =>
+        palette.function.neutral.white.withValues(alpha: Alpha.a50),
+      (.primary, .inactive, .normal) =>
+        palette.function.neutral.toggleWhite.withValues(alpha: Alpha.a50),
+      (.primary, _, .danger) => palette.function.neutral.white,
+      (.primary, _, .normal) => palette.function.neutral.toggleWhite,
+      (.secondary, .inactive, .danger) => palette.function.danger.withValues(
+        alpha: Alpha.a50,
       ),
-      (.primary, .inactive, .normal) => colors.function.toggleWhite.withValues(
-        alpha: 0.5,
-      ),
-      (.primary, _, .danger) => colors.function.white,
-      (.primary, _, .normal) => colors.function.toggleWhite,
-      (.secondary, .inactive, .danger) => colors.function.danger.withValues(
-        alpha: 0.5,
-      ),
-      (.secondary, .inactive, _) => colors.function.toggleBlack.withValues(
-        alpha: 0.5,
-      ),
-      (.secondary, _, .danger) => colors.function.danger,
-      (.secondary, _, _) => colors.function.toggleBlack,
+      (.secondary, .inactive, _) =>
+        palette.function.neutral.toggleBlack.withValues(alpha: Alpha.a50),
+      (.secondary, _, .danger) => palette.function.danger,
+      (.secondary, _, _) => palette.function.neutral.toggleBlack,
     };
 
     final backgroundColor = switch ((type, tone)) {
-      (.primary, .danger) => colors.function.danger,
-      (.primary, .normal) => colors.accent.primary,
-      (.secondary, _) => colors.accent.tertiary,
+      (.primary, .danger) => palette.function.danger,
+      (.primary, .normal) => palette.accentBrand.primary,
+      (.secondary, _) => palette.accentBrand.tertiary,
     };
 
     const Border? border = null;
 
     final iconColor = switch ((type, state)) {
-      (.secondary, _) => colors.text.primary,
+      (.secondary, _) => palette.text.primary,
       _ => foregroundColor,
     };
 
     final verticalPadding = switch (size) {
-      AppButtonSize.small => Spacing.px8,
-      AppButtonSize.large => Spacing.px12,
+      AppButtonSize.small => S.s8,
+      AppButtonSize.large => S.s12,
     };
 
     final iconSize = switch (size) {
-      AppButtonSize.small => const Size.square(Spacing.px16),
-      AppButtonSize.large => const Size.square(Spacing.px24),
+      AppButtonSize.small => const Size.square(S.s16),
+      AppButtonSize.large => const Size.square(S.s24),
     };
 
-    final labelSize = switch (size) {
-      AppButtonSize.small => LabelFontSize.small2.size,
-      AppButtonSize.large => LabelFontSize.base.size,
+    final labelToken = switch (size) {
+      AppButtonSize.small => typeScale.body.xs,
+      AppButtonSize.large => typeScale.body.regular,
     };
 
     final borderRadius = switch (size) {
-      AppButtonSize.small => Spacing.px8,
-      AppButtonSize.large => Spacing.px12,
+      AppButtonSize.small => CornerRadius.px8,
+      AppButtonSize.large => CornerRadius.px12,
     };
 
     return OutlinedButton(
@@ -132,7 +126,7 @@ class AppButton extends StatelessWidget {
                 height: iconSize.height,
                 child: CircularProgressIndicator(
                   color: foregroundColor,
-                  strokeWidth: 2,
+                  strokeWidth: StrokeWidth.px2,
                 ),
               ),
 
@@ -147,10 +141,7 @@ class AppButton extends StatelessWidget {
                 child: Center(
                   child: Text(
                     label,
-                    style: TextStyle(
-                      color: foregroundColor,
-                      fontSize: labelSize,
-                    ),
+                    style: labelToken.style(color: foregroundColor),
                   ),
                 ),
               ),

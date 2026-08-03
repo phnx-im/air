@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::{ClientCredential, keys::ClientVerifyingKey},
+    credentials::{LeafCredential, keys::ClientVerifyingKey},
     crypto::{
         aead::keys::GroupStateEarKey,
         signatures::{
@@ -39,7 +39,6 @@ use mls_assist::{
 use semver::Version;
 use sqlx::{PgConnection, PgTransaction};
 use thiserror::Error;
-use tls_codec::DeserializeBytes;
 use tokio::task::{JoinError, JoinSet};
 use tonic::{Request, Response, Status, async_trait};
 use tracing::{error, warn};
@@ -574,23 +573,32 @@ where
             )),
         }
     })?;
-    let sender_credential = sender_client_credential(group_state, sender_index)?;
-    let payload: P = request
-        .verify(sender_credential.verifying_key())
-        .map_err(InvalidSignature)?;
+    let sender_key = sender_verifying_key(group_state, sender_index)?;
+    let payload: P = request.verify(&sender_key).map_err(InvalidSignature)?;
     Ok((payload, sender_index))
 }
 
-fn sender_client_credential(
+/// The key that authenticates requests from the leaf at `sender_index`.
+///
+/// User credentials embed the user's verifying key. Self-group credentials carry no key
+/// material, so requests are verified against the leaf's own MLS signature key, which is
+/// unique per client.
+fn sender_verifying_key(
     group_state: &DsGroupState,
     sender_index: LeafNodeIndex,
-) -> Result<ClientCredential, Status> {
+) -> Result<ClientVerifyingKey, Status> {
     let leaf = group_state
         .group()
         .leaf(sender_index)
         .ok_or_else(|| Status::invalid_argument("unknown sender"))?;
-    ClientCredential::tls_deserialize_exact_bytes(leaf.credential().serialized_content())
-        .map_err(|_| Status::invalid_argument("invalid credential"))
+    let credential = LeafCredential::from_credential(leaf.credential())
+        .map_err(|_| Status::invalid_argument("invalid credential"))?;
+    match credential {
+        LeafCredential::User(credential) => Ok(credential.verifying_key().clone()),
+        LeafCredential::SelfGroup(_) => Ok(ClientVerifyingKey::from_bytes(
+            leaf.signature_key().as_slice().to_vec(),
+        )),
+    }
 }
 
 /// Extracted data in leaf verification
@@ -668,18 +676,16 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
     ) -> Result<Response<CreateGroupResponse>, Status> {
         let request = request.into_inner();
 
-        // TODO: signature verification?
-        let request = request.into_inner();
-        let payload = request.payload.ok_or_missing_field("payload")?;
+        // First use the unverified payload. It is verified below against the creator's user
+        // credential.
+        let payload = request
+            .inner()
+            .payload
+            .as_ref()
+            .ok_or_missing_field("payload")?;
         self.verify_client_version(payload.client_metadata.as_ref())?;
         let qgid = payload.validated_qgid(&self.ds.own_domain)?;
         let ear_key = payload.ear_key()?;
-
-        let reserved_group_id = self
-            .ds
-            .claim_reserved_group_id(qgid.group_uuid())
-            .await
-            .ok_or_else(|| Status::invalid_argument("unreserved group id"))?;
 
         // create group
         let group_info: MlsMessageIn = payload
@@ -705,26 +711,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             Status::internal("failed to create group")
         })?;
 
-        // Extract user id
-        let members = group.members().collect::<Vec<_>>();
-
-        let &[own_leaf] = &members.as_slice() else {
-            error!(members = %members.len(), "group must have exactly one member");
-            return Err(Status::invalid_argument(
-                "group must have exactly one member",
-            ));
-        };
-
         let credential =
-            ClientCredential::tls_deserialize_exact_bytes(own_leaf.credential.serialized_content())
-                .map_err(|_| Status::invalid_argument("invalid credential"))?;
-        let user_id = credential.user_id().uuid();
+            Self::creator_credential(&group, payload.creator_user_credential.as_ref())?;
 
         // Configure the rate-limiting
         let rl_key = RlKey::new(
             b"ds",
             b"reserve_group_id",
-            &[b"user_uuid", user_id.as_bytes()],
+            &[b"user_uuid", credential.user_id().uuid().as_bytes()],
         );
         let config = RlConfig {
             max_requests: 100,
@@ -739,6 +733,17 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                 "Too many requests, please try again later",
             ));
         }
+
+        // Now we can verify the payload
+        let payload: CreateGroupPayload = request
+            .verify(credential.verifying_key())
+            .map_err(InvalidSignature)?;
+
+        let reserved_group_id = self
+            .ds
+            .claim_reserved_group_id(qgid.group_uuid())
+            .await
+            .ok_or_else(|| Status::invalid_argument("unreserved group id"))?;
 
         // encrypt and store group state
         let encrypted_user_profile_key = payload
@@ -788,7 +793,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
     ) -> Result<Response<CreateApqGroupResponse>, Status> {
         let request = request.into_inner();
 
-        // First use unverified payload; later we verify it using the client credential from the
+        // First use unverified payload; later we verify it using the user credential from the
         // leaf node.
         let payload = request
             .inner()
@@ -830,16 +835,16 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             &creator_client_reference,
             &room_state,
         )?;
-        let t_client_credential = Self::extract_credential(&t_group_state.group)?;
+        let t_user_credential = Self::creator_credential(
+            &t_group_state.group,
+            payload.creator_user_credential.as_ref(),
+        )?;
 
         // Configure and apply rate-limiting
         let rl_key = RlKey::new(
             b"ds",
             b"reserve_group_id",
-            &[
-                b"user_uuid",
-                t_client_credential.user_id().uuid().as_bytes(),
-            ],
+            &[b"user_uuid", t_user_credential.user_id().uuid().as_bytes()],
         );
         let config = RlConfig {
             max_requests: 100,
@@ -855,7 +860,7 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
 
         // Now we can verify the payload
         let payload: CreateApqGroupPayload = request
-            .verify(t_client_credential.verifying_key())
+            .verify(t_user_credential.verifying_key())
             .map_err(InvalidSignature)?;
 
         // Extract pq group state (PQ group uses the same ear_key as the T group)
@@ -866,6 +871,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             &creator_client_reference,
             &room_state,
         )?;
+        if payload.creator_user_credential.is_some() {
+            Self::require_self_group_context(&pq_group_state.group)?;
+        }
 
         // Check that the t and pq client signature keys match
         Self::verify_signing_key(&t_group_state.group, &pq_group_state.group)?;
@@ -1196,18 +1204,23 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     ));
                 }
 
-                let destination_clients: Vec<_> = group_state
+                let mut destination_clients: Vec<_> = group_state
                     .other_destination_clients(sender_index)
                     .collect();
                 let broadcast_to_all_client_queues = group_state.broadcast_to_all_client_queues();
 
-                let group_message = group_state.resync_client(external_commit, sender_index)?;
+                let outcome = group_state.resync_client(external_commit, sender_index)?;
+
+                // A sibling emulator client took over the virtual client's leaf;
+                // the leaf's previous occupant has to process the commit to follow
+                // onto it.
+                destination_clients.extend(outcome.sibling_queue);
 
                 group_state.proposals.clear();
 
                 let timestamp = self
                     .fan_out_message_without_notifications(
-                        group_message,
+                        outcome.message,
                         destination_clients,
                         broadcast_to_all_client_queues,
                     )
@@ -1250,11 +1263,11 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                            ear_key: _,
                        }: ApqVerificationData<'_, ApqResyncPayload>| {
                     // Collect destination clients *before* the commit is accepted.
-                    let destination_clients: Vec<_> = t_group_state
+                    let mut destination_clients: Vec<_> = t_group_state
                         .other_destination_clients(t_sender_index)
                         .collect();
 
-                    let serialized_apq_message = DsGroupState::apq_resync_client(
+                    let outcome = DsGroupState::apq_resync_client(
                         t_group_state,
                         pq_group_state,
                         t_external_commit,
@@ -1262,12 +1275,16 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                         t_sender_index,
                     )?;
 
+                    // A sibling emulator client took over the virtual client's
+                    // leaf; its previous occupant has to follow onto it.
+                    destination_clients.extend(outcome.sibling_queue);
+
                     t_group_state.proposals.clear();
                     pq_group_state.proposals.clear();
 
                     let timestamp = TimeStamp::now();
                     let apq_payload =
-                        QsQueueMessagePayload::apq_mls_message(timestamp, serialized_apq_message);
+                        QsQueueMessagePayload::apq_mls_message(timestamp, outcome.message);
 
                     Ok(ApqFanOut {
                         broadcast: (apq_payload, destination_clients),
@@ -1428,10 +1445,8 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .map_err(to_status)?;
 
         // verify signature
-        let sender_credential = sender_client_credential(&group_state, sender_index)?;
-        let payload: SendMessagePayload = request
-            .verify(sender_credential.verifying_key())
-            .map_err(InvalidSignature)?;
+        let sender_key = sender_verifying_key(&group_state, sender_index)?;
+        let payload: SendMessagePayload = request.verify(&sender_key).map_err(InvalidSignature)?;
 
         if let Some(tags) = payload.collision_tags {
             let msg_epoch = message.epoch().as_u64();
@@ -1844,10 +1859,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             &ear_key,
             async |group_state, _group_data| {
                 // verify signature
-                let sender_credential = sender_client_credential(group_state, sender_index)?;
-                let payload: UpdateProfileKeyPayload = request
-                    .verify(sender_credential.verifying_key())
-                    .map_err(InvalidSignature)?;
+                let sender_key = sender_verifying_key(group_state, sender_index)?;
+                let payload: UpdateProfileKeyPayload =
+                    request.verify(&sender_key).map_err(InvalidSignature)?;
 
                 let user_profile_key = payload
                     .encrypted_user_profile_key
@@ -1917,11 +1931,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .await
                     .map_err(to_status)?;
 
-                let sender_credential = sender_client_credential(&group_state, sender_index)?;
+                let sender_key = sender_verifying_key(&group_state, sender_index)?;
 
-                request
-                    .verify(sender_credential.verifying_key())
-                    .map_err(InvalidSignature)?
+                request.verify(&sender_key).map_err(InvalidSignature)?
             }
             StorageObjectType::DebugLogs => {
                 let user_id = payload
@@ -1996,11 +2008,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
                     .await
                     .map_err(to_status)?;
 
-                let sender_credential = sender_client_credential(&group_state, sender_index)?;
+                let sender_key = sender_verifying_key(&group_state, sender_index)?;
 
-                request
-                    .verify(sender_credential.verifying_key())
-                    .map_err(InvalidSignature)?
+                request.verify(&sender_key).map_err(InvalidSignature)?
             }
             StorageObjectType::DebugLogs => {
                 let user_id = payload
@@ -2069,10 +2079,9 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             .map_err(to_status)?;
 
         // verify signature
-        let sender_credential = sender_client_credential(&group_state, sender_index)?;
-        let payload: TargetedMessagePayload = request
-            .verify(sender_credential.verifying_key())
-            .map_err(InvalidSignature)?;
+        let sender_key = sender_verifying_key(&group_state, sender_index)?;
+        let payload: TargetedMessagePayload =
+            request.verify(&sender_key).map_err(InvalidSignature)?;
 
         if let Some(tags) = payload.collision_tags {
             let msg_epoch = message.epoch().as_u64();

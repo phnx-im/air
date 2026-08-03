@@ -224,6 +224,7 @@ sealed class UiChatMuted with _$UiChatMuted {
 sealed class UiChatStatus with _$UiChatStatus {
   const UiChatStatus._();
 
+  const factory UiChatStatus.pending() = UiChatStatus_Pending;
   const factory UiChatStatus.inactive(UiInactiveChat field0) =
       UiChatStatus_Inactive;
   const factory UiChatStatus.active() = UiChatStatus_Active;
@@ -482,6 +483,7 @@ sealed class UiSystemMessage with _$UiSystemMessage {
       UiSystemMessage_NewDirectConnectionChat;
   const factory UiSystemMessage.createGroup(UiUserId field0) =
       UiSystemMessage_CreateGroup;
+  const factory UiSystemMessage.onboarded() = UiSystemMessage_Onboarded;
 }
 
 /// UI representation of an [`UserId`]

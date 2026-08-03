@@ -7,7 +7,7 @@ use aircommon::{
     mls_group_config::AppComponent,
 };
 use airmacros::{DeserializeTaggedMap, SerializeTaggedMap};
-use mls_assist::openmls::component::ComponentId;
+use mls_assist::openmls::{component::ComponentId, group::GroupContext, prelude::Extensions};
 
 /// The component id of the Air component.
 pub const AIR_COMPONENT_ID: ComponentId = 0x8000;
@@ -60,6 +60,26 @@ impl AirComponent {
     pub fn from_bytes(bytes: &[u8]) -> Result<Self, codec::Error> {
         PersistenceCodec::from_slice(bytes)
     }
+
+    /// Reads the component from a group context's extensions.
+    ///
+    /// Returns `None` if the app data dictionary, the component entry, or a decodable component is
+    /// missing.
+    pub fn from_group_context_extensions(extensions: &Extensions<GroupContext>) -> Option<Self> {
+        let data = extensions
+            .app_data_dictionary()?
+            .dictionary()
+            .get(&AIR_COMPONENT_ID)?;
+        Self::from_bytes(data).ok()
+    }
+
+    /// Whether the group context extensions mark the group as a self-group.
+    ///
+    /// A missing or undecodable component counts as not a self-group.
+    pub fn is_self_group_context(extensions: &Extensions<GroupContext>) -> bool {
+        Self::from_group_context_extensions(extensions)
+            .is_some_and(|component| component.is_self_group)
+    }
 }
 
 impl AirFeatures {
@@ -103,7 +123,8 @@ mod test {
     use aircommon::{
         codec::PersistenceCodec,
         mls_group_config::{
-            default_app_data_dictionary_extension, default_key_package_extensions,
+            default_app_data_dictionary_extension,
+            default_group_context_app_data_dictionary_extension, default_key_package_extensions,
             default_leaf_node_extensions,
         },
     };
@@ -122,6 +143,26 @@ mod test {
         let _ = default_app_data_dictionary_extension::<AirComponent>();
         let _ = default_leaf_node_extensions::<AirComponent>();
         let _ = default_key_package_extensions::<AirComponent>();
+    }
+
+    #[test]
+    fn self_group_flag_is_read_from_group_context_extensions() {
+        let group_context_extensions = |component| {
+            Extensions::from_vec(vec![default_group_context_app_data_dictionary_extension(
+                component, None,
+            )])
+            .unwrap()
+        };
+
+        let self_group = group_context_extensions(AirComponent::default_for_self_group());
+        assert!(AirComponent::is_self_group_context(&self_group));
+
+        let regular_group =
+            group_context_extensions(AirComponent::default_for_leaf_or_key_package());
+        assert!(!AirComponent::is_self_group_context(&regular_group));
+
+        // A missing component counts as not a self-group.
+        assert!(!AirComponent::is_self_group_context(&Extensions::empty()));
     }
 
     /// Default extensions can be extended by must be backwards compatible.

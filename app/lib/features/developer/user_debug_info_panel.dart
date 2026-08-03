@@ -1,0 +1,290 @@
+// SPDX-FileCopyrightText: 2026 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import 'package:air/core/core.dart';
+import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/util/scaffold_messenger.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:intl/intl.dart';
+
+/// Debug info panel for the currently logged-in user.
+///
+/// Note: Strings in this widget are not localized.
+class UserDebugInfoPanel extends HookWidget {
+  const UserDebugInfoPanel({required this.user, super.key});
+
+  final User user;
+
+  @override
+  Widget build(BuildContext context) {
+    final refreshKey = useState(0);
+    final snapshot = useFuture(
+      useMemoized(() => user.userDebugInfo(), [refreshKey.value]),
+    );
+    final palette = SemanticPalette.of(context);
+
+    return switch (snapshot) {
+      AsyncSnapshot(hasData: true, :final data) => _UserDebugInfoBody(
+        info: data!,
+        user: user,
+        onRefresh: () => refreshKey.value++,
+      ),
+      AsyncSnapshot(hasError: true, :final error) => Center(
+        child: Padding(
+          padding: const EdgeInsets.all(S.s16),
+          child: Text(
+            error.toString(),
+            style: typeScale.body.s.style(color: palette.text.secondary),
+          ),
+        ),
+      ),
+      _ => Center(
+        child: SizedBox(
+          width: 16,
+          height: 16,
+          child: CircularProgressIndicator(
+            strokeWidth: StrokeWidth.px2,
+            valueColor: AlwaysStoppedAnimation<Color>(palette.text.primary),
+          ),
+        ),
+      ),
+    };
+  }
+}
+
+class _UserDebugInfoBody extends StatelessWidget {
+  const _UserDebugInfoBody({
+    required this.info,
+    required this.user,
+    required this.onRefresh,
+  });
+
+  final UserDebugInfo info;
+  final User user;
+  final VoidCallback onRefresh;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
+      children: [
+        const _SectionHeader('User'),
+        _InfoCard(
+          children: [
+            _InfoRow(label: 'User ID', value: info.userId, monospace: true),
+          ],
+        ),
+        const SizedBox(height: S.s16),
+        const _SectionHeader('Privacy Pass Tokens'),
+        _InfoCard(
+          children: [
+            _InfoRow(
+              label: 'Add Username',
+              value: info.addUsernameTokenCount.toString(),
+            ),
+            _InfoRow(
+              label: 'Invite Code',
+              value: info.invitationCodeTokenCount.toString(),
+            ),
+          ],
+        ),
+        const SizedBox(height: S.s16),
+        _SectionHeader('Timed Tasks (${info.timedTasks.length})'),
+        _InfoCard(
+          children: [
+            for (final task in info.timedTasks)
+              _InfoRow(
+                label: task.name,
+                value:
+                    '${_formatDateTime(task.scheduledAt.toLocal())}  (${_formatRelative(task.scheduledAt)})',
+                trailing: _TriggerButton(onPressed: () => _trigger(task)),
+              ),
+          ],
+        ),
+      ],
+    );
+  }
+
+  Future<void> _trigger(TimedTaskDebugInfo task) async {
+    try {
+      await user.triggerTimedTask(task.id);
+      showSnackBarStandalone(
+        (loc) => SnackBar(
+          content: Text('Triggered ${task.name}'),
+          duration: const Duration(seconds: 2),
+        ),
+      );
+    } catch (error) {
+      showSnackBarStandalone(
+        (loc) => SnackBar(
+          content: Text('Failed to trigger ${task.name}: $error'),
+          duration: const Duration(seconds: 3),
+        ),
+      );
+    }
+    onRefresh();
+  }
+
+  String _formatDateTime(DateTime dt) {
+    return DateFormat('yyyy-MM-dd HH:mm:ss').format(dt);
+  }
+
+  String _formatRelative(DateTime dt) {
+    final diff = dt.toUtc().difference(DateTime.now().toUtc());
+    final abs = diff.abs();
+    final future = diff.isNegative == false;
+    String magnitude;
+    if (abs.inSeconds < 60) {
+      magnitude = '${abs.inSeconds}s';
+    } else if (abs.inMinutes < 60) {
+      magnitude = '${abs.inMinutes}m';
+    } else if (abs.inHours < 24) {
+      magnitude = '${abs.inHours}h ${abs.inMinutes.remainder(60)}m';
+    } else {
+      magnitude = '${abs.inDays}d ${abs.inHours.remainder(24)}h';
+    }
+    return future ? 'in $magnitude' : '$magnitude ago';
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader(this.title);
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = SemanticPalette.of(context);
+    return Padding(
+      padding: const EdgeInsets.symmetric(vertical: S.s8),
+      child: Text(
+        title.toUpperCase(),
+        style: typeScale.body.xs.style(
+          weight: Weight.emphasized,
+          color: palette.text.tertiary,
+        ),
+      ),
+    );
+  }
+}
+
+class _InfoCard extends StatelessWidget {
+  const _InfoCard({required this.children});
+
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = SemanticPalette.of(context);
+    if (children.isEmpty) {
+      return Container(
+        decoration: BoxDecoration(
+          color: palette.backgroundBase.secondary,
+          borderRadius: BorderRadius.circular(CornerRadius.px12),
+        ),
+        padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
+        child: Text(
+          '—',
+          style: typeScale.body.s.style(color: palette.text.tertiary),
+        ),
+      );
+    }
+    return Container(
+      decoration: BoxDecoration(
+        color: palette.backgroundBase.secondary,
+        borderRadius: BorderRadius.circular(CornerRadius.px12),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (int i = 0; i < children.length; i++) ...[
+            children[i],
+            if (i < children.length - 1)
+              Divider(
+                height: 1,
+                indent: S.s16,
+                color: palette.separator.secondary,
+              ),
+          ],
+        ],
+      ),
+    );
+  }
+}
+
+class _InfoRow extends StatelessWidget {
+  const _InfoRow({
+    required this.label,
+    required this.value,
+    this.monospace = false,
+    this.trailing,
+  });
+
+  final String label;
+  final String value;
+  final bool monospace;
+  final Widget? trailing;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = SemanticPalette.of(context);
+
+    var valueStyle = typeScale.body.s.style(color: palette.text.primary);
+    if (monospace) {
+      valueStyle = valueStyle.withSystemMonospace();
+    }
+
+    return InkWell(
+      onTap: () {
+        Clipboard.setData(ClipboardData(text: value));
+        showSnackBarStandalone(
+          (loc) => SnackBar(
+            content: Text('Copied $label'),
+            duration: const Duration(seconds: 2),
+          ),
+        );
+      },
+      borderRadius: BorderRadius.circular(CornerRadius.px12),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
+        child: Row(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            SizedBox(
+              width: 200,
+              child: Text(
+                label,
+                style: typeScale.body.s.style(color: palette.text.tertiary),
+              ),
+            ),
+            const SizedBox(width: S.s12),
+            Expanded(child: Text(value, style: valueStyle)),
+            ?trailing,
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+class _TriggerButton extends StatelessWidget {
+  const _TriggerButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = SemanticPalette.of(context);
+    return IconButton(
+      onPressed: onPressed,
+      visualDensity: VisualDensity.compact,
+      padding: EdgeInsets.zero,
+      constraints: const BoxConstraints(),
+      tooltip: 'Run now',
+      icon: Icon(Icons.play_arrow, size: 20, color: palette.text.primary),
+    );
+  }
+}

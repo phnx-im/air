@@ -28,6 +28,7 @@ pub(crate) use {pending::PendingConnectionInfo, status::StatusRecord};
 
 mod draft;
 pub(crate) mod messages;
+pub(crate) mod notification_rebuild;
 pub(crate) mod pending;
 pub(crate) mod persistence;
 pub(crate) mod reactions;
@@ -94,6 +95,7 @@ pub struct Chat {
     pub status: ChatStatus,
     pub chat_type: ChatType,
     pub muted_until: Option<ChatMuted>,
+    pub notified_until: Option<DateTime<Utc>>,
 }
 
 impl Chat {
@@ -107,6 +109,7 @@ impl Chat {
             status: ChatStatus::Active,
             chat_type: ChatType::HandleConnection(username),
             muted_until: None,
+            notified_until: None,
         }
     }
 
@@ -120,6 +123,21 @@ impl Chat {
             status: ChatStatus::Active,
             chat_type: ChatType::TargetedMessageConnection(user_id),
             muted_until: None,
+            notified_until: None,
+        }
+    }
+
+    pub(crate) fn new_pending_group_chat(group_id: GroupId, attributes: ChatAttributes) -> Self {
+        let id = ChatId::try_from(&group_id).unwrap();
+        Self {
+            id,
+            group_id,
+            last_read: Utc::now(),
+            last_message_at: None,
+            status: ChatStatus::Pending,
+            chat_type: ChatType::Group(attributes),
+            muted_until: None,
+            notified_until: None,
         }
     }
 
@@ -133,6 +151,7 @@ impl Chat {
             status: ChatStatus::Active,
             chat_type: ChatType::Group(attributes),
             muted_until: None,
+            notified_until: None,
         }
     }
 
@@ -145,6 +164,7 @@ impl Chat {
             status: ChatStatus::Active,
             chat_type: ChatType::PendingConnection(user_id),
             muted_until: None,
+            notified_until: None,
         }
     }
 
@@ -226,14 +246,13 @@ impl Chat {
         Ok(())
     }
 
-    pub(crate) async fn set_inactive(
+    pub(crate) async fn set_status(
         &mut self,
         connection: impl WriteTransaction,
-        past_members: Vec<UserId>,
+        status: ChatStatus,
     ) -> sqlx::Result<()> {
-        let new_status = ChatStatus::Inactive(InactiveChat { past_members });
-        Self::update_status(connection, self.id, &new_status).await?;
-        self.status = new_status;
+        Self::update_status(connection, self.id, &status).await?;
+        self.status = status;
         Ok(())
     }
 
@@ -254,9 +273,16 @@ impl Chat {
 
 #[derive(Eq, PartialEq, Debug, Clone, Hash, Serialize, Deserialize)]
 pub enum ChatStatus {
+    Pending,
     Inactive(InactiveChat),
     Active,
     Blocked,
+}
+
+impl ChatStatus {
+    pub fn inactive(past_members: Vec<UserId>) -> Self {
+        ChatStatus::Inactive(InactiveChat { past_members })
+    }
 }
 
 #[derive(Eq, PartialEq, Debug, Clone, Hash, Serialize, Deserialize)]
@@ -385,6 +411,20 @@ pub(crate) trait GroupDataExt {
         self,
         identity_link_wrapper_key: &IdentityLinkWrapperKey,
     ) -> (Option<String>, Option<GroupDataProfilePart>);
+
+    /// Decodes the group data and returns the contained chat title, if any.
+    ///
+    /// The group profile part is dropped. Use this for our own commits and
+    /// the self group, where the profile data is already available locally.
+    fn decode_title(
+        bytes: &GroupDataBytes,
+        identity_link_wrapper_key: &IdentityLinkWrapperKey,
+    ) -> Result<Option<String>, codec::Error>
+    where
+        Self: Sized,
+    {
+        Ok(Self::decode(bytes)?.into_parts(identity_link_wrapper_key).0)
+    }
 }
 
 /// Part of the group data that is stored in the group data extension.

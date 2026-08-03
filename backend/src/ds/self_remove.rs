@@ -2,10 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-use super::group_state::DsGroupState;
+use super::group_state::{DsGroupState, RoomPolicyIdentity};
 use super::process::USER_EXPIRATION_DAYS;
 use crate::errors::ClientSelfRemovalError;
-use aircommon::{credentials::VerifiableClientCredential, time::Duration};
+use aircommon::{credentials::LeafCredential, time::Duration};
 use mimi_room_policy::RoleIndex;
 use mls_assist::{
     group::ProcessedAssistedMessage,
@@ -24,13 +24,19 @@ impl DsGroupState {
             self.self_remove_client_inner(remove_proposal)?;
 
         // Change the role of the sender to outsider.
-        let sender = VerifiableClientCredential::from_basic_credential(sender_leaf.credential())
-            .map_err(|error| {
+        let sender =
+            LeafCredential::from_credential(sender_leaf.credential()).map_err(|error| {
                 error!(%error, "Credential of sender is invalid");
                 ClientSelfRemovalError::InvalidMessage
             })?;
-        self.room_state_change_role(sender.user_id(), sender.user_id(), RoleIndex::Outsider)
+        let sender_identity = RoomPolicyIdentity::from_credential(&sender)
             .ok_or(ClientSelfRemovalError::InvalidMessage)?;
+        self.room_state_change_role(
+            &sender_identity,
+            sender_identity.clone(),
+            RoleIndex::Outsider,
+        )
+        .ok_or(ClientSelfRemovalError::InvalidMessage)?;
 
         Ok(serialized_mls_message)
     }

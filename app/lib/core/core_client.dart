@@ -10,7 +10,7 @@ import 'package:logging/logging.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:uuid/uuid.dart';
 import 'package:air/core/core.dart';
-import 'package:air/util/platform.dart';
+import 'package:air/platform/method_channel.dart';
 
 final _log = Logger('CoreClient');
 

@@ -4,7 +4,7 @@
 
 import 'dart:math';
 
-import 'app_localizations.dart';
+import 'package:air/l10n/app_localizations.dart';
 
 extension AppLocalizationsExtension on AppLocalizations {
   String bytesToHumanReadable(int bytes) {

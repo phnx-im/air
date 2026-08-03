@@ -1,0 +1,837 @@
+// SPDX-FileCopyrightText: 2024 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import 'package:air/core/core.dart';
+import 'package:air/l10n/language_picker_menu.dart';
+import 'package:air/l10n/l10n.dart';
+import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/features/you/linked_devices_screen.dart';
+import 'package:air/features/you/invitation_codes_cubit.dart';
+import 'package:air/features/you/invitation_codes_screen.dart';
+import 'package:air/features/user/loadable_user_cubit.dart';
+import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/user/user_settings_cubit.dart';
+import 'package:air/features/user/users_cubit.dart';
+import 'package:air/util/debouncer.dart';
+import 'package:air/util/scaffold_messenger.dart';
+import 'package:air/features/navigation/app_bar_back_button.dart';
+import 'package:air/features/user/avatar.dart';
+import 'package:air/ds/components/scroll/faded_scroll_frame.dart';
+import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:flutter_hooks/flutter_hooks.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:logging/logging.dart';
+import 'package:package_info_plus/package_info_plus.dart';
+
+import 'package:air/features/you/add_username_dialog.dart';
+import 'package:air/features/you/change_display_name_dialog.dart';
+import 'package:air/features/you/contact_us_screen.dart';
+import 'package:air/features/you/delete_account_dialog.dart';
+import 'package:air/features/you/remove_username_dialog.dart';
+
+final _log = Logger('YouScreen');
+
+class YouScreen extends StatelessWidget {
+  const YouScreen({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    return BlocProvider(
+      create: (context) =>
+          InvitationCodesCubit(userCubit: context.read<UserCubit>()),
+      child: const YouView(),
+    );
+  }
+}
+
+class YouView extends StatelessWidget {
+  const YouView({super.key});
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final palette = SemanticPalette.of(context);
+    final bgColor = palette.backgroundBase.primary;
+
+    final content = Padding(
+      padding: const EdgeInsets.symmetric(horizontal: S.s16),
+      child: Align(
+        alignment: Alignment.topCenter,
+        child: Container(
+          constraints: DeviceType.isDesktop
+              ? const BoxConstraints(maxWidth: 800)
+              : null,
+          child: const _Sections(),
+        ),
+      ),
+    );
+
+    if (context.breakpoint.isSmall) {
+      return Scaffold(
+        backgroundColor: bgColor,
+        body: SafeArea(
+          bottom: false,
+          child: FadedScrollFrame(
+            backgroundColor: bgColor,
+            header: _MobileHeader(title: loc.userSettingsScreen_title),
+            builder: (topPadding, bottomPadding) => SingleChildScrollView(
+              padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
+              child: content,
+            ),
+          ),
+        ),
+      );
+    }
+
+    return Scaffold(
+      appBar: AppBar(
+        clipBehavior: Clip.none,
+        title: Text(
+          loc.userSettingsScreen_title,
+          style: typeScale.body.regular.style(weight: Weight.emphasized),
+        ),
+        leading: AppBarBackButton(
+          backgroundColor: palette.backgroundElevated.primary,
+        ),
+        automaticallyImplyLeading: false,
+        actions: null,
+        backgroundColor: bgColor,
+        centerTitle: true,
+        scrolledUnderElevation: 0,
+      ),
+      backgroundColor: bgColor,
+      body: SafeArea(child: SingleChildScrollView(child: content)),
+    );
+  }
+}
+
+class _Sections extends StatelessWidget {
+  const _Sections();
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final isMobilePlatform = DeviceType.isPhone;
+    final isDesktopPlatform = DeviceType.isDesktop;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const SizedBox(height: 18),
+
+        const _UserAvatar(),
+
+        const SizedBox(height: S.s12),
+        const _DisplayName(),
+
+        const SizedBox(height: S.s24),
+        const _UsernamesSection(),
+
+        const SizedBox(height: S.s24),
+        _SectionHeader(text: loc.userSettingsScreen_settingsSection),
+
+        const SizedBox(height: S.s12),
+        const _CommonSettings(),
+
+        if (isMobilePlatform) const SizedBox(height: S.s12),
+        if (isMobilePlatform) _MobileSettings(),
+
+        if (isDesktopPlatform) const SizedBox(height: S.s12),
+        if (isDesktopPlatform) const _DesktopSettings(),
+
+        const SizedBox(height: S.s24),
+        const _HelpSection(),
+
+        const SizedBox(height: S.s24),
+        const _AccountSection(),
+
+        const SizedBox(height: S.s32 + S.s8),
+      ],
+    );
+  }
+}
+
+class _MobileHeader extends StatelessWidget {
+  const _MobileHeader({required this.title});
+
+  final String title;
+
+  @override
+  Widget build(BuildContext context) {
+    return SizedBox(
+      height: kToolbarHeight,
+      child: Center(
+        child: Text(
+          title,
+          style: typeScale.body.regular.style(weight: Weight.emphasized),
+        ),
+      ),
+    );
+  }
+}
+
+class _UserAvatar extends StatelessWidget {
+  const _UserAvatar();
+
+  @override
+  Widget build(BuildContext context) {
+    final profile = context.select(
+      (UsersCubit cubit) => cubit.state.profile(userId: null),
+    );
+    return Center(
+      child: UserAvatar(
+        profile: profile,
+        size: 192,
+        onPressed: () => _pickAvatar(context),
+      ),
+    );
+  }
+
+  void _pickAvatar(BuildContext context) async {
+    final user = context.read<UserCubit>();
+
+    final ImagePicker picker = ImagePicker();
+    // Reduce image quality to re-encode the image.
+    final XFile? image = await picker.pickImage(
+      source: ImageSource.gallery,
+      imageQuality: 99,
+    );
+    final bytes = await image?.readAsBytes();
+
+    if (bytes != null) {
+      await user.setProfile(profilePicture: bytes);
+    }
+  }
+}
+
+class _DisplayName extends StatelessWidget {
+  const _DisplayName();
+
+  @override
+  Widget build(BuildContext context) {
+    String displayName;
+    try {
+      displayName = context.select(
+        (UsersCubit cubit) => cubit.state.displayName(),
+      );
+    } on ProviderNotFoundException {
+      return const SizedBox.shrink();
+    }
+
+    final loc = AppLocalizations.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        FieldLabel(loc.userSettingsScreen_displayNameLabel),
+
+        const SizedBox(height: S.s12),
+
+        _FieldContainer(
+          onTap: () => {
+            showDialog(
+              context: context,
+              builder: (context) =>
+                  ChangeDisplayNameDialog(displayName: displayName),
+            ),
+          },
+          child: Row(children: [Text(displayName)]),
+        ),
+
+        const SizedBox(height: S.s12),
+
+        FieldLabel(loc.userSettingsScreen_profileDescription),
+      ],
+    );
+  }
+}
+
+class _UsernamesSection extends StatelessWidget {
+  const _UsernamesSection();
+
+  @override
+  Widget build(BuildContext context) {
+    List<UiUsername> usernames;
+    try {
+      usernames = context.select((UserCubit cubit) => cubit.state.usernames);
+    } on ProviderNotFoundException {
+      return const SizedBox.shrink();
+    }
+
+    final loc = AppLocalizations.of(context);
+
+    final palette = SemanticPalette.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionHeader(text: loc.userSettingsScreen_usernamesSection),
+
+        ...usernames.expand(
+          (username) => [
+            const SizedBox(height: S.s12),
+            _FieldContainer(
+              child: Row(
+                children: [
+                  Text(username.plaintext),
+                  const Spacer(),
+                  InkWell(
+                    onTap: () {
+                      showDialog(
+                        context: context,
+                        builder: (context) =>
+                            RemoveUsernameDialog(username: username),
+                      );
+                    },
+                    child: AppIcon.trash(
+                      size: 24,
+                      color: palette.function.danger,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+
+        if (usernames.isEmpty || usernames.length < 5) ...[
+          const SizedBox(height: S.s12),
+          _FieldContainer(
+            onTap: () => showDialog(
+              context: context,
+              builder: (context) => const AddUsernameDialog(),
+            ),
+            child: Row(
+              children: [
+                Text(
+                  loc.userSettingsScreen_usernamePlaceholder,
+                  style: TextStyle(color: palette.text.quaternary),
+                ),
+              ],
+            ),
+          ),
+
+          const SizedBox(height: S.s12),
+          FieldLabel(loc.userSettingsScreen_userNamesDescription),
+        ],
+      ],
+    );
+  }
+}
+
+class _CommonSettings extends HookWidget {
+  const _CommonSettings();
+
+  @override
+  Widget build(BuildContext context) {
+    // Captured here rather than read inside the submit callback: a debounced
+    // submit can fire while the widget is being disposed, when context
+    // lookups are no longer allowed.
+    final settingsCubit = context.read<UserSettingsCubit>();
+    final readReceiptsSetting = context.select(
+      (UserSettingsCubit cubit) => cubit.state.readReceipts,
+    );
+    // The subscription above also provides the initial value: useState only
+    // reads its argument on the first build.
+    final readReceipts = useState(readReceiptsSetting);
+    // Converge the local switch onto the cubit state. This moves the switch
+    // for out-of-band changes (a sibling device update or a rollback) and
+    // confirms it after a successful submit. The optimistic local flip
+    // survives because the cubit state only changes on success.
+    useEffect(() {
+      readReceipts.value = readReceiptsSetting;
+      return null;
+    }, [readReceiptsSetting]);
+    final bool isDeveloper = context.select(
+      (UserSettingsCubit cubit) => cubit.state.isDeveloper,
+    );
+
+    final loc = AppLocalizations.of(context);
+    return Column(
+      spacing: S.s12,
+      children: [
+        const _InviteCodes(),
+        if (isDeveloper) const _Devices(),
+        const _LanguageSettings(),
+        _SwitchField(
+          onSubmit: (value) async {
+            try {
+              await settingsCubit.setReadReceipts(value: value);
+            } catch (e) {
+              // The submit failed, so the cubit state did not move. Revert the
+              // optimistic local flip to match it.
+              _log.severe("Failed to set read receipts: $e", e);
+              // The flush on dispose submits a pending tap during unmount, so
+              // this can fail after the notifier is gone. There is no UI left
+              // to revert then, and writing to a disposed notifier throws.
+              if (context.mounted) {
+                readReceipts.value = settingsCubit.state.readReceipts;
+              }
+            }
+          },
+          value: readReceipts,
+          label: loc.userSettingsScreen_readReceipts,
+        ),
+
+        FieldLabel(loc.userSettingsScreen_readReceiptsDescription),
+      ],
+    );
+  }
+}
+
+class _InviteCodes extends StatelessWidget {
+  const _InviteCodes();
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final palette = SemanticPalette.of(context);
+
+    return _FieldContainer(
+      onTap: () {
+        // Note: We want to share the cubit between this widget and the screen,
+        // because we want to synchronize the data between the two.
+        final invitationCodesCubit = context.read<InvitationCodesCubit>();
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) => InvitationCodesScreen(
+              invitationCodesCubit: invitationCodesCubit,
+            ),
+          ),
+        );
+      },
+      child: Row(
+        children: [
+          AppIcon.users(color: palette.text.secondary, size: 24),
+
+          const SizedBox(width: S.s12),
+
+          Expanded(child: Text(loc.userSettingsScreen_inviteCodes)),
+
+          const _InvitationCodesBadge(),
+        ],
+      ),
+    );
+  }
+}
+
+class _InvitationCodesBadge extends StatelessWidget {
+  const _InvitationCodesBadge();
+
+  @override
+  Widget build(BuildContext context) {
+    final availableInvitationCodes = context.select(
+      (InvitationCodesCubit cubit) => cubit.state.codes
+          .where(
+            (code) => switch (code) {
+              UiInvitationCode_Token() => true,
+              UiInvitationCode_Code(field0: final code) => !code.copied,
+            },
+          )
+          .length,
+    );
+
+    if (availableInvitationCodes == 0) {
+      return const SizedBox.shrink();
+    }
+
+    final palette = SemanticPalette.of(context);
+
+    return Container(
+      width: 40,
+      height: 24,
+      decoration: BoxDecoration(
+        color: palette.function.success.primary,
+        borderRadius: BorderRadius.circular(CornerRadius.full),
+      ),
+      child: Center(
+        child: Text(
+          availableInvitationCodes.toString(),
+          style: typeScale.body.xs.style(color: palette.function.neutral.white),
+        ),
+      ),
+    );
+  }
+}
+
+class _LanguageSettings extends StatelessWidget {
+  const _LanguageSettings();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = SemanticPalette.of(context);
+
+    return LanguagePickerMenu(
+      onLocaleSelected: (locale) async {
+        context.read<AppLocaleCubit>().setLocale(locale);
+        // Before login there is no user to persist the locale to.
+        if (context.read<LoadableUserCubit>().state.loadedUser == null) {
+          return;
+        }
+        await context.read<UserSettingsCubit>().setLocale(
+          value: locale.languageCode,
+        );
+      },
+      childBuilder: (context, option, onTap) {
+        return _FieldContainer(
+          onTap: onTap,
+          child: Row(
+            children: [
+              AppIcon.globe(color: palette.text.secondary, size: 24),
+              const SizedBox(width: S.s12),
+              Expanded(child: Text(option.label)),
+            ],
+          ),
+        );
+      },
+    );
+  }
+}
+
+class _Devices extends StatelessWidget {
+  const _Devices();
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final palette = SemanticPalette.of(context);
+
+    return _FieldContainer(
+      onTap: () {
+        Navigator.of(context).push(
+          MaterialPageRoute(
+            builder: (context) =>
+                LinkedDevicesScreen(userSettingsCubit: context.read()),
+          ),
+        );
+      },
+      child: Row(
+        children: [
+          AppIcon.laptop(color: palette.text.secondary, size: 24),
+          const SizedBox(width: S.s12),
+          Expanded(child: Text(loc.userSettingsScreen_devices)),
+        ],
+      ),
+    );
+  }
+}
+
+class _MobileSettings extends HookWidget {
+  @override
+  Widget build(BuildContext context) {
+    // Captured here rather than read inside the submit callback: a debounced
+    // submit can fire while the widget is being disposed, when context
+    // lookups are no longer allowed.
+    final settingsCubit = context.read<UserSettingsCubit>();
+    final sendOnEnter = useState(
+      useMemoized(() => settingsCubit.state.sendOnEnter),
+    );
+
+    final loc = AppLocalizations.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SwitchField(
+          label: loc.userSettingsScreen_sendWithEnter,
+          value: sendOnEnter,
+          onSubmit: (value) {
+            settingsCubit.setSendOnEnter(value: value);
+          },
+        ),
+
+        const SizedBox(height: S.s12),
+
+        FieldLabel(loc.userSettingsScreen_sendWithEnterDescription),
+      ],
+    );
+  }
+}
+
+class _DesktopSettings extends HookWidget {
+  const _DesktopSettings();
+
+  @override
+  Widget build(BuildContext context) {
+    // The slider carries the user's own factor, which systemInterfaceScale
+    // multiplies rather than replaces, so it starts at 100% everywhere.
+    final interfaceScale = useState(
+      useMemoized(() {
+        final value = context.read<UserSettingsCubit>().state.interfaceScale;
+        return 100 * (value ?? 1.0);
+      }),
+    );
+
+    final loc = AppLocalizations.of(context);
+
+    return _FieldContainer(
+      height: null,
+      child: Row(
+        children: [
+          Text(
+            loc.userSettingsScreen_interfaceScale,
+            style: typeScale.body.regular.style(),
+          ),
+          const SizedBox(width: S.s12),
+          Expanded(
+            child: Slider(
+              min: 50,
+              max: 300,
+              divisions: ((300 - 50) / 10).truncate(),
+              value: interfaceScale.value,
+              label: interfaceScale.value.truncate().toString(),
+              activeColor: SemanticPalette.of(context).text.secondary,
+              onChanged: (value) => interfaceScale.value = value,
+              onChangeEnd: (value) {
+                context.read<UserSettingsCubit>().setInterfaceScale(
+                  value: value / 100,
+                );
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _HelpSection extends HookWidget {
+  const _HelpSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final packageInfoFut = useMemoized(() => PackageInfo.fromPlatform());
+    final packageInfo = useFuture(packageInfoFut);
+
+    final version = switch (packageInfo.data) {
+      final info? => "${info.version}-${info.buildNumber}",
+      null => "",
+    };
+
+    final loc = AppLocalizations.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionHeader(text: loc.userSettingsScreen_helpSection),
+
+        const SizedBox(height: S.s12),
+        _FieldContainer(
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => const ContactUsScreen()),
+            );
+          },
+          child: Row(
+            children: [
+              Text(
+                loc.helpScreen_contactUs,
+                style: typeScale.body.regular.style(),
+              ),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: S.s12),
+        _FieldContainer(
+          onTap: () {
+            // copy to clipboard
+            Clipboard.setData(ClipboardData(text: version));
+            showSnackBarStandalone(
+              (loc) =>
+                  SnackBar(content: Text(loc.settingsScreen_copiedToClipboard)),
+            );
+          },
+          child: Row(
+            children: [
+              Text(
+                loc.helpScreen_versionInfo,
+                style: typeScale.body.regular.style(),
+              ),
+              const Spacer(),
+              Text(version, style: typeScale.body.regular.style()),
+            ],
+          ),
+        ),
+
+        const SizedBox(height: S.s12),
+        _FieldContainer(
+          onTap: () {
+            Navigator.of(context).push(
+              MaterialPageRoute(builder: (context) => const LicensePage()),
+            );
+          },
+          child: Row(
+            children: [
+              Text(
+                loc.helpScreen_licenses,
+                style: typeScale.body.regular.style(),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class _AccountSection extends StatelessWidget {
+  const _AccountSection();
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        _SectionHeader(text: loc.userSettingsScreen_accountSection),
+
+        const SizedBox(height: S.s12),
+        _FieldContainer(
+          onTap: () {
+            showDialog(
+              context: context,
+              builder: (context) => const DeleteAccountDialog(),
+            );
+          },
+          child: Row(
+            children: [
+              Text(
+                loc.userSettingsScreen_deleteAccount,
+                style: typeScale.body.regular.style(
+                  color: SemanticPalette.of(context).function.danger,
+                ),
+              ),
+            ],
+          ),
+        ),
+      ],
+    );
+  }
+}
+
+class FieldLabel extends StatelessWidget {
+  const FieldLabel(this.text, {super.key});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: S.s8),
+      child: Text(
+        text,
+        style: typeScale.body.xs.style(
+          color: SemanticPalette.of(context).text.quaternary,
+        ),
+      ),
+    );
+  }
+}
+
+class _SectionHeader extends StatelessWidget {
+  const _SectionHeader({required this.text});
+
+  final String text;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: S.s8),
+      child: Text(
+        text,
+        style: typeScale.body.regular.style(
+          weight: Weight.emphasized,
+          color: SemanticPalette.of(context).text.secondary,
+        ),
+      ),
+    );
+  }
+}
+
+/// A switch field that toggles a [ValueNotifier] optimistically and submits
+/// the final value after a debounce delay.
+class _SwitchField extends HookWidget {
+  const _SwitchField({
+    required this.onSubmit,
+    required this.value,
+    required this.label,
+  });
+
+  final Function(bool) onSubmit;
+  final ValueNotifier<bool> value;
+  final String label;
+
+  @override
+  Widget build(BuildContext context) {
+    final debouncer = useMemoized(
+      () => Debouncer(delay: const Duration(milliseconds: 500)),
+    );
+    // Flush on dispose: a tap still waiting out the debounce delay when the
+    // screen closes is submitted, not dropped.
+    useEffect(() => debouncer.flush, [debouncer]);
+
+    // Only user taps schedule a submit. Programmatic writes to `value` (such
+    // as an owner converging it onto cubit state) never do, so a state update
+    // cannot re-trigger a submit and loop back on itself. Each tap captures
+    // its intended value, and the debouncer retains only the latest action.
+    final handleTap = useCallback(() {
+      final submittedValue = !value.value;
+      value.value = submittedValue;
+      debouncer.run(() {
+        onSubmit(submittedValue);
+      });
+    }, [onSubmit, value]);
+
+    return _FieldContainer(
+      onTap: handleTap,
+      child: Row(
+        children: [
+          Text(label, style: typeScale.body.regular.style()),
+          const Spacer(),
+          Switch(
+            value: value.value,
+            padding: const EdgeInsets.symmetric(horizontal: 0),
+            onChanged: (value) => handleTap(),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _FieldContainer extends StatelessWidget {
+  const _FieldContainer({required this.child, this.height = 42, this.onTap});
+
+  final Widget child;
+  final double? height;
+  final VoidCallback? onTap;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = SemanticPalette.of(context);
+
+    return DefaultTextStyle(
+      style: Theme.of(context).textTheme.bodyLarge!.copyWith(
+        color: palette.text.primary,
+        fontSize: typeScale.body.regular.fontSize,
+      ),
+      child: InkWell(
+        onTap: onTap,
+        child: Container(
+          decoration: BoxDecoration(
+            color: palette.backgroundBase.secondary,
+            borderRadius: BorderRadius.circular(CornerRadius.px16),
+          ),
+          padding: const EdgeInsets.symmetric(horizontal: S.s12),
+          height: height,
+          child: child,
+        ),
+      ),
+    );
+  }
+}

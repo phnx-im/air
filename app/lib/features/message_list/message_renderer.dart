@@ -1,0 +1,845 @@
+// SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
+//
+// SPDX-License-Identifier: AGPL-3.0-or-later
+
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:air/core/api/markdown.dart';
+import 'package:air/l10n/l10n.dart';
+import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/dialog/app_dialog.dart';
+import 'package:flutter/gestures.dart';
+import 'package:flutter/material.dart';
+import 'package:air/features/emoji/jumbo_emoji.dart';
+import 'package:url_launcher/url_launcher.dart';
+
+Widget buildBlockElement(
+  BuildContext context,
+  BlockElement block,
+  bool isSender,
+) {
+  return switch (block) {
+    BlockElement_Paragraph(:final field0) => () {
+      final jumbo = isJumboEmoji(field0);
+      final color = isSender
+          ? SemanticPalette.of(context).message.selfText
+          : SemanticPalette.of(context).message.otherText;
+      return Text.rich(
+        TextSpan(
+          children: field0
+              .map((child) => buildInlineElement(context, child, isSender))
+              .toList(),
+          style: jumbo
+              ? typeScale.emoji.jumbo.style(color: color)
+              : typeScale.body.regular.style(color: color),
+        ),
+        softWrap: true,
+        textWidthBasis: TextWidthBasis.longestLine,
+      );
+    }(),
+    BlockElement_Heading(:final field0) => Text.rich(
+      TextSpan(
+        children: field0
+            .map((child) => buildInlineElement(context, child, isSender))
+            .toList(),
+        style: typeScale.body.m.style(
+          weight: Weight.emphasized,
+          color: isSender
+              ? SemanticPalette.of(context).message.selfText
+              : SemanticPalette.of(context).message.otherText,
+        ),
+      ),
+    ),
+    BlockElement_Quote(:final field0) => Container(
+      padding: const EdgeInsets.symmetric(horizontal: S.s12, vertical: S.s8),
+      decoration: BoxDecoration(
+        borderRadius: const BorderRadius.all(
+          Radius.circular(CornerRadius.px12),
+        ),
+        border: Border(
+          left: BorderSide(
+            color: isSender
+                ? SemanticPalette.of(context).message.selfQuoteBorder
+                : SemanticPalette.of(context).message.otherQuoteBorder,
+            width: StrokeWidth.px4,
+          ),
+        ),
+        color: isSender
+            ? SemanticPalette.of(context).message.selfQuoteBackground
+            : SemanticPalette.of(context).message.otherQuoteBackground,
+      ),
+      child: Column(
+        spacing: typeScale.body.regular.fontSize,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: field0
+            .map((inner) => buildBlockElement(context, inner.element, isSender))
+            .toList(),
+      ),
+    ),
+    BlockElement_UnorderedList(:final field0) => Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: field0
+          .map(
+            (items) => Row(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text.rich(
+                  const TextSpan(text: " \u2022 "),
+                  style: typeScale.body.regular.style(
+                    color: isSender
+                        ? SemanticPalette.of(context).message.selfListPrefix
+                        : SemanticPalette.of(context).message.otherListPrefix,
+                  ),
+                ),
+                Flexible(
+                  fit: FlexFit.loose,
+                  child: Column(
+                    spacing: typeScale.body.regular.fontSize,
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: items
+                        .map(
+                          (item) => buildBlockElement(
+                            context,
+                            item.element,
+                            isSender,
+                          ),
+                        )
+                        .toList(),
+                  ),
+                ),
+              ],
+            ),
+          )
+          .toList(),
+    ),
+    BlockElement_OrderedList(field0: final offset, field1: final items) =>
+      Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: items.indexed
+            .map(
+              (item) => Row(
+                mainAxisSize: MainAxisSize.min,
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text.rich(
+                    TextSpan(
+                      text: " ${offset + BigInt.from(item.$1)}.  ",
+                      style: typeScale.body.regular.style(
+                        color: isSender
+                            ? SemanticPalette.of(context).message.selfListPrefix
+                            : SemanticPalette.of(
+                                context,
+                              ).message.otherListPrefix,
+                      ),
+                    ),
+                  ),
+                  Flexible(
+                    fit: FlexFit.loose,
+                    child: Column(
+                      spacing: typeScale.body.regular.fontSize,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: item.$2
+                          .map(
+                            (item) => buildBlockElement(
+                              context,
+                              item.element,
+                              isSender,
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                ],
+              ),
+            )
+            .toList(),
+      ),
+    BlockElement_Table(:final head, :final rows) => Table(
+      border: TableBorder.all(
+        color: isSender
+            ? SemanticPalette.of(context).message.selfTableBorder
+            : SemanticPalette.of(context).message.otherTableBorder,
+        width: StrokeWidth.px2,
+        borderRadius: BorderRadius.circular(CornerRadius.px8),
+      ),
+      defaultColumnWidth: const IntrinsicColumnWidth(),
+      children: [
+        TableRow(
+          children: head
+              .map(
+                (itemBlocks) => Padding(
+                  padding: const EdgeInsets.symmetric(
+                    horizontal: S.s12,
+                    vertical: S.s4,
+                  ),
+                  child: DefaultTextStyle(
+                    style: const TextStyle(fontWeight: FontWeight.bold),
+                    child: Column(
+                      spacing: typeScale.body.regular.fontSize,
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: itemBlocks
+                          .map(
+                            (item) => buildBlockElement(
+                              context,
+                              item.element,
+                              isSender,
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                ),
+              )
+              .toList(),
+        ),
+        ...rows.map(
+          (row) => TableRow(
+            children: row
+                .map(
+                  (itemBlocks) => Padding(
+                    padding: const EdgeInsets.symmetric(
+                      horizontal: S.s12,
+                      vertical: S.s4,
+                    ),
+                    child: Column(
+                      spacing: typeScale.body.regular.fontSize,
+                      mainAxisSize: MainAxisSize.min,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: itemBlocks
+                          .map(
+                            (item) => buildBlockElement(
+                              context,
+                              item.element,
+                              isSender,
+                            ),
+                          )
+                          .toList(),
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+        ),
+      ],
+    ),
+    BlockElement_HorizontalRule() => SizedBox(
+      width: 100,
+      child: Divider(
+        color: isSender
+            ? SemanticPalette.of(context).message.selfText
+            : SemanticPalette.of(context).message.otherText,
+      ),
+    ),
+    BlockElement_CodeBlock(:final field0) => Text.rich(
+      TextSpan(
+        text: field0.map((e) => e.value).join('\n'),
+        style: typeScale.body.xs
+            .style(
+              color: isSender
+                  ? SemanticPalette.of(context).message.selfText
+                  : SemanticPalette.of(context).message.otherText,
+            )
+            .withSystemMonospace(),
+      ),
+    ),
+    BlockElement_Error(:final field0) => Container(
+      padding: const EdgeInsets.all(12),
+      decoration: BoxDecoration(
+        border: Border(
+          left: BorderSide(
+            color: SemanticPalette.of(context).separator.primary,
+            width: StrokeWidth.px4,
+          ),
+        ),
+        color: SemanticPalette.of(context).function.warning.primary,
+      ),
+      child: Text.rich(TextSpan(text: field0)),
+    ),
+  };
+}
+
+InlineSpan buildInlineElement(
+  BuildContext context,
+  RangedInlineElement inline,
+  bool isSender, {
+  Uri? destUrl,
+}) {
+  final palette = SemanticPalette.of(context);
+  return switch (inline.element) {
+    InlineElement_Text(:final field0) => TextSpan(
+      text: field0,
+      recognizer: destUrl != null
+          ? openLinkRecognizer(context, destUrl, field0)
+          : null,
+      mouseCursor: destUrl != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.text,
+    ),
+    InlineElement_Code(:final field0) => TextSpan(
+      text: field0,
+      style: typeScale.body.xs.style().withSystemMonospace(),
+    ),
+    InlineElement_Link(:final destUrl, :final children) => TextSpan(
+      children: children
+          .map(
+            (child) => buildInlineElement(
+              context,
+              child,
+              isSender,
+              destUrl: _parseLinkDest(destUrl),
+            ),
+          )
+          .toList(),
+      style: TextStyle(
+        color: palette.function.link,
+        decorationColor: palette.function.link,
+        decoration: TextDecoration.underline,
+      ),
+    ),
+    InlineElement_Bold(:final field0) => TextSpan(
+      children: field0
+          .map((child) => buildInlineElement(context, child, isSender))
+          .toList(),
+      style: const TextStyle(fontWeight: FontWeight.bold),
+      recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
+      mouseCursor: destUrl != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.text,
+    ),
+    InlineElement_Italic(:final field0) => TextSpan(
+      children: field0
+          .map((child) => buildInlineElement(context, child, isSender))
+          .toList(),
+      style: const TextStyle(fontStyle: FontStyle.italic),
+      recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
+      mouseCursor: destUrl != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.text,
+    ),
+    InlineElement_Strikethrough(:final field0) => TextSpan(
+      children: field0
+          .map((child) => buildInlineElement(context, child, isSender))
+          .toList(),
+      style: const TextStyle(decoration: TextDecoration.lineThrough),
+      recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
+      mouseCursor: destUrl != null
+          ? SystemMouseCursors.click
+          : SystemMouseCursors.text,
+    ),
+    InlineElement_Spoiler(:final field0) => TextSpan(
+      children: field0
+          .map((child) => buildInlineElement(context, child, isSender))
+          .toList(),
+      style: TextStyle(
+        decoration: TextDecoration.combine([
+          TextDecoration.overline,
+          TextDecoration.lineThrough,
+          TextDecoration.underline,
+        ]),
+      ),
+    ),
+    InlineElement_Image() => const WidgetSpan(child: AppIcon.image()),
+    InlineElement_TaskListMarker(:final field0) => WidgetSpan(
+      alignment: PlaceholderAlignment.middle,
+      child: Padding(
+        padding: const EdgeInsets.only(left: S.s4, right: S.s8),
+        child: field0
+            ? AppIcon.squareCheck(
+                size: 20,
+                color: isSender
+                    ? palette.message.selfCheckboxCheck
+                    : palette.message.otherCheckboxCheck,
+              )
+            : AppIcon.square(
+                size: 20,
+                color: isSender
+                    ? palette.message.selfCheckboxCheck
+                    : palette.message.otherCheckboxCheck,
+              ),
+      ),
+    ),
+  };
+}
+
+Uri? _parseLinkDest(String dest) {
+  final uri = Uri.tryParse(dest);
+  if (uri == null) return null;
+  if (uri.hasScheme) return uri;
+  // If the link doesn't have a scheme, try parsing it as https.
+  return Uri.tryParse('https://$dest');
+}
+
+TapGestureRecognizer openLinkRecognizer(
+  BuildContext context,
+  Uri uri, [
+  String? text,
+]) => TapGestureRecognizer()
+  ..onTap = () async {
+    if (text == null || text != uri.toString()) {
+      final shouldOpen = await _showLinkConfirmationDialog(context, uri);
+      if (!shouldOpen) {
+        return;
+      }
+    }
+
+    if (await canLaunchUrl(uri)) {
+      await launchUrl(uri, mode: LaunchMode.externalApplication);
+    }
+  };
+
+Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
+  final result = await showDialog<bool>(
+    context: context,
+    builder: (dialogContext) {
+      final loc = AppLocalizations.of(context);
+      final palette = SemanticPalette.of(dialogContext);
+
+      return AppDialog(
+        child: Column(
+          mainAxisSize: .min,
+          crossAxisAlignment: .center,
+          children: [
+            Center(
+              child: Column(
+                spacing: S.s8,
+                children: [
+                  Text(
+                    loc.linkConfirmation_title,
+                    style: typeScale.header.regular.style(
+                      weight: Weight.emphasized,
+                    ),
+                  ),
+                  Text(
+                    loc.linkConfirmation_description,
+                    textAlign: .center,
+                    style: typeScale.body.regular.style(
+                      color: palette.text.secondary,
+                    ),
+                  ),
+                  Text(
+                    uri.toString(),
+                    textAlign: .center,
+                    style: typeScale.body.xs.style(color: palette.text.primary),
+                  ),
+                ],
+              ),
+            ),
+
+            const SizedBox(height: S.s24),
+            Row(
+              children: [
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop(false);
+                    },
+                    child: Text(loc.linkConfirmation_cancel),
+                  ),
+                ),
+                const SizedBox(width: S.s12),
+                Expanded(
+                  child: OutlinedButton(
+                    onPressed: () {
+                      Navigator.of(dialogContext).pop(true);
+                    },
+                    style: ButtonStyle(
+                      backgroundColor: WidgetStatePropertyAll(
+                        palette.accentBrand.primary,
+                      ),
+                      overlayColor: WidgetStatePropertyAll(
+                        palette.accentBrand.primary,
+                      ),
+                      foregroundColor: WidgetStatePropertyAll(
+                        palette.function.neutral.toggleWhite,
+                      ),
+                    ),
+                    child: Text(loc.linkConfirmation_openLink),
+                  ),
+                ),
+              ],
+            ),
+          ],
+        ),
+      );
+    },
+  );
+
+  return result ?? false;
+}
+
+// The style used for formatting characters like * or >
+TextStyle highlightStyle(BuildContext context) =>
+    TextStyle(color: SemanticPalette.of(context).function.link);
+
+class CustomTextEditingController extends TextEditingController {
+  // Keep track of where widgets are, so the cursor can treat it as one unit
+  List<({int start, int end})> widgetRanges = [];
+  int lastKnownRawTextLength = 0;
+  int previousCursorPosition = 0;
+  Uint8List raw = Uint8List(0);
+
+  // Cache for buildTextSpan to avoid re-parsing on selection-only changes
+  String? _cachedText;
+  TextSpan? _cachedTextSpan;
+
+  CustomTextEditingController() {
+    addListener(_handleCursorMovement);
+  }
+
+  void _handleCursorMovement() {
+    int cursorPosition = selection.extentOffset;
+
+    if (cursorPosition == -1) {
+      return;
+    }
+
+    if (lastKnownRawTextLength < text.length) {
+      // Do nothing when writing text
+      previousCursorPosition = cursorPosition;
+      return;
+    }
+
+    // Convert position into UTF-8 index
+    String charsUpToCursor = text.substring(0, cursorPosition);
+    int cursorPositionUtf8 = utf8.encode(charsUpToCursor).length;
+
+    if (lastKnownRawTextLength > text.length) {
+      // Was part of a widget deleted? Then either:
+      // - The user pressed backspace, so the cursor is now at the end of where the widget was
+      // - The user pressed delete, so the cursor is still at the character just before where the widget was
+
+      for (var range in widgetRanges) {
+        if (cursorPosition >= range.start && cursorPosition < range.end) {
+          int startUtf16 = utf8.decode(raw.sublist(0, range.start)).length;
+
+          if (cursorPosition != previousCursorPosition) {
+            // The cursor moved, so this was a backspace and not a delete
+            var newText = text.replaceRange(startUtf16, cursorPosition, "");
+
+            // Make sure we don't use outdated data
+            widgetRanges.clear();
+            lastKnownRawTextLength = newText.length;
+
+            text = newText;
+
+            moveCursorTo(startUtf16);
+          } else {
+            // The cursor did not move, this was a delete, not a backspace
+            int endUtf16 = utf8.decode(raw.sublist(0, range.end)).length;
+            var removedChars = lastKnownRawTextLength - text.length;
+            var newText = text.replaceRange(
+              cursorPosition,
+              endUtf16 - removedChars,
+              "",
+            );
+
+            // Make sure we don't use outdated data
+            widgetRanges.clear();
+            lastKnownRawTextLength = newText.length;
+
+            text = newText;
+
+            moveCursorTo(startUtf16);
+          }
+
+          break;
+        }
+      }
+
+      previousCursorPosition = cursorPosition;
+      return;
+    }
+
+    for (var range in widgetRanges) {
+      // If the cursor is inside a widget range, push it to the edge
+      if (cursorPositionUtf8 > range.start && cursorPositionUtf8 < range.end) {
+        if (cursorPosition < previousCursorPosition) {
+          int startUtf16 = utf8.decode(raw.sublist(0, range.start)).length;
+          moveCursorTo(startUtf16);
+        } else {
+          int endUtf16 = utf8.decode(raw.sublist(0, range.end)).length;
+          moveCursorTo(endUtf16);
+        }
+
+        break;
+      }
+    }
+    previousCursorPosition = cursorPosition;
+  }
+
+  /// Move cursor/extent to [newPosition], avoiding re-entrant listener calls
+  /// by temporarily removing the listener before setting the selection.
+  void moveCursorTo(int newPosition) {
+    removeListener(_handleCursorMovement);
+    previousCursorPosition = newPosition;
+    if (selection.baseOffset == selection.extentOffset) {
+      selection = TextSelection(
+        extentOffset: newPosition,
+        baseOffset: newPosition,
+        affinity: selection.affinity,
+        isDirectional: selection.isDirectional,
+      );
+    } else {
+      selection = TextSelection(
+        extentOffset: newPosition,
+        baseOffset: selection.baseOffset,
+        affinity: selection.affinity,
+        isDirectional: selection.isDirectional,
+      );
+    }
+    addListener(_handleCursorMovement);
+  }
+
+  @override
+  TextSpan buildTextSpan({
+    required context,
+    TextStyle? style,
+    required bool withComposing,
+  }) {
+    // Return cached span when text hasn't changed (e.g. selection-only updates)
+    if (text == _cachedText && _cachedTextSpan != null) {
+      return TextSpan(style: style, children: _cachedTextSpan!.children);
+    }
+
+    // Regenerating this data
+    widgetRanges.clear();
+    lastKnownRawTextLength = text.length;
+
+    // Flutter uses UTF-16, but Rust uses UTF-8
+    raw = utf8.encode(text);
+
+    MessageContent parsed = const MessageContent(elements: []);
+
+    if (text.isNotEmpty) {
+      parsed = MessageContent.parseMarkdownRaw(string: raw);
+    }
+
+    _cachedText = text;
+    _cachedTextSpan = TextSpan(
+      style: style,
+      children: buildWrappedBlock(context, 0, raw.length, parsed.elements),
+    );
+
+    return TextSpan(style: style, children: _cachedTextSpan!.children);
+  }
+
+  InlineSpan buildFormattedTextSpanBlock(
+    BuildContext context,
+    RangedBlockElement block,
+  ) {
+    return switch (block.element) {
+      BlockElement_Paragraph(:final field0) => TextSpan(
+        children: buildWrappedInline(context, block.start, block.end, field0),
+      ),
+      BlockElement_Heading(:final field0) => TextSpan(
+        children: buildWrappedInline(context, block.start, block.end, field0),
+        style: const TextStyle(fontSize: 20),
+      ),
+      BlockElement_Quote(:final field0) => TextSpan(
+        children: buildWrappedBlock(context, block.start, block.end, field0),
+        style: TextStyle(color: Primitive.neutral(NeutralShade.s600)),
+      ),
+      BlockElement_UnorderedList(:final field0) => TextSpan(
+        children: buildWrappedBlock(
+          context,
+          block.start,
+          block.end,
+          field0.expand((list) => list).toList(),
+        ),
+      ),
+      BlockElement_OrderedList(:final field1) => TextSpan(
+        children: buildWrappedBlock(
+          context,
+          block.start,
+          block.end,
+          field1.expand((list) => list).toList(),
+        ),
+      ),
+      BlockElement_Table() => TextSpan(
+        text: utf8.decode(raw.sublist(block.start, block.end)),
+        style: highlightStyle(context),
+      ),
+      BlockElement_HorizontalRule() => TextSpan(
+        text: utf8.decode(raw.sublist(block.start, block.end)),
+        style: highlightStyle(context),
+      ),
+      BlockElement_CodeBlock(:final field0) => TextSpan(
+        children: buildWrappedInline(
+          context,
+          block.start,
+          block.end,
+          field0
+              .map(
+                (item) => RangedInlineElement(
+                  start: item.start,
+                  end: item.end,
+                  element: InlineElement.code(item.value),
+                ),
+              )
+              .toList(),
+        ),
+        style: typeScale.body.xs.style().withSystemMonospace(),
+      ),
+      BlockElement_Error() => TextSpan(
+        text: utf8.decode(raw.sublist(block.start, block.end)),
+        style: TextStyle(
+          color: SemanticPalette.of(context).function.danger,
+          decorationColor: SemanticPalette.of(context).function.danger,
+          decoration: TextDecoration.underline,
+          decorationStyle: TextDecorationStyle.wavy,
+        ),
+      ),
+    };
+  }
+
+  InlineSpan buildFormattedTextSpanInline(
+    BuildContext context,
+    RangedInlineElement inline,
+  ) {
+    return switch (inline.element) {
+      // TODO: Handle this case.
+      InlineElement_Text() => TextSpan(
+        text: utf8.decode(raw.sublist(inline.start, inline.end)),
+      ),
+      InlineElement_Code() => TextSpan(
+        text: utf8.decode(raw.sublist(inline.start, inline.end)),
+        style: typeScale.body.xs.style().withSystemMonospace(),
+      ),
+      InlineElement_Link() => TextSpan(
+        text: utf8.decode(raw.sublist(inline.start, inline.end)),
+        style: TextStyle(
+          color: SemanticPalette.of(context).function.link,
+          decorationColor: SemanticPalette.of(context).function.link,
+          decoration: TextDecoration.underline,
+        ),
+      ),
+      InlineElement_Bold(:final field0) => TextSpan(
+        children: buildWrappedInline(context, inline.start, inline.end, field0),
+        style: const TextStyle(fontWeight: FontWeight.bold),
+      ),
+      InlineElement_Italic(:final field0) => TextSpan(
+        children: buildWrappedInline(context, inline.start, inline.end, field0),
+        style: const TextStyle(fontStyle: FontStyle.italic),
+      ),
+      InlineElement_Strikethrough(:final field0) => TextSpan(
+        children: buildWrappedInline(context, inline.start, inline.end, field0),
+        style: const TextStyle(decoration: TextDecoration.lineThrough),
+      ),
+      InlineElement_Spoiler(:final field0) => TextSpan(
+        children: buildWrappedInline(context, inline.start, inline.end, field0),
+        style: TextStyle(
+          decoration: TextDecoration.combine([
+            TextDecoration.overline,
+            TextDecoration.lineThrough,
+            TextDecoration.underline,
+          ]),
+        ),
+      ),
+      InlineElement_Image() => buildCorrectWidget(
+        const AppIcon.image(size: 32),
+        inline.start,
+        inline.end,
+      ),
+      InlineElement_TaskListMarker() => TextSpan(
+        text: utf8.decode(raw.sublist(inline.start, inline.end)),
+        style: highlightStyle(context),
+      ),
+    };
+  }
+
+  InlineSpan buildCorrectWidget(Widget widget, int rangeStart, int rangeEnd) {
+    widgetRanges.add((start: rangeStart, end: rangeEnd));
+
+    return TextSpan(
+      children: [
+        WidgetSpan(child: widget),
+        TextSpan(text: "\u200d" * (rangeEnd - rangeStart - 1)),
+      ],
+    );
+  }
+
+  List<InlineSpan> buildWrappedInline(
+    BuildContext context,
+    int rangeStart,
+    int rangeEnd,
+    List<RangedInlineElement> value,
+  ) {
+    List<InlineSpan> children = [];
+
+    var lastInner = (start: 0, end: rangeStart);
+
+    for (var inner in value) {
+      if (inner.start < rangeStart) {
+        // This element is outside of the surrounding block. Ignore.
+        // This can happen for this markdown: "- [ ] > test"
+        continue;
+      }
+      // Gap between previous and this inline
+      if (lastInner.end < inner.start) {
+        children.add(
+          TextSpan(
+            text: utf8.decode(raw.sublist(lastInner.end, inner.start)),
+            style: highlightStyle(context),
+          ),
+        );
+      }
+
+      children.add(buildFormattedTextSpanInline(context, inner));
+      lastInner = (start: inner.start, end: inner.end);
+    }
+
+    // Gap after last inline
+    if (lastInner.end < rangeEnd) {
+      children.add(
+        TextSpan(
+          text: utf8.decode(raw.sublist(lastInner.end, rangeEnd)),
+          style: highlightStyle(context),
+        ),
+      );
+    }
+
+    return children;
+  }
+
+  List<InlineSpan> buildWrappedBlock(
+    BuildContext context,
+    int rangeStart,
+    int rangeEnd,
+    List<RangedBlockElement> value,
+  ) {
+    List<InlineSpan> children = [];
+
+    var lastInner = (start: 0, end: rangeStart);
+
+    for (var inner in value) {
+      // Gap between previous and this block
+      if (lastInner.end < inner.start) {
+        children.add(
+          TextSpan(
+            text: utf8.decode(raw.sublist(lastInner.end, inner.start)),
+            style: highlightStyle(context),
+          ),
+        );
+      }
+
+      children.add(buildFormattedTextSpanBlock(context, inner));
+
+      lastInner = (start: inner.start, end: inner.end);
+    }
+
+    // Gap after last block
+    if (lastInner.end < rangeEnd) {
+      children.add(
+        TextSpan(
+          text: utf8.decode(raw.sublist(lastInner.end, rangeEnd)),
+          style: highlightStyle(context),
+        ),
+      );
+    }
+
+    return children;
+  }
+}

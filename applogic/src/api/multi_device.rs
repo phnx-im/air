@@ -155,6 +155,7 @@ pub async fn multi_device_provision_client(
                 }
             }
             Err(error) => {
+                error!(%error, "multi-device provisioning failed");
                 if let Err(error) = sink.add(MultiDeviceProvisionEvent::Failed(error.to_string())) {
                     error!(%error, "failed to forward MultiDeviceProvisionEvent to the Dart side");
                 }
@@ -244,7 +245,10 @@ pub async fn multi_device_link_client(
             Ok(Err(MultiDeviceLinkClientError::SessionNotFound)) => {
                 MultiDeviceLinkEvent::SessionNotFound
             }
-            Err(error) => MultiDeviceLinkEvent::Failed(error.to_string()),
+            Err(error) => {
+                error!(%error, "multi-device linking failed");
+                MultiDeviceLinkEvent::Failed(error.to_string())
+            }
         };
 
         if let Err(error) = sink.add(event) {

@@ -1,0 +1,38 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT\n                    changes AS \"changes: _\",\n                    previous AS \"previous: _\"\n                FROM setting_changes WHERE id = 0",
+  "describe": {
+    "columns": [
+      {
+        "name": "changes: _",
+        "ordinal": 0,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "setting_changes",
+            "name": "changes"
+          }
+        }
+      },
+      {
+        "name": "previous: _",
+        "ordinal": 1,
+        "type_info": "Blob",
+        "origin": {
+          "Table": {
+            "table": "setting_changes",
+            "name": "previous"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false,
+      false
+    ]
+  },
+  "hash": "fe6e34d3d6a1708149a143c0eab5451bff181caedaabae0cb94ca2a4a8335da8"
+}

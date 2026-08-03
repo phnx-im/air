@@ -207,6 +207,7 @@ pub enum UiInReplyToMessage {
 /// blocked.
 #[derive(Eq, PartialEq, Debug, Clone, Hash)]
 pub enum UiChatStatus {
+    Pending,
     Inactive(UiInactiveChat),
     Active,
     Blocked,
@@ -215,6 +216,7 @@ pub enum UiChatStatus {
 impl From<ChatStatus> for UiChatStatus {
     fn from(status: ChatStatus) -> Self {
         match status {
+            ChatStatus::Pending => UiChatStatus::Pending,
             ChatStatus::Inactive(inactive) => {
                 UiChatStatus::Inactive(UiInactiveChat::from(inactive))
             }
@@ -543,6 +545,7 @@ pub enum UiSystemMessage {
     NewHandleConnectionChat(UiUsername),
     NewDirectConnectionChat(UiUserId),
     CreateGroup(UiUserId),
+    Onboarded,
 }
 
 impl From<SystemMessage> for UiSystemMessage {
@@ -594,6 +597,7 @@ impl From<SystemMessage> for UiSystemMessage {
                 UiSystemMessage::NewDirectConnectionChat(user_id.into())
             }
             SystemMessage::CreateGroup(user_id) => UiSystemMessage::CreateGroup(user_id.into()),
+            SystemMessage::Onboarded => UiSystemMessage::Onboarded,
         }
     }
 }
