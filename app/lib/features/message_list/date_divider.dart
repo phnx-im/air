@@ -2,109 +2,32 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:async';
-
+import 'package:air/ds/patterns/message_separator/message_separator.dart';
 import 'package:air/l10n/l10n.dart' show AppLocalizations;
-import 'package:air/ds/foundations/foundations.dart';
-import 'package:flutter/material.dart';
-import 'package:intl/intl.dart';
+import 'package:air/util/time/app_clock.dart';
+import 'package:air/util/time/time_labels.dart';
+import 'package:flutter/widgets.dart';
 
 /// Section header showing the local day of the messages below; see
-/// [formatDateLabel] for the label rules. Self-ticks once a minute so
-/// Today/Yesterday rollover keeps pace with the wall clock.
-class DateDivider extends StatefulWidget {
+/// [dateDividerLabel] for the label rules. Keeps up with the clock, so the
+/// Today/Yesterday rollover happens on its own.
+class DateDivider extends StatelessWidget {
   const DateDivider({super.key, required this.date});
 
   final DateTime date;
 
   @override
-  State<DateDivider> createState() => _DateDividerState();
+  Widget build(BuildContext context) => LiveTime(
+    format: (context, now) => dividerLabel(context, date, now),
+    builder: (context, label) => MessageSeparator(label: label),
+  );
 }
 
-class _DateDividerState extends State<DateDivider> {
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (mounted) setState(() {});
-    });
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-    final locale = Localizations.localeOf(context).toString();
-    final label = formatDateLabel(widget.date, DateTime.now(), loc, locale);
-
-    return Padding(
-      padding: const EdgeInsets.symmetric(horizontal: S.s24, vertical: S.s32),
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.center,
-        children: [DateLabelPill(label: label)],
-      ),
+/// The divider's label for [date], as read at [now].
+String dividerLabel(BuildContext context, DateTime date, DateTime now) =>
+    dateDividerLabel(
+      date,
+      now: now,
+      formats: TimeFormats.of(context),
+      loc: AppLocalizations.of(context),
     );
-  }
-}
-
-class DateLabelPill extends StatelessWidget {
-  const DateLabelPill({super.key, required this.label});
-
-  final String label;
-
-  @override
-  Widget build(BuildContext context) {
-    return DecoratedBox(
-      decoration: ShapeDecoration(
-        color: SemanticPalette.of(context).backgroundBase.secondary,
-        shape: const StadiumBorder(),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s4),
-        child: Text(
-          label,
-          style: TextTheme.of(context).bodySmall?.copyWith(
-            color: SemanticPalette.of(context).text.secondary,
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Picks a date-pill label for [date] in local time, relative to [now].
-///
-/// Days are calendar days, not 24-hour windows. First match wins:
-/// - same day: "Today"
-/// - one day back: "Yesterday"
-/// - two to six days back: localized weekday name
-/// - same year, older: abbreviated weekday + month + day (no year)
-/// - earlier years: localized medium date with year
-String formatDateLabel(
-  DateTime date,
-  DateTime now,
-  AppLocalizations loc,
-  String locale,
-) {
-  final local = date.toLocal();
-  final messageDay = DateTime(local.year, local.month, local.day);
-  final today = DateTime(now.year, now.month, now.day);
-  final daysDiff = today.difference(messageDay).inDays;
-
-  if (daysDiff == 0) return loc.date_today;
-  if (daysDiff == 1) return loc.date_yesterday;
-  if (daysDiff > 1 && daysDiff < 7) {
-    return DateFormat.EEEE(locale).format(local);
-  }
-  if (today.year == messageDay.year) {
-    return DateFormat.MMMEd(locale).format(local);
-  }
-  return DateFormat.yMMMd(locale).format(local);
-}

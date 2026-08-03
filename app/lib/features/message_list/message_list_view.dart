@@ -14,7 +14,10 @@ import 'package:air/core/core.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/anchored_list/anchored_list.dart';
 import 'package:air/util/anchored_list/controller.dart';
+import 'package:air/ds/components/panel/panel_surface.dart';
+import 'package:air/ds/components/scroll/app_scrollbar.dart';
 import 'package:air/ds/components/scroll/edge_fade.dart';
+import 'package:air/ds/components/scroll/scroll_fade_tokens.dart';
 
 import 'package:air/features/message_list/message_row_container.dart';
 import 'package:air/features/message_list/date_divider.dart';
@@ -24,6 +27,7 @@ import 'package:air/features/message_list/message_cubit.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/message_list/message_reactions.dart';
 import 'package:air/features/message_list/scroll_to_bottom_controller.dart';
+import 'package:air/features/message_list/time_reveal.dart';
 import 'package:air/features/message_list/unread_divider.dart';
 
 typedef MessageCubitCreate =
@@ -37,10 +41,23 @@ class MessageListView extends StatefulWidget {
     super.key,
     this.createMessageCubit = MessageCubit.new,
     this.scrollToBottomController,
+    this.headerScrollOffset,
   });
 
   final MessageCubitCreate createMessageCubit;
   final ScrollToBottomController? scrollToBottomController;
+
+  /// Reports how much content sits scrolled under the top of the viewport, 0 at
+  /// the top of the loaded history. Drives the chat header pill's reveal.
+  final ValueNotifier<double>? headerScrollOffset;
+
+  /// The surface the list paints on: the window in the two-pane layout, where
+  /// the chat is the content pane, or its own background tier when it fills the
+  /// screen. The fades at both edges blend into it, so it has to be the color
+  /// the user actually sees.
+  static Color backgroundColor(BuildContext context) =>
+      PanelSurface.maybeOf(context) ??
+      SemanticPalette.of(context).backgroundBase.primary;
 
   @override
   State<MessageListView> createState() => _MessageListViewState();
@@ -88,6 +105,10 @@ class _MessageListViewState extends State<MessageListView>
   final ValueNotifier<bool> _scrollActive = ValueNotifier<bool>(false);
   Timer? _floatingHeaderHideTimer;
 
+  /// Distance scrolled away from the newest message, which reveals the fade at
+  /// the composer's edge. The list is reversed, so this is the raw offset.
+  final ValueNotifier<double> _bottomFadeOffset = ValueNotifier<double>(0);
+
   /// Number of pixels we dragged down the message list since the beginning of
   /// the drag.
   double _downwardDragSinceStart = 0;
@@ -99,8 +120,9 @@ class _MessageListViewState extends State<MessageListView>
     WidgetsBinding.instance.addObserver(this);
     widget.scrollToBottomController?.onScrollToBottom = _scrollToBottom;
 
-    // Drive the scroll-to-bottom button from isAtBottom + hasNewer.
+    // Drive the scroll-to-bottom button from the viewport and hasNewer.
     _listController.isAtBottom.addListener(_updateShowButton);
+    _listController.newestVisibleId.addListener(_updateShowButton);
     _listController.newestVisibleId.addListener(
       _markCurrentVisibleMessageAsRead,
     );
@@ -135,12 +157,14 @@ class _MessageListViewState extends State<MessageListView>
     _incomingMessagesSubscription?.cancel();
     _jumpedToIdSubscription?.cancel();
     _listController.isAtBottom.removeListener(_updateShowButton);
+    _listController.newestVisibleId.removeListener(_updateShowButton);
     _listController.newestVisibleId.removeListener(
       _markCurrentVisibleMessageAsRead,
     );
     _listController.dispose();
     _floatingHeaderHideTimer?.cancel();
     _scrollActive.dispose();
+    _bottomFadeOffset.dispose();
     super.dispose();
   }
 
@@ -181,13 +205,27 @@ class _MessageListViewState extends State<MessageListView>
     }
   }
 
-  /// Shows the scroll-to-bottom button when the user has scrolled away
-  /// from the bottom or when there are newer messages not yet loaded.
+  /// Shows the scroll-to-bottom button when the newest message is out of
+  /// view or when there are newer messages not yet loaded.
   void _updateShowButton() {
-    final cubit = context.read<MessageListCubit>();
-    final isAtBottom = _listController.isAtBottom.value;
-    widget.scrollToBottomController?.showButton.value =
-        !isAtBottom || cubit.state.hasNewer;
+    final state = context.read<MessageListCubit>().state;
+    final controller = widget.scrollToBottomController;
+    controller?.showButton.value =
+        state.hasNewer || !_isNewestMessageVisible(state);
+  }
+
+  /// Whether the newest loaded message is on screen.
+  ///
+  /// We go by the newest visible row rather than the scroll offset alone: the
+  /// initial jump to the first unread message parks the list a little above
+  /// the bottom, with the newest row still in view and already marked as read,
+  /// and a purely offset-based check would leave the button up with nothing
+  /// left to scroll to.
+  bool _isNewestMessageVisible(MessageListStateWrapper state) {
+    if (_listController.isAtBottom.value) return true;
+    final data = state.messageData;
+    if (data.length == 0) return true;
+    return _listController.currentNewestVisibleId == data[0].id;
   }
 
   /// Marks the conversation as read up to the newest message currently visible
@@ -234,9 +272,20 @@ class _MessageListViewState extends State<MessageListView>
     _markCurrentVisibleMessageAsRead();
   }
 
+  // The list is reversed, so pixels count from the bottom and what sits under
+  // the header is maxScrollExtent - pixels.
+  void _updateScrollOffsets(ScrollMetrics metrics) {
+    widget.headerScrollOffset?.value = max(
+      0.0,
+      metrics.maxScrollExtent - metrics.pixels,
+    );
+    _bottomFadeOffset.value = max(0.0, metrics.pixels);
+  }
+
   /// Shows the floating header during active scroll and hides it again
   /// after [_floatingHeaderHideDelay] of inactivity.
   bool _handleScrollNotification(ScrollNotification notification) {
+    _updateScrollOffsets(notification.metrics);
     if (notification is ScrollStartNotification) {
       _downwardDragSinceStart = 0;
       _keyboardDismissedThisDrag = false;
@@ -335,16 +384,17 @@ class _MessageListViewState extends State<MessageListView>
   ) {
     // Height of safe area + tool bar
     final mediaPadding = MediaQuery.paddingOf(context);
-    // Height of the tail of the fade beyon the toolbar
-    const fadeBleeding = S.s48;
-    // Height of the safe area above the toolbar
+    final fades = MessageListFadeTokens.of(context);
+    // Height of the safe area above the toolbar. The screen extends its body
+    // behind the app bar, so the bar's own height is part of this padding.
     final statusBarHeight = max(mediaPadding.top - kToolbarHeight, 0.0);
-    // Total height of the fade
-    const fadeHeight = kToolbarHeight + fadeBleeding;
-    // Y-coordinate where the fade is fully transparent — content above this
-    // is obstructed by the status bar cover or the fade gradient. Used as
-    // the list's top inset so jumps and the unread divider land below it.
-    final topInset = statusBarHeight + fadeHeight;
+    // Total height of the top fade: the status bar and the header bar it has to
+    // cover, plus the ramp trailing below them.
+    final fadeHeight = statusBarHeight + kToolbarHeight + fades.topTail;
+    // Y-coordinate where content comes clear of the fade. Used as the list's
+    // top inset so rows at rest, jumps and the unread divider all land below
+    // it.
+    final topInset = fadeHeight + MessageListFadeTokens.contentTopGap;
     // Y-coordinate of the floating date pill's top edge. Sits just below
     // the safe area, in the toolbar zone — the inline divider is hidden
     // when its pill reaches this slot, making the swap visually in-place.
@@ -356,38 +406,47 @@ class _MessageListViewState extends State<MessageListView>
     // this threshold so they stay in sync.
     final swapTopThreshold = pillTop - S.s32;
     // Solid color for the safe area
-    final bgColor = SemanticPalette.of(context).backgroundBase.primary;
+    final bgColor = MessageListView.backgroundColor(context);
 
     Widget buildAnchoredList({double bottomPadding = 0.0}) {
-      Widget list = NotificationListener<ScrollNotification>(
-        onNotification: _handleScrollNotification,
-        child: AnchoredList<UiChatMessage>(
-          data: context.read<MessageListCubit>().messageData,
-          controller: _listController,
-          idExtractor: (msg) => msg.id,
-          topPadding: topInset,
-          bottomPadding: bottomPadding,
-          oldestVisibleTopThreshold: swapTopThreshold,
-          canLoadOlder: state.hasOlder,
-          // We should not load newer messages when we scroll to the first
-          // unread message.
-          canLoadNewer: state.hasNewer && !_awaitingInitialUnreadScroll,
-          onLoadOlder: () {
-            context.read<MessageListCubit>().loadOlder();
-          },
-          onLoadNewer: () {
-            context.read<MessageListCubit>().loadNewer();
-          },
-          onLoadAround: (id) async {
-            if (id is MessageId) {
-              await context.read<MessageListCubit>().jumpToMessage(
-                messageId: id,
-              );
-            }
-          },
-          itemBuilder: (context, message, index) {
-            return _buildMessageTile(state, message, index);
-          },
+      // Metrics notifications cover the initial layout and content growth,
+      // where no scroll activity fires: the pill has to already be revealed
+      // when a chat opens at the bottom of its history.
+      Widget list = NotificationListener<ScrollMetricsNotification>(
+        onNotification: (notification) {
+          _updateScrollOffsets(notification.metrics);
+          return false;
+        },
+        child: NotificationListener<ScrollNotification>(
+          onNotification: _handleScrollNotification,
+          child: AnchoredList<UiChatMessage>(
+            data: context.read<MessageListCubit>().messageData,
+            controller: _listController,
+            idExtractor: (msg) => msg.id,
+            topPadding: topInset,
+            bottomPadding: bottomPadding,
+            oldestVisibleTopThreshold: swapTopThreshold,
+            canLoadOlder: state.hasOlder,
+            // We should not load newer messages when we scroll to the first
+            // unread message.
+            canLoadNewer: state.hasNewer && !_awaitingInitialUnreadScroll,
+            onLoadOlder: () {
+              context.read<MessageListCubit>().loadOlder();
+            },
+            onLoadNewer: () {
+              context.read<MessageListCubit>().loadNewer();
+            },
+            onLoadAround: (id) async {
+              if (id is MessageId) {
+                await context.read<MessageListCubit>().jumpToMessage(
+                  messageId: id,
+                );
+              }
+            },
+            itemBuilder: (context, message, index) {
+              return _buildMessageTile(state, message, index);
+            },
+          ),
         ),
       );
 
@@ -399,6 +458,9 @@ class _MessageListViewState extends State<MessageListView>
           onTap: () => FocusScope.of(context).unfocus(),
           child: list,
         );
+        // With no pointer to hover a row with, a leftward drag is how the times
+        // the rows keep to themselves are reached.
+        list = TimeRevealScope(child: list);
       }
       return list;
     }
@@ -417,14 +479,11 @@ class _MessageListViewState extends State<MessageListView>
       ),
     );
 
-    // Status bar cover: solid block above the toolbar.
-    final statusBarCover = Positioned.fill(
-      bottom: null,
-      child: Container(color: bgColor, height: statusBarHeight),
-    );
-    // Header gradient, bleeding into the list
+    // Header gradient, covering the status bar and the header bar and bleeding
+    // into the list. It ramps from the very top rather than sitting on a solid
+    // block, so rows sliding under the bar stay faintly visible behind it.
     final headerFade = Positioned(
-      top: statusBarHeight,
+      top: 0,
       left: 0,
       right: 0,
       child: EdgeFade(
@@ -432,19 +491,36 @@ class _MessageListViewState extends State<MessageListView>
         height: fadeHeight,
         color: bgColor,
         curve: Curves.easeInOutQuad,
-        solidStop: 0.2,
+        opacity: fades.topOpacity,
+      ),
+    );
+    // Fade at the composer's edge. Fixed height, so it is independent of how
+    // far the composer has grown, and revealed by scroll: at rest on the newest
+    // message there is nothing below the fold to fade.
+    final bottomFade = Positioned.fill(
+      top: null,
+      child: ValueListenableBuilder<double>(
+        valueListenable: _bottomFadeOffset,
+        // The reveal scales the gradient itself rather than wrapping it in an
+        // Opacity, which would cost a save layer for every frame of the scroll.
+        builder: (context, offset, _) {
+          final reveal = (offset / MessageListFadeTokens.bottomRevealDistance)
+              .clamp(0.0, 1.0);
+          return EdgeFade(
+            edge: FadeEdge.bottom,
+            height: fades.bottomHeight,
+            color: bgColor,
+            curve: Curves.easeInOutQuad,
+            opacity: fades.bottomOpacity * reveal,
+          );
+        },
       ),
     );
 
     if (composerHeightListenable == null) {
       return Stack(
         clipBehavior: Clip.none,
-        children: [
-          buildAnchoredList(),
-          statusBarCover,
-          headerFade,
-          floatingHeader,
-        ],
+        children: [buildAnchoredList(), bottomFade, headerFade, floatingHeader],
       );
     }
     // Layer the list, a bottom fade gradient, and a manual scrollbar so that:
@@ -455,59 +531,29 @@ class _MessageListViewState extends State<MessageListView>
     return ValueListenableBuilder<double>(
       valueListenable: composerHeightListenable,
       builder: (context, composerHeight, _) {
-        const fadeBleeding = 40;
         final bottomInset = max(mediaPadding.bottom, S.s12);
         final listBottomPadding = composerHeight + bottomInset + _bottomGap;
-        final fadeHeight = composerHeight + fadeBleeding;
 
-        // Override MediaQuery padding so the Scrollbar's track ends above
-        // the composer and fade zone.
-        final scrollbarPadding = mediaPadding.copyWith(
-          bottom: listBottomPadding,
-        );
-        // Solid cover below the composer
-        final bottomSafeCover = Positioned.fill(
-          top: null,
-          child: Container(
-            color: bgColor,
-            height:
-                bottomInset +
-                1, // We need this because there can be a small gap sometimes
-          ),
-        );
-        // Fade sitting behind the composer and bleeding into the list
-        final composerFade = Positioned.fill(
-          top: null,
-          bottom: bottomInset,
-          child: EdgeFade(
-            edge: FadeEdge.bottom,
-            height: fadeHeight,
-            color: bgColor,
-            curve: Curves.easeInOutQuad,
-            solidStop: 0.3,
-          ),
-        );
-        return MediaQuery(
-          data: MediaQuery.of(context).copyWith(padding: scrollbarPadding),
-          child: Scrollbar(
-            controller: _listController.scrollController,
-            child: Stack(
-              clipBehavior: Clip.none,
-              children: [
-                // Disable the auto-scrollbar, we have our own above.
-                ScrollConfiguration(
-                  behavior: ScrollConfiguration.of(
-                    context,
-                  ).copyWith(scrollbars: false),
-                  child: buildAnchoredList(bottomPadding: listBottomPadding),
-                ),
-                composerFade,
-                bottomSafeCover,
-                statusBarCover,
-                headerFade,
-                floatingHeader,
-              ],
-            ),
+        return AppScrollbar(
+          // Keep the track clear of the safe area at the top and of the
+          // composer and its fade zone at the bottom, so it spans the content
+          // the user can actually see.
+          trackTop: mediaPadding.top,
+          trackBottom: listBottomPadding,
+          child: Stack(
+            clipBehavior: Clip.none,
+            children: [
+              // Disable the auto-scrollbar, we have our own above.
+              ScrollConfiguration(
+                behavior: ScrollConfiguration.of(
+                  context,
+                ).copyWith(scrollbars: false),
+                child: buildAnchoredList(bottomPadding: listBottomPadding),
+              ),
+              bottomFade,
+              headerFade,
+              floatingHeader,
+            ],
           ),
         );
       },
@@ -529,14 +575,21 @@ class _MessageListViewState extends State<MessageListView>
 
     final showDateDivider = _shouldShowDateDivider(state, message, index);
 
+    final userCubit = context.read<UserCubit>();
+    // The end of the chat, where the conversation shows its time. Index 0 is
+    // the newest loaded row, which is the newest there is only once nothing
+    // newer remains to load.
+    final isNewest = index == 0 && !state.hasNewer;
+
     Widget tile = _MessageTileCubitHost(
       key: ValueKey(message.id),
-      userCubit: context.read<UserCubit>(),
+      userCubit: userCubit,
       message: message,
       createMessageCubit: widget.createMessageCubit,
       child: MessageRowContainer(
         isConnectionChat: state.isConnectionChat ?? false,
         animated: animated,
+        isNewest: isNewest,
       ),
     );
 

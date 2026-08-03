@@ -6,6 +6,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:mocktail/mocktail.dart';
+import 'package:air/ds/components/toggle/toggle.dart';
 import 'package:air/features/chat_details/create_group_screen.dart';
 import 'package:air/features/chat_details/member_selection_list.dart';
 import 'package:air/core/core.dart';
@@ -150,7 +151,7 @@ void main() {
         // Reveal the hidden APQ toggle and turn it on.
         await tester.longPress(find.text('Group details'));
         await tester.pumpAndSettle();
-        await tester.tap(find.byType(Switch));
+        await tester.tap(find.byType(Toggle));
         await tester.pumpAndSettle();
 
         await expectLater(
@@ -173,7 +174,7 @@ void main() {
         // Reveal the hidden APQ toggle and turn it on.
         await tester.longPress(find.text('Group details'));
         await tester.pumpAndSettle();
-        await tester.tap(find.byType(Switch));
+        await tester.tap(find.byType(Toggle));
         await tester.pumpAndSettle();
 
         // Go back to the selection step via the circular back button.

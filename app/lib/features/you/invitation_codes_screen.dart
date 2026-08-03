@@ -70,9 +70,9 @@ class InvitationCodesView extends StatelessWidget {
                               .whereType<UiInvitationCode_Code>()
                               .any((code) => !code.field0.copied),
                         );
-                        return AppButton(
-                          size: AppButtonSize.small,
-                          type: AppButtonType.secondary,
+                        return Button(
+                          size: ButtonSize.small,
+                          type: ButtonType.secondary,
                           label: loc.invitationCodesScreen_copyAll,
                           state: anyUncopiedCode ? .active : .inactive,
                           onPressed: () => _handleCopyAll(context),
@@ -93,9 +93,9 @@ class InvitationCodesView extends StatelessWidget {
                               .whereType<UiInvitationCode_Code>()
                               .any((code) => code.field0.copied),
                         );
-                        return AppButton(
-                          size: AppButtonSize.small,
-                          type: AppButtonType.secondary,
+                        return Button(
+                          size: ButtonSize.small,
+                          type: ButtonType.secondary,
                           label: loc.invitationCodesScreen_removeUsedCodes,
                           state: anyCopiedCode ? .active : .inactive,
                           onPressed: () => _handleClearCopied(context),

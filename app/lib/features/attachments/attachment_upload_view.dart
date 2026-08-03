@@ -4,7 +4,8 @@
 
 import 'dart:io';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/ds/components/button_icon/glass_circle_button.dart';
+import 'package:air/ds/components/button_icon/button_icon.dart';
+import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
 import 'package:air/platform/method_channel.dart' as platform_utils;
 import 'package:air/ds/components/button_icon/app_bar_x_button.dart';
 import 'package:file_selector/file_selector.dart';
@@ -77,12 +78,13 @@ class AttachmentUploadView extends HookWidget {
                 bottom: S.s16,
                 right: S.s16,
                 child: SafeArea(
-                  child: GlassCircleButton(
-                    icon: AppIcon.arrowUp(
-                      size: 20,
-                      color: palette.text.primary,
-                    ),
-                    color: palette.backgroundMaterial.tertiary,
+                  child: ButtonIcon(
+                    variant: ButtonIconVariant.elevated,
+                    icon: AppIconType.arrowUp,
+                    // The viewer forces the dark palette, so the button cannot
+                    // fall back on the one its context resolves.
+                    iconColor: palette.text.primary,
+                    fill: palette.backgroundMaterial.tertiary,
                     onPressed: () {
                       onUpload();
                       Navigator.of(context).pop();

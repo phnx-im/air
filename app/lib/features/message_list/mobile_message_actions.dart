@@ -6,9 +6,11 @@ import 'dart:async';
 import 'dart:ui';
 
 import 'package:flutter/material.dart';
+import 'package:air/ds/components/menu/menu.dart';
+import 'package:air/ds/components/menu/menu_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/ds/patterns/context_menu/context_menu_item.dart';
-import 'package:air/ds/patterns/context_menu/context_menu_surface.dart';
+import 'package:air/ds/patterns/reaction_bar/reaction_bar.dart';
+import 'package:air/ds/patterns/reaction_bar/reaction_bar_tokens.dart';
 
 import 'package:air/features/emoji/emoji_repository.dart';
 import 'package:air/features/message_list/message_reactions.dart';
@@ -133,6 +135,8 @@ class _MobileMessageActionView extends StatelessWidget {
   Widget build(BuildContext context) {
     // Layout inputs derived from the current overlay and safe areas.
     final mediaQuery = MediaQuery.of(context);
+    final barTokens = ReactionBarTokens.of(context);
+    final barHeight = barTokens.itemSize + barTokens.containerPadding.vertical;
     final size = mediaQuery.size;
     final safeTop = mediaQuery.padding.top + S.s24;
     final safeBottom = mediaQuery.padding.bottom + S.s24;
@@ -266,14 +270,16 @@ class _MobileMessageActionView extends StatelessWidget {
               Positioned(
                 left: alignEnd ? null : left,
                 right: alignEnd ? (size.width - (left + width)) : null,
-                top: (top - quickReactionMenuGap - quickReactionBarHeight)
-                    .clamp(safeTop, size.height),
+                top: (top - ReactionBarTokens.anchorGap - barHeight).clamp(
+                  safeTop,
+                  size.height,
+                ),
                 child: FadeTransition(
                   opacity: animation,
-                  child: QuickReactionBar(
-                    skinTone: reactionSkinTone,
-                    showShadow: false,
-                    onReact: (emoji) {
+                  child: ReactionBar(
+                    tokens: barTokens,
+                    emojis: quickReactionEmojisFor(reactionSkinTone),
+                    onPick: (emoji) {
                       if (onDismiss()) onReact!(emoji);
                     },
                     onMore: () {
@@ -316,16 +322,16 @@ class _MobileContextMenu extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final menuItems = <ContextMenuEntry>[];
+    final menuItems = <MenuItem>[];
     for (final action in actions) {
       if (action.insertSeparatorBefore) {
-        menuItems.add(const ContextMenuSeparator());
+        menuItems.add(const MenuItem.separator());
       }
       menuItems.add(
-        ContextMenuItem(
+        MenuItem(
           label: action.label,
           leading: action.leading,
-          isDestructive: action.isDestructive,
+          destructive: action.isDestructive,
           onPressed: () {
             if (onDismiss()) action.onSelected();
           },
@@ -343,9 +349,7 @@ class _MobileContextMenu extends StatelessWidget {
         position: slideAnimation,
         child: Align(
           alignment: alignEnd ? Alignment.centerRight : Alignment.centerLeft,
-          child: IntrinsicWidth(
-            child: ContextMenuSurface(menuItems: menuItems, onHide: onDismiss),
-          ),
+          child: Menu(tokens: MenuTokens.of(context), items: menuItems),
         ),
       ),
     );

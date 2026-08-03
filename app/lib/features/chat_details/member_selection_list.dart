@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
+import 'package:air/ds/components/checkbox/checkbox.dart';
+import 'package:air/ds/components/checkbox/checkbox_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -53,7 +55,14 @@ class MemberSelectionList extends HookWidget {
     }, [contacts, profiles, normalizedQuery]);
 
     return ListView.separated(
-      padding: const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s12),
+      // The modal surface runs to the bottom of the screen, so the last row
+      // clears the home indicator on its own rather than through a SafeArea.
+      padding: EdgeInsets.fromLTRB(
+        S.s16,
+        S.s12,
+        S.s16,
+        S.s12 + MediaQuery.viewPaddingOf(context).bottom,
+      ),
       itemCount: sortedContacts.length,
       separatorBuilder: (context, index) => Divider(
         height: 1,
@@ -85,21 +94,9 @@ class MemberSelectionList extends HookWidget {
                     ),
                   ),
             trailing: hasSupportedClient
-                ? Checkbox(
+                ? AppCheckbox(
+                    tokens: CheckboxTokens.standard,
                     value: isSelected,
-                    checkColor: SemanticPalette.of(context).text.secondary,
-                    fillColor: WidgetStateProperty.all(
-                      SemanticPalette.of(context).fill.tertiary,
-                    ),
-                    focusColor: Colors.transparent,
-                    hoverColor: Colors.transparent,
-                    overlayColor: WidgetStateProperty.all(Colors.transparent),
-                    side: BorderSide.none,
-                    shape: const RoundedRectangleBorder(
-                      borderRadius: BorderRadius.all(
-                        Radius.circular(CornerRadius.px4),
-                      ),
-                    ),
                     onChanged: (_) => onToggle(contact),
                   )
                 : null,

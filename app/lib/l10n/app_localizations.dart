@@ -192,12 +192,6 @@ abstract class AppLocalizations {
   /// **'Usernames'**
   String get userSettingsScreen_usernamesSection;
 
-  /// No description provided for @userSettingsScreen_settingsSection.
-  ///
-  /// In en, this message translates to:
-  /// **'Settings'**
-  String get userSettingsScreen_settingsSection;
-
   /// No description provided for @userSettingsScreen_helpSection.
   ///
   /// In en, this message translates to:
@@ -221,6 +215,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Devices'**
   String get userSettingsScreen_devices;
+
+  /// No description provided for @youSection_profile.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile'**
+  String get youSection_profile;
+
+  /// No description provided for @youSection_preferences.
+  ///
+  /// In en, this message translates to:
+  /// **'Preferences'**
+  String get youSection_preferences;
+
+  /// No description provided for @youSection_developer.
+  ///
+  /// In en, this message translates to:
+  /// **'Developer'**
+  String get youSection_developer;
 
   /// No description provided for @settingsScreen_copiedToClipboard.
   ///
@@ -270,6 +282,12 @@ abstract class AppLocalizations {
   /// **'an active chat is obligatory'**
   String get addMembersScreen_error_noActiveChat;
 
+  /// No description provided for @contactDetailsScreen_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Profile'**
+  String get contactDetailsScreen_title;
+
   /// No description provided for @contactDetailsScreen_chat.
   ///
   /// In en, this message translates to:
@@ -279,7 +297,7 @@ abstract class AppLocalizations {
   /// No description provided for @contactDetailsScreen_viewSafetyCode.
   ///
   /// In en, this message translates to:
-  /// **'View Safety Code'**
+  /// **'Safety code'**
   String get contactDetailsScreen_viewSafetyCode;
 
   /// No description provided for @contactDetailsScreen_mute.
@@ -953,12 +971,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'Try again'**
   String get linkingDevicesScreen_error_dismiss;
-
-  /// No description provided for @linkedDevicesScreen_title.
-  ///
-  /// In en, this message translates to:
-  /// **'Devices'**
-  String get linkedDevicesScreen_title;
 
   /// No description provided for @linkedDevicesScreen_thisDevice.
   ///
@@ -1929,6 +1941,12 @@ abstract class AppLocalizations {
   /// **'Couldn\'t upload logs'**
   String get contactUsScreen_errorUploadingLogs;
 
+  /// No description provided for @groupDetails_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Group details'**
+  String get groupDetails_title;
+
   /// No description provided for @groupDetails_leaveChat.
   ///
   /// In en, this message translates to:
@@ -1958,12 +1976,6 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'{count, plural, one {{count} person} other {{count} people}}'**
   String groupDetails_memberCount(int count);
-
-  /// No description provided for @groupDetails_groupDescription.
-  ///
-  /// In en, this message translates to:
-  /// **'Group'**
-  String get groupDetails_groupDescription;
 
   /// No description provided for @groupMembersScreen_title.
   ///
@@ -2282,6 +2294,24 @@ abstract class AppLocalizations {
   /// In en, this message translates to:
   /// **'All · {total}'**
   String messageList_reactions_all(Object total);
+
+  /// No description provided for @emojiPicker_searchHint.
+  ///
+  /// In en, this message translates to:
+  /// **'Search emoji'**
+  String get emojiPicker_searchHint;
+
+  /// No description provided for @emojiPicker_empty.
+  ///
+  /// In en, this message translates to:
+  /// **'No emoji found'**
+  String get emojiPicker_empty;
+
+  /// No description provided for @emojiPicker_skinToneHelp.
+  ///
+  /// In en, this message translates to:
+  /// **'Sets your default skin tone'**
+  String get emojiPicker_skinToneHelp;
 }
 
 class _AppLocalizationsDelegate

@@ -4,6 +4,7 @@
 
 import 'dart:io';
 
+import 'package:air/ds/components/button/button.dart';
 import 'package:air/features/you/add_username_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -26,7 +27,7 @@ void main() {
     testWidgets('renders correctly', (tester) async {
       await tester.pumpWidget(buildSubject());
 
-      final buttonFinder = find.byType(OutlinedButton);
+      final buttonFinder = find.byType(Button);
       expect(buttonFinder, findsNWidgets(2));
 
       final Size size1 = tester.getSize(buttonFinder.first);
@@ -42,7 +43,7 @@ void main() {
     testWidgets('renders correctly (adding)', (tester) async {
       await tester.pumpWidget(buildSubject(inProgress: true));
 
-      final buttonFinder = find.byType(OutlinedButton);
+      final buttonFinder = find.byType(Button);
       expect(buttonFinder, findsNWidgets(2));
 
       final Size size1 = tester.getSize(buttonFinder.first);

@@ -2,36 +2,27 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ds/components/emoji/centered_emoji.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/adaptive_modal/adaptive_modal.dart';
+import 'package:air/ds/patterns/reaction_emoji_menu/reaction_emoji_menu.dart';
+import 'package:air/ds/patterns/reaction_emoji_menu/reaction_emoji_menu_tokens.dart';
+import 'package:air/features/emoji/emoji_data.dart' as data;
 import 'package:air/features/emoji/emoji_repository.dart';
+import 'package:air/l10n/l10n.dart';
+import 'package:air/platform/haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
-import 'package:air/ds/components/button_icon/glass_circle_button.dart';
-import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
-import 'package:air/platform/haptics.dart';
-
-import 'package:air/ds/components/emoji/centered_emoji.dart';
-
-// Picker metrics.
-const double _emojiCellSize = 52;
-const double _emojiGlyphSize = 32;
+// Panel metrics. The menu inside brings its own.
 const double _panelRadius = CornerRadius.px20;
 const double _panelPadding = S.s16;
-const double _searchHeight = 40;
-
-/// Border for the search field.
-final _pillBorder = OutlineInputBorder(
-  borderRadius: BorderRadius.circular(CornerRadius.full),
-  borderSide: BorderSide.none,
-);
 
 /// Default size of the emoji picker popover.
 const Size _emojiPickerPanelSize = Size(360, 360);
 
-/// The emoji picker content: a search field with a skin-tone selector,
-/// over a flat scrollable grid of all categorized emojis. Skinnable emojis render with the
-/// selected skin tone.
+/// The emoji picker content: the catalog, the query, and the skin tone behind
+/// a [ReactionEmojiMenu].
 class EmojiPicker extends HookWidget {
   const EmojiPicker({
     super.key,
@@ -46,213 +37,84 @@ class EmojiPicker extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
+    final loc = AppLocalizations.of(context);
 
-    final searchController = useTextEditingController();
     final query = useState('');
     final skinTone = useState(initialSkinTone);
-    final toneStripOpen = useState(false);
 
     useEffect(() {
-      void listener() => query.value = searchController.text;
-      searchController.addListener(listener);
-      return () => searchController.removeListener(listener);
-    }, [searchController]);
-
-    useEffect(() {
-      _warmUpTone(context, skinTone.value);
+      final tone = skinTone.value;
+      // A hook runs its effect while the element is still initialising, where
+      // reading an inherited widget is not allowed yet, and the warm-up has to
+      // resolve the ambient text style to shape against. So it waits for the
+      // frame the picker first paints in.
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (context.mounted) _warmUpTone(context, tone);
+      });
       return null;
     }, [skinTone.value]);
 
-    void selectTone(EmojiSkinVariation tone) {
-      skinTone.value = tone;
-      toneStripOpen.value = false;
-      onSkinToneChanged?.call(tone);
-    }
+    // The glyphs carry the tone, so a tone change narrows the catalog again.
+    final sections = useMemoized(() => _sections(query.value, skinTone.value), [
+      query.value,
+      skinTone.value,
+    ]);
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        Row(
-          children: [
-            Expanded(child: _SearchField(controller: searchController)),
-            const SizedBox(width: S.s8),
-            _EmojiComponentButton(
-              component: skinTone.value,
-              onPressed: () => toneStripOpen.value = !toneStripOpen.value,
-            ),
-          ],
-        ),
-        if (toneStripOpen.value) ...[
-          const SizedBox(height: S.s8),
-          _SkinToneStrip(selected: skinTone.value, onSelected: selectTone),
-        ],
-        const SizedBox(height: S.s12),
-        Expanded(
-          child: CustomScrollView(
-            slivers: [
-              for (final (category, emojis) in useMemoized(
-                () => EmojiRepository.filter(query.value),
-                [query.value],
-              )) ...[
-                SliverToBoxAdapter(
-                  child: Padding(
-                    padding: const EdgeInsets.all(S.s8),
-                    child: Text(category, style: theme.textTheme.bodySmall),
-                  ),
-                ),
-                SliverGrid.builder(
-                  gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                    maxCrossAxisExtent: _emojiCellSize,
-                    mainAxisExtent: _emojiCellSize,
-                  ),
-                  itemCount: emojis.length,
-                  itemBuilder: (context, index) {
-                    final emoji = emojis[index].applySkinVariation(
-                      skinTone.value,
-                    );
-                    return Padding(
-                      padding: const EdgeInsets.all(S.s8),
-                      child: _EmojiCell(
-                        emoji: emoji,
-                        onTap: () => onSelected(emoji),
-                      ),
-                    );
-                  },
-                ),
-              ],
-            ],
-          ),
-        ),
-      ],
-    );
-  }
-}
-
-class _SearchField extends StatelessWidget {
-  const _SearchField({required this.controller});
-
-  final TextEditingController controller;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
-    return SizedBox(
-      height: _searchHeight,
-      child: TextField(
-        controller: controller,
-        autofocus: true,
-        textInputAction: TextInputAction.search,
-        style: typeScale.body.regular.style(color: palette.text.primary),
-        decoration: InputDecoration(
-          filled: true,
-          fillColor: palette.fill.tertiary,
-          hintText: 'Search emoji',
-          hintStyle: typeScale.body.regular.style(color: palette.text.tertiary),
-          prefixIcon: Padding(
-            padding: const EdgeInsets.only(left: S.s12, right: S.s8),
-            child: AppIcon.search(size: 18, color: palette.text.tertiary),
-          ),
-          prefixIconConstraints: const BoxConstraints(
-            minWidth: 0,
-            minHeight: 0,
-          ),
-          contentPadding: const EdgeInsets.symmetric(horizontal: S.s12),
-          // Override the theme's enabled/focused borders (radius 8) so the
-          // field is a full pill regardless of its painted height.
-          border: _pillBorder,
-          enabledBorder: _pillBorder,
-          focusedBorder: _pillBorder,
-        ),
-      ),
-    );
-  }
-}
-
-class _EmojiComponentButton extends StatelessWidget {
-  const _EmojiComponentButton({
-    required this.component,
-    required this.onPressed,
-  });
-
-  final EmojiSkinVariation component;
-  final VoidCallback onPressed;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
-    return GlassCircleButton(
-      size: _searchHeight,
-      onPressed: onPressed,
-      color: palette.fill.tertiary,
-      enableBackdropBlur: false,
-      shadows: const [],
-      icon: CenteredEmoji(
-        emoji: '\u{270B}${component.modifier}',
-        style: const TextStyle(fontSize: 20),
-      ),
-    );
-  }
-}
-
-class _SkinToneStrip extends StatelessWidget {
-  const _SkinToneStrip({required this.selected, required this.onSelected});
-
-  final EmojiSkinVariation selected;
-  final ValueChanged<EmojiSkinVariation> onSelected;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
-    return Row(
-      children: [
-        for (final tone in EmojiSkinVariation.values)
-          Expanded(
-            child: Center(
-              child: GlassCircleButton(
-                size: _emojiCellSize,
-                onPressed: () => onSelected(tone),
-                enableBackdropBlur: false,
-                shadows: const [],
-                color: tone == selected
-                    ? palette.backgroundBase.secondary
-                    : Colors.transparent,
-                icon: CenteredEmoji(
-                  emoji: '\u{270B}${tone.modifier}',
-                  style: const TextStyle(fontSize: _emojiGlyphSize),
-                ),
-              ),
-            ),
-          ),
-      ],
-    );
-  }
-}
-
-class _EmojiCell extends StatelessWidget {
-  const _EmojiCell({required this.emoji, required this.onTap});
-
-  final String emoji;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () {
-          AppHaptics.selection();
-          onTap();
+    return ReactionEmojiMenu(
+      tokens: ReactionEmojiMenuTokens.of(context),
+      sections: sections,
+      searchHint: loc.emojiPicker_searchHint,
+      emptyLabel: loc.emojiPicker_empty,
+      tone: EmojiMenuTone(
+        options: _toneOptions,
+        selected: EmojiSkinVariation.values.indexOf(skinTone.value),
+        helpLabel: loc.emojiPicker_skinToneHelp,
+        onSelected: (index) {
+          final tone = EmojiSkinVariation.values[index];
+          skinTone.value = tone;
+          onSkinToneChanged?.call(tone);
         },
-        child: CenteredEmoji(
-          emoji: emoji,
-          style: const TextStyle(fontSize: _emojiGlyphSize),
-        ),
       ),
+      autofocus: true,
+      onQueryChanged: (value) => query.value = value,
+      onSelected: (emoji) {
+        // The menu is a pure view and stays out of the platform, so the feel of
+        // a pick is ours to give.
+        AppHaptics.selection();
+        onSelected(emoji);
+      },
     );
   }
 }
+
+/// One raised hand per tone: the swatches the tone control offers, in
+/// [EmojiSkinVariation.values] order so an index into them names a tone.
+final List<String> _toneOptions = [
+  for (final variation in EmojiSkinVariation.values)
+    '\u{270B}${variation.modifier}',
+];
+
+/// The catalog narrowed to [query], every glyph in [tone].
+List<EmojiMenuSection> _sections(String query, EmojiSkinVariation tone) => [
+  for (final (category, emojis) in EmojiRepository.filter(query))
+    EmojiMenuSection(
+      title: category,
+      emojis: [for (final emoji in emojis) _entry(emoji, tone)],
+    ),
+];
+
+/// The variants follow [_toneOptions], since the menu hands an index into the
+/// swatches back for both the tone and the emoji it picked.
+EmojiMenuEntry _entry(data.Emoji emoji, EmojiSkinVariation tone) =>
+    EmojiMenuEntry(
+      glyph: emoji.applySkinVariation(tone),
+      tones: emoji.supportsSkinTone
+          ? [
+              for (final variation in EmojiSkinVariation.values)
+                emoji.applySkinVariation(variation),
+            ]
+          : const [],
+    );
 
 /// A self-contained, fixed-size emoji picker panel for desktop popovers.
 class EmojiPickerPanel extends StatelessWidget {
@@ -333,7 +195,7 @@ Future<String?> showEmojiPickerSheet({
   ValueChanged<EmojiSkinVariation>? onSkinToneChanged,
   Color? barrierColor,
 }) {
-  return showBottomSheetModal<String>(
+  return showAdaptiveModal<String>(
     context: context,
     barrierColor: barrierColor,
     contentPadding: const EdgeInsets.all(_panelPadding),
@@ -351,12 +213,13 @@ Future<String?> showEmojiPickerSheet({
 final Set<EmojiSkinVariation> _warmedTones = {};
 
 /// Shapes all picker glyphs for [tone] via [CenteredEmoji.warmUpGlyphs], once
-/// per tone.
+/// per tone. The style has to be the one the grid paints in, since a painter
+/// shaped at another size is a different cache entry.
 void _warmUpTone(BuildContext context, EmojiSkinVariation tone) {
   if (!_warmedTones.add(tone)) return;
 
   CenteredEmoji.warmUpGlyphs(context, [
     for (final (_, emojis) in EmojiRepository.filter(''))
       for (final emoji in emojis) emoji.applySkinVariation(tone),
-  ], const TextStyle(fontSize: _emojiGlyphSize));
+  ], typeScale.emoji.l.style());
 }

@@ -6,265 +6,564 @@ import 'dart:convert';
 import 'dart:typed_data';
 
 import 'package:air/core/api/markdown.dart';
+import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
+import 'package:air/ds/patterns/message_text/message_text.dart';
+import 'package:air/ds/patterns/message_text/message_text_tokens.dart';
+import 'package:air/ds/patterns/reply_block/reply_block_tokens.dart';
 import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
+import 'package:air/features/attachments/attachment_thumbnail.dart';
 import 'package:air/features/emoji/jumbo_emoji.dart';
+import 'package:air/features/user/users_cubit.dart';
 import 'package:url_launcher/url_launcher.dart';
 
+/// Who a quoted message is from and the line of it a reply shows.
+///
+/// A quote can fail to resolve for more than one reason -- the original was
+/// deleted locally, or it predates the reader joining the group -- and the two
+/// cannot be told apart, so both fall back to the same stand-in. A null sender
+/// means there is nobody left to name.
+({String? senderName, String preview}) quotedMessage(
+  BuildContext context,
+  UiInReplyToMessage inReplyTo,
+) {
+  final loc = AppLocalizations.of(context);
+  return switch (inReplyTo) {
+    UiInReplyToMessage_NotFound() => (
+      senderName: loc.composer_reply_noaccess_message_user,
+      preview: loc.composer_reply_noaccess_message_placeholder,
+    ),
+    UiInReplyToMessage_Resolved(:final sender, :final mimiContent)
+        when !mimiContent.isDeleted =>
+      (
+        senderName: context.select(
+          (UsersCubit cubit) => cubit.state.displayName(userId: sender),
+        ),
+        preview:
+            mimiContent.plaintextPreview(loc) ??
+            loc.composer_reply_noaccess_message_placeholder,
+      ),
+    UiInReplyToMessage_Resolved() => (
+      senderName: null,
+      preview: loc.composer_reply_deleted_message_placeholder,
+    ),
+  };
+}
+
+/// The still a quote shows for a message that is a picture, and null for one
+/// that is not -- text, a file, or an original that never resolved.
+Widget? quotedThumbnail(
+  BuildContext context,
+  UiInReplyToMessage inReplyTo,
+  ReplyBlockTokens tokens,
+) {
+  final attachment = switch (inReplyTo) {
+    UiInReplyToMessage_Resolved(:final mimiContent)
+        when !mimiContent.isDeleted =>
+      mimiContent.attachments.firstOrNull,
+    _ => null,
+  };
+  if (attachment == null || attachment.imageMetadata == null) return null;
+  return AttachmentThumbnail(
+    attachment: attachment,
+    size: tokens.thumbSize,
+    radius: tokens.thumbRadius,
+  );
+}
+
+/// Renders one block of a message body.
+///
+/// Every block reads its geometry from [tokens] and its ink from the message
+/// palette, so a body stays one typographic system however deeply the markdown
+/// nests. Text colour is inherited rather than set: the body style comes from
+/// [MessageText], and a quote re-tints everything under it by overriding that
+/// inherited style once.
 Widget buildBlockElement(
   BuildContext context,
   BlockElement block,
   bool isSender,
+  MessageTextTokens tokens,
 ) {
   return switch (block) {
-    BlockElement_Paragraph(:final field0) => () {
-      final jumbo = isJumboEmoji(field0);
-      final color = isSender
-          ? SemanticPalette.of(context).message.selfText
-          : SemanticPalette.of(context).message.otherText;
-      return Text.rich(
-        TextSpan(
-          children: field0
-              .map((child) => buildInlineElement(context, child, isSender))
-              .toList(),
-          style: jumbo
-              ? typeScale.emoji.jumbo.style(color: color)
-              : typeScale.body.regular.style(color: color),
-        ),
-        softWrap: true,
-        textWidthBasis: TextWidthBasis.longestLine,
-      );
-    }(),
-    BlockElement_Heading(:final field0) => Text.rich(
-      TextSpan(
-        children: field0
-            .map((child) => buildInlineElement(context, child, isSender))
-            .toList(),
-        style: typeScale.body.m.style(
-          weight: Weight.emphasized,
-          color: isSender
-              ? SemanticPalette.of(context).message.selfText
-              : SemanticPalette.of(context).message.otherText,
-        ),
-      ),
+    BlockElement_Paragraph(:final field0) => _paragraph(
+      context,
+      field0,
+      isSender,
+      tokens,
     ),
-    BlockElement_Quote(:final field0) => Container(
-      padding: const EdgeInsets.symmetric(horizontal: S.s12, vertical: S.s8),
-      decoration: BoxDecoration(
-        borderRadius: const BorderRadius.all(
-          Radius.circular(CornerRadius.px12),
-        ),
-        border: Border(
-          left: BorderSide(
-            color: isSender
-                ? SemanticPalette.of(context).message.selfQuoteBorder
-                : SemanticPalette.of(context).message.otherQuoteBorder,
-            width: StrokeWidth.px4,
-          ),
-        ),
-        color: isSender
-            ? SemanticPalette.of(context).message.selfQuoteBackground
-            : SemanticPalette.of(context).message.otherQuoteBackground,
-      ),
-      child: Column(
-        spacing: typeScale.body.regular.fontSize,
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: field0
-            .map((inner) => buildBlockElement(context, inner.element, isSender))
-            .toList(),
-      ),
+    BlockElement_Heading(:final field0) => _heading(
+      context,
+      field0,
+      isSender,
+      tokens,
     ),
-    BlockElement_UnorderedList(:final field0) => Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: field0
-          .map(
-            (items) => Row(
-              mainAxisSize: MainAxisSize.min,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text.rich(
-                  const TextSpan(text: " \u2022 "),
-                  style: typeScale.body.regular.style(
-                    color: isSender
-                        ? SemanticPalette.of(context).message.selfListPrefix
-                        : SemanticPalette.of(context).message.otherListPrefix,
-                  ),
-                ),
-                Flexible(
-                  fit: FlexFit.loose,
-                  child: Column(
-                    spacing: typeScale.body.regular.fontSize,
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: items
-                        .map(
-                          (item) => buildBlockElement(
-                            context,
-                            item.element,
-                            isSender,
-                          ),
-                        )
-                        .toList(),
-                  ),
-                ),
-              ],
-            ),
-          )
-          .toList(),
+    BlockElement_Quote(:final field0) => _quote(
+      context,
+      field0,
+      isSender,
+      tokens,
+    ),
+    BlockElement_UnorderedList(:final field0) => _list(
+      context,
+      field0,
+      isSender,
+      tokens,
+      offset: null,
     ),
     BlockElement_OrderedList(field0: final offset, field1: final items) =>
-      Column(
+      _list(context, items, isSender, tokens, offset: offset),
+    BlockElement_Table(:final head, :final rows) => _table(
+      context,
+      head,
+      rows,
+      isSender,
+      tokens,
+    ),
+    BlockElement_HorizontalRule() => _rule(context, isSender),
+    BlockElement_CodeBlock(:final field0) => _codeBlock(
+      context,
+      field0,
+      isSender,
+      tokens,
+    ),
+    BlockElement_Error(:final field0) => _errorBlock(context, field0, tokens),
+  };
+}
+
+Widget _paragraph(
+  BuildContext context,
+  List<RangedInlineElement> inlines,
+  bool isSender,
+  MessageTextTokens tokens,
+) => Text.rich(
+  TextSpan(
+    children: inlines
+        .map((child) => buildInlineElement(context, child, isSender, tokens))
+        .toList(),
+    // Size only. The colour is the one the body already carries, which is what
+    // lets a quote re-tint the paragraphs nested inside it.
+    style: isJumboEmoji(inlines) ? typeScale.emoji.jumbo.style() : null,
+  ),
+  softWrap: true,
+  textWidthBasis: TextWidthBasis.longestLine,
+);
+
+Widget _heading(
+  BuildContext context,
+  List<RangedInlineElement> inlines,
+  bool isSender,
+  MessageTextTokens tokens,
+) => Text.rich(
+  TextSpan(
+    children: inlines
+        .map((child) => buildInlineElement(context, child, isSender, tokens))
+        .toList(),
+    style: typeScale.body.m.style(weight: Weight.emphasized),
+  ),
+);
+
+/// A quoted passage: a rule down the leading edge and the quoted blocks beside
+/// it, in the quieter ink a quote is set in. Nests, so a quote inside a quote
+/// stacks another rule.
+Widget _quote(
+  BuildContext context,
+  List<RangedBlockElement> blocks,
+  bool isSender,
+  MessageTextTokens tokens,
+) {
+  final palette = SemanticPalette.of(context);
+  return Container(
+    decoration: BoxDecoration(
+      border: Border(
+        left: BorderSide(
+          color: palette.separator.primary,
+          width: tokens.quoteBarWidth,
+        ),
+      ),
+    ),
+    padding: EdgeInsets.only(left: tokens.quoteGap),
+    child: DefaultTextStyle.merge(
+      style: TextStyle(color: palette.text.secondary),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
         crossAxisAlignment: CrossAxisAlignment.start,
-        children: items.indexed
-            .map(
-              (item) => Row(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text.rich(
-                    TextSpan(
-                      text: " ${offset + BigInt.from(item.$1)}.  ",
-                      style: typeScale.body.regular.style(
-                        color: isSender
-                            ? SemanticPalette.of(context).message.selfListPrefix
-                            : SemanticPalette.of(
-                                context,
-                              ).message.otherListPrefix,
-                      ),
-                    ),
-                  ),
-                  Flexible(
-                    fit: FlexFit.loose,
-                    child: Column(
-                      spacing: typeScale.body.regular.fontSize,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: item.$2
-                          .map(
-                            (item) => buildBlockElement(
-                              context,
-                              item.element,
-                              isSender,
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  ),
-                ],
-              ),
-            )
-            .toList(),
+        spacing: tokens.blockGap,
+        children: [
+          for (final inner in blocks)
+            buildBlockElement(context, inner.element, isSender, tokens),
+        ],
       ),
-    BlockElement_Table(:final head, :final rows) => Table(
-      border: TableBorder.all(
-        color: isSender
-            ? SemanticPalette.of(context).message.selfTableBorder
-            : SemanticPalette.of(context).message.otherTableBorder,
-        width: StrokeWidth.px2,
-        borderRadius: BorderRadius.circular(CornerRadius.px8),
-      ),
-      defaultColumnWidth: const IntrinsicColumnWidth(),
+    ),
+  );
+}
+
+/// A list of either kind. The marker column carries a bullet, a number, or --
+/// where the item opens with a task marker -- a checkbox in the bullet's place,
+/// so a checklist reads as one column of boxes rather than boxes behind dots.
+///
+/// [offset] is the number the list starts at, and null for an unordered list.
+Widget _list(
+  BuildContext context,
+  List<List<RangedBlockElement>> items,
+  bool isSender,
+  MessageTextTokens tokens, {
+  required BigInt? offset,
+}) {
+  // Sized to the list's last number, which is its longest.
+  final markerWidth = offset == null || items.isEmpty
+      ? null
+      : _numberColumnWidth(
+          context,
+          offset + BigInt.from(items.length - 1),
+          tokens,
+        );
+
+  return Padding(
+    padding: EdgeInsets.symmetric(vertical: tokens.listPaddingY),
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: tokens.listItemGap,
       children: [
-        TableRow(
-          children: head
-              .map(
-                (itemBlocks) => Padding(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: S.s12,
-                    vertical: S.s4,
-                  ),
-                  child: DefaultTextStyle(
-                    style: const TextStyle(fontWeight: FontWeight.bold),
-                    child: Column(
-                      spacing: typeScale.body.regular.fontSize,
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: itemBlocks
-                          .map(
-                            (item) => buildBlockElement(
-                              context,
-                              item.element,
-                              isSender,
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  ),
-                ),
-              )
-              .toList(),
-        ),
-        ...rows.map(
-          (row) => TableRow(
-            children: row
-                .map(
-                  (itemBlocks) => Padding(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: S.s12,
-                      vertical: S.s4,
-                    ),
-                    child: Column(
-                      spacing: typeScale.body.regular.fontSize,
-                      mainAxisSize: MainAxisSize.min,
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: itemBlocks
-                          .map(
-                            (item) => buildBlockElement(
-                              context,
-                              item.element,
-                              isSender,
-                            ),
-                          )
-                          .toList(),
-                    ),
-                  ),
-                )
-                .toList(),
+        for (final (index, item) in items.indexed)
+          _listItem(
+            context,
+            _TaskMarker.take(item),
+            isSender,
+            tokens,
+            number: offset == null ? null : offset + BigInt.from(index),
+            numberWidth: markerWidth,
           ),
-        ),
       ],
     ),
-    BlockElement_HorizontalRule() => SizedBox(
-      width: 100,
-      child: Divider(
-        color: isSender
-            ? SemanticPalette.of(context).message.selfText
-            : SemanticPalette.of(context).message.otherText,
+  );
+}
+
+Widget _listItem(
+  BuildContext context,
+  _TaskMarker item,
+  bool isSender,
+  MessageTextTokens tokens, {
+  required BigInt? number,
+  required double? numberWidth,
+}) {
+  final palette = SemanticPalette.of(context);
+  final ink = isSender
+      ? palette.message.selfListPrefix
+      : palette.message.otherListPrefix;
+
+  // Every marker occupies one line's height, so it sits on the item's first
+  // line rather than on the top of a block that may run several lines.
+  final line = typeScale.body.regular.lineHeightPx;
+  final Widget marker;
+  if (item.checked != null) {
+    marker = _Checkbox(
+      checked: item.checked!,
+      isSender: isSender,
+      tokens: tokens,
+      line: line,
+    );
+  } else if (number != null) {
+    marker = SizedBox(
+      width: numberWidth,
+      height: line,
+      child: Align(
+        alignment: Alignment.centerLeft,
+        child: Text('$number.', style: _numberStyle(ink)),
       ),
+    );
+  } else {
+    marker = _Bullet(color: ink, size: tokens.bulletSize, line: line);
+  }
+
+  return Row(
+    mainAxisSize: MainAxisSize.min,
+    crossAxisAlignment: CrossAxisAlignment.start,
+    children: [
+      marker,
+      SizedBox(width: tokens.listMarkerGap),
+      Flexible(
+        fit: FlexFit.loose,
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          spacing: tokens.blockGap,
+          children: [
+            for (final block in item.blocks)
+              buildBlockElement(context, block.element, isSender, tokens),
+          ],
+        ),
+      ),
+    ],
+  );
+}
+
+TextStyle _numberStyle([Color? color]) => typeScale.body.regular
+    .style(color: color)
+    .copyWith(fontFeatures: const [FontFeature.tabularFigures()]);
+
+/// Width of the column a numbered list's markers sit in: its own longest
+/// number, so every item's text starts at the same place.
+double _numberColumnWidth(
+  BuildContext context,
+  BigInt longest,
+  MessageTextTokens tokens,
+) {
+  final painter = TextPainter(
+    text: TextSpan(text: '$longest.', style: _numberStyle()),
+    textDirection: Directionality.of(context),
+  )..layout();
+  final width = painter.width;
+  painter.dispose();
+  return width < tokens.listMarkerWidth ? tokens.listMarkerWidth : width;
+}
+
+Widget _table(
+  BuildContext context,
+  List<List<RangedBlockElement>> head,
+  List<List<List<RangedBlockElement>>> rows,
+  bool isSender,
+  MessageTextTokens tokens,
+) {
+  final palette = SemanticPalette.of(context);
+  Widget cell(List<RangedBlockElement> blocks) => Padding(
+    padding: tokens.tableCellPadding,
+    child: Column(
+      mainAxisSize: MainAxisSize.min,
+      crossAxisAlignment: CrossAxisAlignment.start,
+      spacing: tokens.blockGap,
+      children: [
+        for (final block in blocks)
+          buildBlockElement(context, block.element, isSender, tokens),
+      ],
     ),
-    BlockElement_CodeBlock(:final field0) => Text.rich(
+  );
+
+  return Table(
+    border: TableBorder.all(
+      color: isSender
+          ? palette.message.selfTableBorder
+          : palette.message.otherTableBorder,
+      width: tokens.tableBorderWidth,
+      borderRadius: BorderRadius.circular(tokens.tableRadius),
+    ),
+    defaultColumnWidth: const IntrinsicColumnWidth(),
+    children: [
+      TableRow(
+        children: [
+          for (final blocks in head)
+            DefaultTextStyle.merge(
+              style: const TextStyle(fontWeight: FontWeight.bold),
+              child: cell(blocks),
+            ),
+        ],
+      ),
+      for (final row in rows)
+        TableRow(children: [for (final c in row) cell(c)]),
+    ],
+  );
+}
+
+Widget _rule(BuildContext context, bool isSender) {
+  final message = SemanticPalette.of(context).message;
+  return SizedBox(
+    width: 100,
+    child: Divider(color: isSender ? message.selfText : message.otherText),
+  );
+}
+
+/// A fenced code block, on a slab of its own so it separates from the prose
+/// around it without the bubble having to change shape.
+Widget _codeBlock(
+  BuildContext context,
+  List<RangedCodeBlock> lines,
+  bool isSender,
+  MessageTextTokens tokens,
+) {
+  final palette = SemanticPalette.of(context);
+  return Container(
+    padding: tokens.codePadding,
+    decoration: BoxDecoration(
+      color: palette.fill.tertiary,
+      borderRadius: BorderRadius.circular(tokens.codeRadius),
+    ),
+    child: Text.rich(
       TextSpan(
-        text: field0.map((e) => e.value).join('\n'),
-        style: typeScale.body.xs
+        text: lines.map((line) => line.value).join('\n'),
+        style: typeScale.body.regular
             .style(
               color: isSender
-                  ? SemanticPalette.of(context).message.selfText
-                  : SemanticPalette.of(context).message.otherText,
+                  ? palette.message.selfText
+                  : palette.message.otherText,
             )
             .withSystemMonospace(),
       ),
     ),
-    BlockElement_Error(:final field0) => Container(
-      padding: const EdgeInsets.all(12),
-      decoration: BoxDecoration(
-        border: Border(
-          left: BorderSide(
-            color: SemanticPalette.of(context).separator.primary,
-            width: StrokeWidth.px4,
-          ),
+  );
+}
+
+Widget _errorBlock(
+  BuildContext context,
+  String message,
+  MessageTextTokens tokens,
+) {
+  final palette = SemanticPalette.of(context);
+  return Container(
+    padding: tokens.codePadding,
+    decoration: BoxDecoration(
+      border: Border(
+        left: BorderSide(
+          color: palette.separator.primary,
+          width: tokens.quoteBarWidth,
         ),
-        color: SemanticPalette.of(context).function.warning.primary,
       ),
-      child: Text.rich(TextSpan(text: field0)),
+      color: palette.function.warning.primary,
     ),
-  };
+    child: Text.rich(TextSpan(text: message)),
+  );
+}
+
+/// A list item split from the task marker it opens with, if it opens with one.
+///
+/// The parser hands a task item back as an ordinary list item whose first
+/// paragraph begins with the marker. Lifting the marker out here is what lets
+/// the checkbox take the bullet's place in the column instead of appearing
+/// behind it, mid-sentence.
+class _TaskMarker {
+  const _TaskMarker(this.checked, this.blocks);
+
+  /// Null where the item is not a task item at all.
+  final bool? checked;
+  final List<RangedBlockElement> blocks;
+
+  static _TaskMarker take(List<RangedBlockElement> blocks) {
+    final first = blocks.firstOrNull?.element;
+    if (first is! BlockElement_Paragraph) return _TaskMarker(null, blocks);
+    final marker = first.field0.firstOrNull;
+    if (marker?.element case InlineElement_TaskListMarker(:final field0)) {
+      final head = blocks.first;
+      return _TaskMarker(field0, [
+        RangedBlockElement(
+          start: head.start,
+          end: head.end,
+          element: BlockElement.paragraph(first.field0.sublist(1)),
+        ),
+        ...blocks.skip(1),
+      ]);
+    }
+    return _TaskMarker(null, blocks);
+  }
+}
+
+class _Bullet extends StatelessWidget {
+  const _Bullet({required this.color, required this.size, required this.line});
+
+  final Color color;
+  final double size;
+
+  /// Height of one line of the item's text, which the dot centres on.
+  final double line;
+
+  @override
+  Widget build(BuildContext context) => SizedBox(
+    width: size,
+    height: line,
+    child: Center(
+      child: Container(
+        width: size,
+        height: size,
+        decoration: BoxDecoration(shape: BoxShape.circle, color: color),
+      ),
+    ),
+  );
+}
+
+class _Checkbox extends StatelessWidget {
+  const _Checkbox({
+    required this.checked,
+    required this.isSender,
+    required this.tokens,
+    required this.line,
+  });
+
+  final bool checked;
+  final bool isSender;
+  final MessageTextTokens tokens;
+
+  /// Height of one line of the item's text, which the box centres on.
+  final double line;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = SemanticPalette.of(context);
+    final message = palette.message;
+    return SizedBox(
+      width: tokens.checkboxSize,
+      height: line,
+      child: Center(
+        child: Container(
+          width: tokens.checkboxSize,
+          height: tokens.checkboxSize,
+          decoration: BoxDecoration(
+            // The page background, not a message fill: the box has to read
+            // against either bubble, and a tint of one of them does not.
+            color: palette.backgroundBase.primary,
+            borderRadius: BorderRadius.circular(tokens.checkboxRadius),
+          ),
+          child: checked
+              ? CustomPaint(
+                  painter: _CheckPainter(
+                    color: isSender
+                        ? message.selfCheckboxCheck
+                        : message.otherCheckboxCheck,
+                    strokeWidth: tokens.checkmarkStrokeWidth,
+                  ),
+                )
+              : null,
+        ),
+      ),
+    );
+  }
+}
+
+class _CheckPainter extends CustomPainter {
+  const _CheckPainter({required this.color, required this.strokeWidth});
+
+  final Color color;
+  final double strokeWidth;
+
+  @override
+  void paint(Canvas canvas, Size size) {
+    final paint = Paint()
+      ..color = color
+      ..style = PaintingStyle.stroke
+      ..strokeWidth = strokeWidth
+      ..strokeCap = StrokeCap.round
+      ..strokeJoin = StrokeJoin.round;
+    // Drawn on a 12-unit grid and scaled to whatever box the token asks for.
+    final scale = size.width / 12;
+    final path = Path()
+      ..moveTo(2.5 * scale, 6.5 * scale)
+      ..lineTo(5 * scale, 9 * scale)
+      ..lineTo(9.5 * scale, 3.5 * scale);
+    canvas.drawPath(path, paint);
+  }
+
+  @override
+  bool shouldRepaint(_CheckPainter old) =>
+      old.color != color || old.strokeWidth != strokeWidth;
 }
 
 InlineSpan buildInlineElement(
   BuildContext context,
   RangedInlineElement inline,
-  bool isSender, {
+  bool isSender,
+  MessageTextTokens tokens, {
   Uri? destUrl,
 }) {
   final palette = SemanticPalette.of(context);
@@ -289,6 +588,7 @@ InlineSpan buildInlineElement(
               context,
               child,
               isSender,
+              tokens,
               destUrl: _parseLinkDest(destUrl),
             ),
           )
@@ -301,7 +601,7 @@ InlineSpan buildInlineElement(
     ),
     InlineElement_Bold(:final field0) => TextSpan(
       children: field0
-          .map((child) => buildInlineElement(context, child, isSender))
+          .map((child) => buildInlineElement(context, child, isSender, tokens))
           .toList(),
       style: const TextStyle(fontWeight: FontWeight.bold),
       recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
@@ -311,7 +611,7 @@ InlineSpan buildInlineElement(
     ),
     InlineElement_Italic(:final field0) => TextSpan(
       children: field0
-          .map((child) => buildInlineElement(context, child, isSender))
+          .map((child) => buildInlineElement(context, child, isSender, tokens))
           .toList(),
       style: const TextStyle(fontStyle: FontStyle.italic),
       recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
@@ -321,7 +621,7 @@ InlineSpan buildInlineElement(
     ),
     InlineElement_Strikethrough(:final field0) => TextSpan(
       children: field0
-          .map((child) => buildInlineElement(context, child, isSender))
+          .map((child) => buildInlineElement(context, child, isSender, tokens))
           .toList(),
       style: const TextStyle(decoration: TextDecoration.lineThrough),
       recognizer: destUrl != null ? openLinkRecognizer(context, destUrl) : null,
@@ -331,7 +631,7 @@ InlineSpan buildInlineElement(
     ),
     InlineElement_Spoiler(:final field0) => TextSpan(
       children: field0
-          .map((child) => buildInlineElement(context, child, isSender))
+          .map((child) => buildInlineElement(context, child, isSender, tokens))
           .toList(),
       style: TextStyle(
         decoration: TextDecoration.combine([
@@ -342,23 +642,18 @@ InlineSpan buildInlineElement(
       ),
     ),
     InlineElement_Image() => const WidgetSpan(child: AppIcon.image()),
+    // A task marker the parser did not put at the head of a list item, where
+    // it would have been lifted into the marker column instead.
     InlineElement_TaskListMarker(:final field0) => WidgetSpan(
       alignment: PlaceholderAlignment.middle,
       child: Padding(
-        padding: const EdgeInsets.only(left: S.s4, right: S.s8),
-        child: field0
-            ? AppIcon.squareCheck(
-                size: 20,
-                color: isSender
-                    ? palette.message.selfCheckboxCheck
-                    : palette.message.otherCheckboxCheck,
-              )
-            : AppIcon.square(
-                size: 20,
-                color: isSender
-                    ? palette.message.selfCheckboxCheck
-                    : palette.message.otherCheckboxCheck,
-              ),
+        padding: EdgeInsets.only(right: tokens.listMarkerGap),
+        child: _Checkbox(
+          checked: field0,
+          isSender: isSender,
+          tokens: tokens,
+          line: tokens.checkboxSize,
+        ),
       ),
     ),
   };
@@ -432,31 +727,17 @@ Future<bool> _showLinkConfirmationDialog(BuildContext context, Uri uri) async {
             Row(
               children: [
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.of(dialogContext).pop(false);
-                    },
-                    child: Text(loc.linkConfirmation_cancel),
+                  child: Button(
+                    onPressed: () => Navigator.of(dialogContext).pop(false),
+                    label: loc.linkConfirmation_cancel,
+                    type: ButtonType.secondary,
                   ),
                 ),
                 const SizedBox(width: S.s12),
                 Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.of(dialogContext).pop(true);
-                    },
-                    style: ButtonStyle(
-                      backgroundColor: WidgetStatePropertyAll(
-                        palette.accentBrand.primary,
-                      ),
-                      overlayColor: WidgetStatePropertyAll(
-                        palette.accentBrand.primary,
-                      ),
-                      foregroundColor: WidgetStatePropertyAll(
-                        palette.function.neutral.toggleWhite,
-                      ),
-                    ),
-                    child: Text(loc.linkConfirmation_openLink),
+                  child: Button(
+                    onPressed: () => Navigator.of(dialogContext).pop(true),
+                    label: loc.linkConfirmation_openLink,
                   ),
                 ),
               ],

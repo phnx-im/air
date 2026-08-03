@@ -4,6 +4,7 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/message_row/message_row_tokens.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
@@ -17,6 +18,7 @@ class MessageRowContainer extends StatelessWidget {
     super.key,
     required this.isConnectionChat,
     required this.animated,
+    required this.isNewest,
   });
 
   final bool isConnectionChat;
@@ -26,6 +28,9 @@ class MessageRowContainer extends StatelessWidget {
   /// flipping back to `false` (or never entering `true`) renders the tile
   /// directly.
   final bool animated;
+
+  /// The newest message in the chat.
+  final bool isNewest;
 
   @override
   Widget build(BuildContext context) {
@@ -60,25 +65,42 @@ class MessageRowContainer extends StatelessWidget {
       _ => status,
     };
 
+    final rowTokens = MessageRowTokens.of(context);
+    final isContent = message is UiMessage_Content;
+
     final tile = ListTile(
-      contentPadding: const EdgeInsets.symmetric(horizontal: S.s16),
+      // A message row insets itself. Only the event tiles still borrow the
+      // list's own margin.
+      contentPadding: isContent
+          ? EdgeInsets.zero
+          : const EdgeInsets.symmetric(horizontal: S.s16),
       dense: true,
       visualDensity: const VisualDensity(horizontal: 0, vertical: -4),
       minVerticalPadding: 0,
       title: Container(
         alignment: AlignmentDirectional.centerStart,
         child: switch (message) {
-          UiMessage_Content(field0: final content) => TextMessageTile(
-            messageId: messageId,
-            contentMessage: content,
-            inReplyToMessage: inReplyToMessage,
-            timestamp: timestamp,
-            flightPosition: position,
-            status: adjustedStatus,
-            isSender: isSender,
-            showSender: !isConnectionChat,
-            reactions: reactions,
-            ownUserId: userId,
+          UiMessage_Content(field0: final content) => Padding(
+            // The list knows what precedes each row, so it owns the gaps: a
+            // wide one where the sender changes, a tight one inside a flight.
+            padding: EdgeInsets.only(
+              top: position.isFirst
+                  ? rowTokens.groupGap
+                  : MessageRowTokens.flightGap,
+            ),
+            child: TextMessageTile(
+              messageId: messageId,
+              contentMessage: content,
+              inReplyToMessage: inReplyToMessage,
+              timestamp: timestamp,
+              flightPosition: position,
+              status: adjustedStatus,
+              isSender: isSender,
+              showSender: !isConnectionChat,
+              reactions: reactions,
+              ownUserId: userId,
+              isNewest: isNewest,
+            ),
           ),
           UiMessage_Display(field0: final display) => DisplayMessageTile(
             display,

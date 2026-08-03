@@ -9,6 +9,15 @@ class MainFlutterWindow: NSWindow {
     self.contentViewController = flutterViewController
     self.setFrame(windowFrame, display: true)
 
+    // Wider corner radius and unified toolbar style.
+    let toolbar = NSToolbar(identifier: "main")
+    toolbar.showsBaselineSeparator = false
+    toolbar.displayMode = .iconOnly
+    self.toolbar = toolbar
+    if #available(macOS 11.0, *) {
+      self.toolbarStyle = .unified
+    }
+
     let methodChannel = FlutterMethodChannel(
       name: AppDelegate.notificationChannelName,
       binaryMessenger: flutterViewController.engine.binaryMessenger)

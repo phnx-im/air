@@ -11,10 +11,12 @@ import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/message_list/message_cubit.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/chat_header_bar/chat_header_bar.dart';
+import 'package:air/ds/patterns/chat_header_bar/chat_header_bar_tokens.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
-import 'package:air/features/navigation/app_bar_back_button.dart';
 import 'package:air/features/user/avatar.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -101,9 +103,14 @@ class ChatScreenView extends StatefulWidget {
 class _ChatScreenViewState extends State<ChatScreenView> {
   final _scrollToBottomController = ScrollToBottomController();
 
+  /// How much conversation sits scrolled under the header, 0 at the top of the
+  /// loaded history. Drives the header pill's reveal.
+  final _headerScrollOffset = ValueNotifier<double>(0);
+
   @override
   void dispose() {
     _scrollToBottomController.dispose();
+    _headerScrollOffset.dispose();
     super.dispose();
   }
 
@@ -185,13 +192,15 @@ class _ChatScreenViewState extends State<ChatScreenView> {
     }
 
     return Scaffold(
+      backgroundColor: MessageListView.backgroundColor(context),
       extendBodyBehindAppBar: true,
-      appBar: _ChatHeader(),
+      appBar: _ChatHeader(scrollOffset: _headerScrollOffset),
       body: Stack(
         children: [
           MessageListView(
             createMessageCubit: widget.createMessageCubit,
             scrollToBottomController: _scrollToBottomController,
+            headerScrollOffset: _headerScrollOffset,
           ),
           if (showPendingCommitBanner)
             const Positioned(
@@ -226,13 +235,13 @@ class _ChatScreenViewState extends State<ChatScreenView> {
 }
 
 class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
-  _ChatHeader();
+  const _ChatHeader({required this.scrollOffset});
 
-  final GlobalKey _key = GlobalKey();
+  final ValueListenable<double> scrollOffset;
 
   @override
   Widget build(BuildContext context) {
-    final (chatId, title, hasDetails, image) = context.select((
+    final (chatId, title, hasDetails) = context.select((
       ChatDetailsCubit cubit,
     ) {
       final chat = cubit.state.chat;
@@ -241,27 +250,21 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
         UiChatType_Group() || UiChatType_Connection() => true,
         _ => false,
       };
-      return (chat?.id, chat?.title, hasDetails, chat?.picture);
+      return (chat?.id, chat?.title, hasDetails);
     });
 
-    return AppBar(
-      key: _key,
-      automaticallyImplyLeading: false,
-      backgroundColor: Colors.transparent,
-      surfaceTintColor: Colors.transparent,
-      scrolledUnderElevation: 0,
-      elevation: 0,
-      clipBehavior: Clip.none,
-      leading: context.breakpoint.isSmall ? const AppBarBackButton() : null,
-      centerTitle: true,
-      title: MouseRegion(
-        cursor: hasDetails ? SystemMouseCursors.click : .defer,
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
+    final tokens = ChatHeaderBarTokens.of(context);
+    return SafeArea(
+      bottom: false,
+      child: ValueListenableBuilder<double>(
+        valueListenable: scrollOffset,
+        builder: (context, offset, _) => ChatHeaderBar(
+          tokens: tokens,
+          name: title ?? "",
+          avatar: ChatAvatar(chatId: chatId, size: tokens.avatarSize),
+          scrollOffset: offset,
           onTap: hasDetails
-              ? () {
-                  context.read<NavigationCubit>().openChatDetails();
-                }
+              ? () => context.read<NavigationCubit>().openChatDetails()
               : null,
           onLongPress: () {
             final chatDetailsCubit = context.read<ChatDetailsCubit>();
@@ -281,31 +284,25 @@ class _ChatHeader extends StatelessWidget implements PreferredSizeWidget {
               ),
             );
           },
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            spacing: S.s12,
-            children: [
-              ChatAvatar(chatId: chatId, size: 40),
-              Flexible(
-                child: Text(
-                  title ?? "",
-                  textAlign: TextAlign.center,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                  style: TextTheme.of(context).labelMedium!.copyWith(
-                    color: SemanticPalette.of(context).text.primary,
-                  ),
-                ),
-              ),
-            ],
-          ),
+          onBack: context.breakpoint.isSmall ? () => _back(context) : null,
         ),
       ),
     );
   }
 
+  /// The DS pattern renders its own back button, so the pop that the shared
+  /// app-bar button used to run lives here.
+  Future<void> _back(BuildContext context) async {
+    final navigator = Navigator.of(context);
+    final popped = await navigator.maybePop();
+    if (!popped && context.mounted) {
+      context.read<NavigationCubit>().pop();
+    }
+  }
+
+  // Both density sets share the bar height.
   @override
-  Size get preferredSize => const Size.fromHeight(kToolbarHeight);
+  Size get preferredSize => const Size.fromHeight(S.s56);
 }
 
 class _BlockedChatFooter extends StatelessWidget {
@@ -415,10 +412,10 @@ class _PendingCommitFailedBanner extends StatelessWidget {
                 style: Theme.of(context).textTheme.bodySmall,
               ),
             ),
-            AppButton(
-              size: AppButtonSize.small,
-              type: AppButtonType.primary,
-              tone: AppButtonTone.danger,
+            Button(
+              size: ButtonSize.small,
+              type: ButtonType.primary,
+              tone: ButtonTone.danger,
               onPressed: () => context.read<ChatDetailsCubit>().requestResync(),
               label: 'Resync',
             ),

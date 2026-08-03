@@ -5,8 +5,10 @@ import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/system_message/system_message.dart';
+import 'package:air/ds/patterns/system_message/system_message_tokens.dart';
 import 'package:air/features/user/users_cubit.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 import 'package:air/features/message_list/contact_request_dialog.dart';
@@ -19,30 +21,26 @@ class DisplayMessageTile extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(vertical: S.s24),
-      child: Column(
-        spacing: S.s4,
-        children: [
-          Container(
-            child: switch (eventMessage) {
-              UiEventMessage_System(field0: final message) =>
-                _SystemMessageContent(message: message),
-              UiEventMessage_Error(field0: final message) =>
-                _ErrorMessageContent(message: message),
-            },
-          ),
-          Timestamp(timestamp),
-        ],
+    return switch (eventMessage) {
+      UiEventMessage_System(field0: final message) => _SystemMessageContent(
+        message: message,
+        timestamp: timestamp,
       ),
-    );
+      UiEventMessage_Error(field0: final message) => SystemMessage(
+        tokens: SystemMessageTokens.of(context),
+        tone: SystemMessageTone.danger,
+        label: message.message,
+        timestamp: Timestamp(timestamp),
+      ),
+    };
   }
 }
 
 class _SystemMessageContent extends StatelessWidget {
-  const _SystemMessageContent({required this.message});
+  const _SystemMessageContent({required this.message, required this.timestamp});
 
   final UiSystemMessage message;
+  final DateTime timestamp;
 
   @override
   Widget build(BuildContext context) {
@@ -56,516 +54,162 @@ class _SystemMessageContent extends StatelessWidget {
         :final chatName,
       )
           when !isConfirmed =>
-        ContactRequestDialog(
-          sender: sender,
-          source: .targetedMessage(originChatTitle: chatName),
+        _request(
+          ContactRequestDialog(
+            sender: sender,
+            source: .targetedMessage(originChatTitle: chatName),
+          ),
         ),
       UiSystemMessage_ReceivedHandleConnectionRequest(
         :final sender,
         :final username,
       )
           when !isConfirmed =>
-        ContactRequestDialog(
-          sender: sender,
-          source: .username(username: username),
-        ),
-      _ => Center(
-        child: Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(CornerRadius.px16),
-            border: Border.all(
-              color: SemanticPalette.of(context).separator.secondary,
-              width: StrokeWidth.px2,
-            ),
+        _request(
+          ContactRequestDialog(
+            sender: sender,
+            source: .username(username: username),
           ),
-          padding: const EdgeInsets.symmetric(
-            horizontal: S.s16,
-            vertical: S.s12,
-          ),
-          child: _SystemMessageText(message: message),
         ),
+      _ => SystemMessage(
+        tokens: SystemMessageTokens.of(context),
+        content: buildSystemMessageText(context, message),
+        timestamp: Timestamp(timestamp),
       ),
     };
   }
+
+  /// A pending contact request is something to act on rather than an event to
+  /// skim past, so it brings its own surface and only borrows the tile's
+  /// spacing and timestamp.
+  Widget _request(Widget child) => Padding(
+    padding: const EdgeInsets.symmetric(vertical: S.s24),
+    child: Column(spacing: S.s4, children: [child, Timestamp(timestamp)]),
+  );
 }
 
-class _SystemMessageText extends StatelessWidget {
-  const _SystemMessageText({required this.message});
-
-  final UiSystemMessage message;
-
-  @override
-  Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-
-    final tertiary = SemanticPalette.of(context).text.tertiary;
-    final textStyle = typeScale.body.s.style(color: tertiary);
-    final profileNameStyle = typeScale.body.s.style(
-      color: tertiary,
-      weight: Weight.emphasized,
-    );
-
-    final messageText = switch (message) {
-      UiSystemMessage_Add(field0: final userId, field1: final contactId) => () {
-        final (user1Name, user2Name) = context.select(
-          (UsersCubit c) => (
-            c.state.profile(userId: userId).displayName,
-            c.state.profile(userId: contactId).displayName,
-          ),
-        );
-        return RichText(
-          text: TextSpan(
-            style: textStyle,
-            children: [
-              TextSpan(
-                text: loc.systemMessage_userAddedUser_prefix(user1Name),
-                style: profileNameStyle,
-              ),
-              TextSpan(text: loc.systemMessage_userAddedUser_infix),
-              TextSpan(
-                text: loc.systemMessage_userAddedUser_suffix(user2Name),
-                style: profileNameStyle,
-              ),
-            ],
-          ),
-        );
-      }(),
-      UiSystemMessage_Remove(field0: final userId, field1: final contactId) =>
-        () {
-          final (user1Name, user2Name) = context.select(
-            (UsersCubit c) => (
-              c.state.profile(userId: userId).displayName,
-              c.state.profile(userId: contactId).displayName,
-            ),
-          );
-          return RichText(
-            text: TextSpan(
-              style: textStyle,
-              children: [
-                TextSpan(
-                  text: loc.systemMessage_userRemovedUser_prefix(user1Name),
-                  style: profileNameStyle,
-                ),
-                TextSpan(text: loc.systemMessage_userRemovedUser_infix),
-                TextSpan(
-                  text: loc.systemMessage_userRemovedUser_suffix(user2Name),
-                  style: profileNameStyle,
-                ),
-              ],
-            ),
-          );
-        }(),
-      UiSystemMessage_ChangeTitle(
-        field0: final userId,
-        field1: final oldTitle,
-        field2: final newTitle,
-      ) =>
-        () {
-          final userName = context.select(
-            (UsersCubit c) => c.state.profile(userId: userId).displayName,
-          );
-          return RichText(
-            text: TextSpan(
-              style: textStyle,
-              children: [
-                TextSpan(
-                  text: loc.systemMessage_userChangedTitle_prefix(userName),
-                  style: profileNameStyle,
-                ),
-                TextSpan(text: loc.systemMessage_userChangedTitle_infix_1),
-                TextSpan(
-                  text: loc.systemMessage_userChangedTitle_infix_2(oldTitle),
-                  style: profileNameStyle,
-                ),
-                TextSpan(text: loc.systemMessage_userChangedTitle_infix_3),
-                TextSpan(
-                  text: loc.systemMessage_userChangedTitle_suffix(newTitle),
-                  style: profileNameStyle,
-                ),
-              ],
-            ),
-          );
-        }(),
-      UiSystemMessage_ChangePicture(:final field0) => () {
-        final userName = context.select(
-          (UsersCubit c) => c.state.profile(userId: field0).displayName,
-        );
-        return RichText(
-          text: TextSpan(
-            style: textStyle,
-            children: [
-              TextSpan(
-                text: loc.systemMessage_userChangedPicture_prefix(userName),
-                style: profileNameStyle,
-              ),
-              TextSpan(text: loc.systemMessage_userChangedPicture_infix),
-            ],
-          ),
-        );
-      }(),
-      UiSystemMessage_CreateGroup(field0: final creatorId) => () {
-        final userName = context.select(
-          (UsersCubit c) => c.state.profile(userId: creatorId).displayName,
-        );
-        return RichText(
-          text: TextSpan(
-            style: textStyle,
-            children: [
-              TextSpan(
-                text: loc.systemMessage_userCreatedGroup_prefix(userName),
-                style: profileNameStyle,
-              ),
-              TextSpan(text: loc.systemMessage_userCreatedGroup_suffix),
-            ],
-          ),
-        );
-      }(),
-      UiSystemMessage_NewHandleConnectionChat(:final field0) => () {
-        return RichText(
-          text: TextSpan(
-            style: textStyle,
-            children: [
-              TextSpan(
-                text: loc.systemMessage_newHandleConnectionChat(
-                  field0.plaintext,
-                ),
-                style: textStyle,
-              ),
-            ],
-          ),
-        );
-      }(),
-      UiSystemMessage_AcceptedConnectionRequest(
-        :final sender,
-        :final username,
-      ) =>
-        () {
-          final userName = context.select(
-            (UsersCubit c) => c.state.profile(userId: sender).displayName,
-          );
-          final String text;
-          if (username case final uname?) {
-            text = loc.systemMessage_acceptedHandleConnectionRequest(
-              userName,
-              uname.plaintext,
-            );
-          } else {
-            text = loc.systemMessage_acceptedDirectConnectionRequest(userName);
-          }
-          return RichText(
-            text: TextSpan(
-              style: textStyle,
-              children: [TextSpan(text: text, style: textStyle)],
-            ),
-          );
-        }(),
-      UiSystemMessage_ReceivedConnectionConfirmation(:final sender) => () {
-        final userName = context.select(
-          (UsersCubit c) => c.state.profile(userId: sender).displayName,
-        );
-        final text = loc.systemMessage_receivedConnectionConfirmation(userName);
-        return RichText(
-          text: TextSpan(
-            style: textStyle,
-            children: [TextSpan(text: text, style: textStyle)],
-          ),
-        );
-      }(),
-      UiSystemMessage_ReceivedHandleConnectionRequest(
-        :final sender,
-        :final username,
-      ) =>
-        () {
-          final userName = context.select(
-            (UsersCubit c) => c.state.profile(userId: sender).displayName,
-          );
-          final text = loc.systemMessage_receivedHandleConnectionRequest(
-            userName,
-            username.plaintext,
-          );
-          return RichText(
-            text: TextSpan(
-              style: textStyle,
-              children: [TextSpan(text: text, style: textStyle)],
-            ),
-          );
-        }(),
-      UiSystemMessage_ReceivedDirectConnectionRequest(
-        :final sender,
-        :final chatName,
-      ) =>
-        () {
-          final userName = context.select(
-            (UsersCubit c) => c.state.profile(userId: sender).displayName,
-          );
-          final text = loc.systemMessage_receivedDirectConnectionRequest(
-            userName,
-            chatName,
-          );
-          return RichText(
-            text: TextSpan(
-              style: textStyle,
-              children: [TextSpan(text: text, style: textStyle)],
-            ),
-          );
-        }(),
-      UiSystemMessage_NewDirectConnectionChat(:final field0) => () {
-        final userName = context.select(
-          (UsersCubit c) => c.state.profile(userId: field0).displayName,
-        );
-        final text = loc.systemMessage_newDirectConnectionChat(userName);
-        return RichText(
-          text: TextSpan(
-            style: textStyle,
-            children: [TextSpan(text: text, style: textStyle)],
-          ),
-        );
-      }(),
-    };
-    return messageText;
-  }
-}
-
-RichText buildSystemMessageText(BuildContext context, UiSystemMessage message) {
+/// Builds the sentence describing [message], with the names and titles it
+/// mentions resolved and emphasized.
+///
+/// The spans carry no base style: [SystemMessage] applies it to whatever it is
+/// handed, so only the emphasized runs need one of their own.
+TextSpan buildSystemMessageText(BuildContext context, UiSystemMessage message) {
   final loc = AppLocalizations.of(context);
-
-  final tertiary = SemanticPalette.of(context).text.tertiary;
-  final textStyle = typeScale.body.s.style(color: tertiary);
-  final profileNameStyle = typeScale.body.s.style(
-    color: tertiary,
-    weight: Weight.emphasized,
+  final nameStyle = SystemMessage.emphasisOf(
+    context,
+    SystemMessageVariant.notice,
   );
 
-  final messageText = switch (message) {
-    UiSystemMessage_Add(field0: final userId, field1: final contactId) => () {
-      final (user1Name, user2Name) = context.select(
-        (UsersCubit c) => (
-          c.state.profile(userId: userId).displayName,
-          c.state.profile(userId: contactId).displayName,
-        ),
-      );
-      return RichText(
-        text: TextSpan(
-          style: textStyle,
-          children: [
-            TextSpan(
-              text: loc.systemMessage_userAddedUser_prefix(user1Name),
-              style: profileNameStyle,
-            ),
-            TextSpan(text: loc.systemMessage_userAddedUser_infix),
-            TextSpan(
-              text: loc.systemMessage_userAddedUser_suffix(user2Name),
-              style: profileNameStyle,
-            ),
-          ],
-        ),
-      );
-    }(),
+  String nameOf(UiUserId id) =>
+      context.select((UsersCubit c) => c.state.profile(userId: id).displayName);
+
+  return switch (message) {
+    UiSystemMessage_Add(field0: final userId, field1: final contactId) =>
+      TextSpan(
+        children: [
+          TextSpan(
+            text: loc.systemMessage_userAddedUser_prefix(nameOf(userId)),
+            style: nameStyle,
+          ),
+          TextSpan(text: loc.systemMessage_userAddedUser_infix),
+          TextSpan(
+            text: loc.systemMessage_userAddedUser_suffix(nameOf(contactId)),
+            style: nameStyle,
+          ),
+        ],
+      ),
     UiSystemMessage_Remove(field0: final userId, field1: final contactId) =>
-      () {
-        final (user1Name, user2Name) = context.select(
-          (UsersCubit c) => (
-            c.state.profile(userId: userId).displayName,
-            c.state.profile(userId: contactId).displayName,
+      TextSpan(
+        children: [
+          TextSpan(
+            text: loc.systemMessage_userRemovedUser_prefix(nameOf(userId)),
+            style: nameStyle,
           ),
-        );
-        return RichText(
-          text: TextSpan(
-            style: textStyle,
-            children: [
-              TextSpan(
-                text: loc.systemMessage_userRemovedUser_prefix(user1Name),
-                style: profileNameStyle,
-              ),
-              TextSpan(text: loc.systemMessage_userRemovedUser_infix),
-              TextSpan(
-                text: loc.systemMessage_userRemovedUser_suffix(user2Name),
-                style: profileNameStyle,
-              ),
-            ],
+          TextSpan(text: loc.systemMessage_userRemovedUser_infix),
+          TextSpan(
+            text: loc.systemMessage_userRemovedUser_suffix(nameOf(contactId)),
+            style: nameStyle,
           ),
-        );
-      }(),
+        ],
+      ),
     UiSystemMessage_ChangeTitle(
       field0: final userId,
       field1: final oldTitle,
       field2: final newTitle,
     ) =>
-      () {
-        final userName = context.select(
-          (UsersCubit c) => c.state.profile(userId: userId).displayName,
-        );
-        return RichText(
-          text: TextSpan(
-            style: textStyle,
-            children: [
-              TextSpan(
-                text: loc.systemMessage_userChangedTitle_prefix(userName),
-                style: profileNameStyle,
-              ),
-              TextSpan(text: loc.systemMessage_userChangedTitle_infix_1),
-              TextSpan(
-                text: loc.systemMessage_userChangedTitle_infix_2(oldTitle),
-                style: profileNameStyle,
-              ),
-              TextSpan(text: loc.systemMessage_userChangedTitle_infix_3),
-              TextSpan(
-                text: loc.systemMessage_userChangedTitle_suffix(newTitle),
-                style: profileNameStyle,
-              ),
-            ],
+      TextSpan(
+        children: [
+          TextSpan(
+            text: loc.systemMessage_userChangedTitle_prefix(nameOf(userId)),
+            style: nameStyle,
           ),
-        );
-      }(),
-    UiSystemMessage_ChangePicture(:final field0) => () {
-      final userName = context.select(
-        (UsersCubit c) => c.state.profile(userId: field0).displayName,
-      );
-      return RichText(
-        text: TextSpan(
-          style: textStyle,
-          children: [
-            TextSpan(
-              text: loc.systemMessage_userChangedPicture_prefix(userName),
-              style: profileNameStyle,
-            ),
-            TextSpan(text: loc.systemMessage_userChangedPicture_infix),
-          ],
+          TextSpan(text: loc.systemMessage_userChangedTitle_infix_1),
+          TextSpan(
+            text: loc.systemMessage_userChangedTitle_infix_2(oldTitle),
+            style: nameStyle,
+          ),
+          TextSpan(text: loc.systemMessage_userChangedTitle_infix_3),
+          TextSpan(
+            text: loc.systemMessage_userChangedTitle_suffix(newTitle),
+            style: nameStyle,
+          ),
+        ],
+      ),
+    UiSystemMessage_ChangePicture(:final field0) => TextSpan(
+      children: [
+        TextSpan(
+          text: loc.systemMessage_userChangedPicture_prefix(nameOf(field0)),
+          style: nameStyle,
         ),
-      );
-    }(),
-    UiSystemMessage_CreateGroup(field0: final creatorId) => () {
-      final userName = context.select(
-        (UsersCubit c) => c.state.profile(userId: creatorId).displayName,
-      );
-      return RichText(
-        text: TextSpan(
-          style: textStyle,
-          children: [
-            TextSpan(
-              text: loc.systemMessage_userCreatedGroup_prefix(userName),
-              style: profileNameStyle,
-            ),
-            TextSpan(text: loc.systemMessage_userCreatedGroup_suffix),
-          ],
+        TextSpan(text: loc.systemMessage_userChangedPicture_infix),
+      ],
+    ),
+    UiSystemMessage_CreateGroup(field0: final creatorId) => TextSpan(
+      children: [
+        TextSpan(
+          text: loc.systemMessage_userCreatedGroup_prefix(nameOf(creatorId)),
+          style: nameStyle,
         ),
-      );
-    }(),
-    UiSystemMessage_NewHandleConnectionChat(:final field0) => () {
-      return RichText(
-        text: TextSpan(
-          style: textStyle,
-          children: [
-            TextSpan(
-              text: loc.systemMessage_newHandleConnectionChat(field0.plaintext),
-              style: textStyle,
-            ),
-          ],
-        ),
-      );
-    }(),
+        TextSpan(text: loc.systemMessage_userCreatedGroup_suffix),
+      ],
+    ),
+    UiSystemMessage_NewHandleConnectionChat(:final field0) => TextSpan(
+      text: loc.systemMessage_newHandleConnectionChat(field0.plaintext),
+    ),
     UiSystemMessage_AcceptedConnectionRequest(:final sender, :final username) =>
-      () {
-        final userName = context.select(
-          (UsersCubit c) => c.state.profile(userId: sender).displayName,
-        );
-        final String text;
-        if (username case final uname?) {
-          text = loc.systemMessage_acceptedHandleConnectionRequest(
-            userName,
-            uname.plaintext,
-          );
-        } else {
-          text = loc.systemMessage_acceptedDirectConnectionRequest(userName);
-        }
-        return RichText(
-          text: TextSpan(
-            style: textStyle,
-            children: [TextSpan(text: text, style: textStyle)],
-          ),
-        );
-      }(),
-    UiSystemMessage_ReceivedConnectionConfirmation(:final sender) => () {
-      final userName = context.select(
-        (UsersCubit c) => c.state.profile(userId: sender).displayName,
-      );
-      final text = loc.systemMessage_receivedConnectionConfirmation(userName);
-      return RichText(
-        text: TextSpan(
-          style: textStyle,
-          children: [TextSpan(text: text, style: textStyle)],
-        ),
-      );
-    }(),
+      TextSpan(
+        text: username == null
+            ? loc.systemMessage_acceptedDirectConnectionRequest(nameOf(sender))
+            : loc.systemMessage_acceptedHandleConnectionRequest(
+                nameOf(sender),
+                username.plaintext,
+              ),
+      ),
+    UiSystemMessage_ReceivedConnectionConfirmation(:final sender) => TextSpan(
+      text: loc.systemMessage_receivedConnectionConfirmation(nameOf(sender)),
+    ),
     UiSystemMessage_ReceivedHandleConnectionRequest(
       :final sender,
       :final username,
     ) =>
-      () {
-        final userName = context.select(
-          (UsersCubit c) => c.state.profile(userId: sender).displayName,
-        );
-        final text = loc.systemMessage_receivedHandleConnectionRequest(
-          userName,
+      TextSpan(
+        text: loc.systemMessage_receivedHandleConnectionRequest(
+          nameOf(sender),
           username.plaintext,
-        );
-        return RichText(
-          text: TextSpan(
-            style: textStyle,
-            children: [TextSpan(text: text, style: textStyle)],
-          ),
-        );
-      }(),
+        ),
+      ),
     UiSystemMessage_ReceivedDirectConnectionRequest(
       :final sender,
       :final chatName,
     ) =>
-      () {
-        final userName = context.select(
-          (UsersCubit c) => c.state.profile(userId: sender).displayName,
-        );
-        final text = loc.systemMessage_receivedDirectConnectionRequest(
-          userName,
+      TextSpan(
+        text: loc.systemMessage_receivedDirectConnectionRequest(
+          nameOf(sender),
           chatName,
-        );
-        return RichText(
-          text: TextSpan(
-            style: textStyle,
-            children: [TextSpan(text: text, style: textStyle)],
-          ),
-        );
-      }(),
-    UiSystemMessage_NewDirectConnectionChat(:final field0) => () {
-      final userName = context.select(
-        (UsersCubit c) => c.state.profile(userId: field0).displayName,
-      );
-      final text = loc.systemMessage_newDirectConnectionChat(userName);
-      return RichText(
-        text: TextSpan(
-          style: textStyle,
-          children: [TextSpan(text: text, style: textStyle)],
         ),
-      );
-    }(),
-  };
-  return messageText;
-}
-
-class _ErrorMessageContent extends StatelessWidget {
-  const _ErrorMessageContent({required this.message});
-
-  final UiErrorMessage message;
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      alignment: AlignmentDirectional.topStart,
-      child: Text(
-        message.message,
-        style: typeScale.body.xs
-            .style(color: Primitive.chromatic(Hue.red, Shade.s500))
-            .copyWith(height: 1.0),
       ),
-    );
-  }
+    UiSystemMessage_NewDirectConnectionChat(:final field0) => TextSpan(
+      text: loc.systemMessage_newDirectConnectionChat(nameOf(field0)),
+    ),
+  };
 }

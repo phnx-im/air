@@ -9,7 +9,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:air/core/core.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/ds/components/button_icon/button_icon.dart';
+import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
@@ -139,26 +142,36 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                       trailing: Row(
                         mainAxisSize: MainAxisSize.min,
                         children: [
-                          IconButton(
-                            icon: const AppIcon.copy(),
-                            tooltip: 'Copy',
-                            onPressed: deviceToken == null
-                                ? null
-                                : () {
-                                    Clipboard.setData(
-                                      ClipboardData(text: deviceToken!),
-                                    );
-                                    showSnackBarStandalone(
-                                      (loc) => const SnackBar(
-                                        content: Text('Device token copied'),
-                                      ),
-                                    );
-                                  },
+                          Tooltip(
+                            message: 'Copy',
+                            child: ButtonIcon(
+                              variant: ButtonIconVariant.plain,
+                              icon: AppIconType.copy,
+                              iconSize: S.s24,
+                              hitTargetSize: S.s48,
+                              onPressed: deviceToken == null
+                                  ? null
+                                  : () {
+                                      Clipboard.setData(
+                                        ClipboardData(text: deviceToken!),
+                                      );
+                                      showSnackBarStandalone(
+                                        (loc) => const SnackBar(
+                                          content: Text('Device token copied'),
+                                        ),
+                                      );
+                                    },
+                            ),
                           ),
-                          IconButton(
-                            icon: const AppIcon.refreshCw(),
-                            tooltip: 'Refresh',
-                            onPressed: onRefreshPushToken,
+                          Tooltip(
+                            message: 'Refresh',
+                            child: ButtonIcon(
+                              variant: ButtonIconVariant.plain,
+                              icon: AppIconType.refreshCw,
+                              iconSize: S.s24,
+                              hitTargetSize: S.s48,
+                              onPressed: onRefreshPushToken,
+                            ),
                           ),
                         ],
                       ),
@@ -254,30 +267,14 @@ void _confirmDialog({
 }) {
   showDialog(
     context: context,
-    builder: (BuildContext context) {
-      return AlertDialog(
-        title: const Text('Confirmation'),
-        content: Text(label),
-        actions: [
-          TextButton(
-            child: const Text('Cancel'),
-            onPressed: () {
-              Navigator.of(context).pop();
-            },
-          ),
-          TextButton(
-            style: TextButton.styleFrom(
-              backgroundColor: Primitive.chromatic(Hue.red, Shade.s500),
-              foregroundColor: SemanticPalette.of(
-                context,
-              ).function.neutral.white,
-            ),
-            onPressed: onConfirm,
-            child: Text(confirmLabel),
-          ),
-        ],
-      );
-    },
+    builder: (_) => ConfirmDialog(
+      title: 'Confirmation',
+      message: label,
+      cancel: 'Cancel',
+      confirm: confirmLabel,
+      onConfirm: onConfirm,
+      destructive: true,
+    ),
   );
 }
 
