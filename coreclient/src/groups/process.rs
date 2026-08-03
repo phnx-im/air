@@ -25,7 +25,9 @@ use apqmls::{
 };
 use mimi_room_policy::RoleIndex;
 use openmls::{
-    group::{ProcessMessageError, ValidationError},
+    components::vc_derivation_info::VirtualClientsError,
+    framing::errors::{MessageDecryptionError, SecretTreeError},
+    group::{ProcessMessageError, StageCommitError, ValidationError},
     prelude::{
         Credential, GroupId, LeafNodeIndex, MlsGroup, ProcessedMessage, ProcessedMessageContent,
         Proposal, ProtocolMessage, Sender, SignaturePublicKey, StagedCommit,
@@ -41,7 +43,7 @@ use crate::{
         user_settings::{SettingChanges, apply_settings_update, merge_settings_update},
     },
     db::access::WriteDbTransaction,
-    groups::client_auth_info::VerifiableUserCredentialExt,
+    groups::client_auth_info::{StorableUserCredential, VerifiableUserCredentialExt},
     job::pending_chat_operation::PendingChatOperation,
     key_stores::as_credentials::AsCredentials,
 };
@@ -79,7 +81,7 @@ impl Group {
     /// Process inbound message
     ///
     /// Returns the processed message, whether the group was deleted, as well as
-    /// the sender's user credential.
+    /// the sender's user credential
     #[instrument(skip_all, fields(group_id = ?self.group_id()))]
     pub(crate) async fn process_message(
         &mut self,
@@ -113,6 +115,28 @@ impl Group {
                     // If the message epoch is in the future, we need to re-join
                     // the group.
                     return Ok(ProcessMessageResult::ResyncRequired);
+                }
+                Err(ProcessMessageError::InvalidCommit(StageCommitError::VirtualClientsError(
+                    error @ VirtualClientsError::MissingEmulationEpochState
+                    | error @ VirtualClientsError::MissingOperationTree
+                    | error @ VirtualClientsError::OperationGenerationConsumed
+                    | error @ VirtualClientsError::OperationGenerationTooDistant,
+                ))) => {
+                    // The commit was not built against a virtual client emulation epoch we hold.
+                    // Only a resync can get us back onto the same shared leaf.
+                    //
+                    // TODO(gabriel): Like for the other desyncs, there's no automatic resyncing.
+                    error!(
+                        %error,
+                        "Cannot follow a virtual-client commit onto our shared leaf"
+                    );
+                    return Ok(ProcessMessageResult::ResyncRequired);
+                }
+                Err(ProcessMessageError::ValidationError(ValidationError::UnableToDecrypt(
+                    MessageDecryptionError::SecretTreeError(SecretTreeError::SecretReuseError),
+                ))) if self.own_leaf_is_virtual_client() => {
+                    debug!("Ignoring our own echoed application message");
+                    return Ok(ProcessMessageResult::Ignored);
                 }
                 Err(e) => {
                     bail!("Could not process message: {e:?}");
@@ -694,6 +718,7 @@ impl Group {
         as_credentials: &HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>,
     ) -> Result<Vec<UserCredential>> {
         let mut credentials = Vec::new();
+        let is_self_group = AirComponent::is_self_group_context(self.mls_group.extensions());
 
         for proposal in staged_commit.add_proposals() {
             let leaf_node = proposal.add_proposal().key_package().leaf_node();
@@ -702,8 +727,18 @@ impl Group {
             let credential = LeafCredential::from_credential(leaf_node.credential())?
                 .into_user()
                 .context("adding self-group members is not yet supported")?;
-            let credential =
-                credential.verify_and_validate(leaf_node.signature_key(), None, as_credentials)?;
+            let credential = if is_self_group {
+                // TODO(gabriel): replace this by using LeafCredential instead.
+                //
+                // A self-group leaf is signed with the joining device's own key
+                // rather than the one its user credential attests, so the
+                // leaf-key binding does not apply. The credential itself is
+                // still verified against the AS, and only our own devices are
+                // ever members of our self group.
+                StorableUserCredential::verify(credential, as_credentials)?
+            } else {
+                credential.verify_and_validate(leaf_node.signature_key(), None, as_credentials)?
+            };
 
             self.verify_role_change(sender_user, credential.user_id(), RoleIndex::Regular)?;
 
@@ -795,6 +830,30 @@ impl Group {
                 // A future-epoch message means we are behind and the caller
                 // must trigger a resync.
                 return Ok(ProcessMessageResult::ResyncRequired);
+            }
+            Err(ApqProcessMessageError::Processing(ProcessMessageError::InvalidCommit(
+                StageCommitError::VirtualClientsError(
+                    error @ VirtualClientsError::MissingEmulationEpochState
+                    | error @ VirtualClientsError::MissingOperationTree
+                    | error @ VirtualClientsError::OperationGenerationConsumed
+                    | error @ VirtualClientsError::OperationGenerationTooDistant,
+                ),
+            ))) => {
+                // See the T-only variant: we cannot derive the leaf a sibling
+                // emulator client replaced, so only a resync recovers.
+                error!(
+                    %error,
+                    "Cannot follow a virtual-client APQ commit onto our shared leaf"
+                );
+                return Ok(ProcessMessageResult::ResyncRequired);
+            }
+            Err(ApqProcessMessageError::Processing(ProcessMessageError::ValidationError(
+                ValidationError::UnableToDecrypt(MessageDecryptionError::SecretTreeError(
+                    SecretTreeError::SecretReuseError,
+                )),
+            ))) if self.own_leaf_is_virtual_client() => {
+                debug!("Ignoring our own echoed APQ application message");
+                return Ok(ProcessMessageResult::Ignored);
             }
             Err(e) => {
                 return Err(e).context("Failed to process APQ message");

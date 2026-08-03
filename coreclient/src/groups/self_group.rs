@@ -81,18 +81,13 @@ impl SelfGroup {
         self.group.identity_link_wrapper_key()
     }
 
-    /// Register a virtual-clients emulation epoch on both the classical and
-    /// post-quantum groups.
+    /// Register a virtual-clients emulation epoch for the self group's current
+    /// epoch. See [`Group::register_vc_emulation_epoch`].
     pub(crate) fn register_vc_emulation_epoch(
         &mut self,
-        mut connection: impl WriteConnection,
+        connection: impl WriteConnection,
     ) -> anyhow::Result<EpochId> {
-        let provider = AirOpenMlsProvider::new(connection.as_mut());
-        let (t_group, _) = self.group.apq_mls_groups_mut()?;
-        let t_epoch_id = t_group
-            .register_vc_emulation_epoch(provider.crypto(), provider.storage())
-            .context("register VC emulation epoch (t)")?;
-        Ok(t_epoch_id)
+        self.group.register_vc_emulation_epoch(connection)
     }
 
     /// Stages an empty self-update commit on the self-group carrying a [`KeyPackageUpload`] in its

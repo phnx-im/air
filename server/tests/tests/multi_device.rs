@@ -4,7 +4,7 @@
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{
-    ChatId, Message, ReadReceiptsSetting,
+    ChatId, ChatStatus, Message, ReadReceiptsSetting,
     clients::{
         CoreUser,
         multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
@@ -17,7 +17,7 @@ use tempfile::TempDir;
 
 /// Sends `text` from `sender` into the self-group chat and asserts that
 /// `receiver` sees it after fetching + processing its queue.
-async fn send_and_receive(sender: &CoreUser, linked: &CoreUser, chat_id: ChatId, text: &str) {
+async fn send_and_receive(sender: &CoreUser, devices: &[&CoreUser], chat_id: ChatId, text: &str) {
     // Drain the sender's own queue so it is at the latest epoch.
     let pending = sender.qs_fetch_messages().await.unwrap();
     sender.fully_process_qs_messages(pending).await;
@@ -30,20 +30,27 @@ async fn send_and_receive(sender: &CoreUser, linked: &CoreUser, chat_id: ChatId,
     sender.outbound_service().run_once().await;
 
     // check the echoed message on the linked client
-    let qs_messages = linked.qs_fetch_messages().await.unwrap();
-    let processed = linked.fully_process_qs_messages(qs_messages).await;
-    let received = processed
-        .new_messages
-        .last()
-        .unwrap_or_else(|| panic!("receiver did not get the message {text:?}"));
-    let Message::Content(received_content) = received.message() else {
-        panic!("expected a content message, got {:?}", received.message());
-    };
-    assert_eq!(
-        received_content.content(),
-        &content,
-        "self-group message should round-trip"
-    );
+    for device in devices {
+        let qs_messages = device.qs_fetch_messages().await.unwrap();
+        let processed = device.fully_process_qs_messages(qs_messages).await;
+        assert!(
+            processed.errors.is_empty(),
+            "some incoming messages failed to be processed, check logs!"
+        );
+        let received = processed
+            .new_messages
+            .last()
+            .unwrap_or_else(|| panic!("receiver did not get the message {text:?}"));
+        let Message::Content(received_content) = received.message() else {
+            panic!("expected a content message, got {:?}", received.message());
+        };
+        assert_eq!(
+            received_content.content(),
+            &content,
+            "message should round-trip {}",
+            device.own_user_profile().await.unwrap().display_name,
+        );
+    }
 }
 
 /// A confirmation receiver that is already fulfilled, so the acceptor proceeds
@@ -136,11 +143,21 @@ async fn self_chat_id(user: &CoreUser) -> ChatId {
 async fn multi_device_linking_session() {
     let mut setup = TestBackend::single().await;
     let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+    let charlie = setup.add_user().await;
+    setup.connect_users(&alice, &charlie).await;
+
+    // Alice already has two groups before the new device is linked. The
+    // linked device should inherit them, not just the self-group.
+    let chat_id_1 = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id_1, &alice, vec![&bob]).await;
+
+    let chat_id_2 = setup.create_group(&alice).await;
+    setup.invite_to_group(chat_id_2, &alice, vec![&bob]).await;
 
     let (new_device, _tmp) = link_new_device(&setup, &alice).await;
 
-    // The new device is bootstrapped as a second emulator of the same virtual
-    // client: it shares the QsUserId and self-group, but has its own queue.
     let old_device = setup.get_user(&alice).user();
     assert_eq!(
         new_device.qs_user_id(),
@@ -168,7 +185,6 @@ async fn multi_device_linking_session() {
         "linked device must know the shared self group"
     );
 
-    // Both devices are now members of the self group.
     assert_eq!(
         old_device.self_group_member_count().await.unwrap(),
         Some(2),
@@ -180,7 +196,6 @@ async fn multi_device_linking_session() {
         "new device should see both emulator clients in the self group"
     );
 
-    // Both devices surface the self group as a "Notes to self" chat.
     assert_eq!(
         old_device.self_chat_title().await.unwrap().as_deref(),
         Some("Notes to self"),
@@ -192,23 +207,188 @@ async fn multi_device_linking_session() {
         "new device should have a Notes to self chat"
     );
 
-    // Messages sent into the self group are seen by the other device, in both
-    // directions.
+    // Onboarding into the pre-existing groups is queued and processed in the background.
+    new_device.outbound_service().run_once().await;
+
+    // The new device must know about all groups from the original client.
+    let new_device_chat_ids = new_device.ordered_chat_ids().await.unwrap();
+    for (label, chat_id) in [("1", chat_id_1), ("2", chat_id_2)] {
+        assert!(
+            new_device_chat_ids.contains(&chat_id),
+            "linked device should have inherited pre-existing group {label}"
+        );
+        assert!(
+            !new_device.is_resync_pending(chat_id).await.unwrap(),
+            "onboarding into group {label} should have completed, not still be queued"
+        );
+
+        let members = new_device.mls_chat_participants(chat_id).await;
+        assert!(
+            members
+                .as_ref()
+                .is_some_and(|members| members.contains(&alice)),
+            "chat {label} on the linked device should be bound to a joined MLS group, got {members:?}"
+        );
+        assert_eq!(
+            members,
+            old_device.mls_chat_participants(chat_id).await,
+            "linked device should see the same members as the old device in group {label}"
+        );
+    }
+
+    // Messages sent into the self group are seen by the other device.
     let self_chat_id = ChatId::try_from(old_device_self_group.group_id()).unwrap();
     send_and_receive(
         old_device,
-        &new_device,
+        &[&new_device],
         self_chat_id,
-        "hello from the old device",
+        "hello from the old device in self-group",
     )
     .await;
     send_and_receive(
         &new_device,
-        old_device,
+        &[old_device],
         self_chat_id,
-        "hello back from the new device",
+        "hello back from the new device in self-group",
     )
     .await;
+
+    // The old device has to follow the onboarding external commit onto the virtual client's new leaf.
+    let pending = old_device.qs_fetch_messages().await.unwrap();
+    old_device.fully_process_qs_messages(pending).await;
+    assert_eq!(
+        old_device
+            .group_epoch_and_own_index(chat_id_1)
+            .await
+            .unwrap(),
+        new_device
+            .group_epoch_and_own_index(chat_id_1)
+            .await
+            .unwrap(),
+        "both emulator clients must land on the same epoch and shared leaf"
+    );
+
+    // Messages sent into one of the existing groups are seen by both clients.
+    for chat_id in [chat_id_1, chat_id_2] {
+        send_and_receive(
+            old_device,
+            &[&new_device],
+            chat_id,
+            "hello from the old device",
+        )
+        .await;
+        send_and_receive(
+            &new_device,
+            &[old_device],
+            chat_id,
+            "hello back from the new device",
+        )
+        .await;
+    }
+
+    // Messages received from a 3rd party are seen by both clients.
+    let bob_client = setup.get_user(&bob).user();
+    send_and_receive(
+        bob_client,
+        &[&new_device, old_device],
+        chat_id_1,
+        "hello from the old device",
+    )
+    .await;
+
+    // A commit that replaces the shared leaf for some other reason
+    // has to derive the new leaf from the emulation epoch too,
+    // or the sibling emulator client will break.
+    setup
+        .invite_to_group(chat_id_1, &alice, vec![&charlie])
+        .await;
+
+    let pending = new_device.qs_fetch_messages().await.unwrap();
+    let processed = new_device.fully_process_qs_messages(pending).await;
+    assert!(
+        processed.errors.is_empty(),
+        "linked device failed to follow the add commit: {:?}",
+        processed.errors
+    );
+    assert_eq!(
+        new_device
+            .group_epoch_and_own_index(chat_id_1)
+            .await
+            .unwrap(),
+        setup
+            .get_user(&alice)
+            .user()
+            .group_epoch_and_own_index(chat_id_1)
+            .await
+            .unwrap(),
+        "both emulator clients must stay on the same epoch and shared leaf after an invite+add"
+    );
+
+    let bob_client = setup.get_user(&bob).user();
+    send_and_receive(
+        bob_client,
+        &[&new_device],
+        chat_id_1,
+        "after a member was added",
+    )
+    .await;
+
+    // Same for a removal.
+    setup
+        .remove_from_group(chat_id_1, &alice, vec![&charlie])
+        .await
+        .unwrap();
+
+    let pending = new_device.qs_fetch_messages().await.unwrap();
+    let processed = new_device.fully_process_qs_messages(pending).await;
+    assert!(
+        processed.errors.is_empty(),
+        "linked device failed to follow the remove commit: {:?}",
+        processed.errors
+    );
+    assert_eq!(
+        new_device
+            .group_epoch_and_own_index(chat_id_1)
+            .await
+            .unwrap(),
+        setup
+            .get_user(&alice)
+            .user()
+            .group_epoch_and_own_index(chat_id_1)
+            .await
+            .unwrap(),
+        "both emulator clients must stay on the same epoch and shared leaf after a removal"
+    );
+
+    let bob_client = setup.get_user(&bob).user();
+    send_and_receive(
+        bob_client,
+        &[&new_device],
+        chat_id_1,
+        "after a member was removed",
+    )
+    .await;
+
+    // And for a deletion, which replaces the shared leaf as well. Without
+    // following it the linked device never learns the group is gone.
+    setup.delete_group(chat_id_1, &alice).await;
+
+    let pending = new_device.qs_fetch_messages().await.unwrap();
+    let processed = new_device.fully_process_qs_messages(pending).await;
+    assert!(
+        processed.errors.is_empty(),
+        "linked device failed to follow the delete commit: {:?}",
+        processed.errors
+    );
+    let deleted_chat = new_device
+        .chat(&chat_id_1)
+        .await
+        .expect("linked device should still know the deleted chat");
+    assert!(
+        matches!(deleted_chat.status(), ChatStatus::Inactive(_)),
+        "linked device should see the deleted group as inactive, got {:?}",
+        deleted_chat.status()
+    );
 }
 
 // Linking with a session ID that was never registered returns an error.
@@ -550,5 +730,162 @@ async fn multi_device_settings_race_converges() {
     assert_eq!(read_receipts(old_device).await, Some(true));
 
     // The self group is still usable after the race.
-    send_and_receive(old_device, &new_device, chat_id, "still in sync").await;
+    send_and_receive(old_device, &[&new_device], chat_id, "still in sync").await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test linking a third device", skip_all)]
+async fn multi_device_linking_a_third_device() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+
+    // A higher-level group Alice is already a member of. Every device linked
+    // from here on onboards into it with a resync, and unlike the self group its
+    // commits are broadcast to all of Alice's emulator queues.
+    let group_chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(group_chat_id, &alice, vec![&bob])
+        .await;
+
+    let (device_2, _tmp_2) = link_new_device(&setup, &alice).await;
+    // Device 2's onboarding replaces Alice's own, not-yet-virtual leaf, and
+    // turns it into a virtual-client leaf.
+    device_2.outbound_service().run_once().await;
+
+    let (device_3, _tmp_3) = link_new_device(&setup, &alice).await;
+
+    let device_1 = setup.get_user(&alice).user();
+
+    // Empty every queue, so what arrives next is exactly the fan-out of device
+    // 3's onboarding commit: the resync is only enqueued at this point and runs
+    // when device 3's outbound service is driven below.
+    drain_queue(device_1).await;
+    drain_queue(&device_2).await;
+    drain_queue(&device_3).await;
+
+    for (label, device) in [("1", device_1), ("2", &device_2), ("3", &device_3)] {
+        assert_eq!(
+            device.self_group_member_count().await.unwrap(),
+            Some(3),
+            "device {label} should see all three emulator clients in the self group"
+        );
+    }
+
+    // Device 3 onboards into the higher-level group. The leaf it replaces is
+    // already a virtual-client leaf, so the sibling queue is covered by the
+    // regular destination list; the commit must not be fanned out twice.
+    device_3.outbound_service().run_once().await;
+    for (label, device) in [("1", device_1), ("2", &device_2)] {
+        let queued = device.qs_fetch_messages().await.unwrap();
+        assert_eq!(
+            queued.len(),
+            1,
+            "device {label} should receive device 3's onboarding commit exactly once"
+        );
+        device.fully_process_qs_messages(queued).await;
+    }
+
+    assert!(
+        !device_3.is_resync_pending(group_chat_id).await.unwrap(),
+        "device 3 should have completed onboarding into the higher-level group"
+    );
+    let epoch_and_index = device_1
+        .group_epoch_and_own_index(group_chat_id)
+        .await
+        .unwrap();
+    for (label, device) in [("2", &device_2), ("3", &device_3)] {
+        assert_eq!(
+            device
+                .group_epoch_and_own_index(group_chat_id)
+                .await
+                .unwrap(),
+            epoch_and_index,
+            "device {label} should share the virtual client's leaf and epoch"
+        );
+    }
+
+    let chat_id = self_chat_id(device_1).await;
+    send_and_receive(device_1, &[&device_2, &device_3], chat_id, "from device 1").await;
+    send_and_receive(&device_3, &[device_1, &device_2], chat_id, "from device 3").await;
+
+    // The higher-level group is usable from the newest device.
+    send_and_receive(
+        &device_3,
+        &[device_1, &device_2],
+        group_chat_id,
+        "from device 3 in the group",
+    )
+    .await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test onboarding after the self group advanced", skip_all)]
+async fn multi_device_onboarding_after_self_group_advanced() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    setup.connect_users(&alice, &bob).await;
+
+    let group_chat_id = setup.create_group(&alice).await;
+    setup
+        .invite_to_group(group_chat_id, &alice, vec![&bob])
+        .await;
+
+    let (device_2, _tmp_2) = link_new_device(&setup, &alice).await;
+    device_2.outbound_service().run_once().await;
+
+    // Device 3's onboarding into the group is queued here, but not sent yet.
+    let (device_3, _tmp_3) = link_new_device(&setup, &alice).await;
+
+    // Linking a fourth device advances the self group, so the emulation epoch
+    // current when device 3 was linked is now stale. Device 4 registers
+    // emulation epochs only from its own join onwards, so it cannot follow a
+    // commit derived from that older epoch.
+    let (device_4, _tmp_4) = link_new_device(&setup, &alice).await;
+
+    let device_1 = setup.get_user(&alice).user();
+    for device in [device_1, &device_2, &device_3, &device_4] {
+        drain_queue(device).await;
+    }
+
+    // Device 4 onboards first, so device 3's commit has to be followed by a
+    // device that was not in the self group at device 3's linking epoch.
+    device_4.outbound_service().run_once().await;
+    for device in [device_1, &device_2, &device_3] {
+        drain_queue(device).await;
+    }
+
+    device_3.outbound_service().run_once().await;
+    assert!(
+        !device_3.is_resync_pending(group_chat_id).await.unwrap(),
+        "device 3 should have completed onboarding into the higher-level group"
+    );
+
+    let queued = device_4.qs_fetch_messages().await.unwrap();
+    let processed = device_4.fully_process_qs_messages(queued).await;
+    assert!(
+        processed.errors.is_empty(),
+        "device 4 should be able to follow device 3's onboarding commit"
+    );
+    assert_eq!(
+        device_4
+            .group_epoch_and_own_index(group_chat_id)
+            .await
+            .unwrap(),
+        device_3
+            .group_epoch_and_own_index(group_chat_id)
+            .await
+            .unwrap(),
+        "device 4 should stay on the shared leaf after device 3 onboards"
+    );
+
+    send_and_receive(
+        &device_3,
+        &[device_1, &device_2, &device_4],
+        group_chat_id,
+        "from device 3 after a late onboarding",
+    )
+    .await;
 }

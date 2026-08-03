@@ -213,8 +213,8 @@ impl StagedKeyPackages {
         .fetch_all(txn.as_mut())
         .await?;
 
-        // Delete all T key packages for all clients of this user; last resort packages are deleted
-        // if the batch contains at least one T last resort key package.
+        // Delete all T key packages of this user: last resort packages are deleted if the batch
+        // contains at least one T last resort key package.
         query!(
             "WITH lr AS (
                 SELECT
@@ -224,10 +224,7 @@ impl StagedKeyPackages {
                 WHERE batch_id = $1
             )
             DELETE FROM key_package
-            WHERE client_id IN (
-                SELECT client_id FROM qs_client_record
-                    WHERE user_id = $2 AND deleted_at IS NULL
-                )
+            WHERE user_id = $2
                 AND (NOT is_last_resort OR (SELECT has FROM lr))
             ",
             batch_id,
@@ -236,8 +233,8 @@ impl StagedKeyPackages {
         .execute(txn.as_mut())
         .await?;
 
-        // Delete all APQ key packages for all clients of this user; last resort packages are
-        // deleted if the batch contains at least one APQ last resort key package.
+        // Delete all APQ key packages of this user: last resort packages are deleted if the batch
+        // contains at least one APQ last resort key package.
         query!(
             "WITH lr AS (
                 SELECT
@@ -247,10 +244,7 @@ impl StagedKeyPackages {
                 WHERE batch_id = $1
             )
             DELETE FROM apq_key_package
-            WHERE client_id IN (
-                SELECT client_id FROM qs_client_record
-                    WHERE user_id = $2 AND deleted_at IS NULL
-                )
+            WHERE user_id = $2
                 AND (NOT is_last_resort OR (SELECT has FROM lr))
             ",
             batch_id,
@@ -259,14 +253,12 @@ impl StagedKeyPackages {
         .execute(txn.as_mut())
         .await?;
 
-        // Copy all T key packages for all clients of this user from the staged table to the
-        // T key package table.
+        // Copy all T key packages for this user from the staged table to the T key package table.
         query!(
-            "INSERT INTO key_package (client_id, key_package, is_last_resort)
-            SELECT c.client_id, s.key_package, s.is_last_resort
-            FROM qs_staged_key_package s
-            JOIN qs_client_record c ON c.user_id = $1 AND c.deleted_at IS NULL
-            WHERE s.batch_id = $2 AND s.is_apq = false
+            "INSERT INTO key_package (user_id, key_package, is_last_resort)
+            SELECT $1, key_package, is_last_resort
+            FROM qs_staged_key_package
+            WHERE batch_id = $2 AND is_apq = false
             ",
             user_id as _,
             batch_id,
@@ -274,14 +266,13 @@ impl StagedKeyPackages {
         .execute(txn.as_mut())
         .await?;
 
-        // Copy all APQ key packages for all clients of this user from the staged table to the
-        // APQ key package table.
+        // Copy all APQ key packages of this user from the staged table to the APQ key package
+        // table.
         query!(
-            "INSERT INTO apq_key_package (client_id, key_package, is_last_resort)
-            SELECT c.client_id, s.key_package, s.is_last_resort
-            FROM qs_staged_key_package s
-            JOIN qs_client_record c ON c.user_id = $1 AND c.deleted_at IS NULL
-            WHERE s.batch_id = $2 AND s.is_apq = true
+            "INSERT INTO apq_key_package (user_id, key_package, is_last_resort)
+            SELECT $1, key_package, is_last_resort
+            FROM qs_staged_key_package
+            WHERE batch_id = $2 AND is_apq = true
             ",
             user_id as _,
             batch_id,
@@ -593,8 +584,8 @@ mod tests {
         );
         stage_and_promote(&pool, &batch).await?;
 
-        // One plain + one APQ KP, hosted under each of the two clients.
-        assert_eq!(live_counts(&pool).await?, (2, 2));
+        // One plain + one APQ KP, hosted under the user.
+        assert_eq!(live_counts(&pool).await?, (1, 1));
         // Staging consumed.
         assert_eq!(counts(&pool).await?, (0, 0));
         Ok(())

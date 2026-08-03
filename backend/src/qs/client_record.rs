@@ -186,6 +186,25 @@ pub(crate) mod persistence {
             }))
         }
 
+        pub(in crate::qs) async fn load_user_id(
+            connection: impl PgExecutor<'_>,
+            client_id: &QsClientId,
+        ) -> sqlx::Result<Option<QsUserId>> {
+            let client_id = client_id.as_uuid();
+            sqlx::query_scalar!(
+                r#"SELECT
+                    user_id as "user_id: QsUserId"
+                FROM
+                    qs_client_record
+                WHERE
+                    client_id = $1
+                    AND deleted_at IS NULL"#,
+                client_id,
+            )
+            .fetch_optional(connection)
+            .await
+        }
+
         pub(in crate::qs) async fn load_verifying_key(
             connection: impl PgExecutor<'_>,
             client_id: &QsClientId,
@@ -205,25 +224,6 @@ pub(crate) mod persistence {
             .await
             .map(|key| key.map(|BlobDecoded(verifying_key)| verifying_key))
             .map_err(From::from)
-        }
-
-        pub(in crate::qs) async fn load_user_id(
-            connection: impl PgExecutor<'_>,
-            client_id: &QsClientId,
-        ) -> sqlx::Result<Option<QsUserId>> {
-            let client_id = client_id.as_uuid();
-            sqlx::query_scalar!(
-                r#"SELECT
-                    user_id as "user_id: QsUserId"
-                FROM
-                    qs_client_record
-                WHERE
-                    client_id = $1
-                    AND deleted_at IS NULL"#,
-                client_id,
-            )
-            .fetch_optional(connection)
-            .await
         }
 
         pub(in crate::qs) async fn update_activity_time(

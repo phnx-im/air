@@ -84,6 +84,9 @@ pub(crate) enum QsPublishKeyPackagesError {
     /// Error publishing key packages
     #[error("Error publishing key packages")]
     StorageError,
+    /// User not found
+    #[error("User not found")]
+    UnknownUser,
     /// Invalid KeyPackage
     #[error("Invalid KeyPackage")]
     InvalidKeyPackage,
@@ -109,6 +112,7 @@ impl From<QsPublishKeyPackagesError> for Status {
         match e {
             QsPublishKeyPackagesError::StorageError => Status::internal(msg),
             QsPublishKeyPackagesError::InvalidKeyPackage => Status::invalid_argument(msg),
+            QsPublishKeyPackagesError::UnknownUser => Status::not_found(msg),
         }
     }
 }

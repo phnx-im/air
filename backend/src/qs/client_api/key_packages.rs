@@ -65,12 +65,15 @@ impl Qs {
         }
 
         let mut txn = self.db_pool.begin().await?;
+        let user_id = QsClientRecord::load_user_id(&mut *txn, &sender)
+            .await?
+            .ok_or(QsPublishKeyPackagesError::UnknownUser)?;
         if let Some(last_resort_key_package) = last_resort_key_package {
             last_resort_key_package
-                .replace_last_resort(&mut txn, &sender)
+                .replace_last_resort(&mut txn, &user_id)
                 .await?;
         }
-        KeyPackage::replace_multiple(&mut txn, &sender, &verified_key_packages).await?;
+        KeyPackage::replace_multiple(&mut txn, &user_id, &verified_key_packages).await?;
         txn.commit().await?;
 
         Ok(())
@@ -101,12 +104,16 @@ impl Qs {
         }
 
         let mut txn = self.db_pool.begin().await?;
+
+        let user_id = QsClientRecord::load_user_id(&mut *txn, &sender)
+            .await?
+            .ok_or(QsPublishKeyPackagesError::UnknownUser)?;
         if let Some(last_resort_key_package) = last_resort_key_package {
             last_resort_key_package
-                .replace_last_resort(&mut txn, &sender)
+                .replace_last_resort(&mut txn, &user_id)
                 .await?;
         }
-        ApqKeyPackage::replace_multiple(&mut txn, &sender, &verified_key_packages).await?;
+        ApqKeyPackage::replace_multiple(&mut txn, &user_id, &verified_key_packages).await?;
         txn.commit().await?;
 
         Ok(())

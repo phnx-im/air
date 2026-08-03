@@ -139,6 +139,9 @@ impl CoreUser {
                         .clone(),
                     aad,
                     connection_offer_hash,
+                    // TODO(gabriel): joining a connection group is currently never a virtual-client
+                    // onboarding: we are not a member of the group yet.
+                    None,
                 )
                 .await?;
                 let (mut group, commit, group_info, mut member_profile_info) = match res {
