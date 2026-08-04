@@ -10,7 +10,7 @@ use std::{
 };
 
 use aircommon::{
-    credentials::keys::{ClientSigningKey, LeafSigningKey},
+    credentials::keys::{LeafSigningKey, UserSigningKey},
     identifiers::{QsClientId, UserId},
 };
 use chrono::Utc;
@@ -321,7 +321,7 @@ impl OutboundServiceContext {
         fetch_profiles.await;
     }
 
-    fn signing_key(&self) -> &ClientSigningKey {
+    fn signing_key(&self) -> &UserSigningKey {
         &self.key_store.signing_key
     }
 
@@ -329,7 +329,7 @@ impl OutboundServiceContext {
     ///
     /// The self group's leaves are signed with a per-device key that differs from
     /// the shared user credential key, so its messages and commits must be signed
-    /// with that key. All other groups use the shared client signing key.
+    /// with that key. All other groups use the shared user signing key.
     async fn signer_for_group(
         &self,
         group_id: &openmls::group::GroupId,

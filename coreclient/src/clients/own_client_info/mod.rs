@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::{ClientSigningKey, LeafSigningKey, SelfGroupSigningKey},
+    credentials::keys::{LeafSigningKey, SelfGroupSigningKey, UserSigningKey},
     identifiers::{QsClientId, QsUserId, UserId},
 };
 use anyhow::Context;
@@ -32,11 +32,11 @@ impl OwnClientInfo {
     /// The signing key for the local client's leaf in `group_id`.
     ///
     /// The self-group leaf is signed with the per-device self-group key. All other groups use the
-    /// shared user-level client signing key.
+    /// shared user-level signing key.
     pub(crate) async fn signer_for_group(
         connection: impl ReadConnection,
         group_id: &GroupId,
-        user_signer: &ClientSigningKey,
+        user_signer: &UserSigningKey,
     ) -> anyhow::Result<LeafSigningKey> {
         let info = Self::load(connection).await?;
         if info.self_group_id.as_ref() == Some(group_id) {

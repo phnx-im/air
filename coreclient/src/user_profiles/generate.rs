@@ -4,7 +4,7 @@
 
 use aircommon::{
     LibraryError,
-    credentials::keys::PreliminaryClientSigningKey,
+    credentials::keys::PreliminaryUserSigningKey,
     crypto::{indexed_aead::keys::UserProfileKeyIndex, signatures::signable::Signable as _},
 };
 
@@ -20,7 +20,7 @@ impl NewUserProfile {
     /// Creates a new [`NewUserProfile`] with the given data and stores it in
     /// the database.
     pub(crate) fn new(
-        signing_key: &PreliminaryClientSigningKey,
+        signing_key: &PreliminaryUserSigningKey,
         user_id: UserId,
         decryption_key_index: UserProfileKeyIndex,
         display_name: DisplayName,

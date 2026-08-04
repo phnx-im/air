@@ -29,7 +29,7 @@ use crate::{
 };
 
 use aircommon::{
-    credentials::keys::ClientSigningKey,
+    credentials::keys::UserSigningKey,
     crypto::{
         RatchetDecryptionKey,
         aead::keys::{PushTokenEarKey, WelcomeAttributionInfoEarKey},
@@ -60,7 +60,7 @@ pub(crate) struct MemoryUserKeyStoreBase<K> {
     pub(super) wai_ear_key: WelcomeAttributionInfoEarKey,
 }
 
-pub(crate) type MemoryUserKeyStore = MemoryUserKeyStoreBase<ClientSigningKey>;
+pub(crate) type MemoryUserKeyStore = MemoryUserKeyStoreBase<UserSigningKey>;
 
 impl<K> fmt::Debug for MemoryUserKeyStoreBase<K> {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
