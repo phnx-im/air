@@ -188,6 +188,7 @@
   "linkedDevicesScreen_linkDevice": "Link a device",
   "linkedDevicesScreen_unknownDevice": "Unknown device",
   "linkedDevicesScreen_renameError": "Couldn't rename the device. Please try again.",
+  "linkedDevicesScreen_unlinkError": "Couldn't unlink the device. Please try again.",
   "linkedDevicesScreen_deviceCount": "{count, plural, =0 {No devices linked.} one {{count} device linked.} other {{count} devices linked.}}",
   "@linkedDevicesScreen_deviceCount": {
     "placeholders": {

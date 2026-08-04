@@ -6,6 +6,7 @@ import 'package:air/core/core.dart';
 import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
+import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/ds/patterns/edit_dialog/edit_dialog.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/icon_badge/app_icon_badge.dart';
@@ -218,9 +219,38 @@ class _SingleDevice extends StatelessWidget {
               ),
             ),
           ),
-          // Unlinking arrives with the self-group credential flip. The own
-          // device is never unlinkable from here.
+          // The own device is never unlinkable from here: a device is unlinked
+          // from one of its siblings.
+          if (!device.isThisDevice)
+            GestureDetector(
+              onTap: () => _unlinkDevice(context, name),
+              child: AppIcon.trash(color: palette.function.danger, size: 24),
+            ),
         ],
+      ),
+    );
+  }
+
+  void _unlinkDevice(BuildContext context, String name) {
+    final loc = AppLocalizations.of(context);
+    final cubit = context.read<LinkedDevicesCubit>();
+    showDialog(
+      context: context,
+      builder: (_) => ConfirmDialog(
+        title: loc.linkedDevicesScreen_unlinkDialog_title,
+        message: loc.linkedDevicesScreen_unlinkDialog_content,
+        cancel: loc.linkedDevicesScreen_unlinkDialog_cancel,
+        confirm: loc.linkedDevicesScreen_unlinkDialog_confirm,
+        destructive: true,
+        onConfirm: () async {
+          try {
+            await cubit.unlinkDevice(clientId: device.clientId);
+          } catch (_) {
+            showErrorBannerStandalone(
+              (loc) => loc.linkedDevicesScreen_unlinkError,
+            );
+          }
+        },
       ),
     );
   }

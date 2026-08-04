@@ -150,6 +150,10 @@ impl GroupStorageWitness for LocalGroupStorage {
 pub(crate) struct VerifiedGroup(Group);
 
 impl VerifiedGroup {
+    pub(crate) fn group(&self) -> &Group {
+        &self.0
+    }
+
     pub(crate) fn group_mut(&mut self) -> &mut Group {
         &mut self.0
     }

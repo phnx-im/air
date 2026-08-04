@@ -49,6 +49,24 @@ LinkedDevicesState _singleDevice() => LinkedDevicesState(
   ],
 );
 
+/// This device plus one sibling, which is the only shape that offers unlinking.
+LinkedDevicesState _withSibling() => LinkedDevicesState(
+  devices: [
+    _device(
+      name: 'iOS',
+      platform: 2,
+      linkedAt: DateTime.utc(2026, 1, 15, 2, 45),
+      isThisDevice: true,
+    ),
+    _device(
+      name: 'Linux',
+      platform: 5,
+      linkedAt: DateTime.utc(2026, 2, 3, 14, 22),
+      clientId: '00000000-0000-0000-0000-000000000002',
+    ),
+  ],
+);
+
 void main() {
   group('LinkedDevicesView', () {
     late MockLinkedDevicesCubit cubit;
@@ -300,6 +318,59 @@ void main() {
           name: 'Work phone',
         ),
       ).called(1);
+    });
+
+    /// A device is unlinked from one of its siblings, so only sibling rows offer
+    /// it. Offering it on this device would be a footgun.
+    testWidgets('offers unlink only for sibling devices', (tester) async {
+      await pumpView(tester, state: _withSibling());
+
+      expect(find.byType(GestureDetector), findsWidgets);
+      final trashIcons = find.byWidgetPredicate(
+        (widget) => widget is AppIcon && widget.type == AppIconType.trash,
+      );
+      expect(trashIcons, findsOneWidget);
+    });
+
+    testWidgets('confirming the unlink dialog unlinks through the cubit', (
+      tester,
+    ) async {
+      when(
+        () => cubit.unlinkDevice(clientId: any(named: 'clientId')),
+      ).thenAnswer((_) async {});
+
+      await pumpView(tester, state: _withSibling());
+
+      await tester.tap(
+        find.byWidgetPredicate(
+          (widget) => widget is AppIcon && widget.type == AppIconType.trash,
+        ),
+      );
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Unlink'));
+      await tester.pumpAndSettle();
+
+      verify(
+        () => cubit.unlinkDevice(
+          clientId: '00000000-0000-0000-0000-000000000002',
+        ),
+      ).called(1);
+    });
+
+    testWidgets('renders unlink confirm dialog', (tester) async {
+      await pumpView(tester, state: _withSibling());
+
+      await tester.tap(
+        find.byWidgetPredicate(
+          (widget) => widget is AppIcon && widget.type == AppIconType.trash,
+        ),
+      );
+      await tester.pumpAndSettle();
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/linked_devices_unlink_confirm.png'),
+      );
     });
   });
 }

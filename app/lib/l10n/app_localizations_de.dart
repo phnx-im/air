@@ -535,6 +535,10 @@ class AppLocalizationsDe extends AppLocalizations {
       'Das Gerät konnte nicht umbenannt werden. Bitte versuche es erneut.';
 
   @override
+  String get linkedDevicesScreen_unlinkError =>
+      'Couldn\'t unlink the device. Please try again.';
+
+  @override
   String linkedDevicesScreen_deviceCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

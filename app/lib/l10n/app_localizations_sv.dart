@@ -528,6 +528,10 @@ class AppLocalizationsSv extends AppLocalizations {
       'Kunde inte byta namn på enheten. Försök igen.';
 
   @override
+  String get linkedDevicesScreen_unlinkError =>
+      'Couldn\'t unlink the device. Please try again.';
+
+  @override
   String linkedDevicesScreen_deviceCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

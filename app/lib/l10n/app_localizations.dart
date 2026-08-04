@@ -1002,6 +1002,12 @@ abstract class AppLocalizations {
   /// **'Couldn\'t rename the device. Please try again.'**
   String get linkedDevicesScreen_renameError;
 
+  /// No description provided for @linkedDevicesScreen_unlinkError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t unlink the device. Please try again.'**
+  String get linkedDevicesScreen_unlinkError;
+
   /// No description provided for @linkedDevicesScreen_deviceCount.
   ///
   /// In en, this message translates to:

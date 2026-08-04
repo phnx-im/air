@@ -1232,6 +1232,36 @@ async fn multi_device_unlink_removes_only_the_target_leaf() -> anyhow::Result<()
     Ok(())
 }
 
+/// The unlinked device notices on its next queue drain and flags itself. The
+/// flag is what the app watches to delete its local data and return to the
+/// welcome screen.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_unlinked_device_flags_itself() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    let b_id = new_device.own_client_id().await?;
+    assert!(!new_device.is_account_unlinked().await?);
+
+    old_device.unlink_device(b_id).await?;
+    drain_queue(&new_device).await;
+
+    assert!(
+        new_device.is_account_unlinked().await?,
+        "the removed device must know it was unlinked"
+    );
+    assert!(
+        !old_device.is_account_unlinked().await?,
+        "the remover must not flag itself"
+    );
+
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multi_device_unlink_unknown_client_id_is_an_error() -> anyhow::Result<()> {
     let mut setup = TestBackend::single().await;

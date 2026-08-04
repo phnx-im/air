@@ -98,6 +98,13 @@ impl LinkedDevicesCubitBase {
         load_and_emit(&self.core_user, self.core.state_tx()).await;
         Ok(())
     }
+
+    pub async fn unlink_device(&self, client_id: String) -> anyhow::Result<()> {
+        let client_id = Uuid::parse_str(&client_id)?;
+        self.core_user.unlink_device(client_id).await?;
+        load_and_emit(&self.core_user, self.core.state_tx()).await;
+        Ok(())
+    }
 }
 
 /// Reloads the device list whenever the synchronized setting changes.

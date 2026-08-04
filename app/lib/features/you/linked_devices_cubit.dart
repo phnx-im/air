@@ -34,4 +34,7 @@ class LinkedDevicesCubit implements StateStreamableSource<LinkedDevicesState> {
     required String clientId,
     required String name,
   }) async => _impl.renameDevice(clientId: clientId, name: name);
+
+  Future<void> unlinkDevice({required String clientId}) async =>
+      _impl.unlinkDevice(clientId: clientId);
 }

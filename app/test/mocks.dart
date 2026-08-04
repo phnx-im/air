@@ -52,6 +52,9 @@ class MockUiUser implements UiUser {
 
   @override
   bool get unsupportedVersion => false;
+
+  @override
+  bool get accountUnlinked => false;
 }
 
 class MockUsersState implements UsersState {

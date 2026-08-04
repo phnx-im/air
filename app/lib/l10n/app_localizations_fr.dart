@@ -540,6 +540,10 @@ class AppLocalizationsFr extends AppLocalizations {
       'Impossible de renommer l\'appareil. Veuillez réessayer.';
 
   @override
+  String get linkedDevicesScreen_unlinkError =>
+      'Couldn\'t unlink the device. Please try again.';
+
+  @override
   String linkedDevicesScreen_deviceCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,

@@ -31,6 +31,8 @@ abstract class LinkedDevicesCubitBase implements RustOpaqueInterface {
   LinkedDevicesState get state;
 
   Stream<LinkedDevicesState> stream();
+
+  Future<void> unlinkDevice({required String clientId});
 }
 
 @freezed
