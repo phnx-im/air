@@ -990,11 +990,23 @@ abstract class AppLocalizations {
   /// **'Link a device'**
   String get linkedDevicesScreen_linkDevice;
 
+  /// No description provided for @linkedDevicesScreen_unknownDevice.
+  ///
+  /// In en, this message translates to:
+  /// **'Unknown device'**
+  String get linkedDevicesScreen_unknownDevice;
+
+  /// No description provided for @linkedDevicesScreen_renameError.
+  ///
+  /// In en, this message translates to:
+  /// **'Couldn\'t rename the device. Please try again.'**
+  String get linkedDevicesScreen_renameError;
+
   /// No description provided for @linkedDevicesScreen_deviceCount.
   ///
   /// In en, this message translates to:
-  /// **'{count, plural, one {{count} device linked.} other {{count} devices linked.}} You can link up to {remaining} more.'**
-  String linkedDevicesScreen_deviceCount(int count, int remaining);
+  /// **'{count, plural, =0 {No devices linked.} one {{count} device linked.} other {{count} devices linked.}}'**
+  String linkedDevicesScreen_deviceCount(int count);
 
   /// No description provided for @linkedDevicesScreen_encryptionNotice.
   ///

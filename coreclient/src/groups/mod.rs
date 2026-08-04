@@ -1508,12 +1508,18 @@ impl Group {
     /// self group, where the leaf is signed with a fresh key but the WAI must be
     /// signed with the real user credential key so the joiner can verify it
     /// against the sender's user credential.
+    /// Stages an APQ add commit.
+    ///
+    /// `app_ephemeral` rides along on the same commit when set. The self-group
+    /// add uses it to publish the newly linked device's metadata, so linking
+    /// costs one commit rather than two and cannot race with itself.
     pub(super) async fn stage_apq_invite(
         &mut self,
         mut connection: impl WriteConnection,
         signer: &impl ApqSigner,
         wai_signer: &ClientSigningKey,
         invitees: Vec<PreparedInvitee>,
+        app_ephemeral: Option<Proposal>,
     ) -> anyhow::Result<Result<ApqGroupOperationParamsOut, LeafNodeValidationError>> {
         debug_assert!(self.is_apq(), "Non-APQ group in APQ stage_invite");
         // Prepare KeyPackages
@@ -1564,6 +1570,9 @@ impl Group {
                 .force_self_update(true)
                 .propose_adds(key_packages)
                 .create_group_info(true);
+        if let Some(proposal) = app_ephemeral {
+            builder = builder.add_t_proposal(proposal);
+        }
         if let Some(epoch_id) = vc_epoch_id {
             builder = builder.vc_emulation(epoch_id);
         }

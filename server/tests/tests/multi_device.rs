@@ -744,6 +744,49 @@ async fn multi_device_settings_in_linking_payload() {
     assert_eq!(read_receipts(&new_device).await, Some(false));
 }
 
+// The new device's metadata entry rides on the self-group add commit itself, so
+// linking costs exactly one commit.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(
+    name = "Test linking publishes the device entry in one commit",
+    skip_all
+)]
+async fn multi_device_link_publishes_device_entry_without_extra_commit() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let old_device = setup.get_user(&alice).user();
+
+    let old_id = old_device.own_client_id().await.unwrap();
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let new_id = new_device.own_client_id().await.unwrap();
+
+    // No outbound run and no queue drain: both sides already hold both entries.
+    // The old device folded the new entry in while staging the add, and the new
+    // device wrote its own entry before handing a copy over.
+    for (label, device) in [("old", old_device), ("new", &new_device)] {
+        let ids: Vec<_> = device
+            .linked_devices()
+            .await
+            .unwrap()
+            .into_iter()
+            .map(|device| device.client_id)
+            .collect();
+        assert!(
+            ids.contains(&old_id) && ids.contains(&new_id),
+            "the {label} device should know both entries right after linking, got {ids:?}"
+        );
+    }
+
+    // Neither side owes a settings commit, so the self group stays at the epoch
+    // the add left it on.
+    for (label, device) in [("old", old_device), ("new", &new_device)] {
+        assert!(
+            !device.has_pending_setting_changes().await.unwrap(),
+            "the {label} device must not have queued a settings commit for the entry"
+        );
+    }
+}
+
 // Both devices change the setting before processing each other's commit. The
 // DS accepts the first commit and rejects the second with a wrong epoch. The
 // loser gives the setting up when it processes the winner's commit, so both

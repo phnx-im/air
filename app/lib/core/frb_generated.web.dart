@@ -15,6 +15,7 @@ import 'api/chat_list_cubit.dart';
 import 'api/chats_repository.dart';
 import 'api/invitation_code.dart';
 import 'api/invitation_codes_cubit.dart';
+import 'api/linked_devices_cubit.dart';
 import 'api/logging.dart';
 import 'api/markdown.dart';
 import 'api/member_details_cubit.dart';
@@ -70,6 +71,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_InvitationCodesCubitBasePtr => wire
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase;
+
+  CrossPlatformFinalizerArg
+  get rust_arc_decrement_strong_count_LinkedDevicesCubitBasePtr => wire
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLinkedDevicesCubitBase;
 
   CrossPlatformFinalizerArg
   get rust_arc_decrement_strong_count_LogWriterPtr => wire
@@ -166,6 +171,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   InvitationCodesCubitBase
   dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+    dynamic raw,
+  );
+
+  @protected
+  LinkedDevicesCubitBase
+  dco_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLinkedDevicesCubitBase(
     dynamic raw,
   );
 
@@ -292,6 +303,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   InvitationCodesCubitBase
   dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+    dynamic raw,
+  );
+
+  @protected
+  LinkedDevicesCubitBase
+  dco_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLinkedDevicesCubitBase(
     dynamic raw,
   );
 
@@ -461,6 +478,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  LinkedDevicesCubitBase
+  dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLinkedDevicesCubitBase(
+    dynamic raw,
+  );
+
+  @protected
   LogWriter
   dco_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
     dynamic raw,
@@ -575,6 +598,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   RustStreamSink<InvitationCodesState>
   dco_decode_StreamSink_invitation_codes_state_Sse(dynamic raw);
+
+  @protected
+  RustStreamSink<LinkedDevicesState>
+  dco_decode_StreamSink_linked_devices_state_Sse(dynamic raw);
 
   @protected
   RustStreamSink<LogEntry> dco_decode_StreamSink_log_entry_Sse(dynamic raw);
@@ -918,6 +945,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 dco_decode_isize(dynamic raw);
 
   @protected
+  LinkedDevicesState dco_decode_linked_devices_state(dynamic raw);
+
+  @protected
   List<int> dco_decode_list_CastedPrimitive_u_64(dynamic raw);
 
   @protected
@@ -992,6 +1022,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<UiInvitationCode> dco_decode_list_ui_invitation_code(dynamic raw);
+
+  @protected
+  List<UiLinkedDevice> dco_decode_list_ui_linked_device(dynamic raw);
 
   @protected
   List<UiReaction> dco_decode_list_ui_reaction(dynamic raw);
@@ -1323,6 +1356,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiInvitationCode dco_decode_ui_invitation_code(dynamic raw);
 
   @protected
+  UiLinkedDevice dco_decode_ui_linked_device(dynamic raw);
+
+  @protected
   UiMessage dco_decode_ui_message(dynamic raw);
 
   @protected
@@ -1406,6 +1442,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   InvitationCodesCubitBase
   sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LinkedDevicesCubitBase
+  sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLinkedDevicesCubitBase(
     SseDeserializer deserializer,
   );
 
@@ -1532,6 +1574,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   InvitationCodesCubitBase
   sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  LinkedDevicesCubitBase
+  sse_decode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLinkedDevicesCubitBase(
     SseDeserializer deserializer,
   );
 
@@ -1681,6 +1729,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  LinkedDevicesCubitBase
+  sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLinkedDevicesCubitBase(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   LogWriter
   sse_decode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
     SseDeserializer deserializer,
@@ -1797,6 +1851,10 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   sse_decode_StreamSink_invitation_codes_state_Sse(
     SseDeserializer deserializer,
   );
+
+  @protected
+  RustStreamSink<LinkedDevicesState>
+  sse_decode_StreamSink_linked_devices_state_Sse(SseDeserializer deserializer);
 
   @protected
   RustStreamSink<LogEntry> sse_decode_StreamSink_log_entry_Sse(
@@ -2228,6 +2286,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 sse_decode_isize(SseDeserializer deserializer);
 
   @protected
+  LinkedDevicesState sse_decode_linked_devices_state(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<int> sse_decode_list_CastedPrimitive_u_64(SseDeserializer deserializer);
 
   @protected
@@ -2326,6 +2389,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   List<UiInvitationCode> sse_decode_list_ui_invitation_code(
+    SseDeserializer deserializer,
+  );
+
+  @protected
+  List<UiLinkedDevice> sse_decode_list_ui_linked_device(
     SseDeserializer deserializer,
   );
 
@@ -2737,6 +2805,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   UiInvitationCode sse_decode_ui_invitation_code(SseDeserializer deserializer);
 
   @protected
+  UiLinkedDevice sse_decode_ui_linked_device(SseDeserializer deserializer);
+
+  @protected
   UiMessage sse_decode_ui_message(SseDeserializer deserializer);
 
   @protected
@@ -2833,6 +2904,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
     InvitationCodesCubitBase self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLinkedDevicesCubitBase(
+    LinkedDevicesCubitBase self,
     SseSerializer serializer,
   );
 
@@ -2980,6 +3058,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
     InvitationCodesCubitBase self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
+  sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLinkedDevicesCubitBase(
+    LinkedDevicesCubitBase self,
     SseSerializer serializer,
   );
 
@@ -3179,6 +3264,13 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void
+  sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLinkedDevicesCubitBase(
+    LinkedDevicesCubitBase self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void
   sse_encode_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLogWriter(
     LogWriter self,
     SseSerializer serializer,
@@ -3311,6 +3403,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_StreamSink_invitation_codes_state_Sse(
     RustStreamSink<InvitationCodesState> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_StreamSink_linked_devices_state_Sse(
+    RustStreamSink<LinkedDevicesState> self,
     SseSerializer serializer,
   );
 
@@ -3840,6 +3938,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void sse_encode_isize(PlatformInt64 self, SseSerializer serializer);
 
   @protected
+  void sse_encode_linked_devices_state(
+    LinkedDevicesState self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_list_CastedPrimitive_u_64(
     List<int> self,
     SseSerializer serializer,
@@ -3965,6 +4069,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   @protected
   void sse_encode_list_ui_invitation_code(
     List<UiInvitationCode> self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_list_ui_linked_device(
+    List<UiLinkedDevice> self,
     SseSerializer serializer,
   );
 
@@ -4485,6 +4595,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_ui_linked_device(
+    UiLinkedDevice self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_ui_message(UiMessage self, SseSerializer serializer);
 
   @protected
@@ -4646,6 +4762,22 @@ class RustLibWire implements BaseWire {
     int ptr,
   ) => wasmModule
       .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+        ptr,
+      );
+
+  void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLinkedDevicesCubitBase(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLinkedDevicesCubitBase(
+        ptr,
+      );
+
+  void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLinkedDevicesCubitBase(
+    int ptr,
+  ) => wasmModule
+      .rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLinkedDevicesCubitBase(
         ptr,
       );
 
@@ -4953,6 +5085,16 @@ extension type RustLibWasmModule._(JSObject _) implements JSObject {
 
   external void
   rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerInvitationCodesCubitBase(
+    int ptr,
+  );
+
+  external void
+  rust_arc_increment_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLinkedDevicesCubitBase(
+    int ptr,
+  );
+
+  external void
+  rust_arc_decrement_strong_count_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerLinkedDevicesCubitBase(
     int ptr,
   );
 

@@ -528,14 +528,22 @@ class AppLocalizationsDe extends AppLocalizations {
   String get linkedDevicesScreen_linkDevice => 'Gerät verknüpfen';
 
   @override
-  String linkedDevicesScreen_deviceCount(int count, int remaining) {
+  String get linkedDevicesScreen_unknownDevice => 'Unbekanntes Gerät';
+
+  @override
+  String get linkedDevicesScreen_renameError =>
+      'Das Gerät konnte nicht umbenannt werden. Bitte versuche es erneut.';
+
+  @override
+  String linkedDevicesScreen_deviceCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
       other: '$count Geräte verknüpft.',
       one: '$count Gerät verknüpft.',
+      zero: 'Keine Geräte verknüpft.',
     );
-    return '$_temp0 Du kannst bis zu $remaining weitere verknüpfen.';
+    return '$_temp0';
   }
 
   @override

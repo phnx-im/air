@@ -164,13 +164,12 @@
   },
   "linkedDevicesScreen_editNameHint": "Touchez un appareil pour modifier son nom.",
   "linkedDevicesScreen_linkDevice": "Associer un appareil",
-  "linkedDevicesScreen_deviceCount": "{count, plural, one {{count} appareil associé.} other {{count} appareils associés.}} Vous pouvez en associer jusqu'à {remaining} de plus.",
+  "linkedDevicesScreen_unknownDevice": "Appareil inconnu",
+  "linkedDevicesScreen_renameError": "Impossible de renommer l'appareil. Veuillez réessayer.",
+  "linkedDevicesScreen_deviceCount": "{count, plural, =0 {Aucun appareil associé.} one {{count} appareil associé.} other {{count} appareils associés.}}",
   "@linkedDevicesScreen_deviceCount": {
     "placeholders": {
       "count": {
-        "type": "int"
-      },
-      "remaining": {
         "type": "int"
       }
     }

@@ -19,6 +19,7 @@ use airmacros::{
     DeserializeTaggedMap, DeserializeTaggedUnion, SerializeTaggedMap, SerializeTaggedUnion,
 };
 use serde::{Deserialize, Serialize};
+use uuid::Uuid;
 
 /// Marker for the ciphertext of [`SelfGroupMessages`].
 #[derive(Debug)]
@@ -79,6 +80,48 @@ pub enum SelfGroupMessage {
     Unknown,
 }
 
+/// Platform codes for [`LinkedDevice::platform`].
+///
+/// A plain integer rather than a tagged union: the variants carry no payload, and
+/// an unrecognized code decodes to [`PLATFORM_UNKNOWN`] without needing macro
+/// support for unit variants.
+pub const PLATFORM_UNKNOWN: u8 = 0;
+pub const PLATFORM_ANDROID: u8 = 1;
+pub const PLATFORM_IOS: u8 = 2;
+pub const PLATFORM_MACOS: u8 = 3;
+pub const PLATFORM_WINDOWS: u8 = 4;
+pub const PLATFORM_LINUX: u8 = 5;
+
+/// One of the user's devices, as advertised to its siblings.
+///
+/// The `client_id` matches the [`SelfGroupCredential`] of the device's self-group
+/// leaf, which is what ties an entry to a roster member. `linked_at` comes from
+/// the publishing device's own clock and is a display hint only.
+///
+/// [`SelfGroupCredential`]: aircommon::credentials::SelfGroupCredential
+///
+/// ## CDDL Definition
+///
+/// ```cddl
+/// LinkedDevice = {
+///   1: bstr .size 16,   ; client_id
+///   2: tstr,            ; name
+///   3: uint,            ; linked_at, unix epoch seconds
+///   4: uint,            ; platform
+/// }
+/// ```
+#[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
+pub struct LinkedDevice {
+    #[tag(1)]
+    pub client_id: Uuid,
+    #[tag(2)]
+    pub name: String,
+    #[tag(3)]
+    pub created_at: u64,
+    #[tag(4)]
+    pub platform: u8,
+}
+
 /// The full state of the sender's synchronized user settings.
 ///
 /// A settings update is a snapshot, not a diff. Senders fill in every synced
@@ -99,12 +142,18 @@ pub enum SelfGroupMessage {
 /// ```cddl
 /// SettingsUpdate = {
 ///   ? send_read_receipts: bool .tag 1
+///   ? linked_devices: [* LinkedDevice] .tag 2
 /// }
 /// ```
 #[derive(Debug, Clone, Default, PartialEq, Eq, SerializeTaggedMap, DeserializeTaggedMap)]
 pub struct SettingsUpdate {
     #[tag(1)]
     pub send_read_receipts: Option<bool>,
+    /// Sorted by `client_id` so the encoding is canonical. Canonical form
+    /// matters because `complete_sent_setting` compares encoded bytes to decide
+    /// whether an accepted commit finished a pending change.
+    #[tag(2)]
+    pub linked_devices: Option<Vec<LinkedDevice>>,
 }
 
 #[cfg(test)]
@@ -137,7 +186,86 @@ mod test {
     fn sample_messages() -> SelfGroupMessages {
         SelfGroupMessages(vec![SelfGroupMessage::SettingsUpdate(SettingsUpdate {
             send_read_receipts: Some(true),
+            linked_devices: None,
         })])
+    }
+
+    fn sample_device(n: u128, name: &str, platform: u8) -> LinkedDevice {
+        LinkedDevice {
+            client_id: Uuid::from_u128(n),
+            name: name.to_owned(),
+            created_at: n as u64,
+            platform,
+        }
+    }
+
+    // 0. `LinkedDevice` wire shape and `SettingsUpdate` forward compatibility.
+
+    #[test]
+    fn linked_device_roundtrip_and_wire_shape() {
+        let device = LinkedDevice {
+            client_id: Uuid::from_u128(0x0102_0304_0506_0708_090a_0b0c_0d0e_0f10),
+            name: "iPhone".to_owned(),
+            created_at: 1_767_225_600,
+            platform: PLATFORM_IOS,
+        };
+        let bytes = PersistenceCodec::to_vec(&device).unwrap();
+        let decoded: LinkedDevice = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(device, decoded);
+
+        // The first byte is the persistence codec version, then a 4-entry map.
+        assert_eq!(bytes[1], 0xA4);
+    }
+
+    #[test]
+    fn settings_update_with_linked_devices_roundtrip() {
+        let update = SettingsUpdate {
+            send_read_receipts: Some(true),
+            linked_devices: Some(vec![sample_device(1, "Laptop", PLATFORM_LINUX)]),
+        };
+        let bytes = PersistenceCodec::to_vec(&update).unwrap();
+        let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(update, decoded);
+    }
+
+    /// An older client sends `SettingsUpdate` without tag 2. The field must
+    /// decode as absent, which means "the sender has no value", not "clear the
+    /// value".
+    #[test]
+    fn settings_update_without_linked_devices_decodes_as_absent() {
+        #[derive(Debug, Clone, Default, SerializeTaggedMap)]
+        struct SettingsUpdateV1 {
+            #[tag(1)]
+            send_read_receipts: Option<bool>,
+        }
+
+        let old = SettingsUpdateV1 {
+            send_read_receipts: Some(false),
+        };
+        let bytes = PersistenceCodec::to_vec(&old).unwrap();
+        let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(decoded.send_read_receipts, Some(false));
+        assert_eq!(decoded.linked_devices, None);
+    }
+
+    #[test]
+    fn settings_update_with_unknown_tag_is_skipped() {
+        #[derive(Debug, Clone, Default, SerializeTaggedMap)]
+        struct SettingsUpdateV3 {
+            #[tag(1)]
+            send_read_receipts: Option<bool>,
+            #[tag(3)]
+            something_new: Option<u64>,
+        }
+
+        let newer = SettingsUpdateV3 {
+            send_read_receipts: Some(true),
+            something_new: Some(7),
+        };
+        let bytes = PersistenceCodec::to_vec(&newer).unwrap();
+        let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
+        assert_eq!(decoded.send_read_receipts, Some(true));
+        assert_eq!(decoded.linked_devices, None);
     }
 
     // 1. `SettingsUpdate` encode/decode and wire shape.
@@ -146,6 +274,7 @@ mod test {
     fn settings_update_roundtrip_and_wire_shape() {
         let set = SettingsUpdate {
             send_read_receipts: Some(true),
+            linked_devices: None,
         };
         let bytes = PersistenceCodec::to_vec(&set).unwrap();
         let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
@@ -155,6 +284,7 @@ mod test {
 
         let empty = SettingsUpdate {
             send_read_receipts: None,
+            linked_devices: None,
         };
         let bytes = PersistenceCodec::to_vec(&empty).unwrap();
         let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();
@@ -257,9 +387,11 @@ mod test {
     fn vec_of_messages_with_unknown_element() {
         let known_a = SelfGroupMessageV2::SettingsUpdate(SettingsUpdate {
             send_read_receipts: Some(true),
+            linked_devices: None,
         });
         let known_b = SelfGroupMessageV2::SettingsUpdate(SettingsUpdate {
             send_read_receipts: Some(false),
+            linked_devices: None,
         });
         let newer = vec![known_a, SelfGroupMessageV2::Something(9), known_b];
         let bytes = PersistenceCodec::to_vec(&newer).unwrap();
@@ -270,10 +402,12 @@ mod test {
             vec![
                 SelfGroupMessage::SettingsUpdate(SettingsUpdate {
                     send_read_receipts: Some(true),
+                    linked_devices: None,
                 }),
                 SelfGroupMessage::Unknown,
                 SelfGroupMessage::SettingsUpdate(SettingsUpdate {
                     send_read_receipts: Some(false),
+                    linked_devices: None,
                 }),
             ]
         );

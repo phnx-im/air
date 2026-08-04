@@ -6,6 +6,7 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/language_picker_menu.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/features/you/linked_devices_cubit.dart';
 import 'package:air/features/you/linked_devices_screen.dart';
 import 'package:air/features/you/invitation_codes_cubit.dart';
 import 'package:air/features/you/invitation_codes_screen.dart';
@@ -503,8 +504,11 @@ class _Devices extends StatelessWidget {
       onTap: () {
         Navigator.of(context).push(
           MaterialPageRoute(
-            builder: (context) =>
-                LinkedDevicesScreen(userSettingsCubit: context.read()),
+            builder: (context) => LinkedDevicesScreen(
+              linkedDevicesCubit: LinkedDevicesCubit(
+                userCubit: context.read<UserCubit>(),
+              ),
+            ),
           ),
         );
       },

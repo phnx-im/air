@@ -2,43 +2,65 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/core/core.dart';
 import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
-import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/ds/patterns/edit_dialog/edit_dialog.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/icon_badge/app_icon_badge.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/features/you/linked_devices_cubit.dart';
 import 'package:air/features/you/linking_device_dialog.dart';
-import 'package:air/features/user/user_settings_cubit.dart';
+import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:intl/intl.dart';
 
-class LinkedDevicesScreen extends StatelessWidget {
-  const LinkedDevicesScreen({super.key, required this.userSettingsCubit});
+/// Wire platform codes from `protos/src/client/self_group.rs`.
+const _platformAndroid = 1;
+const _platformIos = 2;
 
-  final UserSettingsCubit userSettingsCubit;
+AppIconType _iconFor(int platform) => switch (platform) {
+  _platformAndroid || _platformIos => AppIconType.smartphone,
+  // macOS, Windows, Linux and unknown platforms.
+  _ => AppIconType.laptop,
+};
+
+class LinkedDevicesScreen extends StatelessWidget {
+  const LinkedDevicesScreen({super.key, required this.linkedDevicesCubit});
+
+  final LinkedDevicesCubit linkedDevicesCubit;
 
   @override
   Widget build(BuildContext context) {
-    return BlocProvider<UserSettingsCubit>.value(
-      value: userSettingsCubit,
+    return BlocProvider<LinkedDevicesCubit>.value(
+      value: linkedDevicesCubit,
       child: const LinkedDevicesView(),
     );
   }
 }
 
-class LinkedDevicesView extends HookWidget {
+class LinkedDevicesView extends StatelessWidget {
   const LinkedDevicesView({super.key});
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final palette = SemanticPalette.of(context);
-    final platform = Theme.of(context).platform;
+
+    final devices = context.select(
+      (LinkedDevicesCubit cubit) => cubit.state.devices,
+    );
+    final thisDevice = devices
+        .where((device) => device.isThisDevice)
+        .firstOrNull;
+    final others = devices.where((device) => !device.isThisDevice).toList();
+
+    final sectionStyle = typeScale.body.regular.style(
+      weight: Weight.emphasized,
+      color: palette.text.secondary,
+    );
 
     return AppScaffold(
       title: loc.linkedDevicesScreen_title,
@@ -53,46 +75,30 @@ class LinkedDevicesView extends HookWidget {
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text(
-                  loc.linkedDevicesScreen_thisDevice,
-                  style: typeScale.body.regular.style(
-                    weight: Weight.emphasized,
-                    color: palette.text.secondary,
+                if (thisDevice != null) ...[
+                  Text(loc.linkedDevicesScreen_thisDevice, style: sectionStyle),
+                  const SizedBox(height: S.s8),
+                  _SingleDevice(device: thisDevice),
+                  const SizedBox(height: S.s24),
+                ],
+                if (others.isNotEmpty) ...[
+                  Text(
+                    loc.linkedDevicesScreen_linkedDevices,
+                    style: sectionStyle,
                   ),
-                ),
-                const SizedBox(height: S.s8),
-                _SingleDevice(
-                  deviceName: platform.name,
-                  linkedAt: DateTime.parse("2026-01-15 02:45:00"),
-                ),
-                const SizedBox(height: S.s24),
-                Text(
-                  loc.linkedDevicesScreen_linkedDevices,
-                  style: typeScale.body.regular.style(
-                    weight: Weight.emphasized,
-                    color: palette.text.secondary,
+                  const SizedBox(height: S.s8),
+                  for (final device in others) ...[
+                    _SingleDevice(device: device),
+                    const SizedBox(height: S.s8),
+                  ],
+                  Text(
+                    loc.linkedDevicesScreen_editNameHint,
+                    style: typeScale.body.xs.style(
+                      color: palette.text.quaternary,
+                    ),
                   ),
-                ),
-                const SizedBox(height: S.s8),
-                _SingleDevice(
-                  deviceName: "iOS",
-                  linkedAt: DateTime.parse("2026-02-03 14:22:00"),
-                  unlinkIcon: true,
-                ),
-                const SizedBox(height: S.s8),
-                _SingleDevice(
-                  deviceName: "Android",
-                  linkedAt: DateTime.parse("2026-03-20 10:12:00"),
-                  unlinkIcon: true,
-                ),
-                const SizedBox(height: S.s8),
-                Text(
-                  loc.linkedDevicesScreen_editNameHint,
-                  style: typeScale.body.xs.style(
-                    color: palette.text.quaternary,
-                  ),
-                ),
-                const SizedBox(height: S.s24),
+                  const SizedBox(height: S.s24),
+                ],
                 AppButton(
                   type: .primary,
                   label: loc.linkedDevicesScreen_linkDevice,
@@ -105,7 +111,7 @@ class LinkedDevicesView extends HookWidget {
                 SizedBox(
                   width: .infinity,
                   child: Text(
-                    loc.linkedDevicesScreen_deviceCount(5, 5),
+                    loc.linkedDevicesScreen_deviceCount(others.length),
                     textAlign: .center,
                     style: typeScale.body.xs.style(
                       color: palette.text.quaternary,
@@ -157,15 +163,9 @@ class _EncryptionNotice extends StatelessWidget {
 
 /// A tappable entry for a single linked device in the "Devices" view.
 class _SingleDevice extends StatelessWidget {
-  const _SingleDevice({
-    required this.deviceName,
-    required this.linkedAt,
-    this.unlinkIcon = false,
-  });
+  const _SingleDevice({required this.device});
 
-  final String deviceName;
-  final DateTime linkedAt;
-  final bool unlinkIcon;
+  final UiLinkedDevice device;
 
   @override
   Widget build(BuildContext context) {
@@ -173,6 +173,9 @@ class _SingleDevice extends StatelessWidget {
     final loc = AppLocalizations.of(context);
     final locale = Localizations.localeOf(context).toString();
     final dateFormat = DateFormat.yMMMMd(locale).addPattern("'at'").add_jm();
+    final name = device.name.isEmpty
+        ? loc.linkedDevicesScreen_unknownDevice
+        : device.name;
 
     return Container(
       decoration: BoxDecoration(
@@ -184,28 +187,28 @@ class _SingleDevice extends StatelessWidget {
         spacing: S.s16,
         children: [
           AppIconBadge(
-            type: .laptop,
+            type: _iconFor(device.platform),
             size: 24,
             backgroundColor: palette.backgroundBase.quaternary,
           ),
           Expanded(
             child: GestureDetector(
               behavior: HitTestBehavior.opaque,
-              onTap: () => _editDeviceName(context),
+              onTap: () => _editDeviceName(context, name),
               child: Column(
                 spacing: S.s4,
                 mainAxisAlignment: .start,
                 crossAxisAlignment: .start,
                 children: [
                   Text(
-                    deviceName,
+                    name,
                     style: typeScale.body.regular.style(
                       color: palette.text.primary,
                     ),
                   ),
                   Text(
                     loc.linkedDevicesScreen_linkedOn(
-                      dateFormat.format(linkedAt),
+                      dateFormat.format(device.linkedAt.toLocal()),
                     ),
                     style: typeScale.body.xs.style(
                       color: palette.text.tertiary,
@@ -215,44 +218,35 @@ class _SingleDevice extends StatelessWidget {
               ),
             ),
           ),
-          GestureDetector(
-            onTap: () => _unlinkDevice(context),
-            child: AppIcon.trash(color: palette.function.danger, size: 24),
-          ),
+          // Unlinking arrives with the self-group credential flip. The own
+          // device is never unlinkable from here.
         ],
       ),
     );
   }
 
-  void _editDeviceName(BuildContext context) {
+  void _editDeviceName(BuildContext context, String currentName) {
     final loc = AppLocalizations.of(context);
+    final cubit = context.read<LinkedDevicesCubit>();
+    final navigator = Navigator.of(context);
     showDialog(
       context: context,
       builder: (_) => EditDialog(
         title: loc.linkedDevicesScreen_deviceName_editDialog_title,
         cancel: loc.linkedDevicesScreen_deviceName_editDialog_cancel,
         confirm: loc.linkedDevicesScreen_deviceName_editDialog_confirm,
-        initialValue: deviceName,
+        initialValue: currentName,
         maxLength: 30,
         validator: (value) => value.trim().isNotEmpty,
-        // NOOP for now
-        onSubmit: (_) => Navigator.of(context).pop(),
-      ),
-    );
-  }
-
-  void _unlinkDevice(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-    showDialog(
-      context: context,
-      builder: (_) => ConfirmDialog(
-        title: loc.linkedDevicesScreen_unlinkDialog_title,
-        message: loc.linkedDevicesScreen_unlinkDialog_content,
-        cancel: loc.linkedDevicesScreen_unlinkDialog_cancel,
-        confirm: loc.linkedDevicesScreen_unlinkDialog_confirm,
-        destructive: true,
-        onConfirm: () {
-          // NOOP for now
+        onSubmit: (value) async {
+          navigator.pop();
+          try {
+            await cubit.renameDevice(clientId: device.clientId, name: value);
+          } catch (_) {
+            showErrorBannerStandalone(
+              (loc) => loc.linkedDevicesScreen_renameError,
+            );
+          }
         },
       ),
     );

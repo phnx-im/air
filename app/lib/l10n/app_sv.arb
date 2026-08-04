@@ -164,13 +164,12 @@
   },
   "linkedDevicesScreen_editNameHint": "Tryck på en enhet för att ändra dess namn.",
   "linkedDevicesScreen_linkDevice": "Länka en enhet",
-  "linkedDevicesScreen_deviceCount": "{count, plural, one {{count} enhet länkad.} other {{count} enheter länkade.}} Du kan länka upp till {remaining} till.",
+  "linkedDevicesScreen_unknownDevice": "Okänd enhet",
+  "linkedDevicesScreen_renameError": "Kunde inte byta namn på enheten. Försök igen.",
+  "linkedDevicesScreen_deviceCount": "{count, plural, =0 {Inga enheter länkade.} one {{count} enhet länkad.} other {{count} enheter länkade.}}",
   "@linkedDevicesScreen_deviceCount": {
     "placeholders": {
       "count": {
-        "type": "int"
-      },
-      "remaining": {
         "type": "int"
       }
     }

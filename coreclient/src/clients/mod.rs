@@ -92,6 +92,7 @@ mod delete_account;
 mod event_loop;
 pub(crate) mod invitation_code;
 pub(crate) mod invite_users;
+pub(crate) mod linked_devices;
 mod message;
 pub mod multi_device;
 pub(crate) mod own_client_info;
@@ -230,6 +231,7 @@ impl CoreUser {
         .await?;
 
         let self_user = final_state.into_self_user(client_db, api_clients, global_lock);
+        self_user.publish_own_device_entry(Utc::now()).await;
 
         Ok(self_user)
     }
@@ -269,10 +271,27 @@ impl CoreUser {
             .complete_user_creation(&air_db, &client_db, &api_clients)
             .await?;
         ClientRecord::set_default(air_db.write().await?, user_id).await?;
+        let client_created_at = ClientRecord::load(air_db.read().await?, user_id)
+            .await?
+            .context("unable to load client record")?
+            .created_at;
 
         let global_lock = open_lock_file(db_path)?;
 
-        Ok(final_state.into_self_user(client_db, api_clients, global_lock))
+        let self_user = final_state.into_self_user(client_db, api_clients, global_lock);
+        self_user.publish_own_device_entry(client_created_at).await;
+
+        Ok(self_user)
+    }
+
+    /// Publishes this device's linked-devices entry.
+    ///
+    /// A missing entry only degrades the device list to a fallback label, so it
+    /// must never stop a client from starting.
+    async fn publish_own_device_entry(&self, created_at: DateTime<Utc>) {
+        if let Err(error) = self.ensure_own_device_entry(created_at).await {
+            error!(%error, "failed to publish this device's linked-devices entry");
+        }
     }
 
     /// Delete this user on the server and locally.

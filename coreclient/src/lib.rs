@@ -40,6 +40,7 @@ pub use crate::{
         debug_info::{TimedTaskDebugInfo, UserDebugInfo},
         invitation_code::{InvitationCode, RequestInvitationCodeError},
         invite_users::InviteUsersError,
+        linked_devices::{LinkedDevicesSetting, current_platform, platform_label},
         safety_code::SafetyCode,
         user_settings::{IsDeveloperSetting, ReadReceiptsSetting, UserSetting},
     },
@@ -57,3 +58,5 @@ pub use crate::{
         persistence::{delete_client_database, delete_databases, open_client_db},
     },
 };
+
+pub use airprotos::client::self_group::LinkedDevice;

@@ -521,14 +521,22 @@ class AppLocalizationsSv extends AppLocalizations {
   String get linkedDevicesScreen_linkDevice => 'Länka en enhet';
 
   @override
-  String linkedDevicesScreen_deviceCount(int count, int remaining) {
+  String get linkedDevicesScreen_unknownDevice => 'Okänd enhet';
+
+  @override
+  String get linkedDevicesScreen_renameError =>
+      'Kunde inte byta namn på enheten. Försök igen.';
+
+  @override
+  String linkedDevicesScreen_deviceCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
       other: '$count enheter länkade.',
       one: '$count enhet länkad.',
+      zero: 'Inga enheter länkade.',
     );
-    return '$_temp0 Du kan länka upp till $remaining till.';
+    return '$_temp0';
   }
 
   @override

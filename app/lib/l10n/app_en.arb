@@ -186,13 +186,12 @@
   },
   "linkedDevicesScreen_editNameHint": "Tap a device to edit its name.",
   "linkedDevicesScreen_linkDevice": "Link a device",
-  "linkedDevicesScreen_deviceCount": "{count, plural, one {{count} device linked.} other {{count} devices linked.}} You can link up to {remaining} more.",
+  "linkedDevicesScreen_unknownDevice": "Unknown device",
+  "linkedDevicesScreen_renameError": "Couldn't rename the device. Please try again.",
+  "linkedDevicesScreen_deviceCount": "{count, plural, =0 {No devices linked.} one {{count} device linked.} other {{count} devices linked.}}",
   "@linkedDevicesScreen_deviceCount": {
     "placeholders": {
       "count": {
-        "type": "int"
-      },
-      "remaining": {
         "type": "int"
       }
     }

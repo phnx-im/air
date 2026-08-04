@@ -516,14 +516,22 @@ class AppLocalizationsEn extends AppLocalizations {
   String get linkedDevicesScreen_linkDevice => 'Link a device';
 
   @override
-  String linkedDevicesScreen_deviceCount(int count, int remaining) {
+  String get linkedDevicesScreen_unknownDevice => 'Unknown device';
+
+  @override
+  String get linkedDevicesScreen_renameError =>
+      'Couldn\'t rename the device. Please try again.';
+
+  @override
+  String linkedDevicesScreen_deviceCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
       other: '$count devices linked.',
       one: '$count device linked.',
+      zero: 'No devices linked.',
     );
-    return '$_temp0 You can link up to $remaining more.';
+    return '$_temp0';
   }
 
   @override

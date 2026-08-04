@@ -23,11 +23,12 @@ use aircommon::mls_group_config::{
     default_leaf_node_extensions, self_group_leaf_node_capabilities,
 };
 use airprotos::client::component::AirComponent;
-use airprotos::client::self_group::SettingsUpdate;
+use airprotos::client::self_group::{LinkedDevice, SettingsUpdate};
 use airprotos::relay_service::v1::{LinkingSessionId, RelayFrame};
 use anyhow::{Context, anyhow, bail};
 use apqmls::authentication::ApqCredentialWithKey;
 use apqmls::messages::ApqKeyPackage;
+use chrono::Utc;
 use openmls::components::vc_derivation_info::EpochId;
 use openmls::group::GroupId;
 use openmls::prelude::{Credential, CredentialType, SignaturePublicKey};
@@ -59,6 +60,7 @@ use crate::{
         CIPHERSUITE, CoreUser,
         api_clients::ApiClients,
         create_user::QsRegisteredUserState,
+        linked_devices::merge_device_entry_locally,
         listen_response,
         own_client_info::OwnClientInfo,
         process::process_qs::ProcessedQsMessages,
@@ -110,6 +112,19 @@ pub(crate) struct ProvisioningPackage {
     // The higher-level groups the virtual client is already a member of, which
     // the new emulator client onboards itself into.
     pub(crate) groups: Vec<HigherLevelGroup>,
+}
+
+/// What the new device sends back over the secure linking channel.
+///
+/// The metadata entry travels with the key package so the old device can publish
+/// it on the very same self-group commit that adds the new leaf. Sending it as a
+/// settings commit of its own would advance the self-group epoch behind the back
+/// of the device performing the add, breaking the next link with a wrong-epoch
+/// rejection.
+#[derive(serde::Serialize, serde::Deserialize)]
+pub(crate) struct SelfGroupJoinRequest {
+    pub(crate) key_package: ApqKeyPackage,
+    pub(crate) device: LinkedDevice,
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -297,11 +312,21 @@ impl CoreUser {
         let core_user = Self::link_new_device(api_clients, db_path, package).await?;
         info!("bootstrapped linked client");
 
-        let self_group_kp = core_user.generate_self_group_key_package().await?;
-        tx.send(LinkingMessage::seal(self_group_kp, &cipher)?)
-            .await
-            .context("send self-group key package")?;
-        info!("sent self-group key package to old device");
+        let key_package = core_user.generate_self_group_key_package().await?;
+        // Store our own entry locally and hand a copy to the old device, which
+        // publishes it on the add commit. We cannot learn it from that commit
+        // ourselves: joining through the Welcome skips its proposals.
+        let device = core_user.store_own_device_entry(Utc::now()).await?;
+        tx.send(LinkingMessage::seal(
+            SelfGroupJoinRequest {
+                key_package,
+                device,
+            },
+            &cipher,
+        )?)
+        .await
+        .context("send self-group join request")?;
+        info!("sent self-group key package and device entry to old device");
 
         core_user.join_self_group_from_queue().await?;
         info!("joined self group");
@@ -406,11 +431,11 @@ impl CoreUser {
             .context("send provisioning package")?;
         info!("sent provisioning package to new device");
 
-        // Receive the new device's self-group KeyPackage and add it to the self
-        // group via the DS.
+        // Receive the new device's self-group KeyPackage and its metadata entry,
+        // and add it to the self group via the DS.
         let frame = rx.next().await.context("relay connection closed")??;
-        let self_group_kp: ApqKeyPackage = LinkingMessage::open(frame.as_slice(), &cipher)?;
-        self.add_client_to_self_group(self_group_kp).await?;
+        let request: SelfGroupJoinRequest = LinkingMessage::open(frame.as_slice(), &cipher)?;
+        self.add_client_to_self_group(request).await?;
         info!("added new device to self group");
 
         // Keep the RPC alive until the relay closes our stream, which happens
@@ -577,7 +602,11 @@ impl CoreUser {
             .await
     }
 
-    async fn add_client_to_self_group(&self, key_package: ApqKeyPackage) -> anyhow::Result<()> {
+    async fn add_client_to_self_group(&self, request: SelfGroupJoinRequest) -> anyhow::Result<()> {
+        let SelfGroupJoinRequest {
+            key_package,
+            device,
+        } = request;
         let api_client = self.api_client()?;
         let self_group_signature_key = self.self_group_signature_key().await?;
         let user_id = self.user_id().clone();
@@ -601,6 +630,16 @@ impl CoreUser {
 
                 let user_profile_key = UserProfileKey::load_own(&mut *txn).await?;
 
+                // Record the new device locally and let the add commit carry the
+                // resulting snapshot, so the siblings learn it without a second
+                // commit advancing the epoch behind our back.
+                merge_device_entry_locally(&mut *txn, device).await?;
+                let update = SettingsUpdate::collect(&mut *txn).await?;
+                let settings_proposal = group
+                    .group_mut()
+                    .self_group_settings_proposal(txn, &update)
+                    .await?;
+
                 let invitee = PreparedInvitee {
                     add_info: ContactAddInfos {
                         key_package: ContactKeyPackage::Apq(Box::new(key_package)),
@@ -621,6 +660,7 @@ impl CoreUser {
                         &self_group_signature_key,
                         self.signing_key(),
                         vec![invitee],
+                        Some(settings_proposal),
                     )
                     .await?
                     .map_err(|validation| {
@@ -918,6 +958,7 @@ mod tests {
     fn synced_settings_roundtrip_through_linking_channel() -> anyhow::Result<()> {
         let package = sample_package(SettingsUpdate {
             send_read_receipts: Some(false),
+            linked_devices: None,
         })?;
         let user_id = package.user_id.clone();
 
@@ -929,6 +970,7 @@ mod tests {
             decoded.synced_settings,
             SettingsUpdate {
                 send_read_receipts: Some(false),
+                linked_devices: None,
             }
         );
         assert_eq!(decoded.user_id, user_id);
