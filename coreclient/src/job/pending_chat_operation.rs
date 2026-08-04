@@ -5,7 +5,7 @@
 use airapiclient::ds_api::DsRequestError;
 use aircommon::{
     credentials::{
-        UserCredential,
+        RoomPolicyIdentity, UserCredential,
         keys::{ClientSigningKey, SelfGroupSigningKey},
     },
     crypto::indexed_aead::keys::UserProfileKey,
@@ -25,6 +25,7 @@ use openmls::group::GroupId;
 use serde::{Deserialize, Serialize};
 use sqlx::{query, query_as, query_scalar};
 use tracing::{debug, error, info};
+use uuid::Uuid;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus, Contact, SystemMessage,
@@ -84,6 +85,10 @@ pub(super) enum OperationType {
         /// sent with the still-intended value are done.
         update: SettingsUpdate,
     },
+    /// A self-group commit removing one or more of the user's own devices.
+    SelfGroupRemove {
+        params: Box<ApqGroupOperationParamsOut>,
+    },
 }
 
 impl std::fmt::Display for OperationType {
@@ -95,6 +100,7 @@ impl std::fmt::Display for OperationType {
             OperationType::Other { .. } => "other",
             OperationType::ApqOther { .. } => "apq_other",
             OperationType::SettingsUpdate { .. } => "settings_update",
+            OperationType::SelfGroupRemove { .. } => "self_group_remove",
         };
         f.write_str(label)
     }
@@ -136,7 +142,8 @@ impl OperationType {
             | OperationType::ApqDelete { .. }
             | OperationType::Other { .. }
             | OperationType::ApqOther { .. }
-            | OperationType::SettingsUpdate { .. } => true,
+            | OperationType::SettingsUpdate { .. }
+            | OperationType::SelfGroupRemove { .. } => true,
         }
     }
 
@@ -148,11 +155,16 @@ impl OperationType {
     }
 
     /// Whether a DS rejection of this operation marks the group's commit as
-    /// failed, which raises the desync banner on the chat. Settings updates
-    /// skip this: a self-group settings race is reconciled silently through
-    /// the queue and must not raise a banner on the Notes-to-self chat.
+    /// failed, which raises the desync banner on the chat. Self-group
+    /// operations skip this: a self-group race is reconciled silently through
+    /// the queue and must not raise a banner on the Notes-to-self chat. An
+    /// unlink instead surfaces `JobError::Blocked` to its caller, and the device
+    /// stays visible in the list until a retry succeeds.
     fn marks_commit_failed(&self) -> bool {
-        !matches!(self, OperationType::SettingsUpdate { .. })
+        !matches!(
+            self,
+            OperationType::SettingsUpdate { .. } | OperationType::SelfGroupRemove { .. }
+        )
     }
 }
 
@@ -431,7 +443,8 @@ impl PendingChatOperation {
                     )
                     .await
             }
-            OperationType::SettingsUpdate { params, .. } => {
+            OperationType::SettingsUpdate { params, .. }
+            | OperationType::SelfGroupRemove { params } => {
                 // Sent exactly like `ApqOther`: same DS call, no chat picture,
                 // no chat side effects.
                 let own_qs_client_reference = key_store.create_own_client_reference(qs_client_id);
@@ -752,6 +765,54 @@ impl PendingChatOperation {
             OperationType::SettingsUpdate {
                 params: Box::new(params),
                 update,
+            },
+        );
+        job.store(txn).await?;
+        Ok(job)
+    }
+
+    /// Stages a self-group commit removing the given devices' leaves.
+    ///
+    /// Loads its own signer and client id: a self-group operation has exactly one
+    /// signer it could ever use, so taking one from the caller would just be a
+    /// parameter every call site has to get right.
+    pub(super) async fn create_remove_clients(
+        txn: &mut WriteDbTransaction<'_>,
+        chat_id: ChatId,
+        client_ids: Vec<Uuid>,
+    ) -> anyhow::Result<Self> {
+        let chat = Chat::load(&mut *txn, &chat_id)
+            .await?
+            .with_context(|| format!("Can't find chat with id {chat_id}"))?;
+        let group_id = chat.group_id();
+        let mut group = Group::load_clean_verified(&mut *txn, group_id)
+            .await?
+            .with_context(|| format!("No group found for group ID {group_id:?}"))?;
+
+        let own_info = OwnClientInfo::load(&mut *txn).await?;
+        let signer = own_info
+            .self_group_signing_key
+            .context("self-group signer was not initialized")?;
+
+        // Room policy, keyed by client id rather than user id: all self-group
+        // leaves share one user, so a user-keyed check could not tell them apart.
+        for target in &client_ids {
+            group.verify_role_change_identity(
+                &RoomPolicyIdentity::Client(own_info.client_id),
+                &RoomPolicyIdentity::Client(*target),
+                RoleIndex::Outsider,
+            )?;
+        }
+
+        let params = group
+            .group_mut()
+            .stage_apq_remove_clients(&mut *txn, &signer, client_ids)
+            .await?;
+
+        let job = Self::new(
+            group,
+            OperationType::SelfGroupRemove {
+                params: Box::new(params),
             },
         );
         job.store(txn).await?;

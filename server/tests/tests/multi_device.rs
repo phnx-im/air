@@ -1159,12 +1159,6 @@ async fn multi_device_self_update_in_self_group() {
     send_and_receive(&new_device, &[old_device], chat_id, "and back").await;
 }
 
-/// A resync of the self group rejoins with the per-device self-group
-/// credential.
-///
-/// The external commit must carry a self-group credential and self-group leaf
-/// capabilities. Rejoining with the user credential would be rejected, since
-/// the self group accepts only self-group credentials.
 /// After linking, each device advertises itself and learns its sibling, so both
 /// see the same two-device list. This is the property the Devices screen shows.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
@@ -1207,6 +1201,80 @@ async fn multi_device_linked_devices_converge_on_both_devices() -> anyhow::Resul
     Ok(())
 }
 
+/// Unlinking drops exactly the target's leaf and leaves the remover in place.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_unlink_removes_only_the_target_leaf() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    let a_id = old_device.own_client_id().await?;
+    let b_id = new_device.own_client_id().await?;
+
+    old_device.unlink_device(b_id).await?;
+
+    let roster = old_device.self_group_client_ids().await?;
+    assert_eq!(roster, vec![a_id], "only A must remain in the roster");
+
+    // The removed device must be able to follow the commit that removed it,
+    // which is what lets it notice and tear itself down.
+    let messages = new_device.qs_fetch_messages().await?;
+    let processed = new_device.fully_process_qs_messages(messages).await;
+    assert!(
+        processed.errors.is_empty(),
+        "the unlinked device failed to process its own removal: {:?}",
+        processed.errors
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_unlink_unknown_client_id_is_an_error() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    let error = old_device
+        .unlink_device(Uuid::from_u128(0xbeef))
+        .await
+        .expect_err("unlinking an unknown client id must fail");
+    assert!(
+        error.to_string().contains("not in the self group"),
+        "unexpected error: {error}"
+    );
+
+    Ok(())
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_unlink_self_is_an_error() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    let a_id = old_device.own_client_id().await?;
+    let error = old_device
+        .unlink_device(a_id)
+        .await
+        .expect_err("a device cannot unlink itself");
+    assert!(
+        error.to_string().contains("itself"),
+        "unexpected error: {error}"
+    );
+
+    Ok(())
+}
+
 /// A rename on one device reaches the other through the self group.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 async fn multi_device_rename_propagates_to_the_sibling() -> anyhow::Result<()> {
@@ -1233,6 +1301,12 @@ async fn multi_device_rename_propagates_to_the_sibling() -> anyhow::Result<()> {
     Ok(())
 }
 
+/// A resync of the self group rejoins with the per-device self-group
+/// credential.
+///
+/// The external commit must carry a self-group credential and self-group leaf
+/// capabilities. Rejoining with the user credential would be rejected, since
+/// the self group accepts only self-group credentials.
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Test resync of the self group", skip_all)]
 async fn multi_device_self_group_resync() {

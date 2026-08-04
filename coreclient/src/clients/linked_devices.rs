@@ -13,7 +13,7 @@ use airprotos::client::self_group::{
     LinkedDevice, PLATFORM_ANDROID, PLATFORM_IOS, PLATFORM_LINUX, PLATFORM_MACOS, PLATFORM_UNKNOWN,
     PLATFORM_WINDOWS, SettingsUpdate,
 };
-use anyhow::bail;
+use anyhow::{Context, bail};
 use chrono::{DateTime, Utc};
 use tracing::warn;
 use uuid::Uuid;
@@ -32,6 +32,7 @@ use crate::{
         notification::DbEntityId,
     },
     groups::self_group::SelfGroup,
+    job::chat_operation::ChatOperation,
 };
 
 /// The synchronized set of the user's devices, sorted by client id.
@@ -279,6 +280,27 @@ impl CoreUser {
             return Ok(None);
         };
         Ok(ChatId::try_from(&group_id).ok())
+    }
+
+    /// Unlinks a device by removing its leaf from the self group.
+    ///
+    /// Not revocation: the device keeps the shared user credential and its QS
+    /// queue, and only tears its own data down once it processes the removal.
+    pub async fn unlink_device(&self, client_id: Uuid) -> anyhow::Result<()> {
+        if client_id == self.own_client_id().await? {
+            bail!("a device cannot unlink itself");
+        }
+        if !self.self_group_client_ids().await?.contains(&client_id) {
+            bail!("client {client_id} is not in the self group");
+        }
+        let chat_id = self
+            .self_chat_id()
+            .await?
+            .context("no self group to unlink from")?;
+
+        self.execute_job(ChatOperation::remove_clients(chat_id, vec![client_id]))
+            .await?;
+        Ok(())
     }
 
     /// Renames a device and synchronizes the change.

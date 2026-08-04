@@ -95,6 +95,7 @@ use serde::Serialize;
 use sha2::Sha256;
 use tls_codec::DeserializeBytes;
 use tracing::{Level, debug, enabled, error, warn};
+use uuid::Uuid;
 
 use crate::{
     ChatId, ChatStatus, SystemMessage,
@@ -1674,6 +1675,96 @@ impl Group {
         Ok(params)
     }
 
+    /// Stages a commit removing the self-group leaves with the given client ids.
+    ///
+    /// [`Self::stage_apq_remove`] cannot express this: it is keyed on `UserId`,
+    /// and every self-group leaf belongs to the same user, so a user id
+    /// identifies all of them at once. Client ids come from each leaf's
+    /// `SelfGroupCredential`.
+    ///
+    /// Callers own the room-policy check, matching how `stage_apq_remove` leaves
+    /// it to `create_remove`.
+    pub(super) async fn stage_apq_remove_clients(
+        &mut self,
+        mut connection: impl WriteConnection,
+        signer: &SelfGroupSigningKey,
+        mut client_ids: Vec<Uuid>,
+    ) -> anyhow::Result<ApqGroupOperationParamsOut> {
+        let mut remove_indices = Vec::with_capacity(client_ids.len());
+        for member in self.mls_group.members() {
+            let LeafCredential::SelfGroup(credential) =
+                LeafCredential::from_credential(&member.credential)?
+            else {
+                bail!("a self-group leaf carries a user credential");
+            };
+            if let Some(idx) = client_ids
+                .iter()
+                .position(|id| id == &credential.client_id())
+            {
+                remove_indices.push(member.index);
+                client_ids.swap_remove(idx);
+            }
+            if client_ids.is_empty() {
+                break;
+            }
+        }
+        ensure!(
+            client_ids.is_empty(),
+            "clients to remove are not in the self group: {client_ids:?}"
+        );
+
+        let vc_epoch_id = self.resolve_vc_emulation_epoch(&mut connection).await?;
+        let provider = AirOpenMlsProvider::new(connection.as_mut());
+        let (t_mls_group, pq_mls_group) = self.apq_mls_groups_mut()?;
+
+        let aad_payload = AadPayload::GroupOperation(GroupOperationParamsAad {
+            new_encrypted_user_profile_keys: Vec::new(),
+        });
+        let aad = AadMessage::from(aad_payload).tls_serialize_detached()?;
+        t_mls_group.set_aad(aad);
+
+        let mut builder =
+            apqmls::commit_builder::CommitBuilder::from_groups(t_mls_group, pq_mls_group)
+                .force_self_update(true)
+                .propose_removals(remove_indices)
+                .create_group_info(true);
+        if let Some(epoch_id) = vc_epoch_id {
+            builder = builder.vc_emulation(epoch_id);
+        }
+        let bundle = builder.finalize(&provider, signer, |_| true, |_| true)?;
+
+        debug_assert!(bundle.welcome.is_none());
+        ensure!(
+            bundle.group_info.is_some(),
+            "No group info in APQMLS bundle"
+        );
+
+        Ok(ApqGroupOperationParamsOut {
+            bundle,
+            encrypted_welcome_attribution_infos: Vec::new(),
+        })
+    }
+
+    /// The client ids of all self-group leaves this group can parse.
+    ///
+    /// Infallible and in-memory, for refining a pending removal against the
+    /// current roster. A leaf that fails to parse is skipped rather than
+    /// erroring, unlike [`SelfGroup::client_ids`], which is the authoritative
+    /// read used for display and for the unlink precondition.
+    ///
+    /// [`SelfGroup::client_ids`]: super::self_group::SelfGroup::client_ids
+    pub(crate) fn self_group_client_ids(&self) -> Vec<Uuid> {
+        self.mls_group
+            .members()
+            .filter_map(|member| {
+                match LeafCredential::from_credential(&member.credential).ok()? {
+                    LeafCredential::SelfGroup(credential) => Some(credential.client_id()),
+                    LeafCredential::User(_) => None,
+                }
+            })
+            .collect()
+    }
+
     pub(super) async fn stage_apq_remove(
         &mut self,
         mut connection: impl WriteConnection,
@@ -1931,7 +2022,13 @@ impl Group {
         // self-group epoch change invalidates it. Re-register here: every
         // emulator client passes through this point when the self group
         // advances.
-        if AirComponent::is_self_group_context(self.mls_group.extensions()) {
+        //
+        // Skipped when the merged commit removed us: a non-member cannot derive
+        // the new epoch's exporter, and it has no further commit to emulate. This
+        // is the path a device takes when a sibling unlinks it.
+        if AirComponent::is_self_group_context(self.mls_group.extensions())
+            && self.mls_group.is_active()
+        {
             let epoch = self.mls_group.epoch();
             let epoch_id = self.register_vc_emulation_epoch(&mut *txn)?;
             debug!(
