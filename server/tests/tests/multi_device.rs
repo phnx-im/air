@@ -986,10 +986,59 @@ async fn multi_device_inherits_connection_chats() {
         "hello alice, from bob",
     )
     .await;
+
+    // Inviting bob into a fresh group is what actually consumes the transferred key
+    // material.
+    let group_chat_id = new_device
+        .create_chat(
+            "group from the linked device".to_owned(),
+            None,
+            setup.apq_groups,
+        )
+        .await
+        .unwrap();
+    new_device
+        .invite_users(group_chat_id, std::slice::from_ref(&bob))
+        .await
+        .expect("fatal error inviting bob")
+        .expect("failed to invite bob");
+
+    let qs_messages = bob_device.qs_fetch_messages().await.unwrap();
+    let processed = bob_device.fully_process_qs_messages(qs_messages).await;
+    assert!(
+        processed.errors.is_empty(),
+        "bob failed to process the welcome, check logs!"
+    );
+    assert!(
+        bob_device.chat(&group_chat_id).await.is_some(),
+        "bob should have joined the group created by the linked device"
+    );
 }
 
-/// An unconfirmed connection is deliberately not conveyed: it needs the partial
-/// contact and the connection-offer PSK on top of the group.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test blocked connection chats are not inherited", skip_all)]
+async fn multi_device_skips_blocked_connection_chats() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let connection_chat_id = setup.connect_users(&alice, &bob).await;
+
+    setup
+        .get_user(&alice)
+        .user()
+        .block_contact(bob.clone())
+        .await
+        .unwrap();
+
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    new_device.outbound_service().run_once().await;
+
+    assert!(
+        new_device.chat(&connection_chat_id).await.is_none(),
+        "a blocked connection chat should not be conveyed to a linked device"
+    );
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Test unconfirmed connections are not inherited", skip_all)]
 async fn multi_device_skips_unconfirmed_connection_chats() {

@@ -254,22 +254,23 @@ impl Resync {
                 .await
                 .map_err(OutboundServiceError::fatal)?;
 
-        let chat_id = match existing_chat_id {
-            Some(chat_id) => chat_id,
-            None => Self::create_chat(&mut txn, &group, signer, ds_timestamp, connection_contact)
-                .await
-                .map_err(OutboundServiceError::fatal)?,
-        };
-
         txn.commit()
             .await
             .map_err(OutboundServiceError::recoverable)?;
 
         Self::send_commit(api_clients, signer, &group, commit, original_leaf_index).await?;
 
-        // Insert a system message and mark chat as active once the commit is accepted by the DS.
-        connection
-            .with_transaction(async |txn| -> anyhow::Result<()> {
+        // Create the chat, insert a system message and mark the chat as active
+        // once the commit is accepted by the DS.
+        let chat_id = connection
+            .with_transaction(async |txn| -> anyhow::Result<ChatId> {
+                let chat_id = match existing_chat_id {
+                    Some(chat_id) => chat_id,
+                    None => {
+                        Self::create_chat(txn, &group, signer, ds_timestamp, connection_contact)
+                            .await?
+                    }
+                };
                 let system_message = ChatMessage::new_system_message(
                     chat_id,
                     ds_timestamp,
@@ -277,7 +278,7 @@ impl Resync {
                 );
                 system_message.store(&mut *txn).await?;
                 Chat::update_status(txn, chat_id, &ChatStatus::Active).await?;
-                Ok(())
+                Ok(chat_id)
             })
             .await
             .map_err(OutboundServiceError::recoverable)?;
@@ -295,7 +296,7 @@ impl Resync {
         connection: Option<ConnectionContact>,
     ) -> Result<ChatId> {
         if let Some(contact) = connection {
-            let chat = Chat::new_pending_onboarded_connection_chat(
+            let chat = Chat::new_onboarding_connection_chat(
                 group.group_id().clone(),
                 contact.user_id.clone(),
             );
@@ -599,15 +600,9 @@ mod persistence {
             )
             .fetch_optional(txn.as_mut())
             .await?
-            .map(|record| Resync {
-                chat_id: record.chat_id,
-                group_id: record.group_id.0,
-                pq_group_id: record.pq_group_id.map(|id| id.0),
-                group_state_ear_key: record.group_state_ear_key,
-                identity_link_wrapper_key: record.identity_link_wrapper_key,
-                original_leaf_index: LeafNodeIndex::new(record.original_leaf_index as u32),
-                shares_vc_leaf: record.shares_vc_leaf,
-                connection: match (
+            .and_then(|record| {
+                let group_id = record.group_id.0;
+                let connection = match (
                     record.connection_user_uuid,
                     record.connection_user_domain,
                     record.connection_wai_ear_key,
@@ -620,8 +615,27 @@ mod persistence {
                             friendship_token,
                         })
                     }
-                    _ => None,
-                },
+                    (None, None, None, None) => None,
+                    // The columns are written together, so this row is corrupt.
+                    _ => {
+                        error!(
+                            ?group_id,
+                            "incomplete connection contact in resync queue, skipping."
+                        );
+                        return None;
+                    }
+                };
+
+                Some(Resync {
+                    chat_id: record.chat_id,
+                    group_id,
+                    pq_group_id: record.pq_group_id.map(|id| id.0),
+                    group_state_ear_key: record.group_state_ear_key,
+                    identity_link_wrapper_key: record.identity_link_wrapper_key,
+                    original_leaf_index: LeafNodeIndex::new(record.original_leaf_index as u32),
+                    shares_vc_leaf: record.shares_vc_leaf,
+                    connection,
+                })
             });
 
             Ok(resync)

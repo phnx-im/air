@@ -54,7 +54,7 @@ use uuid::Uuid;
 use crate::db::access::WriteConnection;
 use crate::groups::self_group::SelfGroup;
 use crate::{
-    Chat, ChatId, ChatType, Contact,
+    Chat, ChatId, ChatStatus, ChatType, Contact,
     clients::{
         CIPHERSUITE, CoreUser,
         api_clients::ApiClients,
@@ -494,8 +494,8 @@ impl CoreUser {
     /// Describe every higher-level group the virtual client is a member of, so a
     /// joining emulator client can onboard itself into each of them.
     ///
-    /// Skips the emulation group itself and every connection chat that is not
-    /// confirmed yet.
+    /// Skips the emulation group itself, every connection chat that is not
+    /// confirmed yet, and blocked chats.
     async fn higher_level_groups(&self) -> anyhow::Result<Vec<HigherLevelGroup>> {
         self.db()
             .with_read_transaction(async |txn| -> anyhow::Result<_> {
@@ -510,6 +510,10 @@ impl CoreUser {
                     let Some(chat) = Chat::load(&mut *txn, &chat_id).await? else {
                         continue;
                     };
+                    if matches!(chat.status(), ChatStatus::Blocked) {
+                        debug!(group_id = ?group.group_id, "skipping blocked chat");
+                        continue;
+                    }
                     let connection = match chat.chat_type() {
                         ChatType::Group(_) => None,
                         ChatType::Connection(user_id) => {
@@ -523,8 +527,13 @@ impl CoreUser {
                                 friendship_token: contact.friendship_token,
                             })
                         }
-                        chat_type => {
-                            debug!(group_id = ?group.group_id, ?chat_type, "skipping unconfirmed connection chat");
+                        // TODO(gabriel): unconfirmed connections need the
+                        // partial contact and the connection-offer PSK on top
+                        // of the group.
+                        ChatType::HandleConnection(_)
+                        | ChatType::TargetedMessageConnection(_)
+                        | ChatType::PendingConnection(_) => {
+                            debug!(group_id = ?group.group_id, "skipping unconfirmed connection chat");
                             continue;
                         }
                     };
