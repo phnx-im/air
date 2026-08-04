@@ -4,6 +4,7 @@
 
 use std::marker::PhantomData;
 
+use digest_io::IoWrapper;
 use sha2::{Digest, Sha256};
 use tls_codec::{Serialize, TlsDeserializeBytes, TlsSerialize, TlsSize};
 
@@ -96,12 +97,12 @@ where
     for<'a> &'a T: Serialize,
 {
     fn hash(&self) -> Hash<T> {
-        let mut hasher = HashAlg::new();
+        let mut hasher = IoWrapper(HashAlg::new());
         let serialization_result = LabeledHashPayload::new(self).tls_serialize(&mut hasher);
         debug_assert!(serialization_result.is_ok(), "Serialization failed");
         let serialized_labeled_payload = serialization_result.unwrap_or_default();
 
-        let hash_bytes = hasher.finalize();
+        let hash_bytes = hasher.0.finalize();
         Hash {
             bytes: hash_bytes.into(),
             _marker: PhantomData,
