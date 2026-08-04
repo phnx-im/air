@@ -933,6 +933,11 @@ impl CoreUser {
             .final_state()?
             .into_self_user(client_db, api_clients, global_lock))
     }
+
+    /// Whether a sibling device removed this device from the self group.
+    pub async fn is_account_unlinked(&self) -> anyhow::Result<bool> {
+        OwnClientInfo::is_account_unlinked(self.db().read().await?).await
+    }
 }
 
 #[cfg(test)]

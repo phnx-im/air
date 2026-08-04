@@ -1,0 +1,26 @@
+{
+  "db_name": "SQLite",
+  "query": "SELECT unlinked FROM own_client_info",
+  "describe": {
+    "columns": [
+      {
+        "name": "unlinked",
+        "ordinal": 0,
+        "type_info": "Bool",
+        "origin": {
+          "Table": {
+            "table": "own_client_info",
+            "name": "unlinked"
+          }
+        }
+      }
+    ],
+    "parameters": {
+      "Right": 0
+    },
+    "nullable": [
+      false
+    ]
+  },
+  "hash": "8a48d6ae15aeabad052346df9666d0d1a9f5e62d195a9648be0d747103c7fada"
+}

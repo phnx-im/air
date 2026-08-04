@@ -43,7 +43,6 @@ use crate::{
     },
     clients::{
         block_contact::{BlockedContact, BlockedContactError},
-        linked_devices::mark_account_unlinked,
         own_client_info::OwnClientInfo,
         process::process_as::{ConnectionInfoSource, TargetedMessageSource},
         targeted_message::TargetedMessageContent,
@@ -1217,7 +1216,7 @@ impl CoreUser {
             // Record it so the app can act on it, this launch or a later one.
             if group.group().is_self_group() {
                 error!("this device was unlinked by another device of this user");
-                mark_account_unlinked(&mut *txn).await?;
+                OwnClientInfo::mark_account_unlinked(&mut *txn).await?;
             }
         }
         let (messages_from_commit, group_data_bytes) = group

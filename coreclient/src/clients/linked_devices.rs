@@ -201,17 +201,6 @@ pub(crate) async fn ensure_own_device_entry(
     store_linked_devices(txn, devices).await
 }
 
-/// Records that a sibling device removed this device from the self group.
-///
-/// Terminal and durable: the flag outlives a restart, so a device that missed
-/// the moment of removal still knows it is unlinked on its next launch.
-pub(crate) async fn mark_account_unlinked(txn: &mut WriteDbTransaction<'_>) -> anyhow::Result<()> {
-    sqlx::query!("INSERT OR IGNORE INTO account_unlinked (id) VALUES (0)")
-        .execute(txn.as_mut())
-        .await?;
-    Ok(())
-}
-
 /// Renames the device with the given client id.
 ///
 /// Any device may rename any entry. The map is shared state between all clients
@@ -330,17 +319,6 @@ impl CoreUser {
         self.execute_job(ChatOperation::remove_clients(chat_id, vec![client_id]))
             .await?;
         Ok(())
-    }
-
-    /// Whether a sibling device removed this device from the self group.
-    ///
-    /// Terminal: this device is no longer part of the user's set of devices.
-    pub async fn is_account_unlinked(&self) -> anyhow::Result<bool> {
-        let mut read = self.db().read().await?;
-        let row = sqlx::query_scalar!("SELECT 1 FROM account_unlinked WHERE id = 0")
-            .fetch_optional(read.as_mut())
-            .await?;
-        Ok(row.is_some())
     }
 
     /// Renames a device and synchronizes the change.
