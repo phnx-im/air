@@ -586,15 +586,11 @@ pub(crate) mod persistence {
     /// caller should notify the outbound service. A single-device client that was
     /// never linked has no self-group to sync through, so the value is only stored
     /// locally and `false` is returned.
-    ///
-    /// Exists so callers that already hold a transaction, such as the linked-devices
-    /// writers, can reuse this without duplicating the no-self-group branch.
     pub(crate) async fn set_synced_setting<T: SyncedUserSetting>(
         txn: &mut WriteDbTransaction<'_>,
         value: &T,
     ) -> anyhow::Result<bool> {
         let info = OwnClientInfo::load(&mut *txn).await?;
-
         if info.self_group_id.is_none() {
             // Single device, never linked: store locally, nothing to sync to.
             UserSettingRecord::store(&mut *txn, T::KEY, T::encode(value)?).await?;

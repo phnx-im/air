@@ -149,9 +149,7 @@ pub struct LinkedDevice {
 pub struct SettingsUpdate {
     #[tag(1)]
     pub send_read_receipts: Option<bool>,
-    /// Sorted by `client_id` so the encoding is canonical. Canonical form
-    /// matters because `complete_sent_setting` compares encoded bytes to decide
-    /// whether an accepted commit finished a pending change.
+    /// Sorted by `client_id` so the encoding is canonical.
     #[tag(2)]
     pub linked_devices: Option<Vec<LinkedDevice>>,
 }

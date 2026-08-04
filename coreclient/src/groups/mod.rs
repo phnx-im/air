@@ -1511,9 +1511,7 @@ impl Group {
     /// against the sender's user credential.
     /// Stages an APQ add commit.
     ///
-    /// `app_ephemeral` rides along on the same commit when set. The self-group
-    /// add uses it to publish the newly linked device's metadata, so linking
-    /// costs one commit rather than two and cannot race with itself.
+    /// `app_ephemeral` rides along on the same commit when set.
     pub(super) async fn stage_apq_invite(
         &mut self,
         mut connection: impl WriteConnection,
@@ -1676,14 +1674,6 @@ impl Group {
     }
 
     /// Stages a commit removing the self-group leaves with the given client ids.
-    ///
-    /// [`Self::stage_apq_remove`] cannot express this: it is keyed on `UserId`,
-    /// and every self-group leaf belongs to the same user, so a user id
-    /// identifies all of them at once. Client ids come from each leaf's
-    /// `SelfGroupCredential`.
-    ///
-    /// Callers own the room-policy check, matching how `stage_apq_remove` leaves
-    /// it to `create_remove`.
     pub(super) async fn stage_apq_remove_clients(
         &mut self,
         mut connection: impl WriteConnection,

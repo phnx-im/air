@@ -157,9 +157,7 @@ impl OperationType {
     /// Whether a DS rejection of this operation marks the group's commit as
     /// failed, which raises the desync banner on the chat. Self-group
     /// operations skip this: a self-group race is reconciled silently through
-    /// the queue and must not raise a banner on the Notes-to-self chat. An
-    /// unlink instead surfaces `JobError::Blocked` to its caller, and the device
-    /// stays visible in the list until a retry succeeds.
+    /// the queue and must not raise a banner on the Notes-to-self chat.
     fn marks_commit_failed(&self) -> bool {
         !matches!(
             self,
@@ -772,10 +770,6 @@ impl PendingChatOperation {
     }
 
     /// Stages a self-group commit removing the given devices' leaves.
-    ///
-    /// Loads its own signer and client id: a self-group operation has exactly one
-    /// signer it could ever use, so taking one from the caller would just be a
-    /// parameter every call site has to get right.
     pub(super) async fn create_remove_clients(
         txn: &mut WriteDbTransaction<'_>,
         chat_id: ChatId,

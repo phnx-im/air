@@ -316,15 +316,15 @@ impl CoreUser {
         let core_user = Self::link_new_device(api_clients, db_path, package).await?;
         info!("bootstrapped linked client");
 
+        // Prepare a key-package for the old device to add us to its self-group.
         let key_package = core_user.generate_self_group_key_package().await?;
+
         // Store our own entry locally and hand a copy to the old device, which
-        // publishes it on the add commit. We cannot learn it from that commit
-        // ourselves: joining through the Welcome skips its proposals, which is
-        // also why the confirming user's chosen name has to reach us in the
-        // provisioning package rather than on the commit.
+        // publishes it on the add commit.
         let device = core_user
             .store_own_device_entry(Utc::now(), Some(&device_name))
             .await?;
+
         tx.send(LinkingMessage::seal(
             SelfGroupJoinRequest {
                 key_package,
@@ -345,12 +345,7 @@ impl CoreUser {
     }
 
     /// Establishes a session with a new device (with the given `session_id`). The `connected_tx` and `confirmation_rx` are
-    /// channels to report established connection and wait for the user's confirmation.
-    ///
-    /// The confirmation carries the name the user gave the new device. It arrives
-    /// with the confirmation rather than up front because the field is only
-    /// filled in once the relay connection is up. An empty name leaves the new
-    /// device's own default in place.
+    /// channels to report established connection and wait for the user's confirmation (with a device name).
     pub async fn multi_device_link_client(
         &self,
         session_id: LinkingSessionId,
@@ -852,7 +847,6 @@ impl CoreUser {
             self_group_id,
             identity_link_wrapper_key: _,
             synced_settings,
-            // Applied by the caller, which stores this device's own entry.
             device_name: _,
             groups,
         } = package;

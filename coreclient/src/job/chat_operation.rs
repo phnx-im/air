@@ -26,9 +26,7 @@ use crate::{
 enum ChatOperationType {
     AddMembers(Vec<UserId>),
     RemoveMembers(Vec<UserId>),
-    /// Removes individual self-group leaves, identified by client id. Unlike
-    /// [`Self::RemoveMembers`] this can target one of the user's own devices,
-    /// which all share a single user id.
+    /// Removes individual self-group leaves, identified by client id.
     RemoveClients(Vec<Uuid>),
     Leave,
     Delete,
