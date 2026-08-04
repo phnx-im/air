@@ -47,7 +47,10 @@ use crate::{
     messages::intra_backend::{DsFanOutMessage, DsFanOutPayload},
 };
 
-use super::{group_state::MemberProfile, process::USER_EXPIRATION_DAYS};
+use super::{
+    group_state::{MemberProfile, leaf_credential_matches_flag},
+    process::USER_EXPIRATION_DAYS,
+};
 
 use super::group_state::DsGroupState;
 
@@ -107,6 +110,22 @@ impl DsGroupState {
             return Err(GroupOperationError::InvalidMessage);
         }
 
+        let is_self_group = self.is_self_group();
+
+        // If the commit carries an update path, the sender's new leaf credential must match the
+        // group kind.
+        if let Some(update_leaf) = staged_commit.update_path_leaf_node() {
+            let update_credential = LeafCredential::from_credential(update_leaf.credential())
+                .map_err(|e| {
+                    error!(%e, "Update path leaf credential is invalid");
+                    GroupOperationError::InvalidMessage
+                })?;
+            if !leaf_credential_matches_flag(&update_credential, is_self_group) {
+                warn!("Update path leaf credential does not match group kind");
+                return Err(GroupOperationError::InvalidMessage);
+            }
+        }
+
         // Perform validation depending on the type of message
         let sender_index = match processed_message.sender() {
             Sender::Member(leaf_index) => SenderIndex::Member(*leaf_index),
@@ -161,6 +180,10 @@ impl DsGroupState {
                             error!(%e, "Credential of added user is invalid");
                             GroupOperationError::InvalidMessage
                         })?;
+                if !leaf_credential_matches_flag(&added_credential, is_self_group) {
+                    warn!("Added user credential does not match group kind");
+                    return Err(GroupOperationError::InvalidMessage);
+                }
                 let added_identity = added_credential.room_policy_identity();
 
                 if let Some(pq_adds_sig_keys) = pq_add_proposals.as_mut() {

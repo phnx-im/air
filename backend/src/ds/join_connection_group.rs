@@ -3,6 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
+    credentials::LeafCredential,
     messages::client_ds::{AadMessage, AadPayload, JoinConnectionGroupParams},
     time::{Duration, TimeStamp},
 };
@@ -15,7 +16,7 @@ use tls_codec::DeserializeBytes;
 use crate::errors::JoinConnectionGroupError;
 
 use super::{
-    group_state::{DsGroupState, MemberProfile},
+    group_state::{DsGroupState, MemberProfile, leaf_credential_matches_flag},
     process::USER_EXPIRATION_DAYS,
 };
 
@@ -61,6 +62,21 @@ impl DsGroupState {
             }
             if !self.self_group_flag_unchanged(staged_commit) {
                 tracing::warn!("Commit would toggle the self-group flag");
+                return Err(JoinConnectionGroupError::InvalidMessage);
+            }
+            // A connection group is never a self-group, and its joiner's leaf must carry a user
+            // credential.
+            if self.is_self_group() {
+                tracing::warn!("Connection group must not be a self-group");
+                return Err(JoinConnectionGroupError::InvalidMessage);
+            }
+            let joiner_leaf = staged_commit
+                .update_path_leaf_node()
+                .ok_or(JoinConnectionGroupError::InvalidMessage)?;
+            let joiner_credential = LeafCredential::from_credential(joiner_leaf.credential())
+                .map_err(|_| JoinConnectionGroupError::InvalidMessage)?;
+            if !leaf_credential_matches_flag(&joiner_credential, false) {
+                tracing::warn!("Connection group joiner must carry a user credential");
                 return Err(JoinConnectionGroupError::InvalidMessage);
             }
         } else {
