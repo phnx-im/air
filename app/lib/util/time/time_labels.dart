@@ -112,8 +112,9 @@ _Tier _tier(DateTime at, DateTime now) {
   final since = now.difference(at);
   if (since.inSeconds < 60) return _Tier.now;
   if (since.inMinutes < 60) return _Tier.minutes;
-  final today = DateTime(now.year, now.month, now.day);
-  final day = DateTime(at.year, at.month, at.day);
+  // We use UTC to avoid problems with DST
+  final today = DateTime.utc(now.year, now.month, now.day);
+  final day = DateTime.utc(at.year, at.month, at.day);
   final days = today.difference(day).inDays;
   if (days <= 0) return _Tier.today;
   if (days == 1) return _Tier.yesterday;

@@ -111,6 +111,32 @@ void main() {
     });
   });
 
+  group('calendar days across DST', () {
+    final afterSpringForward = DateTime(2024, 4, 1, 13, 0);
+
+    test('a message sent on the transition day reads "Yesterday" after', () {
+      final at = DateTime(2024, 3, 31, 9, 0);
+      expect(
+        chatListStampLabel(
+          at,
+          now: afterSpringForward,
+          formats: formats24,
+          loc: loc,
+        ),
+        loc.date_yesterday,
+      );
+      expect(
+        dateDividerLabel(
+          at,
+          now: afterSpringForward,
+          formats: formats24,
+          loc: loc,
+        ),
+        loc.date_yesterday,
+      );
+    });
+  });
+
   group('dateDividerLabel', () {
     test('names today and yesterday', () {
       expect(divider(now), loc.date_today);
