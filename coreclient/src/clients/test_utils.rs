@@ -6,9 +6,7 @@
 use aircommon::messages::client_ds_out::SendMessageCollisionTag;
 use openmls::group::Member;
 
-use aircommon::{
-    codec::PersistenceCodec, credentials::LeafCredential, identifiers::QualifiedGroupId,
-};
+use aircommon::{codec::PersistenceCodec, identifiers::QualifiedGroupId};
 use openmls::prelude::GroupId;
 use uuid::Uuid;
 
@@ -106,23 +104,6 @@ impl CoreUser {
             return Ok(None);
         };
         Ok(Some(group.is_apq() && group.pq().is_some()))
-    }
-
-    /// The parsed leaf credentials of the self-group members, in member order.
-    pub async fn self_group_leaf_credentials(&self) -> anyhow::Result<Option<Vec<LeafCredential>>> {
-        let mut read = self.db().read().await?;
-        let Some(group_id) = OwnClientInfo::load(&mut read).await?.self_group_id else {
-            return Ok(None);
-        };
-        let Some(group) = Group::load(read, &group_id).await? else {
-            return Ok(None);
-        };
-        let credentials = group
-            .mls_group()
-            .members()
-            .map(|member| LeafCredential::from_credential(&member.credential))
-            .collect::<Result<Vec<_>, _>>()?;
-        Ok(Some(credentials))
     }
 
     /// The client id this device stores in its own client info.

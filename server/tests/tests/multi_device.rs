@@ -14,6 +14,7 @@ use aircoreclient::{
 };
 use airprotos::relay_service::v1::LinkingSessionId;
 use airserver_test_harness::utils::setup::TestBackend;
+use chrono::{DateTime, Utc};
 use mimi_content::MimiContent;
 use tempfile::TempDir;
 use uuid::Uuid;
@@ -60,10 +61,12 @@ async fn send_and_receive(sender: &CoreUser, devices: &[&CoreUser], chat_id: Cha
 /// a `SelfGroupCredential`, and returns their client ids in member order.
 async fn self_group_client_ids(device: &CoreUser) -> Vec<Uuid> {
     let credentials = device
-        .self_group_leaf_credentials()
+        .self_group()
         .await
         .unwrap()
-        .expect("device should have a self group");
+        .expect("device should have a self group")
+        .credentials()
+        .unwrap();
     assert_eq!(
         credentials.len(),
         2,
@@ -1019,4 +1022,160 @@ async fn multi_device_third_device_link() {
     // round-trips.
     let chat_id = self_chat_id(&second_device).await;
     send_and_receive(old_device, &[&second_device], chat_id, "three devices").await;
+}
+
+/// A periodic self-update in the self group is accepted by the DS and
+/// processed by the sibling device.
+///
+/// Self-group leaves carry a self-group credential and are signed with the
+/// per-device self-group key, so both the joint APQ self-update and the pure
+/// T self-update must preserve the self-group leaf capabilities and use that
+/// key. A leaf built with the regular user credential defaults would be
+/// rejected by the DS and by the sibling (RFC 9420 valn0104).
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test self-update in the self group", skip_all)]
+async fn multi_device_self_update_in_self_group() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+
+    // Bring both devices to the self-group's latest epoch.
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    let chat_id = self_chat_id(old_device).await;
+
+    // Force the joint APQ self-update (both T and PQ due).
+    old_device
+        .set_self_updated_at(chat_id, DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    old_device
+        .set_pq_self_updated_at(chat_id, DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    let before_apq = Utc::now();
+    old_device
+        .outbound_service()
+        .schedule_self_update(DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    old_device.outbound_service().run_once().await;
+
+    let after_t = old_device.self_updated_at(chat_id).await.unwrap().unwrap();
+    let after_pq = old_device
+        .pq_self_updated_at(chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        before_apq < after_t && before_apq < after_pq,
+        "the DS should have accepted the APQ self-update in the self group"
+    );
+
+    // The sibling device processes the update commit.
+    let messages = new_device.qs_fetch_messages().await.unwrap();
+    let processed = new_device.fully_process_qs_messages(messages).await;
+    assert!(
+        processed.errors.is_empty(),
+        "sibling failed to process the APQ self-update: {:?}",
+        processed.errors
+    );
+
+    // Force a pure T self-update (only T due).
+    drain_queue(old_device).await;
+    old_device
+        .set_self_updated_at(chat_id, DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    let before_t = Utc::now();
+    old_device
+        .outbound_service()
+        .schedule_self_update(DateTime::UNIX_EPOCH)
+        .await
+        .unwrap();
+    old_device.outbound_service().run_once().await;
+
+    let after_t = old_device.self_updated_at(chat_id).await.unwrap().unwrap();
+    assert!(
+        before_t < after_t,
+        "the DS should have accepted the T self-update in the self group"
+    );
+
+    let messages = new_device.qs_fetch_messages().await.unwrap();
+    let processed = new_device.fully_process_qs_messages(messages).await;
+    assert!(
+        processed.errors.is_empty(),
+        "sibling failed to process the T self-update: {:?}",
+        processed.errors
+    );
+
+    // Both devices are still in sync afterwards.
+    send_and_receive(old_device, &[&new_device], chat_id, "after self-update").await;
+    send_and_receive(&new_device, &[old_device], chat_id, "and back").await;
+}
+
+/// A resync of the self group rejoins with the per-device self-group
+/// credential.
+///
+/// The external commit must carry a self-group credential and self-group leaf
+/// capabilities. Rejoining with the user credential would be rejected, since
+/// the self group accepts only self-group credentials.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test resync of the self group", skip_all)]
+async fn multi_device_self_group_resync() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+
+    // Bring both devices to the self-group's latest epoch.
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    let chat_id = self_chat_id(old_device).await;
+    let (epoch_before, _) = old_device
+        .group_epoch_and_own_index(chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+
+    // The old device resyncs into the self group.
+    old_device.enqueue_group_resync(chat_id).await.unwrap();
+    assert!(
+        old_device.is_resync_pending(chat_id).await.unwrap(),
+        "resync should be queued"
+    );
+    old_device.outbound_service().run_once().await;
+    assert!(
+        !old_device.is_resync_pending(chat_id).await.unwrap(),
+        "resync should have completed"
+    );
+
+    // The external commit advanced the epoch, so the rejoin actually happened.
+    let (epoch_after, _) = old_device
+        .group_epoch_and_own_index(chat_id)
+        .await
+        .unwrap()
+        .unwrap();
+    assert!(
+        epoch_before < epoch_after,
+        "the resync commit should have advanced the self-group epoch"
+    );
+
+    // The sibling device processes the rejoin commit.
+    let messages = new_device.qs_fetch_messages().await.unwrap();
+    let processed = new_device.fully_process_qs_messages(messages).await;
+    assert!(
+        processed.errors.is_empty(),
+        "sibling failed to process the self-group rejoin: {:?}",
+        processed.errors
+    );
+
+    // Both devices still see two distinct self-group clients and stay in sync.
+    self_group_client_ids(old_device).await;
+    self_group_client_ids(&new_device).await;
+    send_and_receive(old_device, &[&new_device], chat_id, "after resync").await;
+    send_and_receive(&new_device, &[old_device], chat_id, "and back").await;
 }

@@ -229,7 +229,7 @@ impl ApiClient {
     pub async fn ds_group_operation(
         &self,
         payload: GroupOperationParamsOut,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
         qs_client_reference: QsReference,
         encrypted_user_profile_key: EncryptedUserProfileKey,
@@ -511,7 +511,7 @@ impl ApiClient {
         &self,
         commit: MlsMessageOut,
         group_info: MlsMessageOut,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
         own_leaf_index: LeafNodeIndex,
     ) -> Result<TimeStamp, DsRequestError> {
@@ -534,7 +534,7 @@ impl ApiClient {
     pub async fn ds_apq_resync(
         &self,
         external_commit_bundle: ApqCommitMessageBundle,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
         own_leaf_index: LeafNodeIndex,
     ) -> Result<TimeStamp, DsRequestError> {
@@ -717,7 +717,7 @@ impl ApiClient {
     pub async fn ds_delete_group(
         &self,
         params: DeleteGroupParamsOut,
-        signing_key: &ClientSigningKey,
+        signing_key: &SigningKey<ClientKeyType>,
         group_state_ear_key: &GroupStateEarKey,
     ) -> Result<TimeStamp, DsRequestError> {
         let payload = DeleteGroupPayload {

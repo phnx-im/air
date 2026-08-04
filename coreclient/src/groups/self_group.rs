@@ -2,6 +2,8 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#[cfg(any(test, feature = "test_utils"))]
+use aircommon::credentials::{LeafCredential, LeafCredentialError};
 use aircommon::{
     credentials::keys::{LeafSigningKey, SelfGroupSigningKey},
     crypto::{aead::keys::IdentityLinkWrapperKey, indexed_aead::keys::UserProfileKey},
@@ -49,6 +51,16 @@ impl SelfGroup {
 
     pub fn group_id(&self) -> &GroupId {
         self.group.group_id()
+    }
+
+    /// The parsed leaf credentials of the self-group members, in member order.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub fn credentials(&self) -> Result<Vec<LeafCredential>, LeafCredentialError> {
+        self.group
+            .mls_group()
+            .members()
+            .map(|member| LeafCredential::from_credential(&member.credential))
+            .collect()
     }
 
     pub(crate) fn identity_link_wrapper_key(&self) -> &IdentityLinkWrapperKey {

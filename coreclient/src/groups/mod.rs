@@ -32,7 +32,10 @@ use aircommon::{
     credentials::{
         GroupStorageWitness, LeafCredential, LeafCredentialError, RoomPolicyIdentity,
         UserCredential, VerifiableUserCredential,
-        keys::{ClientKeyType, ClientSigningKey, ClientVerifyingKey, SelfGroupSigningKey},
+        keys::{
+            ClientKeyType, ClientSigningKey, ClientVerifyingKey, LeafSigningKey,
+            SelfGroupSigningKey,
+        },
     },
     crypto::{
         aead::{
@@ -72,7 +75,7 @@ use aircommon::{
         default_app_data_dictionary_extension, default_group_required_extensions,
         default_leaf_node_capabilities, default_leaf_node_extensions,
         default_mls_group_join_config, default_sender_ratchet_configuration,
-        leaf_node_is_virtual_client, vc_leaf_node_extensions,
+        leaf_node_is_virtual_client, self_group_leaf_node_capabilities, vc_leaf_node_extensions,
     },
     time::TimeStamp,
     utils::removed_client,
@@ -118,8 +121,8 @@ use openmls::{
     },
     key_packages::KeyPackageBundle,
     prelude::{
-        AppDataDictionaryExtension, Credential, CredentialType, CredentialWithKey, Extension,
-        Extensions, GroupId, LeafNode, LeafNodeIndex, LeafNodeParameters, MlsGroup,
+        AppDataDictionaryExtension, Capabilities, Credential, CredentialType, CredentialWithKey,
+        Extension, Extensions, GroupId, LeafNode, LeafNodeIndex, LeafNodeParameters, MlsGroup,
         MlsMessageBodyIn, MlsMessageIn, MlsMessageOut, OpenMlsProvider,
         PURE_PLAINTEXT_WIRE_FORMAT_POLICY, PreSharedKeyProposal, Proposal, ProposalType,
         ProtocolVersion, QueuedProposal, Sender, SignaturePublicKey, StagedCommit,
@@ -1220,7 +1223,8 @@ impl Group {
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         external_commit_info: ExternalCommitInfoIn,
-        signer: &ClientSigningKey,
+        signer: &LeafSigningKey,
+        own_user_id: &UserId,
         group_state_ear_key: GroupStateEarKey,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         aad: AadMessage,
@@ -1228,15 +1232,15 @@ impl Group {
     ) -> anyhow::Result<
         Result<(Self, ApqCommitMessageBundle, DecryptedProfileInfos), LeafNodeValidationError>,
     > {
-        // Prepare credentials
+        // Prepare credentials. The leaf signature key is the signer's own key.
         let t_credential = CredentialWithKey {
-            credential: signer.credential().try_into()?,
-            signature_key: signer.credential().verifying_key().clone().into(),
+            credential: signer.mls_credential()?,
+            signature_key: signer.verifying_key().clone().into(),
         };
         // Skip storing the same credential twice
         let pq_credential = CredentialWithKey {
             credential: Credential::new(CredentialType::Basic, Vec::new()),
-            signature_key: signer.credential().verifying_key().clone().into(),
+            signature_key: signer.verifying_key().clone().into(),
         };
         let credential_with_key = ApqCredentialWithKey {
             t_credential,
@@ -1288,7 +1292,7 @@ impl Group {
             &t_ratchet_tree,
             encrypted_user_profile_keys,
             &indexed_encrypted_user_profile_keys,
-            signer.credential().user_id(),
+            own_user_id,
         );
 
         let ratchet_tree = ApqRatchetTreeIn::new(t_ratchet_tree, pq_ratchet_tree);
@@ -1300,8 +1304,12 @@ impl Group {
         } else {
             default_leaf_node_extensions::<AirComponent>()
         };
+        let capabilities = match signer {
+            LeafSigningKey::User(_) => default_leaf_node_capabilities(),
+            LeafSigningKey::SelfGroup(_) => self_group_leaf_node_capabilities(),
+        };
         let leaf_node_params = LeafNodeParameters::builder()
-            .with_capabilities(default_leaf_node_capabilities())
+            .with_capabilities(capabilities)
             .with_extensions(leaf_node_extensions)
             .build();
 
@@ -1334,6 +1342,12 @@ impl Group {
                 && AirComponent::is_self_group_context(pq_group.extensions()) == is_self_group,
             "self-group flag does not match the recorded self-group"
         );
+        // The self group must be rejoined with the per-device self-group key, other groups with
+        // the user key. A mismatch means the caller resolved the signer for the wrong group.
+        ensure!(
+            is_self_group == matches!(signer, LeafSigningKey::SelfGroup(_)),
+            "signer does not match the group's self-group status"
+        );
 
         // Verify credentials (T only). Self-group leaves carry a self-group credential, which is
         // only accepted inside our own self group.
@@ -1355,7 +1369,7 @@ impl Group {
             }),
             pending_commit_failed: false,
             send_message_collision_key: None,
-            own_user_id: signer.credential().user_id().clone(),
+            own_user_id: own_user_id.clone(),
         };
 
         let member_profile_info = group
@@ -2085,7 +2099,7 @@ impl Group {
     pub(super) async fn update(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
-        signer: &ClientSigningKey,
+        signer: &LeafSigningKey,
         new_group_data: Option<GroupDataBytes>,
     ) -> Result<GroupOperationParamsOut> {
         // We don't expect there to be a welcome.
@@ -2105,7 +2119,10 @@ impl Group {
             .transpose()?;
 
         let own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
-        let leaf_node_parameters = Self::update_leaf_node_extensions(own_leaf_node.extensions())?;
+        let leaf_node_parameters = Self::update_leaf_node_extensions(
+            own_leaf_node.extensions(),
+            self.own_leaf_capabilities(),
+        )?;
 
         // A leaf shared with sibling emulator clients must be replaced with key
         // material derived from the emulation epoch, or the siblings cannot
@@ -2156,7 +2173,7 @@ impl Group {
     pub(super) async fn apq_update(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
-        signer: &ClientSigningKey,
+        signer: &LeafSigningKey,
     ) -> anyhow::Result<ApqGroupOperationParamsOut> {
         let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
             new_encrypted_user_profile_keys: Vec::new(),
@@ -2165,16 +2182,20 @@ impl Group {
         self.mls_group.set_aad(aad);
 
         let t_own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
-        let t_leaf_node_parameters =
-            Self::update_leaf_node_extensions(t_own_leaf_node.extensions())?;
+        let t_leaf_node_parameters = Self::update_leaf_node_extensions(
+            t_own_leaf_node.extensions(),
+            self.own_leaf_capabilities(),
+        )?;
         let pq_own_leaf_node = self
             .pq()
             .context("No PQ group found")?
             .mls_group
             .own_leaf_node()
             .context("No own PQ leaf node")?;
-        let pq_leaf_node_parameters =
-            Self::update_leaf_node_extensions(pq_own_leaf_node.extensions())?;
+        let pq_leaf_node_parameters = Self::update_leaf_node_extensions(
+            pq_own_leaf_node.extensions(),
+            self.own_leaf_capabilities(),
+        )?;
 
         let vc_epoch_id = self.resolve_vc_emulation_epoch(&mut *txn).await?;
 
@@ -2202,11 +2223,24 @@ impl Group {
         })
     }
 
+    /// Capabilities for the own leaf when a commit sets explicit leaf node parameters.
+    ///
+    /// Self-group leaves must keep advertising the self-group credential type, see
+    /// [`self_group_leaf_node_capabilities`].
+    fn own_leaf_capabilities(&self) -> Capabilities {
+        if self.is_self_group() {
+            self_group_leaf_node_capabilities()
+        } else {
+            default_leaf_node_capabilities()
+        }
+    }
+
     fn update_leaf_node_extensions(
         leaf_node_extensions: &Extensions<LeafNode>,
+        capabilities: Capabilities,
     ) -> anyhow::Result<LeafNodeParameters> {
         let mut leaf_node_parameters =
-            LeafNodeParameters::builder().with_capabilities(default_leaf_node_capabilities());
+            LeafNodeParameters::builder().with_capabilities(capabilities);
 
         if let Some(app_data_dictionary) = leaf_node_extensions.app_data_dictionary() {
             let dict = app_data_dictionary.dictionary();
@@ -2854,7 +2888,7 @@ impl Group {
     pub(crate) async fn update_with_air_component(
         &mut self,
         txn: &mut WriteDbTransaction<'_>,
-        signer: &ClientSigningKey,
+        signer: &LeafSigningKey,
         air_component: AirComponent,
     ) -> Result<GroupOperationParamsOut> {
         let aad = AadMessage::from(AadPayload::GroupOperation(GroupOperationParamsAad {
@@ -2863,8 +2897,11 @@ impl Group {
         .tls_serialize_detached()?;
 
         let own_leaf_node = self.mls_group.own_leaf_node().context("No own leaf node")?;
-        let leaf_node_parameters =
-            Self::forced_air_component_leaf_params(own_leaf_node.extensions(), air_component)?;
+        let leaf_node_parameters = Self::forced_air_component_leaf_params(
+            own_leaf_node.extensions(),
+            self.own_leaf_capabilities(),
+            air_component,
+        )?;
 
         self.mls_group.set_aad(aad);
         let (mls_message, group_info) = {
@@ -2894,10 +2931,11 @@ impl Group {
 
     fn forced_air_component_leaf_params(
         leaf_node_extensions: &Extensions<LeafNode>,
+        capabilities: Capabilities,
         air_component: AirComponent,
     ) -> anyhow::Result<LeafNodeParameters> {
         let mut leaf_node_parameters =
-            LeafNodeParameters::builder().with_capabilities(default_leaf_node_capabilities());
+            LeafNodeParameters::builder().with_capabilities(capabilities);
 
         let mut dict = leaf_node_extensions
             .app_data_dictionary()
@@ -3288,7 +3326,9 @@ fn to_capabilities_mismatch(error: CreateCommitError) -> anyhow::Result<LeafNode
 
 #[cfg(test)]
 mod tests {
-    use aircommon::mls_group_config::default_app_data_dictionary_extension;
+    use aircommon::mls_group_config::{
+        default_app_data_dictionary_extension, default_leaf_node_capabilities,
+    };
     use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent};
     use mls_assist::components::ComponentsList;
     use openmls::{
@@ -3319,7 +3359,9 @@ mod tests {
     #[test]
     fn no_app_data_dictionary() {
         let extensions = Extensions::empty();
-        let params = Group::update_leaf_node_extensions(&extensions).unwrap();
+        let params =
+            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities())
+                .unwrap();
         let ids = air_component_ids(params.extensions().unwrap()).unwrap();
         assert!(ids.contains(&AIR_COMPONENT_ID));
     }
@@ -3328,7 +3370,9 @@ mod tests {
     #[test]
     fn app_data_dictionary_without_app_components() {
         let extensions = extensions_with_dict(AppDataDictionary::new());
-        let params = Group::update_leaf_node_extensions(&extensions).unwrap();
+        let params =
+            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities())
+                .unwrap();
         let ids = air_component_ids(params.extensions().unwrap()).unwrap();
         assert!(ids.contains(&AIR_COMPONENT_ID));
     }
@@ -3347,7 +3391,9 @@ mod tests {
             .unwrap(),
         );
         let extensions = extensions_with_dict(dict);
-        let params = Group::update_leaf_node_extensions(&extensions).unwrap();
+        let params =
+            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities())
+                .unwrap();
         let ids = air_component_ids(params.extensions().unwrap()).unwrap();
         assert!(ids.contains(&AIR_COMPONENT_ID));
         assert!(ids.contains(&other_id));
@@ -3359,7 +3405,9 @@ mod tests {
         let extensions =
             Extensions::from_vec(vec![default_app_data_dictionary_extension::<AirComponent>()])
                 .expect("valid extensions");
-        let params = Group::update_leaf_node_extensions(&extensions).unwrap();
+        let params =
+            Group::update_leaf_node_extensions(&extensions, default_leaf_node_capabilities())
+                .unwrap();
         assert!(params.extensions().is_none());
     }
 }
