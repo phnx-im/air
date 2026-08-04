@@ -2,8 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+#[cfg(any(test, feature = "test_utils"))]
+use aircommon::credentials::{LeafCredential, LeafCredentialError};
 use aircommon::{
-    credentials::keys::{ClientSigningKey, PreliminaryClientSigningKey},
+    credentials::keys::{LeafSigningKey, SelfGroupSigningKey},
     crypto::{aead::keys::IdentityLinkWrapperKey, indexed_aead::keys::UserProfileKey},
     mls_group_config::AppComponent,
 };
@@ -49,6 +51,16 @@ impl SelfGroup {
 
     pub fn group_id(&self) -> &GroupId {
         self.group.group_id()
+    }
+
+    /// The parsed leaf credentials of the self-group members, in member order.
+    #[cfg(any(test, feature = "test_utils"))]
+    pub fn credentials(&self) -> Result<Vec<LeafCredential>, LeafCredentialError> {
+        self.group
+            .mls_group()
+            .members()
+            .map(|member| LeafCredential::from_credential(&member.credential))
+            .collect()
     }
 
     pub(crate) fn identity_link_wrapper_key(&self) -> &IdentityLinkWrapperKey {
@@ -102,16 +114,17 @@ impl CoreUser {
         }
         .encode()?;
 
-        // The client signing-key is shared among all emulators, and we use it to sign all request
-        // as well as leaves in high-level groups. The self-group leaves are signed with a freshly
-        // minted signing key.
+        // Self-group leaves carry a SelfGroupCredential that identifies the device by its client
+        // id and are signed by a per-device key. The creation request itself is authenticated by
+        // the user credential sent alongside it.
         let key_store = self.key_store();
-        let self_group_signing_key = ClientSigningKey::from_prelim_key_with_foreign_credential(
-            PreliminaryClientSigningKey::generate()?,
-            key_store.signing_key.credential().clone(),
-        )?;
+        let client_id = OwnClientInfo::load(self.db().read().await?)
+            .await?
+            .client_id;
+        let self_group_signing_key = SelfGroupSigningKey::generate(client_id)?;
 
-        let group_signer = self_group_signing_key.clone();
+        let group_signer = LeafSigningKey::SelfGroup(self_group_signing_key.clone());
+        let own_user_id = self.user_id().clone();
         let (group, partial_params, user_profile_key) = self
             .db()
             .with_write_transaction(async move |txn| -> anyhow::Result<_> {
@@ -119,6 +132,7 @@ impl CoreUser {
                 let (group, partial_params) = Group::create_apq_group(
                     &mut *txn,
                     &group_signer,
+                    own_user_id,
                     identity_link_wrapper_key,
                     group_id,
                     pq_group_id,
@@ -143,8 +157,8 @@ impl CoreUser {
         let encrypted_user_profile_key =
             user_profile_key.encrypt(group.identity_link_wrapper_key(), self.user_id())?;
         let mut params = partial_params.into_params(client_reference, encrypted_user_profile_key);
-        // Self-group leaves will stop carrying a user credential, so the creation
-        // is authenticated by a credential sent with the request instead.
+        // Self-group leaves carry no user credential, so the creation is authenticated by the
+        // user credential sent with the request instead.
         params.creator_user_credential = Some(key_store.signing_key.credential().clone());
 
         // Create group on the server

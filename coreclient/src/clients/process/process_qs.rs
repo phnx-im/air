@@ -400,19 +400,14 @@ impl CoreUser {
         // WelcomeBundle Phase 1: Join the group. This might involve loading AS credentials or
         // fetching them from the AS.
         let own_client_info = OwnClientInfo::load(&mut *txn).await?;
-        let signers =
-            if let Some(self_group_signer) = own_client_info.self_group_signing_key.as_ref() {
-                vec![self.signing_key(), self_group_signer]
-            } else {
-                vec![self.signing_key()]
-            };
 
         let (mut group, sender_user_id, member_profile_info) = Box::pin(Group::join_apq_group(
             welcome_bundle,
             &self.inner.key_store.wai_ear_key,
             txn,
             &self.inner.api_clients,
-            &signers,
+            self.signing_key(),
+            own_client_info.self_group_signing_key.as_ref(),
         ))
         .await?;
 
@@ -1373,13 +1368,19 @@ impl CoreUser {
             bail!(BlockedContactError);
         }
 
-        // Phase 1: Load the group and the sender.
+        // Phase 1: Load the group and the sender. Self-group leaves carry a
+        // self-group credential instead of a user credential, so the sender of
+        // a self-group update is a sibling device of the own user.
         let group = Group::load_verified(&mut *txn, &params.group_id)
             .await?
             .context("No group found")?;
-        let sender_credential = group
-            .credential_at(params.sender_index)?
-            .context("No sender credential found")?;
+        let sender_credential = if group.is_self_group() {
+            self.inner.key_store.signing_key.credential().clone()
+        } else {
+            group
+                .credential_at(params.sender_index)?
+                .context("No sender credential found")?
+        };
         let sender = sender_credential.user_id();
 
         // Phase 2: Decrypt the new user profile key

@@ -5,6 +5,7 @@
 use std::collections::HashSet;
 
 use aircommon::{
+    credentials::keys::LeafSigningKey,
     crypto::aead::keys::GroupStateEarKey,
     identifiers::MimiId,
     messages::client_ds_out::{SendMessageCollisionTag, SendMessageParamsOut},
@@ -163,7 +164,7 @@ impl OutboundServiceContext {
         }
 
         // load group and create MLS message
-        let (group_state_ear_key, params) = self
+        let (group_state_ear_key, params, signer) = self
             .new_mls_message(
                 &chat,
                 unsent_receipt.content,
@@ -180,7 +181,7 @@ impl OutboundServiceContext {
             .api_clients
             .get(&chat.owner_domain())
             .map_err(OutboundServiceError::fatal)?
-            .ds_send_message(params, self.signing_key(), &group_state_ear_key)
+            .ds_send_message(params, &signer, &group_state_ear_key)
             .await
         {
             if ds_error.is_not_found() {
@@ -253,20 +254,21 @@ impl OutboundServiceContext {
             .map_err(OutboundServiceError::fatal)
     }
 
-    /// Creates a new MLS message for the given chat.
+    /// Creates a new MLS message for the given chat and returns the signer used.
+    ///
     /// The MLS content is signed by our leaf, which for the self group uses a
-    /// fresh key that differs from the shared user credential key. The DS
-    /// *request* envelope, in contrast, is signed by the caller with the shared
-    /// client key.
+    /// per-device key that differs from the shared user credential key. The DS
+    /// request envelope is signed by the caller with the same per-group key.
     pub(super) async fn new_mls_message(
         &self,
         chat: &Chat,
         mimi_content: MimiContent,
         message_status_report: Option<MessageStatusReport>,
-    ) -> anyhow::Result<(GroupStateEarKey, SendMessageParamsOut)> {
+    ) -> anyhow::Result<(GroupStateEarKey, SendMessageParamsOut, LeafSigningKey)> {
         let signer = self.signer_for_group(chat.group_id()).await?;
-        self.db
-            .with_write_transaction(async |txn| {
+        let (group_state_ear_key, params) = self
+            .db
+            .with_write_transaction(async |txn| -> anyhow::Result<_> {
                 let group_id = chat.group_id();
                 let mut group = Group::load_clean(&mut *txn, group_id)
                     .await?
@@ -280,7 +282,8 @@ impl OutboundServiceContext {
                 )?;
                 Ok((group.group_state_ear_key().clone(), params))
             })
-            .await
+            .await?;
+        Ok((group_state_ear_key, params, signer))
     }
 
     /// Confirms a MLS message was sent to the DS.

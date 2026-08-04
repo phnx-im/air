@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::ClientSigningKey,
+    credentials::keys::SelfGroupSigningKey,
     identifiers::{Fqdn, QsClientId, QsUserId, UserId},
 };
 use openmls::group::GroupId;
@@ -54,7 +54,7 @@ impl OwnClientInfo {
             user_domain: Fqdn,
             client_id: Uuid,
             self_group_id: Option<GroupIdWrapper>,
-            self_group_signing_key: Option<ClientSigningKey>,
+            self_group_signing_key: Option<SelfGroupSigningKey>,
         }
         let sql = sqlx::query_as!(
             SqlOwnClientInfo,
@@ -146,7 +146,7 @@ impl OwnClientInfo {
     pub(crate) async fn set_self_group(
         mut write: impl WriteConnection,
         self_group_id: &GroupId,
-        self_group_signing_key: &ClientSigningKey,
+        self_group_signing_key: &SelfGroupSigningKey,
     ) -> sqlx::Result<()> {
         let self_group_id = GroupIdRefWrapper::from(self_group_id);
         query!(
