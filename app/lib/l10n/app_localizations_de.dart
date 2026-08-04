@@ -531,12 +531,25 @@ class AppLocalizationsDe extends AppLocalizations {
   String get linkedDevicesScreen_unknownDevice => 'Unbekanntes Gerät';
 
   @override
-  String get linkedDevicesScreen_renameError =>
-      'Das Gerät konnte nicht umbenannt werden. Bitte versuche es erneut.';
+  String get linkedDevicesScreen_renameError_title =>
+      'Umbenennen fehlgeschlagen.';
 
   @override
-  String get linkedDevicesScreen_unlinkError =>
-      'Couldn\'t unlink the device. Please try again.';
+  String linkedDevicesScreen_renameError(String deviceName) {
+    return 'Das Gerät $deviceName konnte nicht umbenannt werden. Überprüfe deine Netzwerkverbindung und versuche es erneut.';
+  }
+
+  @override
+  String get linkedDevicesScreen_unlinkError_title =>
+      'Aufheben der Verknüpfung fehlgeschlagen.';
+
+  @override
+  String linkedDevicesScreen_unlinkError(String deviceName) {
+    return 'Die Verknüpfung des Geräts $deviceName konnte nicht aufgehoben werden. Überprüfe deine Netzwerkverbindung und versuche es erneut.';
+  }
+
+  @override
+  String get linkedDevicesScreen_errorDialog_confirm => 'Okay';
 
   @override
   String linkedDevicesScreen_deviceCount(int count) {
@@ -614,7 +627,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_unlinkDialog_content =>
-      'Das Gerät kann dann keine Nachrichten mehr senden oder empfangen. Alle Daten deines Kontos werden vom Gerät gelöscht.';
+      'Das Gerät kann dann keine Nachrichten mehr senden oder empfangen. Alle Daten deines Kontos werden gelöscht, sobald das Gerät wieder online ist.';
 
   @override
   String get linkedDevicesScreen_unlinkDialog_cancel => 'Abbrechen';

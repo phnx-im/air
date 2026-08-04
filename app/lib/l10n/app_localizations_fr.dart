@@ -536,12 +536,24 @@ class AppLocalizationsFr extends AppLocalizations {
   String get linkedDevicesScreen_unknownDevice => 'Appareil inconnu';
 
   @override
-  String get linkedDevicesScreen_renameError =>
-      'Impossible de renommer l\'appareil. Veuillez réessayer.';
+  String get linkedDevicesScreen_renameError_title => 'Échec du renommage.';
 
   @override
-  String get linkedDevicesScreen_unlinkError =>
-      'Couldn\'t unlink the device. Please try again.';
+  String linkedDevicesScreen_renameError(String deviceName) {
+    return 'Impossible de renommer l\'appareil $deviceName. Vérifiez votre connexion réseau et réessayez.';
+  }
+
+  @override
+  String get linkedDevicesScreen_unlinkError_title =>
+      'Échec de la dissociation.';
+
+  @override
+  String linkedDevicesScreen_unlinkError(String deviceName) {
+    return 'La dissociation de l\'appareil $deviceName a échoué. Vérifiez votre connexion réseau et réessayez.';
+  }
+
+  @override
+  String get linkedDevicesScreen_errorDialog_confirm => 'Okay';
 
   @override
   String linkedDevicesScreen_deviceCount(int count) {
@@ -619,7 +631,7 @@ class AppLocalizationsFr extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_unlinkDialog_content =>
-      'L\'appareil ne pourra plus envoyer ni recevoir de messages. Toutes les données de votre compte seront supprimées de l\'appareil.';
+      'L\'appareil ne pourra plus envoyer ni recevoir de messages. Toutes les données de votre compte seront supprimées de l\'appareil lors de sa prochaine connexion.';
 
   @override
   String get linkedDevicesScreen_unlinkDialog_cancel => 'Annuler';

@@ -996,17 +996,35 @@ abstract class AppLocalizations {
   /// **'Unknown device'**
   String get linkedDevicesScreen_unknownDevice;
 
+  /// No description provided for @linkedDevicesScreen_renameError_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Renaming failed.'**
+  String get linkedDevicesScreen_renameError_title;
+
   /// No description provided for @linkedDevicesScreen_renameError.
   ///
   /// In en, this message translates to:
-  /// **'Couldn\'t rename the device. Please try again.'**
-  String get linkedDevicesScreen_renameError;
+  /// **'Couldn\'t rename the device {deviceName}. Check your network connection and try again.'**
+  String linkedDevicesScreen_renameError(String deviceName);
+
+  /// No description provided for @linkedDevicesScreen_unlinkError_title.
+  ///
+  /// In en, this message translates to:
+  /// **'Unlinking failed.'**
+  String get linkedDevicesScreen_unlinkError_title;
 
   /// No description provided for @linkedDevicesScreen_unlinkError.
   ///
   /// In en, this message translates to:
-  /// **'Couldn\'t unlink the device. Please try again.'**
-  String get linkedDevicesScreen_unlinkError;
+  /// **'Unlinking the device {deviceName} failed. Check your network connection and try again.'**
+  String linkedDevicesScreen_unlinkError(String deviceName);
+
+  /// No description provided for @linkedDevicesScreen_errorDialog_confirm.
+  ///
+  /// In en, this message translates to:
+  /// **'Okay'**
+  String get linkedDevicesScreen_errorDialog_confirm;
 
   /// No description provided for @linkedDevicesScreen_deviceCount.
   ///
@@ -1119,7 +1137,7 @@ abstract class AppLocalizations {
   /// No description provided for @linkedDevicesScreen_unlinkDialog_content.
   ///
   /// In en, this message translates to:
-  /// **'The device will no longer be able to send or receive messages. All of your account\'s data will be deleted from the device.'**
+  /// **'The device will no longer be able to send or receive messages. All of your account\'s data will be deleted from the device the next time is comes online.'**
   String get linkedDevicesScreen_unlinkDialog_content;
 
   /// No description provided for @linkedDevicesScreen_unlinkDialog_cancel.

@@ -165,7 +165,11 @@
   "linkedDevicesScreen_editNameHint": "Tryck på en enhet för att ändra dess namn.",
   "linkedDevicesScreen_linkDevice": "Länka en enhet",
   "linkedDevicesScreen_unknownDevice": "Okänd enhet",
-  "linkedDevicesScreen_renameError": "Kunde inte byta namn på enheten. Försök igen.",
+  "linkedDevicesScreen_renameError_title": "Namnbytet misslyckades.",
+  "linkedDevicesScreen_renameError": "Kunde inte byta namn på enheten {deviceName}. Kontrollera din nätverksanslutning och försök igen.",
+  "linkedDevicesScreen_unlinkError_title": "Avlänkningen misslyckades.",
+  "linkedDevicesScreen_unlinkError": "Avlänkningen av enheten {deviceName} misslyckades. Kontrollera din nätverksanslutning och försök igen.",
+  "linkedDevicesScreen_errorDialog_confirm": "Okay",
   "linkedDevicesScreen_deviceCount": "{count, plural, =0 {Inga enheter länkade.} one {{count} enhet länkad.} other {{count} enheter länkade.}}",
   "@linkedDevicesScreen_deviceCount": {
     "placeholders": {
@@ -196,7 +200,7 @@
   "linkedDevicesScreen_deviceName_editDialog_cancel": "Avbryt",
   "linkedDevicesScreen_deviceName_editDialog_confirm": "Ändra",
   "linkedDevicesScreen_unlinkDialog_title": "Avlänka enhet",
-  "linkedDevicesScreen_unlinkDialog_content": "Enheten kommer inte längre att kunna skicka eller ta emot meddelanden. All data för ditt konto raderas från enheten.",
+  "linkedDevicesScreen_unlinkDialog_content": "Enheten kommer inte längre att kunna skicka eller ta emot meddelanden. All data för ditt konto raderas från enheten nästa gång den är online.",
   "linkedDevicesScreen_unlinkDialog_cancel": "Avbryt",
   "linkedDevicesScreen_unlinkDialog_confirm": "Avlänka",
 

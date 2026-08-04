@@ -519,12 +519,23 @@ class AppLocalizationsEn extends AppLocalizations {
   String get linkedDevicesScreen_unknownDevice => 'Unknown device';
 
   @override
-  String get linkedDevicesScreen_renameError =>
-      'Couldn\'t rename the device. Please try again.';
+  String get linkedDevicesScreen_renameError_title => 'Renaming failed.';
 
   @override
-  String get linkedDevicesScreen_unlinkError =>
-      'Couldn\'t unlink the device. Please try again.';
+  String linkedDevicesScreen_renameError(String deviceName) {
+    return 'Couldn\'t rename the device $deviceName. Check your network connection and try again.';
+  }
+
+  @override
+  String get linkedDevicesScreen_unlinkError_title => 'Unlinking failed.';
+
+  @override
+  String linkedDevicesScreen_unlinkError(String deviceName) {
+    return 'Unlinking the device $deviceName failed. Check your network connection and try again.';
+  }
+
+  @override
+  String get linkedDevicesScreen_errorDialog_confirm => 'Okay';
 
   @override
   String linkedDevicesScreen_deviceCount(int count) {
@@ -601,7 +612,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_unlinkDialog_content =>
-      'The device will no longer be able to send or receive messages. All of your account\'s data will be deleted from the device.';
+      'The device will no longer be able to send or receive messages. All of your account\'s data will be deleted from the device the next time is comes online.';
 
   @override
   String get linkedDevicesScreen_unlinkDialog_cancel => 'Cancel';

@@ -524,12 +524,24 @@ class AppLocalizationsSv extends AppLocalizations {
   String get linkedDevicesScreen_unknownDevice => 'Okänd enhet';
 
   @override
-  String get linkedDevicesScreen_renameError =>
-      'Kunde inte byta namn på enheten. Försök igen.';
+  String get linkedDevicesScreen_renameError_title => 'Namnbytet misslyckades.';
 
   @override
-  String get linkedDevicesScreen_unlinkError =>
-      'Couldn\'t unlink the device. Please try again.';
+  String linkedDevicesScreen_renameError(String deviceName) {
+    return 'Kunde inte byta namn på enheten $deviceName. Kontrollera din nätverksanslutning och försök igen.';
+  }
+
+  @override
+  String get linkedDevicesScreen_unlinkError_title =>
+      'Avlänkningen misslyckades.';
+
+  @override
+  String linkedDevicesScreen_unlinkError(String deviceName) {
+    return 'Avlänkningen av enheten $deviceName misslyckades. Kontrollera din nätverksanslutning och försök igen.';
+  }
+
+  @override
+  String get linkedDevicesScreen_errorDialog_confirm => 'Okay';
 
   @override
   String linkedDevicesScreen_deviceCount(int count) {
@@ -606,7 +618,7 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_unlinkDialog_content =>
-      'Enheten kommer inte längre att kunna skicka eller ta emot meddelanden. All data för ditt konto raderas från enheten.';
+      'Enheten kommer inte längre att kunna skicka eller ta emot meddelanden. All data för ditt konto raderas från enheten nästa gång den är online.';
 
   @override
   String get linkedDevicesScreen_unlinkDialog_cancel => 'Avbryt';

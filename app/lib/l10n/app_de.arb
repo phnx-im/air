@@ -165,7 +165,11 @@
   "linkedDevicesScreen_editNameHint": "Tippe auf ein Gerät, um den Namen zu ändern.",
   "linkedDevicesScreen_linkDevice": "Gerät verknüpfen",
   "linkedDevicesScreen_unknownDevice": "Unbekanntes Gerät",
-  "linkedDevicesScreen_renameError": "Das Gerät konnte nicht umbenannt werden. Bitte versuche es erneut.",
+  "linkedDevicesScreen_renameError_title": "Umbenennen fehlgeschlagen.",
+  "linkedDevicesScreen_renameError": "Das Gerät {deviceName} konnte nicht umbenannt werden. Überprüfe deine Netzwerkverbindung und versuche es erneut.",
+  "linkedDevicesScreen_unlinkError_title": "Aufheben der Verknüpfung fehlgeschlagen.",
+  "linkedDevicesScreen_unlinkError": "Die Verknüpfung des Geräts {deviceName} konnte nicht aufgehoben werden. Überprüfe deine Netzwerkverbindung und versuche es erneut.",
+  "linkedDevicesScreen_errorDialog_confirm": "Okay",
   "linkedDevicesScreen_deviceCount": "{count, plural, =0 {Keine Geräte verknüpft.} one {{count} Gerät verknüpft.} other {{count} Geräte verknüpft.}}",
   "@linkedDevicesScreen_deviceCount": {
     "placeholders": {
@@ -196,7 +200,7 @@
   "linkedDevicesScreen_deviceName_editDialog_cancel": "Abbrechen",
   "linkedDevicesScreen_deviceName_editDialog_confirm": "Ändern",
   "linkedDevicesScreen_unlinkDialog_title": "Geräteverknüpfung aufheben",
-  "linkedDevicesScreen_unlinkDialog_content": "Das Gerät kann dann keine Nachrichten mehr senden oder empfangen. Alle Daten deines Kontos werden vom Gerät gelöscht.",
+  "linkedDevicesScreen_unlinkDialog_content": "Das Gerät kann dann keine Nachrichten mehr senden oder empfangen. Alle Daten deines Kontos werden gelöscht, sobald das Gerät wieder online ist.",
   "linkedDevicesScreen_unlinkDialog_cancel": "Abbrechen",
   "linkedDevicesScreen_unlinkDialog_confirm": "Verknüpfung aufheben",
 

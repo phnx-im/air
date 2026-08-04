@@ -165,7 +165,11 @@
   "linkedDevicesScreen_editNameHint": "Touchez un appareil pour modifier son nom.",
   "linkedDevicesScreen_linkDevice": "Associer un appareil",
   "linkedDevicesScreen_unknownDevice": "Appareil inconnu",
-  "linkedDevicesScreen_renameError": "Impossible de renommer l'appareil. Veuillez réessayer.",
+  "linkedDevicesScreen_renameError_title": "Échec du renommage.",
+  "linkedDevicesScreen_renameError": "Impossible de renommer l'appareil {deviceName}. Vérifiez votre connexion réseau et réessayez.",
+  "linkedDevicesScreen_unlinkError_title": "Échec de la dissociation.",
+  "linkedDevicesScreen_unlinkError": "La dissociation de l'appareil {deviceName} a échoué. Vérifiez votre connexion réseau et réessayez.",
+  "linkedDevicesScreen_errorDialog_confirm": "Okay",
   "linkedDevicesScreen_deviceCount": "{count, plural, =0 {Aucun appareil associé.} one {{count} appareil associé.} other {{count} appareils associés.}}",
   "@linkedDevicesScreen_deviceCount": {
     "placeholders": {
@@ -196,7 +200,7 @@
   "linkedDevicesScreen_deviceName_editDialog_cancel": "Annuler",
   "linkedDevicesScreen_deviceName_editDialog_confirm": "Modifier",
   "linkedDevicesScreen_unlinkDialog_title": "Dissocier l'appareil",
-  "linkedDevicesScreen_unlinkDialog_content": "L'appareil ne pourra plus envoyer ni recevoir de messages. Toutes les données de votre compte seront supprimées de l'appareil.",
+  "linkedDevicesScreen_unlinkDialog_content": "L'appareil ne pourra plus envoyer ni recevoir de messages. Toutes les données de votre compte seront supprimées de l'appareil lors de sa prochaine connexion.",
   "linkedDevicesScreen_unlinkDialog_cancel": "Annuler",
   "linkedDevicesScreen_unlinkDialog_confirm": "Dissocier",
 

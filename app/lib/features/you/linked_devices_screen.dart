@@ -13,7 +13,6 @@ import 'package:air/ds/components/icon_badge/app_icon_badge.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/you/linked_devices_cubit.dart';
 import 'package:air/features/you/linking_device_dialog.dart';
-import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
@@ -246,8 +245,13 @@ class _SingleDevice extends StatelessWidget {
           try {
             await cubit.unlinkDevice(clientId: device.clientId);
           } catch (_) {
-            showErrorBannerStandalone(
-              (loc) => loc.linkedDevicesScreen_unlinkError,
+            if (!context.mounted) {
+              return;
+            }
+            _showErrorDialog(
+              context,
+              title: loc.linkedDevicesScreen_unlinkError_title,
+              message: loc.linkedDevicesScreen_unlinkError(name),
             );
           }
         },
@@ -273,11 +277,36 @@ class _SingleDevice extends StatelessWidget {
           try {
             await cubit.renameDevice(clientId: device.clientId, name: value);
           } catch (_) {
-            showErrorBannerStandalone(
-              (loc) => loc.linkedDevicesScreen_renameError,
+            if (!context.mounted) {
+              return;
+            }
+            _showErrorDialog(
+              context,
+              title: loc.linkedDevicesScreen_renameError_title,
+              // The old name: the rename did not take effect.
+              message: loc.linkedDevicesScreen_renameError(currentName),
             );
           }
         },
+      ),
+    );
+  }
+
+  /// Reports a failed device action, with only a dismiss button: there is
+  /// nothing to confirm, the action simply did not happen.
+  void _showErrorDialog(
+    BuildContext context, {
+    required String title,
+    required String message,
+  }) {
+    showDialog(
+      context: context,
+      builder: (_) => ConfirmDialog(
+        title: title,
+        message: message,
+        confirm: AppLocalizations.of(
+          context,
+        ).linkedDevicesScreen_errorDialog_confirm,
       ),
     );
   }
