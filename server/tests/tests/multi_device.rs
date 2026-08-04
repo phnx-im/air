@@ -793,16 +793,15 @@ async fn multi_device_linking_a_third_device() {
         );
     }
 
-    // Device 3 onboards into the higher-level group. The leaf it replaces is
-    // already a virtual-client leaf, so the sibling queue is covered by the
-    // regular destination list; the commit must not be fanned out twice.
+    // Device 3 onboards into both higher-level groups, the group chat and the
+    // connection group with bob.
     device_3.outbound_service().run_once().await;
     for (label, device) in [("1", device_1), ("2", &device_2)] {
         let queued = device.qs_fetch_messages().await.unwrap();
         assert_eq!(
             queued.len(),
-            1,
-            "device {label} should receive device 3's onboarding commit exactly once"
+            2,
+            "device {label} should receive each of device 3's two onboarding commits exactly once"
         );
         device.fully_process_qs_messages(queued).await;
     }
