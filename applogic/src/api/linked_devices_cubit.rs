@@ -5,10 +5,7 @@
 //! Cubit backing the Linked Devices screen.
 //!
 //! The list is a join: the self-group roster decides which devices are linked,
-//! the synchronized `LinkedDevicesSetting` supplies their names and dates. The
-//! roster is not yet readable per client, which needs the self-group credential
-//! flip in #1388, so for now the join is seeded with this device's own client id
-//! alone.
+//! the synchronized `LinkedDevicesSetting` supplies their names and dates.
 
 use std::sync::Arc;
 
@@ -115,6 +112,8 @@ async fn devices_listener(
 ) {
     load_and_emit(&core_user, &state_tx).await;
 
+    let self_chat_id = core_user.self_chat_id().await.ok().flatten();
+
     loop {
         let notification = tokio::select! {
             _ = cancel.cancelled() => return,
@@ -124,8 +123,10 @@ async fn devices_listener(
             },
         };
 
-        let touched = notification.ops.keys().any(|entity_id| {
-            matches!(entity_id, DbEntityId::UserSetting(key) if key == LinkedDevicesSetting::KEY)
+        let touched = notification.ops.keys().any(|entity_id| match entity_id {
+            DbEntityId::UserSetting(key) => key == LinkedDevicesSetting::KEY,
+            DbEntityId::Chat(chat_id) => Some(*chat_id) == self_chat_id,
+            _ => false,
         });
         if touched {
             load_and_emit(&core_user, &state_tx).await;
@@ -150,9 +151,12 @@ async fn try_load(core_user: &CoreUser) -> anyhow::Result<Vec<UiLinkedDevice>> {
     let own_client_id = core_user.own_client_id().await?;
     let metadata = core_user.linked_devices().await?;
 
-    // Only this device is known to be linked until the roster becomes readable
-    // per client.
-    let roster = [own_client_id];
+    let mut roster = core_user.self_group_client_ids().await?;
+    if roster.is_empty() {
+        // No self group yet: this device is the only one, and it is linked by
+        // definition. Without this the screen would render nothing at all.
+        roster.push(own_client_id);
+    }
 
     let mut devices: Vec<UiLinkedDevice> = roster
         .iter()

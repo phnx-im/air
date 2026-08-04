@@ -1165,6 +1165,74 @@ async fn multi_device_self_update_in_self_group() {
 /// The external commit must carry a self-group credential and self-group leaf
 /// capabilities. Rejoining with the user credential would be rejected, since
 /// the self group accepts only self-group credentials.
+/// After linking, each device advertises itself and learns its sibling, so both
+/// see the same two-device list. This is the property the Devices screen shows.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_linked_devices_converge_on_both_devices() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    let a_id = old_device.own_client_id().await?;
+    let b_id = new_device.own_client_id().await?;
+    assert_ne!(a_id, b_id, "each device mints its own client id");
+
+    // The new device's own entry travelled to the old device in the
+    // provisioning snapshot, and the old device's own entry was never
+    // enqueued (it predates the self group), so it reaches the new device for
+    // free too. What still needs a round trip is the new device's own entry
+    // reaching the old device: that was only enqueued once the new device
+    // joined the self group, and the outbound service is what turns the
+    // enqueued change into a commit for the old device to fetch.
+    new_device.outbound_service().run_once().await;
+    drain_queue(old_device).await;
+
+    for user in [old_device, &new_device] {
+        let roster = user.self_group_client_ids().await?;
+        assert_eq!(roster.len(), 2);
+        assert!(roster.contains(&a_id) && roster.contains(&b_id));
+
+        let devices = user.linked_devices().await?;
+        let ids: Vec<_> = devices.iter().map(|d| d.client_id).collect();
+        assert!(
+            ids.contains(&a_id) && ids.contains(&b_id),
+            "both devices must be in the synced metadata, got {ids:?}"
+        );
+    }
+
+    Ok(())
+}
+
+/// A rename on one device reaches the other through the self group.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_rename_propagates_to_the_sibling() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    let b_id = new_device.own_client_id().await?;
+    new_device.rename_device(b_id, "Phone".to_owned()).await?;
+    new_device.outbound_service().run_once().await;
+    drain_queue(old_device).await;
+
+    let seen = old_device
+        .linked_devices()
+        .await?
+        .into_iter()
+        .find(|device| device.client_id == b_id)
+        .expect("A must know about B");
+    assert_eq!(seen.name, "Phone");
+
+    Ok(())
+}
+
 #[tokio::test(flavor = "multi_thread", worker_threads = 1)]
 #[tracing::instrument(name = "Test resync of the self group", skip_all)]
 async fn multi_device_self_group_resync() {

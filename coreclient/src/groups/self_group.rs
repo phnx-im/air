@@ -3,9 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 #[cfg(any(test, feature = "test_utils"))]
-use aircommon::credentials::{LeafCredential, LeafCredentialError};
+use aircommon::credentials::LeafCredentialError;
 use aircommon::{
-    credentials::keys::{LeafSigningKey, SelfGroupSigningKey},
+    credentials::{
+        LeafCredential,
+        keys::{LeafSigningKey, SelfGroupSigningKey},
+    },
     crypto::{aead::keys::IdentityLinkWrapperKey, indexed_aead::keys::UserProfileKey},
     mls_group_config::AppComponent,
 };
@@ -13,9 +16,10 @@ use airprotos::client::{
     component::AirComponent,
     group::{EncryptedGroupTitle, GroupData},
 };
-use anyhow::Context;
+use anyhow::{Context, bail};
 use openmls::{components::vc_derivation_info::EpochId, group::GroupId};
 use tracing::debug;
+use uuid::Uuid;
 
 use crate::{
     Chat,
@@ -51,6 +55,22 @@ impl SelfGroup {
 
     pub fn group_id(&self) -> &GroupId {
         self.group.group_id()
+    }
+
+    /// The client ids of all leaves in this group, in member order.
+    pub fn client_ids(&self) -> anyhow::Result<Vec<Uuid>> {
+        self.group
+            .mls_group()
+            .members()
+            .map(
+                |member| match LeafCredential::from_credential(&member.credential)? {
+                    LeafCredential::SelfGroup(credential) => Ok(credential.client_id()),
+                    LeafCredential::User(_) => {
+                        bail!("a self-group leaf carries a user credential")
+                    }
+                },
+            )
+            .collect()
     }
 
     /// The parsed leaf credentials of the self-group members, in member order.

@@ -19,6 +19,7 @@ use tracing::warn;
 use uuid::Uuid;
 
 use crate::{
+    ChatId,
     clients::{
         CoreUser,
         own_client_info::OwnClientInfo,
@@ -30,6 +31,7 @@ use crate::{
         access::{ReadConnection, WriteConnection, WriteDbTransaction},
         notification::DbEntityId,
     },
+    groups::self_group::SelfGroup,
 };
 
 /// The synchronized set of the user's devices, sorted by client id.
@@ -190,7 +192,7 @@ pub(crate) async fn ensure_own_device_entry(
     }
     devices.push(entry);
 
-    set_synced_setting(txn, &LinkedDevicesSetting::new(devices)).await
+    store_linked_devices(txn, devices).await
 }
 
 /// Renames the device with the given client id.
@@ -221,6 +223,27 @@ pub(crate) async fn rename_device(
     }
     device.name = name.to_owned();
 
+    store_linked_devices(txn, devices).await
+}
+
+/// Writes `devices` as the synchronized set, dropping entries that are not in
+/// the roster.
+async fn store_linked_devices(
+    txn: &mut WriteDbTransaction<'_>,
+    devices: Vec<LinkedDevice>,
+) -> anyhow::Result<bool> {
+    let roster = match SelfGroup::load(&mut *txn).await? {
+        Some(self_group) => self_group.client_ids()?,
+        None => Vec::new(),
+    };
+    let devices = if roster.is_empty() {
+        devices
+    } else {
+        devices
+            .into_iter()
+            .filter(|device| roster.contains(&device.client_id))
+            .collect()
+    };
     set_synced_setting(txn, &LinkedDevicesSetting::new(devices)).await
 }
 
@@ -237,6 +260,25 @@ impl CoreUser {
     /// self-group roster, and callers join the two.
     pub async fn linked_devices(&self) -> anyhow::Result<Vec<LinkedDevice>> {
         stored_devices(self.db().read().await?).await
+    }
+
+    /// The client ids of every self-group leaf, i.e. the devices that are
+    /// actually linked. Empty when there is no self group.
+    pub async fn self_group_client_ids(&self) -> anyhow::Result<Vec<Uuid>> {
+        let mut read = self.db().read().await?;
+        let Some(self_group) = SelfGroup::load(&mut read).await? else {
+            return Ok(Vec::new());
+        };
+        self_group.client_ids()
+    }
+
+    /// The chat id of the self group ("Notes to self"), if there is one.
+    pub async fn self_chat_id(&self) -> anyhow::Result<Option<ChatId>> {
+        let mut read = self.db().read().await?;
+        let Some(group_id) = OwnClientInfo::load_self_group_id(&mut read).await? else {
+            return Ok(None);
+        };
+        Ok(ChatId::try_from(&group_id).ok())
     }
 
     /// Renames a device and synchronizes the change.
