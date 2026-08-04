@@ -40,7 +40,7 @@ pub struct UiLinkedDevice {
     pub name: String,
     /// Wire platform code, where `0` means unknown.
     pub platform: u8,
-    pub linked_at: DateTime<Utc>,
+    pub linked_at: Option<DateTime<Utc>>,
     pub is_this_device: bool,
 }
 
@@ -174,8 +174,7 @@ async fn try_load(core_user: &CoreUser) -> anyhow::Result<Vec<UiLinkedDevice>> {
                 name: entry.map(|entry| entry.name.clone()).unwrap_or_default(),
                 platform: entry.map_or(0, |entry| entry.platform),
                 linked_at: entry
-                    .and_then(|entry| Utc.timestamp_opt(entry.created_at as i64, 0).single())
-                    .unwrap_or_default(),
+                    .and_then(|entry| Utc.timestamp_opt(entry.created_at as i64, 0).single()),
                 is_this_device: client_id == &own_client_id,
             }
         })

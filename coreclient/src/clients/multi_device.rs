@@ -109,6 +109,9 @@ pub(crate) struct ProvisioningPackage {
     // Synced user settings snapshot so the new device starts with the
     // provisioner's values.
     pub(crate) synced_settings: SettingsUpdate,
+    // The name the confirming user gave this device. Empty means "no choice
+    // made", and the new device falls back to its own platform label.
+    pub(crate) device_name: String,
     // The higher-level groups the virtual client is already a member of, which
     // the new emulator client onboards itself into.
     pub(crate) groups: Vec<HigherLevelGroup>,
@@ -309,14 +312,19 @@ impl CoreUser {
         // 4. old device adds us via the DS
         // 5. we then process the Welcome that the QS fans out to our fresh queue.
         // 6. the old client gives us enough information to onboard ourselves (the new client) into all existing groups.
+        let device_name = package.device_name.clone();
         let core_user = Self::link_new_device(api_clients, db_path, package).await?;
         info!("bootstrapped linked client");
 
         let key_package = core_user.generate_self_group_key_package().await?;
         // Store our own entry locally and hand a copy to the old device, which
         // publishes it on the add commit. We cannot learn it from that commit
-        // ourselves: joining through the Welcome skips its proposals.
-        let device = core_user.store_own_device_entry(Utc::now()).await?;
+        // ourselves: joining through the Welcome skips its proposals, which is
+        // also why the confirming user's chosen name has to reach us in the
+        // provisioning package rather than on the commit.
+        let device = core_user
+            .store_own_device_entry(Utc::now(), Some(&device_name))
+            .await?;
         tx.send(LinkingMessage::seal(
             SelfGroupJoinRequest {
                 key_package,
@@ -338,11 +346,16 @@ impl CoreUser {
 
     /// Establishes a session with a new device (with the given `session_id`). The `connected_tx` and `confirmation_rx` are
     /// channels to report established connection and wait for the user's confirmation.
+    ///
+    /// The confirmation carries the name the user gave the new device. It arrives
+    /// with the confirmation rather than up front because the field is only
+    /// filled in once the relay connection is up. An empty name leaves the new
+    /// device's own default in place.
     pub async fn multi_device_link_client(
         &self,
         session_id: LinkingSessionId,
         connected_tx: oneshot::Sender<()>,
-        confirmation_rx: oneshot::Receiver<()>,
+        confirmation_rx: oneshot::Receiver<String>,
     ) -> anyhow::Result<Result<(), MultiDeviceLinkClientError>> {
         let client = self.api_client()?;
         let qs_user_id = self.inner.qs_user_id;
@@ -416,7 +429,7 @@ impl CoreUser {
             .context("send welcome")?;
 
         // Wait for the user to approve the link on this (existing) device.
-        confirmation_rx
+        let device_name = confirmation_rx
             .await
             .context("confirmation channel closed")?;
 
@@ -425,7 +438,7 @@ impl CoreUser {
 
         // Build the provisioning package (creates a fresh queue for the new
         // device) and hand it over the secure channel.
-        let package = self.build_provisioning_package().await?;
+        let package = self.build_provisioning_package(device_name).await?;
         tx.send(LinkingMessage::seal(package, &cipher)?)
             .await
             .context("send provisioning package")?;
@@ -448,7 +461,10 @@ impl CoreUser {
     /// Create a fresh QS queue for a new device and gather all the key material
     /// the new device needs to bootstrap a working [`CoreUser`] and join the
     /// self group.
-    async fn build_provisioning_package(&self) -> anyhow::Result<ProvisioningPackage> {
+    async fn build_provisioning_package(
+        &self,
+        device_name: String,
+    ) -> anyhow::Result<ProvisioningPackage> {
         let api_client = self.api_client()?;
         let qs_user_id = self.inner.qs_user_id;
 
@@ -503,6 +519,7 @@ impl CoreUser {
             self_group_id,
             identity_link_wrapper_key,
             synced_settings,
+            device_name,
             groups,
         })
     }
@@ -602,6 +619,11 @@ impl CoreUser {
             .await
     }
 
+    /// Adds the new device's leaf to the self group.
+    ///
+    /// The entry already carries the name the confirming user chose: it travelled
+    /// to the new device in the provisioning package, so both sides agree without
+    /// this side substituting anything.
     async fn add_client_to_self_group(&self, request: SelfGroupJoinRequest) -> anyhow::Result<()> {
         let SelfGroupJoinRequest {
             key_package,
@@ -830,6 +852,8 @@ impl CoreUser {
             self_group_id,
             identity_link_wrapper_key: _,
             synced_settings,
+            // Applied by the caller, which stores this device's own entry.
+            device_name: _,
             groups,
         } = package;
 
@@ -947,6 +971,7 @@ mod tests {
             self_group_id,
             identity_link_wrapper_key: IdentityLinkWrapperKey::random()?,
             synced_settings,
+            device_name: "Work laptop".to_owned(),
             groups: Vec::new(),
             user_id,
         })
@@ -974,6 +999,8 @@ mod tests {
             }
         );
         assert_eq!(decoded.user_id, user_id);
+        // The confirming user's device name rides along in the same package.
+        assert_eq!(decoded.device_name, "Work laptop");
 
         Ok(())
     }

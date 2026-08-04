@@ -4,14 +4,18 @@
 
 //! Misc. functions
 
-use super::types::UiUserId;
+use super::user::User;
 
+/// Delete all databases of this client.
 pub async fn delete_databases(db_path: String) -> anyhow::Result<()> {
     aircoreclient::delete_databases(&db_path).await
 }
 
-pub async fn delete_client_database(db_path: String, user_id: UiUserId) -> anyhow::Result<()> {
-    aircoreclient::delete_client_database(&db_path, &user_id.into()).await
+/// Tears down a device that another device unlinked: stops the background work
+/// that writes to the database, then deletes it.
+pub async fn delete_client_database(user: &User, db_path: String) -> anyhow::Result<()> {
+    user.user.stop_outbound_service().await;
+    aircoreclient::delete_client_database(&db_path, &user.user_id().into()).await
 }
 
 /// Returns whether the file at the given path is a recognized image format.

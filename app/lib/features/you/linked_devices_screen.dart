@@ -144,16 +144,20 @@ class _EncryptionNotice extends StatelessWidget {
       spacing: S.s8,
       children: [
         Text(loc.linkedDevicesScreen_encryptionNotice, style: textStyle),
-        GestureDetector(
-          child: Text(
-            loc.linkedDevicesScreen_encryptionNotice_learnMore,
-            style: textStyle.copyWith(color: palette.function.link),
-          ),
-          onTap: () => showBottomSheetDialog(
-            context: context,
-            title: loc.linkedDevicesScreen_encryptionDialog_title,
-            description: loc.linkedDevicesScreen_encryptionDialog_content,
-            primaryActionText: loc.linkedDevicesScreen_encryptionDialog_confirm,
+        MouseRegion(
+          cursor: SystemMouseCursors.click,
+          child: GestureDetector(
+            child: Text(
+              loc.linkedDevicesScreen_encryptionNotice_learnMore,
+              style: textStyle.copyWith(color: palette.function.link),
+            ),
+            onTap: () => showBottomSheetDialog(
+              context: context,
+              title: loc.linkedDevicesScreen_encryptionDialog_title,
+              description: loc.linkedDevicesScreen_encryptionDialog_content,
+              primaryActionText:
+                  loc.linkedDevicesScreen_encryptionDialog_confirm,
+            ),
           ),
         ),
       ],
@@ -176,6 +180,7 @@ class _SingleDevice extends StatelessWidget {
     final name = device.name.isEmpty
         ? loc.linkedDevicesScreen_unknownDevice
         : device.name;
+    final linkedAt = device.linkedAt;
 
     return Container(
       decoration: BoxDecoration(
@@ -192,29 +197,33 @@ class _SingleDevice extends StatelessWidget {
             backgroundColor: palette.backgroundBase.quaternary,
           ),
           Expanded(
-            child: GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: () => _editDeviceName(context, name),
-              child: Column(
-                spacing: S.s4,
-                mainAxisAlignment: .start,
-                crossAxisAlignment: .start,
-                children: [
-                  Text(
-                    name,
-                    style: typeScale.body.regular.style(
-                      color: palette.text.primary,
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                behavior: HitTestBehavior.opaque,
+                onTap: () => _editDeviceName(context, name),
+                child: Column(
+                  spacing: S.s4,
+                  mainAxisAlignment: .start,
+                  crossAxisAlignment: .start,
+                  children: [
+                    Text(
+                      name,
+                      style: typeScale.body.regular.style(
+                        color: palette.text.primary,
+                      ),
                     ),
-                  ),
-                  Text(
-                    loc.linkedDevicesScreen_linkedOn(
-                      dateFormat.format(device.linkedAt.toLocal()),
-                    ),
-                    style: typeScale.body.xs.style(
-                      color: palette.text.tertiary,
-                    ),
-                  ),
-                ],
+                    if (linkedAt != null)
+                      Text(
+                        loc.linkedDevicesScreen_linkedOn(
+                          dateFormat.format(linkedAt.toLocal()),
+                        ),
+                        style: typeScale.body.xs.style(
+                          color: palette.text.tertiary,
+                        ),
+                      ),
+                  ],
+                ),
               ),
             ),
           ),

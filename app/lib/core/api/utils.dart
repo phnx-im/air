@@ -8,18 +8,20 @@ import 'package:convert/convert.dart';
 
 import '../frb_generated.dart';
 import 'package:flutter_rust_bridge/flutter_rust_bridge_for_generated.dart';
-import 'package:uuid/uuid.dart';
-import 'types.dart';
+import 'user.dart';
 
+/// Delete all databases of this client.
 Future<void> deleteDatabases({required String dbPath}) =>
     RustLib.instance.api.crateApiUtilsDeleteDatabases(dbPath: dbPath);
 
+/// Tears down a device that another device unlinked: stops the background work
+/// that writes to the database, then deletes it.
 Future<void> deleteClientDatabase({
+  required User user,
   required String dbPath,
-  required UiUserId userId,
 }) => RustLib.instance.api.crateApiUtilsDeleteClientDatabase(
+  user: user,
   dbPath: dbPath,
-  userId: userId,
 );
 
 /// Returns whether the file at the given path is a recognized image format.

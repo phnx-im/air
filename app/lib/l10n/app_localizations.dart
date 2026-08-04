@@ -1137,7 +1137,7 @@ abstract class AppLocalizations {
   /// No description provided for @linkedDevicesScreen_unlinkDialog_content.
   ///
   /// In en, this message translates to:
-  /// **'The device will no longer be able to send or receive messages. All of your account\'s data will be deleted from the device the next time is comes online.'**
+  /// **'The device will no longer be able to send or receive messages. All of your account\'s data will be deleted from the device the next time it comes online.'**
   String get linkedDevicesScreen_unlinkDialog_content;
 
   /// No description provided for @linkedDevicesScreen_unlinkDialog_cancel.

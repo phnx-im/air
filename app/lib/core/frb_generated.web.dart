@@ -700,6 +700,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  DateTime dco_decode_box_autoadd_Chrono_Utc(dynamic raw);
+
+  @protected
   AcceptContactRequestError dco_decode_box_autoadd_accept_contact_request_error(
     dynamic raw,
   );
@@ -1119,6 +1122,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   dco_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     dynamic raw,
   );
+
+  @protected
+  DateTime? dco_decode_opt_box_autoadd_Chrono_Utc(dynamic raw);
 
   @protected
   AcceptContactRequestError?
@@ -1963,6 +1969,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  DateTime sse_decode_box_autoadd_Chrono_Utc(SseDeserializer deserializer);
+
+  @protected
   AcceptContactRequestError sse_decode_box_autoadd_accept_contact_request_error(
     SseDeserializer deserializer,
   );
@@ -2506,6 +2515,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   sse_decode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     SseDeserializer deserializer,
   );
+
+  @protected
+  DateTime? sse_decode_opt_box_autoadd_Chrono_Utc(SseDeserializer deserializer);
 
   @protected
   AcceptContactRequestError?
@@ -3536,6 +3548,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_Chrono_Utc(
+    DateTime self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_autoadd_accept_contact_request_error(
     AcceptContactRequestError self,
     SseSerializer serializer,
@@ -4222,6 +4240,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   void
   sse_encode_opt_box_autoadd_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
     UsernameHash? self,
+    SseSerializer serializer,
+  );
+
+  @protected
+  void sse_encode_opt_box_autoadd_Chrono_Utc(
+    DateTime? self,
     SseSerializer serializer,
   );
 

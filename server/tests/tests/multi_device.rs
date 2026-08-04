@@ -83,9 +83,18 @@ async fn self_group_client_ids(device: &CoreUser) -> Vec<Uuid> {
 
 /// A confirmation receiver that is already fulfilled, so the acceptor proceeds
 /// without waiting for user confirmation in tests.
-fn auto_confirm() -> tokio::sync::oneshot::Receiver<()> {
+///
+/// Carries an empty device name, which leaves the new device's own default in
+/// place. Use [`confirm_with_name`] to exercise a user-chosen name.
+fn auto_confirm() -> tokio::sync::oneshot::Receiver<String> {
+    confirm_with_name("")
+}
+
+/// Like [`auto_confirm`], but names the new device the way the confirming user
+/// would.
+fn confirm_with_name(name: &str) -> tokio::sync::oneshot::Receiver<String> {
     let (tx, rx) = tokio::sync::oneshot::channel();
-    tx.send(()).unwrap();
+    tx.send(name.to_owned()).unwrap();
     rx
 }
 
@@ -115,6 +124,16 @@ async fn recv_session_id(
 /// returning the new device. The [`TempDir`] holds the new device's database
 /// and must stay alive as long as the device is used.
 async fn link_new_device(setup: &TestBackend, user_id: &UserId) -> (CoreUser, TempDir) {
+    link_new_device_named(setup, user_id, "").await
+}
+
+/// Like [`link_new_device`], but names the new device the way the confirming
+/// user would. An empty `name` leaves the new device's own default in place.
+async fn link_new_device_named(
+    setup: &TestBackend,
+    user_id: &UserId,
+    name: &str,
+) -> (CoreUser, TempDir) {
     let domain = setup.domain().clone();
     let server_url = setup.server_url();
 
@@ -135,7 +154,7 @@ async fn link_new_device(setup: &TestBackend, user_id: &UserId) -> (CoreUser, Te
     setup
         .get_user(user_id)
         .user()
-        .multi_device_link_client(session_id, ignore_connected(), auto_confirm())
+        .multi_device_link_client(session_id, ignore_connected(), confirm_with_name(name))
         .await
         .unwrap()
         .unwrap();
@@ -1197,6 +1216,61 @@ async fn multi_device_linked_devices_converge_on_both_devices() -> anyhow::Resul
             "both devices must be in the synced metadata, got {ids:?}"
         );
     }
+
+    Ok(())
+}
+
+/// The name the confirming user typed overrides the name the new device chose
+/// for itself, and reaches both devices.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_link_uses_the_confirmed_device_name() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device_named(&setup, &alice, "Work laptop").await;
+    let old_device = setup.get_user(&alice).user();
+
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    let b_id = new_device.own_client_id().await?;
+    for (label, device) in [("old", old_device), ("new", &new_device)] {
+        let seen = device
+            .linked_devices()
+            .await?
+            .into_iter()
+            .find(|device| device.client_id == b_id)
+            .unwrap_or_else(|| panic!("the {label} device should know the new device"));
+        assert_eq!(
+            seen.name, "Work laptop",
+            "the {label} device should use the confirmed name"
+        );
+    }
+
+    Ok(())
+}
+
+/// A blank confirmation name leaves the platform default the new device picked.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+async fn multi_device_link_blank_name_keeps_the_device_default() -> anyhow::Result<()> {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let (new_device, _tmp) = link_new_device_named(&setup, &alice, "   ").await;
+    let old_device = setup.get_user(&alice).user();
+
+    drain_queue(old_device).await;
+    drain_queue(&new_device).await;
+
+    let b_id = new_device.own_client_id().await?;
+    let seen = old_device
+        .linked_devices()
+        .await?
+        .into_iter()
+        .find(|device| device.client_id == b_id)
+        .expect("the old device should know the new device");
+    assert!(
+        !seen.name.trim().is_empty(),
+        "a blank confirmation must not blank out the device name"
+    );
 
     Ok(())
 }

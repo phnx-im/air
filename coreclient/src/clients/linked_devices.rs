@@ -138,12 +138,17 @@ pub(crate) async fn stored_devices(
 pub(crate) async fn own_device_entry(
     txn: &mut WriteDbTransaction<'_>,
     created_at: DateTime<Utc>,
+    name: Option<&str>,
 ) -> anyhow::Result<LinkedDevice> {
     let client_id = OwnClientInfo::load(&mut *txn).await?.client_id;
     let platform = current_platform();
+    let name = name
+        .map(str::trim)
+        .filter(|name| !name.is_empty())
+        .unwrap_or_else(|| platform_label(platform));
     Ok(LinkedDevice {
         client_id,
-        name: platform_label(platform).to_owned(),
+        name: name.to_owned(),
         created_at: created_at.timestamp().max(0) as u64,
         platform,
     })
@@ -183,7 +188,7 @@ pub(crate) async fn ensure_own_device_entry(
     txn: &mut WriteDbTransaction<'_>,
     created_at: DateTime<Utc>,
 ) -> anyhow::Result<bool> {
-    let entry = own_device_entry(&mut *txn, created_at).await?;
+    let entry = own_device_entry(&mut *txn, created_at, None).await?;
     let mut devices = stored_devices(&mut *txn).await?;
     if devices
         .iter()
@@ -224,16 +229,29 @@ pub(crate) async fn rename_device(
     }
 
     let mut devices = stored_devices(&mut *txn).await?;
-    let Some(device) = devices
+    if let Some(device) = devices
         .iter_mut()
         .find(|device| device.client_id == client_id)
-    else {
-        bail!("no linked device with client id {client_id}");
-    };
-    if device.name == name {
-        return Ok(false);
+    {
+        if device.name == name {
+            return Ok(false);
+        }
+        device.name = name.to_owned();
+    } else {
+        let is_linked = match SelfGroup::load(&mut *txn).await? {
+            Some(self_group) => self_group.client_ids()?.contains(&client_id),
+            None => OwnClientInfo::load(&mut *txn).await?.client_id == client_id,
+        };
+        if !is_linked {
+            bail!("no linked device with client id {client_id}");
+        }
+        devices.push(LinkedDevice {
+            client_id,
+            name: name.to_owned(),
+            created_at: 0,
+            platform: PLATFORM_UNKNOWN,
+        });
     }
-    device.name = name.to_owned();
 
     store_linked_devices(txn, devices).await
 }
@@ -357,13 +375,20 @@ impl CoreUser {
     ///
     /// Used by a device being linked: the old device publishes the returned entry
     /// on the self-group add commit.
+    ///
+    /// `name` is the name the user gave this device while confirming the link on
+    /// the other device. It arrives in the provisioning package, so this device
+    /// stores the final name straight away: it joins by Welcome, which does not
+    /// carry the add commit's proposals, so it cannot learn a name the other
+    /// device substituted afterwards.
     pub(crate) async fn store_own_device_entry(
         &self,
         created_at: DateTime<Utc>,
+        name: Option<&str>,
     ) -> anyhow::Result<LinkedDevice> {
         self.db()
             .with_write_transaction(async |txn| {
-                let entry = own_device_entry(&mut *txn, created_at).await?;
+                let entry = own_device_entry(&mut *txn, created_at, name).await?;
                 merge_device_entry_locally(&mut *txn, entry.clone()).await?;
                 Ok(entry)
             })
@@ -584,6 +609,29 @@ mod tests {
             .await?;
 
         assert_eq!(devices_in(&db).await?[0].name, "Desk");
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn rename_creates_missing_metadata_for_a_linked_device(
+        pool: SqlitePool,
+    ) -> anyhow::Result<()> {
+        let (db, client_id) = test_db(pool).await?;
+
+        let enqueued = db
+            .with_write_transaction(async |txn| rename_device(txn, client_id, "Work laptop").await)
+            .await?;
+
+        assert!(!enqueued, "no self group means nothing to synchronize");
+        assert_eq!(
+            devices_in(&db).await?,
+            vec![LinkedDevice {
+                client_id,
+                name: "Work laptop".to_owned(),
+                created_at: 0,
+                platform: PLATFORM_UNKNOWN,
+            }]
+        );
         Ok(())
     }
 

@@ -798,7 +798,7 @@ class AppLocalizationsSv extends AppLocalizations {
 
   @override
   String get systemMessage_onboarded =>
-      'This client has been onboarded into the group after linking.';
+      'Den här klienten lades till i gruppen efter länkningen.';
 
   @override
   String get timestamp_now => 'Nu';

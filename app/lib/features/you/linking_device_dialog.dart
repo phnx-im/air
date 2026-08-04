@@ -24,9 +24,12 @@ bool get _isQrCodeScannerSupported =>
 enum _LinkPage { chooser, scanQrCode, numericCode, linking }
 
 /// A running linking session
+///
+/// [confirm] takes the name the user gave the new device. An empty name leaves
+/// the new device's own default in place.
 typedef LinkSession = ({
   Stream<MultiDeviceLinkEvent> events,
-  VoidCallback confirm,
+  ValueChanged<String> confirm,
 });
 
 /// Starts a linking session for [sessionId]. Injectable for tests.
@@ -36,7 +39,10 @@ typedef LinkSessionStarter =
 LinkSession _startLinkSession(BuildContext context, String sessionId) {
   final confirmation = MultiDeviceLinkConfirmation();
   final events = context.read<UserCubit>().linkDevice(sessionId, confirmation);
-  return (events: events, confirm: confirmation.confirm);
+  return (
+    events: events,
+    confirm: (deviceName) => confirmation.confirm(deviceName: deviceName),
+  );
 }
 
 /// Entry point for linking a new device.
@@ -513,8 +519,8 @@ class _LinkingPage extends HookWidget {
       ),
       _LinkPhase.awaitingConfirmation => _LinkConfirmView(
         onBack: onBack,
-        onConfirm: () {
-          session.confirm();
+        onConfirm: (deviceName) {
+          session.confirm(deviceName);
           phase.value = _LinkPhase.linking;
         },
       ),
@@ -677,7 +683,9 @@ class _LinkConfirmView extends HookWidget {
   const _LinkConfirmView({required this.onBack, required this.onConfirm});
 
   final VoidCallback onBack;
-  final VoidCallback onConfirm;
+
+  /// Called with the name the user gave the new device.
+  final ValueChanged<String> onConfirm;
 
   @override
   Widget build(BuildContext context) {
@@ -729,7 +737,7 @@ class _LinkConfirmView extends HookWidget {
           state: checked.value
               ? AppButtonState.active
               : AppButtonState.inactive,
-          onPressed: onConfirm,
+          onPressed: () => onConfirm(deviceName.text),
         ),
       ],
     );

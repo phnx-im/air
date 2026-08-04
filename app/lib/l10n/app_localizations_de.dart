@@ -809,7 +809,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get systemMessage_onboarded =>
-      'This client has been onboarded into the group after linking.';
+      'Dieser Client wurde nach dem Verknüpfen in die Gruppe aufgenommen.';
 
   @override
   String get timestamp_now => 'Jetzt';

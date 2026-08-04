@@ -3953,6 +3953,7 @@ fn wire__crate__api__multi_device__MultiDeviceLinkConfirmation_confirm_impl(
                     MultiDeviceLinkConfirmation,
                 >,
             >>::sse_decode(&mut deserializer);
+            let api_device_name = <String>::sse_decode(&mut deserializer);
             deserializer.end();
             transform_result_sse::<_, ()>((move || {
                 let mut api_that_guard = None;
@@ -3972,6 +3973,7 @@ fn wire__crate__api__multi_device__MultiDeviceLinkConfirmation_confirm_impl(
                 let output_ok = Result::<_, ()>::Ok({
                     crate::api::multi_device::MultiDeviceLinkConfirmation::confirm(
                         &*api_that_guard,
+                        api_device_name,
                     );
                 })?;
                 Ok(output_ok)
@@ -8508,15 +8510,36 @@ fn wire__crate__api__utils__delete_client_database_impl(
             };
             let mut deserializer =
                 flutter_rust_bridge::for_generated::SseDeserializer::new(message);
+            let api_user = <RustOpaqueMoi<
+                flutter_rust_bridge::for_generated::RustAutoOpaqueInner<User>,
+            >>::sse_decode(&mut deserializer);
             let api_db_path = <String>::sse_decode(&mut deserializer);
-            let api_user_id = <crate::api::types::UiUserId>::sse_decode(&mut deserializer);
             deserializer.end();
             move |context| async move {
                 transform_result_sse::<_, flutter_rust_bridge::for_generated::anyhow::Error>(
                     (move || async move {
-                        let output_ok =
-                            crate::api::utils::delete_client_database(api_db_path, api_user_id)
-                                .await?;
+                        let mut api_user_guard = None;
+                        let decode_indices_ =
+                            flutter_rust_bridge::for_generated::lockable_compute_decode_order(
+                                vec![flutter_rust_bridge::for_generated::LockableOrderInfo::new(
+                                    &api_user, 0, false,
+                                )],
+                            );
+                        for i in decode_indices_ {
+                            match i {
+                                0 => {
+                                    api_user_guard =
+                                        Some(api_user.lockable_decode_async_ref().await)
+                                }
+                                _ => unreachable!(),
+                            }
+                        }
+                        let api_user_guard = api_user_guard.unwrap();
+                        let output_ok = crate::api::utils::delete_client_database(
+                            &*api_user_guard,
+                            api_db_path,
+                        )
+                        .await?;
                         Ok(output_ok)
                     })()
                     .await,
@@ -11838,6 +11861,17 @@ impl SseDecode for Option<UsernameHash> {
     }
 }
 
+impl SseDecode for Option<chrono::DateTime<chrono::Utc>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        if (<bool>::sse_decode(deserializer)) {
+            return Some(<chrono::DateTime<chrono::Utc>>::sse_decode(deserializer));
+        } else {
+            return None;
+        }
+    }
+}
+
 impl SseDecode for Option<crate::api::chat_details_cubit::AcceptContactRequestError> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -12851,7 +12885,7 @@ impl SseDecode for crate::api::linked_devices_cubit::UiLinkedDevice {
         let mut var_clientId = <String>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
         let mut var_platform = <u8>::sse_decode(deserializer);
-        let mut var_linkedAt = <chrono::DateTime<chrono::Utc>>::sse_decode(deserializer);
+        let mut var_linkedAt = <Option<chrono::DateTime<chrono::Utc>>>::sse_decode(deserializer);
         let mut var_isThisDevice = <bool>::sse_decode(deserializer);
         return crate::api::linked_devices_cubit::UiLinkedDevice {
             client_id: var_clientId,
@@ -18020,6 +18054,16 @@ impl SseEncode for Option<UsernameHash> {
     }
 }
 
+impl SseEncode for Option<chrono::DateTime<chrono::Utc>> {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <bool>::sse_encode(self.is_some(), serializer);
+        if let Some(value) = self {
+            <chrono::DateTime<chrono::Utc>>::sse_encode(value, serializer);
+        }
+    }
+}
+
 impl SseEncode for Option<crate::api::chat_details_cubit::AcceptContactRequestError> {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -18845,7 +18889,7 @@ impl SseEncode for crate::api::linked_devices_cubit::UiLinkedDevice {
         <String>::sse_encode(self.client_id, serializer);
         <String>::sse_encode(self.name, serializer);
         <u8>::sse_encode(self.platform, serializer);
-        <chrono::DateTime<chrono::Utc>>::sse_encode(self.linked_at, serializer);
+        <Option<chrono::DateTime<chrono::Utc>>>::sse_encode(self.linked_at, serializer);
         <bool>::sse_encode(self.is_this_device, serializer);
     }
 }

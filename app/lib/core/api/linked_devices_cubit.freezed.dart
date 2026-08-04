@@ -148,7 +148,7 @@ as List<UiLinkedDevice>,
 /// @nodoc
 mixin _$UiLinkedDevice {
 
- String get clientId; String get name; int get platform; DateTime get linkedAt; bool get isThisDevice;
+ String get clientId; String get name; int get platform; DateTime? get linkedAt; bool get isThisDevice;
 /// Create a copy of UiLinkedDevice
 /// with the given fields replaced by the non-null parameter values.
 @JsonKey(includeFromJson: false, includeToJson: false)
@@ -179,7 +179,7 @@ abstract mixin class $UiLinkedDeviceCopyWith<$Res>  {
   factory $UiLinkedDeviceCopyWith(UiLinkedDevice value, $Res Function(UiLinkedDevice) _then) = _$UiLinkedDeviceCopyWithImpl;
 @useResult
 $Res call({
- String clientId, String name, int platform, DateTime linkedAt, bool isThisDevice
+ String clientId, String name, int platform, DateTime? linkedAt, bool isThisDevice
 });
 
 
@@ -196,13 +196,13 @@ class _$UiLinkedDeviceCopyWithImpl<$Res>
 
 /// Create a copy of UiLinkedDevice
 /// with the given fields replaced by the non-null parameter values.
-@pragma('vm:prefer-inline') @override $Res call({Object? clientId = null,Object? name = null,Object? platform = null,Object? linkedAt = null,Object? isThisDevice = null,}) {
+@pragma('vm:prefer-inline') @override $Res call({Object? clientId = null,Object? name = null,Object? platform = null,Object? linkedAt = freezed,Object? isThisDevice = null,}) {
   return _then(_self.copyWith(
 clientId: null == clientId ? _self.clientId : clientId // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,platform: null == platform ? _self.platform : platform // ignore: cast_nullable_to_non_nullable
-as int,linkedAt: null == linkedAt ? _self.linkedAt : linkedAt // ignore: cast_nullable_to_non_nullable
-as DateTime,isThisDevice: null == isThisDevice ? _self.isThisDevice : isThisDevice // ignore: cast_nullable_to_non_nullable
+as int,linkedAt: freezed == linkedAt ? _self.linkedAt : linkedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,isThisDevice: null == isThisDevice ? _self.isThisDevice : isThisDevice // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }
@@ -215,13 +215,13 @@ as bool,
 
 
 class _UiLinkedDevice implements UiLinkedDevice {
-  const _UiLinkedDevice({required this.clientId, required this.name, required this.platform, required this.linkedAt, required this.isThisDevice});
+  const _UiLinkedDevice({required this.clientId, required this.name, required this.platform, this.linkedAt, required this.isThisDevice});
   
 
 @override final  String clientId;
 @override final  String name;
 @override final  int platform;
-@override final  DateTime linkedAt;
+@override final  DateTime? linkedAt;
 @override final  bool isThisDevice;
 
 /// Create a copy of UiLinkedDevice
@@ -254,7 +254,7 @@ abstract mixin class _$UiLinkedDeviceCopyWith<$Res> implements $UiLinkedDeviceCo
   factory _$UiLinkedDeviceCopyWith(_UiLinkedDevice value, $Res Function(_UiLinkedDevice) _then) = __$UiLinkedDeviceCopyWithImpl;
 @override @useResult
 $Res call({
- String clientId, String name, int platform, DateTime linkedAt, bool isThisDevice
+ String clientId, String name, int platform, DateTime? linkedAt, bool isThisDevice
 });
 
 
@@ -271,13 +271,13 @@ class __$UiLinkedDeviceCopyWithImpl<$Res>
 
 /// Create a copy of UiLinkedDevice
 /// with the given fields replaced by the non-null parameter values.
-@override @pragma('vm:prefer-inline') $Res call({Object? clientId = null,Object? name = null,Object? platform = null,Object? linkedAt = null,Object? isThisDevice = null,}) {
+@override @pragma('vm:prefer-inline') $Res call({Object? clientId = null,Object? name = null,Object? platform = null,Object? linkedAt = freezed,Object? isThisDevice = null,}) {
   return _then(_UiLinkedDevice(
 clientId: null == clientId ? _self.clientId : clientId // ignore: cast_nullable_to_non_nullable
 as String,name: null == name ? _self.name : name // ignore: cast_nullable_to_non_nullable
 as String,platform: null == platform ? _self.platform : platform // ignore: cast_nullable_to_non_nullable
-as int,linkedAt: null == linkedAt ? _self.linkedAt : linkedAt // ignore: cast_nullable_to_non_nullable
-as DateTime,isThisDevice: null == isThisDevice ? _self.isThisDevice : isThisDevice // ignore: cast_nullable_to_non_nullable
+as int,linkedAt: freezed == linkedAt ? _self.linkedAt : linkedAt // ignore: cast_nullable_to_non_nullable
+as DateTime?,isThisDevice: null == isThisDevice ? _self.isThisDevice : isThisDevice // ignore: cast_nullable_to_non_nullable
 as bool,
   ));
 }

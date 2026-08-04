@@ -244,6 +244,7 @@
   "systemMessage_userChangedPicture_infix": " ändrade gruppbilden",
   "systemMessage_userCreatedGroup_prefix": "{user}",
   "systemMessage_userCreatedGroup_suffix": " skapade gruppen",
+  "systemMessage_onboarded": "Den här klienten lades till i gruppen efter länkningen.",
   "timestamp_now": "Nu",
   "timestamp_minutesAgo": "{count}m",
   "date_today": "Idag",

@@ -476,6 +476,7 @@ abstract class RustLibApi extends BaseApi {
 
   void crateApiMultiDeviceMultiDeviceLinkConfirmationConfirm({
     required MultiDeviceLinkConfirmation that,
+    required String deviceName,
   });
 
   MultiDeviceLinkConfirmation
@@ -849,8 +850,8 @@ abstract class RustLibApi extends BaseApi {
   Stream<LogEntry> crateApiLoggingCreateLogStream();
 
   Future<void> crateApiUtilsDeleteClientDatabase({
+    required User user,
     required String dbPath,
-    required UiUserId userId,
   });
 
   Future<void> crateApiUtilsDeleteDatabases({required String dbPath});
@@ -4075,6 +4076,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   @override
   void crateApiMultiDeviceMultiDeviceLinkConfirmationConfirm({
     required MultiDeviceLinkConfirmation that,
+    required String deviceName,
   }) {
     return handler.executeSync(
       SyncTask(
@@ -4084,6 +4086,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
             that,
             serializer,
           );
+          sse_encode_String(deviceName, serializer);
           return pdeCallFfi(generalizedFrbRustBinding, serializer, funcId: 77)!;
         },
         codec: SseCodec(
@@ -4092,7 +4095,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         ),
         constMeta:
             kCrateApiMultiDeviceMultiDeviceLinkConfirmationConfirmConstMeta,
-        argValues: [that],
+        argValues: [that, deviceName],
         apiImpl: this,
       ),
     );
@@ -4102,7 +4105,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   get kCrateApiMultiDeviceMultiDeviceLinkConfirmationConfirmConstMeta =>
       const TaskConstMeta(
         debugName: "MultiDeviceLinkConfirmation_confirm",
-        argNames: ["that"],
+        argNames: ["that", "deviceName"],
       );
 
   @override
@@ -7365,15 +7368,18 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
 
   @override
   Future<void> crateApiUtilsDeleteClientDatabase({
+    required User user,
     required String dbPath,
-    required UiUserId userId,
   }) {
     return handler.executeNormal(
       NormalTask(
         callFfi: (port_) {
           final serializer = SseSerializer(generalizedFrbRustBinding);
+          sse_encode_Auto_Ref_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUser(
+            user,
+            serializer,
+          );
           sse_encode_String(dbPath, serializer);
-          sse_encode_box_autoadd_ui_user_id(userId, serializer);
           pdeCallFfi(
             generalizedFrbRustBinding,
             serializer,
@@ -7386,7 +7392,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
           decodeErrorData: sse_decode_AnyhowException,
         ),
         constMeta: kCrateApiUtilsDeleteClientDatabaseConstMeta,
-        argValues: [dbPath, userId],
+        argValues: [user, dbPath],
         apiImpl: this,
       ),
     );
@@ -7395,7 +7401,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   TaskConstMeta get kCrateApiUtilsDeleteClientDatabaseConstMeta =>
       const TaskConstMeta(
         debugName: "delete_client_database",
-        argNames: ["dbPath", "userId"],
+        argNames: ["user", "dbPath"],
       );
 
   @override
@@ -9452,6 +9458,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DateTime dco_decode_box_autoadd_Chrono_Utc(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return dco_decode_Chrono_Utc(raw);
+  }
+
+  @protected
   AcceptContactRequestError dco_decode_box_autoadd_accept_contact_request_error(
     dynamic raw,
   ) {
@@ -10601,6 +10613,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DateTime? dco_decode_opt_box_autoadd_Chrono_Utc(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return raw == null ? null : dco_decode_box_autoadd_Chrono_Utc(raw);
+  }
+
+  @protected
   AcceptContactRequestError?
   dco_decode_opt_box_autoadd_accept_contact_request_error(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
@@ -11324,7 +11342,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       clientId: dco_decode_String(arr[0]),
       name: dco_decode_String(arr[1]),
       platform: dco_decode_u_8(arr[2]),
-      linkedAt: dco_decode_Chrono_Utc(arr[3]),
+      linkedAt: dco_decode_opt_box_autoadd_Chrono_Utc(arr[3]),
       isThisDevice: dco_decode_bool(arr[4]),
     );
   }
@@ -12707,6 +12725,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return (sse_decode_Auto_Owned_RustOpaque_flutter_rust_bridgefor_generatedRustAutoOpaqueInnerUsernameHash(
       deserializer,
     ));
+  }
+
+  @protected
+  DateTime sse_decode_box_autoadd_Chrono_Utc(SseDeserializer deserializer) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    return (sse_decode_Chrono_Utc(deserializer));
   }
 
   @protected
@@ -14182,6 +14206,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  DateTime? sse_decode_opt_box_autoadd_Chrono_Utc(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    if (sse_decode_bool(deserializer)) {
+      return (sse_decode_box_autoadd_Chrono_Utc(deserializer));
+    } else {
+      return null;
+    }
+  }
+
+  @protected
   AcceptContactRequestError?
   sse_decode_opt_box_autoadd_accept_contact_request_error(
     SseDeserializer deserializer,
@@ -15151,7 +15188,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_clientId = sse_decode_String(deserializer);
     var var_name = sse_decode_String(deserializer);
     var var_platform = sse_decode_u_8(deserializer);
-    var var_linkedAt = sse_decode_Chrono_Utc(deserializer);
+    var var_linkedAt = sse_decode_opt_box_autoadd_Chrono_Utc(deserializer);
     var var_isThisDevice = sse_decode_bool(deserializer);
     return UiLinkedDevice(
       clientId: var_clientId,
@@ -16825,6 +16862,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_box_autoadd_Chrono_Utc(
+    DateTime self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_Chrono_Utc(self, serializer);
+  }
+
+  @protected
   void sse_encode_box_autoadd_accept_contact_request_error(
     AcceptContactRequestError self,
     SseSerializer serializer,
@@ -18206,6 +18252,19 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_opt_box_autoadd_Chrono_Utc(
+    DateTime? self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+
+    sse_encode_bool(self != null, serializer);
+    if (self != null) {
+      sse_encode_box_autoadd_Chrono_Utc(self, serializer);
+    }
+  }
+
+  @protected
   void sse_encode_opt_box_autoadd_accept_contact_request_error(
     AcceptContactRequestError? self,
     SseSerializer serializer,
@@ -19084,7 +19143,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     sse_encode_String(self.clientId, serializer);
     sse_encode_String(self.name, serializer);
     sse_encode_u_8(self.platform, serializer);
-    sse_encode_Chrono_Utc(self.linkedAt, serializer);
+    sse_encode_opt_box_autoadd_Chrono_Utc(self.linkedAt, serializer);
     sse_encode_bool(self.isThisDevice, serializer);
   }
 
@@ -19995,8 +20054,14 @@ class MultiDeviceLinkConfirmationImpl extends RustOpaque
   );
 
   /// Approves the link, unblocking the linking task.
-  void confirm() => RustLib.instance.api
-      .crateApiMultiDeviceMultiDeviceLinkConfirmationConfirm(that: this);
+  ///
+  /// `device_name` is the name to give the newly linked device. An empty name
+  /// leaves the new device's own default in place.
+  void confirm({required String deviceName}) => RustLib.instance.api
+      .crateApiMultiDeviceMultiDeviceLinkConfirmationConfirm(
+        that: this,
+        deviceName: deviceName,
+      );
 }
 
 @sealed

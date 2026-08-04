@@ -54,7 +54,7 @@ sealed class UiLinkedDevice with _$UiLinkedDevice {
     required String clientId,
     required String name,
     required int platform,
-    required DateTime linkedAt,
+    DateTime? linkedAt,
     required bool isThisDevice,
   }) = _UiLinkedDevice;
 }
