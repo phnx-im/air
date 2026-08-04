@@ -6,9 +6,13 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
+import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/components/text_input/text_input.dart';
+import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/constrained_width/constrained_width.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/ds/patterns/snackbar/snackbar_tokens.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/util/username_input_formatter.dart';
 import 'package:flutter/material.dart';
@@ -28,17 +32,22 @@ class UsernameOnboardingScreen extends HookWidget {
       registrationState.usernameSuggestion ?? '',
     );
 
-    final formKey = useMemoized(() => GlobalKey<FormState>());
     final controller = useTextEditingController(text: initialHandle);
     final focusNode = useFocusNode();
     final usernameExists = useState(false);
+    final usernameError = useState<String?>(null);
     final isSubmitting = useState(false);
 
     Future<void> submit() async {
       if (isSubmitting.value) {
         return;
       }
-      if (!formKey.currentState!.validate()) {
+      usernameError.value = _validateUsername(
+        loc,
+        usernameExists.value,
+        controller.text,
+      );
+      if (usernameError.value != null) {
         return;
       }
       final normalized = UsernameInputFormatter.normalize(
@@ -60,7 +69,7 @@ class UsernameOnboardingScreen extends HookWidget {
           } else {
             usernameExists.value = true;
             isSubmitting.value = false;
-            formKey.currentState!.validate();
+            usernameError.value = _validateUsername(loc, true, controller.text);
           }
           return true;
         } catch (e) {
@@ -69,6 +78,7 @@ class UsernameOnboardingScreen extends HookWidget {
             isSubmitting.value = false;
             showSnackBarStandalone(
               (loc) => SnackBar(content: Text(loc.usernameOnboarding_error)),
+              tone: SnackbarTone.danger,
             );
           }
           return false;
@@ -80,6 +90,15 @@ class UsernameOnboardingScreen extends HookWidget {
         // available during account creation.
         await Future.delayed(const Duration(milliseconds: 250));
         tryToAddUsername(true);
+      }
+    }
+
+    // A taken username is only known to be taken for the text that was sent,
+    // so the next edit reopens the field to the rules it can still check.
+    void onUsernameChanged(String value) {
+      if (usernameExists.value) {
+        usernameExists.value = false;
+        usernameError.value = _validateUsername(loc, false, value);
       }
     }
 
@@ -103,9 +122,14 @@ class UsernameOnboardingScreen extends HookWidget {
         backgroundColor: backgroundColor,
         actionsPadding: const EdgeInsets.symmetric(horizontal: S.s16),
         actions: [
-          TextButton(
-            onPressed: isSubmitting.value ? null : skip,
-            child: Text(loc.usernameOnboarding_next),
+          Button(
+            onPressed: skip,
+            label: loc.usernameOnboarding_next,
+            type: ButtonType.secondary,
+            size: ButtonSize.small,
+            state: isSubmitting.value
+                ? ButtonState.inactive
+                : ButtonState.active,
           ),
         ],
       ),
@@ -122,31 +146,23 @@ class UsernameOnboardingScreen extends HookWidget {
                           horizontal: S.s16,
                           vertical: S.s12,
                         ),
-                        child: Form(
-                          key: formKey,
-                          child: Column(
-                            crossAxisAlignment: CrossAxisAlignment.stretch,
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              Text(
-                                loc.usernameOnboarding_body,
-                                textAlign: TextAlign.left,
-                                style: Theme.of(context).textTheme.bodyMedium,
-                              ),
-                              const SizedBox(height: S.s24),
-                              _UsernameTextField(
-                                controller: controller,
-                                focusNode: focusNode,
-                                usernameExists: usernameExists,
-                                formKey: formKey,
-                                validator: (value) => _validateUsername(
-                                  loc,
-                                  usernameExists.value,
-                                  value,
-                                ),
-                              ),
-                            ],
-                          ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          mainAxisSize: MainAxisSize.min,
+                          children: [
+                            Text(
+                              loc.usernameOnboarding_body,
+                              textAlign: TextAlign.left,
+                              style: Theme.of(context).textTheme.bodyMedium,
+                            ),
+                            const SizedBox(height: S.s24),
+                            _UsernameTextField(
+                              controller: controller,
+                              focusNode: focusNode,
+                              errorText: usernameError.value,
+                              onChanged: onUsernameChanged,
+                            ),
+                          ],
                         ),
                       );
                     },
@@ -165,16 +181,15 @@ class UsernameOnboardingScreen extends HookWidget {
   String? _validateUsername(
     AppLocalizations loc,
     bool alreadyExists,
-    String? value,
+    String value,
   ) {
     if (alreadyExists) {
       return loc.usernameScreen_error_alreadyExists;
     }
-    if (value == null || value.trim().isEmpty) {
+    if (value.trim().isEmpty) {
       return loc.usernameScreen_error_emptyUsername;
     }
-    final safeValue = value;
-    final normalized = UsernameInputFormatter.normalize(safeValue);
+    final normalized = UsernameInputFormatter.normalize(value);
     if (normalized.isEmpty) {
       return loc.usernameScreen_error_emptyUsername;
     }
@@ -201,36 +216,14 @@ class _AddButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
     return Container(
       padding: const EdgeInsets.symmetric(horizontal: S.s24),
       width: context.breakpoint.isSmall ? double.infinity : null,
-      child: OutlinedButton(
-        style: OutlinedButtonTheme.of(context).style!.copyWith(
-          backgroundColor: WidgetStateProperty.all(palette.accentBrand.primary),
-          foregroundColor: WidgetStateProperty.all(
-            palette.function.neutral.toggleWhite,
-          ),
-        ),
-        onPressed: isSubmitting ? null : onPressed,
-        child: isSubmitting
-            ? SizedBox(
-                height: 20,
-                width: 20,
-                child: CircularProgressIndicator(
-                  strokeWidth: StrokeWidth.px2,
-                  valueColor: AlwaysStoppedAnimation<Color>(
-                    palette.function.neutral.toggleWhite,
-                  ),
-                ),
-              )
-            : Text(
-                loc.usernameOnboarding_addButton,
-                style: typeScale.body.regular.style(
-                  color: palette.function.neutral.toggleWhite,
-                ),
-              ),
+      child: Button(
+        onPressed: onPressed,
+        label: loc.usernameOnboarding_addButton,
+        state: isSubmitting ? ButtonState.pending : ButtonState.active,
       ),
     );
   }
@@ -240,55 +233,30 @@ class _UsernameTextField extends StatelessWidget {
   const _UsernameTextField({
     required this.controller,
     required this.focusNode,
-    required this.usernameExists,
-    required this.formKey,
-    required this.validator,
+    required this.errorText,
+    required this.onChanged,
   });
 
   final TextEditingController controller;
   final FocusNode focusNode;
-  final ValueNotifier<bool> usernameExists;
-  final GlobalKey<FormState> formKey;
-  final FormFieldValidator<String>? validator;
+  final String? errorText;
+  final ValueChanged<String> onChanged;
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final palette = SemanticPalette.of(context);
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: S.s8,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: S.s8),
-          child: Text(
-            loc.usernameOnboarding_usernameInputName,
-            style: typeScale.body.xs.style(color: palette.text.quaternary),
-          ),
-        ),
-        TextFormField(
-          autofocus: true,
-          controller: controller,
-          focusNode: focusNode,
-          textInputAction: TextInputAction.done,
-          decoration: InputDecoration(
-            hintText: loc.usernameOnboarding_usernameInputHint,
-            fillColor: palette.backgroundBase.tertiary,
-          ),
-          inputFormatters: const [UsernameInputFormatter()],
-          onChanged: (_) {
-            if (usernameExists.value) {
-              usernameExists.value = false;
-              formKey.currentState?.validate();
-            }
-          },
-          validator: validator,
-        ),
-        Text(
-          loc.usernameOnboarding_syntax,
-          style: typeScale.body.xs.style(color: palette.text.quaternary),
-        ),
-      ],
+    return AppTextInput(
+      tokens: AppTextInputTokens.of(context),
+      controller: controller,
+      focusNode: focusNode,
+      autofocus: true,
+      textInputAction: TextInputAction.done,
+      label: loc.usernameOnboarding_usernameInputName,
+      hintText: loc.usernameOnboarding_usernameInputHint,
+      helperText: loc.usernameOnboarding_syntax,
+      errorText: errorText,
+      inputFormatters: const [UsernameInputFormatter()],
+      onChanged: onChanged,
     );
   }
 }

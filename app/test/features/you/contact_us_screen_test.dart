@@ -2,6 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/ds/components/button/button.dart';
 import 'package:air/features/you/contact_us_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -62,7 +63,7 @@ void main() {
 
       when(() => launcher.launchUrl(any())).thenAnswer((_) async {});
 
-      await tester.tap(find.byType(OutlinedButton));
+      await tester.tap(find.byType(Button));
 
       await tester.pumpAndSettle();
 
@@ -80,7 +81,7 @@ void main() {
 
       when(() => launcher.launchUrl(any())).thenAnswer((_) async {});
 
-      await tester.tap(find.byType(OutlinedButton));
+      await tester.tap(find.byType(Button));
 
       verify(
         () => launcher.launchUrl(

@@ -2,7 +2,7 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/components/scaffold/app_scaffold.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:flutter/material.dart';
@@ -10,8 +10,10 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 
-import 'package:air/features/developer/chat_debug_info_view.dart';
+import 'package:air/features/developer/chat_debug_info_view.dart'
+    show showChatDebugInfo;
 import 'package:air/features/chat_details/contact_details_view.dart';
+import 'package:air/features/chat_details/safety_code_screen.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat_details/group_details_screen.dart';
 
@@ -58,53 +60,88 @@ class ChatDetailsScreenView extends StatelessWidget {
 
     return switch (chatType) {
       UiChatType_Connection(field0: final profile) ||
-      UiChatType_TargetedMessageConnection(field0: final profile) => Builder(
-        builder: (context) {
-          final chat = context.select(
-            (ChatDetailsCubit cubit) => cubit.state.chat,
-          );
-          if (chat == null) {
-            return const SizedBox.shrink();
-          }
-          return AppScaffold(
-            title: chat.title,
-            onTitleLongPress: () {
-              final chatDetailsCubit = context.read<ChatDetailsCubit>();
-              final userCubit = context.read<UserCubit>();
-              Navigator.of(context).push(
-                MaterialPageRoute(
-                  builder: (context) => ChatDebugInfoView(
-                    title: chat.title,
-                    loadDebugInfo: () => chatDetailsCubit.chatDebugInfo(),
-                    onUpdateGroup: () => chatDetailsCubit.updateKey(),
-                    onUpdateApqGroup: () => chatDetailsCubit.updateApqKey(),
-                    onRequestResync: () => chatDetailsCubit.requestResync(),
-                    onEraseLocalChat: () => userCubit.devEraseChat(chat.id),
-                  ),
-                ),
-              );
-            },
-            child: ContactDetailsView(
+      UiChatType_TargetedMessageConnection(
+        field0: final profile,
+      ) => _ContactModal(profile: profile),
+      UiChatType_Group() => const _GroupModal(),
+      UiChatType_HandleConnection() ||
+      UiChatType_PendingConnection() ||
+      null => const _UnknownChatModal(),
+    };
+  }
+}
+
+/// The profile of the person on the other end of a one-to-one chat, and the
+/// safety code that opens on top of it.
+class _ContactModal extends StatelessWidget {
+  const _ContactModal({required this.profile});
+
+  final UiUserProfile profile;
+
+  @override
+  Widget build(BuildContext context) {
+    final chat = context.select((ChatDetailsCubit cubit) => cubit.state.chat);
+    if (chat == null) {
+      return const SizedBox.shrink();
+    }
+
+    final safetyCodeOpen = context.select(
+      (NavigationCubit cubit) => cubit.state.safetyCodeOpen,
+    );
+    final loc = AppLocalizations.of(context);
+
+    return ModalScaffold(
+      title: safetyCodeOpen
+          ? loc.safetyCodeScreen_title
+          : loc.contactDetailsScreen_title,
+      onLeading: safetyCodeOpen ? () => _pop(context) : null,
+      onTrailing: () => _pop(context),
+      child: safetyCodeOpen
+          ? SafetyCodeView(profile: profile)
+          : ContactDetailsView(
               profile: profile,
               relationship: ContactRelationship(
                 contactChatId: chat.id,
                 isBlocked: chat.status == const UiChatStatus.blocked(),
               ),
+              onNameLongPress: () => showChatDebugInfo(context, chat),
             ),
-          );
-        },
-      ),
-      UiChatType_Group() => const GroupDetailsScreen(),
-      UiChatType_HandleConnection() ||
-      UiChatType_PendingConnection() ||
-      null => Builder(
-        builder: (context) {
-          final loc = AppLocalizations.of(context);
-          return AppScaffold(
-            child: Center(child: Text(loc.chatDetailsScreen_unknownChat)),
-          );
-        },
-      ),
-    };
+    );
   }
 }
+
+class _GroupModal extends StatelessWidget {
+  const _GroupModal();
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+
+    return ModalScaffold(
+      title: loc.groupDetails_title,
+      onTrailing: () => _pop(context),
+      child: const GroupDetailsScreen(),
+    );
+  }
+}
+
+/// Fallback for a chat we have no details surface for, which is a connection
+/// that has not been accepted yet.
+class _UnknownChatModal extends StatelessWidget {
+  const _UnknownChatModal();
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+
+    return ModalScaffold(
+      title: loc.contactDetailsScreen_title,
+      onTrailing: () => _pop(context),
+      child: Center(child: Text(loc.chatDetailsScreen_unknownChat)),
+    );
+  }
+}
+
+/// Closes the topmost modal. The navigation state owns the stack, so the
+/// header's actions go through it rather than through the navigator.
+void _pop(BuildContext context) => context.read<NavigationCubit>().pop();

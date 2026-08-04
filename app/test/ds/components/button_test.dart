@@ -10,62 +10,62 @@ import 'package:air/ds/foundations/foundations.dart';
 import '../../helpers.dart';
 
 void main() {
-  group('AppButton', () {
-    String sizeLabel(AppButtonSize size) =>
-        size == AppButtonSize.small ? 'Small' : 'Large';
+  group('Button', () {
+    String sizeLabel(ButtonSize size) =>
+        size == ButtonSize.small ? 'Small' : 'Large';
 
     List<Widget> buildButtonConfigs() => [
-      for (final size in AppButtonSize.values) ...[
-        AppButton(
+      for (final size in ButtonSize.values) ...[
+        Button(
           label: "${sizeLabel(size)} Primary",
           size: size,
-          type: AppButtonType.primary,
-          state: AppButtonState.active,
+          type: ButtonType.primary,
+          state: ButtonState.active,
           onPressed: () {},
         ),
-        AppButton(
+        Button(
           label: "${sizeLabel(size)} Primary Inactive",
           size: size,
-          type: AppButtonType.primary,
-          state: AppButtonState.inactive,
+          type: ButtonType.primary,
+          state: ButtonState.inactive,
           onPressed: () {},
         ),
-        AppButton(
+        Button(
           label: "${sizeLabel(size)} Primary Danger",
           size: size,
-          type: AppButtonType.primary,
-          state: AppButtonState.active,
-          tone: AppButtonTone.danger,
+          type: ButtonType.primary,
+          state: ButtonState.active,
+          tone: ButtonTone.danger,
           onPressed: () {},
         ),
-        AppButton(
+        Button(
           label: "${sizeLabel(size)} Primary Icon",
           size: size,
-          type: AppButtonType.primary,
-          state: AppButtonState.active,
+          type: ButtonType.primary,
+          state: ButtonState.active,
           icon: (size, color) =>
               Container(width: size.width, height: size.height, color: color),
           onPressed: () {},
         ),
-        AppButton(
+        Button(
           label: "${sizeLabel(size)} Secondary",
           size: size,
-          type: AppButtonType.secondary,
-          state: AppButtonState.active,
+          type: ButtonType.secondary,
+          state: ButtonState.active,
           onPressed: () {},
         ),
-        AppButton(
+        Button(
           label: "${sizeLabel(size)} Secondary Inactive",
           size: size,
-          type: AppButtonType.secondary,
-          state: AppButtonState.inactive,
+          type: ButtonType.secondary,
+          state: ButtonState.inactive,
           onPressed: () {},
         ),
-        AppButton(
+        Button(
           label: "${sizeLabel(size)} Secondary Danger",
           size: size,
-          type: AppButtonType.secondary,
-          tone: AppButtonTone.danger,
+          type: ButtonType.secondary,
+          tone: ButtonTone.danger,
           onPressed: () {},
         ),
         const SizedBox(height: S.s16),

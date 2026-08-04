@@ -141,6 +141,11 @@ extension NavigationStateExtension on NavigationState {
     NavigationState_Home(:final home) when home.chatOpen => home.chatId,
     NavigationState_Intro() || NavigationState_Home() => null,
   };
+
+  bool get safetyCodeOpen => switch (this) {
+    NavigationState_Home(:final home) => home.safetyCodeOpen,
+    NavigationState_Intro() => false,
+  };
 }
 
 extension DartNotificationServiceExtension on DartNotificationService {

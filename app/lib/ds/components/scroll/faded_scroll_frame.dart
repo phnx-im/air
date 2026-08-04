@@ -2,9 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/ds/components/tab_bar/tab_bar_tokens.dart';
 import 'package:air/ds/components/scroll/edge_fade.dart';
-import 'package:flutter/material.dart';
+import 'package:air/ds/components/scroll/scroll_edges.dart';
+import 'package:flutter/foundation.dart' show ValueListenable;
+import 'package:flutter/widgets.dart';
 
 /// Scrollable screen chrome with a fixed header and soft fade edges.
 class FadedScrollFrame extends StatelessWidget {
@@ -13,10 +14,14 @@ class FadedScrollFrame extends StatelessWidget {
     required this.header,
     required this.builder,
     required this.backgroundColor,
+    required this.contentTopPadding,
+    required this.contentBottomPadding,
     this.topFadeHeight = 96,
     this.bottomFadeHeight = 120,
-    this.contentTopPadding,
-    this.bottomInset,
+    this.topSolidStop = 0.3,
+    this.bottomSolidStop = 0.1,
+    this.bottomOpacity = 1.0,
+    this.edges,
   });
 
   final Widget header;
@@ -27,42 +32,65 @@ class FadedScrollFrame extends StatelessWidget {
   final double topFadeHeight;
   final double bottomFadeHeight;
 
-  final double? contentTopPadding;
+  /// Fraction of each strip held at full strength before its ramp starts.
+  final double topSolidStop;
+  final double bottomSolidStop;
 
-  final double? bottomInset;
+  /// Peak alpha of the bottom strip. The top one beds the header and is always
+  /// opaque.
+  final double bottomOpacity;
+
+  /// Space kept above the first row, for the caller's [header] and whatever
+  /// chrome floats over the top edge.
+  final double contentTopPadding;
+
+  /// Space kept below the last row, for whatever chrome floats over the bottom
+  /// edge.
+  final double contentBottomPadding;
+
+  /// Which ends of the content rest against the viewport. With them, each fade
+  /// shows only once there's content beyond the edge it guards: at rest the
+  /// outermost row sits on the same solid surface the fade paints, so fading it
+  /// there only washes it out. Without them, both always paint.
+  final ValueListenable<ScrollEdges>? edges;
 
   @override
   Widget build(BuildContext context) {
-    final topPadding = contentTopPadding ?? kToolbarHeight;
-    final tabBarInset = TabBarTokens.bottomInset(context);
-    final bottomPadding =
-        bottomInset ??
-        (tabBarInset > bottomFadeHeight ? tabBarInset : bottomFadeHeight);
-
     return Container(
       color: backgroundColor,
       child: Stack(
         children: [
-          Positioned.fill(child: builder(topPadding, bottomPadding)),
+          Positioned.fill(
+            child: builder(contentTopPadding, contentBottomPadding),
+          ),
           Positioned.fill(
             bottom: null,
-            child: EdgeFade(
+            child: EdgeFadeReveal(
+              edges: edges,
               edge: FadeEdge.top,
-              height: topFadeHeight,
-              color: backgroundColor,
-              curve: Curves.easeInOutQuad,
-              solidStop: 0.3,
+              child: EdgeFade(
+                edge: FadeEdge.top,
+                height: topFadeHeight,
+                color: backgroundColor,
+                curve: Curves.easeInOutQuad,
+                solidStop: topSolidStop,
+              ),
             ),
           ),
           Positioned.fill(bottom: null, child: header),
           Positioned.fill(
             top: null,
-            child: EdgeFade(
+            child: EdgeFadeReveal(
+              edges: edges,
               edge: FadeEdge.bottom,
-              height: bottomFadeHeight,
-              color: backgroundColor,
-              curve: Curves.easeInOutQuad,
-              solidStop: 0.1,
+              child: EdgeFade(
+                edge: FadeEdge.bottom,
+                height: bottomFadeHeight,
+                color: backgroundColor,
+                curve: Curves.easeInOutQuad,
+                solidStop: bottomSolidStop,
+                opacity: bottomOpacity,
+              ),
             ),
           ),
         ],

@@ -19,7 +19,7 @@ import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/interface_scale.dart';
-import 'package:air/ds/patterns/context_menu/context_menu.dart';
+import 'package:air/util/time/app_clock.dart';
 import 'package:air/platform/notifications.dart';
 import 'package:air/platform/method_channel.dart';
 import 'package:flutter/material.dart';
@@ -63,7 +63,6 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     _openedNotificationSubscription = _openedNotificationController.stream
         .listen((chatId) {
           // Dismiss any active overlays before navigating to the chat
-          ContextMenu.closeActiveMenu();
           _appRouter.dismissOverlays();
           _navigationCubit.openChat(chatId);
         });
@@ -181,40 +180,44 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       child: InterfaceScale(
         // SDTFScope exposes date & time formatting system preferences
         child: SDTFScope(
-          child: Builder(
-            builder: (context) {
-              final userLocaleCode = context.select(
-                (UserSettingsCubit cubit) => cubit.state.locale,
-              );
-              final appLocale = context.select(
-                (AppLocaleCubit cubit) => cubit.state,
-              );
-              // Prefer persisted user locale; fall back to in-memory selection.
-              final locale = userLocaleCode != null
-                  ? Locale(userLocaleCode)
-                  : appLocale;
+          // One clock for every live timestamp in the app.
+          child: AppClock(
+            child: Builder(
+              builder: (context) {
+                final userLocaleCode = context.select(
+                  (UserSettingsCubit cubit) => cubit.state.locale,
+                );
+                final appLocale = context.select(
+                  (AppLocaleCubit cubit) => cubit.state,
+                );
+                // Prefer persisted user locale; fall back to in-memory selection.
+                final locale = userLocaleCode != null
+                    ? Locale(userLocaleCode)
+                    : appLocale;
 
-              return MaterialApp.router(
-                scrollBehavior: const AppScrollBehavior(),
-                scaffoldMessengerKey: scaffoldMessengerKey,
-                onGenerateTitle: (context) =>
-                    AppLocalizations.of(context).appTitle,
-                localizationsDelegates: AppLocalizations.localizationsDelegates,
-                supportedLocales: supportedLocalesWithFallback(
-                  AppLocalizations.supportedLocales,
-                  const Locale('en', 'US'),
-                ),
-                locale: locale,
-                debugShowCheckedModeBanner: false,
-                theme: lightTheme,
-                darkTheme: darkTheme,
-                routerConfig: _appRouter,
-                builder: (context, router) => LoadableUserCubitProvider(
-                  appStateController: _appStateController,
-                  child: router!,
-                ),
-              );
-            },
+                return MaterialApp.router(
+                  scrollBehavior: const AppScrollBehavior(),
+                  scaffoldMessengerKey: scaffoldMessengerKey,
+                  onGenerateTitle: (context) =>
+                      AppLocalizations.of(context).appTitle,
+                  localizationsDelegates:
+                      AppLocalizations.localizationsDelegates,
+                  supportedLocales: supportedLocalesWithFallback(
+                    AppLocalizations.supportedLocales,
+                    const Locale('en', 'US'),
+                  ),
+                  locale: locale,
+                  debugShowCheckedModeBanner: false,
+                  theme: lightTheme,
+                  darkTheme: darkTheme,
+                  routerConfig: _appRouter,
+                  builder: (context, router) => LoadableUserCubitProvider(
+                    appStateController: _appStateController,
+                    child: router!,
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ),

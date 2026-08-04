@@ -2,19 +2,24 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:ui';
-
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/ds/components/tab_bar/tab_bar_tokens.dart';
+import 'package:air/ds/components/nav_item/nav_item.dart';
+import 'package:air/ds/components/nav_item/nav_item_tokens.dart';
+import 'package:air/features/navigation/tab_bar_tokens.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
 /// Floating pill-shaped tab bar shown on mobile layouts.
+///
+/// A flat fill with an exposed shadow, not the frosted glass it replaced. A
+/// negative [TabBarTokens.tabGap] laps the tabs over each other, and the active
+/// tab is drawn frontmost, so tapping the one behind slides the front pill onto
+/// it.
 class AppTabBar extends StatelessWidget {
   const AppTabBar({super.key});
 
@@ -28,67 +33,95 @@ class AppTabBar extends StatelessWidget {
     );
     final palette = SemanticPalette.of(context);
 
-    final pillWidth = TabBarTokens.tabWidth * HomeTab.values.length;
+    const tabs = HomeTab.values;
+    final activeIndex = tabs.indexOf(activeTab);
+    final background = palette.backgroundElevated.secondary;
+
+    // The bar marks the active tab with the sliding pill alone, so the label
+    // keeps a single style in either state.
+    final labelStyle = typeScale.body.mini.style(color: palette.text.tertiary);
+    final navTokens = NavItemTokens(
+      boxWidth: TabBarTokens.tabWidth,
+      boxHeight: TabBarTokens.height,
+      radius: TabBarTokens.pillRadius,
+      labelGap: TabBarTokens.labelGap,
+      padding: TabBarTokens.tabPadding,
+      surface: background,
+      activeLabelStyle: labelStyle,
+      inactiveLabelStyle: labelStyle,
+    );
+
+    // Tabs are laid out by hand rather than in a Row: [TabBarTokens.tabGap] is
+    // negative and a Row cannot take negative spacing.
+    Widget tabAt(int index, HomeTab tab, {required bool active}) => Positioned(
+      left: index * TabBarTokens.stride,
+      top: 0,
+      bottom: 0,
+      width: TabBarTokens.tabWidth,
+      child: _TabBarItem(tab: tab, active: active, tokens: navTokens),
+    );
 
     return SafeArea(
       top: false,
       minimum: const EdgeInsets.only(bottom: TabBarTokens.paddingBottom),
-      child: Center(
-        child: DecoratedBox(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(TabBarTokens.pillRadius),
-            boxShadow: Effect.elevation(Elevation.large),
-          ),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(TabBarTokens.pillRadius),
-            child: BackdropFilter(
-              filter: ImageFilter.blur(
-                sigmaX: Effect.blur(BlurLevel.medium),
-                sigmaY: Effect.blur(BlurLevel.medium),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: TabBarTokens.paddingHorizontal,
+        ),
+        child: Center(
+          // Scale the fixed-width pill down if the screen is too narrow, so the
+          // tab row can never overflow.
+          child: FittedBox(
+            fit: BoxFit.scaleDown,
+            child: Container(
+              width: TabBarTokens.barWidth(tabs.length),
+              height: TabBarTokens.height,
+              decoration: BoxDecoration(
+                color: background,
+                borderRadius: BorderRadius.circular(TabBarTokens.pillRadius),
+                boxShadow: Effect.elevation(Elevation.small),
               ),
-              child: Material(
-                type: MaterialType.transparency,
-                child: Container(
-                  width: pillWidth,
-                  height: TabBarTokens.height,
-                  decoration: BoxDecoration(
-                    color: palette.backgroundMaterial.tertiary,
-                    borderRadius: BorderRadius.circular(
-                      TabBarTokens.pillRadius,
-                    ),
-                  ),
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(TabBarTokens.pillRadius),
+                // The bar floats over the tab content rather than sitting in a
+                // Scaffold, so it brings its own Material for the labels to
+                // inherit their text context from. Transparent: the fill above
+                // is ours.
+                child: Material(
+                  type: MaterialType.transparency,
                   child: Stack(
                     children: [
+                      // Painted back-to-front: the inactive tabs, then the
+                      // sliding pill, then the active tab. That ordering is what
+                      // makes the selected tab the frontmost item, so it laps over
+                      // its neighbour and tapping the one behind sends the pill to
+                      // it.
+                      for (final (index, tab) in tabs.indexed)
+                        if (index != activeIndex)
+                          tabAt(index, tab, active: false),
                       AnimatedPositioned(
                         duration: Effect.duration(MotionPreset.short),
                         curve: Effect.easeOutQuart,
-                        top: 0,
-                        bottom: 0,
-                        width: TabBarTokens.tabWidth,
-                        left: activeTab == HomeTab.chats
-                            ? 0
-                            : TabBarTokens.tabWidth,
-                        child: Container(
+                        // Inset on every side, so a ring of bar background shows
+                        // around the pill.
+                        left:
+                            activeIndex * TabBarTokens.stride +
+                            TabBarTokens.activePillInset,
+                        top: TabBarTokens.activePillInset,
+                        bottom: TabBarTokens.activePillInset,
+                        width:
+                            TabBarTokens.tabWidth -
+                            TabBarTokens.activePillInset * 2,
+                        child: DecoratedBox(
                           decoration: BoxDecoration(
-                            color: palette.fill.tertiary,
+                            color: palette.backgroundElevated.tertiary,
                             borderRadius: BorderRadius.circular(
                               TabBarTokens.pillRadius,
                             ),
                           ),
                         ),
                       ),
-                      Row(
-                        children: [
-                          _TabBarItem(
-                            tab: HomeTab.chats,
-                            active: activeTab == HomeTab.chats,
-                          ),
-                          _TabBarItem(
-                            tab: HomeTab.profile,
-                            active: activeTab == HomeTab.profile,
-                          ),
-                        ],
-                      ),
+                      tabAt(activeIndex, activeTab, active: true),
                     ],
                   ),
                 ),
@@ -102,44 +135,35 @@ class AppTabBar extends StatelessWidget {
 }
 
 class _TabBarItem extends StatelessWidget {
-  const _TabBarItem({required this.tab, required this.active});
+  const _TabBarItem({
+    required this.tab,
+    required this.active,
+    required this.tokens,
+  });
 
   final HomeTab tab;
   final bool active;
+  final NavItemTokens tokens;
 
   @override
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
-    final color = active ? palette.text.secondary : palette.text.tertiary;
 
-    return SizedBox(
-      width: TabBarTokens.tabWidth,
-      height: TabBarTokens.height,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: () => context.read<NavigationCubit>().switchTab(tab),
-        onLongPress: tab == HomeTab.profile
-            ? () => context.read<NavigationCubit>().openDeveloperSettings()
-            : null,
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            SizedBox(
-              width: TabBarTokens.iconSize,
-              height: TabBarTokens.iconSize,
-              child: Center(
-                child: _TabIcon(tab: tab, color: color),
-              ),
-            ),
-            const SizedBox(height: TabBarTokens.labelGap),
-            Text(
-              _label(context, tab),
-              style: typeScale.body.xs.style(
-                color: color,
-                weight: active ? Weight.emphasized : Weight.regular,
-              ),
-            ),
-          ],
+    return NavItem(
+      tokens: tokens,
+      active: active,
+      // No pressed state, the feedback is the pill sliding to the tapped tab.
+      press: false,
+      label: _label(context, tab),
+      onTap: () => context.read<NavigationCubit>().switchTab(tab),
+      onLongPress: tab == HomeTab.profile
+          ? () => context.read<NavigationCubit>().openDeveloperSettings()
+          : null,
+      glyph: SizedBox(
+        width: TabBarTokens.avatarSize,
+        height: TabBarTokens.avatarSize,
+        child: Center(
+          child: _TabIcon(tab: tab, color: palette.text.tertiary),
         ),
       ),
     );
@@ -169,11 +193,7 @@ class _TabIcon extends StatelessWidget {
         final profile = context.select(
           (UsersCubit cubit) => cubit.state.profile(userId: null),
         );
-        return OverflowBox(
-          maxWidth: TabBarTokens.avatarSize,
-          maxHeight: TabBarTokens.avatarSize,
-          child: UserAvatar(profile: profile, size: TabBarTokens.avatarSize),
-        );
+        return UserAvatar(profile: profile, size: TabBarTokens.avatarSize);
     }
   }
 }

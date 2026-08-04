@@ -6,11 +6,35 @@ import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/ds/components/button/button.dart';
+import 'package:air/features/chat/chat_details_cubit.dart';
+import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
+
+/// Pushes the debug view for [chat], wired to the cubits above [context].
+///
+/// Reached by long-pressing a chat's name. Pageless, so it stays out of the
+/// navigation state the router builds its pages from.
+void showChatDebugInfo(BuildContext context, UiChatDetails chat) {
+  final chatDetailsCubit = context.read<ChatDetailsCubit>();
+  final userCubit = context.read<UserCubit>();
+  Navigator.of(context).push(
+    MaterialPageRoute(
+      builder: (context) => ChatDebugInfoView(
+        title: chat.title,
+        loadDebugInfo: () => chatDetailsCubit.chatDebugInfo(),
+        onUpdateGroup: () => chatDetailsCubit.updateKey(),
+        onUpdateApqGroup: () => chatDetailsCubit.updateApqKey(),
+        onRequestResync: () => chatDetailsCubit.requestResync(),
+        onEraseLocalChat: () => userCubit.devEraseChat(chat.id),
+      ),
+    ),
+  );
+}
 
 /// Debug info about a chat group.
 ///
@@ -207,7 +231,7 @@ class _UpdateGroupButton extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final isRunning = useState(false);
-    return AppButton(
+    return Button(
       onPressed: () async {
         isRunning.value = true;
         try {
@@ -216,7 +240,7 @@ class _UpdateGroupButton extends HookWidget {
           isRunning.value = false;
         }
       },
-      state: isRunning.value ? AppButtonState.inactive : AppButtonState.active,
+      state: isRunning.value ? ButtonState.inactive : ButtonState.active,
       label: label,
     );
   }
@@ -230,13 +254,13 @@ class _RequestResyncButton extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final isTapped = useState(false);
-    return AppButton(
+    return Button(
       onPressed: () {
         isTapped.value = true;
         onTapped();
       },
-      tone: AppButtonTone.danger,
-      state: isTapped.value ? AppButtonState.inactive : AppButtonState.active,
+      tone: ButtonTone.danger,
+      state: isTapped.value ? ButtonState.inactive : ButtonState.active,
       label: "DANGER: Request resync",
     );
   }
@@ -250,13 +274,13 @@ class _DeleteLocalChatButton extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final isTapped = useState(false);
-    return AppButton(
+    return Button(
       onPressed: () {
         isTapped.value = true;
         onTapped();
       },
-      tone: AppButtonTone.danger,
-      state: isTapped.value ? AppButtonState.inactive : AppButtonState.active,
+      tone: ButtonTone.danger,
+      state: isTapped.value ? ButtonState.inactive : ButtonState.active,
       label: "DANGER: Delete local chat",
     );
   }

@@ -6,6 +6,7 @@ import 'package:air/features/chat_details/group_details_screen.dart';
 import 'package:air/features/chat_details/mute_button.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:flutter/material.dart';
@@ -53,7 +54,10 @@ void main() {
           debugShowCheckedModeBanner: false,
           theme: testLightTheme,
           localizationsDelegates: AppLocalizations.localizationsDelegates,
-          home: const GroupDetailsScreen(),
+          home: const ModalScaffold(
+            title: 'Group details',
+            child: GroupDetailsScreen(),
+          ),
         ),
       );
     }

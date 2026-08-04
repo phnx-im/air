@@ -3,10 +3,13 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/components/text_input/text_input.dart';
+import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
+import 'package:air/ds/patterns/dialog/dialog_tokens.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 
 /// A dialog for editing a single text value
@@ -49,6 +52,7 @@ class EditDialog extends HookWidget {
     final length = useState(initialValue.characters.length);
 
     final loc = AppLocalizations.of(context);
+    final tokens = DialogTokens.of(context);
     final palette = SemanticPalette.of(context);
 
     final description = this.description;
@@ -57,43 +61,39 @@ class EditDialog extends HookWidget {
     return AppDialog(
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          Center(
-            child: Text(
-              title,
-              style: typeScale.header.regular.style(weight: Weight.emphasized),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: typeScale.header.regular.style(
+              color: palette.text.primary,
+              weight: Weight.emphasized,
             ),
           ),
-          const SizedBox(height: S.s24),
+          SizedBox(height: tokens.titleBodyGap),
 
-          TextFormField(
+          AppTextInput(
+            tokens: AppTextInputTokens.of(context),
             autocorrect: false,
             autofocus: true,
             controller: controller,
             focusNode: focusNode,
             maxLength: maxLength,
-            // Hide the built-in counter - we render our own below.
-            buildCounter:
-                (_, {required currentLength, required isFocused, maxLength}) =>
-                    null,
-            decoration: appDialogInputDecoration.copyWith(
-              filled: true,
-              fillColor: palette.backgroundBase.secondary,
-            ),
             onChanged: (value) {
               isValid.value = validator(value);
               length.value = value.characters.length;
             },
-            onFieldSubmitted: (_) {
+            onSubmitted: (_) {
               focusNode.requestFocus();
               onSubmit(controller.text);
             },
           ),
 
-          const SizedBox(height: S.s12),
-
+          // The field caps the length silently, so the readout is the dialog's
+          // own line, styled to match the description it sits above.
           if (maxLength != null) ...[
+            const SizedBox(height: S.s12),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: S.s8),
               child: Text(
@@ -101,10 +101,10 @@ class EditDialog extends HookWidget {
                 style: typeScale.body.xs.style(color: palette.text.tertiary),
               ),
             ),
-            const SizedBox(height: S.s12),
           ],
 
-          if (description != null)
+          if (description != null) ...[
+            const SizedBox(height: S.s12),
             Padding(
               padding: const EdgeInsets.symmetric(horizontal: S.s8),
               child: Text(
@@ -112,13 +112,14 @@ class EditDialog extends HookWidget {
                 style: typeScale.body.xs.style(color: palette.text.tertiary),
               ),
             ),
+          ],
 
-          const SizedBox(height: S.s12),
+          SizedBox(height: tokens.bodyActionsGap),
 
           Row(
             children: [
               Expanded(
-                child: AppButton(
+                child: Button(
                   onPressed: () {
                     Navigator.of(context).pop(false);
                   },
@@ -130,7 +131,7 @@ class EditDialog extends HookWidget {
               const SizedBox(width: S.s12),
 
               Expanded(
-                child: AppButton(
+                child: Button(
                   onPressed: () => {
                     if (isValid.value) {onSubmit(controller.text)},
                   },

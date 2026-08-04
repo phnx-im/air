@@ -4,9 +4,8 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/ds/components/button/button.dart' show AppButtonTone;
-import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
+import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/patterns/adaptive_modal/adaptive_modal.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -33,58 +32,32 @@ class RemoveMemberButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final palette = SemanticPalette.of(context);
-
-    final isDesktop = DeviceType.isDesktop;
-
-    return OutlinedButton(
+    final button = Button(
       onPressed: () => _confirmRemoval(context),
-      style: ButtonStyle(
-        padding: WidgetStatePropertyAll(
-          compact
-              ? const EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s4)
-              : null,
-        ),
-        shape: compact
-            ? WidgetStatePropertyAll(
-                RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(CornerRadius.px8),
-                ),
-              )
-            : null,
-        minimumSize: compact
-            ? null
-            : WidgetStatePropertyAll(
-                Size(isDesktop ? 320 : double.infinity, 0),
-              ),
-        visualDensity: compact ? VisualDensity.compact : null,
-        backgroundColor: WidgetStatePropertyAll(
-          compact ? palette.backgroundBase.secondary : palette.function.danger,
-        ),
-        overlayColor: WidgetStatePropertyAll(
-          compact ? palette.backgroundBase.secondary : palette.function.danger,
-        ),
-      ),
-      child: Text(
-        loc.removeUserButton_text,
-        style: (compact ? typeScale.body.s : typeScale.body.regular).style(
-          color: compact
-              ? palette.text.primary
-              : palette.function.neutral.white,
-        ),
-      ),
+      size: compact ? ButtonSize.small : ButtonSize.of(context),
+      type: ButtonType.secondary,
+      // Compact repeats on every row of a member list, where a run of red
+      // chips reads as an alarm rather than as one destructive choice. The
+      // danger tone is reserved for the single action on a profile.
+      tone: compact ? ButtonTone.normal : ButtonTone.danger,
+      state: enabled ? ButtonState.active : ButtonState.inactive,
+      label: loc.removeUserButton_text,
     );
+
+    // Compact shares its line with a member's name, so it has to hug its
+    // label instead of taking the full width the row hands out.
+    return compact ? IntrinsicWidth(child: button) : button;
   }
 
   Future<void> _confirmRemoval(BuildContext context) async {
     final loc = AppLocalizations.of(context);
 
-    final confirmed = await showBottomSheetDialog(
+    final confirmed = await showAdaptiveConfirm(
       context: context,
       title: loc.removeUserDialog_title,
       description: loc.removeUserDialog_content(displayName),
       primaryActionText: loc.removeUserDialog_removeUser,
-      primaryTone: AppButtonTone.danger,
+      primaryTone: ButtonTone.danger,
       onPrimaryAction: (actionContext) async {
         await actionContext.read<UserCubit>().removeUserFromChat(
           chatId,
