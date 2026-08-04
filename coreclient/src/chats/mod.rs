@@ -155,6 +155,23 @@ impl Chat {
         }
     }
 
+    /// A confirmed connection chat whose group is still being joined.
+    pub(crate) fn new_pending_onboarded_connection_chat(
+        group_id: GroupId,
+        user_id: UserId,
+    ) -> Self {
+        Self {
+            id: ChatId::try_from(&group_id).unwrap(),
+            group_id,
+            last_read: Utc::now(),
+            last_message_at: None,
+            status: ChatStatus::Pending,
+            chat_type: ChatType::Connection(user_id),
+            muted_until: None,
+            notified_until: None,
+        }
+    }
+
     pub(crate) fn new_pending_connection_chat(group_id: GroupId, user_id: UserId) -> Self {
         Self {
             id: ChatId::try_from(&group_id).unwrap(),

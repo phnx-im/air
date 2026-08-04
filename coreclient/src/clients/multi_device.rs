@@ -54,7 +54,7 @@ use uuid::Uuid;
 use crate::db::access::WriteConnection;
 use crate::groups::self_group::SelfGroup;
 use crate::{
-    Chat, ChatId,
+    Chat, ChatId, ChatType, Contact,
     clients::{
         CIPHERSUITE, CoreUser,
         api_clients::ApiClients,
@@ -119,6 +119,15 @@ pub(crate) struct HigherLevelGroup {
     pub(crate) group_state_ear_key: GroupStateEarKey,
     pub(crate) identity_link_wrapper_key: IdentityLinkWrapperKey,
     pub(crate) vc_leaf_index: u32,
+    /// Set if the group backs a connection chat rather than a group chat.
+    pub(crate) connection: Option<ConnectionContact>,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, serde::Serialize, serde::Deserialize)]
+pub(crate) struct ConnectionContact {
+    pub(crate) user_id: UserId,
+    pub(crate) wai_ear_key: WelcomeAttributionInfoEarKey,
+    pub(crate) friendship_token: FriendshipToken,
 }
 
 #[derive(Debug)]
@@ -485,7 +494,8 @@ impl CoreUser {
     /// Describe every higher-level group the virtual client is a member of, so a
     /// joining emulator client can onboard itself into each of them.
     ///
-    /// Skips the emulation group itself and any chat without attributes (connection chats).
+    /// Skips the emulation group itself and every connection chat that is not
+    /// confirmed yet.
     async fn higher_level_groups(&self) -> anyhow::Result<Vec<HigherLevelGroup>> {
         self.db()
             .with_read_transaction(async |txn| -> anyhow::Result<_> {
@@ -500,13 +510,24 @@ impl CoreUser {
                     let Some(chat) = Chat::load(&mut *txn, &chat_id).await? else {
                         continue;
                     };
-                    // TODO(gabriel): convey connection chats too. They need the
-                    // `Contact` record (friendship token, WAI key) on top of the
-                    // group itself.
-                    if chat.attributes().is_none() {
-                        debug!(group_id = ?group.group_id, "skipping non-group chat");
-                        continue;
-                    }
+                    let connection = match chat.chat_type() {
+                        ChatType::Group(_) => None,
+                        ChatType::Connection(user_id) => {
+                            let Some(contact) = Contact::load(&mut *txn, user_id).await? else {
+                                warn!(group_id = ?group.group_id, "no contact for connection chat; skipping group");
+                                continue;
+                            };
+                            Some(ConnectionContact {
+                                user_id: contact.user_id,
+                                wai_ear_key: contact.wai_ear_key,
+                                friendship_token: contact.friendship_token,
+                            })
+                        }
+                        chat_type => {
+                            debug!(group_id = ?group.group_id, ?chat_type, "skipping unconfirmed connection chat");
+                            continue;
+                        }
+                    };
                     let Some(vc_leaf_index) =
                         Group::load_own_leaf_index(txn.as_mut(), &group.group_id)
                     else {
@@ -520,6 +541,7 @@ impl CoreUser {
                         group_state_ear_key: group.group_state_ear_key,
                         identity_link_wrapper_key: group.identity_link_wrapper_key,
                         vc_leaf_index: vc_leaf_index.u32(),
+                        connection,
                     });
                 }
 

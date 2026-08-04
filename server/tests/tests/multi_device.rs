@@ -4,7 +4,7 @@
 
 use aircommon::identifiers::UserId;
 use aircoreclient::{
-    ChatId, ChatStatus, Message, ReadReceiptsSetting,
+    ChatId, ChatStatus, ChatType, Message, ReadReceiptsSetting,
     clients::{
         CoreUser,
         multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},
@@ -908,4 +908,117 @@ async fn multi_device_onboarding_after_self_group_advanced() {
         "from device 3 after a late onboarding",
     )
     .await;
+}
+
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test a linked device inherits connection chats", skip_all)]
+async fn multi_device_inherits_connection_chats() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+    let connection_chat_id = setup.connect_users(&alice, &bob).await;
+
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    new_device.outbound_service().run_once().await;
+
+    assert!(
+        !new_device
+            .is_resync_pending(connection_chat_id)
+            .await
+            .unwrap(),
+        "onboarding into the connection group should have completed"
+    );
+
+    let chat = new_device
+        .chat(&connection_chat_id)
+        .await
+        .expect("linked device should have inherited the connection chat");
+    assert!(
+        matches!(chat.chat_type(), ChatType::Connection(user_id) if user_id == &bob),
+        "inherited chat should be a confirmed connection chat, got {:?}",
+        chat.chat_type()
+    );
+    assert_eq!(chat.status(), &ChatStatus::Active);
+
+    // The contact carries the friendship token and WAI key, which are not
+    // recoverable from the group and therefore have to ride the linking channel.
+    let contact = new_device
+        .contact(&bob)
+        .await
+        .expect("linked device should have inherited the contact");
+    assert_eq!(contact.chat_id, connection_chat_id);
+
+    // The old device has to follow the onboarding external commit onto the
+    // virtual client's new leaf.
+    let old_device = setup.get_user(&alice).user();
+    drain_queue(old_device).await;
+    assert_eq!(
+        old_device
+            .group_epoch_and_own_index(connection_chat_id)
+            .await
+            .unwrap(),
+        new_device
+            .group_epoch_and_own_index(connection_chat_id)
+            .await
+            .unwrap(),
+        "both emulator clients must land on the same epoch and shared leaf"
+    );
+
+    send_and_receive(
+        &new_device,
+        &[old_device],
+        connection_chat_id,
+        "hello bob, from the linked device",
+    )
+    .await;
+    send_and_receive(
+        old_device,
+        &[&new_device],
+        connection_chat_id,
+        "hello bob, from the old device",
+    )
+    .await;
+
+    let bob_device = setup.get_user(&bob).user();
+    send_and_receive(
+        bob_device,
+        &[&new_device, old_device],
+        connection_chat_id,
+        "hello alice, from bob",
+    )
+    .await;
+}
+
+/// An unconfirmed connection is deliberately not conveyed: it needs the partial
+/// contact and the connection-offer PSK on top of the group.
+#[tokio::test(flavor = "multi_thread", worker_threads = 1)]
+#[tracing::instrument(name = "Test unconfirmed connections are not inherited", skip_all)]
+async fn multi_device_skips_unconfirmed_connection_chats() {
+    let mut setup = TestBackend::single().await;
+    let alice = setup.add_user().await;
+    let bob = setup.add_user().await;
+
+    // Alice requests a connection to bob's username, which bob never accepts.
+    let bob_username = setup
+        .get_user_mut(&bob)
+        .add_username()
+        .await
+        .unwrap()
+        .username;
+    let username_hash = bob_username.calculate_hash().unwrap();
+    let pending_chat_id = setup
+        .get_user(&alice)
+        .user()
+        .add_contact(bob_username, username_hash)
+        .await
+        .unwrap()
+        .unwrap();
+
+    let (new_device, _tmp) = link_new_device(&setup, &alice).await;
+    new_device.outbound_service().run_once().await;
+
+    assert!(
+        new_device.chat(&pending_chat_id).await.is_none(),
+        "an unconfirmed connection chat should not be conveyed to a linked device"
+    );
 }
