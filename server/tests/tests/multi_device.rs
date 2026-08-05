@@ -845,16 +845,24 @@ async fn multi_device_linking_a_third_device() {
 
     // Device 3 onboards into the higher-level group. The leaf it replaces is
     // already a virtual-client leaf, so the sibling queue is covered by the
-    // regular destination list; the commit must not be fanned out twice.
+    // regular destination list; the commit must not be fanned out twice. The
+    // same outbound run also stages device 3's key packages via a self-group
+    // commit, so the siblings see exactly two commits, each delivered once.
     device_3.outbound_service().run_once().await;
     for (label, device) in [("1", device_1), ("2", &device_2)] {
         let queued = device.qs_fetch_messages().await.unwrap();
         assert_eq!(
             queued.len(),
-            1,
-            "device {label} should receive device 3's onboarding commit exactly once"
+            2,
+            "device {label} should receive device 3's key-package upload and onboarding \
+             commits exactly once each"
         );
-        device.fully_process_qs_messages(queued).await;
+        let processed = device.fully_process_qs_messages(queued).await;
+        assert!(
+            processed.errors.is_empty(),
+            "device {label} failed to process device 3's commits: {:?}",
+            processed.errors
+        );
     }
 
     assert!(
