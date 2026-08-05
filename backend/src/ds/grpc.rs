@@ -897,8 +897,14 @@ impl<Qep: QsConnector, As: AsConnector> DeliveryService for GrpcDs<Qep, As> {
             &creator_client_reference,
             &room_state,
         )?;
-        if payload.creator_user_credential.is_some() {
-            Self::require_self_group_context(&pq_group_state.group)?;
+        // The T leg carries the meaningful creator credential, enforced above via
+        // `creator_credential`. The PQ leg's leaf holds only an empty placeholder credential, so we
+        // cannot check its variant. Instead the two legs must agree on the self-group flag, which
+        // transfers the T-leg consistency to the PQ leg.
+        if t_group_state.is_self_group() != pq_group_state.is_self_group() {
+            return Err(Status::invalid_argument(
+                "self-group flag mismatch between t and pq groups",
+            ));
         }
 
         // Check that the t and pq client signature keys match

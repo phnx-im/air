@@ -19,7 +19,7 @@ use aircommon::{
     mls_group_config::leaf_node_is_virtual_client,
     time::TimeStamp,
 };
-use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent};
+use airprotos::client::component::AirComponent;
 use apqmls::extension::ApqInfo;
 use mimi_room_policy::{MimiProposal, RoleIndex, VerifiedRoomState};
 use mls_assist::{
@@ -35,7 +35,7 @@ use mls_assist::{
 use sqlx::PgExecutor;
 use thiserror::Error;
 use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
-use tracing::{error, warn};
+use tracing::error;
 use uuid::Uuid;
 
 use crate::errors::{CborMlsAssistStorage, StorageError};
@@ -231,24 +231,16 @@ impl DsGroupState {
             })
     }
 
+    /// Returns `true` if the group context's [`AirComponent`] marks this group as a
+    /// self-group. The flag is fixed at group creation.
+    pub(crate) fn is_self_group(&self) -> bool {
+        AirComponent::is_self_group_context(self.group().group_info().group_context().extensions())
+    }
+
     /// If the group context's [`AirComponent`] marks this group
     /// as a virtual-client self-group, disable virtual-client broadcasting.
     pub(crate) fn broadcast_to_all_client_queues(&self) -> bool {
-        let is_self_group = self
-            .group()
-            .group_info()
-            .group_context()
-            .extensions()
-            .app_data_dictionary()
-            .and_then(|ext| ext.dictionary().get(&AIR_COMPONENT_ID))
-            .and_then(|data| {
-                AirComponent::from_bytes(data)
-                    .inspect_err(|error| warn!(%error, "Failed to deserialize air component"))
-                    .ok()
-            })
-            .is_some_and(|component| component.is_self_group);
-
-        !is_self_group
+        !self.is_self_group()
     }
 
     /// The self-group flag in the group context's [`AirComponent`] is fixed at
@@ -432,6 +424,17 @@ impl SerializableDsGroupStateV2 {
     }
 }
 
+/// Check that a leaf credential matches the group kind.
+///
+/// A self-group leaf must carry a [`LeafCredential::SelfGroup`], a regular-group leaf a
+/// [`LeafCredential::User`]. Returns `true` if `credential` is consistent with `is_self_group`.
+pub(super) fn leaf_credential_matches_flag(
+    credential: &LeafCredential,
+    is_self_group: bool,
+) -> bool {
+    matches!(credential, LeafCredential::SelfGroup(_)) == is_self_group
+}
+
 fn fallback_room_state(
     members: impl Iterator<Item = mls_assist::openmls::prelude::Member>,
 ) -> VerifiedRoomState {
@@ -524,5 +527,44 @@ mod test {
     #[test]
     fn test_deleted_queues_serde_json() {
         insta::assert_json_snapshot!(&*DELETED_QUEUES);
+    }
+
+    /// Build a user leaf credential. The signature is empty, which is fine here since the helper
+    /// only inspects the credential variant.
+    fn user_leaf() -> LeafCredential {
+        use aircommon::{
+            credentials::{
+                UserCredentialCsr, UserCredentialPayload, VerifiableUserCredential,
+                keys::AsIntermediateSignature,
+            },
+            crypto::hash::Hash,
+            identifiers::UserId,
+        };
+        use mls_assist::openmls::prelude::SignatureScheme;
+
+        let user_id = UserId::new(Uuid::new_v4(), "example.com".parse().unwrap());
+        let (csr, _prelim_key) = UserCredentialCsr::new(user_id, SignatureScheme::ED25519).unwrap();
+        let payload = UserCredentialPayload::new(csr, None, Hash::from_bytes([0u8; 32]));
+        LeafCredential::User(VerifiableUserCredential::new(
+            payload,
+            AsIntermediateSignature::empty(),
+        ))
+    }
+
+    fn self_group_leaf() -> LeafCredential {
+        use aircommon::credentials::SelfGroupCredential;
+        LeafCredential::SelfGroup(SelfGroupCredential::new(Uuid::new_v4()))
+    }
+
+    #[test]
+    fn leaf_credential_flag_consistency_matrix() {
+        // A regular-group leaf must carry a user credential.
+        assert!(leaf_credential_matches_flag(&user_leaf(), false));
+        // A self-group leaf must carry a self-group credential.
+        assert!(leaf_credential_matches_flag(&self_group_leaf(), true));
+        // A user credential in a self-group is rejected.
+        assert!(!leaf_credential_matches_flag(&user_leaf(), true));
+        // A self-group credential in a regular group is rejected.
+        assert!(!leaf_credential_matches_flag(&self_group_leaf(), false));
     }
 }
