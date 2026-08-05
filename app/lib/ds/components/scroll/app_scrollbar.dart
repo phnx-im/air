@@ -6,6 +6,7 @@ import 'dart:async';
 
 import 'package:air/ds/components/scroll/app_scrollbar_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/util/frame.dart';
 import 'package:flutter/widgets.dart';
 
 /// Overlays [child] with a scrollbar thumb that shows while the content moves
@@ -34,7 +35,7 @@ class AppScrollbar extends StatefulWidget {
   State<AppScrollbar> createState() => _AppScrollbarState();
 }
 
-class _AppScrollbarState extends State<AppScrollbar> {
+class _AppScrollbarState extends State<AppScrollbar> with FrameSafeState {
   /// We hold it in a notifier rather than in state so a scroll repaints the
   /// thumb alone and never rebuilds the list behind it.
   final _thumb = ValueNotifier<_ThumbState>(_ThumbState.hidden);
@@ -56,7 +57,7 @@ class _AppScrollbarState extends State<AppScrollbar> {
   }
 
   bool _onScroll(ScrollNotification notification) {
-    _track(notification.depth, notification.metrics, scrolling: true);
+    _track(notification.depth, notification.metrics, scrolling: !isMidFrame);
     return false;
   }
 
@@ -65,10 +66,11 @@ class _AppScrollbarState extends State<AppScrollbar> {
     // below the one this bar stands for.
     if (depth != 0 || metrics.axis != Axis.vertical) return;
 
-    _thumb.value = _ThumbState.of(
+    final next = _ThumbState.of(
       metrics,
       visible: scrolling || _thumb.value.visible,
     );
+    runFrameSafe(() => _thumb.value = next);
     if (!scrolling) return;
 
     _hideTimer?.cancel();

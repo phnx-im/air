@@ -8,13 +8,13 @@ import 'dart:math';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/scheduler.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/anchored_list/anchored_list.dart';
 import 'package:air/util/anchored_list/controller.dart';
+import 'package:air/util/frame.dart';
 import 'package:air/ds/components/panel/panel_surface.dart';
 import 'package:air/ds/components/scroll/app_scrollbar.dart';
 import 'package:air/ds/components/scroll/edge_fade.dart';
@@ -72,7 +72,7 @@ class MessageListView extends StatefulWidget {
 ///  - Marks the conversation as read up to the newest visible message.
 ///  - Routes cubit scroll-to-index commands to the [AnchoredListController].
 class _MessageListViewState extends State<MessageListView>
-    with WidgetsBindingObserver {
+    with WidgetsBindingObserver, FrameSafeState {
   /// Messages eligible for an entrance animation. Admitted at arrival time
   /// when the user was visually at the bottom, then evicted after
   /// [_animationWindow] so the set stays bounded and a tile that remounts
@@ -278,23 +278,10 @@ class _MessageListViewState extends State<MessageListView>
   void _updateScrollOffsets(ScrollMetrics metrics) {
     final headerOffset = max(0.0, metrics.maxScrollExtent - metrics.pixels);
     final bottomOffset = max(0.0, metrics.pixels);
-    _setNotifiersFrameSafe(() {
+    runFrameSafe(() {
       widget.headerScrollOffset?.value = headerOffset;
       _bottomFadeOffset.value = bottomOffset;
     });
-  }
-
-  /// Waits for the end of the current frame before running [mutation], in case
-  /// we're in the middle of a build.
-  void _setNotifiersFrameSafe(VoidCallback mutation) {
-    if (SchedulerBinding.instance.schedulerPhase ==
-        SchedulerPhase.persistentCallbacks) {
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        if (mounted) mutation();
-      });
-    } else {
-      mutation();
-    }
   }
 
   /// Shows the floating header during active scroll and hides it again
@@ -310,7 +297,7 @@ class _MessageListViewState extends State<MessageListView>
       }
     } else if (notification is ScrollUpdateNotification) {
       _floatingHeaderHideTimer?.cancel();
-      _setNotifiersFrameSafe(() => _scrollActive.value = true);
+      runFrameSafe(() => _scrollActive.value = true);
       _maybeDismissKeyboardOnDrag(notification);
     } else if (notification is ScrollEndNotification) {
       _floatingHeaderHideTimer?.cancel();
