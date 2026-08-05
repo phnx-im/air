@@ -2,136 +2,74 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'dart:async';
+
 import 'package:air/features/chat_list/chat_list_cubit.dart';
 import 'package:air/features/chat_list/add_contact_dialog.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/ds/components/menu/menu.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/ds/components/button_icon/glass_circle_button.dart';
-import 'package:air/ds/patterns/context_menu/context_menu.dart';
-import 'package:air/ds/patterns/context_menu/context_menu_item.dart';
-import 'package:air/features/user/users_cubit.dart';
-import 'package:air/features/user/avatar.dart';
+import 'package:air/ds/patterns/list_header/list_header.dart';
+import 'package:air/ds/patterns/list_header/list_header_tokens.dart';
+import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-/// Width reserved for each slot of the header (plus button / avatar).
-const double _kHeaderSlotSize = 40;
-
 class ChatListHeader extends StatelessWidget {
-  const ChatListHeader({super.key});
+  const ChatListHeader({super.key, this.scrollOffset = 0});
+
+  /// The list's scroll offset, which reveals the title pill.
+  final double scrollOffset;
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final isMobile = context.breakpoint.isSmall;
+    final tokens = ListHeaderTokens.of(context);
 
-    return Padding(
-      padding: const EdgeInsets.only(left: S.s20, right: S.s16),
-      child: SizedBox(
-        height: kToolbarHeight,
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            const SizedBox(
-              width: _kHeaderSlotSize,
-              child: Center(child: _PlusButton()),
-            ),
-            Expanded(
-              child: Center(
-                child: isMobile
-                    ? Text(
-                        loc.homeTab_chats,
-                        style: typeScale.body.regular.style(
-                          weight: Weight.emphasized,
-                        ),
-                      )
-                    : null,
-              ),
-            ),
-            SizedBox(
-              width: _kHeaderSlotSize,
-              child: isMobile ? null : const Center(child: _Avatar()),
-            ),
-          ],
-        ),
-      ),
+    return ListHeader(
+      tokens: tokens,
+      title: loc.homeTab_chats,
+      scrollOffset: scrollOffset,
+      leading: _ComposeButton(tokens: tokens),
     );
   }
 }
 
-class _Avatar extends StatelessWidget {
-  const _Avatar();
+class _ComposeButton extends StatelessWidget {
+  const _ComposeButton({required this.tokens});
+
+  final ListHeaderTokens tokens;
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () {
-        context.read<NavigationCubit>().switchTab(HomeTab.profile);
-      },
-      onLongPress: () {
-        context.read<NavigationCubit>().openDeveloperSettings();
-      },
-      child: Builder(
-        builder: (context) {
-          final profile = context.select(
-            (UsersCubit cubit) => cubit.state.profile(userId: null),
-          );
-          return UserAvatar(profile: profile, size: S.s32);
-        },
-      ),
-    );
+    return ListHeaderAction(tokens: tokens, onAction: _openMenu);
   }
-}
 
-class _PlusButton extends StatefulWidget {
-  const _PlusButton();
+  /// [buttonContext] is the button's own, so the menu hangs off the button
+  /// rather than off the header that lays it out.
+  void _openMenu(BuildContext buttonContext) {
+    final render = buttonContext.findRenderObject();
+    if (render is! RenderBox || !render.hasSize) return;
+    final loc = AppLocalizations.of(buttonContext);
 
-  @override
-  State<_PlusButton> createState() => _PlusButtonState();
-}
-
-class _PlusButtonState extends State<_PlusButton> {
-  final contextMenuController = OverlayPortalController();
-
-  @override
-  Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-
-    return ContextMenu(
-      direction: ContextMenuDirection.right,
-      controller: contextMenuController,
-      menuItems: [
-        ContextMenuItem(
-          label: loc.chatList_newContact,
-          leading: const AppIcon.user(size: 16),
-          onPressed: () {
-            _newContact(context);
-          },
-        ),
-        ContextMenuItem(
-          label: loc.chatList_newGroup,
-          leading: const AppIcon.users(size: 16),
-          onPressed: () {
-            _newGroup(context);
-          },
-        ),
-      ],
-      // The plus button is different on mobile and desktop
-      child: context.breakpoint.isSmall
-          ? GlassCircleButton(
-              icon: const AppIcon.plus(size: 20),
-              onPressed: contextMenuController.show,
-            )
-          : GestureDetector(
-              behavior: HitTestBehavior.opaque,
-              onTap: contextMenuController.show,
-              child: const SizedBox(
-                width: _kHeaderSlotSize,
-                height: _kHeaderSlotSize,
-                child: Center(child: AppIcon.plus(size: 20)),
-              ),
-            ),
+    unawaited(
+      showOverlayMenu(
+        context: buttonContext,
+        anchor: render.localToGlobal(Offset.zero) & render.size,
+        items: [
+          MenuItem(
+            label: loc.chatList_newContact,
+            leading: const AppIcon.user(size: 16),
+            onPressed: () => _newContact(buttonContext),
+          ),
+          MenuItem(
+            label: loc.chatList_newGroup,
+            leading: const AppIcon.users(size: 16),
+            onPressed: () => _newGroup(buttonContext),
+          ),
+        ],
+      ),
     );
   }
 

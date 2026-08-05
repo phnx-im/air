@@ -2,29 +2,35 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:async';
-import 'dart:math' as math;
+import 'dart:async' show unawaited;
+import 'dart:io';
 
-import 'package:air/features/attachments/attachment_image_provider.dart';
 import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/ds/components/button_icon/app_bar_x_button.dart';
+import 'package:air/ds/patterns/fullscreen_image/fullscreen_image.dart';
+import 'package:air/ds/patterns/fullscreen_image/fullscreen_image_tokens.dart';
+import 'package:air/features/attachments/attachment_actions.dart';
+import 'package:air/features/attachments/attachment_image_provider.dart';
 import 'package:flutter/material.dart';
-import 'package:flutter/gestures.dart';
-import 'package:flutter/services.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:photo_view/photo_view.dart';
 
 String imageViewerHeroTag(UiAttachment attachment) =>
     'image-viewer-${attachment.attachmentId.uuid}';
 
-Route<void> imageViewerRoute({required UiAttachment attachment}) {
+Route<void> imageViewerRoute({
+  required UiAttachment attachment,
+  required UiImageMetadata metadata,
+  required ImageProvider thumbnail,
+}) {
   return PageRouteBuilder<void>(
     transitionDuration: const Duration(milliseconds: 280),
     reverseTransitionDuration: const Duration(milliseconds: 220),
     pageBuilder: (context, animation, secondaryAnimation) {
-      return ImageViewer(attachment: attachment);
+      return ImageViewer(
+        attachment: attachment,
+        metadata: metadata,
+        thumbnail: thumbnail,
+      );
     },
     transitionsBuilder: (context, animation, secondaryAnimation, child) {
       final fadeAnimation = animation.drive(
@@ -35,319 +41,56 @@ Route<void> imageViewerRoute({required UiAttachment attachment}) {
   );
 }
 
-class ImageViewer extends HookWidget {
-  const ImageViewer({required this.attachment, super.key});
-
-  final UiAttachment attachment;
-
-  @override
-  Widget build(BuildContext context) {
-    final appBarIsVisible = useState(true);
-    final dragOffset = useState(0.0);
-    final isAtBaseScale = useState(true);
-    final initialScale = useRef<double?>(null);
-    final pendingTapTimer = useRef<Timer?>(null);
-
-    final palette = darkSemanticPalette;
-
-    useEffect(
-      () => () {
-        pendingTapTimer.value?.cancel();
-      },
-      [],
-    );
-
-    final isDesktop = DeviceType.isDesktop;
-    final enableVerticalDrag = !isDesktop && isAtBaseScale.value;
-    final backgroundOpacity = isDesktop
-        ? 1.0
-        : (1 - (dragOffset.value / 300)).clamp(0.0, 1.0);
-    final verticalOffset = enableVerticalDrag ? dragOffset.value : 0.0;
-    final imageScale = enableVerticalDrag
-        ? math.max(0.3, 1 - (dragOffset.value / 600))
-        : 1.0;
-
-    useEffect(() {
-      if (!enableVerticalDrag && dragOffset.value != 0) {
-        dragOffset.value = 0;
-      }
-      return null;
-    }, [enableVerticalDrag]);
-
-    void toggleChrome() {
-      appBarIsVisible.value = !appBarIsVisible.value;
-    }
-
-    void handleTap() {
-      final existing = pendingTapTimer.value;
-      if (existing != null && existing.isActive) {
-        existing.cancel();
-        pendingTapTimer.value = null;
-        return;
-      }
-      pendingTapTimer.value = Timer(const Duration(milliseconds: 250), () {
-        toggleChrome();
-        pendingTapTimer.value = null;
-      });
-    }
-
-    void handleScaleChanged(double scale) {
-      initialScale.value ??= scale;
-      final baseScale = initialScale.value!;
-      final bool atBase = (scale - baseScale).abs() < 0.02;
-      if (isAtBaseScale.value != atBase) {
-        isAtBaseScale.value = atBase;
-        if (!atBase && dragOffset.value != 0) {
-          dragOffset.value = 0;
-        }
-      }
-    }
-
-    void handleVerticalDragUpdate(DragUpdateDetails details) {
-      if (!enableVerticalDrag) {
-        return;
-      }
-      final delta = details.primaryDelta ?? 0;
-      if (delta < 0 && dragOffset.value <= 0) {
-        dragOffset.value = 0;
-        return;
-      }
-      dragOffset.value = math.max(0, dragOffset.value + delta);
-    }
-
-    void handleVerticalDragEnd(DragEndDetails details) {
-      if (!enableVerticalDrag) {
-        return;
-      }
-      if (dragOffset.value > 120) {
-        Navigator.pop(context);
-        return;
-      }
-      dragOffset.value = 0;
-    }
-
-    return Scaffold(
-      backgroundColor: palette.function.neutral.black,
-      body: Focus(
-        autofocus: true,
-        onKeyEvent: (node, event) {
-          if (event.logicalKey == LogicalKeyboardKey.escape &&
-              event is KeyDownEvent) {
-            Navigator.pop(context);
-            return KeyEventResult.handled;
-          }
-          if (isDesktop &&
-              event is KeyDownEvent &&
-              event.logicalKey == LogicalKeyboardKey.space) {
-            toggleChrome();
-            return KeyEventResult.handled;
-          }
-          return KeyEventResult.ignored;
-        },
-        child: GestureDetector(
-          behavior: HitTestBehavior.opaque,
-          onVerticalDragUpdate: enableVerticalDrag
-              ? handleVerticalDragUpdate
-              : null,
-          onVerticalDragEnd: enableVerticalDrag ? handleVerticalDragEnd : null,
-          onVerticalDragCancel: enableVerticalDrag
-              ? () => dragOffset.value = 0
-              : null,
-          child: Stack(
-            children: [
-              Transform(
-                alignment: Alignment.center,
-                transform: Matrix4.translationValues(
-                  0.0,
-                  verticalOffset,
-                  0.0,
-                ).scaledByDouble(imageScale, imageScale, 1.0, 1.0),
-                child: _ZoomableImage(
-                  attachment: attachment,
-                  onTap: handleTap,
-                  onScaleChanged: handleScaleChanged,
-                ),
-              ),
-              _ViewerOverlay(
-                isVisible: appBarIsVisible.value,
-                fadeOpacity: backgroundOpacity,
-                title: attachment.filename,
-              ),
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ZoomableImage extends HookWidget {
-  const _ZoomableImage({
+/// Hosts the fullscreen takeover for one attachment: it supplies the picture
+/// and the actions, the takeover owns everything the viewer does with them.
+class ImageViewer extends StatelessWidget {
+  const ImageViewer({
     required this.attachment,
-    required this.onTap,
-    required this.onScaleChanged,
+    required this.metadata,
+    required this.thumbnail,
+    super.key,
   });
 
   final UiAttachment attachment;
-  final VoidCallback onTap;
-  final ValueChanged<double> onScaleChanged;
+  final UiImageMetadata metadata;
+
+  /// The decode the message is already painting. It opens the takeover, and it
+  /// is what the hero flies, while the full-size decode is still on its way.
+  final ImageProvider thumbnail;
 
   @override
   Widget build(BuildContext context) {
-    final photoViewController = useMemoized(PhotoViewController.new);
-    final scaleStateController = useMemoized(PhotoViewScaleStateController.new);
-    final baseScale = useRef<double?>(null);
-    final currentScale = useRef<double?>(null);
-
-    final palette = SemanticPalette.of(context);
-
-    useEffect(
-      () => () {
-        photoViewController.dispose();
-      },
-      [photoViewController],
-    );
-
-    useEffect(
-      () => () {
-        scaleStateController.dispose();
-      },
-      [scaleStateController],
-    );
-
-    useEffect(() {
-      final subscription = photoViewController.outputStateStream.listen((
-        value,
-      ) {
-        final scale = value.scale;
-        if (scale != null) {
-          baseScale.value ??= scale;
-          currentScale.value = scale;
-          onScaleChanged(scale);
-        }
-      });
-      return subscription.cancel;
-    }, [photoViewController, onScaleChanged]);
-
-    void handlePointerSignal(PointerSignalEvent event) {
-      if (event is! PointerScrollEvent) {
-        return;
-      }
-      final base = baseScale.value;
-      final current = currentScale.value;
-      if (base == null || current == null) {
-        return;
-      }
-      const zoomStep = 0.12;
-      final int direction = event.scrollDelta.dy < 0 ? 1 : -1;
-      final nextScale = (current * (1 + zoomStep * direction)).clamp(
-        base,
-        base * 4.0,
-      );
-      photoViewController.scale = nextScale.toDouble();
-    }
-
-    return ClipRect(
-      child: Listener(
-        onPointerSignal: handlePointerSignal,
-        child: PhotoView(
-          controller: photoViewController,
-          scaleStateController: scaleStateController,
-          heroAttributes: PhotoViewHeroAttributes(
-            tag: imageViewerHeroTag(attachment),
-            transitionOnUserGestures: true,
-          ),
-          backgroundDecoration: const BoxDecoration(color: Colors.transparent),
-          minScale: PhotoViewComputedScale.contained,
-          maxScale: PhotoViewComputedScale.covered * 4.0,
-          scaleStateCycle: _doubleTapScaleStateCycle,
-          filterQuality: FilterQuality.medium,
-          loadingBuilder: (context, event) {
-            if (event == null) {
-              return const SizedBox.shrink();
-            }
-            return Center(
-              child: CircularProgressIndicator(
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  palette.backgroundBase.tertiary,
-                ),
-                value: event.expectedTotalBytes != null
-                    ? event.cumulativeBytesLoaded / event.expectedTotalBytes!
-                    : null,
-              ),
-            );
-          },
-          errorBuilder: (context, error, stackTrace) =>
-              const Center(child: AppIcon.imageOff(size: 48)),
-          imageProvider: AttachmentImageProvider(
-            attachment: attachment,
-            attachmentsRepository: RepositoryProvider.of(context),
-          ),
-          onTapUp: (context, details, value) => onTap(),
-        ),
-      ),
-    );
-  }
-}
-
-class _ViewerOverlay extends StatelessWidget {
-  const _ViewerOverlay({
-    required this.isVisible,
-    required this.fadeOpacity,
-    required this.title,
-  });
-
-  final bool isVisible;
-  final double fadeOpacity;
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    final foregroundColor = darkSemanticPalette.text.primary;
-    final backgroundColor = darkSemanticPalette.backgroundElevated.primary
-        .withValues(alpha: 0.7);
-
-    return Positioned(
-      top: 0,
-      left: 0,
-      right: 0,
-      child: IgnorePointer(
-        ignoring: !isVisible,
-        child: AnimatedOpacity(
-          duration: const Duration(milliseconds: 250),
-          opacity: isVisible ? fadeOpacity : 0,
-          child: Container(
-            color: backgroundColor,
-            child: AppBar(
-              automaticallyImplyLeading: false,
-              clipBehavior: Clip.none,
-              actions: [
-                AppBarXButton(
-                  onPressed: () => Navigator.of(context).maybePop(),
-                  foregroundColor: foregroundColor,
-                  backgroundColor: darkSemanticPalette.backgroundBase.secondary,
-                ),
-              ],
-              backgroundColor: Colors.transparent,
-              elevation: 0,
-              title: Text(title, style: TextStyle(color: foregroundColor)),
-              centerTitle: true,
+    return Scaffold(
+      backgroundColor: darkSemanticPalette.function.neutral.black,
+      body: FullscreenImage(
+        tokens: FullscreenImageTokens.current,
+        items: [
+          FullscreenImageItem(
+            image: AttachmentImageProvider(
+              attachment: attachment,
+              attachmentsRepository: RepositoryProvider.of(context),
             ),
+            naturalSize: Size(
+              metadata.width.toDouble(),
+              metadata.height.toDouble(),
+            ),
+            placeholder: thumbnail,
+            heroTag: imageViewerHeroTag(attachment),
           ),
-        ),
+        ],
+        onClose: () => Navigator.pop(context),
+        onShare: () => _share(context),
       ),
     );
   }
-}
 
-PhotoViewScaleState _doubleTapScaleStateCycle(PhotoViewScaleState actual) {
-  switch (actual) {
-    case PhotoViewScaleState.initial:
-    case PhotoViewScaleState.zoomedOut:
-      return PhotoViewScaleState.covering;
-    case PhotoViewScaleState.covering:
-    case PhotoViewScaleState.zoomedIn:
-    case PhotoViewScaleState.originalSize:
-      return PhotoViewScaleState.initial;
+  /// The same split the message menu makes: iOS has no file store to save to,
+  /// so it shares the picture on instead.
+  void _share(BuildContext context) {
+    if (Platform.isIOS) {
+      unawaited(shareAttachments(context, [attachment]));
+      return;
+    }
+    unawaited(saveAttachment(context, attachment));
   }
 }

@@ -3,9 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 
-/// An [AppIcon] wrapped in a rounded/circular background.
+/// An [AppIcon] on a rounded-rectangle background.
 class AppIconBadge extends StatelessWidget {
   const AppIconBadge({
     super.key,

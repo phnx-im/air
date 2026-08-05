@@ -129,11 +129,7 @@ class MessagePalette {
   final Color selfBackground, otherBackground;
   final Color selfText, otherText;
   final Color selfListPrefix, otherListPrefix;
-  final Color selfQuoteBorder, otherQuoteBorder;
-  final Color selfQuoteBackground, otherQuoteBackground;
   final Color selfTableBorder, otherTableBorder;
-  final Color selfCheckboxBorder, otherCheckboxBorder;
-  final Color selfCheckboxFill, otherCheckboxFill;
   final Color selfCheckboxCheck, otherCheckboxCheck;
   final Color selfEditedLabel, otherEditedLabel;
 
@@ -144,16 +140,8 @@ class MessagePalette {
     required this.otherText,
     required this.selfListPrefix,
     required this.otherListPrefix,
-    required this.selfQuoteBorder,
-    required this.otherQuoteBorder,
-    required this.selfQuoteBackground,
-    required this.otherQuoteBackground,
     required this.selfTableBorder,
     required this.otherTableBorder,
-    required this.selfCheckboxBorder,
-    required this.otherCheckboxBorder,
-    required this.selfCheckboxFill,
-    required this.otherCheckboxFill,
     required this.selfCheckboxCheck,
     required this.otherCheckboxCheck,
     required this.selfEditedLabel,
@@ -396,7 +384,7 @@ extension SemanticColorAlias on SemanticColor {
     ),
     SemanticColor.functionDangerPrimary => const SemanticAlias(
       light: ChromaticRef(Hue.red, Shade.s400),
-      dark: ChromaticRef(Hue.red, Shade.s500),
+      dark: ChromaticRef(Hue.red, Shade.s400),
     ),
     SemanticColor.functionSuccessPrimary => const SemanticAlias(
       light: ChromaticRef(Hue.green, Shade.s400),
@@ -537,16 +525,8 @@ final MessagePalette _lightMessagePalette = MessagePalette(
   otherText: Primitive.neutral(NeutralShade.s1000),
   selfListPrefix: Primitive.neutral(NeutralShade.s800),
   otherListPrefix: Primitive.neutral(NeutralShade.s800),
-  selfQuoteBorder: Primitive.chromatic(Hue.blue, Shade.s500),
-  otherQuoteBorder: Primitive.chromatic(Hue.blue, Shade.s500),
-  selfQuoteBackground: Primitive.chromatic(Hue.blue, Shade.s50),
-  otherQuoteBackground: Primitive.chromatic(Hue.blue, Shade.s50),
   selfTableBorder: Primitive.neutral(NeutralShade.s300),
   otherTableBorder: Primitive.neutral(NeutralShade.s300),
-  selfCheckboxBorder: Primitive.neutral(NeutralShade.s400),
-  otherCheckboxBorder: Primitive.neutral(NeutralShade.s400),
-  selfCheckboxFill: Primitive.neutral(NeutralShade.s200),
-  otherCheckboxFill: Primitive.neutral(NeutralShade.s200),
   selfCheckboxCheck: Primitive.neutral(NeutralShade.s1000),
   otherCheckboxCheck: Primitive.neutral(NeutralShade.s1000),
   selfEditedLabel: Primitive.neutral(NeutralShade.s600),
@@ -554,22 +534,14 @@ final MessagePalette _lightMessagePalette = MessagePalette(
 );
 
 final MessagePalette _darkMessagePalette = MessagePalette(
-  selfBackground: Primitive.neutral(NeutralShade.s850),
-  otherBackground: Primitive.neutral(NeutralShade.s900),
+  selfBackground: Primitive.neutral(NeutralShade.s800),
+  otherBackground: Primitive.neutral(NeutralShade.s850),
   selfText: Primitive.neutral(NeutralShade.s0),
   otherText: Primitive.neutral(NeutralShade.s0),
   selfListPrefix: Primitive.neutral(NeutralShade.s200),
   otherListPrefix: Primitive.neutral(NeutralShade.s200),
-  selfQuoteBorder: Primitive.chromatic(Hue.blue, Shade.s600),
-  otherQuoteBorder: Primitive.chromatic(Hue.blue, Shade.s600),
-  selfQuoteBackground: Primitive.chromatic(Hue.blue, Shade.s800),
-  otherQuoteBackground: Primitive.chromatic(Hue.blue, Shade.s800),
   selfTableBorder: Primitive.neutral(NeutralShade.s800),
   otherTableBorder: Primitive.neutral(NeutralShade.s800),
-  selfCheckboxBorder: Primitive.neutral(NeutralShade.s600),
-  otherCheckboxBorder: Primitive.neutral(NeutralShade.s600),
-  selfCheckboxFill: Primitive.neutral(NeutralShade.s700),
-  otherCheckboxFill: Primitive.neutral(NeutralShade.s700),
   selfCheckboxCheck: Primitive.neutral(NeutralShade.s0),
   otherCheckboxCheck: Primitive.neutral(NeutralShade.s0),
   selfEditedLabel: Primitive.neutral(NeutralShade.s400),

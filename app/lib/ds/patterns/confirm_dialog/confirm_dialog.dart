@@ -5,7 +5,8 @@
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
-import 'package:flutter/material.dart';
+import 'package:air/ds/patterns/dialog/dialog_tokens.dart';
+import 'package:flutter/widgets.dart';
 
 /// A dialog for confirming a single action.
 class ConfirmDialog extends StatelessWidget {
@@ -31,35 +32,38 @@ class ConfirmDialog extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final tokens = DialogTokens.of(context);
     final palette = SemanticPalette.of(context);
     final cancel = this.cancel;
 
     return AppDialog(
       child: Column(
         mainAxisSize: MainAxisSize.min,
-        crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          Center(
-            child: Text(
-              title,
-              style: typeScale.header.regular.style(weight: Weight.emphasized),
+          Text(
+            title,
+            textAlign: TextAlign.center,
+            style: typeScale.header.regular.style(
+              color: palette.text.primary,
+              weight: Weight.emphasized,
             ),
           ),
 
-          const SizedBox(height: S.s8),
+          SizedBox(height: tokens.titleBodyGap),
 
           Text(
             message,
+            textAlign: TextAlign.center,
             style: typeScale.body.regular.style(color: palette.text.secondary),
           ),
 
-          const SizedBox(height: S.s24),
+          SizedBox(height: tokens.bodyActionsGap),
 
           Row(
             children: [
               if (cancel != null) ...[
                 Expanded(
-                  child: AppButton(
+                  child: Button(
                     onPressed: () => Navigator.of(context).pop(false),
                     label: cancel,
                     type: .secondary,
@@ -70,7 +74,7 @@ class ConfirmDialog extends StatelessWidget {
               ],
 
               Expanded(
-                child: AppButton(
+                child: Button(
                   onPressed: () {
                     onConfirm?.call();
                     Navigator.of(context).pop(true);

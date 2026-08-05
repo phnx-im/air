@@ -14,8 +14,10 @@ import 'package:air/core/core.dart';
 import 'package:air/features/home/home_screen.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
+import 'package:air/features/navigation/app_sidebar.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/features/user/user_cubit.dart';
+import 'package:air/features/you/you_pane.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:system_date_time_format/system_date_time_format.dart';
@@ -229,6 +231,41 @@ void main() {
       await expectLater(
         find.byType(MaterialApp),
         matchesGoldenFile('goldens/home_screen_desktop_blocked.png'),
+      );
+    }, variant: desktopPlatform);
+
+    testWidgets('desktop layout profile tab', (tester) async {
+      final binding = TestWidgetsFlutterBinding.ensureInitialized();
+      binding.platformDispatcher.views.first.physicalSize = const Size(
+        3840,
+        2160,
+      );
+      addTearDown(() {
+        binding.platformDispatcher.views.first.resetPhysicalSize();
+      });
+
+      when(() => navigationCubit.state).thenReturn(
+        const NavigationState.home(
+          home: HomeNavigationState(activeTab: HomeTab.profile),
+        ),
+      );
+      when(
+        () => chatListCubit.state,
+      ).thenReturn(ChatListState(chatIds: chatIds));
+
+      await tester.pumpWidget(buildSubject());
+      await tester.pump();
+
+      // The tab takes over both panes: the sections in the list panel and the
+      // open one beside it. The rail stays.
+      expect(find.byType(YouMenuPane), findsOneWidget);
+      expect(find.byType(YouDetailPane), findsOneWidget);
+      expect(find.byType(AppSidebar), findsOneWidget);
+      expect(find.byType(ChatListView), findsNothing);
+
+      await expectLater(
+        find.byType(MaterialApp),
+        matchesGoldenFile('goldens/home_screen_desktop_you.png'),
       );
     }, variant: desktopPlatform);
   });

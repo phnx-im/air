@@ -5,6 +5,7 @@
 import 'dart:io';
 
 import 'package:air/l10n/l10n.dart';
+import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/constrained_width/constrained_width.dart';
 import 'package:flutter/material.dart';
@@ -107,23 +108,9 @@ class UpdateRequiredView extends StatelessWidget {
                         width: context.breakpoint.isSmall
                             ? double.infinity
                             : null,
-                        child: OutlinedButton(
+                        child: Button(
                           onPressed: _handleUpdateNow,
-                          style: OutlinedButtonTheme.of(context).style!
-                              .copyWith(
-                                backgroundColor: WidgetStateProperty.all(
-                                  palette.accentBrand.primary,
-                                ),
-                                foregroundColor: WidgetStateProperty.all(
-                                  palette.function.neutral.toggleWhite,
-                                ),
-                              ),
-                          child: Text(
-                            loc.appOutdatedScreen_action,
-                            style: typeScale.body.regular.style(
-                              color: palette.function.neutral.toggleWhite,
-                            ),
-                          ),
+                          label: loc.appOutdatedScreen_action,
                         ),
                       ),
                     ),

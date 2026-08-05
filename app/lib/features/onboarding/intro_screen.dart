@@ -3,6 +3,9 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/components/state_layer/state_layer.dart';
+import 'package:air/ds/components/text_input/text_input.dart';
+import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:flutter/gestures.dart';
@@ -115,7 +118,7 @@ class IntroScreen extends HookWidget {
                           ),
                         ],
                         if (isDeveloper) ...[
-                          AppButton(
+                          Button(
                             type: .secondary,
                             label: loc.introScreen_linkExisting,
                             onPressed: openLinking,
@@ -123,7 +126,7 @@ class IntroScreen extends HookWidget {
                           ),
                           const SizedBox(height: S.s8),
                         ],
-                        AppButton(
+                        Button(
                           type: .primary,
                           label: loc.introScreen_signUp,
                           onPressed: () async {
@@ -157,13 +160,14 @@ class _LanguagePicker extends StatelessWidget {
         context.read<AppLocaleCubit>().setLocale(locale);
       },
       childBuilder: (context, option, onTap) {
-        return TextButton(
-          style: TextButton.styleFrom(
-            padding: EdgeInsets.zero,
-            minimumSize: Size.zero,
-            tapTargetSize: MaterialTapTargetSize.shrinkWrap,
-          ),
-          onPressed: onTap,
+        // The row carries no fill of its own, so the wash sits directly on the
+        // screen behind it and the pill radius wraps the whole trigger.
+        return StateLayer(
+          borderRadius: CornerRadius.full,
+          surface: palette.backgroundBase.secondary,
+          hover: !DeviceType.isPhone,
+          pressScale: DeviceType.isPhone,
+          onTap: onTap,
           child: Row(
             mainAxisSize: MainAxisSize.min,
             children: [
@@ -250,29 +254,25 @@ class _ServerTextField extends HookWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final palette = SemanticPalette.of(context);
     final focusNode = useFocusNode();
+    final controller = useTextEditingController(
+      text: context.read<RegistrationCubit>().state.domain,
+    );
 
-    return TextFormField(
-      decoration: InputDecoration(
-        hintText: loc.introScreen_serverHint,
-        fillColor: palette.backgroundBase.tertiary,
-      ),
-      initialValue: context.read<RegistrationCubit>().state.domain,
+    return AppTextInput(
+      tokens: AppTextInputTokens.of(context),
+      controller: controller,
       focusNode: focusNode,
+      hintText: loc.introScreen_serverHint,
       onChanged: (String value) {
         context.read<RegistrationCubit>().setDomain(value);
       },
-      onFieldSubmitted: (_) {
+      onSubmitted: (_) {
         focusNode.requestFocus();
         if (context.read<RegistrationCubit>().state.isDomainValid) {
           onFieldSubmitted();
         }
       },
-      validator: (value) =>
-          context.read<RegistrationCubit>().state.isDomainValid
-          ? null
-          : loc.introScreen_error_invalidDomain,
     );
   }
 }
