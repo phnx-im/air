@@ -22,7 +22,8 @@ class ChatListFadeTokens {
 
   /// Fraction of [topHeight] held at full strength before the ramp starts. The
   /// header needs an opaque bed to sit on, and the denser two-pane header needs
-  /// less of one.
+  /// less of one. A gradient position rather than an alpha, so it stays a
+  /// literal.
   final double topStop;
 
   final double bottomHeight;
@@ -30,7 +31,7 @@ class ChatListFadeTokens {
   /// Peak alpha of the bottom strip. The top fade has to hide rows sliding
   /// under the header, so it's opaque. The bottom one only softens the last
   /// row, so it stays translucent.
-  static const double bottomOpacity = 0.8;
+  static const double bottomOpacity = Alpha.a80;
 
   static const ChatListFadeTokens phone = ChatListFadeTokens(
     topHeight: S.s96,
@@ -67,7 +68,7 @@ class MessageListFadeTokens {
 
   final double bottomHeight;
 
-  static const double bottomOpacity = 0.8;
+  static const double bottomOpacity = Alpha.a80;
 
   /// Scroll distance over which the bottom strip ramps in. At rest on the
   /// newest message there's nothing below the fold to fade.
@@ -78,13 +79,13 @@ class MessageListFadeTokens {
 
   static const MessageListFadeTokens phone = MessageListFadeTokens(
     topTail: S.s48,
-    topOpacity: 1.0,
+    topOpacity: Alpha.a100,
     bottomHeight: S.s64,
   );
 
   static const MessageListFadeTokens desktop = MessageListFadeTokens(
     topTail: S.s24,
-    topOpacity: 0.8,
+    topOpacity: Alpha.a80,
     bottomHeight: S.s80,
   );
 
