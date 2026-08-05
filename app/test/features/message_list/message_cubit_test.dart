@@ -32,7 +32,6 @@ void main() {
             ),
           ),
         ),
-        position: UiFlightPosition.single,
         status: UiMessageStatus.sent,
         reactions: [],
       );
@@ -53,7 +52,6 @@ void main() {
             ),
           ),
         ),
-        position: UiFlightPosition.single,
         status: UiMessageStatus.sent,
         reactions: [],
       );

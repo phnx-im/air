@@ -611,6 +611,8 @@ class _MessageListViewState extends State<MessageListView>
         animated: animated,
         isNewest: isNewest,
         isNewestOwn: index == newestOwnIndex,
+        startsMessageGroup: _startsMessageGroup(state, message, index),
+        endsMessageGroup: _endsMessageGroup(state, message, index),
       ),
     );
 
@@ -667,7 +669,66 @@ class _MessageListViewState extends State<MessageListView>
     final older = state.messageData[olderIndex];
     return !_isSameLocalDay(older.timestamp, message.timestamp);
   }
+
+  /// Whether [message] opens the run of rows the list shows as one block. It
+  /// carries the group's gap above it and, in a group chat, the sender's name.
+  ///
+  /// Data is newest-first, so the chronologically older neighbor sits at
+  /// [index] + 1. An unloaded edge is a boundary: the row that would join the
+  /// group is not on screen to join it.
+  bool _startsMessageGroup(
+    MessageListStateWrapper state,
+    UiChatMessage message,
+    int index,
+  ) {
+    if (_isFirstUnread(state, index)) return true;
+    final older = _messageAtDataIndex(state, index + 1);
+    return older == null || !_joinsMessageGroup(older, message);
+  }
+
+  /// Whether [message] closes that run. It carries the sender's avatar, which
+  /// foots the group.
+  bool _endsMessageGroup(
+    MessageListStateWrapper state,
+    UiChatMessage message,
+    int index,
+  ) {
+    // The unread divider sits above the first unread message, so it separates
+    // this row from a newer neighbor that is itself the first unread one.
+    if (_isFirstUnread(state, index - 1)) return true;
+    final newer = _messageAtDataIndex(state, index - 1);
+    return newer == null || !_joinsMessageGroup(message, newer);
+  }
+
+  bool _isFirstUnread(MessageListStateWrapper state, int index) {
+    final firstUnreadIndex = state.firstUnreadIndex;
+    if (firstUnreadIndex == null) return false;
+    return state.messageData.length - firstUnreadIndex - 1 == index;
+  }
+
+  UiChatMessage? _messageAtDataIndex(
+    MessageListStateWrapper state,
+    int index,
+  ) => index >= 0 && index < state.messageData.length
+      ? state.messageData[index]
+      : null;
 }
+
+/// Whether the two adjacent messages [older] and [newer] belong to the same
+/// displayed group. Only content messages group, and only while the same sender
+/// keeps talking without a pause.
+bool _joinsMessageGroup(UiChatMessage older, UiChatMessage newer) {
+  if (older.message case UiMessage_Content(field0: final olderContent)) {
+    if (newer.message case UiMessage_Content(field0: final newerContent)) {
+      return olderContent.sender == newerContent.sender &&
+          newer.timestamp.difference(older.timestamp).abs() < _messageGroupGap;
+    }
+  }
+  return false;
+}
+
+/// How long a sender may pause before the next message reads as a new group.
+const Duration _messageGroupGap = Duration(minutes: 5);
 
 bool _isSameLocalDay(DateTime a, DateTime b) {
   final aLocal = a.toLocal();

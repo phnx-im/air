@@ -19,14 +19,14 @@ class MessageRowTokens {
 
   /// Inset between the row and the edges of the conversation. Horizontal only:
   /// the gaps between rows belong to the list, which knows what precedes and
-  /// follows each row, see [groupGap] and [flightGap].
+  /// follows each row, see [groupGap] and [messageGap].
   final EdgeInsets padding;
 
   /// Diameter of the avatar column. Matches the input's leading button at the
   /// same density, so the two line up down the left edge of the screen.
   final double avatarSize;
 
-  /// Gap above the first row of a flight, which the list applies. Wide enough
+  /// Gap above the first row of a group, which the list applies. Wide enough
   /// that a change of sender reads before the name does.
   final double groupGap;
 
@@ -46,9 +46,9 @@ class MessageRowTokens {
   /// Gap below the sender name.
   static const double senderNameGap = S.s4;
 
-  /// Gap between consecutive rows of the same flight, which the list applies.
-  /// The bubbles of a flight read as one block, so this only keeps them apart.
-  static const double flightGap = S.s2;
+  /// Gap between consecutive rows of the same group, which the list applies.
+  /// The bubbles of a group read as one block, so this only keeps them apart.
+  static const double messageGap = S.s2;
 
   /// The row splits into [contentFlex] parts of bubble to [gutterFlex] parts of
   /// empty gutter, so a long message stops short of the far edge and the side
@@ -71,7 +71,7 @@ class MessageRowTokens {
   );
 
   /// Denser than [phone]: the two-pane layout gives the conversation less
-  /// width, so the avatar column narrows and the flights sit closer together.
+  /// width, so the avatar column narrows and the groups sit closer together.
   static const MessageRowTokens desktop = MessageRowTokens(
     padding: EdgeInsets.symmetric(horizontal: S.s20),
     avatarSize: S.s32,

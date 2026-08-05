@@ -77,7 +77,6 @@ final messages = [
         ),
       ),
     ),
-    position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
     reactions: [],
   ),
@@ -101,7 +100,6 @@ final messages = [
         ),
       ),
     ),
-    position: UiFlightPosition.start,
     status: UiMessageStatus.sent,
     reactions: [],
   ),
@@ -117,7 +115,6 @@ final messages = [
         content: richContent,
       ),
     ),
-    position: UiFlightPosition.end,
     status: UiMessageStatus.delivered,
     reactions: [],
   ),
@@ -138,7 +135,6 @@ final messages = [
         ),
       ),
     ),
-    position: UiFlightPosition.start,
     status: UiMessageStatus.sent,
     reactions: [],
   ),
@@ -159,7 +155,6 @@ final messages = [
         ),
       ),
     ),
-    position: UiFlightPosition.middle,
     status: UiMessageStatus.sent,
     reactions: [],
   ),
@@ -175,14 +170,13 @@ final messages = [
         content: veryLongMimiContent,
       ),
     ),
-    position: UiFlightPosition.end,
     status: UiMessageStatus.sent,
     reactions: [],
   ),
   UiChatMessage(
     id: 7.messageId(),
     chatId: chatId,
-    timestamp: DateTime.parse('2023-01-01T00:04:01.000Z'),
+    timestamp: DateTime.parse('2023-01-01T00:08:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -191,14 +185,13 @@ final messages = [
         content: richContent,
       ),
     ),
-    position: UiFlightPosition.single,
     status: UiMessageStatus.delivered,
     reactions: [],
   ),
   UiChatMessage(
     id: 8.messageId(),
     chatId: chatId,
-    timestamp: DateTime.parse('2023-01-01T00:04:01.000Z'),
+    timestamp: DateTime.parse('2023-01-01T00:13:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -212,14 +205,13 @@ final messages = [
         ),
       ),
     ),
-    position: UiFlightPosition.single,
     status: UiMessageStatus.delivered,
     reactions: [],
   ),
   UiChatMessage(
     id: 9.messageId(),
     chatId: chatId,
-    timestamp: DateTime.parse('2023-01-01T00:04:03.000Z'),
+    timestamp: DateTime.parse('2023-01-01T00:18:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -233,14 +225,13 @@ final messages = [
         ),
       ),
     ),
-    position: UiFlightPosition.single,
     status: UiMessageStatus.read,
     reactions: [],
   ),
   UiChatMessage(
     id: 10.messageId(),
     chatId: chatId,
-    timestamp: DateTime.parse('2023-01-01T00:04:04.000Z'),
+    timestamp: DateTime.parse('2023-01-01T00:23:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -259,14 +250,13 @@ final messages = [
       sender: 1.userId(),
       mimiContent: firstMessageContent,
     ),
-    position: UiFlightPosition.single,
     status: UiMessageStatus.read,
     reactions: [],
   ),
   UiChatMessage(
     id: 11.messageId(),
     chatId: chatId,
-    timestamp: DateTime.parse('2023-01-01T00:05:00.000Z'),
+    timestamp: DateTime.parse('2023-01-01T00:24:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 2.userId(),
@@ -275,14 +265,13 @@ final messages = [
         content: firstDeletedMessageContent,
       ),
     ),
-    position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
     reactions: [],
   ),
   UiChatMessage(
     id: 12.messageId(),
     chatId: chatId,
-    timestamp: DateTime.parse('2023-01-01T00:05:05.000Z'),
+    timestamp: DateTime.parse('2023-01-01T00:28:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 3.userId(),
@@ -301,14 +290,13 @@ final messages = [
       sender: 2.userId(),
       mimiContent: firstDeletedMessageContent,
     ),
-    position: UiFlightPosition.single,
     status: UiMessageStatus.read,
     reactions: [],
   ),
   UiChatMessage(
     id: 13.messageId(),
     chatId: chatId,
-    timestamp: DateTime.parse('2023-01-01T00:05:07.000Z'),
+    timestamp: DateTime.parse('2023-01-01T00:33:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 3.userId(),
@@ -325,7 +313,6 @@ final messages = [
       ),
     ),
     inReplyToMessage: const UiInReplyToMessage.notFound(),
-    position: UiFlightPosition.single,
     status: UiMessageStatus.read,
     reactions: [],
   ),
@@ -333,7 +320,7 @@ final messages = [
   UiChatMessage(
     id: 14.messageId(),
     chatId: chatId,
-    timestamp: DateTime.parse('2023-01-02T00:05:07.000Z'),
+    timestamp: DateTime.parse('2023-01-02T00:00:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 2.userId(),
@@ -347,7 +334,6 @@ final messages = [
         ),
       ),
     ),
-    position: UiFlightPosition.single,
     status: UiMessageStatus.read,
     reactions: [
       UiReaction(emoji: "🫪", users: [1.userId(), 3.userId()]),
@@ -372,7 +358,6 @@ final messages = [
         ),
       ),
     ),
-    position: UiFlightPosition.single,
     status: UiMessageStatus.read,
     reactions: [
       UiReaction(emoji: "👍", users: [1.userId()]),
@@ -407,7 +392,6 @@ final messages = [
         ),
       ),
     ),
-    position: UiFlightPosition.single,
     status: UiMessageStatus.read,
     reactions: [],
   ),
@@ -498,7 +482,6 @@ final jumboEmojiMessages = [
         ),
       ),
     ),
-    position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
     reactions: [],
   ),
@@ -520,7 +503,6 @@ final jumboEmojiMessages = [
         ),
       ),
     ),
-    position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
     reactions: [],
   ),
@@ -542,7 +524,6 @@ final jumboEmojiMessages = [
         ),
       ),
     ),
-    position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
     reactions: [],
   ),
@@ -564,7 +545,6 @@ final jumboEmojiMessages = [
         ),
       ),
     ),
-    position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
     reactions: [],
   ),
@@ -572,7 +552,7 @@ final jumboEmojiMessages = [
   UiChatMessage(
     id: 24.messageId(),
     chatId: chatId,
-    timestamp: DateTime.parse('2023-01-01T00:14:00.000Z'),
+    timestamp: DateTime.parse('2023-01-01T00:19:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -586,7 +566,6 @@ final jumboEmojiMessages = [
         ),
       ),
     ),
-    position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
     reactions: [],
   ),
@@ -610,7 +589,6 @@ final attachmentMessages = [
     id: 6.messageId(),
     chatId: chatId,
     timestamp: DateTime.parse('2023-01-01T00:04:00.000Z'),
-    position: UiFlightPosition.start,
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -639,7 +617,6 @@ final attachmentMessages = [
     id: 7.messageId(),
     chatId: chatId,
     timestamp: DateTime.parse('2023-01-01T00:04:01.000Z'),
-    position: UiFlightPosition.end,
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -659,8 +636,7 @@ final attachmentMessages = [
   UiChatMessage(
     id: 8.messageId(),
     chatId: chatId,
-    timestamp: DateTime.parse('2023-01-01T00:04:02.000Z'),
-    position: UiFlightPosition.single,
+    timestamp: DateTime.parse('2023-01-01T00:10:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -678,8 +654,7 @@ final attachmentMessages = [
   UiChatMessage(
     id: 9.messageId(),
     chatId: chatId,
-    timestamp: DateTime.parse('2023-01-01T00:04:03.000Z'),
-    position: UiFlightPosition.single,
+    timestamp: DateTime.parse('2023-01-01T00:16:00.000Z'),
     message: UiMessage_Content(
       UiContentMessage(
         sender: 1.userId(),
@@ -729,7 +704,6 @@ final replyMessages = [
       sender: 3.userId(),
       mimiContent: veryLongMimiContent,
     ),
-    position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
     reactions: [],
   ),
@@ -756,7 +730,6 @@ final replyMessages = [
         attachments: [],
       ),
     ),
-    position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
     reactions: [],
   ),
@@ -783,7 +756,6 @@ final replyMessages = [
       sender: 3.userId(),
       mimiContent: firstMessageContent,
     ),
-    position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
     reactions: [],
   ),
@@ -815,7 +787,6 @@ final replyMessages = [
         attachments: [],
       ),
     ),
-    position: UiFlightPosition.single,
     status: UiMessageStatus.sent,
     reactions: [],
   ),
@@ -919,7 +890,6 @@ void main() {
             ),
           ),
         ),
-        position: UiFlightPosition.single,
         status: status,
         reactions: [],
       );
@@ -936,9 +906,9 @@ void main() {
       }
 
       testWidgets('go on the end of the chat', (tester) async {
-        // Oldest first, and nobody's own: every row is a flight of its own, so
-        // a rule keyed on flight position rather than on the end of the chat
-        // would stamp them all.
+        // Oldest first, and nobody's own: every row is a group of its own, so
+        // a rule keyed on the group boundaries rather than on the end of the
+        // chat would stamp them all.
         messageListCubit.setState([
           stampFixture(1, sender: 2),
           stampFixture(2, sender: 3),
@@ -1263,21 +1233,10 @@ void main() {
         tester.view.resetPhysicalSize();
       });
 
-      // Use a small subset so the golden stays compact.
-      // Place the unread divider at index 2, which is mid-flight for
-      // Eve (indices 1=start, 2=end). The divider should break the
-      // flight: 1→single | divider | 2→single.
-      final unreadMessages = [
-        for (final (i, msg) in messages.take(6).indexed)
-          switch (i) {
-            1 => msg.copyWith(position: UiFlightPosition.single),
-            2 => msg.copyWith(position: UiFlightPosition.single),
-            _ => msg,
-          },
-      ];
-
+      // Use a small subset so the golden stays compact. The divider lands at
+      // index 2, mid-group for Eve, and has to break the group in two.
       messageListCubit.setState(
-        unreadMessages,
+        messages.take(6).toList(),
         firstUnreadIndex: 2,
         unreadCount: 4,
       );
@@ -1319,7 +1278,6 @@ void main() {
               ),
             ),
           ),
-          position: UiFlightPosition.single,
           status: UiMessageStatus.sent,
           reactions: [],
         );
@@ -1342,7 +1300,6 @@ void main() {
             ),
           ),
         ),
-        position: UiFlightPosition.single,
         status: UiMessageStatus.sent,
         reactions: [],
       );
@@ -1400,7 +1357,6 @@ void main() {
               ),
             ),
           ),
-          position: UiFlightPosition.single,
           status: UiMessageStatus.sent,
           reactions: [],
         );
@@ -1444,10 +1400,12 @@ void main() {
           tester.view.resetDevicePixelRatio();
         });
 
+        // Spaced far enough apart that each message keeps its own row height,
+        // so the jump lands where the viewport arithmetic below expects it.
         UiChatMessage mk(int i) => UiChatMessage(
           id: (1000 + i).messageId(),
           chatId: chatId,
-          timestamp: DateTime(2023, 1, 1, 0, i),
+          timestamp: DateTime(2023, 1, 1, 0, i * 6),
           message: UiMessage_Content(
             UiContentMessage(
               sender: 2.userId(),
@@ -1461,7 +1419,6 @@ void main() {
               ),
             ),
           ),
-          position: UiFlightPosition.single,
           status: UiMessageStatus.sent,
           reactions: [],
         );
@@ -1541,7 +1498,6 @@ void main() {
                 ),
               ),
             ),
-            position: UiFlightPosition.single,
             status: UiMessageStatus.sent,
             reactions: [],
           );

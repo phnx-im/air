@@ -11319,8 +11319,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   UiChatMessage dco_decode_ui_chat_message(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
-    if (arr.length != 8)
-      throw Exception('unexpected arr length: expect 8 but see ${arr.length}');
+    if (arr.length != 7)
+      throw Exception('unexpected arr length: expect 7 but see ${arr.length}');
     return UiChatMessage(
       chatId: dco_decode_chat_id(arr[0]),
       id: dco_decode_message_id(arr[1]),
@@ -11329,9 +11329,8 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       inReplyToMessage: dco_decode_opt_box_autoadd_ui_in_reply_to_message(
         arr[4],
       ),
-      position: dco_decode_ui_flight_position(arr[5]),
-      status: dco_decode_ui_message_status(arr[6]),
-      reactions: dco_decode_list_ui_reaction(arr[7]),
+      status: dco_decode_ui_message_status(arr[5]),
+      reactions: dco_decode_list_ui_reaction(arr[6]),
     );
   }
 
@@ -11462,12 +11461,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       default:
         throw Exception("unreachable");
     }
-  }
-
-  @protected
-  UiFlightPosition dco_decode_ui_flight_position(dynamic raw) {
-    // Codec=Dco (DartCObject based), see doc to use other codecs
-    return UiFlightPosition.values[raw as int];
   }
 
   @protected
@@ -15194,7 +15187,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     var var_message = sse_decode_ui_message(deserializer);
     var var_inReplyToMessage =
         sse_decode_opt_box_autoadd_ui_in_reply_to_message(deserializer);
-    var var_position = sse_decode_ui_flight_position(deserializer);
     var var_status = sse_decode_ui_message_status(deserializer);
     var var_reactions = sse_decode_list_ui_reaction(deserializer);
     return UiChatMessage(
@@ -15203,7 +15195,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       timestamp: var_timestamp,
       message: var_message,
       inReplyToMessage: var_inReplyToMessage,
-      position: var_position,
       status: var_status,
       reactions: var_reactions,
     );
@@ -15342,13 +15333,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       default:
         throw UnimplementedError('');
     }
-  }
-
-  @protected
-  UiFlightPosition sse_decode_ui_flight_position(SseDeserializer deserializer) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    var inner = sse_decode_i_32(deserializer);
-    return UiFlightPosition.values[inner];
   }
 
   @protected
@@ -19228,7 +19212,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
       self.inReplyToMessage,
       serializer,
     );
-    sse_encode_ui_flight_position(self.position, serializer);
     sse_encode_ui_message_status(self.status, serializer);
     sse_encode_list_ui_reaction(self.reactions, serializer);
   }
@@ -19339,15 +19322,6 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
         sse_encode_i_32(1, serializer);
         sse_encode_box_autoadd_ui_error_message(field0, serializer);
     }
-  }
-
-  @protected
-  void sse_encode_ui_flight_position(
-    UiFlightPosition self,
-    SseSerializer serializer,
-  ) {
-    // Codec=Sse (Serialization based), see doc to use other codecs
-    sse_encode_i_32(self.index, serializer);
   }
 
   @protected

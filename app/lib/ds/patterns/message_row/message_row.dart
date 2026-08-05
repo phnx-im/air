@@ -38,18 +38,18 @@ class MessageRow extends StatelessWidget {
   /// that's the reader themselves.
   final bool outgoing;
 
-  /// The sender's avatar, on the row of a flight that shows one. It sits at the
+  /// The sender's avatar, on the row of a group that shows one. It sits at the
   /// foot of its column, level with the bottom of the bubble beside it, so a
-  /// flight hands it to the row that closes it. We take it as a widget to keep
+  /// group hands it to the row that closes it. We take it as a widget to keep
   /// the row free of app data, and it owns its own tap: [onTapSender] only
   /// covers the name.
   final Widget? avatar;
 
   /// Keep the avatar column even when [avatar] is null. Group chats reserve it
-  /// on every incoming row, so a flight's bubbles all start at the same inset.
+  /// on every incoming row, so a group's bubbles all start at the same inset.
   final bool reserveAvatar;
 
-  /// Shown above the bubble, on the row of a flight that opens it. Inset to the
+  /// Shown above the bubble, on the row of a group that opens it. Inset to the
   /// bubble's text rather than its edge.
   final String? senderName;
 

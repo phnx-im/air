@@ -19,7 +19,7 @@ abstract final class MessageBubbleTokens {
     vertical: S.s8,
   );
 
-  /// Corner radius, the same on all four corners. A flight of bubbles keeps one
+  /// Corner radius, the same on all four corners. A group of bubbles keeps one
   /// shape: the gap between them already reads as a run, so stepping the
   /// corners down only makes the column look ragged.
   static const double radius = CornerRadius.px12;
