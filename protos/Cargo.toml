@@ -20,6 +20,7 @@ displaydoc.workspace = true
 mimi-room-policy.workspace = true
 mimi_content.workspace = true
 mls-assist.workspace = true
+num_enum.workspace = true
 openmls.workspace = true
 prost.workspace = true
 semver.workspace = true

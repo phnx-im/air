@@ -18,7 +18,8 @@ use aircommon::crypto::aead::{
 use airmacros::{
     DeserializeTaggedMap, DeserializeTaggedUnion, SerializeTaggedMap, SerializeTaggedUnion,
 };
-use serde::{Deserialize, Serialize};
+use num_enum::{IntoPrimitive, TryFromPrimitive};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
 use uuid::Uuid;
 
 /// Marker for the ciphertext of [`SelfGroupMessages`].
@@ -80,42 +81,35 @@ pub enum SelfGroupMessage {
     Unknown,
 }
 
-/// Platform codes for [`LinkedDevice::platform`].
-pub const PLATFORM_UNKNOWN: u8 = 0;
-pub const PLATFORM_ANDROID: u8 = 1;
-pub const PLATFORM_IOS: u8 = 2;
-pub const PLATFORM_MACOS: u8 = 3;
-pub const PLATFORM_WINDOWS: u8 = 4;
-pub const PLATFORM_LINUX: u8 = 5;
-
-#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq, IntoPrimitive, TryFromPrimitive)]
 #[repr(u8)]
 pub enum LinkedDevicePlatform {
     #[default]
-    Unknown = PLATFORM_UNKNOWN,
-    Android = PLATFORM_ANDROID,
-    Ios = PLATFORM_IOS,
-    Macos = PLATFORM_MACOS,
-    Windows = PLATFORM_WINDOWS,
-    Linux = PLATFORM_LINUX,
+    Unknown = 0,
+    Android = 1,
+    Ios = 2,
+    Macos = 3,
+    Windows = 4,
+    Linux = 5,
 }
 
-impl From<u8> for LinkedDevicePlatform {
-    fn from(platform: u8) -> Self {
-        match platform {
-            PLATFORM_ANDROID => Self::Android,
-            PLATFORM_IOS => Self::Ios,
-            PLATFORM_MACOS => Self::Macos,
-            PLATFORM_WINDOWS => Self::Windows,
-            PLATFORM_LINUX => Self::Linux,
-            _ => Self::Unknown,
-        }
+impl Serialize for LinkedDevicePlatform {
+    fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
+    where
+        S: Serializer,
+    {
+        serializer.serialize_u8((*self).into())
     }
 }
 
-impl From<LinkedDevicePlatform> for u8 {
-    fn from(platform: LinkedDevicePlatform) -> Self {
-        platform as Self
+impl<'de> Deserialize<'de> for LinkedDevicePlatform {
+    fn deserialize<D>(deserializer: D) -> Result<Self, D::Error>
+    where
+        D: Deserializer<'de>,
+    {
+        let v = u8::deserialize(deserializer)?;
+        LinkedDevicePlatform::try_from(v)
+            .map_err(|_| serde::de::Error::custom(format!("invalid Status discriminant: {v}")))
     }
 }
 
@@ -133,7 +127,7 @@ impl From<LinkedDevicePlatform> for u8 {
 /// LinkedDevice = {
 ///   1: bstr .size 16,   ; client_id
 ///   2: tstr,            ; name
-///   3: uint,            ; linked_at, unix epoch seconds
+///   3: uint,            ; linked_at, unix epoch seconds (UTC)
 ///   4: uint,            ; platform
 /// }
 /// ```
@@ -146,7 +140,7 @@ pub struct LinkedDevice {
     #[tag(3)]
     pub linked_at: u64,
     #[tag(4)]
-    pub platform: u8,
+    pub platform: LinkedDevicePlatform,
 }
 
 /// The full state of the sender's synchronized user settings.
@@ -215,46 +209,13 @@ mod test {
         })])
     }
 
-    fn sample_device(n: u128, name: &str, platform: u8) -> LinkedDevice {
+    fn sample_device(n: u128, name: &str, platform: LinkedDevicePlatform) -> LinkedDevice {
         LinkedDevice {
             client_id: Uuid::from_u128(n),
             name: name.to_owned(),
             linked_at: n as u64,
             platform,
         }
-    }
-
-    #[test]
-    fn linked_device_platform_maps_wire_codes() {
-        assert_eq!(
-            LinkedDevicePlatform::from(PLATFORM_UNKNOWN),
-            LinkedDevicePlatform::Unknown
-        );
-        assert_eq!(
-            LinkedDevicePlatform::from(PLATFORM_ANDROID),
-            LinkedDevicePlatform::Android
-        );
-        assert_eq!(
-            LinkedDevicePlatform::from(PLATFORM_IOS),
-            LinkedDevicePlatform::Ios
-        );
-        assert_eq!(
-            LinkedDevicePlatform::from(PLATFORM_MACOS),
-            LinkedDevicePlatform::Macos
-        );
-        assert_eq!(
-            LinkedDevicePlatform::from(PLATFORM_WINDOWS),
-            LinkedDevicePlatform::Windows
-        );
-        assert_eq!(
-            LinkedDevicePlatform::from(PLATFORM_LINUX),
-            LinkedDevicePlatform::Linux
-        );
-        assert_eq!(
-            LinkedDevicePlatform::from(u8::MAX),
-            LinkedDevicePlatform::Unknown
-        );
-        assert_eq!(u8::from(LinkedDevicePlatform::Linux), PLATFORM_LINUX);
     }
 
     // 0. `LinkedDevice` wire shape and `SettingsUpdate` forward compatibility.
@@ -265,7 +226,7 @@ mod test {
             client_id: Uuid::from_u128(0x0102_0304_0506_0708_090a_0b0c_0d0e_0f10),
             name: "iPhone".to_owned(),
             linked_at: 1_767_225_600,
-            platform: PLATFORM_IOS,
+            platform: LinkedDevicePlatform::Ios,
         };
         let bytes = PersistenceCodec::to_vec(&device).unwrap();
         let decoded: LinkedDevice = PersistenceCodec::from_slice(&bytes).unwrap();
@@ -279,7 +240,11 @@ mod test {
     fn settings_update_with_linked_devices_roundtrip() {
         let update = SettingsUpdate {
             send_read_receipts: Some(true),
-            linked_devices: Some(vec![sample_device(1, "Laptop", PLATFORM_LINUX)]),
+            linked_devices: Some(vec![sample_device(
+                1,
+                "Laptop",
+                LinkedDevicePlatform::Linux,
+            )]),
         };
         let bytes = PersistenceCodec::to_vec(&update).unwrap();
         let decoded: SettingsUpdate = PersistenceCodec::from_slice(&bytes).unwrap();

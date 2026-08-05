@@ -10,8 +10,8 @@
 
 use aircommon::codec::PersistenceCodec;
 use airprotos::client::self_group::{
-    LinkedDevice, PLATFORM_ANDROID, PLATFORM_IOS, PLATFORM_LINUX, PLATFORM_MACOS, PLATFORM_UNKNOWN,
-    PLATFORM_WINDOWS, SettingsUpdate,
+    LinkedDevice, LinkedDevicePlatform, PLATFORM_ANDROID, PLATFORM_IOS, PLATFORM_LINUX,
+    PLATFORM_MACOS, PLATFORM_UNKNOWN, PLATFORM_WINDOWS, SettingsUpdate,
 };
 use anyhow::{Context, bail};
 use chrono::{DateTime, Utc};
@@ -89,32 +89,19 @@ impl SyncedUserSetting for LinkedDevicesSetting {
 }
 
 /// The platform this build runs on, as a wire platform code.
-pub fn current_platform() -> u8 {
+pub fn current_platform() -> LinkedDevicePlatform {
     if cfg!(target_os = "android") {
-        PLATFORM_ANDROID
+        LinkedDevicePlatform::Android
     } else if cfg!(target_os = "ios") {
-        PLATFORM_IOS
+        LinkedDevicePlatform::Ios
     } else if cfg!(target_os = "macos") {
-        PLATFORM_MACOS
+        LinkedDevicePlatform::Macos
     } else if cfg!(target_os = "windows") {
-        PLATFORM_WINDOWS
+        LinkedDevicePlatform::Windows
     } else if cfg!(target_os = "linux") {
-        PLATFORM_LINUX
+        LinkedDevicePlatform::Linux
     } else {
-        PLATFORM_UNKNOWN
-    }
-}
-
-/// The default device name for a platform code, used when a device first
-/// publishes itself. The user can rename it afterwards.
-pub fn platform_label(platform: u8) -> &'static str {
-    match platform {
-        PLATFORM_ANDROID => "Android",
-        PLATFORM_IOS => "iOS",
-        PLATFORM_MACOS => "macOS",
-        PLATFORM_WINDOWS => "Windows",
-        PLATFORM_LINUX => "Linux",
-        _ => "Device",
+        LinkedDevicePlatform::Unknown
     }
 }
 
