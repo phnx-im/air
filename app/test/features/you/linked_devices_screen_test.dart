@@ -34,7 +34,7 @@ UiLinkedDevice _device({
   bool isThisDevice = false,
   String clientId = "00000000-0000-0000-0000-000000000000",
 }) => UiLinkedDevice(
-  clientId: UuidValue.withValidation(clientId, .strictRFC9562),
+  clientId: UuidValue.withValidation(clientId, .nonStrict),
   name: name,
   platform: platform,
   linkedAt: linkedAt,
@@ -105,6 +105,10 @@ LinkedDevicesState _withSibling() => LinkedDevicesState(
 void main() {
   group('LinkedDevicesView', () {
     late MockLinkedDevicesCubit cubit;
+
+    setUpAll(() {
+      registerFallbackValue(0.clientRecordId());
+    });
 
     setUp(() {
       cubit = MockLinkedDevicesCubit();
@@ -274,8 +278,8 @@ void main() {
       verify(
         () => cubit.renameDevice(
           clientId: UuidValue.withValidation(
-            '00000000-0000-0000-0000-000000000001',
-            .strictRFC9562,
+            '00000000-0000-0000-0000-000000000000',
+            .nonStrict,
           ),
           name: 'Work phone',
         ),
@@ -316,7 +320,7 @@ void main() {
         () => cubit.unlinkDevice(
           clientId: UuidValue.withValidation(
             '00000000-0000-0000-0000-000000000002',
-            .strictRFC9562,
+            .nonStrict,
           ),
         ),
       ).called(1);

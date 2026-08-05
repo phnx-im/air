@@ -221,7 +221,7 @@ impl CoreUser {
             identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
             original_leaf_index: group.own_index(),
             shares_vc_leaf: false,
-            connection: None,
+            connection_contact: None,
         };
         resync.enqueue(self.db().write().await?).await?;
         Ok(())

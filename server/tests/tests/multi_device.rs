@@ -6,7 +6,7 @@ use std::collections::HashSet;
 
 use aircommon::{credentials::LeafCredential, identifiers::UserId};
 use aircoreclient::{
-    ChatId, ChatStatus, Message, ReadReceiptsSetting, UserProfile,
+    ChatId, ChatStatus, ChatType, Message, ReadReceiptsSetting, UserProfile,
     clients::{
         CoreUser,
         multi_device::{MultiDeviceLinkClientError, MultiDeviceProvisionStep},

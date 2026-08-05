@@ -3,17 +3,10 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-<<<<<<< HEAD
-    credentials::keys::ClientSigningKey,
-    crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey, WelcomeAttributionInfoEarKey},
-    identifiers::{Fqdn, QualifiedGroupId, UserId},
-    messages::{FriendshipToken, client_ds::AadPayload, client_ds_out::ExternalCommitInfoIn},
-=======
     credentials::keys::LeafSigningKey,
     crypto::aead::keys::{GroupStateEarKey, IdentityLinkWrapperKey},
     identifiers::{QualifiedGroupId, UserId},
     messages::{client_ds::AadPayload, client_ds_out::ExternalCommitInfoIn},
->>>>>>> gabriel/device-settings-sync
     time::TimeStamp,
 };
 use airprotos::client::group::GroupData;
@@ -68,7 +61,7 @@ pub(crate) struct Resync {
     pub(crate) shares_vc_leaf: bool,
     /// The contact to create alongside the chat when this resync onboards into a
     /// connection group.
-    pub(crate) connection: Option<ConnectionContact>,
+    pub(crate) connection_contact: Option<ConnectionContact>,
 }
 
 impl CoreUser {
@@ -85,7 +78,7 @@ impl CoreUser {
             identity_link_wrapper_key: group.identity_link_wrapper_key().clone(),
             original_leaf_index: group.own_index(),
             shares_vc_leaf: group.own_leaf_is_virtual_client(),
-            connection: None,
+            connection_contact: None,
         };
 
         resync.enqueue(self.db().write().await?).await?;
@@ -127,7 +120,7 @@ impl CoreUser {
                 identity_link_wrapper_key,
                 original_leaf_index: LeafNodeIndex::new(vc_leaf_index),
                 shares_vc_leaf: true,
-                connection,
+                connection_contact: connection,
             };
 
             resync.enqueue(&mut *txn).await?;
@@ -264,10 +257,9 @@ impl Resync {
         }
 
         let external_commit_info = self.fetch_group_info(api_clients).await?;
-
+        let connection_contact = self.connection_contact.clone();
         let original_leaf_index = self.original_leaf_index;
         let existing_chat_id = self.chat_id;
-        let connection_contact = self.connection.clone();
         let ds_timestamp = TimeStamp::now();
 
         let mut txn = connection
@@ -283,6 +275,22 @@ impl Resync {
         ))
         .await
         .map_err(OutboundServiceError::fatal)?;
+
+        let (chat_id, chat_created) = match existing_chat_id {
+            Some(chat_id) => (chat_id, false),
+            None => (
+                if let Some(connection_contact) = connection_contact {
+                    Self::create_connection_chat(&mut txn, &group, connection_contact)
+                        .await
+                        .map_err(OutboundServiceError::fatal)?
+                } else {
+                    Self::create_group_chat(&mut txn, &group, own_user_id, ds_timestamp)
+                        .await
+                        .map_err(OutboundServiceError::fatal)?
+                },
+                true,
+            ),
+        };
 
         txn.commit()
             .await
@@ -313,57 +321,58 @@ impl Resync {
 
     /// Create the local chat for a group we just onboarded into, plus the
     /// contact if it is a connection group.
-    async fn create_chat(
+    async fn create_connection_chat(
+        txn: &mut WriteDbTransaction<'_>,
+        group: &Group,
+        contact: ConnectionContact,
+    ) -> Result<ChatId> {
+        let chat =
+            Chat::new_onboarding_connection_chat(group.group_id().clone(), contact.user_id.clone());
+        chat.store(&mut *txn).await?;
+
+        Contact {
+            user_id: contact.user_id,
+            wai_ear_key: contact.wai_ear_key,
+            friendship_token: contact.friendship_token,
+            chat_id: chat.id(),
+            supported_features: None,
+        }
+        .upsert(&mut *txn)
+        .await?;
+
+        Ok(chat.id())
+    }
+
+    /// Create the local chat for a group we just onboarded into, plus the
+    /// contact if it is a connection group.
+    async fn create_group_chat(
         txn: &mut WriteDbTransaction<'_>,
         group: &Group,
         own_user_id: &UserId,
         ds_timestamp: TimeStamp,
-        connection: Option<ConnectionContact>,
     ) -> Result<ChatId> {
-        if let Some(contact) = connection {
-            let chat = Chat::new_onboarding_connection_chat(
-                group.group_id().clone(),
-                contact.user_id.clone(),
-            );
-            chat.store(&mut *txn).await?;
+        let group_data_bytes = group.group_data().context("No group data")?;
+        let group_data = GroupData::decode(&group_data_bytes)?;
+        let (title, group_profile_part) = group_data.into_parts(group.identity_link_wrapper_key());
+        let title = title.context("No group title")?;
 
-            Contact {
-                user_id: contact.user_id,
-                wai_ear_key: contact.wai_ear_key,
-                friendship_token: contact.friendship_token,
-                chat_id: chat.id(),
-                supported_features: None,
-            }
-            .upsert(&mut *txn)
-            .await?;
+        let picture = CoreUser::resolve_group_profile_part(
+            &mut *txn,
+            group.group_id(),
+            own_user_id,
+            ds_timestamp,
+            group_profile_part,
+            true,
+        )
+        .await?;
 
-            Ok(chat.id())
-        } else {
-            let group_data_bytes = group.group_data().context("No group data")?;
-            let group_data = GroupData::decode(&group_data_bytes)?;
-            let (title, group_profile_part) =
-                group_data.into_parts(group.identity_link_wrapper_key());
-            let title = title.context("No group title")?;
-            let sender_id = signer.credential().user_id().clone();
+        let chat = Chat::new_pending_group_chat(
+            group.group_id().clone(),
+            ChatAttributes { title, picture },
+        );
+        chat.store(&mut *txn).await?;
 
-            let picture = CoreUser::resolve_group_profile_part(
-                &mut *txn,
-                group.group_id(),
-                &sender_id,
-                ds_timestamp,
-                group_profile_part,
-                true,
-            )
-            .await?;
-
-            let chat = Chat::new_pending_group_chat(
-                group.group_id().clone(),
-                ChatAttributes { title, picture },
-            );
-            chat.store(&mut *txn).await?;
-
-            Ok(chat.id())
-        }
+        Ok(chat.id())
     }
 
     async fn fetch_group_info(
@@ -501,6 +510,10 @@ impl Resync {
 
 mod persistence {
 
+    use aircommon::{
+        crypto::aead::keys::WelcomeAttributionInfoEarKey, identifiers::Fqdn,
+        messages::FriendshipToken,
+    };
     use sqlx::{query, query_as, query_scalar};
     use tracing::debug;
     use uuid::Uuid;
@@ -528,17 +541,19 @@ mod persistence {
             let pq_group_id = self.pq_group_id.as_ref().map(GroupIdRefWrapper::from);
             let original_leaf_index = self.original_leaf_index.u32() as i32;
             let connection_user_uuid = self
-                .connection
+                .connection_contact
                 .as_ref()
                 .map(|contact| contact.user_id.uuid());
             let connection_user_domain = self
-                .connection
+                .connection_contact
                 .as_ref()
                 .map(|contact| contact.user_id.domain());
-            let connection_wai_ear_key =
-                self.connection.as_ref().map(|contact| &contact.wai_ear_key);
+            let connection_wai_ear_key = self
+                .connection_contact
+                .as_ref()
+                .map(|contact| &contact.wai_ear_key);
             let connection_friendship_token = self
-                .connection
+                .connection_contact
                 .as_ref()
                 .map(|contact| &contact.friendship_token);
             query!(
@@ -666,7 +681,7 @@ mod persistence {
                     identity_link_wrapper_key: record.identity_link_wrapper_key,
                     original_leaf_index: LeafNodeIndex::new(record.original_leaf_index as u32),
                     shares_vc_leaf: record.shares_vc_leaf,
-                    connection,
+                    connection_contact: connection,
                 })
             });
 
