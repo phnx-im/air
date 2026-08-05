@@ -67,9 +67,10 @@ class _SearchFieldState extends State<SearchField> {
   Widget build(BuildContext context) {
     final tokens = widget.tokens;
     final palette = SemanticPalette.of(context);
-    final inputStyle = typeScale.body.regular
-        .style(color: palette.text.primary)
-        .copyWith(height: 1.0);
+    final inputStyle = typeScale.body.regular.style(
+      color: palette.text.primary,
+      tight: true,
+    );
 
     return Container(
       padding: tokens.padding,

@@ -221,18 +221,20 @@ class _TitlePill extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                       // The pill's height comes from the avatar, so the label
                       // drops the body line height and sits tight.
-                      style: typeScale.body.regular
-                          .style(color: palette.text.primary)
-                          .copyWith(height: 1.0),
+                      style: typeScale.body.regular.style(
+                        color: palette.text.primary,
+                        tight: true,
+                      ),
                     ),
                     if (subtitleText != null)
                       Padding(
                         padding: EdgeInsets.only(top: tokens.titleGap),
                         child: Text(
                           subtitleText,
-                          style: typeScale.body.xs
-                              .style(color: palette.text.tertiary)
-                              .copyWith(height: 1.0),
+                          style: typeScale.body.xs.style(
+                            color: palette.text.tertiary,
+                            tight: true,
+                          ),
                         ),
                       ),
                   ],

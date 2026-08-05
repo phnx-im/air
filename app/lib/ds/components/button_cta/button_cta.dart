@@ -65,9 +65,10 @@ class ButtonCTA extends StatelessWidget {
         SizedBox(height: tokens.labelGap),
         Text(
           label,
-          style: typeScale.body.regular
-              .style(color: labelColor.withValues(alpha: labelColor.a * fade))
-              .copyWith(height: 1.0),
+          style: typeScale.body.regular.style(
+            color: labelColor.withValues(alpha: labelColor.a * fade),
+            tight: true,
+          ),
         ),
       ],
     );

@@ -104,9 +104,10 @@ class ListRow extends StatelessWidget {
                   label,
                   style:
                       labelStyle ??
-                      typeScale.body.regular
-                          .style(color: palette.text.primary)
-                          .copyWith(height: 1.0),
+                      typeScale.body.regular.style(
+                        color: palette.text.primary,
+                        tight: true,
+                      ),
                   maxLines: labelMaxLines,
                   overflow: labelMaxLines == null
                       ? TextOverflow.clip
@@ -116,9 +117,10 @@ class ListRow extends StatelessWidget {
                   SizedBox(height: tokens.sublabelGap),
                   Text(
                     sublabel!,
-                    style: typeScale.body.s
-                        .style(color: palette.text.tertiary)
-                        .copyWith(height: 1.0),
+                    style: typeScale.body.s.style(
+                      color: palette.text.tertiary,
+                      tight: true,
+                    ),
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),

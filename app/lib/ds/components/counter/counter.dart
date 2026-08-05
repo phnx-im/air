@@ -38,12 +38,11 @@ class Counter extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: typeScale.body.mini
-            .style(
-              color: CounterTokens.label(palette),
-              weight: Weight.emphasized,
-            )
-            .copyWith(height: 1.0),
+        style: typeScale.body.mini.style(
+          color: CounterTokens.label(palette),
+          weight: Weight.emphasized,
+          tight: true,
+        ),
       ),
     );
   }

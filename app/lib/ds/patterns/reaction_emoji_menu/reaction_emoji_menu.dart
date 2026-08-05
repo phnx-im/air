@@ -252,9 +252,11 @@ class _ReactionEmojiMenuState extends State<ReactionEmojiMenu> {
     );
     // We set it in caps and track it down to a single line, so a title reads
     // as a divider between two runs rather than as a row of its own.
-    final titleStyle = typeScale.body.s
-        .style(color: palette.text.tertiary, weight: Weight.emphasized)
-        .copyWith(height: 1.0);
+    final titleStyle = typeScale.body.s.style(
+      color: palette.text.tertiary,
+      weight: Weight.emphasized,
+      tight: true,
+    );
 
     return [
       for (final section in widget.sections) ...[
@@ -340,7 +342,7 @@ TextStyle get _glyphStyle => typeScale.emoji.l.style();
 
 /// The header's glyph sits in a button the size of the search field beside it,
 /// so it stays at reading size instead of taking the emoji scale.
-TextStyle get _toneGlyphStyle => typeScale.body.l.style().copyWith(height: 1.0);
+TextStyle get _toneGlyphStyle => typeScale.body.l.style(tight: true);
 
 /// The round button carrying the active tone, which opens the swatches.
 class _ToneButton extends StatelessWidget {
@@ -550,9 +552,10 @@ class _ToneCard extends StatelessWidget {
               SizedBox(height: tokens.flyoutHelpGap),
               Text(
                 helpLabel,
-                style: typeScale.body.s
-                    .style(color: palette.text.tertiary)
-                    .copyWith(height: 1.0),
+                style: typeScale.body.s.style(
+                  color: palette.text.tertiary,
+                  tight: true,
+                ),
               ),
             ],
           ],

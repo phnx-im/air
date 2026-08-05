@@ -85,9 +85,7 @@ class Button extends StatelessWidget {
               ],
               Text(
                 label,
-                style: size.labelToken
-                    .style(color: colors.label)
-                    .copyWith(height: 1.0),
+                style: size.labelToken.style(color: colors.label, tight: true),
               ),
             ],
           ],

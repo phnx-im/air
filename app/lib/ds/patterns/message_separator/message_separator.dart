@@ -100,14 +100,13 @@ class MessageSeparatorPill extends StatelessWidget {
       ),
       child: Text(
         label,
-        style: typeScale.body.s
-            .style(
-              color: unread
-                  ? palette.function.neutral.toggleWhite
-                  : palette.text.secondary,
-            )
-            // Flat line box, so the pill's padding is what sets its height.
-            .copyWith(height: 1.0),
+        style: typeScale.body.s.style(
+          color: unread
+              ? palette.function.neutral.toggleWhite
+              : palette.text.secondary,
+          // Flat line box, so the pill's padding is what sets its height.
+          tight: true,
+        ),
       ),
     );
   }

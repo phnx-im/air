@@ -192,9 +192,11 @@ class _Title extends StatelessWidget {
               // Emphasized, like the modal header's: this label names the
               // screen, where the chat header's pill carries a person's name
               // and stays plain.
-              style: typeScale.body.regular
-                  .style(color: palette.text.primary, weight: Weight.emphasized)
-                  .copyWith(height: 1.0),
+              style: typeScale.body.regular.style(
+                color: palette.text.primary,
+                weight: Weight.emphasized,
+                tight: true,
+              ),
             ),
           ),
         ],

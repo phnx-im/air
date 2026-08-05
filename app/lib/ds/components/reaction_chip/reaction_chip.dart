@@ -60,14 +60,15 @@ class ReactionChip extends StatelessWidget {
   /// Style the emoji renders at. Pinned to a 100% line so the pill hugs the
   /// glyph instead of the glyph's leading. Exposed so a host can warm the ink
   /// measurements up ahead of the first chip, see [CenteredEmoji.warmUp].
-  static TextStyle glyphStyle() =>
-      typeScale.body.regular.style().copyWith(height: 1.0);
+  static TextStyle glyphStyle() => typeScale.body.regular.style(tight: true);
 
   /// Style the count and the `+N` label render at. The color is optional so
   /// that code measuring a chip doesn't have to resolve a palette first.
-  static TextStyle countStyle([Color? color]) => typeScale.body.mini
-      .style(color: color, weight: Weight.emphasized)
-      .copyWith(height: 1.0);
+  static TextStyle countStyle([Color? color]) => typeScale.body.mini.style(
+    color: color,
+    weight: Weight.emphasized,
+    tight: true,
+  );
 
   /// The color the crop ring paints in: whatever the message list itself paints
   /// on, so the ring reads as a gap rather than an outline.

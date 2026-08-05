@@ -156,9 +156,11 @@ class DialogHeader extends StatelessWidget {
               title,
               maxLines: 1,
               overflow: TextOverflow.ellipsis,
-              style: typeScale.body.regular
-                  .style(color: palette.text.primary, weight: Weight.emphasized)
-                  .copyWith(height: 1.0),
+              style: typeScale.body.regular.style(
+                color: palette.text.primary,
+                weight: Weight.emphasized,
+                tight: true,
+              ),
             ),
             trailing: trailingAction != null
                 ? _Slot(

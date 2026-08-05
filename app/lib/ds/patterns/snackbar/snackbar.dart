@@ -51,9 +51,10 @@ class Snackbar extends StatelessWidget {
             overflow: TextOverflow.ellipsis,
             // Both fills are saturated in either brightness, so the label
             // takes the mode-invariant white rather than a toggling one.
-            style: typeScale.body.s
-                .style(color: palette.function.neutral.white)
-                .copyWith(height: 1.2),
+            style: typeScale.body.s.style(
+              color: palette.function.neutral.white,
+              tight: true,
+            ),
           ),
         ),
       ),

@@ -56,9 +56,10 @@ class MessageMeta extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
-    final labelStyle = typeScale.body.mini
-        .style(color: palette.text.tertiary)
-        .copyWith(height: 1.0);
+    final labelStyle = typeScale.body.mini.style(
+      color: palette.text.tertiary,
+      tight: true,
+    );
     final offset = contentOffset ?? tokens.contentOffset;
     final delivery = status;
     final edited = editedLabel;

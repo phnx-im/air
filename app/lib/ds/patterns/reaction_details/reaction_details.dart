@@ -279,11 +279,10 @@ class _TabText extends StatelessWidget {
     final palette = SemanticPalette.of(context);
     return Text(
       text,
-      style: typeScale.body.s
-          .style(
-            color: selected ? palette.text.primary : palette.text.secondary,
-          )
-          .copyWith(height: 1.0),
+      style: typeScale.body.s.style(
+        color: selected ? palette.text.primary : palette.text.secondary,
+        tight: true,
+      ),
     );
   }
 }
@@ -390,9 +389,10 @@ class _RemoveAction extends StatelessWidget {
         onTap: onTap,
         child: Text(
           label,
-          style: typeScale.body.mini
-              .style(color: palette.function.danger)
-              .copyWith(height: 1.0),
+          style: typeScale.body.mini.style(
+            color: palette.function.danger,
+            tight: true,
+          ),
         ),
       ),
     );

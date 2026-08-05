@@ -186,7 +186,9 @@ class _AppTextInputState extends State<AppTextInput> {
     // A single-line field takes a tight line box, so its height follows the
     // padding, and a locked strut, so it doesn't jump when the first character
     // replaces the hint. A field that grows keeps the typescale's leading,
-    // which a paragraph needs to stay readable.
+    // which a paragraph needs to stay readable. The tight line is pinned after
+    // the merge rather than via the token's tight flag, so a caller style's
+    // own leading cannot undo it.
     final singleLine = widget.maxLines == 1 && widget.minLines == null;
     final style = typeScale.body.regular
         .style(color: palette.text.primary)

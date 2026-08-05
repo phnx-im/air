@@ -295,7 +295,7 @@ class _MenuRow extends StatelessWidget {
             : AppIcon(type: icon, size: tokens.iconSize, color: color));
     final label = Text(
       item.label ?? '',
-      style: typeScale.body.s.style(color: color).copyWith(height: 1.0),
+      style: typeScale.body.s.style(color: color, tight: true),
       maxLines: 1,
       softWrap: false,
       overflow: TextOverflow.ellipsis,
