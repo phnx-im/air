@@ -40,9 +40,9 @@ class _UnlinkedDeviceHandlerState extends State<UnlinkedDeviceHandler> {
   @override
   Widget build(BuildContext context) {
     return BlocListener<UserCubit, UiUser>(
-      // The flag is terminal, so only the transition into it is interesting.
-      listenWhen: (previous, current) =>
-          !previous.accountUnlinked && current.accountUnlinked,
+      // The stream can catch up between the dependency check and listener
+      // initialization. The teardown guard makes repeated true states safe.
+      listenWhen: (_, current) => current.accountUnlinked,
       listener: (context, _) => _startTearDown(context.read<CoreClient>()),
       child: widget.child,
     );
