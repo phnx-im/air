@@ -7,6 +7,7 @@ import 'dart:io';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:air/core/core.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/components/button_icon/button_icon.dart';
@@ -105,6 +106,10 @@ class DeveloperSettingsScreenView extends StatelessWidget {
       (UserSettingsCubit cubit) => cubit.state.isDeveloper,
     );
 
+    final isFrutigerAero = context.select(
+      (UserSettingsCubit cubit) => cubit.state.frutigerAeroTheme,
+    );
+
     return Scaffold(
       appBar: AppBar(
         clipBehavior: Clip.none,
@@ -130,6 +135,18 @@ class DeveloperSettingsScreenView extends StatelessWidget {
                     value: isDeveloper,
                     onChanged: (value) {
                       context.read<UserSettingsCubit>().setIsDeveloper(
+                        value: value,
+                      );
+                    },
+                  ),
+                  SwitchListTile(
+                    title: const Text("Frutiger Aero theme"),
+                    subtitle: const Text(
+                      "Windows XP Luna blue, green Start button and all",
+                    ),
+                    value: isFrutigerAero,
+                    onChanged: (value) {
+                      context.read<UserSettingsCubit>().setFrutigerAeroTheme(
                         value: value,
                       );
                     },

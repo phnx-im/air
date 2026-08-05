@@ -104,4 +104,7 @@ class UserSettingsCubit implements StateStreamableSource<UserSettings> {
 
   Future<void> setDefaultEmojiSkinTone({required int value}) =>
       _impl!.setDefaultEmojiSkinTone(value: value);
+
+  Future<void> setFrutigerAeroTheme({required bool value}) =>
+      _impl!.setFrutigerAeroTheme(value: value);
 }

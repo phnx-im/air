@@ -10,6 +10,7 @@ export 'package:air/ds/foundations/breakpoint.dart';
 export 'package:air/ds/foundations/device_type.dart';
 export 'package:air/ds/foundations/dimensions.dart';
 export 'package:air/ds/foundations/effects.dart';
+export 'package:air/ds/foundations/frutiger_aero_theme.dart';
 export 'package:air/ds/foundations/icons.dart';
 export 'package:air/ds/foundations/monospace.dart';
 export 'package:air/ds/foundations/primitives.dart';

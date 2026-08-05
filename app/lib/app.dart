@@ -218,25 +218,36 @@ class _AppState extends State<App> with WidgetsBindingObserver {
                     ? Locale(userLocaleCode)
                     : appLocale;
 
-                return MaterialApp.router(
-                  scrollBehavior: const AppScrollBehavior(),
-                  scaffoldMessengerKey: scaffoldMessengerKey,
-                  onGenerateTitle: (context) =>
-                      AppLocalizations.of(context).appTitle,
-                  localizationsDelegates:
-                      AppLocalizations.localizationsDelegates,
-                  supportedLocales: supportedLocalesWithFallback(
-                    AppLocalizations.supportedLocales,
-                    const Locale('en', 'US'),
-                  ),
-                  locale: locale,
-                  debugShowCheckedModeBanner: false,
-                  theme: lightTheme,
-                  darkTheme: darkTheme,
-                  routerConfig: _appRouter,
-                  builder: (context, router) => LoadableUserCubitProvider(
-                    appStateController: _appStateController,
-                    child: router!,
+                final useAero = context.select(
+                  (UserSettingsCubit cubit) => cubit.state.frutigerAeroTheme,
+                );
+                final appTheme = useAero
+                    ? AppThemeChoice.frutigerAero
+                    : AppThemeChoice.standard;
+
+                return AppThemeScope(
+                  choice: appTheme,
+                  child: MaterialApp.router(
+                    scrollBehavior: const AppScrollBehavior(),
+                    scaffoldMessengerKey: scaffoldMessengerKey,
+                    onGenerateTitle: (context) =>
+                        AppLocalizations.of(context).appTitle,
+                    localizationsDelegates:
+                        AppLocalizations.localizationsDelegates,
+                    supportedLocales: supportedLocalesWithFallback(
+                      AppLocalizations.supportedLocales,
+                      const Locale('en', 'US'),
+                    ),
+                    locale: locale,
+                    debugShowCheckedModeBanner: false,
+                    theme: useAero ? aeroTheme : lightTheme,
+                    darkTheme: useAero ? aeroTheme : darkTheme,
+                    themeMode: useAero ? ThemeMode.light : ThemeMode.system,
+                    routerConfig: _appRouter,
+                    builder: (context, router) => LoadableUserCubitProvider(
+                      appStateController: _appStateController,
+                      child: router!,
+                    ),
                   ),
                 );
               },

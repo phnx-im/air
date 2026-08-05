@@ -4,6 +4,7 @@
 
 import 'package:flutter/material.dart';
 import 'package:air/ds/foundations/primitives.dart';
+import 'package:air/ds/foundations/frutiger_aero_theme.dart';
 
 class AccentBrand {
   final Color primary, secondary, tertiary, quaternary;
@@ -501,6 +502,9 @@ class SemanticPalette {
   }
 
   static SemanticPalette of(BuildContext context) {
+    if (AppThemeScope.of(context) == AppThemeChoice.frutigerAero) {
+      return aeroSemanticPalette;
+    }
     return MediaQuery.platformBrightnessOf(context) == Brightness.dark
         ? darkSemanticPalette
         : lightSemanticPalette;

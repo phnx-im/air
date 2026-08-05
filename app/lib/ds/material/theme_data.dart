@@ -11,14 +11,19 @@ import 'package:air/ds/material/text_theme.dart';
 
 ThemeData darkTheme = themeData(Brightness.dark);
 ThemeData lightTheme = themeData(Brightness.light);
+ThemeData aeroTheme = _buildThemeData(aeroSemanticPalette, Brightness.light);
 
 ThemeData themeData(Brightness brightness) {
-  final baselineTheme = ThemeData(brightness: brightness);
-
   final palette = switch (brightness) {
     Brightness.dark => darkSemanticPalette,
     Brightness.light => lightSemanticPalette,
   };
+  return _buildThemeData(palette, brightness);
+}
+
+ThemeData _buildThemeData(SemanticPalette palette, Brightness brightness) {
+  final baselineTheme = ThemeData(brightness: brightness);
+  final isFrutigerAero = identical(palette, aeroSemanticPalette);
 
   // AppBar title style
   final baseAppBarTitleStyle =
@@ -84,7 +89,12 @@ ThemeData themeData(Brightness brightness) {
       ),
     ),
     textSelectionTheme: TextSelectionThemeData(
-      cursorColor: Primitive.chromatic(Hue.blue, Shade.s300),
+      cursorColor: isFrutigerAero
+          ? xpSelectionBlue
+          : Primitive.chromatic(Hue.blue, Shade.s300),
+      selectionColor: isFrutigerAero
+          ? xpSelectionBlue.withValues(alpha: 0.35)
+          : null,
     ),
     inputDecorationTheme: InputDecorationTheme(
       border: InputBorder.none,
