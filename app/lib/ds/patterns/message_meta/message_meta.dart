@@ -18,7 +18,6 @@ export 'package:air/ds/components/delivery_status/delivery_status.dart'
 class MessageMeta extends StatelessWidget {
   const MessageMeta({
     super.key,
-    required this.tokens,
     required this.timestamp,
     this.isSelf = false,
     this.status,
@@ -26,8 +25,6 @@ class MessageMeta extends StatelessWidget {
     this.editedLabel,
     this.contentOffset,
   });
-
-  final MessageMetaTokens tokens;
 
   /// Formatted, localized time of the message.
   final String timestamp;
@@ -60,7 +57,7 @@ class MessageMeta extends StatelessWidget {
       color: palette.text.tertiary,
       tight: true,
     );
-    final offset = contentOffset ?? tokens.contentOffset;
+    final offset = contentOffset ?? MessageMetaTokens.contentOffset;
     final delivery = status;
     final edited = editedLabel;
 
@@ -68,9 +65,9 @@ class MessageMeta extends StatelessWidget {
       child: Padding(
         padding: EdgeInsets.fromLTRB(
           isSelf ? S.s0 : offset,
-          tokens.bubbleGap,
+          MessageMetaTokens.bubbleGap,
           isSelf ? offset : S.s0,
-          tokens.bottomPadding,
+          MessageMetaTokens.bottomPadding,
         ),
         // The stamp is one line by definition, so a column too narrow to hold
         // it scales it down rather than wrapping or clipping it.
@@ -83,13 +80,12 @@ class MessageMeta extends StatelessWidget {
               Text(timestamp, style: labelStyle),
               if (delivery != null)
                 _DeliveryStamp(
-                  tokens: tokens,
                   status: delivery,
                   label: statusLabel,
                   labelStyle: labelStyle,
                 ),
               if (edited != null) ...[
-                _Dot(tokens: tokens),
+                const _Dot(),
                 Text(
                   edited,
                   style: labelStyle.copyWith(
@@ -110,17 +106,15 @@ class MessageMeta extends StatelessWidget {
 /// Separates the parts of the stamp, so timestamp, status, and edited marker
 /// read as one line rather than three loose labels.
 class _Dot extends StatelessWidget {
-  const _Dot({required this.tokens});
-
-  final MessageMetaTokens tokens;
+  const _Dot();
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: EdgeInsets.symmetric(horizontal: tokens.dotGap),
+      padding: const EdgeInsets.symmetric(horizontal: MessageMetaTokens.dotGap),
       child: Container(
-        width: tokens.dotSize,
-        height: tokens.dotSize,
+        width: MessageMetaTokens.dotSize,
+        height: MessageMetaTokens.dotSize,
         decoration: BoxDecoration(
           color: SemanticPalette.of(context).text.quaternary,
           shape: BoxShape.circle,
@@ -135,13 +129,11 @@ class _Dot extends StatelessWidget {
 /// away leaves the stamp at the timestamp.
 class _DeliveryStamp extends StatelessWidget {
   const _DeliveryStamp({
-    required this.tokens,
     required this.status,
     required this.label,
     required this.labelStyle,
   });
 
-  final MessageMetaTokens tokens;
   final MessageDeliveryStatus status;
   final String? label;
   final TextStyle labelStyle;
@@ -152,14 +144,14 @@ class _DeliveryStamp extends StatelessWidget {
 
     return DeliveryStatus(
       status: status,
-      size: tokens.iconSize,
+      size: MessageMetaTokens.iconSize,
       builder: (context, glyph, ink) => Row(
         mainAxisSize: MainAxisSize.min,
         children: [
-          _Dot(tokens: tokens),
+          const _Dot(),
           glyph,
           if (label != null) ...[
-            SizedBox(width: tokens.gap),
+            const SizedBox(width: MessageMetaTokens.gap),
             Text(label, style: labelStyle.copyWith(color: ink)),
           ],
         ],

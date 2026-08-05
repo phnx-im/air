@@ -5,14 +5,18 @@
 /// The design system foundations: the tokens and primitives every component
 /// and screen builds on. Import this instead of the individual token files.
 ///
-/// Token classes with tiered instances (per density or per device) follow one
-/// shape rule: a field lives on the instance only when its value differs
-/// between the tiers, and anything with one value across all tiers is a
-/// static const. So `tokens.x` says x varies with the tier and `Tokens.x`
-/// says it does not. Keeping an invariant field on the instance takes a
-/// comment arguing for the seam, the way ListGroupTokens does. Single-tier
-/// classes keep instance fields: there the bag is the delivery vehicle, not
-/// a variance claim.
+/// A token class takes its shape from what varies about it, so a reader can
+/// tell what can differ without opening the file. Nothing varies: an
+/// `abstract final class` of statics, read where it is used. Varies by tier:
+/// an instance per tier and a `current` resolver, passed in as `tokens:`,
+/// since the host knows its tier and the component does not. Varies per host:
+/// every field defaulted, for values the DS cannot know.
+///
+/// Inside a tiered class a field is an instance field only where the tiers
+/// disagree, so `tokens.x` says x varies and `Tokens.x` says it does not. An
+/// invariant field kept on the instance takes a comment arguing for the seam,
+/// the way `ListGroupTokens` does. `Button` resolves its own bag: its tier
+/// follows the `ButtonSize` its caller already passes.
 library;
 
 export 'package:air/ds/foundations/breakpoint.dart';

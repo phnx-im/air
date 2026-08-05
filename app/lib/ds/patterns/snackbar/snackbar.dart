@@ -16,12 +16,10 @@ import 'package:flutter/widgets.dart';
 class Snackbar extends StatelessWidget {
   const Snackbar({
     super.key,
-    required this.tokens,
     required this.label,
     this.tone = SnackbarTone.neutral,
   });
 
-  final SnackbarTokens tokens;
   final String label;
   final SnackbarTone tone;
 
@@ -35,15 +33,15 @@ class Snackbar extends StatelessWidget {
     };
 
     return ConstrainedBox(
-      constraints: BoxConstraints(maxWidth: tokens.maxWidth),
+      constraints: const BoxConstraints(maxWidth: SnackbarTokens.maxWidth),
       child: DecoratedBox(
         decoration: BoxDecoration(
           color: fill,
-          borderRadius: BorderRadius.circular(tokens.radius),
-          boxShadow: Effect.elevation(tokens.elevation),
+          borderRadius: BorderRadius.circular(SnackbarTokens.radius),
+          boxShadow: Effect.elevation(SnackbarTokens.elevation),
         ),
         child: Padding(
-          padding: tokens.padding,
+          padding: SnackbarTokens.padding,
           child: Text(
             label,
             maxLines: 1,

@@ -5,7 +5,6 @@
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/checkbox/checkbox.dart';
-import 'package:air/ds/components/checkbox/checkbox_tokens.dart';
 import 'package:air/ds/components/text_input/text_input.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
@@ -196,7 +195,6 @@ class _EmailForm extends HookWidget {
                       )
                     else
                       AppCheckbox(
-                        tokens: CheckboxTokens.standard,
                         value: debugLogsUrl.value != null,
                         onChanged: (_) => onToggleLogs(),
                       ),

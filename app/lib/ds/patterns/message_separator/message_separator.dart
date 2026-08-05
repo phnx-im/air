@@ -32,30 +32,31 @@ class MessageSeparator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const tokens = MessageSeparatorTokens.standard;
     final pill = MessageSeparatorPill(label: label, variant: variant);
 
     if (variant == MessageSeparatorVariant.date) {
       return Padding(
-        padding: tokens.datePadding,
+        padding: MessageSeparatorTokens.datePadding,
         child: Center(child: pill),
       );
     }
 
     final rule = Expanded(
       child: Container(
-        height: tokens.ruleThickness,
+        height: MessageSeparatorTokens.ruleThickness,
         color: SemanticPalette.of(context).separator.primary,
       ),
     );
 
     return Padding(
-      padding: tokens.unreadPadding,
+      padding: MessageSeparatorTokens.unreadPadding,
       child: Row(
         children: [
           rule,
           Padding(
-            padding: EdgeInsets.symmetric(horizontal: tokens.ruleGap),
+            padding: const EdgeInsets.symmetric(
+              horizontal: MessageSeparatorTokens.ruleGap,
+            ),
             child: pill,
           ),
           rule,
@@ -82,12 +83,13 @@ class MessageSeparatorPill extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const tokens = MessageSeparatorTokens.standard;
     final palette = SemanticPalette.of(context);
     final unread = variant == MessageSeparatorVariant.unread;
 
     return Container(
-      padding: unread ? tokens.unreadPillPadding : tokens.datePillPadding,
+      padding: unread
+          ? MessageSeparatorTokens.unreadPillPadding
+          : MessageSeparatorTokens.datePillPadding,
       decoration: BoxDecoration(
         // The date pill has to lift off the conversation window in both
         // shells, and in dark those differ (the phone runs on base.primary,

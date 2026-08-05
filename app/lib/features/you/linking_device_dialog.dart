@@ -6,7 +6,6 @@ import 'package:air/ds/components/button/button.dart';
 import 'package:air/ds/components/button_icon/button_icon.dart';
 import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
 import 'package:air/ds/components/checkbox/checkbox.dart';
-import 'package:air/ds/components/checkbox/checkbox_tokens.dart';
 import 'package:air/ds/components/text_input/text_input.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
@@ -680,7 +679,6 @@ class _LinkConfirmView extends HookWidget {
             spacing: S.s12,
             children: [
               AppCheckbox(
-                tokens: CheckboxTokens.standard,
                 value: checked.value,
                 onChanged: (value) => checked.value = value,
               ),

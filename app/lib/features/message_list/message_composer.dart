@@ -15,7 +15,6 @@ import 'package:air/ds/patterns/message_input/message_input.dart';
 import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
 import 'package:air/ds/patterns/message_input/message_input_tokens.dart';
 import 'package:air/ds/patterns/reply_block/reply_block.dart';
-import 'package:air/ds/patterns/reply_block/reply_block_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/message_list/scroll_to_bottom_controller.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
@@ -613,7 +612,6 @@ class _ReplyPreview extends StatelessWidget {
       (ChatDetailsCubit cubit) => cubit.state.chat?.draft?.inReplyTo,
     );
     if (inReplyTo == null) return const SizedBox.shrink();
-    const tokens = ReplyBlockTokens.standard;
     final quote = quotedMessage(context, inReplyTo.$2);
 
     return Padding(
@@ -627,7 +625,7 @@ class _ReplyPreview extends StatelessWidget {
               senderName: quote.senderName,
               fill: palette.fill.secondary,
               stretch: true,
-              thumbnail: quotedThumbnail(context, inReplyTo.$2, tokens),
+              thumbnail: quotedThumbnail(context, inReplyTo.$2),
             ),
           ),
           Positioned(
