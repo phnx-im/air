@@ -2036,6 +2036,15 @@ impl Group {
             );
         }
 
+        // The linked-device list joins metadata with the live self-group
+        // roster. Notify its self-chat listener whenever a commit changes the
+        // locally stored self group.
+        if self.is_self_group()
+            && let Some(chat_id) = ChatId::load_from_group_id(&mut *txn, self.group_id()).await?
+        {
+            txn.notifier().update(chat_id);
+        }
+
         Ok((event_messages, group_data))
     }
 

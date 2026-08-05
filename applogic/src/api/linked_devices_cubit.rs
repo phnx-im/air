@@ -14,6 +14,7 @@ use aircoreclient::{
     clients::CoreUser,
     db::notification::{DbEntityId, DbNotification},
 };
+pub use airprotos::client::self_group::LinkedDevicePlatform;
 use chrono::{DateTime, TimeZone, Utc};
 use flutter_rust_bridge::frb;
 use tokio::sync::watch;
@@ -28,6 +29,17 @@ use crate::{
     util::{Cubit, CubitCore, spawn_from_sync},
 };
 
+#[doc(hidden)]
+#[frb(mirror(LinkedDevicePlatform))]
+pub enum _LinkedDevicePlatform {
+    Unknown,
+    Android,
+    Ios,
+    Macos,
+    Windows,
+    Linux,
+}
+
 /// One row in the Linked Devices screen.
 ///
 /// An empty `name` means the device has no metadata entry yet. The Dart side
@@ -38,8 +50,7 @@ pub struct UiLinkedDevice {
     /// Hyphenated UUID. FRB has no native `Uuid`, so it crosses as a string.
     pub client_id: String,
     pub name: String,
-    /// Wire platform code, where `0` means unknown.
-    pub platform: u8,
+    pub platform: LinkedDevicePlatform,
     pub linked_at: Option<DateTime<Utc>>,
     pub is_this_device: bool,
 }
@@ -119,8 +130,6 @@ async fn devices_listener(
 ) {
     load_and_emit(&core_user, &state_tx).await;
 
-    let self_chat_id = core_user.self_chat_id().await.ok().flatten();
-
     loop {
         let notification = tokio::select! {
             _ = cancel.cancelled() => return,
@@ -130,11 +139,28 @@ async fn devices_listener(
             },
         };
 
-        let touched = notification.ops.keys().any(|entity_id| match entity_id {
-            DbEntityId::UserSetting(key) => key == LinkedDevicesSetting::KEY,
-            DbEntityId::Chat(chat_id) => Some(*chat_id) == self_chat_id,
-            _ => false,
+        let setting_touched = notification.ops.keys().any(|entity_id| {
+            matches!(
+                entity_id,
+                DbEntityId::UserSetting(key) if key == LinkedDevicesSetting::KEY
+            )
         });
+        let chat_touched = if notification
+            .ops
+            .keys()
+            .any(|entity_id| matches!(entity_id, DbEntityId::Chat(_)))
+        {
+            let self_chat_id = core_user.self_chat_id().await.ok().flatten();
+            notification.ops.keys().any(|entity_id| {
+                matches!(
+                    entity_id,
+                    DbEntityId::Chat(chat_id) if Some(*chat_id) == self_chat_id
+                )
+            })
+        } else {
+            false
+        };
+        let touched = setting_touched || chat_touched;
         if touched {
             load_and_emit(&core_user, &state_tx).await;
         }
@@ -172,7 +198,9 @@ async fn try_load(core_user: &CoreUser) -> anyhow::Result<Vec<UiLinkedDevice>> {
             UiLinkedDevice {
                 client_id: client_id.to_string(),
                 name: entry.map(|entry| entry.name.clone()).unwrap_or_default(),
-                platform: entry.map_or(0, |entry| entry.platform),
+                platform: entry
+                    .map(|entry| entry.platform.into())
+                    .unwrap_or(LinkedDevicePlatform::Unknown),
                 linked_at: entry
                     .and_then(|entry| Utc.timestamp_opt(entry.created_at as i64, 0).single()),
                 is_this_device: client_id == &own_client_id,

@@ -10258,6 +10258,12 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  LinkedDevicePlatform dco_decode_linked_device_platform(dynamic raw) {
+    // Codec=Dco (DartCObject based), see doc to use other codecs
+    return LinkedDevicePlatform.values[raw as int];
+  }
+
+  @protected
   LinkedDevicesState dco_decode_linked_devices_state(dynamic raw) {
     // Codec=Dco (DartCObject based), see doc to use other codecs
     final arr = raw as List<dynamic>;
@@ -11488,7 +11494,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     return UiLinkedDevice(
       clientId: dco_decode_String(arr[0]),
       name: dco_decode_String(arr[1]),
-      platform: dco_decode_u_8(arr[2]),
+      platform: dco_decode_linked_device_platform(arr[2]),
       linkedAt: dco_decode_opt_box_autoadd_Chrono_Utc(arr[3]),
       isThisDevice: dco_decode_bool(arr[4]),
     );
@@ -13661,6 +13667,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  LinkedDevicePlatform sse_decode_linked_device_platform(
+    SseDeserializer deserializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    var inner = sse_decode_i_32(deserializer);
+    return LinkedDevicePlatform.values[inner];
+  }
+
+  @protected
   LinkedDevicesState sse_decode_linked_devices_state(
     SseDeserializer deserializer,
   ) {
@@ -15363,7 +15378,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     var var_clientId = sse_decode_String(deserializer);
     var var_name = sse_decode_String(deserializer);
-    var var_platform = sse_decode_u_8(deserializer);
+    var var_platform = sse_decode_linked_device_platform(deserializer);
     var var_linkedAt = sse_decode_opt_box_autoadd_Chrono_Utc(deserializer);
     var var_isThisDevice = sse_decode_bool(deserializer);
     return UiLinkedDevice(
@@ -17805,6 +17820,15 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
   }
 
   @protected
+  void sse_encode_linked_device_platform(
+    LinkedDevicePlatform self,
+    SseSerializer serializer,
+  ) {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    sse_encode_i_32(self.index, serializer);
+  }
+
+  @protected
   void sse_encode_linked_devices_state(
     LinkedDevicesState self,
     SseSerializer serializer,
@@ -19349,7 +19373,7 @@ class RustLibApiImpl extends RustLibApiImplPlatform implements RustLibApi {
     // Codec=Sse (Serialization based), see doc to use other codecs
     sse_encode_String(self.clientId, serializer);
     sse_encode_String(self.name, serializer);
-    sse_encode_u_8(self.platform, serializer);
+    sse_encode_linked_device_platform(self.platform, serializer);
     sse_encode_opt_box_autoadd_Chrono_Utc(self.linkedAt, serializer);
     sse_encode_bool(self.isThisDevice, serializer);
   }

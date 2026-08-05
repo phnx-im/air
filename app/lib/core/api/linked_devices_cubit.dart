@@ -35,6 +35,8 @@ abstract class LinkedDevicesCubitBase implements RustOpaqueInterface {
   Future<void> unlinkDevice({required String clientId});
 }
 
+enum LinkedDevicePlatform { unknown, android, ios, macos, windows, linux }
+
 @freezed
 sealed class LinkedDevicesState with _$LinkedDevicesState {
   const LinkedDevicesState._();
@@ -53,7 +55,7 @@ sealed class UiLinkedDevice with _$UiLinkedDevice {
   const factory UiLinkedDevice({
     required String clientId,
     required String name,
-    required int platform,
+    required LinkedDevicePlatform platform,
     DateTime? linkedAt,
     required bool isThisDevice,
   }) = _UiLinkedDevice;

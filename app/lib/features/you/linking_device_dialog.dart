@@ -10,7 +10,6 @@ import 'package:air/ds/components/checkbox/checkbox_tokens.dart';
 import 'package:air/ds/components/text_input/text_input.dart';
 import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
-import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
@@ -503,8 +502,7 @@ class _LinkingPage extends HookWidget {
               phase.value = _LinkPhase.awaitingConfirmation;
             }
           case MultiDeviceLinkEvent_Linked():
-            // TODO: this should end the entire process later
-            if (context.mounted) _showLinkedDialog(context);
+            if (context.mounted) Navigator.of(context).pop();
           case MultiDeviceLinkEvent_SessionNotFound():
             phase.value = _LinkPhase.sessionNotFound;
           case MultiDeviceLinkEvent_Failed():
@@ -541,21 +539,6 @@ class _LinkingPage extends HookWidget {
         message: loc.linkingDevicesScreen_error_generic,
       ),
     };
-  }
-
-  /// Closes the link modal and shows a success popup.
-  void _showLinkedDialog(BuildContext context) {
-    if (!context.mounted) return;
-    final navigator = Navigator.of(context);
-    navigator.pop();
-    showDialog<void>(
-      context: navigator.context,
-      builder: (_) => const ConfirmDialog(
-        title: "Device was linked! 🎉",
-        message: "Your new device is now linked to your account.",
-        confirm: "OK",
-      ),
-    );
   }
 }
 

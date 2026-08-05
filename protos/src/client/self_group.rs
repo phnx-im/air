@@ -81,12 +81,43 @@ pub enum SelfGroupMessage {
 }
 
 /// Platform codes for [`LinkedDevice::platform`].
-pub const PLATFORM_UNKNOWN: u8 = 0;
-pub const PLATFORM_ANDROID: u8 = 1;
-pub const PLATFORM_IOS: u8 = 2;
-pub const PLATFORM_MACOS: u8 = 3;
-pub const PLATFORM_WINDOWS: u8 = 4;
-pub const PLATFORM_LINUX: u8 = 5;
+const PLATFORM_UNKNOWN: u8 = 0;
+const PLATFORM_ANDROID: u8 = 1;
+const PLATFORM_IOS: u8 = 2;
+const PLATFORM_MACOS: u8 = 3;
+const PLATFORM_WINDOWS: u8 = 4;
+const PLATFORM_LINUX: u8 = 5;
+
+#[derive(Debug, Default, Clone, Copy, PartialEq, Eq)]
+#[repr(u8)]
+pub enum LinkedDevicePlatform {
+    #[default]
+    Unknown = PLATFORM_UNKNOWN,
+    Android = PLATFORM_ANDROID,
+    Ios = PLATFORM_IOS,
+    Macos = PLATFORM_MACOS,
+    Windows = PLATFORM_WINDOWS,
+    Linux = PLATFORM_LINUX,
+}
+
+impl From<u8> for LinkedDevicePlatform {
+    fn from(platform: u8) -> Self {
+        match platform {
+            PLATFORM_ANDROID => Self::Android,
+            PLATFORM_IOS => Self::Ios,
+            PLATFORM_MACOS => Self::Macos,
+            PLATFORM_WINDOWS => Self::Windows,
+            PLATFORM_LINUX => Self::Linux,
+            _ => Self::Unknown,
+        }
+    }
+}
+
+impl From<LinkedDevicePlatform> for u8 {
+    fn from(platform: LinkedDevicePlatform) -> Self {
+        platform as Self
+    }
+}
 
 /// One of the user's devices, as advertised to its siblings.
 ///
@@ -191,6 +222,39 @@ mod test {
             created_at: n as u64,
             platform,
         }
+    }
+
+    #[test]
+    fn linked_device_platform_maps_wire_codes() {
+        assert_eq!(
+            LinkedDevicePlatform::from(PLATFORM_UNKNOWN),
+            LinkedDevicePlatform::Unknown
+        );
+        assert_eq!(
+            LinkedDevicePlatform::from(PLATFORM_ANDROID),
+            LinkedDevicePlatform::Android
+        );
+        assert_eq!(
+            LinkedDevicePlatform::from(PLATFORM_IOS),
+            LinkedDevicePlatform::Ios
+        );
+        assert_eq!(
+            LinkedDevicePlatform::from(PLATFORM_MACOS),
+            LinkedDevicePlatform::Macos
+        );
+        assert_eq!(
+            LinkedDevicePlatform::from(PLATFORM_WINDOWS),
+            LinkedDevicePlatform::Windows
+        );
+        assert_eq!(
+            LinkedDevicePlatform::from(PLATFORM_LINUX),
+            LinkedDevicePlatform::Linux
+        );
+        assert_eq!(
+            LinkedDevicePlatform::from(u8::MAX),
+            LinkedDevicePlatform::Unknown
+        );
+        assert_eq!(u8::from(LinkedDevicePlatform::Linux), PLATFORM_LINUX);
     }
 
     // 0. `LinkedDevice` wire shape and `SettingsUpdate` forward compatibility.

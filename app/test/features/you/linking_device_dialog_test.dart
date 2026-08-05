@@ -125,12 +125,61 @@ void main() {
       await tester.enterText(find.byType(TextField), 'Work laptop');
       await tester.pump();
 
-      await tester.tap(find.byType(Checkbox));
+      await tester.tap(find.byType(AppCheckbox));
       await tester.pump();
       await tester.tap(find.text('Confirm'));
       await tester.pump();
 
       expect(confirmedName, 'Work laptop');
+    });
+
+    testWidgets('linked closes the modal without a success dialog', (
+      tester,
+    ) async {
+      tester.view.physicalSize = _testSize;
+      tester.view.devicePixelRatio = 1.0;
+      addTearDown(() {
+        tester.view.resetPhysicalSize();
+        tester.view.resetDevicePixelRatio();
+      });
+
+      await tester.pumpWidget(
+        Builder(
+          builder: (context) {
+            return MaterialApp(
+              debugShowCheckedModeBanner: false,
+              theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
+              localizationsDelegates: AppLocalizations.localizationsDelegates,
+              home: Builder(
+                builder: (context) => Scaffold(
+                  body: TextButton(
+                    onPressed: () => showDialog<void>(
+                      context: context,
+                      builder: (_) =>
+                          LinkDeviceModal(startLinkSession: fakeSession),
+                    ),
+                    child: const Text('Open'),
+                  ),
+                ),
+              ),
+            );
+          },
+        ),
+      );
+      await tester.tap(find.text('Open'));
+      await tester.pumpAndSettle();
+      await tester.tap(find.text('Enter numeric code'));
+      await tester.pumpAndSettle();
+      await tester.enterText(find.byType(TextField), '12345678');
+      await tester.tap(find.text('Link device'));
+      await tester.pump();
+
+      controller.add(const MultiDeviceLinkEvent.linked());
+      await tester.pumpAndSettle();
+
+      expect(find.byType(LinkDeviceModal), findsNothing);
+      expect(find.text('Device was linked! 🎉'), findsNothing);
+      expect(find.text('Open'), findsOneWidget);
     });
 
     testWidgets('failed', (tester) async {

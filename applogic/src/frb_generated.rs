@@ -11287,6 +11287,22 @@ impl SseDecode for isize {
     }
 }
 
+impl SseDecode for crate::api::linked_devices_cubit::LinkedDevicePlatform {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
+        let mut inner = <i32>::sse_decode(deserializer);
+        return match inner {
+            0 => crate::api::linked_devices_cubit::LinkedDevicePlatform::Unknown,
+            1 => crate::api::linked_devices_cubit::LinkedDevicePlatform::Android,
+            2 => crate::api::linked_devices_cubit::LinkedDevicePlatform::Ios,
+            3 => crate::api::linked_devices_cubit::LinkedDevicePlatform::Macos,
+            4 => crate::api::linked_devices_cubit::LinkedDevicePlatform::Windows,
+            5 => crate::api::linked_devices_cubit::LinkedDevicePlatform::Linux,
+            _ => unreachable!("Invalid variant for LinkedDevicePlatform: {}", inner),
+        };
+    }
+}
+
 impl SseDecode for crate::api::linked_devices_cubit::LinkedDevicesState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
@@ -13064,7 +13080,8 @@ impl SseDecode for crate::api::linked_devices_cubit::UiLinkedDevice {
     fn sse_decode(deserializer: &mut flutter_rust_bridge::for_generated::SseDeserializer) -> Self {
         let mut var_clientId = <String>::sse_decode(deserializer);
         let mut var_name = <String>::sse_decode(deserializer);
-        let mut var_platform = <u8>::sse_decode(deserializer);
+        let mut var_platform =
+            <crate::api::linked_devices_cubit::LinkedDevicePlatform>::sse_decode(deserializer);
         let mut var_linkedAt = <Option<chrono::DateTime<chrono::Utc>>>::sse_decode(deserializer);
         let mut var_isThisDevice = <bool>::sse_decode(deserializer);
         return crate::api::linked_devices_cubit::UiLinkedDevice {
@@ -14920,6 +14937,35 @@ impl flutter_rust_bridge::IntoIntoDart<FrbWrapper<crate::api::user_cubit::Invite
     for crate::api::user_cubit::InviteUsersError
 {
     fn into_into_dart(self) -> FrbWrapper<crate::api::user_cubit::InviteUsersError> {
+        self.into()
+    }
+}
+// Codec=Dco (DartCObject based), see doc to use other codecs
+impl flutter_rust_bridge::IntoDart
+    for FrbWrapper<crate::api::linked_devices_cubit::LinkedDevicePlatform>
+{
+    fn into_dart(self) -> flutter_rust_bridge::for_generated::DartAbi {
+        match self.0 {
+            crate::api::linked_devices_cubit::LinkedDevicePlatform::Unknown => 0.into_dart(),
+            crate::api::linked_devices_cubit::LinkedDevicePlatform::Android => 1.into_dart(),
+            crate::api::linked_devices_cubit::LinkedDevicePlatform::Ios => 2.into_dart(),
+            crate::api::linked_devices_cubit::LinkedDevicePlatform::Macos => 3.into_dart(),
+            crate::api::linked_devices_cubit::LinkedDevicePlatform::Windows => 4.into_dart(),
+            crate::api::linked_devices_cubit::LinkedDevicePlatform::Linux => 5.into_dart(),
+            _ => unreachable!(),
+        }
+    }
+}
+impl flutter_rust_bridge::for_generated::IntoDartExceptPrimitive
+    for FrbWrapper<crate::api::linked_devices_cubit::LinkedDevicePlatform>
+{
+}
+impl
+    flutter_rust_bridge::IntoIntoDart<
+        FrbWrapper<crate::api::linked_devices_cubit::LinkedDevicePlatform>,
+    > for crate::api::linked_devices_cubit::LinkedDevicePlatform
+{
+    fn into_into_dart(self) -> FrbWrapper<crate::api::linked_devices_cubit::LinkedDevicePlatform> {
         self.into()
     }
 }
@@ -17692,6 +17738,26 @@ impl SseEncode for isize {
     }
 }
 
+impl SseEncode for crate::api::linked_devices_cubit::LinkedDevicePlatform {
+    // Codec=Sse (Serialization based), see doc to use other codecs
+    fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
+        <i32>::sse_encode(
+            match self {
+                crate::api::linked_devices_cubit::LinkedDevicePlatform::Unknown => 0,
+                crate::api::linked_devices_cubit::LinkedDevicePlatform::Android => 1,
+                crate::api::linked_devices_cubit::LinkedDevicePlatform::Ios => 2,
+                crate::api::linked_devices_cubit::LinkedDevicePlatform::Macos => 3,
+                crate::api::linked_devices_cubit::LinkedDevicePlatform::Windows => 4,
+                crate::api::linked_devices_cubit::LinkedDevicePlatform::Linux => 5,
+                _ => {
+                    unimplemented!("");
+                }
+            },
+            serializer,
+        );
+    }
+}
+
 impl SseEncode for crate::api::linked_devices_cubit::LinkedDevicesState {
     // Codec=Sse (Serialization based), see doc to use other codecs
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
@@ -19127,7 +19193,10 @@ impl SseEncode for crate::api::linked_devices_cubit::UiLinkedDevice {
     fn sse_encode(self, serializer: &mut flutter_rust_bridge::for_generated::SseSerializer) {
         <String>::sse_encode(self.client_id, serializer);
         <String>::sse_encode(self.name, serializer);
-        <u8>::sse_encode(self.platform, serializer);
+        <crate::api::linked_devices_cubit::LinkedDevicePlatform>::sse_encode(
+            self.platform,
+            serializer,
+        );
         <Option<chrono::DateTime<chrono::Utc>>>::sse_encode(self.linked_at, serializer);
         <bool>::sse_encode(self.is_this_device, serializer);
     }

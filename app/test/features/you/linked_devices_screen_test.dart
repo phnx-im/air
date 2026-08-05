@@ -24,7 +24,7 @@ const _testSize = Size(600, 1400);
 
 UiLinkedDevice _device({
   required String name,
-  required int platform,
+  required LinkedDevicePlatform platform,
   required DateTime linkedAt,
   bool isThisDevice = false,
   String clientId = '00000000-0000-0000-0000-000000000001',
@@ -42,7 +42,7 @@ LinkedDevicesState _singleDevice() => LinkedDevicesState(
   devices: [
     _device(
       name: 'iOS',
-      platform: 2,
+      platform: LinkedDevicePlatform.ios,
       linkedAt: DateTime.utc(2026, 1, 15, 2, 45),
       isThisDevice: true,
     ),
@@ -54,13 +54,13 @@ LinkedDevicesState _withSibling() => LinkedDevicesState(
   devices: [
     _device(
       name: 'iOS',
-      platform: 2,
+      platform: LinkedDevicePlatform.ios,
       linkedAt: DateTime.utc(2026, 1, 15, 2, 45),
       isThisDevice: true,
     ),
     _device(
       name: 'Linux',
-      platform: 5,
+      platform: LinkedDevicePlatform.linux,
       linkedAt: DateTime.utc(2026, 2, 3, 14, 22),
       clientId: '00000000-0000-0000-0000-000000000002',
     ),
@@ -136,20 +136,20 @@ void main() {
           devices: [
             _device(
               name: 'Linux',
-              platform: 5,
+              platform: LinkedDevicePlatform.linux,
               linkedAt: DateTime.utc(2026, 1, 15),
               isThisDevice: true,
             ),
             _device(
               clientId: '00000000-0000-0000-0000-000000000002',
               name: 'iPhone',
-              platform: 2,
+              platform: LinkedDevicePlatform.ios,
               linkedAt: DateTime.utc(2026, 2, 3),
             ),
             _device(
               clientId: '00000000-0000-0000-0000-000000000003',
               name: 'Android tablet',
-              platform: 1,
+              platform: LinkedDevicePlatform.android,
               linkedAt: DateTime.utc(2026, 3, 20),
             ),
           ],
@@ -168,14 +168,14 @@ void main() {
           devices: [
             _device(
               name: 'Linux',
-              platform: 5,
+              platform: LinkedDevicePlatform.linux,
               linkedAt: DateTime.utc(2026, 1, 15),
               isThisDevice: true,
             ),
             _device(
               clientId: '00000000-0000-0000-0000-000000000002',
               name: 'iPhone',
-              platform: 2,
+              platform: LinkedDevicePlatform.ios,
               linkedAt: DateTime.utc(2026, 2, 3),
             ),
           ],
@@ -194,7 +194,7 @@ void main() {
           devices: [
             _device(
               name: '',
-              platform: 0,
+              platform: LinkedDevicePlatform.unknown,
               linkedAt: DateTime.utc(1970),
               isThisDevice: true,
             ),
@@ -224,7 +224,7 @@ void main() {
           devices: [
             _device(
               name: 'Linux',
-              platform: 5,
+              platform: LinkedDevicePlatform.linux,
               linkedAt: DateTime.utc(2026, 1, 15, 2, 45),
               isThisDevice: true,
             ),

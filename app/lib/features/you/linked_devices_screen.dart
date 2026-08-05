@@ -18,12 +18,9 @@ import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:intl/intl.dart';
 
-/// Wire platform codes from `protos/src/client/self_group.rs`.
-const _platformAndroid = 1;
-const _platformIos = 2;
-
-AppIconType _iconFor(int platform) => switch (platform) {
-  _platformAndroid || _platformIos => AppIconType.smartphone,
+AppIconType _iconFor(LinkedDevicePlatform platform) => switch (platform) {
+  LinkedDevicePlatform.android || LinkedDevicePlatform.ios =>
+    AppIconType.smartphone,
   // macOS, Windows, Linux and unknown platforms.
   _ => AppIconType.laptop,
 };
@@ -211,9 +208,12 @@ class _SingleDevice extends StatelessWidget {
           // The own device is never unlinkable from here: a device is unlinked
           // from one of its siblings.
           if (!device.isThisDevice)
-            GestureDetector(
-              onTap: () => _unlinkDevice(context, name),
-              child: AppIcon.trash(color: palette.function.danger, size: 24),
+            MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: GestureDetector(
+                onTap: () => _unlinkDevice(context, name),
+                child: AppIcon.trash(color: palette.function.danger, size: 24),
+              ),
             ),
         ],
       ),

@@ -951,6 +951,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   PlatformInt64 dco_decode_isize(dynamic raw);
 
   @protected
+  LinkedDevicePlatform dco_decode_linked_device_platform(dynamic raw);
+
+  @protected
   LinkedDevicesState dco_decode_linked_devices_state(dynamic raw);
 
   @protected
@@ -2305,6 +2308,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   PlatformInt64 sse_decode_isize(SseDeserializer deserializer);
+
+  @protected
+  LinkedDevicePlatform sse_decode_linked_device_platform(
+    SseDeserializer deserializer,
+  );
 
   @protected
   LinkedDevicesState sse_decode_linked_devices_state(
@@ -3980,6 +3988,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_isize(PlatformInt64 self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_linked_device_platform(
+    LinkedDevicePlatform self,
+    SseSerializer serializer,
+  );
 
   @protected
   void sse_encode_linked_devices_state(
