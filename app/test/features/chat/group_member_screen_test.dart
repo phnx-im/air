@@ -96,5 +96,34 @@ void main() {
         matchesGoldenFile('goldens/group_members_screen.png'),
       );
     });
+
+    // The list only scrolls where the modal hands it a bounded height. Neither
+    // breakpoint may leave it unbounded (an overflow) nor collapse the card to
+    // its minimum (a list of a few pixels).
+    testWidgets('fills the full-screen modal', (tester) async {
+      sizeView(tester, phoneViewSize);
+
+      await tester.pumpWidget(buildSubject());
+
+      expect(tester.takeException(), isNull);
+      expectFillsModal(tester, find.byType(ListView), phoneViewSize);
+      expect(
+        tester.getCenter(find.text('Group members')).dx,
+        moreOrLessEquals(phoneViewSize.width / 2),
+      );
+    });
+
+    testWidgets('fills the card modal', (tester) async {
+      sizeView(tester, desktopViewSize);
+
+      await tester.pumpWidget(buildSubject());
+
+      expect(tester.takeException(), isNull);
+      expectFillsModal(tester, find.byType(ListView), desktopViewSize);
+      expect(
+        tester.getCenter(find.text('Group members')).dx,
+        moreOrLessEquals(desktopViewSize.width / 2),
+      );
+    });
   });
 }

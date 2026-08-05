@@ -2,9 +2,10 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
+import 'package:air/core/core.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/features/you/linked_devices_screen.dart';
+import 'package:air/features/you/you_screen.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,7 +15,7 @@ import '../../helpers.dart';
 const _testSize = Size(600, 1400);
 
 void main() {
-  group('LinkedDevicesView', () {
+  group('Devices section', () {
     Future<void> pumpView(WidgetTester tester) async {
       tester.view.physicalSize = _testSize;
       tester.view.devicePixelRatio = 1.0;
@@ -30,7 +31,7 @@ void main() {
               debugShowCheckedModeBanner: false,
               theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
               localizationsDelegates: AppLocalizations.localizationsDelegates,
-              home: const LinkedDevicesView(),
+              home: const YouSectionView(section: YouSection.devices),
             );
           },
         ),

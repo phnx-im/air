@@ -3,13 +3,20 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'dart:async';
-import 'dart:ui' as ui;
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/features/chat/mute_chat_sheet.dart';
-import 'package:air/features/chat_list/chat_list_view.dart';
-import 'package:air/ds/patterns/context_menu/context_menu.dart';
-import 'package:air/ds/patterns/context_menu/context_menu_item.dart';
-import 'package:air/ds/patterns/context_menu/context_menu_submenu_item.dart';
+import 'package:air/ds/components/counter/counter.dart';
+import 'package:air/ds/components/counter/counter_tokens.dart';
+import 'package:air/ds/components/menu/menu.dart';
+import 'package:air/ds/components/panel/panel_surface.dart';
+import 'package:air/ds/patterns/chat_list/chat_list.dart';
+import 'package:air/ds/patterns/chat_list/chat_list_item.dart';
+import 'package:air/ds/patterns/chat_list/chat_list_item_tokens.dart';
+import 'package:air/ds/patterns/chat_list/chat_list_status_indicator.dart';
+import 'package:air/ds/patterns/chat_list/chat_list_timestamp.dart';
+import 'package:air/ds/patterns/chat_list/chat_list_tokens.dart';
+import 'package:air/ds/patterns/message_meta/message_meta.dart';
+import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/app_localizations.dart';
 import 'package:air/features/message_list/display_message_tile.dart';
@@ -20,48 +27,12 @@ import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/platform/haptics.dart';
 import 'package:air/features/user/avatar.dart';
-import 'package:air/features/message_list/message_status_icon.dart';
+import 'package:air/util/time/app_clock.dart';
+import 'package:air/util/time/time_labels.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:intl/intl.dart';
-import 'package:system_date_time_format/system_date_time_format.dart';
 
 import 'package:air/features/chat_list/chat_list_cubit.dart';
-
-const _previewLineHeight = 1.28;
-final _previewFontSize = typeScale.body.s.fontSize;
-
-/// Preview text carries a measured line height rather than the token's own, so
-/// it stays in step with [_twoLinePreviewHeight].
-TextStyle _previewStyle(Color color) =>
-    typeScale.body.s.style(color: color).copyWith(height: _previewLineHeight);
-
-/// Measures the height of two lines of preview text, caching the result
-/// as long as the text direction and scaler remain unchanged.
-double _twoLinePreviewHeight(ui.TextDirection direction, TextScaler scaler) {
-  if (direction == _cachedDirection && scaler == _cachedScaler) {
-    return _cachedTwoLineHeight;
-  }
-  final tp = TextPainter(
-    text: TextSpan(
-      text: ' ',
-      style: TextStyle(fontSize: _previewFontSize, height: _previewLineHeight),
-    ),
-    textDirection: direction,
-    textScaler: scaler,
-    maxLines: 1,
-  )..layout();
-  _cachedTwoLineHeight = tp.height * 2;
-  tp.dispose();
-  _cachedDirection = direction;
-  _cachedScaler = scaler;
-  return _cachedTwoLineHeight;
-}
-
-// Cached fields for two-line preview height calculation.
-ui.TextDirection? _cachedDirection;
-TextScaler? _cachedScaler;
-double _cachedTwoLineHeight = 0;
 
 typedef ChatDetailsCubitCreate =
     ChatDetailsCubit Function({
@@ -73,19 +44,36 @@ typedef ChatDetailsCubitCreate =
       bool withMembers,
     });
 
+/// The surface the list paints on: the surrounding panel in the two-pane
+/// layout, or its own background tier when it fills the screen.
+Color chatListBackgroundColor(BuildContext context) =>
+    PanelSurface.maybeOf(context) ??
+    SemanticPalette.of(context).backgroundBase.primary;
+
+/// The chats, resolved from [ChatListCubit] and handed to the design system's
+/// list: each row gets its own [ChatDetailsCubit], and every piece of localized
+/// copy is picked here.
 class ChatListContent extends StatelessWidget {
   const ChatListContent({
     super.key,
     this.createChatDetailsCubit = ChatDetailsCubit.new,
-    this.topPadding = 0,
-    this.bottomPadding = 0,
-    this.scrollController,
+    this.header = const SizedBox.shrink(),
+    this.headerHeight = 0,
+    this.onScrollOffset,
   });
 
   final ChatDetailsCubitCreate createChatDetailsCubit;
-  final double topPadding;
-  final double bottomPadding;
-  final ScrollController? scrollController;
+
+  /// Pinned over the list, which scrolls behind it. It floats over a full-bleed
+  /// list, so the host insets it for the status bar itself.
+  final Widget header;
+
+  /// What the first row clears, before the list's own header clearance.
+  final double headerHeight;
+
+  /// Reports the offset as the list moves, for a header that reveals its title
+  /// once rows slide under it.
+  final ValueChanged<double>? onScrollOffset;
 
   @override
   Widget build(BuildContext context) {
@@ -93,62 +81,44 @@ class ChatListContent extends StatelessWidget {
       (ChatListCubit cubit) => cubit.state.chatIds,
     );
 
-    if (chatIds.isEmpty) {
-      return const _NoChats();
-    }
-
-    return ListView.separated(
-      controller: scrollController,
-      padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
+    final list = ChatList(
+      tokens: ChatListTokens.of(context),
+      backgroundColor: chatListBackgroundColor(context),
+      header: header,
+      headerHeight: headerHeight,
       itemCount: chatIds.length,
-      separatorBuilder: (context, index) =>
-          _ChatSeparator(aboveId: chatIds[index], belowId: chatIds[index + 1]),
-      itemBuilder: (BuildContext context, int index) {
+      itemBuilder: (context, index) {
+        final chatId = chatIds[index];
+        final isLast = index == chatIds.length - 1;
         return BlocProvider(
-          key: ValueKey(chatIds[index]),
+          key: ValueKey(chatId),
           create: (context) => createChatDetailsCubit(
             userCubit: context.read<UserCubit>(),
             userSettingsCubit: context.read<UserSettingsCubit>(),
-            chatId: chatIds[index],
+            chatId: chatId,
             chatsRepository: context.read<ChatsRepository>(),
             attachmentsRepository: context.read<AttachmentsRepository>(),
             withMembers: false,
           ),
           lazy: false,
-          child: _ListTile(chatId: chatIds[index]),
+          child: _ListTile(
+            chatId: chatId,
+            nextChatId: isLast ? null : chatIds[index + 1],
+          ),
         );
       },
+      onScrollOffset: onScrollOffset,
     );
-  }
-}
 
-class _ChatSeparator extends StatelessWidget {
-  const _ChatSeparator({required this.aboveId, required this.belowId});
+    if (chatIds.isNotEmpty) return list;
 
-  final ChatId aboveId;
-  final ChatId belowId;
-
-  @override
-  Widget build(BuildContext context) {
-    final isMobile = context.breakpoint.isSmall;
-    // On desktop the separator above and below the active item is made
-    // transparent so the selection background reads as a single rounded
-    // surface while the row height stays constant.
-    var color = SemanticPalette.of(context).separator.secondary;
-    if (!isMobile) {
-      final openChatId = context.select(
-        (NavigationCubit cubit) => cubit.state.openChatId,
-      );
-      if (openChatId == aboveId || openChatId == belowId) {
-        color = Colors.transparent;
-      }
-    }
-    return Divider(
-      height: 0.5,
-      thickness: StrokeWidth.px0_5,
-      indent: S.s16 + S.s48 + S.s12,
-      endIndent: S.s16,
-      color: color,
+    // The frame and its header stay, so an account with no chats still opens on
+    // the same screen as one with them.
+    return Stack(
+      children: [
+        list,
+        const Positioned.fill(child: _NoChats()),
+      ],
     );
   }
 }
@@ -170,237 +140,212 @@ class _NoChats extends StatelessWidget {
   }
 }
 
-class _ListTile extends StatefulWidget {
-  const _ListTile({required this.chatId});
+class _ListTile extends StatelessWidget {
+  const _ListTile({required this.chatId, required this.nextChatId});
 
   final ChatId chatId;
 
-  @override
-  State<_ListTile> createState() => _ListTileState();
-}
-
-class _ListTileState extends State<_ListTile> {
-  final _contextMenuController = OverlayPortalController();
-  final _cursorPosition = ValueNotifier<Offset?>(null);
-
-  @override
-  void dispose() {
-    _cursorPosition.dispose();
-    super.dispose();
-  }
+  /// The row below this one, null on the last row.
+  final ChatId? nextChatId;
 
   @override
   Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-
     final currentChatId = context.select(
       (NavigationCubit cubit) => cubit.state.openChatId,
     );
-    final isChatMuted = context.select(
-      (ChatDetailsCubit cubit) => cubit.state.chat?.isMuted ?? false,
-    );
-    final isSelected = currentChatId == widget.chatId;
-    final isDesktop = DeviceType.isDesktop;
+    final isActive = currentChatId == chatId;
 
-    return ContextMenu(
-      direction: ContextMenuDirection.right,
-      controller: _contextMenuController,
-      cursorPosition: _cursorPosition,
-      menuItems: [
-        if (isChatMuted)
-          ContextMenuItem(
-            label: loc.chatList_contextMenu_unmute,
-            leading: const AppIcon.bell(size: 16),
-            onPressed: () => context.read<ChatDetailsCubit>().unmuteChat(),
-          )
-        else if (isDesktop)
-          ContextMenuSubmenuItem(
-            label: loc.chatList_contextMenu_mute,
-            leading: const AppIcon.bellOff(size: 16),
-            subItems: [
-              ContextMenuItem(
-                label: loc.muteDurationSheet_1hour,
-                onPressed: () => context.read<ChatDetailsCubit>().muteChat(
-                  mutedUntil: UiChatMutedExtension.inOneHour(),
-                ),
-              ),
-              ContextMenuItem(
-                label: loc.muteDurationSheet_8hours,
-                onPressed: () => context.read<ChatDetailsCubit>().muteChat(
-                  mutedUntil: UiChatMutedExtension.inEightHours(),
-                ),
-              ),
-              ContextMenuItem(
-                label: loc.muteDurationSheet_untilTomorrow,
-                onPressed: () => context.read<ChatDetailsCubit>().muteChat(
-                  mutedUntil: UiChatMutedExtension.untilTomorrow(),
-                ),
-              ),
-              ContextMenuItem(
-                label: loc.muteDurationSheet_untilNextMonday,
-                onPressed: () => context.read<ChatDetailsCubit>().muteChat(
-                  mutedUntil: UiChatMutedExtension.untilNextMonday(),
-                ),
-              ),
-              ContextMenuItem(
-                label: loc.muteDurationSheet_always,
-                onPressed: () => context.read<ChatDetailsCubit>().muteChat(
-                  mutedUntil: const UiChatMuted.forever(),
-                ),
-              ),
-            ],
-          )
-        else
-          ContextMenuItem(
-            label: loc.chatList_contextMenu_mute,
-            leading: const AppIcon.bellOff(size: 16),
-            onPressed: () => showMuteChatSheet(context),
-          ),
-      ],
-      child: GestureDetector(
-        onTap: () => context.read<NavigationCubit>().openChat(widget.chatId),
-        onLongPressStart: (details) {
-          _cursorPosition.value = details.globalPosition;
-          AppHaptics.menuOpen();
-          _contextMenuController.show();
-        },
-        onSecondaryTapDown: (details) {
-          _cursorPosition.value = details.globalPosition;
-          _contextMenuController.show();
-        },
-        behavior: HitTestBehavior.opaque,
-        child: Container(
-          padding: const EdgeInsets.fromLTRB(S.s16, S.s16, S.s16, S.s12),
-          decoration: BoxDecoration(
-            color: isSelected
-                ? SemanticPalette.of(context).backgroundElevated.primary
-                : null,
-          ),
-          child: Builder(
-            builder: (context) {
-              final chat = context.select(
-                (ChatDetailsCubit cubit) => cubit.state.chat,
-              );
-              if (chat == null) {
-                return const SizedBox.shrink();
-              }
-              return Row(
-                mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                crossAxisAlignment: .start,
-                spacing: S.s12,
-                children: [
-                  ChatAvatar(chatId: chat.id, size: 48),
-                  Expanded(
-                    child: Column(
-                      mainAxisSize: .min,
-                      crossAxisAlignment: CrossAxisAlignment.center,
-                      mainAxisAlignment: MainAxisAlignment.start,
-                      spacing: 0,
-                      children: [
-                        _ListTileTop(chat: chat),
-                        _ListTileBottom(chat: chat),
-                      ],
-                    ),
-                  ),
-                ],
-              );
-            },
-          ),
-        ),
+    // The last row drops its rule so the list does not end on a dangling line.
+    // Only the two-pane layout keeps a selection, and there the rules above and
+    // below it go too, so the selection reads as one surface.
+    final hideSeparator =
+        nextChatId == null ||
+        (!context.breakpoint.isSmall &&
+            (isActive || currentChatId == nextChatId));
+
+    final chat = context.select((ChatDetailsCubit cubit) => cubit.state.chat);
+    if (chat == null) {
+      return const SizedBox.shrink();
+    }
+
+    return _ChatRow(
+      chat: chat,
+      isActive: isActive,
+      hideSeparator: hideSeparator,
+      onTap: () => context.read<NavigationCubit>().openChat(chatId),
+      onLongPress: (position) => _openMuteMenu(context, position),
+    );
+  }
+
+  void _openMuteMenu(BuildContext context, Offset position) {
+    AppHaptics.menuOpen();
+    unawaited(
+      showOverlayMenu(
+        context: context,
+        anchor: Rect.fromLTWH(position.dx, position.dy, 0, 0),
+        items: _muteMenuItems(context),
+        // The menu opens at the pointer, so it has no trigger to slide out of.
+        slideDistance: 0,
       ),
     );
   }
-}
 
-class _ListTileTop extends StatelessWidget {
-  const _ListTileTop({required this.chat});
+  List<MenuItem> _muteMenuItems(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final cubit = context.read<ChatDetailsCubit>();
 
-  final UiChatDetails chat;
-
-  @override
-  Widget build(BuildContext context) {
-    final tertiaryColor = SemanticPalette.of(context).text.tertiary;
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      spacing: S.s12,
-      children: [
-        Expanded(
-          child: Row(
-            mainAxisSize: MainAxisSize.min,
-            spacing: S.s4,
-            children: [
-              Flexible(child: _ChatTitle(title: chat.title)),
-              if (chat.isMuted) AppIcon.bellOff(size: 16, color: tertiaryColor),
-            ],
-          ),
+    if (cubit.state.chat?.isMuted ?? false) {
+      return [
+        MenuItem(
+          label: loc.chatList_contextMenu_unmute,
+          leading: const AppIcon.bell(size: 16),
+          onPressed: () => cubit.unmuteChat(),
         ),
-        _LastUpdated(chat: chat),
-      ],
-    );
-  }
-}
-
-class _ListTileBottom extends StatelessWidget {
-  const _ListTileBottom({required this.chat});
-
-  final UiChatDetails chat;
-
-  @override
-  Widget build(BuildContext context) {
-    late final UiUserId ownClientId;
-    try {
-      ownClientId = context.select((UserCubit cubit) => cubit.state.userId);
-    } on ProviderNotFoundException {
-      return const SizedBox.shrink();
+      ];
     }
-    final isBlocked = chat.status == const UiChatStatus.blocked();
 
-    final twoLineHeight = _twoLinePreviewHeight(
-      Directionality.of(context),
-      MediaQuery.textScalerOf(context),
-    );
+    if (!DeviceType.isDesktop) {
+      return [
+        MenuItem(
+          label: loc.chatList_contextMenu_mute,
+          leading: const AppIcon.bellOff(size: 16),
+          onPressed: () => showMuteChatSheet(context),
+        ),
+      ];
+    }
 
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      crossAxisAlignment: .center,
-      spacing: S.s12,
-      children: [
-        if (!isBlocked)
-          Expanded(
-            child: SizedBox(
-              height: twoLineHeight,
-              child: Align(
-                alignment: Alignment.topLeft,
-                child: _LastMessage(chat: chat, ownClientId: ownClientId),
-              ),
+    return [
+      MenuItem(
+        label: loc.chatList_contextMenu_mute,
+        leading: const AppIcon.bellOff(size: 16),
+        subItems: [
+          MenuItem(
+            label: loc.muteDurationSheet_1hour,
+            onPressed: () =>
+                cubit.muteChat(mutedUntil: UiChatMutedExtension.inOneHour()),
+          ),
+          MenuItem(
+            label: loc.muteDurationSheet_8hours,
+            onPressed: () =>
+                cubit.muteChat(mutedUntil: UiChatMutedExtension.inEightHours()),
+          ),
+          MenuItem(
+            label: loc.muteDurationSheet_untilTomorrow,
+            onPressed: () => cubit.muteChat(
+              mutedUntil: UiChatMutedExtension.untilTomorrow(),
             ),
           ),
-        if (!isBlocked) _TrailingIndicator(ownClientId: ownClientId),
-        if (isBlocked)
-          const Align(alignment: Alignment.topLeft, child: _BlockedBadge()),
-      ],
+          MenuItem(
+            label: loc.muteDurationSheet_untilNextMonday,
+            onPressed: () => cubit.muteChat(
+              mutedUntil: UiChatMutedExtension.untilNextMonday(),
+            ),
+          ),
+          MenuItem(
+            label: loc.muteDurationSheet_always,
+            onPressed: () =>
+                cubit.muteChat(mutedUntil: const UiChatMuted.forever()),
+          ),
+        ],
+      ),
+    ];
+  }
+}
+
+/// Maps a chat onto the design system's row: it resolves the copy, picks the
+/// slots, and leaves the geometry to [ChatListItem].
+class _ChatRow extends StatelessWidget {
+  const _ChatRow({
+    required this.chat,
+    required this.isActive,
+    required this.hideSeparator,
+    required this.onTap,
+    required this.onLongPress,
+  });
+
+  final UiChatDetails chat;
+  final bool isActive;
+  final bool hideSeparator;
+  final VoidCallback onTap;
+  final void Function(Offset position) onLongPress;
+
+  @override
+  Widget build(BuildContext context) {
+    final tokens = ChatListItemTokens.of(context);
+    final palette = SemanticPalette.of(context);
+
+    UiUserId? ownId;
+    try {
+      ownId = context.select((UserCubit cubit) => cubit.state.userId);
+    } on ProviderNotFoundException {
+      ownId = null;
+    }
+
+    final isBlocked = chat.status == const UiChatStatus.blocked();
+
+    final Widget? preview;
+    if (isBlocked) {
+      preview = const _BlockedPreview();
+    } else if (ownId != null) {
+      preview = _LastMessage(chat: chat, ownClientId: ownId);
+    } else {
+      preview = null;
+    }
+
+    return ChatListItem(
+      tokens: tokens,
+      title: chat.title,
+      avatar: ChatAvatar(chatId: chat.id, size: tokens.avatarSize),
+      titleIcon: chat.isMuted
+          ? AppIcon.bellOff(
+              size: ChatListItemTokens.titleIconSize,
+              color: palette.text.tertiary,
+            )
+          : null,
+      timestamp: _LastUpdated(chat: chat),
+      preview: preview,
+      trailing: isBlocked || ownId == null
+          ? null
+          : _TrailingIndicator(ownClientId: ownId),
+      isActive: isActive,
+      hideSeparator: hideSeparator,
+      onTap: onTap,
+      onLongPress: onLongPress,
     );
   }
 }
 
-class _BlockedBadge extends StatelessWidget {
-  const _BlockedBadge();
+/// Stands in for the preview on a blocked chat: a ban glyph inline with the
+/// label, so it shares the preview's baseline and two-line reserve.
+class _BlockedPreview extends StatelessWidget {
+  const _BlockedPreview();
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
     final color = SemanticPalette.of(context).text.tertiary;
-    return Row(
-      children: [
-        AppIcon.ban(size: 16, color: color),
-        const SizedBox(width: S.s4),
-        Text(
-          loc.chatList_blocked,
-          style: typeScale.body.xs
-              .style(color: color)
-              .copyWith(fontStyle: FontStyle.italic),
-        ),
-      ],
+    return Text.rich(
+      TextSpan(
+        children: [
+          WidgetSpan(
+            alignment: PlaceholderAlignment.baseline,
+            baseline: TextBaseline.alphabetic,
+            child: Padding(
+              padding: const EdgeInsets.only(
+                right: ChatListItemTokens.previewIconGap,
+              ),
+              child: AppIcon.ban(
+                size: ChatListItemTokens.previewIconSize,
+                color: color,
+              ),
+            ),
+          ),
+          TextSpan(text: loc.chatList_blocked),
+        ],
+      ),
+      style: typeScale.body.s
+          .style(color: color)
+          .copyWith(fontStyle: FontStyle.italic),
     );
   }
 }
@@ -412,8 +357,9 @@ class _TrailingIndicator extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final bool isDeveloper = context.select(
-      (UserSettingsCubit cubit) => cubit.state.isDeveloper,
+    final (isDeveloper, readReceipts) = context.select(
+      (UserSettingsCubit cubit) =>
+          (cubit.state.isDeveloper, cubit.state.readReceipts),
     );
 
     final (unreadMessages, lastMessage, pendingCommitFailed) = context.select((
@@ -428,11 +374,13 @@ class _TrailingIndicator extends StatelessWidget {
     });
 
     if (isDeveloper && pendingCommitFailed) {
-      return const _PendingCommitFailedIndicator();
+      return const ChatListStatusIndicator(
+        status: MessageDeliveryStatus.failed,
+      );
     }
 
     if (unreadMessages != null && unreadMessages > 0) {
-      return _UnreadBadge(count: unreadMessages);
+      return Counter(tokens: CounterTokens.of(context), count: unreadMessages);
     }
 
     if (lastMessage == null) return const SizedBox.shrink();
@@ -443,60 +391,31 @@ class _TrailingIndicator extends StatelessWidget {
     };
     if (lastSender != ownClientId) return const SizedBox.shrink();
 
-    return Padding(
-      padding: const EdgeInsets.only(right: S.s8),
-      child: MessageStatusIndicator(status: lastMessage.status),
+    final status = _deliveryStatus(
+      lastMessage.status,
+      readReceipts: readReceipts,
     );
+    if (status == null) return const SizedBox.shrink();
+
+    return ChatListStatusIndicator(status: status);
   }
 }
 
-class _PendingCommitFailedIndicator extends StatelessWidget {
-  const _PendingCommitFailedIndicator();
-
-  @override
-  Widget build(BuildContext context) {
-    return AppIcon.circleAlert(
-      size: 16,
-      color: SemanticPalette.of(context).function.warning.primary,
-    );
-  }
-}
-
-class _UnreadBadge extends StatelessWidget {
-  const _UnreadBadge({required this.count});
-
-  final int count;
-
-  @override
-  Widget build(BuildContext context) {
-    if (count < 1) {
-      return const SizedBox.shrink();
-    }
-
-    final backgroundColor = SemanticPalette.of(
-      context,
-    ).function.neutral.toggleBlack;
-
-    final badgeText = count <= 100 ? "$count" : "100+";
-    return Container(
-      alignment: AlignmentDirectional.center,
-      constraints: const BoxConstraints(minHeight: 24, minWidth: 40),
-      padding: const EdgeInsets.symmetric(horizontal: S.s8),
-      decoration: BoxDecoration(
-        color: backgroundColor,
-        borderRadius: BorderRadius.circular(CornerRadius.full),
-      ),
-      child: Text(
-        badgeText,
-        style: typeScale.body.xs
-            .style(
-              color: SemanticPalette.of(context).function.neutral.toggleWhite,
-            )
-            .copyWith(height: 1),
-      ),
-    );
-  }
-}
+/// Null where there is no delivery state to report. A reader with read receipts
+/// off must not report back more than the setting does, so a read message stops
+/// at delivered.
+MessageDeliveryStatus? _deliveryStatus(
+  UiMessageStatus status, {
+  required bool readReceipts,
+}) => switch (status) {
+  UiMessageStatus.sending => MessageDeliveryStatus.sending,
+  UiMessageStatus.sent => MessageDeliveryStatus.sent,
+  UiMessageStatus.delivered => MessageDeliveryStatus.delivered,
+  UiMessageStatus.read =>
+    readReceipts ? MessageDeliveryStatus.read : MessageDeliveryStatus.delivered,
+  UiMessageStatus.error => MessageDeliveryStatus.failed,
+  UiMessageStatus.hidden => null,
+};
 
 class _LastMessage extends StatelessWidget {
   const _LastMessage({required this.chat, required this.ownClientId});
@@ -512,6 +431,9 @@ class _LastMessage extends StatelessWidget {
 
     final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
+
+    final previewStyle = typeScale.body.s.style(color: palette.text.tertiary);
+    final italicStyle = previewStyle.copyWith(fontStyle: FontStyle.italic);
 
     final lastMessage = chat.lastMessage;
     final draftMessage = chat.draft?.message.trim();
@@ -529,12 +451,7 @@ class _LastMessage extends StatelessWidget {
     // === Hidden messages ===
     final isHidden = lastMessage?.status == UiMessageStatus.hidden;
     if (isHidden) {
-      return Text(
-        loc.textMessage_hiddenPlaceholder,
-        style: _previewStyle(
-          palette.text.tertiary,
-        ).copyWith(fontStyle: FontStyle.italic),
-      );
+      return Text(loc.textMessage_hiddenPlaceholder, style: italicStyle);
     }
 
     // === Deleted messages ===
@@ -544,30 +461,17 @@ class _LastMessage extends StatelessWidget {
       _ => false,
     };
     if (isDeleted) {
-      return Text(
-        loc.textMessage_deleted,
-        style: _previewStyle(
-          palette.text.tertiary,
-        ).copyWith(fontStyle: FontStyle.italic),
-      );
+      return Text(loc.textMessage_deleted, style: italicStyle);
     }
-
-    final readStyle = _previewStyle(
-      Color.alphaBlend(
-        palette.text.tertiary,
-        ChatListContainer.backgroundColor(context),
-      ),
-    );
-    final unreadStyle = readStyle;
-    final draftStyle = readStyle.copyWith(fontStyle: FontStyle.italic);
 
     final showDraft = !isCurrentChat && draftMessage?.isNotEmpty == true;
 
     final prefixStyle = showDraft
-        ? draftStyle
-        : readStyle.copyWith(fontWeight: .bold);
-
-    final suffixStyle = chat.unreadMessages > 0 ? unreadStyle : readStyle;
+        ? italicStyle
+        : typeScale.body.s.style(
+            color: palette.text.tertiary,
+            weight: Weight.emphasized,
+          );
 
     final prefix = showDraft
         ? "${loc.chatList_draft}: "
@@ -585,13 +489,8 @@ class _LastMessage extends StatelessWidget {
               content.content.plaintextPreview(loc),
             UiMessage_Display(field0: final eventMessage) =>
               switch (eventMessage) {
-                UiEventMessage_System(field0: final systemMessage) => () {
-                  final richText = buildSystemMessageText(
-                    context,
-                    systemMessage,
-                  );
-                  return richText.text.toPlainText();
-                }(),
+                UiEventMessage_System(field0: final systemMessage) =>
+                  buildSystemMessageText(context, systemMessage).toPlainText(),
                 _ => null,
               },
             _ => null,
@@ -601,7 +500,7 @@ class _LastMessage extends StatelessWidget {
       TextSpan(
         children: [
           TextSpan(text: prefix, style: prefixStyle),
-          TextSpan(text: suffix, style: suffixStyle),
+          TextSpan(text: suffix, style: previewStyle),
         ],
       ),
       maxLines: 2,
@@ -611,185 +510,20 @@ class _LastMessage extends StatelessWidget {
   }
 }
 
-class _LastUpdated extends StatefulWidget {
+/// The "last activity" stamp on a row, kept current by the app clock.
+class _LastUpdated extends StatelessWidget {
   const _LastUpdated({required this.chat});
 
   final UiChatDetails chat;
 
   @override
-  State<_LastUpdated> createState() => _LastUpdatedState();
-}
-
-class _LastUpdatedState extends State<_LastUpdated> {
-  String _displayTimestamp = '';
-  TimestampCategory? _category;
-  int? _minutesAgo;
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _timer = Timer.periodic(
-      const Duration(seconds: 5),
-      (_) => _refreshTimestamp(),
-    );
-  }
-
-  @override
-  void didChangeDependencies() {
-    super.didChangeDependencies();
-    _category = classifyTimestamp(widget.chat.lastUsed);
-    _minutesAgo = DateTime.now().difference(widget.chat.lastUsed).inMinutes;
-    _displayTimestamp = _format(_category!);
-  }
-
-  @override
-  void didUpdateWidget(covariant _LastUpdated oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.chat.lastUsed != widget.chat.lastUsed) {
-      _refreshTimestamp();
-    }
-  }
-
-  void _refreshTimestamp() {
-    final newCategory = classifyTimestamp(widget.chat.lastUsed);
-    final newMinutes = DateTime.now()
-        .difference(widget.chat.lastUsed)
-        .inMinutes;
-    final categoryChanged = newCategory != _category;
-    final minutesChanged =
-        newCategory == TimestampCategory.minutes && newMinutes != _minutesAgo;
-    if (!categoryChanged && !minutesChanged) return;
-    _category = newCategory;
-    _minutesAgo = newMinutes;
-    final formatted = _format(newCategory);
-    if (formatted != _displayTimestamp) {
-      setState(() => _displayTimestamp = formatted);
-    }
-  }
-
-  String _format(TimestampCategory category) {
-    final loc = AppLocalizations.of(context);
-    final locale = Localizations.localeOf(context).toString();
-    final patterns = SystemDateTimeFormat.of(context);
-    final timePattern = patterns.timePattern ?? DateFormat.jm(locale).pattern!;
-    final datePattern = patterns.datePattern ?? DateFormat.yMd(locale).pattern!;
-    return formatTimestamp(
-      widget.chat.lastUsed,
-      loc,
-      category,
-      timePattern: timePattern,
-      datePattern: datePattern,
-      locale: locale,
-    );
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Baseline(
-      baseline: S.s12,
-      baselineType: TextBaseline.alphabetic,
-      child: Text(
-        _displayTimestamp,
-        style: typeScale.body.mini
-            .style(color: SemanticPalette.of(context).text.tertiary)
-            .copyWith(height: 1.0),
-      ),
-    );
-  }
-}
-
-class _ChatTitle extends StatelessWidget {
-  const _ChatTitle({required this.title});
-
-  final String title;
-
-  @override
-  Widget build(BuildContext context) {
-    return Baseline(
-      baseline: S.s16,
-      baselineType: TextBaseline.alphabetic,
-      child: Text(
-        title,
-        maxLines: 1,
-        overflow: TextOverflow.ellipsis,
-        style: typeScale.body.regular
-            .style(
-              weight: Weight.emphasized,
-              color: SemanticPalette.of(context).text.primary,
-            )
-            .copyWith(height: _previewLineHeight),
-      ),
-    );
-  }
-}
-
-enum TimestampCategory {
-  now,
-  minutes,
-  today,
-  yesterday,
-  thisWeek,
-  thisYear,
-  older,
-}
-
-TimestampCategory classifyTimestamp(DateTime timestamp, {DateTime? now}) {
-  now ??= DateTime.now();
-  final diff = now.difference(timestamp);
-
-  if (diff.inSeconds < 60) return TimestampCategory.now;
-  if (diff.inMinutes < 60) return TimestampCategory.minutes;
-  if (now.year == timestamp.year &&
-      now.month == timestamp.month &&
-      now.day == timestamp.day) {
-    return TimestampCategory.today;
-  }
-  final yesterday = DateTime(now.year, now.month, now.day - 1);
-  if (timestamp.year == yesterday.year &&
-      timestamp.month == yesterday.month &&
-      timestamp.day == yesterday.day) {
-    return TimestampCategory.yesterday;
-  }
-  if (diff.inDays < 7) return TimestampCategory.thisWeek;
-  if (now.year == timestamp.year) return TimestampCategory.thisYear;
-  return TimestampCategory.older;
-}
-
-String formatTimestamp(
-  DateTime timestamp,
-  AppLocalizations loc,
-  TimestampCategory category, {
-  required String timePattern,
-  required String datePattern,
-  required String locale,
-  DateTime? now,
-}) {
-  now ??= DateTime.now();
-  return switch (category) {
-    TimestampCategory.now => loc.timestamp_now,
-    TimestampCategory.minutes => loc.timestamp_minutesAgo(
-      now.difference(timestamp).inMinutes,
+  Widget build(BuildContext context) => LiveTime(
+    format: (context, now) => chatListStampLabel(
+      chat.lastUsed,
+      now: now,
+      formats: TimeFormats.of(context),
+      loc: AppLocalizations.of(context),
     ),
-    TimestampCategory.today => DateFormat(timePattern).format(timestamp),
-    TimestampCategory.yesterday => loc.date_yesterday,
-    TimestampCategory.thisWeek => DateFormat.E(locale).format(timestamp),
-    TimestampCategory.thisYear => DateFormat(
-      _stripYear(datePattern),
-    ).format(timestamp),
-    TimestampCategory.older => DateFormat(datePattern).format(timestamp),
-  };
-}
-
-/// Removes year tokens (y, Y) and surrounding separators from a
-/// date pattern, e.g. "M/d/yy" → "M/d", "dd.MM.yyyy" → "dd.MM".
-String _stripYear(String pattern) {
-  // Remove year tokens and any adjacent separator (/ . - , or space)
-  return pattern.replaceAll(RegExp(r"[/.\-,\s]*[yY]+[/.\-,\s]*"), '').trim();
+    builder: (context, label) => ChatListTimestamp(label: label),
+  );
 }

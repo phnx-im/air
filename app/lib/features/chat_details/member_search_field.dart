@@ -1,6 +1,8 @@
 // SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import 'package:air/ds/components/searchfield/searchfield.dart';
+import 'package:air/ds/components/searchfield/searchfield_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:flutter/material.dart';
 
@@ -18,7 +20,6 @@ class MemberSearchField extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
     return Padding(
       padding: const EdgeInsets.only(
         left: S.s16,
@@ -26,28 +27,11 @@ class MemberSearchField extends StatelessWidget {
         top: S.s24,
         bottom: S.s8,
       ),
-      child: TextField(
+      child: SearchField(
+        tokens: SearchFieldTokens.of(context),
         controller: controller,
+        hintText: hintText,
         onChanged: onChanged,
-        decoration: InputDecoration(
-          isDense: true,
-          visualDensity: VisualDensity.compact,
-          prefixIcon: const Padding(
-            padding: EdgeInsets.all(8.0),
-            child: AppIcon.search(size: 16),
-          ),
-          prefixIconConstraints: const BoxConstraints(
-            minWidth: 28,
-            minHeight: 28,
-          ),
-          hintText: hintText,
-          hintStyle: Theme.of(
-            context,
-          ).textTheme.bodyMedium?.copyWith(color: palette.text.quaternary),
-          border: OutlineInputBorder(
-            borderRadius: BorderRadius.circular(CornerRadius.px12),
-          ),
-        ),
       ),
     );
   }

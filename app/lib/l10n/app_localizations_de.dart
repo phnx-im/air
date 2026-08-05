@@ -61,9 +61,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get userSettingsScreen_usernamesSection => 'Benutzernamen';
 
   @override
-  String get userSettingsScreen_settingsSection => 'Einstellungen';
-
-  @override
   String get userSettingsScreen_helpSection => 'Hilfe';
 
   @override
@@ -74,6 +71,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get userSettingsScreen_devices => 'Geräte';
+
+  @override
+  String get youSection_profile => 'Profil';
+
+  @override
+  String get youSection_preferences => 'Einstellungen';
+
+  @override
+  String get youSection_developer => 'Entwickler';
 
   @override
   String get settingsScreen_copiedToClipboard => 'In Zwischenablage kopiert';
@@ -102,10 +108,13 @@ class AppLocalizationsDe extends AppLocalizations {
       'ein aktiver Chat ist erforderlich';
 
   @override
+  String get contactDetailsScreen_title => 'Profil';
+
+  @override
   String get contactDetailsScreen_chat => 'Chat';
 
   @override
-  String get contactDetailsScreen_viewSafetyCode => 'Sicherheitscode anzeigen';
+  String get contactDetailsScreen_viewSafetyCode => 'Sicherheitscode';
 
   @override
   String get contactDetailsScreen_mute => 'Stummschalten';
@@ -505,9 +514,6 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get linkingDevicesScreen_error_dismiss => 'Erneut versuchen';
-
-  @override
-  String get linkedDevicesScreen_title => 'Geräte';
 
   @override
   String get linkedDevicesScreen_thisDevice => 'Dieses Gerät';
@@ -1123,6 +1129,9 @@ class AppLocalizationsDe extends AppLocalizations {
       'Logs konnten nicht hochgeladen werden';
 
   @override
+  String get groupDetails_title => 'Gruppendetails';
+
+  @override
   String get groupDetails_leaveChat => 'Verlassen';
 
   @override
@@ -1144,9 +1153,6 @@ class AppLocalizationsDe extends AppLocalizations {
     );
     return '$_temp0';
   }
-
-  @override
-  String get groupDetails_groupDescription => 'Gruppe';
 
   @override
   String get groupMembersScreen_title => 'Gruppenmitglieder';
@@ -1329,4 +1335,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String messageList_reactions_all(Object total) {
     return 'Alle · $total';
   }
+
+  @override
+  String get emojiPicker_searchHint => 'Emoji suchen';
+
+  @override
+  String get emojiPicker_empty => 'Keine Emojis gefunden';
+
+  @override
+  String get emojiPicker_skinToneHelp => 'Legt deinen Standard-Hautton fest';
 }

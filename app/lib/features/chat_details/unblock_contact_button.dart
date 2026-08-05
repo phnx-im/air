@@ -4,9 +4,9 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/components/button/button.dart';
 import 'package:air/features/user/user_cubit.dart';
-import 'package:air/ds/patterns/dialog/show_confirmation_dialog.dart';
+import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
@@ -24,35 +24,28 @@ class UnblockContactButton extends StatelessWidget {
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final isDesktop = DeviceType.isDesktop;
-
-    final palette = SemanticPalette.of(context);
-
-    return OutlinedButton(
+    // Constructive, so it stays neutral where its counterpart reads as danger.
+    return Button(
       onPressed: () => _unblock(context),
-      style: ButtonStyle(
-        minimumSize: WidgetStatePropertyAll(
-          Size(isDesktop ? 320 : double.infinity, 0),
-        ),
-      ),
-      child: Text(
-        loc.unblockContactButton_text,
-        style: typeScale.body.regular.style(color: palette.text.primary),
-      ),
+      size: ButtonSize.of(context),
+      type: ButtonType.secondary,
+      label: loc.unblockContactButton_text,
     );
   }
 
   void _unblock(BuildContext context) async {
     final userCubit = context.read<UserCubit>();
     final loc = AppLocalizations.of(context);
-    final confirmed = await showConfirmationDialog(
-      context,
-      title: loc.unblockContactDialog_title(displayName),
-      message: loc.unblockContactDialog_content(displayName),
-      positiveButtonText: loc.unblockContactDialog_unblock,
-      negativeButtonText: loc.unblockContactDialog_cancel,
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => ConfirmDialog(
+        title: loc.unblockContactDialog_title(displayName),
+        message: loc.unblockContactDialog_content(displayName),
+        cancel: loc.unblockContactDialog_cancel,
+        confirm: loc.unblockContactDialog_unblock,
+      ),
     );
-    if (confirmed) {
+    if (confirmed ?? false) {
       userCubit.unblockContact(userId);
     }
   }

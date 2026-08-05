@@ -10,11 +10,14 @@ import 'package:air/l10n/l10n.dart';
 import 'package:air/features/message_list/message_list_view.dart';
 import 'package:air/features/message_list/message_list_cubit.dart';
 import 'package:air/features/message_list/message_cubit.dart';
-import 'package:air/features/message_list/message_reactions.dart';
+import 'package:air/ds/patterns/message_meta/message_meta.dart';
+import 'package:air/ds/patterns/reaction_bar/reaction_bar.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
+import 'package:air/util/time/time_labels.dart';
 import 'package:flutter/gestures.dart';
+import 'package:intl/intl.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -859,32 +862,237 @@ void main() {
       when(() => userSettingsCubit.state).thenReturn(const UserSettings());
     });
 
-    Widget buildSubject() => RepositoryProvider<AttachmentsRepository>.value(
-      value: attachmentsRepository,
-      child: MultiBlocProvider(
-        providers: [
-          BlocProvider<UserCubit>.value(value: userCubit),
-          BlocProvider<UsersCubit>.value(value: contactsCubit),
-          BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
-          BlocProvider<MessageListCubit>.value(value: messageListCubit),
-          BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
-        ],
-        child: Builder(
-          builder: (context) {
-            return MaterialApp(
-              debugShowCheckedModeBanner: false,
-              theme: testThemeData(MediaQuery.platformBrightnessOf(context)),
-              localizationsDelegates: AppLocalizations.localizationsDelegates,
-              home: const Scaffold(
-                body: MessageListView(
-                  createMessageCubit: createMockMessageCubit,
-                ),
-              ),
-            );
-          },
+    /// [platform] stands in for the host, which decides whether the rows carry
+    /// the pointer affordances or the touch ones.
+    Widget buildSubject({TargetPlatform? platform}) =>
+        RepositoryProvider<AttachmentsRepository>.value(
+          value: attachmentsRepository,
+          child: MultiBlocProvider(
+            providers: [
+              BlocProvider<UserCubit>.value(value: userCubit),
+              BlocProvider<UsersCubit>.value(value: contactsCubit),
+              BlocProvider<ChatDetailsCubit>.value(value: chatDetailsCubit),
+              BlocProvider<MessageListCubit>.value(value: messageListCubit),
+              BlocProvider<UserSettingsCubit>.value(value: userSettingsCubit),
+            ],
+            child: Builder(
+              builder: (context) {
+                return MaterialApp(
+                  debugShowCheckedModeBanner: false,
+                  theme: testThemeData(
+                    MediaQuery.platformBrightnessOf(context),
+                  ).copyWith(platform: platform),
+                  localizationsDelegates:
+                      AppLocalizations.localizationsDelegates,
+                  home: const Scaffold(
+                    body: MessageListView(
+                      createMessageCubit: createMockMessageCubit,
+                    ),
+                  ),
+                );
+              },
+            ),
+          ),
+        );
+
+    group('message stamps', () {
+      // The reader is user 1, per the MockUiUser above.
+      UiChatMessage stampFixture(
+        int id, {
+        required int sender,
+        bool edited = false,
+        UiMessageStatus status = UiMessageStatus.delivered,
+      }) => UiChatMessage(
+        id: id.messageId(),
+        chatId: chatId,
+        timestamp: DateTime.parse('2023-01-01T00:0$id:00.000Z'),
+        message: UiMessage_Content(
+          UiContentMessage(
+            sender: sender.userId(),
+            sent: true,
+            edited: edited,
+            content: UiMimiContent(
+              plainBody: 'Message $id',
+              topicId: Uint8List(0),
+              content: simpleMessage('Message $id'),
+              attachments: [],
+            ),
+          ),
         ),
-      ),
-    );
+        position: UiFlightPosition.single,
+        status: status,
+        reactions: [],
+      );
+
+      // The clock the stamp of message [id] carries. The fixtures are old
+      // enough that no stamp is still on its relative tier.
+      String stampLabel(int id) {
+        const locale = 'en_US';
+        return TimeFormats(
+          locale: locale,
+          timePattern: DateFormat.jm(locale).pattern!,
+          datePattern: DateFormat.yMd(locale).pattern!,
+        ).clock(DateTime.parse('2023-01-01T00:0$id:00.000Z').toLocal());
+      }
+
+      testWidgets('go on the end of the chat', (tester) async {
+        // Oldest first, and nobody's own: every row is a flight of its own, so
+        // a rule keyed on flight position rather than on the end of the chat
+        // would stamp them all.
+        messageListCubit.setState([
+          stampFixture(1, sender: 2),
+          stampFixture(2, sender: 3),
+          stampFixture(3, sender: 2),
+          stampFixture(4, sender: 3),
+        ]);
+
+        await tester.pumpWidget(buildSubject());
+
+        expect(find.byType(MessageMeta), findsOneWidget);
+        expect(find.text(stampLabel(4)), findsOneWidget);
+      });
+
+      testWidgets("go on the reader's own last message too", (tester) async {
+        messageListCubit.setState([
+          stampFixture(1, sender: 1),
+          stampFixture(2, sender: 2),
+          stampFixture(3, sender: 1),
+          stampFixture(4, sender: 2),
+        ]);
+
+        await tester.pumpWidget(buildSubject());
+
+        // The reader's own last message keeps its stamp even though someone has
+        // replied since, so how far it got stays on screen.
+        expect(find.byType(MessageMeta), findsNWidgets(2));
+        expect(find.text(stampLabel(3)), findsOneWidget);
+        expect(find.text(stampLabel(4)), findsOneWidget);
+      });
+
+      testWidgets('stay with an edited message wherever it sits', (
+        tester,
+      ) async {
+        messageListCubit.setState([
+          stampFixture(1, sender: 2),
+          stampFixture(2, sender: 3, edited: true),
+          stampFixture(3, sender: 2),
+          stampFixture(4, sender: 3),
+        ]);
+
+        await tester.pumpWidget(buildSubject());
+
+        // The edited message, and the end of the chat.
+        expect(find.byType(MessageMeta), findsNWidgets(2));
+        expect(find.text(stampLabel(2)), findsOneWidget);
+      });
+
+      testWidgets('stay with a send that failed', (tester) async {
+        messageListCubit.setState([
+          stampFixture(1, sender: 1, status: UiMessageStatus.error),
+          stampFixture(2, sender: 1),
+          stampFixture(3, sender: 2),
+        ]);
+
+        await tester.pumpWidget(buildSubject());
+
+        // The failed send, the reader's own last message, and the end of the
+        // chat.
+        expect(find.byType(MessageMeta), findsNWidgets(3));
+        expect(find.text(stampLabel(1)), findsOneWidget);
+      });
+
+      testWidgets('stay with a send nobody has received yet', (tester) async {
+        messageListCubit.setState([
+          stampFixture(1, sender: 1, status: UiMessageStatus.sent),
+          stampFixture(2, sender: 1),
+          stampFixture(3, sender: 2),
+        ]);
+
+        await tester.pumpWidget(buildSubject());
+
+        // The undelivered send, the reader's own last message, and the end of
+        // the chat.
+        expect(find.byType(MessageMeta), findsNWidgets(3));
+        expect(find.text(stampLabel(1)), findsOneWidget);
+      });
+
+      testWidgets('leave a send that landed with someone alone', (
+        tester,
+      ) async {
+        messageListCubit.setState([
+          stampFixture(1, sender: 1, status: UiMessageStatus.delivered),
+          stampFixture(2, sender: 1),
+          stampFixture(3, sender: 2),
+        ]);
+
+        await tester.pumpWidget(buildSubject());
+
+        // Only the reader's own last message and the end of the chat.
+        expect(find.byType(MessageMeta), findsNWidgets(2));
+        expect(find.text(stampLabel(1)), findsNothing);
+      });
+
+      testWidgets('are reachable on hover, beside the bubble and not on it', (
+        tester,
+      ) async {
+        messageListCubit.setState([
+          stampFixture(1, sender: 1),
+          stampFixture(2, sender: 2),
+          stampFixture(3, sender: 1),
+          stampFixture(4, sender: 2),
+        ]);
+
+        await tester.pumpWidget(buildSubject(platform: TargetPlatform.macOS));
+
+        // Message 2 is not the end of the chat, so it carries no stamp of its
+        // own and the pointer is the only way to its time.
+        //
+        // The clock alone, as under a bubble: the pointer reveals the same
+        // stamp the meta row would have carried, never a day beside it.
+        final label = stampLabel(2);
+        final body = find.text('Message 2', findRichText: true);
+
+        final pointer = await tester.createGesture(
+          kind: PointerDeviceKind.mouse,
+        );
+        await pointer.addPointer(location: Offset.zero);
+        addTearDown(pointer.removePointer);
+        await pointer.moveTo(tester.getCenter(body));
+        await tester.pump();
+
+        // It waits out the hover delay, so skimming the conversation raises
+        // nothing.
+        expect(find.text(label), findsNothing);
+        final bubbleBefore = tester.getRect(body);
+        await tester.pump(const Duration(milliseconds: 700));
+        expect(find.text(label), findsOneWidget);
+
+        // An incoming row keeps its affordances to the right of the bubble, and
+        // the time joins them there rather than covering the message.
+        expect(
+          tester.getRect(find.text(label)).left,
+          greaterThan(bubbleBefore.right),
+        );
+        // The label rides in the row without taking any of it: the bubble sits
+        // exactly where it did before the pointer arrived.
+        expect(tester.getRect(body), bubbleBefore);
+      });
+
+      testWidgets('are withheld while newer messages remain unloaded', (
+        tester,
+      ) async {
+        // Jumped into the middle of a history: neither the newest row on screen
+        // nor the reader's own newest is the last of its kind in the chat.
+        messageListCubit.setState([
+          stampFixture(1, sender: 1),
+          stampFixture(2, sender: 2),
+        ], hasNewer: true);
+
+        await tester.pumpWidget(buildSubject());
+
+        expect(find.byType(MessageMeta), findsNothing);
+      });
+    });
 
     testWidgets('renders correctly when empty', (tester) async {
       messageListCubit.setState(const []);
@@ -1457,7 +1665,7 @@ void main() {
         // and swallow the second click, leaving no word selection.
         expect(paragraph.selections, hasLength(1));
         expect(paragraph.selections.single.isCollapsed, isFalse);
-        expect(find.byType(QuickReactionBar), findsNothing);
+        expect(find.byType(ReactionBar), findsNothing);
       },
       variant: TargetPlatformVariant.only(TargetPlatform.macOS),
     );

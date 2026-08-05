@@ -19,10 +19,12 @@ enum AppIconType {
   checkCheckFill,
   checkCheck,
   check,
+  chevronDown,
+  chevronLeft,
   chevronRight,
-  chevronsDown,
   circleAlert,
   circleDashed,
+  circleHelp,
   copy,
   cornerLeft,
   download,
@@ -33,6 +35,7 @@ enum AppIconType {
   imageOff,
   imagePlus,
   image,
+  key,
   laptop,
   logOut,
   messageCircle,
@@ -51,6 +54,8 @@ enum AppIconType {
   shield,
   smilePlus,
   squareCheck,
+  squarePen,
+  squareTerminal,
   square,
   tag,
   trash,
@@ -91,17 +96,23 @@ final Map<AppIconType, _InlineBytesLoader> _compiledSvgLoaders = {
   AppIconType.check: const _InlineBytesLoader(
     'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAADAAAAAAEBBgAAAAAAAAAAoEEAAMBAAAAQQQAAiEEAAIBAAABAQTAeAAAAAP//',
   ),
+  AppIconType.chevronDown: const _InlineBytesLoader(
+    'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAABAAAD//xsAAAADAAAAAAEBBgAAAAAAAAAAwEAAABBBAABAQQAAcEEAAJBBAAAQQTAeAAAAAP//',
+  ),
+  AppIconType.chevronLeft: const _InlineBytesLoader(
+    'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAABAAAD//xsAAAADAAAAAAEBBgAAAAAAAAAAcEEAAJBBAAAQQQAAQEEAAHBBAADAQDAeAAAAAP//',
+  ),
   AppIconType.chevronRight: const _InlineBytesLoader(
     'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAABAAAD//xsAAAADAAAAAAEBBgAAAAAAAAAAEEEAAJBBAABwQQAAQEEAABBBAADAQDAeAAAAAP//',
-  ),
-  AppIconType.chevronsDown: const _InlineBytesLoader(
-    'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAADAAAAAAEBBgAAAAAAAAAA4EAAAMBAAABAQQAAMEEAAIhBAADAQBsAAQADAAAAAAEBBgAAAAAAAOBAAABQQQAAQEEAAJBBAACIQQAAUEEwHgAAAAD//x4BAAAA//8=',
   ),
   AppIconType.circleAlert: const _InlineBytesLoader(
     'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAAGAAAAAAICAgIDGgAAAAAAQEEAAABAOCeMQQAAAEAAALBBH2PPQAAAsEEAAEBBAACwQTgnjEE4J4xBAACwQQAAQEEAALBBH2PPQAAAsEEAAABAOCeMQQAAAEAAAEBBAAAAQB9jz0AfY89AAAAAQAAAQEEAAABAGwABAAIAAAAAAQQAAAAAAAAAQEEAAABBAABAQQAAQEEbAAIAAgAAAAABBAAAAAAAAABAQQAAgEH2KEBBAACAQTAeAAAAAP//HgEAAAD//x4CAAAA//8=',
   ),
   AppIconType.circleDashed: const _InlineBytesLoader(
     'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAACAAAAAAIIAAAAmpkhQeOlC0AurjVBIDX4P9NRSkEgNfg/Z2ZeQeOlC0AbAAEAAgAAAAACCAAAAAAAZmZeQUSLrkHTUUpBrnywQS6uNUGufLBBmpkhQUSLrkEbAAIAAgAAAAACCAAAAAAAO9+MQd0kbkAfXZVBTxaOQHarnEF4a6tAWmSiQdV4zUAbAAMAAgAAAAACCAAAAAAA46ULQGZmXkEgNfg/01FKQSA1+D8urjVB46ULQJqZIUEbAAQAAgAAAAACCAAAAAAAZDuiQTvfjEFsepxBH12VQSIllUF2q5xBy6GMQVpkokEbAAUAAgAAAAACCAAAAAAARIuuQZqZIUGufLBBLq41Qa58sEHTUUpBRIuuQWdmXkEbAAYAAgAAAAACCAAAAAAA3SRuQBKDzEBPFo5Ag4uqQHhrq0AqUo1A1XjNQC/dbEAbAAcAAgAAAAACCAAAAAAAEoPMQGQ7okGDi6pAbHqcQSpSjUAiJZVBL91sQMuhjEEwHgAAAAD//x4BAAAA//8eAgAAAP//HgMAAAD//x4EAAAA//8eBQAAAP//HgYAAAD//x4HAAAA//8=',
+  ),
+  AppIconType.circleHelp: const _InlineBytesLoader(
+    'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAAGAAAAAAICAgIDGgAAAAAAQEEAAABAOCeMQQAAAEAAALBBH2PPQAAAsEEAAEBBAACwQTgnjEE4J4xBAACwQQAAQEEAALBBH2PPQAAAsEEAAABAOCeMQQAAAEAAAEBBAAAAQB9jz0AfY89AAAAAQAAAQEEAAABAGwABAAQAAAAAAgICFAAAAKRwEUEAABBB/TQZQWfX80AixC9BM1PZQLfVRkEhPeFATeddQQ8n6UBAwW5BLpgIQVK4bkEAACBBUrhuQQAAQEFSuD5BAABQQVK4PkEAAFBBGwACAAIAAAAAAQQAAAAAAAAAQEEAAIhB9ihAQQAAiEEwHgAAAAD//x4BAAAA//8eAgAAAP//',
   ),
   AppIconType.copy: const _InlineBytesLoader(
     'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAAKAAAAAAECAQIBAgECAyIAAAAAACBBAAAAQQAAoEEAAABBpdSoQQAAAEEAALBBtlYOQQAAsEEAACBBAACwQQAAoEEAALBBpdSoQaXUqEEAALBBAACgQQAAsEEAACBBAACwQbZWDkEAALBBAAAAQaXUqEEAAABBAACgQQAAAEEAACBBAAAAQbZWDkG2Vg5BAAAAQQAAIEEAAABBGwABAAYAAAAAAgECAQIYAAAAAAAAAIBAAACAQZqZOUAAAIBBAAAAQJqZcUEAAABAAABgQQAAAEAAAIBAAAAAQJqZOUCamTlAAAAAQAAAgEAAAABAAABgQQAAAECamXFBAAAAQAAAgEGamTlAAACAQQAAgEAwHgAAAAD//x4BAAAA//8=',
@@ -132,6 +143,9 @@ final Map<AppIconType, _InlineBytesLoader> _compiledSvgLoaders = {
   ),
   AppIconType.image: const _InlineBytesLoader(
     'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAAKAAAAAAECAQIBAgECAyIAAAAAAKBAAABAQAAAmEEAAEBApdSgQQAAQEAAAKhB2Vp5QAAAqEEAAKBAAACoQQAAmEEAAKhBpdSgQaXUoEEAAKhBAACYQQAAqEEAAKBAAACoQdlaeUAAAKhBAABAQKXUoEEAAEBAAACYQQAAQEAAAKBAAABAQNlaeUDZWnlAAABAQAAAoEAAAEBAGwABAAYAAAAAAgICAgMaAAAAAAAAABBBAADgQEqpIUEAAOBAAAAwQW2t/EAAADBBAAAQQQAAMEFKqSFBSqkhQQAAMEEAABBBAAAwQW2t/EAAADBBAADgQEqpIUEAAOBAAAAQQQAA4EBtrfxAba38QAAA4EAAABBBAADgQBsAAgAEAAAAAAECAQwAAAAAAKhBAABwQd9Pj0G+nz5BYhCJQbwhMkE7331BvCEyQUJgcUG+nz5BAADAQAAAqEEwHgAAAAD//x4BAAAA//8eAgAAAP//',
+  ),
+  AppIconType.key: const _InlineBytesLoader(
+    'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAAGAAAAAAECAQIBFAAAAAAAeEEAAPBAZmaOQc3MHEHAgpFB9uUiQUB9lkH25SJBmpmZQc3MHEFmZqpBZmb2QPtyrUH+9OlA+3KtQQIL1kBmZqpBmpnJQAAAmEEAAIBAGwABAAIAAAAAAQQAAAAAAAAAqEEAAABAZmY2QZqZOUEbAAIABgAAAAACAgICAxoAAAAAAAAA8EAAACBBi5EoQQAAIEEAAFBBdW5HQQAAUEEAAHhBAABQQcVIlEGLkShBAACoQQAA8EAAAKhB69yOQAAAqEEAAABAxUiUQQAAAEAAAHhBAAAAQHVuR0Hr3I5AAAAgQQAA8EAAACBBMB4AAAAA//8eAQAAAP//HgIAAAD//w==',
   ),
   AppIconType.laptop: const _InlineBytesLoader(
     'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAABAAAD//xsAAAAPAAAAAAIBAgECAgECAgECAQIDPAAAAAAAAAAAkEEAAKBAKdaYQQAAoEAAAKBBXqe8QAAAoEEAAOBAAACgQX9qeEG5/59BG2Z9QWaUoEEbKIFBLbKhQU5ig0FxPapBZmaUQYZ+q0GN45ZB31yrQePZmUGb5KlBFzicQVdsqEFLlp5BtdOlQfwEoEE9CqNBAACgQRSuZ0AAAKBBW2JRQPwEoEFFnTxAS5aeQSfbMEAXOJxBChklQOPZmUHNCyRAjeOWQXsULkBmZpRBmG5yQE5ig0HTXHtAGyiBQRsBgEAbZn1BAACAQH9qeEEAAIBAAADgQAAAgEBep7xAXqecQAAAoEAAAMBAAACgQBsAAQACAAAAAAEEAAAAAACYbqBBwcp/QUSLfEDByn9BMB4AAAAA//8eAQAAAP//',
@@ -186,6 +200,12 @@ final Map<AppIconType, _InlineBytesLoader> _compiledSvgLoaders = {
   ),
   AppIconType.squareCheck: const _InlineBytesLoader(
     'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAAKAAAAAAECAQIBAgECAyIAAAAAAKBAAABAQAAAmEEAAEBApdSgQQAAQEAAAKhB2Vp5QAAAqEEAAKBAAACoQQAAmEEAAKhBpdSgQaXUoEEAAKhBAACYQQAAqEEAAKBAAACoQdlaeUAAAKhBAABAQKXUoEEAAEBAAACYQQAAQEAAAKBAAABAQNlaeUDZWnlAAABAQAAAoEAAAEBAGwABAAMAAAAAAQEGAAAAAAAAEEEAAEBBAAAwQQAAYEEAAHBBAAAgQTAeAAAAAP//HgEAAAD//w==',
+  ),
+  AppIconType.squarePen: const _InlineBytesLoader(
+    'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAAIAAAAAAECAQIBAgEcAAAAAAAAAEBBAABAQAAAoEAAAEBAvE55QAAAQEAAAEBAvE55QAAAQEAAAKBAAABAQAAAmEEAAEBAKdagQbxOeUAAAKhBAACgQAAAqEEAAJhBAACoQSnWoEEAAKhBAACoQSnWoEEAAKhBAACYQQAAqEEAAEBBGwABAAsAAAAAAgIBAgECAgECAywAAAAAAACTQQAAKECeoJlBGfblP2FfpEEZ9uU/AACrQQAAKECeoLFB8wRdQJ6gsUGGfZlAAACrQQAAtEDBykVBWDlqQSf+QUEbBW5Bnkw9QXLMcEHdJDhB001yQQ4tCkF3vn9BLF8HQexHgEE8WARBUMl/QXZHAkGKuH1BsDYAQcSne0FO4P5A1KB4QYlBAEHy0nVBLbINQSPbR0FbNQ9Bb7RCQRf+EUFVBD5BwcoVQVg5OkEwHgAAAAD//x4BAAAA//8=',
+  ),
+  AppIconType.squareTerminal: const _InlineBytesLoader(
+    'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAADAAAAAAEBBgAAAAAAAAAA4EAAADBBAAAQQQAAEEEAAOBAAADgQBsAAQACAAAAAAEEAAAAAAAAADBBAABQQQAAcEEAAFBBGwACAAoAAAAAAQIBAgECAQIDIgAAAAAAAACgQAAAQEAAAJhBAABAQKXUoEEAAEBAAACoQdlaeUAAAKhBAACgQAAAqEEAAJhBAACoQaXUoEGl1KBBAACoQQAAmEEAAKhBAACgQAAAqEHZWnlAAACoQQAAQECl1KBBAABAQAAAmEEAAEBAAACgQAAAQEDZWnlA2Vp5QAAAQEAAAKBAAABAQDAeAAAAAP//HgEAAAD//x4CAAAA//8=',
   ),
   AppIconType.square: const _InlineBytesLoader(
     'Yi2IAAEpAADAQQAAwEEdAAAA/wEBAwAAgEAAAOA/AAD//xsAAAAKAAAAAAECAQIBAgECAyIAAAAAAKBAAABAQAAAmEEAAEBApdSgQQAAQEAAAKhB2Vp5QAAAqEEAAKBAAACoQQAAmEEAAKhBpdSgQaXUoEEAAKhBAACYQQAAqEEAAKBAAACoQdlaeUAAAKhBAABAQKXUoEEAAEBAAACYQQAAQEAAAKBAAABAQNlaeUDZWnlAAABAQAAAoEAAAEBAMB4AAAAA//8=',
@@ -272,13 +292,18 @@ class AppIcon extends StatelessWidget {
       fit = BoxFit.contain,
       alignment = Alignment.center;
 
-  const AppIcon.chevronRight({super.key, this.size, this.color})
-    : type = AppIconType.chevronRight,
+  const AppIcon.chevronDown({super.key, this.size, this.color})
+    : type = AppIconType.chevronDown,
       fit = BoxFit.contain,
       alignment = Alignment.center;
 
-  const AppIcon.chevronsDown({super.key, this.size, this.color})
-    : type = AppIconType.chevronsDown,
+  const AppIcon.chevronLeft({super.key, this.size, this.color})
+    : type = AppIconType.chevronLeft,
+      fit = BoxFit.contain,
+      alignment = Alignment.center;
+
+  const AppIcon.chevronRight({super.key, this.size, this.color})
+    : type = AppIconType.chevronRight,
       fit = BoxFit.contain,
       alignment = Alignment.center;
 
@@ -289,6 +314,11 @@ class AppIcon extends StatelessWidget {
 
   const AppIcon.circleDashed({super.key, this.size, this.color})
     : type = AppIconType.circleDashed,
+      fit = BoxFit.contain,
+      alignment = Alignment.center;
+
+  const AppIcon.circleHelp({super.key, this.size, this.color})
+    : type = AppIconType.circleHelp,
       fit = BoxFit.contain,
       alignment = Alignment.center;
 
@@ -339,6 +369,11 @@ class AppIcon extends StatelessWidget {
 
   const AppIcon.image({super.key, this.size, this.color})
     : type = AppIconType.image,
+      fit = BoxFit.contain,
+      alignment = Alignment.center;
+
+  const AppIcon.key({super.key, this.size, this.color})
+    : type = AppIconType.key,
       fit = BoxFit.contain,
       alignment = Alignment.center;
 
@@ -429,6 +464,16 @@ class AppIcon extends StatelessWidget {
 
   const AppIcon.squareCheck({super.key, this.size, this.color})
     : type = AppIconType.squareCheck,
+      fit = BoxFit.contain,
+      alignment = Alignment.center;
+
+  const AppIcon.squarePen({super.key, this.size, this.color})
+    : type = AppIconType.squarePen,
+      fit = BoxFit.contain,
+      alignment = Alignment.center;
+
+  const AppIcon.squareTerminal({super.key, this.size, this.color})
+    : type = AppIconType.squareTerminal,
       fit = BoxFit.contain,
       alignment = Alignment.center;
 

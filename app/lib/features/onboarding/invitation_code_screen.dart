@@ -4,16 +4,23 @@
 
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/components/text_input/text_input.dart';
+import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/constrained_width/constrained_width.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/features/navigation/app_bar_back_button.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
-import 'package:flutter/services.dart'; // Import for FilteringTextInputFormatter
+import 'package:flutter/services.dart';
 import 'package:provider/provider.dart';
 
 import 'package:air/features/onboarding/registration_cubit.dart';
+
+/// An invitation code is exactly this long, so the same number caps the field,
+/// bounds the counter under it, and decides whether the code is complete.
+const int _codeLength = 8;
 
 class InvitationCodeScreen extends HookWidget {
   const InvitationCodeScreen({super.key});
@@ -24,8 +31,37 @@ class InvitationCodeScreen extends HookWidget {
     final palette = SemanticPalette.of(context);
     final backgroundColor = palette.backgroundBase.secondary;
 
-    final formKey = useMemoized(() => GlobalKey<FormState>());
+    final serverFieldVisible = useState(false);
     final showErrors = useState(false);
+    final codeError = useState<String?>(null);
+    final domainError = useState<String?>(null);
+
+    bool validate() {
+      final state = context.read<RegistrationCubit>().state;
+      final code = state.invitationCode;
+      codeError.value = code == null || code.length != _codeLength
+          ? loc.invitationCodeScreen_error_invalidLength
+          : null;
+      // The server field only carries a rule while it is on screen.
+      domainError.value = serverFieldVisible.value && !state.isDomainValid
+          ? loc.signUpScreen_error_invalidDomain
+          : null;
+      return codeError.value == null && domainError.value == null;
+    }
+
+    // Typing only moves the errors once the user has asked to join, so the
+    // first attempt is what puts them on screen.
+    void revalidate() {
+      if (showErrors.value) {
+        validate();
+      }
+    }
+
+    void submit() {
+      if (validate()) {
+        _submit(context);
+      }
+    }
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -55,9 +91,14 @@ class InvitationCodeScreen extends HookWidget {
                           horizontal: S.s16,
                           vertical: S.s12,
                         ),
-                        child: _Form(
-                          formKey: formKey,
-                          showErrors: showErrors.value,
+                        child: _Body(
+                          serverFieldVisible: serverFieldVisible.value,
+                          onRevealServerField: () =>
+                              serverFieldVisible.value = true,
+                          codeError: codeError.value,
+                          domainError: domainError.value,
+                          onChanged: revalidate,
+                          onSubmitted: submit,
                         ),
                       );
                     },
@@ -66,7 +107,12 @@ class InvitationCodeScreen extends HookWidget {
                 Container(
                   padding: const EdgeInsets.symmetric(horizontal: S.s24),
                   width: context.breakpoint.isSmall ? double.infinity : null,
-                  child: _JoinButton(formKey: formKey, showErrors: showErrors),
+                  child: _JoinButton(
+                    onPressed: () {
+                      showErrors.value = true;
+                      submit();
+                    },
+                  ),
                 ),
                 const SizedBox(height: S.s16),
               ],
@@ -78,11 +124,22 @@ class InvitationCodeScreen extends HookWidget {
   }
 }
 
-class _Form extends HookWidget {
-  const _Form({required this.formKey, required this.showErrors});
+class _Body extends StatelessWidget {
+  const _Body({
+    required this.serverFieldVisible,
+    required this.onRevealServerField,
+    required this.codeError,
+    required this.domainError,
+    required this.onChanged,
+    required this.onSubmitted,
+  });
 
-  final GlobalKey<FormState> formKey;
-  final bool showErrors;
+  final bool serverFieldVisible;
+  final VoidCallback onRevealServerField;
+  final String? codeError;
+  final String? domainError;
+  final VoidCallback onChanged;
+  final VoidCallback onSubmitted;
 
   @override
   Widget build(BuildContext context) {
@@ -94,209 +151,166 @@ class _Form extends HookWidget {
           : const Size(300, 120),
     );
 
-    final serverFieldVisible = useState(false);
-
-    return Form(
-      key: formKey,
-      autovalidateMode: showErrors ? .always : .disabled,
-      child: Column(
-        crossAxisAlignment: .center,
-        children: [
-          GestureDetector(
-            onLongPress: () => serverFieldVisible.value = true,
-            child: Text(
-              loc.invitationCodeScreen_subheader,
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.left,
-            ),
+    return Column(
+      crossAxisAlignment: .center,
+      children: [
+        GestureDetector(
+          onLongPress: onRevealServerField,
+          child: Text(
+            loc.invitationCodeScreen_subheader,
+            style: Theme.of(context).textTheme.bodyMedium,
+            textAlign: TextAlign.left,
           ),
-          const SizedBox(height: S.s64),
+        ),
+        const SizedBox(height: S.s64),
+
+        ConstrainedBox(
+          constraints: textFormConstraints,
+          child: _InvitationCodeTextField(
+            errorText: codeError,
+            onChanged: onChanged,
+            onSubmitted: onSubmitted,
+          ),
+        ),
+
+        if (serverFieldVisible) ...[
+          Text(
+            loc.signUpScreen_serverLabel,
+            style: Theme.of(context).textTheme.bodyMedium,
+            textAlign: TextAlign.left,
+          ),
+          const SizedBox(height: S.s16),
 
           ConstrainedBox(
             constraints: textFormConstraints,
-            child: _InvitationCodeTextField(
-              onFieldSubmitted: () => _submit(context, formKey),
+            child: _ServerTextField(
+              errorText: domainError,
+              onChanged: onChanged,
+              onSubmitted: onSubmitted,
             ),
           ),
-
-          if (serverFieldVisible.value) ...[
-            Text(
-              loc.signUpScreen_serverLabel,
-              style: Theme.of(context).textTheme.bodyMedium,
-              textAlign: TextAlign.left,
-            ),
-            const SizedBox(height: S.s16),
-
-            ConstrainedBox(
-              constraints: textFormConstraints,
-              child: _ServerTextField(
-                onFieldSubmitted: () => _submit(context, formKey),
-              ),
-            ),
-          ],
-
-          const SizedBox(height: S.s16),
         ],
-      ),
-    );
-  }
-}
 
-class _InvitationCodeTextField extends HookWidget {
-  const _InvitationCodeTextField({required this.onFieldSubmitted});
-
-  final VoidCallback onFieldSubmitted;
-
-  @override
-  Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-    final palette = SemanticPalette.of(context);
-
-    final focusNode = useFocusNode();
-
-    const allowedCharactersRegex = r'[A-HJKMNP-Z0-9]';
-    final inputFormatter = FilteringTextInputFormatter.allow(
-      RegExp(allowedCharactersRegex),
-    );
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: S.s8,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: S.s8),
-          child: Text(
-            loc.invitationCodeScreen_inputLabel,
-            style: typeScale.body.xs.style(color: palette.text.quaternary),
-          ),
-        ),
-        TextFormField(
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: loc.invitationCodeScreen_inputHint,
-            fillColor: palette.backgroundBase.tertiary,
-            helperStyle: typeScale.body.xs.style(
-              color: palette.text.quaternary,
-            ),
-          ),
-          maxLength: 8,
-          inputFormatters: [
-            inputFormatter,
-            LengthLimitingTextInputFormatter(8),
-          ],
-          textCapitalization: TextCapitalization.characters,
-          keyboardType: TextInputType.visiblePassword,
-          onChanged: (value) {
-            context.read<RegistrationCubit>().setInvitationCode(value);
-          },
-          onFieldSubmitted: (_) {
-            focusNode.requestFocus();
-            onFieldSubmitted();
-          },
-          validator: (value) {
-            final code = context.read<RegistrationCubit>().state.invitationCode;
-            if (code == null || code.length != 8) {
-              return loc.invitationCodeScreen_error_invalidLength;
-            }
-            return null;
-          },
-        ),
+        const SizedBox(height: S.s16),
       ],
     );
   }
 }
 
-class _JoinButton extends StatelessWidget {
-  const _JoinButton({required this.formKey, required this.showErrors});
+class _InvitationCodeTextField extends StatelessWidget {
+  const _InvitationCodeTextField({
+    required this.errorText,
+    required this.onChanged,
+    required this.onSubmitted,
+  });
 
-  final GlobalKey<FormState> formKey;
-  final ValueNotifier<bool> showErrors;
+  final String? errorText;
+  final VoidCallback onChanged;
+  final VoidCallback onSubmitted;
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final palette = SemanticPalette.of(context);
+    final length = context.select(
+      (RegistrationCubit cubit) => cubit.state.invitationCode?.length ?? 0,
+    );
+
+    const allowedCharactersRegex = r'[A-HJKMNP-Z0-9]';
+    // The keyboard's shift state is only a hint, and a hardware keyboard
+    // ignores it, so input is folded before the filter below drops whatever
+    // falls outside the code alphabet.
+    final upperCaseFormatter = TextInputFormatter.withFunction(
+      (oldValue, newValue) =>
+          newValue.copyWith(text: newValue.text.toUpperCase()),
+    );
+    final inputFormatter = FilteringTextInputFormatter.allow(
+      RegExp(allowedCharactersRegex),
+    );
+
+    return AppTextInput(
+      tokens: AppTextInputTokens.of(context),
+      autofocus: true,
+      label: loc.invitationCodeScreen_inputLabel,
+      hintText: loc.invitationCodeScreen_inputHint,
+      // The field caps the length silently, so how far along the code is has
+      // to be said here. An error takes the same line, being the more urgent
+      // of the two.
+      helperText: '$length/$_codeLength',
+      errorText: errorText,
+      maxLength: _codeLength,
+      inputFormatters: [upperCaseFormatter, inputFormatter],
+      textCapitalization: TextCapitalization.characters,
+      keyboardType: TextInputType.visiblePassword,
+      onChanged: (value) {
+        context.read<RegistrationCubit>().setInvitationCode(value);
+        onChanged();
+      },
+      onSubmitted: (_) => onSubmitted(),
+    );
+  }
+}
+
+class _JoinButton extends StatelessWidget {
+  const _JoinButton({required this.onPressed});
+
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
     final isCheckingInvitationCode = context.select(
       (RegistrationCubit cubit) => cubit.state.isCheckingInvitationCode,
     );
 
-    return OutlinedButton(
-      style: OutlinedButtonTheme.of(context).style!.copyWith(
-        backgroundColor: WidgetStateProperty.all(palette.accentBrand.primary),
-        foregroundColor: WidgetStateProperty.all(
-          palette.function.neutral.toggleWhite,
-        ),
-      ),
-      onPressed: isCheckingInvitationCode
-          ? null
-          : () {
-              showErrors.value = true;
-              if (!formKey.currentState!.validate()) {
-                return;
-              }
-              _submit(context, formKey);
-            },
-      child: isCheckingInvitationCode
-          ? SizedBox(
-              height: 20,
-              width: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: StrokeWidth.px2,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  palette.function.neutral.toggleWhite,
-                ),
-              ),
-            )
-          : Text(
-              loc.invitationCodeScreen_actionButton,
-              style: typeScale.body.regular.style(
-                color: palette.function.neutral.toggleWhite,
-              ),
-            ),
+    return Button(
+      onPressed: onPressed,
+      label: loc.invitationCodeScreen_actionButton,
+      state: isCheckingInvitationCode
+          ? ButtonState.pending
+          : ButtonState.active,
     );
   }
 }
 
 class _ServerTextField extends HookWidget {
-  const _ServerTextField({required this.onFieldSubmitted});
+  const _ServerTextField({
+    required this.errorText,
+    required this.onChanged,
+    required this.onSubmitted,
+  });
 
-  final VoidCallback onFieldSubmitted;
+  final String? errorText;
+  final VoidCallback onChanged;
+  final VoidCallback onSubmitted;
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final palette = SemanticPalette.of(context);
-
     final focusNode = useFocusNode();
+    final controller = useTextEditingController(
+      text: context.read<RegistrationCubit>().state.domain,
+    );
 
-    return TextFormField(
-      decoration: InputDecoration(
-        hintText: loc.signUpScreen_serverHint,
-        fillColor: palette.backgroundBase.tertiary,
-      ),
-      initialValue: context.read<RegistrationCubit>().state.domain,
+    return AppTextInput(
+      tokens: AppTextInputTokens.of(context),
+      controller: controller,
       focusNode: focusNode,
+      hintText: loc.signUpScreen_serverHint,
+      errorText: errorText,
       onChanged: (String value) {
         context.read<RegistrationCubit>().setDomain(value);
+        onChanged();
       },
-      onFieldSubmitted: (_) {
+      onSubmitted: (_) {
         focusNode.requestFocus();
-        onFieldSubmitted();
+        onSubmitted();
       },
-      validator: (value) =>
-          context.read<RegistrationCubit>().state.isDomainValid
-          ? null
-          : loc.signUpScreen_error_invalidDomain,
     );
   }
 }
 
-void _submit(BuildContext context, GlobalKey<FormState> formKey) async {
-  if (!formKey.currentState!.validate()) {
-    return;
-  }
-
+void _submit(BuildContext context) async {
   final navigationCubit = context.read<NavigationCubit>();
   final registrationCubit = context.read<RegistrationCubit>();
 

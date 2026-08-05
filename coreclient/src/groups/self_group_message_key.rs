@@ -428,6 +428,7 @@ mod derivation_tests {
         component::{AIR_COMPONENT_ID, AirComponent},
         self_group::{AppEphemeralPayload, SelfGroupMessage, SelfGroupMessages, SettingsUpdate},
     };
+    use openmls::group::{AppDataUpdateValidationError, CreateCommitError};
     use openmls::prelude::{AppEphemeralProposal, GroupId, Proposal};
     use openmls_traits::OpenMlsProvider;
     use uuid::Uuid;
@@ -672,14 +673,12 @@ mod derivation_tests {
         Ok(())
     }
 
-    /// A commit that flips the self-group flag is detectable: the live group
-    /// context still claims self-group, but the staged commit's provisional
-    /// context does not. This is exactly the difference the commit-time guard
-    /// in `post_process_staged_commit` rejects. The full guard runs against a
-    /// received commit and needs the client/DS stack, so it is covered by the
-    /// integration tests; here we exercise the helper on a real staged commit.
+    /// The group requires the AppDataUpdate proposal type, so a bare
+    /// GroupContextExtensions proposal must not touch the app data dictionary
+    /// (openmls/openmls#2125). The same validation runs on the receive path,
+    /// making the guard in `post_process_staged_commit` defense in depth.
     #[tokio::test(flavor = "multi_thread")]
-    async fn commit_flipping_self_group_flag_is_detectable() -> anyhow::Result<()> {
+    async fn commit_flipping_self_group_flag_is_rejected() -> anyhow::Result<()> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let (_sg_signer, signer) = self_group_signer()?;
 
@@ -694,36 +693,29 @@ mod derivation_tests {
         )?;
         assert!(group.is_self_group());
 
-        // Build a group-context-extensions commit that clears the self-group
-        // flag by replacing the AIR component in the app data dictionary.
+        // Extensions that clear the self-group flag by replacing the AIR
+        // component in the app data dictionary.
         let mut flipped = group.mls_group().extensions().clone();
         flipped.add_or_replace(default_group_context_app_data_dictionary_extension(
             AirComponent::default_for_leaf_or_key_package(),
             None,
         ))?;
-        {
-            let provider = AirOpenMlsProvider::new(txn.as_mut());
-            let (t_mls_group, _pq_mls_group) = group.apq_mls_groups_mut()?;
-            t_mls_group
-                .commit_builder()
-                .propose_group_context_extensions(flipped)?
-                .load_psks(provider.storage())?
-                .build(provider.rand(), provider.crypto(), &signer, |_| true)?
-                .stage_commit(&provider)?;
-        }
+        assert!(!extensions_claim_self_group(&flipped));
 
-        let staged = group
-            .mls_group()
-            .pending_commit()
-            .expect("commit should be staged");
-        assert!(
-            extensions_claim_self_group(group.mls_group().extensions()),
-            "live context still claims self-group"
-        );
-        assert!(
-            !extensions_claim_self_group(staged.group_context().extensions()),
-            "staged commit context drops the self-group flag"
-        );
+        let provider = AirOpenMlsProvider::new(txn.as_mut());
+        let (t_mls_group, _pq_mls_group) = group.apq_mls_groups_mut()?;
+        let error = t_mls_group
+            .commit_builder()
+            .propose_group_context_extensions(flipped)?
+            .load_psks(provider.storage())?
+            .build(provider.rand(), provider.crypto(), &signer, |_| true)
+            .expect_err("building the flipped commit should fail");
+        assert!(matches!(
+            error,
+            CreateCommitError::AppDataUpdateValidationError(
+                AppDataUpdateValidationError::CannotUpdateDictionaryDirectly
+            )
+        ));
 
         txn.commit().await?;
         Ok(())

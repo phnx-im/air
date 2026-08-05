@@ -5,6 +5,9 @@
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
+import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/components/text_input/text_input.dart';
+import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/constrained_width/constrained_width.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -26,8 +29,36 @@ class SignUpScreen extends HookWidget {
     final palette = SemanticPalette.of(context);
     final backgroundColor = palette.backgroundBase.secondary;
 
-    final formKey = useMemoized(() => GlobalKey<FormState>());
+    final serverFieldVisible = useState(false);
     final showErrors = useState(false);
+    final displayNameError = useState<String?>(null);
+    final domainError = useState<String?>(null);
+
+    bool validate() {
+      final state = context.read<RegistrationCubit>().state;
+      displayNameError.value = state.displayName.trim().isEmpty
+          ? loc.signUpScreen_error_emptyDisplayName
+          : null;
+      // The server field only carries a rule while it is on screen.
+      domainError.value = serverFieldVisible.value && !state.isDomainValid
+          ? loc.signUpScreen_error_invalidDomain
+          : null;
+      return displayNameError.value == null && domainError.value == null;
+    }
+
+    // Typing only moves the errors once the user has asked to sign up, so the
+    // first attempt is what puts them on screen.
+    void revalidate() {
+      if (showErrors.value) {
+        validate();
+      }
+    }
+
+    void submit() {
+      if (validate()) {
+        _submit(context);
+      }
+    }
 
     return Scaffold(
       resizeToAvoidBottomInset: true,
@@ -59,9 +90,14 @@ class SignUpScreen extends HookWidget {
                           horizontal: S.s16,
                           vertical: S.s12,
                         ),
-                        child: _Form(
-                          formKey: formKey,
-                          showErrors: showErrors.value,
+                        child: _Body(
+                          serverFieldVisible: serverFieldVisible.value,
+                          onRevealServerField: () =>
+                              serverFieldVisible.value = true,
+                          displayNameError: displayNameError.value,
+                          domainError: domainError.value,
+                          onChanged: revalidate,
+                          onSubmitted: submit,
                         ),
                       );
                     },
@@ -71,8 +107,10 @@ class SignUpScreen extends HookWidget {
                   padding: const EdgeInsets.symmetric(horizontal: S.s24),
                   width: context.breakpoint.isSmall ? double.infinity : null,
                   child: _SignUpButton(
-                    formKey: formKey,
-                    showErrors: showErrors,
+                    onPressed: () {
+                      showErrors.value = true;
+                      submit();
+                    },
                   ),
                 ),
                 const SizedBox(height: S.s16),
@@ -85,11 +123,22 @@ class SignUpScreen extends HookWidget {
   }
 }
 
-class _Form extends HookWidget {
-  const _Form({required this.formKey, required this.showErrors});
+class _Body extends StatelessWidget {
+  const _Body({
+    required this.serverFieldVisible,
+    required this.onRevealServerField,
+    required this.displayNameError,
+    required this.domainError,
+    required this.onChanged,
+    required this.onSubmitted,
+  });
 
-  final GlobalKey<FormState> formKey;
-  final bool showErrors;
+  final bool serverFieldVisible;
+  final VoidCallback onRevealServerField;
+  final String? displayNameError;
+  final String? domainError;
+  final VoidCallback onChanged;
+  final VoidCallback onSubmitted;
 
   @override
   Widget build(BuildContext context) {
@@ -101,56 +150,52 @@ class _Form extends HookWidget {
           : const Size(300, 120),
     );
 
-    final serverFieldVisible = useState(false);
+    return Center(
+      child: Column(
+        children: [
+          Text(
+            loc.signUpScreen_subheader,
+            style: Theme.of(context).textTheme.bodyMedium,
+            textAlign: TextAlign.left,
+          ),
+          const SizedBox(height: S.s32),
 
-    return Form(
-      key: formKey,
-      autovalidateMode: showErrors
-          ? AutovalidateMode.always
-          : AutovalidateMode.disabled,
-      child: Center(
-        child: Column(
-          children: [
+          GestureDetector(
+            onTap: () => _pickAvatar(context),
+            onLongPress: onRevealServerField,
+            child: const _UserAvatarPicker(),
+          ),
+          const SizedBox(height: S.s32),
+
+          ConstrainedBox(
+            constraints: textFormConstraints,
+            child: _DisplayNameTextField(
+              errorText: displayNameError,
+              onChanged: onChanged,
+              onSubmitted: onSubmitted,
+            ),
+          ),
+
+          if (serverFieldVisible) ...[
             Text(
-              loc.signUpScreen_subheader,
+              loc.signUpScreen_serverLabel,
               style: Theme.of(context).textTheme.bodyMedium,
               textAlign: TextAlign.left,
             ),
-            const SizedBox(height: S.s32),
-
-            GestureDetector(
-              onTap: () => _pickAvatar(context),
-              onLongPress: () => serverFieldVisible.value = true,
-              child: const _UserAvatarPicker(),
-            ),
-            const SizedBox(height: S.s32),
+            const SizedBox(height: S.s16),
 
             ConstrainedBox(
               constraints: textFormConstraints,
-              child: _DisplayNameTextField(
-                onFieldSubmitted: () => _submit(context, formKey),
+              child: _ServerTextField(
+                errorText: domainError,
+                onChanged: onChanged,
+                onSubmitted: onSubmitted,
               ),
             ),
-
-            if (serverFieldVisible.value) ...[
-              Text(
-                loc.signUpScreen_serverLabel,
-                style: Theme.of(context).textTheme.bodyMedium,
-                textAlign: TextAlign.left,
-              ),
-              const SizedBox(height: S.s16),
-
-              ConstrainedBox(
-                constraints: textFormConstraints,
-                child: _ServerTextField(
-                  onFieldSubmitted: () => _submit(context, formKey),
-                ),
-              ),
-            ],
-
-            const SizedBox(height: S.s16),
           ],
-        ),
+
+          const SizedBox(height: S.s16),
+        ],
       ),
     );
   }
@@ -221,144 +266,98 @@ class _UserAvatarPicker extends StatelessWidget {
 }
 
 class _DisplayNameTextField extends HookWidget {
-  const _DisplayNameTextField({required this.onFieldSubmitted});
+  const _DisplayNameTextField({
+    required this.errorText,
+    required this.onChanged,
+    required this.onSubmitted,
+  });
 
-  final VoidCallback onFieldSubmitted;
+  final String? errorText;
+  final VoidCallback onChanged;
+  final VoidCallback onSubmitted;
 
   @override
   Widget build(BuildContext context) {
-    final displayName = context.read<RegistrationCubit>().state.displayName;
-
     final loc = AppLocalizations.of(context);
-    final palette = SemanticPalette.of(context);
 
-    final focusNode = useFocusNode();
+    final controller = useTextEditingController(
+      text: context.read<RegistrationCubit>().state.displayName,
+    );
 
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      spacing: S.s8,
-      children: [
-        Padding(
-          padding: const EdgeInsets.only(left: S.s8),
-          child: Text(
-            loc.signUpScreen_displayNameInputName,
-            style: typeScale.body.xs.style(color: palette.text.quaternary),
-          ),
-        ),
-        TextFormField(
-          autofocus: true,
-          decoration: InputDecoration(
-            hintText: loc.signUpScreen_displayNameInputHint,
-            fillColor: palette.backgroundBase.tertiary,
-          ),
-          initialValue: displayName,
-          onChanged: (value) {
-            context.read<RegistrationCubit>().setDisplayName(value);
-          },
-          onFieldSubmitted: (_) {
-            focusNode.requestFocus();
-            onFieldSubmitted();
-          },
-          validator: (value) =>
-              context.read<RegistrationCubit>().state.displayName.trim().isEmpty
-              ? loc.signUpScreen_error_emptyDisplayName
-              : null,
-        ),
-      ],
+    return AppTextInput(
+      tokens: AppTextInputTokens.of(context),
+      controller: controller,
+      autofocus: true,
+      label: loc.signUpScreen_displayNameInputName,
+      hintText: loc.signUpScreen_displayNameInputHint,
+      errorText: errorText,
+      onChanged: (value) {
+        context.read<RegistrationCubit>().setDisplayName(value);
+        onChanged();
+      },
+      onSubmitted: (_) => onSubmitted(),
     );
   }
 }
 
 class _ServerTextField extends HookWidget {
-  const _ServerTextField({required this.onFieldSubmitted});
+  const _ServerTextField({
+    required this.errorText,
+    required this.onChanged,
+    required this.onSubmitted,
+  });
 
-  final VoidCallback onFieldSubmitted;
+  final String? errorText;
+  final VoidCallback onChanged;
+  final VoidCallback onSubmitted;
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
 
-    final palette = SemanticPalette.of(context);
-
     final focusNode = useFocusNode();
+    final controller = useTextEditingController(
+      text: context.read<RegistrationCubit>().state.domain,
+    );
 
-    return TextFormField(
-      decoration: InputDecoration(
-        hintText: loc.signUpScreen_serverHint,
-        fillColor: palette.backgroundBase.tertiary,
-      ),
-      initialValue: context.read<RegistrationCubit>().state.domain,
+    return AppTextInput(
+      tokens: AppTextInputTokens.of(context),
+      controller: controller,
       focusNode: focusNode,
+      hintText: loc.signUpScreen_serverHint,
+      errorText: errorText,
       onChanged: (String value) {
         context.read<RegistrationCubit>().setDomain(value);
+        onChanged();
       },
-      onFieldSubmitted: (_) {
+      onSubmitted: (_) {
         focusNode.requestFocus();
-        onFieldSubmitted();
+        onSubmitted();
       },
-      validator: (value) =>
-          context.read<RegistrationCubit>().state.isDomainValid
-          ? null
-          : loc.signUpScreen_error_invalidDomain,
     );
   }
 }
 
 class _SignUpButton extends StatelessWidget {
-  const _SignUpButton({required this.formKey, required this.showErrors});
+  const _SignUpButton({required this.onPressed});
 
-  final GlobalKey<FormState> formKey;
-  final ValueNotifier<bool> showErrors;
+  final VoidCallback onPressed;
 
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final palette = SemanticPalette.of(context);
     final isSigningUp = context.select(
       (RegistrationCubit cubit) => cubit.state.isSigningUp,
     );
-    return OutlinedButton(
-      style: OutlinedButtonTheme.of(context).style!.copyWith(
-        backgroundColor: WidgetStateProperty.all(palette.accentBrand.primary),
-        foregroundColor: WidgetStateProperty.all(
-          palette.function.neutral.toggleWhite,
-        ),
-      ),
-      onPressed: isSigningUp
-          ? null
-          : () {
-              showErrors.value = true;
-              if (!formKey.currentState!.validate()) {
-                return;
-              }
-              _submit(context, formKey);
-            },
-      child: isSigningUp
-          ? SizedBox(
-              height: 20,
-              width: 20,
-              child: CircularProgressIndicator(
-                strokeWidth: StrokeWidth.px2,
-                valueColor: AlwaysStoppedAnimation<Color>(
-                  palette.function.neutral.toggleWhite,
-                ),
-              ),
-            )
-          : Text(
-              loc.signUpScreen_actionButton,
-              style: typeScale.body.regular.style(
-                color: palette.function.neutral.toggleWhite,
-              ),
-            ),
+    return Button(
+      onPressed: onPressed,
+      label: loc.signUpScreen_actionButton,
+      state: isSigningUp ? ButtonState.pending : ButtonState.active,
     );
   }
 }
 
-void _submit(BuildContext context, GlobalKey<FormState> formKey) async {
-  if (!formKey.currentState!.validate()) {
-    return;
-  }
-
+void _submit(BuildContext context) async {
   final navigationCubit = context.read<NavigationCubit>();
   final registrationCubit = context.read<RegistrationCubit>();
   final error = await registrationCubit.signUp();

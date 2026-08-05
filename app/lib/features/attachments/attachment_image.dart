@@ -9,7 +9,10 @@ import 'dart:ui' as ui;
 import 'package:air/features/attachments/attachment_image_provider.dart';
 import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
+import 'package:air/ds/components/button_icon/button_icon.dart';
+import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/snackbar/snackbar_tokens.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -28,9 +31,10 @@ const int _maxAutoLoops = 3;
 ///
 /// - **Static**: rendered via [Image] + [AttachmentImageProvider], so frames
 ///   live in Flutter's shared `imageCache`. Tap forwards to [onTap] (image
-///   viewer). The bytes loaded for classification are discarded; the provider
-///   re-fetches them on first decode and the framework holds the result from
-///   then on.
+///   viewer) along with the provider painted here, so the viewer opens on a
+///   decode it already has. The bytes loaded for classification are discarded;
+///   the provider re-fetches them on first decode and the framework holds the
+///   result from then on.
 ///
 /// - **Animated**: a fresh codec is instantiated per mount and frames are
 ///   driven by a [Timer]. Autoplays up to [_maxAutoLoops] then freezes on the
@@ -52,7 +56,10 @@ class AttachmentImage extends StatefulWidget {
   final UiImageMetadata imageMetadata;
   final BoxFit fit;
   final bool isSender;
-  final VoidCallback? onTap;
+
+  /// Receives the provider the still picture is painted from. Unused on the
+  /// animated branch, which keeps the tap for its own playback.
+  final void Function(ImageProvider thumbnail)? onTap;
 
   @override
   State<AttachmentImage> createState() => _AttachmentImageState();
@@ -204,13 +211,13 @@ class _AttachmentImageState extends State<AttachmentImage> {
 
   /// Routes the gesture: animated attachments toggle their own playback,
   /// static attachments forward to the caller-provided [onTap].
-  void _onTap() {
+  void _onTap(ImageProvider? thumbnail) {
     switch (_isAnimated) {
       case true:
         _toggleAnimation();
-      case false:
-        widget.onTap?.call();
-      case null:
+      case false when thumbnail != null:
+        widget.onTap?.call(thumbnail);
+      case _:
         break;
     }
   }
@@ -238,38 +245,28 @@ class _AttachmentImageState extends State<AttachmentImage> {
 
   @override
   Widget build(BuildContext context) {
-    final blurhash = BlurHash(hash: widget.imageMetadata.blurhash);
+    return AspectRatio(
+      aspectRatio: widget.imageMetadata.width / widget.imageMetadata.height,
+      // The still picture's decode is bounded by the box we lay out in, so the
+      // provider only exists once that box is known -- and the tap has to hand
+      // that same provider on.
+      child: LayoutBuilder(builder: _content),
+    );
+  }
+
+  Widget _content(BuildContext context, BoxConstraints constraints) {
+    // Non-null exactly on the static branch: an animated attachment steps its
+    // own frames rather than going through a provider.
+    final thumbnail = _isAnimated == false
+        ? _thumbnail(context, constraints)
+        : null;
 
     final Widget? foreground;
-    if (_isAnimated == false) {
-      foreground = LayoutBuilder(
-        builder: (context, constraints) {
-          final dpr = MediaQuery.devicePixelRatioOf(context);
-          final renderingWidth = constraints.maxWidth.isFinite
-              ? (constraints.maxWidth * dpr).round()
-              : null;
-          final renderingHeight = constraints.maxHeight.isFinite
-              ? (constraints.maxHeight * dpr).round()
-              : null;
-          return Image(
-            image: ResizeImage(
-              AttachmentImageProvider(
-                attachment: widget.attachment,
-                attachmentsRepository: context.read<AttachmentsRepository>(),
-              ),
-              // The box we lay out in comes from the sender-declared metadata,
-              // which may not match the actual pixels. `exact` (the default)
-              // would decode to the box like BoxFit.fill and distort the
-              // image, so constrain the decode instead of reshaping it.
-              policy: ResizeImagePolicy.fit,
-              width: renderingWidth,
-              height: renderingHeight,
-              allowUpscaling: false,
-            ),
-            fit: widget.fit,
-            alignment: Alignment.center,
-          );
-        },
+    if (thumbnail != null) {
+      foreground = Image(
+        image: thumbnail,
+        fit: widget.fit,
+        alignment: Alignment.center,
       );
     } else if (_currentFrame != null) {
       foreground = RawImage(
@@ -283,26 +280,50 @@ class _AttachmentImageState extends State<AttachmentImage> {
 
     final content = Stack(
       fit: StackFit.expand,
-      children: [blurhash, ?foreground],
+      children: [
+        BlurHash(hash: widget.imageMetadata.blurhash),
+        ?foreground,
+      ],
     );
 
     final isAnimationPaused = _isAnimated == true && _stopped && _error == null;
 
-    return AspectRatio(
-      aspectRatio: widget.imageMetadata.width / widget.imageMetadata.height,
-      child: Stack(
-        fit: StackFit.expand,
-        children: [
-          GestureDetector(onTap: _onTap, child: content),
-          AttachmentImageOverlay(
-            attachmentId: widget.attachment.attachmentId,
-            size: widget.attachment.size,
-            isSender: widget.isSender,
-            isAnimationPaused: isAnimationPaused,
-            onTapDownload: () => _load(retryDownloadIfFailed: true),
-          ),
-        ],
+    return Stack(
+      fit: StackFit.expand,
+      children: [
+        GestureDetector(onTap: () => _onTap(thumbnail), child: content),
+        AttachmentImageOverlay(
+          attachmentId: widget.attachment.attachmentId,
+          size: widget.attachment.size,
+          isSender: widget.isSender,
+          isAnimationPaused: isAnimationPaused,
+          onTapDownload: () => _load(retryDownloadIfFailed: true),
+        ),
+      ],
+    );
+  }
+
+  /// The provider the still picture is painted from: a decode bounded by the
+  /// box on screen, so the list holds thumbnails rather than full frames.
+  ImageProvider _thumbnail(BuildContext context, BoxConstraints constraints) {
+    final dpr = MediaQuery.devicePixelRatioOf(context);
+    return ResizeImage(
+      AttachmentImageProvider(
+        attachment: widget.attachment,
+        attachmentsRepository: context.read<AttachmentsRepository>(),
       ),
+      // The box we lay out in comes from the sender-declared metadata, which
+      // may not match the actual pixels. `exact` (the default) would decode to
+      // the box like BoxFit.fill and distort the image, so constrain the decode
+      // instead of reshaping it.
+      policy: ResizeImagePolicy.fit,
+      width: constraints.maxWidth.isFinite
+          ? (constraints.maxWidth * dpr).round()
+          : null,
+      height: constraints.maxHeight.isFinite
+          ? (constraints.maxHeight * dpr).round()
+          : null,
+      allowUpscaling: false,
     );
   }
 }
@@ -342,34 +363,30 @@ class AttachmentImageOverlay extends HookWidget {
       child: switch (status.data) {
         UiAttachmentStatus_Pending() ||
         UiAttachmentStatus_Failed() when isSender => _BlurredPill(
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              IconButton(
-                onPressed: () {
-                  retries.value++;
-                  context.read<ChatDetailsCubit>().retryUploadAttachment(
-                    attachmentId,
-                  );
-                },
-                icon: const AppIcon.upload(size: 24),
-              ),
-            ],
+          child: ButtonIcon(
+            variant: ButtonIconVariant.plain,
+            icon: AppIconType.upload,
+            iconSize: S.s24,
+            hitTargetSize: S.s48,
+            onPressed: () {
+              retries.value++;
+              context.read<ChatDetailsCubit>().retryUploadAttachment(
+                attachmentId,
+              );
+            },
           ),
         ),
         UiAttachmentStatus_Pending() ||
         UiAttachmentStatus_Failed() => _BlurredPill(
-          child: Stack(
-            alignment: Alignment.center,
-            children: [
-              IconButton(
-                onPressed: () {
-                  retries.value++;
-                  onTapDownload();
-                },
-                icon: const AppIcon.download(size: 24),
-              ),
-            ],
+          child: ButtonIcon(
+            variant: ButtonIconVariant.plain,
+            icon: AppIconType.download,
+            iconSize: S.s24,
+            hitTargetSize: S.s48,
+            onPressed: () {
+              retries.value++;
+              onTapDownload();
+            },
           ),
         ),
         UiAttachmentStatus_Progress(field0: final loaded) => _BlurredPill(
@@ -382,24 +399,32 @@ class AttachmentImageOverlay extends HookWidget {
                 backgroundColor: Colors.transparent,
                 value: loaded / BigInt.from(size),
               ),
-              IconButton(
+              ButtonIcon(
+                variant: ButtonIconVariant.plain,
+                icon: AppIconType.x,
+                iconSize: S.s24,
+                hitTargetSize: S.s48,
                 onPressed: () {
                   context.read<AttachmentsRepository>().cancel(
                     attachmentId: attachmentId,
                   );
                 },
-                icon: const AppIcon.x(size: 24),
               ),
             ],
           ),
         ),
-        UiAttachmentStatus_NotFound() => IconButton(
+        UiAttachmentStatus_NotFound() => ButtonIcon(
+          variant: ButtonIconVariant.plain,
+          icon: AppIconType.circleAlert,
+          size: ButtonIconSize.s48,
+          iconSize: S.s32,
+          iconColor: palette.text.primary,
           onPressed: () {
             showSnackBarStandalone(
               (loc) => SnackBar(content: Text(loc.attachment_notFound)),
+              tone: SnackbarTone.danger,
             );
           },
-          icon: AppIcon.circleAlert(size: 32, color: palette.text.primary),
         ),
         UiAttachmentStatus_Completed() when isAnimationPaused => IgnorePointer(
           child: _BlurredPill(
