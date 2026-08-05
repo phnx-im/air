@@ -260,7 +260,7 @@ class _ProviderImage extends StatelessWidget {
         return Image(
           // The box comes from the sender-declared size, which may not match
           // the actual pixels. `exact` would decode to the box like
-          // .fill and distort the picture, so constrain the decode
+          // [BoxFit.fill] and distort the picture, so constrain the decode
           // instead of reshaping it.
           image: width == null && height == null
               ? image
