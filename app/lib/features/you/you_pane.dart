@@ -15,9 +15,6 @@ import 'package:air/l10n/l10n.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
 
-/// Widest the section content grows to before it stops following the pane.
-const _contentMaxWidth = 800.0;
-
 /// The section list of the profile tab, filling the list panel of the two-pane
 /// layout. The section it selects opens in [YouDetailPane] beside it.
 class YouMenuPane extends StatelessWidget {
@@ -74,7 +71,9 @@ class YouDetailPane extends StatelessWidget {
           padding: EdgeInsets.only(top: topPadding, bottom: bottomPadding),
           child: Center(
             child: ConstrainedBox(
-              constraints: const BoxConstraints(maxWidth: _contentMaxWidth),
+              // Widest the section content grows to before it stops following
+              // the pane.
+              constraints: const BoxConstraints(maxWidth: Measure.m800),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: S.s16),
                 child: YouSectionContent(section: section),

@@ -60,7 +60,7 @@ class LinkDeviceModal extends HookWidget {
     void backToChooser() => page.value = _LinkPage.chooser;
 
     return AppDialog(
-      maxWidth: 500,
+      maxWidth: Measure.m500,
       backgroundColor: palette.backgroundBase.quaternary,
       child: switch (page.value) {
         _LinkPage.chooser => _LinkChooserPage(

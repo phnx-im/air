@@ -115,7 +115,7 @@ class DeveloperSettingsScreenView extends StatelessWidget {
         child: Center(
           child: Container(
             constraints: DeviceType.isDesktop
-                ? const BoxConstraints(maxWidth: 800)
+                ? const BoxConstraints(maxWidth: Measure.m800)
                 : null,
             child: ListTileTheme(
               data: Theme.of(context).listTileTheme.copyWith(

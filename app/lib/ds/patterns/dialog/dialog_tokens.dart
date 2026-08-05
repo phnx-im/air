@@ -25,11 +25,11 @@ class DialogTokens {
 
   /// Floor for the card's width, so a one-word confirm still reads as a card
   /// rather than a tooltip.
-  static const double minWidth = S.s240;
+  static const double minWidth = Measure.m240;
 
   /// Ceiling for the card's width, keeping body text to a readable measure on
   /// a wide window.
-  static const double maxWidth = 400;
+  static const double maxWidth = Measure.m400;
 
   static const double radius = CornerRadius.px20;
 

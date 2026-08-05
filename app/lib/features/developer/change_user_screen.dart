@@ -39,8 +39,6 @@ class _ChangeUserScreenState extends State<ChangeUserScreen> {
   }
 }
 
-const _maxDesktopWidth = 800.0;
-
 class ChangeUserScreenView extends StatelessWidget {
   const ChangeUserScreenView({this.clientRecords, super.key});
 
@@ -57,7 +55,7 @@ class ChangeUserScreenView extends StatelessWidget {
       body: Center(
         child: Container(
           constraints: DeviceType.isDesktop
-              ? const BoxConstraints(maxWidth: _maxDesktopWidth)
+              ? const BoxConstraints(maxWidth: Measure.m800)
               : null,
           child: _ClientRecords(clientRecords: clientRecords),
         ),

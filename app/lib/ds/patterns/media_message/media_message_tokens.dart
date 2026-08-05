@@ -23,12 +23,12 @@ abstract final class MediaMessageTokens {
 
   /// Ceiling on the rendered height. A taller picture scales down until it
   /// fits, so one photo can never take the whole conversation window.
-  static const double maxHeight = 400;
+  static const double maxHeight = Measure.m400;
 
   /// Floor on the rendered width. A picture so tall that fitting it to
   /// [maxHeight] would leave it narrower than this is cropped to cover a
   /// [minScaleWidth] by [maxHeight] frame rather than shrinking to a sliver.
-  static const double minScaleWidth = 200;
+  static const double minScaleWidth = Measure.m200;
 
   /// Broken-image glyph shown when the picture fails to decode.
   static const double errorIconSize = S.s24;

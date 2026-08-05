@@ -21,7 +21,7 @@ class ContactRequestCardTokens {
 
   /// Ceiling on the card's width, so a wide surface leaves it a card instead of
   /// stretching it into a banner.
-  static const double maxWidth = 400;
+  static const double maxWidth = Measure.m400;
 
   static const double radius = CornerRadius.px20;
 

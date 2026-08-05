@@ -65,10 +65,10 @@ class ModalShellTokens {
   );
 
   static const ModalShellTokens desktop = ModalShellTokens(
-    minWidth: 400,
-    maxWidth: 480,
-    minHeight: 240,
-    maxHeight: 600,
+    minWidth: Measure.m400,
+    maxWidth: Measure.m480,
+    minHeight: Measure.m240,
+    maxHeight: Measure.m600,
     cardRadius: CornerRadius.px24,
     containerPadding: EdgeInsets.all(S.s24),
   );

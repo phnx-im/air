@@ -29,7 +29,7 @@ abstract final class SnackbarTokens {
 
   /// Caps the pill width so a long label ellipsizes rather than spanning the
   /// viewport.
-  static const double maxWidth = S.s120 * 3;
+  static const double maxWidth = Measure.m360;
 
   static const Elevation elevation = Elevation.small;
 

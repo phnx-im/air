@@ -42,7 +42,7 @@ class SystemMessageTokens {
 
   /// Cap on a card's width. A centered card wider than this stops reading as
   /// an announcement and starts reading as a wall of the conversation.
-  static const double cardMaxWidth = 400;
+  static const double cardMaxWidth = Measure.m400;
 
   static const SystemMessageTokens phone = SystemMessageTokens(
     padding: EdgeInsets.symmetric(horizontal: S.s16, vertical: S.s16),

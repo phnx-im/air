@@ -127,7 +127,7 @@ class _MemberSelectionStep extends HookWidget {
           alignment: Alignment.topCenter,
           child: Container(
             constraints: DeviceType.isDesktop
-                ? const BoxConstraints(maxWidth: 800)
+                ? const BoxConstraints(maxWidth: Measure.m800)
                 : null,
             child: Column(
               children: [
@@ -252,7 +252,7 @@ class _CreateGroupDetailsStep extends HookWidget {
               alignment: Alignment.topCenter,
               child: Container(
                 constraints: DeviceType.isDesktop
-                    ? const BoxConstraints(maxWidth: 800)
+                    ? const BoxConstraints(maxWidth: Measure.m800)
                     : null,
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,

@@ -61,7 +61,7 @@ class ContactUsScreen extends StatelessWidget {
             alignment: Alignment.topCenter,
             child: Container(
               constraints: DeviceType.isDesktop
-                  ? const BoxConstraints(maxWidth: 800)
+                  ? const BoxConstraints(maxWidth: Measure.m800)
                   : null,
               child: Theme(
                 data: theme.copyWith(
