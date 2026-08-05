@@ -5,7 +5,7 @@
 import 'package:air/features/chat_details/safety_code_screen.dart';
 import 'package:air/core/api/user_cubit.dart';
 import 'package:air/l10n/l10n.dart';
-import 'package:air/ds/components/scaffold/app_scaffold.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -40,7 +40,10 @@ void main() {
             debugShowCheckedModeBanner: false,
             theme: testLightTheme,
             localizationsDelegates: AppLocalizations.localizationsDelegates,
-            home: AppScaffold(child: SafetyCodeView(profile: userProfiles[1])),
+            home: ModalScaffold(
+              title: 'Safety Code',
+              child: SafetyCodeView(profile: userProfiles[1]),
+            ),
           ),
         );
       },

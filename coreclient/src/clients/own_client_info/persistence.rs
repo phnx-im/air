@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::ClientSigningKey,
+    credentials::keys::SelfGroupSigningKey,
     identifiers::{Fqdn, QsClientId, QsUserId, UserId},
 };
 use openmls::group::GroupId;
@@ -54,7 +54,7 @@ impl OwnClientInfo {
             user_domain: Fqdn,
             client_id: Uuid,
             self_group_id: Option<GroupIdWrapper>,
-            self_group_signing_key: Option<ClientSigningKey>,
+            self_group_signing_key: Option<SelfGroupSigningKey>,
         }
         let sql = sqlx::query_as!(
             SqlOwnClientInfo,
@@ -146,7 +146,7 @@ impl OwnClientInfo {
     pub(crate) async fn set_self_group(
         mut write: impl WriteConnection,
         self_group_id: &GroupId,
-        self_group_signing_key: &ClientSigningKey,
+        self_group_signing_key: &SelfGroupSigningKey,
     ) -> sqlx::Result<()> {
         let self_group_id = GroupIdRefWrapper::from(self_group_id);
         query!(
@@ -157,6 +157,28 @@ impl OwnClientInfo {
         .execute(write.as_mut())
         .await?;
         Ok(())
+    }
+
+    /// Records that a sibling device removed this device from the self group.
+    pub(crate) async fn mark_account_unlinked(
+        mut write: impl WriteConnection,
+    ) -> anyhow::Result<()> {
+        sqlx::query!("UPDATE own_client_info SET unlinked = TRUE")
+            .execute(write.as_mut())
+            .await?;
+        Ok(())
+    }
+
+    /// Whether a sibling device removed this device from the self group.
+    ///
+    /// `own_client_info` is a singleton row, created once at account setup, so a
+    /// missing row (`None`) can only mean this ran before that -- treated as not
+    /// unlinked, since there is nothing to be unlinked from yet.
+    pub async fn is_account_unlinked(mut read: impl ReadConnection) -> anyhow::Result<bool> {
+        let row = sqlx::query_scalar!("SELECT unlinked FROM own_client_info")
+            .fetch_optional(read.as_mut())
+            .await?;
+        Ok(row.unwrap_or(false))
     }
 }
 
@@ -196,6 +218,33 @@ mod tests {
         assert_eq!(loaded.client_id, own_client_info.client_id);
         assert_eq!(loaded.self_group_id, own_client_info.self_group_id);
         assert!(loaded.self_group_signing_key.is_none());
+
+        Ok(())
+    }
+
+    #[sqlx::test]
+    async fn account_unlinked_flag(pool: SqlitePool) -> anyhow::Result<()> {
+        let pool = DbAccess::for_tests(pool);
+        let mut rng = rand::rng();
+        OwnClientInfo {
+            qs_user_id: QsUserId::random(),
+            qs_client_id: QsClientId::random(&mut rng),
+            user_id: UserId::new(Uuid::new_v4(), "localhost".parse().unwrap()),
+            client_id: Uuid::new_v4(),
+            self_group_id: None,
+            self_group_signing_key: None,
+        }
+        .store(pool.write().await?)
+        .await?;
+
+        assert!(
+            !OwnClientInfo::is_account_unlinked(pool.read().await?).await?,
+            "a freshly created client must not report itself as unlinked"
+        );
+
+        OwnClientInfo::mark_account_unlinked(pool.write().await?).await?;
+
+        assert!(OwnClientInfo::is_account_unlinked(pool.read().await?).await?);
 
         Ok(())
     }

@@ -4,7 +4,9 @@
 
 import 'dart:typed_data';
 
-import 'package:air/ds/components/button_icon/app_bar_button.dart';
+import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/components/toggle/toggle.dart';
+import 'package:air/ds/components/toggle/toggle_tokens.dart';
 import 'package:air/features/chat_details/member_selection_list.dart';
 import 'package:air/features/chat_details/member_search_field.dart';
 import 'package:air/features/chat_list/chat_list_cubit.dart';
@@ -106,12 +108,17 @@ class _MemberSelectionStep extends HookWidget {
           leading: _CircularBackButton(
             onPressed: () => context.read<NavigationCubit>().pop(),
           ),
-          trailing: AppBarButton(
-            onPressed: () {
-              FocusScope.of(context).unfocus();
-              onNext();
-            },
-            child: Text(loc.groupCreationScreen_next),
+          trailing: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: S.s16),
+            child: Button(
+              size: ButtonSize.small,
+              type: ButtonType.secondary,
+              label: loc.groupCreationScreen_next,
+              onPressed: () {
+                FocusScope.of(context).unfocus();
+                onNext();
+              },
+            ),
           ),
         ),
       ),
@@ -191,6 +198,11 @@ class _CreateGroupDetailsStep extends HookWidget {
 
     final isGroupNameValid = groupName.value.trim().isNotEmpty;
     final showHelperText = nameFocusNode.hasFocus && !isGroupNameValid;
+    final createState = switch ((isCreating.value, isGroupNameValid)) {
+      (true, _) => ButtonState.pending,
+      (false, true) => ButtonState.active,
+      (false, false) => ButtonState.inactive,
+    };
 
     final loc = AppLocalizations.of(context);
     final palette = SemanticPalette.of(context);
@@ -206,29 +218,21 @@ class _CreateGroupDetailsStep extends HookWidget {
           leading: _CircularBackButton(
             onPressed: () => _handleBack(context, isCreating.value),
           ),
-          trailing: AppBarButton(
-            onPressed: isGroupNameValid && !isCreating.value
-                ? () => _createGroupChat(
-                    context,
-                    groupName.value.trim(),
-                    isCreating,
-                    picture.value,
-                    isApq,
-                  )
-                : null,
-
-            child: isCreating.value
-                ? SizedBox(
-                    width: 16,
-                    height: 16,
-                    child: CircularProgressIndicator(
-                      strokeWidth: StrokeWidth.px2,
-                      valueColor: AlwaysStoppedAnimation<Color>(
-                        palette.text.primary,
-                      ),
-                    ),
-                  )
-                : Text(loc.groupCreationDetails_create),
+          trailing: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: S.s16),
+            child: Button(
+              size: ButtonSize.small,
+              type: ButtonType.secondary,
+              state: createState,
+              label: loc.groupCreationDetails_create,
+              onPressed: () => _createGroupChat(
+                context,
+                groupName.value.trim(),
+                isCreating,
+                picture.value,
+                isApq,
+              ),
+            ),
           ),
           onLongPress: () {
             showHiddenSettings.value = !showHiddenSettings.value;
@@ -633,10 +637,10 @@ class _SwitchField extends StatelessWidget {
               style: typeScale.body.regular.style(color: palette.text.primary),
             ),
             const Spacer(),
-            Switch(
+            Toggle(
+              tokens: ToggleTokens.of(context),
               value: value,
-              padding: const EdgeInsets.symmetric(horizontal: 0),
-              onChanged: (_) => onChanged(!value),
+              onChanged: onChanged,
             ),
           ],
         ),

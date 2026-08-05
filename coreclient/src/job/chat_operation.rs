@@ -13,6 +13,7 @@ use airprotos::{
 use anyhow::{Context, anyhow, bail};
 use openmls::treesync::errors::LeafNodeValidationError;
 use thiserror::Error;
+use uuid::Uuid;
 
 use crate::{
     Chat, ChatAttributes, ChatId, ChatMessage, ChatStatus,
@@ -25,6 +26,8 @@ use crate::{
 enum ChatOperationType {
     AddMembers(Vec<UserId>),
     RemoveMembers(Vec<UserId>),
+    /// Removes individual self-group leaves, identified by client id.
+    RemoveClients(Vec<Uuid>),
     Leave,
     Delete,
     Update(Option<ChatAttributes>),
@@ -94,6 +97,13 @@ impl ChatOperation {
         }
     }
 
+    pub(crate) fn remove_clients(chat_id: ChatId, client_ids: Vec<Uuid>) -> Self {
+        ChatOperation {
+            chat_id,
+            operation: ChatOperationType::RemoveClients(client_ids),
+        }
+    }
+
     pub(crate) fn leave_chat(chat_id: ChatId) -> Self {
         ChatOperation {
             chat_id,
@@ -157,6 +167,11 @@ impl ChatOperation {
                 let members: HashSet<_> = group.members().collect();
                 user_ids.retain(|user_id| members.contains(user_id));
             }
+            ChatOperationType::RemoveClients(client_ids) => {
+                let self_group_members: HashSet<_> =
+                    group.self_group_client_ids().into_iter().collect();
+                client_ids.retain(|client_id| self_group_members.contains(client_id));
+            }
             // The following operations are always valid as long as the
             // group is active.
             ChatOperationType::Leave
@@ -189,6 +204,12 @@ impl ChatOperation {
                     return Ok(Vec::new());
                 }
                 self.execute_remove_members(context, user_ids).await
+            }
+            ChatOperationType::RemoveClients(client_ids) => {
+                if client_ids.is_empty() {
+                    return Ok(Vec::new());
+                }
+                self.execute_remove_clients(context, client_ids).await
             }
             ChatOperationType::Leave => self.execute_leave_chat(context).await,
             ChatOperationType::Delete => self.execute_delete(context).await,
@@ -240,6 +261,24 @@ impl ChatOperation {
                     users,
                 )
                 .await
+            })
+            .await?;
+
+        job.execute(context).await
+    }
+
+    /// Remove individual self-group leaves, identified by client id.
+    async fn execute_remove_clients(
+        &mut self,
+        context: &mut JobContext<'_, '_>,
+        client_ids: Vec<Uuid>,
+    ) -> Result<Vec<ChatMessage>, JobError<ChatOperationError>> {
+        let JobContext { db, .. } = context;
+        let job = db
+            .write()
+            .await?
+            .with_transaction(async |txn| {
+                PendingChatOperation::create_remove_clients(txn, client_ids).await
             })
             .await?;
 

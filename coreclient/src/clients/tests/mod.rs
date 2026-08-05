@@ -27,10 +27,12 @@ async fn user_stages() -> anyhow::Result<()> {
 
     let api_clients = ApiClients::new(user_id.domain().clone(), server_url.clone());
 
+    let client_record_id = uuid::Uuid::new_v4();
     let computed_state = UserCreationState::new(
         &client_db,
         &air_db,
         user_id.clone(),
+        client_record_id,
         None,
         "DUMMY007".to_owned(),
     )
@@ -58,7 +60,7 @@ async fn user_stages() -> anyhow::Result<()> {
 
     // We now continue down the path of creating a user.
     let computed_state = loaded_state
-        .step(&air_db, &client_db, &api_clients)
+        .step(&air_db, &client_db, client_record_id, &api_clients)
         .await
         .unwrap();
 
@@ -77,7 +79,7 @@ async fn user_stages() -> anyhow::Result<()> {
 
     // We take the next step
     let computed_state = loaded_state
-        .step(&air_db, &client_db, &api_clients)
+        .step(&air_db, &client_db, client_record_id, &api_clients)
         .await
         .unwrap();
 
@@ -96,7 +98,7 @@ async fn user_stages() -> anyhow::Result<()> {
 
     // We take the next step
     let computed_state = loaded_state
-        .step(&air_db, &client_db, &api_clients)
+        .step(&air_db, &client_db, client_record_id, &api_clients)
         .await
         .unwrap();
 
@@ -115,7 +117,7 @@ async fn user_stages() -> anyhow::Result<()> {
 
     // We take the next step
     let computed_state = loaded_state
-        .step(&air_db, &client_db, &api_clients)
+        .step(&air_db, &client_db, client_record_id, &api_clients)
         .await
         .unwrap();
 
@@ -134,7 +136,7 @@ async fn user_stages() -> anyhow::Result<()> {
 
     // We take the next step
     let computed_state = loaded_state
-        .step(&air_db, &client_db, &api_clients)
+        .step(&air_db, &client_db, client_record_id, &api_clients)
         .await
         .unwrap();
 
@@ -153,7 +155,7 @@ async fn user_stages() -> anyhow::Result<()> {
 
     // We take the final step
     let computed_state = loaded_state
-        .step(&air_db, &client_db, &api_clients)
+        .step(&air_db, &client_db, client_record_id, &api_clients)
         .await
         .unwrap();
 

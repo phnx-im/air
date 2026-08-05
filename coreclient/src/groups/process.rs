@@ -6,11 +6,10 @@ use std::{collections::HashMap, iter};
 
 use aircommon::{
     credentials::{
-        AsIntermediateCredential, AsIntermediateCredentialBody, LeafCredential, UserCredential,
-        VerifiableUserCredential,
+        AsIntermediateCredential, AsIntermediateCredentialBody, LeafCredential, RoomPolicyIdentity,
+        UserCredential, VerifiableUserCredential,
     },
     crypto::{aead::keys::EncryptedUserProfileKey, hash::Hash, indexed_aead::keys::UserProfileKey},
-    identifiers::UserId,
     messages::client_ds::{
         AadMessage, AadPayload, GroupOperationParamsAad, JoinConnectionGroupParamsAad,
     },
@@ -43,7 +42,7 @@ use crate::{
         user_settings::{SettingChanges, apply_settings_update, merge_settings_update},
     },
     db::access::WriteDbTransaction,
-    groups::client_auth_info::{StorableUserCredential, VerifiableUserCredentialExt},
+    groups::client_auth_info::VerifiableUserCredentialExt,
     job::pending_chat_operation::PendingChatOperation,
     key_stores::as_credentials::AsCredentials,
 };
@@ -99,11 +98,11 @@ impl Group {
                 Err(ProcessMessageError::<sqlx::Error>::ValidationError(
                     ValidationError::WrongEpoch,
                 )) => {
-                    // If the message epoch is in the past, we can just ignore
-                    // it. This is expected on every commit: the DS echoes our
-                    // own commit back, but we usually merge our pending commit
-                    // via the `DsCommitResponse` first, leaving the echo one
-                    // epoch behind. So skip quietly rather than logging an error.
+                    // If the message epoch is in the past, we can just
+                    // ignore it: our pending commit was already merged via
+                    // the `DsCommitResponse`, so a replayed or stale delivery
+                    // is one epoch behind. Skip quietly rather than logging
+                    // an error.
                     if self.mls_group.epoch() > message_epoch {
                         debug!(
                             ?message_epoch,
@@ -315,6 +314,17 @@ impl Group {
         self.discard_pending_commit_and_operations(txn, &group_id, staged_commit)
             .await?;
 
+        // Process a sibling's key package upload announcement (self-group
+        // only), if any. Errors are logged and swallowed: the commit itself
+        // is valid and must be merged, otherwise the group falls permanently
+        // behind the DS.
+        if let Err(error) = self
+            .process_vc_key_package_upload_aad(txn, processed_message, sender_index)
+            .await
+        {
+            error!(%error, "Failed to process sibling key package upload");
+        }
+
         let sender_credential = LeafCredential::from_credential(processed_message.credential())?;
 
         // StagedCommitMessage Phase 1: Process the proposals.
@@ -355,7 +365,7 @@ impl Group {
     ) -> Result<PostProcessAadResult> {
         // Let's figure out which operation this is meant to be.
         let aad_payload =
-            AadMessage::tls_deserialize_exact_bytes(processed_message.aad())?.into_payload();
+            AadMessage::tls_deserialize_exact_bytes(processed_message.tail_aad())?.into_payload();
         let result = match aad_payload {
             AadPayload::GroupOperation(group_operation_payload) => {
                 let encrypted_profile_infos = self
@@ -439,34 +449,42 @@ impl Group {
             // Verify that T/PQ added user signature keys match
             verify_pq_added_signature_keys(staged_commit, pq_staged_commit)?;
 
-            // Collect the verifiable credentials
-            let mut verifiable_credentials = Vec::with_capacity(number_of_adds);
-            for ap in staged_commit.add_proposals() {
-                let credential = ap.add_proposal().key_package().leaf_node().credential();
-                let credential = LeafCredential::from_credential(credential)?
-                    .into_user()
-                    .context("adding self-group members is not yet supported")?;
-                verifiable_credentials.push(credential);
-            }
+            // Compute the sender identity before the `&mut self` calls below.
+            let sender_identity = sender_credential.room_policy_identity();
 
-            let as_credentials = AsCredentials::fetch_for_verification(
-                &mut *txn,
-                api_clients,
-                verifiable_credentials.iter(),
-            )
-            .await?;
-            // Clone the sender id so the immutable borrow of `self` (for `own_user_id`) ends
-            // before the `&mut self` call below.
-            let sender_user_id = sender_credential.user_id(self.own_user_id()).clone();
-            let credentials = self
-                .process_adds(&sender_user_id, staged_commit, &mut *txn, &as_credentials)
+            if self.is_self_group() {
+                // A self-group add links a new device of the own user. Its leaf
+                // carries a self-group credential without AS material, and the
+                // own user profile needs no fetching, so there are no profile
+                // infos to collect.
+                self.process_self_group_adds(&sender_identity, staged_commit)?;
+            } else {
+                // Collect the verifiable credentials
+                let mut verifiable_credentials = Vec::with_capacity(number_of_adds);
+                for ap in staged_commit.add_proposals() {
+                    let credential = ap.add_proposal().key_package().leaf_node().credential();
+                    let credential = LeafCredential::from_credential(credential)?
+                        .into_user()
+                        .context("expected a user credential in a regular-group add")?;
+                    verifiable_credentials.push(credential);
+                }
+
+                let as_credentials = AsCredentials::fetch_for_verification(
+                    &mut *txn,
+                    api_clients,
+                    verifiable_credentials.iter(),
+                )
                 .await?;
-            // Match up user credentials and new UserProfileKeys
-            let new_profile_infos: Vec<_> = credentials
-                .into_iter()
-                .zip(group_operation_payload.new_encrypted_user_profile_keys)
-                .collect();
-            encrypted_profile_infos.extend(new_profile_infos);
+                let credentials = self
+                    .process_adds(&sender_identity, staged_commit, &mut *txn, &as_credentials)
+                    .await?;
+                // Match up user credentials and new UserProfileKeys
+                let new_profile_infos: Vec<_> = credentials
+                    .into_iter()
+                    .zip(group_operation_payload.new_encrypted_user_profile_keys)
+                    .collect();
+                encrypted_profile_infos.extend(new_profile_infos);
+            }
         }
 
         // Process updates if there are any.
@@ -629,7 +647,7 @@ impl Group {
                     && proposal_sender_index == &self.mls_group().own_leaf_index()
             });
             if !pending_chat_operation.is_leave() || commit_contains_our_self_remove {
-                PendingChatOperation::delete(&mut *txn, group_id).await?;
+                pending_chat_operation.discard(txn).await?;
             }
         }
         Ok(())
@@ -661,12 +679,11 @@ impl Group {
             let removed_credential = self
                 .unverified_credential_at(removed_index)?
                 .context("Removed user credential not found")?;
-            let removed_id = removed_credential.user_id(self.own_user_id());
 
             // Room policy checks
-            self.verify_role_change(
-                sender_credential.user_id(self.own_user_id()),
-                removed_id,
+            self.verify_role_change_identity(
+                &sender_credential.room_policy_identity(),
+                &removed_credential.room_policy_identity(),
                 RoleIndex::Outsider,
             )?;
 
@@ -701,13 +718,12 @@ impl Group {
 
     async fn process_adds(
         &mut self,
-        sender_user: &UserId,
+        sender_identity: &RoomPolicyIdentity,
         staged_commit: &StagedCommit,
         txn: &mut WriteDbTransaction<'_>,
         as_credentials: &HashMap<Hash<AsIntermediateCredentialBody>, AsIntermediateCredential>,
     ) -> Result<Vec<UserCredential>> {
         let mut credentials = Vec::new();
-        let is_self_group = AirComponent::is_self_group_context(self.mls_group.extensions());
 
         for proposal in staged_commit.add_proposals() {
             let leaf_node = proposal.add_proposal().key_package().leaf_node();
@@ -715,21 +731,15 @@ impl Group {
             // Verify the credential
             let credential = LeafCredential::from_credential(leaf_node.credential())?
                 .into_user()
-                .context("adding self-group members is not yet supported")?;
-            let credential = if is_self_group {
-                // TODO(gabriel): replace this by using LeafCredential instead.
-                //
-                // A self-group leaf is signed with the joining device's own key
-                // rather than the one its user credential attests, so the
-                // leaf-key binding does not apply. The credential itself is
-                // still verified against the AS, and only our own devices are
-                // ever members of our self group.
-                StorableUserCredential::verify(credential, as_credentials)?
-            } else {
-                credential.verify_and_validate(leaf_node.signature_key(), None, as_credentials)?
-            };
+                .context("expected a user credential in a regular-group add")?;
+            let credential =
+                credential.verify_and_validate(leaf_node.signature_key(), None, as_credentials)?;
 
-            self.verify_role_change(sender_user, credential.user_id(), RoleIndex::Regular)?;
+            self.verify_role_change_identity(
+                sender_identity,
+                &RoomPolicyIdentity::User(credential.user_id().clone()),
+                RoleIndex::Regular,
+            )?;
 
             credential.store(&mut *txn).await?;
             credentials.push(credential.into());
@@ -744,6 +754,30 @@ impl Group {
         //   names).
 
         Ok(credentials)
+    }
+
+    /// Process the add proposals of a self-group commit. Added leaves carry a
+    /// self-group credential, which holds no AS material to verify: openmls
+    /// has already checked the leaf signature, so only the credential type,
+    /// client id uniqueness, and the room policy (keyed on client ids) are
+    /// checked.
+    fn process_self_group_adds(
+        &self,
+        sender_identity: &RoomPolicyIdentity,
+        staged_commit: &StagedCommit,
+    ) -> Result<()> {
+        for proposal in staged_commit.add_proposals() {
+            let leaf_node = proposal.add_proposal().key_package().leaf_node();
+            self.validate_self_group_add(leaf_node.credential())?;
+
+            let credential = LeafCredential::from_credential(leaf_node.credential())?;
+            self.verify_role_change_identity(
+                sender_identity,
+                &credential.room_policy_identity(),
+                RoleIndex::Regular,
+            )?;
+        }
+        Ok(())
     }
 
     fn process_resync(&self, credential: &Credential, staged_commit: &StagedCommit) -> Result<()> {
@@ -805,10 +839,9 @@ impl Group {
                 ValidationError::WrongEpoch,
             ))) => {
                 // A past-epoch message is one we already moved past, so we
-                // ignore it. This is expected on every commit: the DS echoes
-                // our own commit back, but we usually merge our pending commit
-                // via the `DsCommitResponse` first, leaving the echo one epoch
-                // behind. So skip quietly rather than logging an error.
+                // ignore it: our pending commit was already merged via the
+                // `DsCommitResponse`, so a replayed or stale delivery is one
+                // epoch behind. Skip quietly rather than logging an error.
                 if current_t_epoch > message_t_epoch {
                     debug!(
                         %message_t_epoch,

@@ -2,10 +2,9 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:async';
-
-import 'package:air/l10n/l10n.dart' show AppLocalizations;
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/message_separator/message_separator.dart';
+import 'package:air/util/time/app_clock.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 
@@ -17,8 +16,7 @@ import 'package:air/features/message_list/date_divider.dart';
 ///
 /// Visibility gates on both [scrollActive] (fades out at rest) and
 /// [isOldestVisibleHoisted] (hides while no inline divider is being
-/// substituted). Self-ticks once a minute so Today/Yesterday rollover
-/// keeps pace with the wall clock.
+/// substituted).
 class FloatingDateHeader extends StatefulWidget {
   const FloatingDateHeader({
     super.key,
@@ -40,8 +38,6 @@ class FloatingDateHeader extends StatefulWidget {
 }
 
 class _FloatingDateHeaderState extends State<FloatingDateHeader> {
-  Timer? _timer;
-
   /// Tracked outside build so the slide direction can be decided without
   /// mutating state during the build phase.
   DateTime? _previousTimestamp;
@@ -50,9 +46,6 @@ class _FloatingDateHeaderState extends State<FloatingDateHeader> {
   @override
   void initState() {
     super.initState();
-    _timer = Timer.periodic(const Duration(minutes: 1), (_) {
-      if (mounted) setState(() {});
-    });
     widget.oldestVisibleId.addListener(_onOldestVisibleChanged);
     // Seed _previousTimestamp so the first real change has a baseline.
     _onOldestVisibleChanged();
@@ -71,7 +64,6 @@ class _FloatingDateHeaderState extends State<FloatingDateHeader> {
   @override
   void dispose() {
     widget.oldestVisibleId.removeListener(_onOldestVisibleChanged);
-    _timer?.cancel();
     super.dispose();
   }
 
@@ -123,22 +115,20 @@ class _FloatingDateHeaderState extends State<FloatingDateHeader> {
               }
               final newFromBelow = _newFromBelow;
 
-              final loc = AppLocalizations.of(context);
-              final locale = Localizations.localeOf(context).toString();
-              final label = formatDateLabel(
-                timestamp,
-                DateTime.now(),
-                loc,
-                locale,
-              );
-              return AnimatedSwitcher(
-                duration: Effect.duration(MotionPreset.short),
-                switchInCurve: Curves.easeOut,
-                switchOutCurve: Curves.easeOut,
-                transitionBuilder: (child, animation) =>
-                    _slideFadeTransition(child, animation, newFromBelow),
-                layoutBuilder: _stackedLayoutBuilder,
-                child: DateLabelPill(key: ValueKey(label), label: label),
+              return LiveTime(
+                format: (context, now) => dividerLabel(context, timestamp, now),
+                builder: (context, label) => AnimatedSwitcher(
+                  duration: Effect.duration(MotionPreset.short),
+                  switchInCurve: Curves.easeOut,
+                  switchOutCurve: Curves.easeOut,
+                  transitionBuilder: (child, animation) =>
+                      _slideFadeTransition(child, animation, newFromBelow),
+                  layoutBuilder: _stackedLayoutBuilder,
+                  child: MessageSeparatorPill(
+                    key: ValueKey(label),
+                    label: label,
+                  ),
+                ),
               );
             },
           ),

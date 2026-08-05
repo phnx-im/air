@@ -6,6 +6,8 @@ import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/components/text_input/text_input.dart';
+import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -24,8 +26,6 @@ class AddContactDialog extends HookWidget {
 
   @override
   Widget build(context) {
-    final formKey = useMemoized(() => GlobalKey<FormState>());
-
     final usernameHash = useState<UsernameHash?>(null);
     final isSubmitting = useState(false);
     final isInputValid = useState(false);
@@ -36,113 +36,97 @@ class AddContactDialog extends HookWidget {
     final focusNode = useFocusNode();
 
     final loc = AppLocalizations.of(context);
-    final palette = SemanticPalette.of(context);
 
     return AppDialog(
-      child: Form(
-        key: formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Text(
-                loc.newConnectionDialog_newConnectionTitle,
-                style: typeScale.header.regular.style(
-                  weight: Weight.emphasized,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Text(
+              loc.newConnectionDialog_newConnectionTitle,
+              style: typeScale.header.regular.style(weight: Weight.emphasized),
+            ),
+          ),
+
+          const SizedBox(height: S.s24),
+
+          AppTextInput(
+            tokens: AppTextInputTokens.of(context),
+            label: loc.newConnectionDialog_inputLabel,
+            autocorrect: false,
+            autofocus: true,
+            controller: controller,
+            focusNode: focusNode,
+            inputFormatters: const [UsernameInputFormatter()],
+            hintText: loc.newConnectionDialog_usernamePlaceholder,
+            // The line below the field is [_Description]'s, since it also
+            // speaks a success state the field has no slot for, so the field
+            // takes the outline only.
+            hasError: errorMessage.value != null,
+            onChanged: (value) {
+              errorMessage.value = null;
+              usernameHash.value = null;
+              isInputValid.value = _validate(value);
+            },
+            onSubmitted: (value) {
+              focusNode.requestFocus();
+              _SubmitHandler(
+                isSubmitting: isSubmitting,
+                errorMessage: errorMessage,
+                usernameHash: usernameHash,
+                value: value,
+              )._submit(context);
+            },
+          ),
+
+          const SizedBox(height: S.s12),
+
+          Container(
+            constraints: const BoxConstraints(minHeight: 38),
+            padding: const EdgeInsets.symmetric(horizontal: S.s8),
+            child: _Description(
+              hasUsernameHash: usernameHash.value != null,
+              errorMessage: errorMessage.value,
+              username: controller.text,
+            ),
+          ),
+
+          const SizedBox(height: S.s24),
+
+          Row(
+            children: [
+              Expanded(
+                child: Button(
+                  onPressed: () {
+                    Navigator.of(context).pop(false);
+                  },
+                  type: .secondary,
+                  label: loc.newConnectionDialog_cancel,
                 ),
               ),
-            ),
-
-            const SizedBox(height: S.s24),
-
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: S.s8),
-              child: Text(
-                loc.newConnectionDialog_inputLabel,
-                style: typeScale.body.xs.style(color: palette.text.quaternary),
-              ),
-            ),
-
-            const SizedBox(height: S.s8),
-
-            TextFormField(
-              autocorrect: false,
-              autofocus: true,
-              controller: controller,
-              focusNode: focusNode,
-              inputFormatters: const [UsernameInputFormatter()],
-              decoration: appDialogInputDecoration.copyWith(
-                hintText: loc.newConnectionDialog_usernamePlaceholder,
-                filled: true,
-                fillColor: palette.backgroundBase.secondary,
-              ),
-              onChanged: (value) {
-                errorMessage.value = null;
-                usernameHash.value = null;
-                isInputValid.value = _validate(value);
-              },
-              onFieldSubmitted: (value) {
-                focusNode.requestFocus();
-                _SubmitHandler(
-                  formKey: formKey,
-                  isSubmitting: isSubmitting,
-                  errorMessage: errorMessage,
-                  usernameHash: usernameHash,
-                  value: value,
-                )._submit(context);
-              },
-            ),
-
-            const SizedBox(height: S.s12),
-
-            Container(
-              constraints: const BoxConstraints(minHeight: 38),
-              padding: const EdgeInsets.symmetric(horizontal: S.s8),
-              child: _Description(
-                hasUsernameHash: usernameHash.value != null,
-                errorMessage: errorMessage.value,
-                username: controller.text,
-              ),
-            ),
-
-            const SizedBox(height: S.s24),
-
-            Row(
-              children: [
-                Expanded(
-                  child: AppButton(
-                    onPressed: () {
-                      Navigator.of(context).pop(false);
-                    },
-                    type: .secondary,
-                    label: loc.newConnectionDialog_cancel,
-                  ),
+              const SizedBox(width: S.s12),
+              Expanded(
+                child: Button(
+                  onPressed: () => _SubmitHandler(
+                    isSubmitting: isSubmitting,
+                    errorMessage: errorMessage,
+                    usernameHash: usernameHash,
+                    value: controller.text,
+                  )._submit(context),
+                  state: isSubmitting.value
+                      ? .pending
+                      : isInputValid.value && errorMessage.value == null
+                      ? .active
+                      : .inactive,
+                  label: usernameHash.value == null
+                      ? loc.newConnectionDialog_confirm1
+                      : loc.newConnectionDialog_confirm2,
                 ),
-                const SizedBox(width: S.s12),
-                Expanded(
-                  child: AppButton(
-                    onPressed: () => _SubmitHandler(
-                      formKey: formKey,
-                      isSubmitting: isSubmitting,
-                      errorMessage: errorMessage,
-                      usernameHash: usernameHash,
-                      value: controller.text,
-                    )._submit(context),
-                    state: isSubmitting.value
-                        ? .pending
-                        : isInputValid.value && errorMessage.value == null
-                        ? .active
-                        : .inactive,
-                    label: usernameHash.value == null
-                        ? loc.newConnectionDialog_confirm1
-                        : loc.newConnectionDialog_confirm2,
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
@@ -191,24 +175,18 @@ class _Description extends StatelessWidget {
 
 class _SubmitHandler {
   const _SubmitHandler({
-    required this.formKey,
     required this.isSubmitting,
     required this.errorMessage,
     required this.usernameHash,
     required this.value,
   });
 
-  final GlobalKey<FormState> formKey;
   final ValueNotifier<bool> isSubmitting;
   final ValueNotifier<String?> errorMessage;
   final ValueNotifier<UsernameHash?> usernameHash;
   final String value;
 
   void _submit(BuildContext context) {
-    if (!formKey.currentState!.validate()) {
-      return;
-    }
-
     isSubmitting.value = true;
 
     final normalized = UsernameInputFormatter.normalize(value);

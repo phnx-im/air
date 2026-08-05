@@ -1,0 +1,20 @@
+---
+source: protos/src/client/self_group.rs
+expression: diag
+---
+a2                                           # map(2)
+   01                                        #   unsigned(1)
+   f5                                        #   true, simple(21)
+   02                                        #   unsigned(2)
+   81                                        #   array(1)
+      a4                                     #     map(4)
+         01                                  #       unsigned(1)
+         50                                  #       bytes(16)
+            00000000000000000000000000000001 #         "\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x00\x01"
+         02                                  #       unsigned(2)
+         66                                  #       text(6)
+            4c6170746f70                     #         "Laptop"
+         03                                  #       unsigned(3)
+         01                                  #       unsigned(1)
+         04                                  #       unsigned(4)
+         05                                  #       unsigned(5)

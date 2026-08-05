@@ -12,17 +12,18 @@ use mls_assist::{
 use serde::{Deserialize, Serialize};
 use sqlx::{Database, Decode, Encode, Sqlite, Type, encode::IsNull, error::BoxDynError};
 use tls_codec::{Serialize as _, TlsDeserializeBytes, TlsSerialize, TlsSize};
+use uuid::Uuid;
 
 use crate::{
-    codec::PersistenceCodec,
+    codec::{self, PersistenceCodec},
     crypto::{
         RawKey,
         errors::KeyGenerationError,
-        signatures::{private_keys::Convertible, signable::Signature},
+        signatures::{DEFAULT_SIGNATURE_SCHEME, private_keys::Convertible, signable::Signature},
     },
 };
 
-use super::{AsCredential, AsIntermediateCredential};
+use super::{AsCredential, AsIntermediateCredential, RoomPolicyIdentity, SelfGroupCredential};
 
 use crate::crypto::signatures::private_keys::{SigningKey, VerifyingKey};
 
@@ -128,6 +129,8 @@ pub type AsVerifyingKey = VerifyingKey<AsKeyType>;
 
 pub type AsIntermediateVerifyingKey = VerifyingKey<AsIntermediateKeyType>;
 
+/// Key type shared by the user-level [`UserSigningKey`] and the per-device
+/// [`SelfGroupSigningKey`]. Both sign MLS leaves and DS request envelopes.
 #[derive(Debug)]
 pub struct ClientKeyType;
 
@@ -136,7 +139,7 @@ pub type ClientSignature = Signature<ClientKeyType>;
 impl RawKey for ClientKeyType {}
 
 #[derive(Clone, Debug, Serialize, Deserialize)]
-pub struct ClientSigningKey {
+pub struct UserSigningKey {
     signing_key: SigningKey<ClientKeyType>, // private
     credential: UserCredential,             // known to other users and the server
 }
@@ -150,13 +153,13 @@ impl TryFrom<&UserCredential> for Credential {
     }
 }
 
-impl Type<Sqlite> for ClientSigningKey {
+impl Type<Sqlite> for UserSigningKey {
     fn type_info() -> <Sqlite as Database>::TypeInfo {
         <Vec<u8> as Type<Sqlite>>::type_info()
     }
 }
 
-impl<'q> Encode<'q, Sqlite> for ClientSigningKey {
+impl<'q> Encode<'q, Sqlite> for UserSigningKey {
     fn encode_by_ref(
         &self,
         buf: &mut <Sqlite as Database>::ArgumentBuffer,
@@ -166,7 +169,7 @@ impl<'q> Encode<'q, Sqlite> for ClientSigningKey {
     }
 }
 
-impl<'r> Decode<'r, Sqlite> for ClientSigningKey {
+impl<'r> Decode<'r, Sqlite> for UserSigningKey {
     fn decode(value: <Sqlite as Database>::ValueRef<'r>) -> Result<Self, BoxDynError> {
         let bytes: &[u8] = Decode::<Sqlite>::decode(value)?;
         let value = PersistenceCodec::from_slice(bytes)?;
@@ -174,7 +177,7 @@ impl<'r> Decode<'r, Sqlite> for ClientSigningKey {
     }
 }
 
-impl Deref for ClientSigningKey {
+impl Deref for UserSigningKey {
     type Target = SigningKey<ClientKeyType>;
 
     fn deref(&self) -> &Self::Target {
@@ -182,12 +185,12 @@ impl Deref for ClientSigningKey {
     }
 }
 
-impl Convertible<ClientKeyType> for PreliminaryClientKeyType {}
+impl Convertible<ClientKeyType> for PreliminaryUserKeyType {}
 
-impl ClientSigningKey {
+impl UserSigningKey {
     /// Pair a signing key with a matching credential and validates it.
     pub fn from_prelim_key(
-        prelim_key: PreliminaryClientSigningKey,
+        prelim_key: PreliminaryUserSigningKey,
         credential: UserCredential,
     ) -> Result<Self, SigningKeyCreationError> {
         let prelim_key = prelim_key.convert();
@@ -196,19 +199,6 @@ impl ClientSigningKey {
         }
         Ok(Self {
             signing_key: prelim_key,
-            credential,
-        })
-    }
-
-    /// Pair a freshly generated signing key with a credential that was issued
-    /// for a *different* key. This is used *only* in the context of the virtual
-    /// client self-group, where leaves are signed with a fresh signing key.
-    pub fn from_prelim_key_with_foreign_credential(
-        preliminary_client_signing_key: PreliminaryClientSigningKey,
-        credential: UserCredential,
-    ) -> Result<Self, KeyGenerationError> {
-        Ok(Self {
-            signing_key: preliminary_client_signing_key.convert(),
             credential,
         })
     }
@@ -222,7 +212,7 @@ pub type ClientVerifyingKey = VerifyingKey<ClientKeyType>;
 
 impl RawKey for ClientVerifyingKey {}
 
-impl Signer for ClientSigningKey {
+impl Signer for UserSigningKey {
     fn sign(&self, payload: &[u8]) -> Result<Vec<u8>, SignerError> {
         self.signing_key
             .sign(payload)
@@ -235,7 +225,170 @@ impl Signer for ClientSigningKey {
     }
 }
 
-impl ApqSigner for ClientSigningKey {
+impl ApqSigner for UserSigningKey {
+    type TSigner = Self;
+    type PqSigner = Self;
+
+    fn t_signer(&self) -> &Self {
+        self
+    }
+
+    fn pq_signer(&self) -> &Self {
+        self
+    }
+}
+
+/// Signing key for a client's leaf in its user's self-group.
+///
+/// Minted per device. Unlike [`UserSigningKey`], the paired [`SelfGroupCredential`] carries
+/// no key material. The DS verifies request envelopes from self-group members against the
+/// leaf's public signature key, so the key type matches [`ClientKeyType`].
+#[derive(Clone, Debug, Serialize, Deserialize)]
+pub struct SelfGroupSigningKey {
+    signing_key: SigningKey<ClientKeyType>,
+    credential: SelfGroupCredential,
+}
+
+impl SelfGroupSigningKey {
+    pub fn generate(client_id: Uuid) -> Result<Self, KeyGenerationError> {
+        Ok(Self {
+            signing_key: SigningKey::generate()?,
+            credential: SelfGroupCredential::new(client_id),
+        })
+    }
+
+    pub fn credential(&self) -> &SelfGroupCredential {
+        &self.credential
+    }
+}
+
+impl Deref for SelfGroupSigningKey {
+    type Target = SigningKey<ClientKeyType>;
+
+    fn deref(&self) -> &Self::Target {
+        &self.signing_key
+    }
+}
+
+impl Type<Sqlite> for SelfGroupSigningKey {
+    fn type_info() -> <Sqlite as Database>::TypeInfo {
+        <Vec<u8> as Type<Sqlite>>::type_info()
+    }
+}
+
+impl<'q> Encode<'q, Sqlite> for SelfGroupSigningKey {
+    fn encode_by_ref(
+        &self,
+        buf: &mut <Sqlite as Database>::ArgumentBuffer,
+    ) -> Result<IsNull, BoxDynError> {
+        let bytes = PersistenceCodec::to_vec(self)?;
+        Encode::<Sqlite>::encode(bytes, buf)
+    }
+}
+
+impl<'r> Decode<'r, Sqlite> for SelfGroupSigningKey {
+    fn decode(value: <Sqlite as Database>::ValueRef<'r>) -> Result<Self, BoxDynError> {
+        let bytes: &[u8] = Decode::<Sqlite>::decode(value)?;
+        let value = PersistenceCodec::from_slice(bytes)?;
+        Ok(value)
+    }
+}
+
+impl Signer for SelfGroupSigningKey {
+    fn sign(&self, payload: &[u8]) -> Result<Vec<u8>, SignerError> {
+        self.signing_key
+            .sign(payload)
+            .map_err(|_| SignerError::SigningError)
+            .map(|s| s.into_bytes())
+    }
+
+    fn signature_scheme(&self) -> SignatureScheme {
+        DEFAULT_SIGNATURE_SCHEME
+    }
+}
+
+impl ApqSigner for SelfGroupSigningKey {
+    type TSigner = Self;
+    type PqSigner = Self;
+
+    fn t_signer(&self) -> &Self {
+        self
+    }
+
+    fn pq_signer(&self) -> &Self {
+        self
+    }
+}
+
+/// The signing key for the local client's leaf in a group.
+///
+/// Regular groups use the user-level [`UserSigningKey`]. The self-group uses the per-device
+/// [`SelfGroupSigningKey`].
+#[derive(Clone, Debug)]
+pub enum LeafSigningKey {
+    User(UserSigningKey),
+    SelfGroup(SelfGroupSigningKey),
+}
+
+#[derive(Debug, Error)]
+pub enum LeafSigningKeyError {
+    #[error(transparent)]
+    Tls(#[from] tls_codec::Error),
+    #[error(transparent)]
+    Codec(#[from] codec::Error),
+}
+
+impl Deref for LeafSigningKey {
+    type Target = SigningKey<ClientKeyType>;
+
+    fn deref(&self) -> &Self::Target {
+        match self {
+            LeafSigningKey::User(key) => key,
+            LeafSigningKey::SelfGroup(key) => key,
+        }
+    }
+}
+
+impl LeafSigningKey {
+    /// The MLS credential to place in the leaf.
+    pub fn mls_credential(&self) -> Result<Credential, LeafSigningKeyError> {
+        match self {
+            LeafSigningKey::User(key) => Ok(Credential::try_from(key.credential())?),
+            LeafSigningKey::SelfGroup(key) => Ok(key.credential().to_credential()?),
+        }
+    }
+
+    /// Room-policy identity of the leaf's owner, see
+    /// [`LeafCredential::room_policy_identity`](super::LeafCredential::room_policy_identity).
+    pub fn room_policy_identity(&self) -> RoomPolicyIdentity {
+        match self {
+            LeafSigningKey::User(key) => {
+                RoomPolicyIdentity::User(key.credential().user_id().clone())
+            }
+            LeafSigningKey::SelfGroup(key) => {
+                RoomPolicyIdentity::Client(key.credential().client_id())
+            }
+        }
+    }
+}
+
+impl Signer for LeafSigningKey {
+    fn sign(&self, payload: &[u8]) -> Result<Vec<u8>, SignerError> {
+        match self {
+            LeafSigningKey::User(key) => key.sign(payload),
+            LeafSigningKey::SelfGroup(key) => key.sign(payload),
+        }
+    }
+
+    fn signature_scheme(&self) -> SignatureScheme {
+        match self {
+            LeafSigningKey::User(key) => key.signature_scheme(),
+            LeafSigningKey::SelfGroup(key) => key.signature_scheme(),
+        }
+    }
+}
+
+impl ApqSigner for LeafSigningKey {
     type TSigner = Self;
     type PqSigner = Self;
 
@@ -249,8 +402,8 @@ impl ApqSigner for ClientSigningKey {
 }
 
 #[derive(Clone, Serialize, Deserialize)]
-pub struct PreliminaryClientKeyType;
-pub type PreliminaryClientSigningKey = SigningKey<PreliminaryClientKeyType>;
+pub struct PreliminaryUserKeyType;
+pub type PreliminaryUserSigningKey = SigningKey<PreliminaryUserKeyType>;
 
 #[derive(Debug, Clone, TlsDeserializeBytes, TlsSerialize, TlsSize, Serialize, Deserialize)]
 pub struct PreliminaryAsKeyType;
@@ -268,3 +421,35 @@ pub type UsernameSigningKey = SigningKey<UsernameKeyType>;
 pub type UsernameVerifyingKey = VerifyingKey<UsernameKeyType>;
 
 pub type UsernameSignature = Signature<UsernameKeyType>;
+
+#[cfg(test)]
+mod test {
+    use mls_assist::openmls_traits::signatures::Signer;
+    use uuid::Uuid;
+
+    use crate::crypto::signatures::{
+        DEFAULT_SIGNATURE_SCHEME, private_keys::VerifyingKeyBehaviour,
+    };
+
+    use super::SelfGroupSigningKey;
+
+    #[test]
+    fn self_group_signing_key_round_trips_client_id() {
+        let client_id = Uuid::new_v4();
+        let signing_key = SelfGroupSigningKey::generate(client_id).unwrap();
+        assert_eq!(signing_key.credential().client_id(), client_id);
+    }
+
+    #[test]
+    fn self_group_signing_key_signs_and_verifies() {
+        let signing_key = SelfGroupSigningKey::generate(Uuid::new_v4()).unwrap();
+        assert_eq!(signing_key.signature_scheme(), DEFAULT_SIGNATURE_SCHEME);
+
+        let payload = b"payload to sign";
+        let signature = signing_key.sign(payload).unwrap();
+        signing_key
+            .verifying_key()
+            .verify(payload, &signature)
+            .unwrap();
+    }
+}

@@ -6,7 +6,7 @@ use std::collections::BTreeMap;
 
 use aircommon::{
     codec::PersistenceCodec,
-    credentials::LeafCredential,
+    credentials::{LeafCredential, RoomPolicyIdentity},
     crypto::{
         aead::{
             AeadDecryptable, AeadEncryptable, Ciphertext,
@@ -19,7 +19,7 @@ use aircommon::{
     mls_group_config::leaf_node_is_virtual_client,
     time::TimeStamp,
 };
-use airprotos::client::component::{AIR_COMPONENT_ID, AirComponent};
+use airprotos::client::component::AirComponent;
 use apqmls::extension::ApqInfo;
 use mimi_room_policy::{MimiProposal, RoleIndex, VerifiedRoomState};
 use mls_assist::{
@@ -34,8 +34,8 @@ use mls_assist::{
 };
 use sqlx::PgExecutor;
 use thiserror::Error;
-use tls_codec::{Serialize as _, TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
-use tracing::{error, warn};
+use tls_codec::{TlsDeserializeBytes, TlsSerialize, TlsSize, VLBytes};
+use tracing::error;
 use uuid::Uuid;
 
 use crate::errors::{CborMlsAssistStorage, StorageError};
@@ -92,19 +92,28 @@ impl DsGroupState {
         }
     }
 
+    /// Apply a role change to the room state.
+    ///
+    /// Returns `None` (and logs) if either identity fails to serialize or if the room policy
+    /// rejects the change.
     pub(super) fn room_state_change_role(
         &mut self,
         sender: &RoomPolicyIdentity,
-        target: RoomPolicyIdentity,
+        target: &RoomPolicyIdentity,
         role: RoleIndex,
     ) -> Option<()> {
-        match self.room_state.apply_regular_proposals(
-            &sender.0,
-            &[MimiProposal::ChangeRole {
-                target: target.0,
-                role,
-            }],
-        ) {
+        let sender = sender
+            .to_bytes()
+            .map_err(|error| error!(%error, "Failed to serialize sender identity"))
+            .ok()?;
+        let target = target
+            .to_bytes()
+            .map_err(|error| error!(%error, "Failed to serialize target identity"))
+            .ok()?;
+        match self
+            .room_state
+            .apply_regular_proposals(&sender, &[MimiProposal::ChangeRole { target, role }])
+        {
             Ok(_) => Some(()),
             Err(e) => {
                 error!(%e, "Change role proposal failed");
@@ -217,24 +226,16 @@ impl DsGroupState {
             })
     }
 
+    /// Returns `true` if the group context's [`AirComponent`] marks this group as a
+    /// self-group. The flag is fixed at group creation.
+    pub(crate) fn is_self_group(&self) -> bool {
+        AirComponent::is_self_group_context(self.group().group_info().group_context().extensions())
+    }
+
     /// If the group context's [`AirComponent`] marks this group
     /// as a virtual-client self-group, disable virtual-client broadcasting.
     pub(crate) fn broadcast_to_all_client_queues(&self) -> bool {
-        let is_self_group = self
-            .group()
-            .group_info()
-            .group_context()
-            .extensions()
-            .app_data_dictionary()
-            .and_then(|ext| ext.dictionary().get(&AIR_COMPONENT_ID))
-            .and_then(|data| {
-                AirComponent::from_bytes(data)
-                    .inspect_err(|error| warn!(%error, "Failed to deserialize air component"))
-                    .ok()
-            })
-            .is_some_and(|component| component.is_self_group);
-
-        !is_self_group
+        !self.is_self_group()
     }
 
     /// The self-group flag in the group context's [`AirComponent`] is fixed at
@@ -418,31 +419,15 @@ impl SerializableDsGroupStateV2 {
     }
 }
 
-/// Room-policy identity of a leaf credential.
+/// Check that a leaf credential matches the group kind.
 ///
-/// User credentials resolve to the TLS-serialized user id. Self-group credentials carry no user
-/// identity and resolve to the raw client id bytes, which are unique per client. The two forms
-/// cannot collide: a serialized user id is always longer than the 16 client id bytes.
-#[derive(Debug, Clone)]
-pub(super) struct RoomPolicyIdentity(Vec<u8>);
-
-impl RoomPolicyIdentity {
-    /// Derive the room-policy identity of `credential`.
-    ///
-    /// Returns `None` (and logs) if serializing the user id fails.
-    pub(super) fn from_credential(credential: &LeafCredential) -> Option<Self> {
-        match credential {
-            LeafCredential::User(credential) => credential
-                .user_id()
-                .tls_serialize_detached()
-                .map_err(|error| error!(%error, "Failed to serialize user id"))
-                .ok()
-                .map(Self),
-            LeafCredential::SelfGroup(credential) => {
-                Some(Self(credential.client_id().into_bytes().to_vec()))
-            }
-        }
-    }
+/// A self-group leaf must carry a [`LeafCredential::SelfGroup`], a regular-group leaf a
+/// [`LeafCredential::User`]. Returns `true` if `credential` is consistent with `is_self_group`.
+pub(super) fn leaf_credential_matches_flag(
+    credential: &LeafCredential,
+    is_self_group: bool,
+) -> bool {
+    matches!(credential, LeafCredential::SelfGroup(_)) == is_self_group
 }
 
 fn fallback_room_state(
@@ -457,10 +442,12 @@ fn fallback_room_state(
                 continue;
             }
         };
-        let Some(identity) = RoomPolicyIdentity::from_credential(&credential) else {
-            continue;
-        };
-        member_ids.push(identity.0);
+        match credential.room_policy_identity().to_bytes() {
+            Ok(identity) => member_ids.push(identity),
+            Err(error) => {
+                error!(%error, "Failed to serialize room policy identity; skipping member");
+            }
+        }
     }
     VerifiedRoomState::fallback_room(member_ids)
 }
@@ -535,5 +522,44 @@ mod test {
     #[test]
     fn test_deleted_queues_serde_json() {
         insta::assert_json_snapshot!(&*DELETED_QUEUES);
+    }
+
+    /// Build a user leaf credential. The signature is empty, which is fine here since the helper
+    /// only inspects the credential variant.
+    fn user_leaf() -> LeafCredential {
+        use aircommon::{
+            credentials::{
+                UserCredentialCsr, UserCredentialPayload, VerifiableUserCredential,
+                keys::AsIntermediateSignature,
+            },
+            crypto::hash::Hash,
+            identifiers::UserId,
+        };
+        use mls_assist::openmls::prelude::SignatureScheme;
+
+        let user_id = UserId::new(Uuid::new_v4(), "example.com".parse().unwrap());
+        let (csr, _prelim_key) = UserCredentialCsr::new(user_id, SignatureScheme::ED25519).unwrap();
+        let payload = UserCredentialPayload::new(csr, None, Hash::from_bytes([0u8; 32]));
+        LeafCredential::User(VerifiableUserCredential::new(
+            payload,
+            AsIntermediateSignature::empty(),
+        ))
+    }
+
+    fn self_group_leaf() -> LeafCredential {
+        use aircommon::credentials::SelfGroupCredential;
+        LeafCredential::SelfGroup(SelfGroupCredential::new(Uuid::new_v4()))
+    }
+
+    #[test]
+    fn leaf_credential_flag_consistency_matrix() {
+        // A regular-group leaf must carry a user credential.
+        assert!(leaf_credential_matches_flag(&user_leaf(), false));
+        // A self-group leaf must carry a self-group credential.
+        assert!(leaf_credential_matches_flag(&self_group_leaf(), true));
+        // A user credential in a self-group is rejected.
+        assert!(!leaf_credential_matches_flag(&user_leaf(), true));
+        // A self-group credential in a regular group is rejected.
+        assert!(!leaf_credential_matches_flag(&self_group_leaf(), false));
     }
 }

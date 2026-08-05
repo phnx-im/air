@@ -15,13 +15,15 @@ import 'types.dart';
 part 'navigation_cubit.freezed.dart';
 
 // These functions are ignored because they are not marked as `pub`: `home`, `intro`, `subscribe`
-// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`
+// These function are ignored because they are on traits that is not defined in current crate (put an empty `#[frb]` on it to unignore): `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `assert_fields_are_eq`, `clone`, `clone`, `clone`, `clone`, `clone`, `clone`, `eq`, `eq`, `eq`, `eq`, `eq`, `eq`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `fmt`, `from`, `from`
 
 // Rust type: RustOpaqueMoi<flutter_rust_bridge::for_generated::RustAutoOpaqueInner<NavigationCubitBase>>
 abstract class NavigationCubitBase implements RustOpaqueInterface {
   Future<void> close();
 
   Future<void> closeChat();
+
+  Future<void> closeYouSection();
 
   bool get isClosed;
 
@@ -53,6 +55,10 @@ abstract class NavigationCubitBase implements RustOpaqueInterface {
 
   Future<void> openMemberDetails({required UiUserId member});
 
+  Future<void> openSafetyCode();
+
+  Future<void> openYouSection({required YouSection section});
+
   bool pop();
 
   NavigationState get state;
@@ -79,7 +85,9 @@ sealed class HomeNavigationState with _$HomeNavigationState {
     DeveloperSettingsScreenType? developerSettingsScreen,
     UiUserId? memberDetails,
     @Default(HomeTab.chats) HomeTab activeTab,
+    YouSection? youSection,
     @Default(false) bool chatDetailsOpen,
+    @Default(false) bool safetyCodeOpen,
     @Default(false) bool addMembersOpen,
     @Default(false) bool groupMembersOpen,
     @Default(false) bool createGroupOpen,
@@ -126,3 +134,9 @@ sealed class NavigationState with _$NavigationState {
     @Default(HomeNavigationState()) HomeNavigationState home,
   }) = NavigationState_Home;
 }
+
+/// Sections of the profile tab.
+///
+/// The developer settings are not a section: they keep their own screens, see
+/// [`DeveloperSettingsScreenType`].
+enum YouSection { profile, devices, account, preferences, help }

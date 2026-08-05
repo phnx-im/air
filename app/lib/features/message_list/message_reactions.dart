@@ -4,24 +4,28 @@
 
 import 'dart:async';
 
-import 'package:air/ds/components/button_icon/glass_circle_button.dart';
+import 'package:air/core/core.dart';
+import 'package:air/ds/components/emoji/centered_emoji.dart';
+import 'package:air/ds/components/reaction_chip/reaction_chip.dart';
+import 'package:air/ds/components/reaction_chip/reaction_chip_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/l10n/l10n.dart';
+import 'package:air/ds/patterns/adaptive_modal/adaptive_modal.dart';
+import 'package:air/ds/patterns/reaction_bar/reaction_bar.dart';
+import 'package:air/ds/patterns/reaction_bar/reaction_bar_tokens.dart';
+import 'package:air/ds/patterns/reaction_details/reaction_details.dart';
+import 'package:air/ds/patterns/reaction_details/reaction_details_tokens.dart';
+import 'package:air/ds/patterns/reaction_strip/reaction_strip.dart';
+import 'package:air/ds/patterns/reaction_strip/reaction_strip_tokens.dart';
+import 'package:air/features/emoji/emoji_repository.dart';
 import 'package:air/features/user/users_cubit.dart';
+import 'package:air/l10n/l10n.dart';
+import 'package:air/platform/haptics.dart';
+import 'package:air/util/cached_memory_image.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
-
-import 'package:air/core/core.dart';
-import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
-import 'package:air/platform/haptics.dart';
-import 'package:air/features/user/avatar.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
-import 'package:flutter_hooks/flutter_hooks.dart';
 
-import 'package:air/ds/components/emoji/centered_emoji.dart';
-import 'package:air/features/emoji/emoji_repository.dart';
-
-/// The curated quick-reaction set shown in the [QuickReactionBar].
+/// The curated quick-reaction set shown in the reaction bar.
 const List<({String emoji, bool skinnable})> quickReactionEmojis = [
   (emoji: '👍', skinnable: true),
   (emoji: '❤️', skinnable: false),
@@ -31,55 +35,25 @@ const List<({String emoji, bool skinnable})> quickReactionEmojis = [
   (emoji: '🙏', skinnable: true),
 ];
 
-/// Size of emojis in the reaction bar
-const double quickReactionBarGlyphSize = 28;
+/// Size of the reactor panel on desktop, where it opens as a dialog rather
+/// than as a sheet the platform sizes.
+const Size _reactorPanelSize = Size(360, 380);
 
-/// Size of the tappable area in the reaction bar
-const double quickReactionBarTapSize = 44;
+/// The quick-reaction set ready to send: [tone] applied to the emojis that
+/// take one, the rest left alone.
+List<String> quickReactionEmojisFor(EmojiSkinVariation tone) => [
+  for (final item in quickReactionEmojis) _applyQuickTone(item, tone),
+];
 
-/// Size of the more (+) button in the reaction bar
-const double quickReactionBarMoreSize = 36;
-
-/// Fixed height of the reaction bar
-const double quickReactionBarHeight = quickReactionBarTapSize + S.s8;
-
-/// Extra vertical space between the hit point and where the reaction bar opens
-const double quickReactionMenuGap = S.s12;
-
-/// Compact reaction chip metrics (excluding border thickness)
-const double reactionChipSpacing = 1;
-
-/// Fixed height of a reaction chip (at text scale 1.0)
-const double reactionChipHeight = 28;
-
-/// The chip text scales with the text scaler so the chip
-/// must grow with it, otherwise emojis are clipped or shrunk.
-double reactionChipHeightOf(BuildContext context) =>
-    MediaQuery.textScalerOf(context).scale(reactionChipHeight);
-
-/// Inner padding of a reaction chip
-const double reactionChipHorizontalPadding = S.s8;
-
-/// Border thickness of a reaction chip
-const double reactionChipBorderWidth = 1.5;
-
-/// How far the chips overlap the bottom border of the message bubble
-const double reactionsMessageBubbleOverlap = S.s8;
-
-/// Gap below the chips before the timestamp / next message.
-const double reactionsGapBelow = S.s8;
-
-/// Aligning the chips
-const double reactionsHorizontalInset = S.s8;
-
-/// Vertical space [BubbleWithReactions] reserves below the bubble for the chips
-/// that overlap its bottom edge.
-double reactionsReservedBelow(BuildContext context, bool hasReactions) =>
-    hasReactions
-    ? reactionChipHeightOf(context) -
-          reactionsMessageBubbleOverlap +
-          reactionsGapBelow
-    : 0;
+String _applyQuickTone(
+  ({String emoji, bool skinnable}) item,
+  EmojiSkinVariation tone,
+) {
+  if (!item.skinnable || tone == EmojiSkinVariation.none) {
+    return item.emoji;
+  }
+  return '${item.emoji}${tone.modifier}';
+}
 
 /// Pre-measures the ink corrections for the quick-reaction emojis at chip
 /// size, so the chips of common reactions render centered on first frame
@@ -88,20 +62,25 @@ double reactionsReservedBelow(BuildContext context, bool hasReactions) =>
 void warmUpReactionEmojis(BuildContext context) {
   CenteredEmoji.warmUp(context, [
     for (final item in quickReactionEmojis) item.emoji,
-  ], _ReactionChip.textStyle());
+  ], ReactionChip.glyphStyle());
 }
 
-/// Default size of the reactor panel.
-const Size whoReactedPanelSize = Size(360, 380);
-const double reactorRowHeight = 56;
-const double reactorAvatarSize = 36;
-const double reactionTabHeight = 36;
-
-/// Overlays [MessageReactions] onto the bottom edge of [bubble].
+/// Vertical space [BubbleWithReactions] reserves below the bubble for the
+/// chips that ride up over its bottom edge.
 ///
-/// The chips overlap the bubble's bottom by [reactionsMessageBubbleOverlap] and the layout
-/// reserves the chips' protruding height (plus a small gap) below the bubble so
-/// following messages don't collide.
+/// The chip grows with the text scaler, so the reserve grows with it too.
+double reactionsReservedBelow(BuildContext context, bool hasReactions) {
+  if (!hasReactions) return 0;
+  final tokens = ReactionChipTokens.of(context);
+  return MediaQuery.textScalerOf(context).scale(tokens.minHeight) +
+      ReactionChipTokens.cropWidth * 2;
+}
+
+/// Overlays a [ReactionStrip] onto the bottom edge of [bubble].
+///
+/// The layout reserves the strip's height below the bubble so following
+/// messages don't collide, and the strip lifts itself back up over the
+/// bubble's edge.
 ///
 /// The reserve and the chips animate in when the first reaction arrives and
 /// out when the last one is removed. Tiles that mount with reactions render
@@ -111,15 +90,16 @@ class BubbleWithReactions extends StatefulWidget {
     super.key,
     required this.bubble,
     required this.reactions,
-    required this.isSender,
     required this.ownUserId,
     required this.onTap,
   });
 
   final Widget bubble;
   final List<UiReaction> reactions;
-  final bool isSender;
   final UiUserId ownUserId;
+
+  /// Reveals who reacted. Null stands for the collapsed `+N` chip, which
+  /// belongs to no single emoji.
   final void Function(String? emoji) onTap;
 
   @override
@@ -183,6 +163,8 @@ class _BubbleWithReactionsState extends State<BubbleWithReactions>
 
   @override
   Widget build(BuildContext context) {
+    final reserve = reactionsReservedBelow(context, true);
+
     // Constant Stack/Padding structure so the first reaction doesn't
     // reparent the bubble subtree (which would drop its state).
     return Stack(
@@ -191,20 +173,18 @@ class _BubbleWithReactionsState extends State<BubbleWithReactions>
         AnimatedBuilder(
           animation: _reveal,
           builder: (context, child) => Padding(
-            padding: EdgeInsets.only(
-              bottom: reactionsReservedBelow(context, true) * _reveal.value,
-            ),
+            padding: EdgeInsets.only(bottom: reserve * _reveal.value),
             child: child,
           ),
           child: widget.bubble,
         ),
         if (_reactions.isNotEmpty)
+          // Stretched across the bubble's own box, so the strip packs to the
+          // bubble's width and starts at its leading edge.
           Positioned(
-            bottom: reactionsGapBelow,
-            left: reactionsHorizontalInset,
-            right: reactionsHorizontalInset,
-            // Pinned to the Stack's bottom: the chips slide out of the
-            // bubble's edge while the reserve grows.
+            left: 0,
+            right: 0,
+            bottom: 0,
             child: IgnorePointer(
               ignoring: widget.reactions.isEmpty,
               child: FadeTransition(
@@ -212,11 +192,19 @@ class _BubbleWithReactionsState extends State<BubbleWithReactions>
                 child: ScaleTransition(
                   scale: _chipScale,
                   alignment: Alignment.bottomLeft,
-                  child: MessageReactions(
-                    reactions: _reactions,
-                    isSender: widget.isSender,
-                    ownUserId: widget.ownUserId,
-                    onTap: widget.onTap,
+                  child: ReactionStrip(
+                    tokens: ReactionStripTokens.of(context),
+                    chipTokens: ReactionChipTokens.of(context),
+                    groups: [
+                      for (final reaction in _reactions)
+                        ReactionGroup(
+                          emoji: reaction.emoji,
+                          count: reaction.users.length,
+                          mine: reaction.users.contains(widget.ownUserId),
+                        ),
+                    ],
+                    onTapEmoji: widget.onTap,
+                    onTapOverflow: () => widget.onTap(null),
                   ),
                 ),
               ),
@@ -227,240 +215,12 @@ class _BubbleWithReactionsState extends State<BubbleWithReactions>
   }
 }
 
-/// A row of emoji reaction chips, rendered overlapping the bottom edge of a
-/// message bubble.
-class MessageReactions extends StatelessWidget {
-  const MessageReactions({
-    super.key,
-    required this.reactions,
-    required this.isSender,
-    required this.ownUserId,
-    required this.onTap,
-  });
-
-  final List<UiReaction> reactions;
-  final bool isSender;
-  final UiUserId ownUserId;
-  final void Function(String? emoji) onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    if (reactions.isEmpty) {
-      return const SizedBox.shrink();
-    }
-
-    // Highest-count first (stable for ties), so a narrow bubble keeps the most
-    // popular reactions and collapses the rest into a "+N" overflow chip.
-    final indexed =
-        [
-          for (var i = 0; i < reactions.length; i++)
-            (reaction: reactions[i], i: i),
-        ]..sort((a, b) {
-          final byCount = b.reaction.users.length.compareTo(
-            a.reaction.users.length,
-          );
-          return byCount != 0 ? byCount : a.i.compareTo(b.i);
-        });
-    final ordered = [for (final e in indexed) e.reaction];
-
-    final scaler = MediaQuery.textScalerOf(context);
-    // Merge with the ambient style like the chips' Text widgets do, so the
-    // widths are measured with the same font the chips render with.
-    final chipTextStyle = DefaultTextStyle.of(
-      context,
-    ).style.merge(_ReactionChip.textStyle());
-
-    double measure(String text, TextStyle style) {
-      final painter = TextPainter(
-        text: TextSpan(text: text, style: style),
-        textDirection: TextDirection.ltr,
-        textScaler: scaler,
-      )..layout();
-      return painter.width;
-    }
-
-    // Horizontal chrome of a chip: padding (both sides) + border (both sides).
-    // Must match the padding used by _ReactionChip/_OverflowChip below.
-    const chipChrome =
-        reactionChipHorizontalPadding * 2 + reactionChipBorderWidth * 2;
-    double chipWidth(UiReaction reaction) {
-      var width = chipChrome + measure(reaction.emoji, chipTextStyle);
-      if (reaction.users.length >= 2) {
-        width += S.s4 + measure('${reaction.users.length}', chipTextStyle);
-      }
-      return width;
-    }
-
-    void handleTap(String? emoji) {
-      AppHaptics.selection();
-      onTap(emoji);
-    }
-
-    Widget chipFor(UiReaction reaction, {int? extras}) => _ReactionChip(
-      reaction: reaction,
-      extras: extras,
-      isSender: isSender,
-      isMine: reaction.users.contains(ownUserId),
-      onTap: () => handleTap(reaction.emoji),
-    );
-
-    // Chip widths depend only on the reaction data and text scaler, not the
-    // incoming constraints, so measure once rather than on every layout pass.
-    final widths = [for (final reaction in ordered) chipWidth(reaction)];
-    final count = ordered.length;
-
-    return LayoutBuilder(
-      builder: (context, constraints) {
-        const fitSlack = 1.0;
-        final maxWidth = constraints.maxWidth - fitSlack;
-
-        var fullWidth = 0.0;
-        for (var i = 0; i < count; i++) {
-          fullWidth += widths[i] + (i > 0 ? reactionChipSpacing : 0);
-        }
-
-        final List<Widget> chips;
-        // A single reaction always renders as its emoji chip
-        if (!maxWidth.isFinite || fullWidth <= maxWidth || count == 1) {
-          chips = [for (final reaction in ordered) chipFor(reaction)];
-        } else {
-          // Reserve room for the overflow chip ("+N" upper bound).
-          final overflowReserve =
-              reactionChipSpacing +
-              chipChrome +
-              measure('+$count', chipTextStyle);
-          var used = 0.0;
-          var shown = 0;
-          for (var i = 0; i < count; i++) {
-            final add = widths[i] + (shown > 0 ? reactionChipSpacing : 0);
-            if (used + add + overflowReserve <= maxWidth) {
-              used += add;
-              shown++;
-            } else {
-              break;
-            }
-          }
-          if (shown == 0) {
-            // Too narrow for even one emoji beside the "+N" chip: collapse
-            // every reaction into a single overflow chip.
-            chips = [
-              _OverflowChip(
-                count: count,
-                isSender: isSender,
-                onTap: () => handleTap(null),
-              ),
-            ];
-          } else {
-            final overflow = count - shown;
-            chips = [
-              for (var i = 0; i < shown; i++)
-                chipFor(ordered[i], extras: overflow),
-              _OverflowChip(
-                count: overflow,
-                isSender: isSender,
-                onTap: () => handleTap(null),
-              ),
-            ];
-          }
-        }
-
-        final children = <Widget>[];
-        for (var i = 0; i < chips.length; i++) {
-          if (i > 0) children.add(const SizedBox(width: reactionChipSpacing));
-          children.add(chips[i]);
-        }
-        // Size to the chips' natural width rather than filling maxWidth: even
-        // the single "+N" fallback chip can exceed maxWidth on a very narrow
-        // bubble. OverflowBox lets it grow past the bubble edge instead of
-        // force-fitting into maxWidth and triggering a RenderFlex overflow.
-        return SizedBox(
-          height: reactionChipHeightOf(context),
-          child: OverflowBox(
-            minWidth: 0,
-            maxWidth: double.infinity,
-            alignment: Alignment.centerLeft,
-            child: Row(mainAxisSize: MainAxisSize.min, children: children),
-          ),
-        );
-      },
-    );
-  }
-}
-
-String _applyQuickTone(
-  ({String emoji, bool skinnable}) item,
-  EmojiSkinVariation tone,
-) {
-  if (!item.skinnable || tone == EmojiSkinVariation.none) {
-    return item.emoji;
-  }
-  return '${item.emoji}${tone.modifier}';
-}
-
-/// A horizontal pill bar of common quick reactions plus a trailing "+" that
-/// opens the full emoji picker.
-class QuickReactionBar extends StatelessWidget {
-  const QuickReactionBar({
-    super.key,
-    required this.onReact,
-    required this.onMore,
-    this.skinTone = EmojiSkinVariation.none,
-    this.showShadow = true,
-  });
-
-  final void Function(String emoji) onReact;
-  final VoidCallback onMore;
-  final EmojiSkinVariation skinTone;
-  final bool showShadow;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
-    final emojis = [
-      for (final item in quickReactionEmojis) _applyQuickTone(item, skinTone),
-    ];
-    // Kick the ink measurements now so the glyphs settle while the bar's
-    // open transition is still running.
-    CenteredEmoji.warmUp(
-      context,
-      emojis,
-      const TextStyle(fontSize: quickReactionBarGlyphSize),
-    );
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: S.s8, vertical: S.s8),
-      decoration: BoxDecoration(
-        color: palette.backgroundElevated.primary,
-        borderRadius: BorderRadius.circular(
-          (quickReactionBarTapSize + S.s8) / 2,
-        ),
-        boxShadow: Effect.elevation(Elevation.medium),
-      ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          for (final emoji in emojis)
-            _QuickReactionButton(emoji: emoji, onTap: () => onReact(emoji)),
-          GlassCircleButton(
-            onPressed: onMore,
-            size: quickReactionBarMoreSize,
-            hitTargetSize: quickReactionBarTapSize,
-            enableBackdropBlur: false,
-            shadows: const [],
-            color: palette.backgroundBase.secondary,
-            icon: AppIcon.plus(size: 18, color: palette.text.secondary),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-/// Shows the [QuickReactionBar] as a small popover centered horizontally on
+/// Shows the [ReactionBar] as a small popover centered horizontally on
 /// [anchorRect] and placed just above it, falling back to below it when there
 /// isn't room above.
 ///
 /// [onMore] opens the full picker on top of this dialog (with a transparent
-/// barrier, see `openFullEmojiPicker`); this dialog stays alive underneath so
+/// barrier, see `openFullEmojiPicker`). This dialog stays alive underneath so
 /// the barrier dim doesn't flicker, and pops once the picker resolves.
 Future<void> showQuickReactionMenu({
   required BuildContext context,
@@ -469,7 +229,7 @@ Future<void> showQuickReactionMenu({
   required void Function(String emoji) onReact,
   required Future<void> Function() onMore,
 }) {
-  // Once the full picker has been opened the bar stays hidden for good;
+  // Once the full picker has been opened the bar stays hidden for good,
   // otherwise it would fade back in while this route pops (the picker's
   // dismissal reverses [secondaryAnimation] concurrently with the pop).
   var handedOff = false;
@@ -508,7 +268,7 @@ Future<void> showQuickReactionMenu({
         // The bar fades out while the full picker covers this route.
         child: FadeTransition(
           opacity: handedOff
-              ? const AlwaysStoppedAnimation(0.0)
+              ? const AlwaysStoppedAnimation(Alpha.a0)
               : ReverseAnimation(secondaryAnimation),
           // Dialog routes live in the navigator's overlay, above the page's
           // Material
@@ -562,11 +322,12 @@ class _QuickReactionMenuOverlay extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
+    const inset = ReactionBarTokens.screenInset;
     final safeArea = EdgeInsets.only(
-      top: mediaQuery.padding.top + S.s8,
-      bottom: mediaQuery.padding.bottom + S.s8,
-      left: S.s8,
-      right: S.s8,
+      top: mediaQuery.padding.top + inset,
+      bottom: mediaQuery.padding.bottom + inset,
+      left: inset,
+      right: inset,
     );
 
     final overlayBox =
@@ -579,19 +340,17 @@ class _QuickReactionMenuOverlay extends StatelessWidget {
           );
 
     return CustomSingleChildLayout(
-      delegate: _QuickReactionBarLayoutDelegate(
-        anchorRect: anchor,
-        safeArea: safeArea,
-      ),
+      delegate: ReactionBarAnchorLayout(anchorRect: anchor, safeArea: safeArea),
       child: FadeTransition(
         opacity: animation,
         child: ScaleTransition(
           scale: Tween<double>(begin: 0.92, end: 1.0).animate(animation),
           alignment: Alignment.bottomCenter,
-          child: QuickReactionBar(
-            onReact: onReact,
+          child: ReactionBar(
+            tokens: ReactionBarTokens.of(context),
+            emojis: quickReactionEmojisFor(skinTone),
+            onPick: onReact,
             onMore: onMore,
-            skinTone: skinTone,
           ),
         ),
       ),
@@ -599,241 +358,9 @@ class _QuickReactionMenuOverlay extends StatelessWidget {
   }
 }
 
-/// Centers the bar horizontally on the anchor and places it [quickReactionMenuGap]
-/// above the anchor, flipping below when there isn't room above. Everything is
-/// clamped into the safe area.
-class _QuickReactionBarLayoutDelegate extends SingleChildLayoutDelegate {
-  const _QuickReactionBarLayoutDelegate({
-    required this.anchorRect,
-    required this.safeArea,
-  });
-
-  final Rect anchorRect;
-  final EdgeInsets safeArea;
-
-  @override
-  BoxConstraints getConstraintsForChild(BoxConstraints constraints) {
-    // Let the bar size to its content instead of filling the dialog.
-    return constraints.loosen();
-  }
-
-  @override
-  Offset getPositionForChild(Size size, Size childSize) {
-    // Centered horizontally on the anchor.
-    var dx = anchorRect.center.dx - childSize.width / 2;
-
-    // Above the anchor if it fits, otherwise below it.
-    final above = anchorRect.top - quickReactionMenuGap - childSize.height;
-    final below = anchorRect.bottom + quickReactionMenuGap;
-    var dy = above >= safeArea.top ? above : below;
-
-    final maxX = (size.width - safeArea.right - childSize.width)
-        .clamp(safeArea.left, size.width)
-        .toDouble();
-    final maxY = (size.height - safeArea.bottom - childSize.height)
-        .clamp(safeArea.top, size.height)
-        .toDouble();
-    dx = dx.clamp(safeArea.left, maxX).toDouble();
-    dy = dy.clamp(safeArea.top, maxY).toDouble();
-    return Offset(dx, dy);
-  }
-
-  @override
-  bool shouldRelayout(_QuickReactionBarLayoutDelegate oldDelegate) =>
-      oldDelegate.anchorRect != anchorRect || oldDelegate.safeArea != safeArea;
-}
-
-class _QuickReactionButton extends StatefulWidget {
-  const _QuickReactionButton({required this.emoji, required this.onTap});
-
-  final String emoji;
-  final VoidCallback onTap;
-
-  @override
-  State<_QuickReactionButton> createState() => _QuickReactionButtonState();
-}
-
-class _QuickReactionButtonState extends State<_QuickReactionButton>
-    with SingleTickerProviderStateMixin {
-  late final AnimationController _pulse;
-  late final Animation<double> _scale;
-
-  @override
-  void initState() {
-    super.initState();
-    _pulse = AnimationController(
-      vsync: this,
-      duration: Effect.duration(MotionPreset.short),
-    );
-    _scale = TweenSequence<double>([
-      TweenSequenceItem(tween: Tween(begin: 1.0, end: 1.25), weight: 40),
-      TweenSequenceItem(tween: Tween(begin: 1.25, end: 1.0), weight: 60),
-    ]).animate(_pulse);
-  }
-
-  @override
-  void dispose() {
-    _pulse.dispose();
-    super.dispose();
-  }
-
-  void _handleTap() {
-    // The pulse plays while the bar fades out.
-    AppHaptics.confirm();
-    _pulse.forward(from: 0);
-    widget.onTap();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: _handleTap,
-        child: SizedBox(
-          width: quickReactionBarTapSize,
-          height: quickReactionBarTapSize,
-          child: Center(
-            child: ScaleTransition(
-              scale: _scale,
-              child: CenteredEmoji(
-                emoji: widget.emoji,
-                style: const TextStyle(fontSize: quickReactionBarGlyphSize),
-              ),
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ReactionChip extends StatelessWidget {
-  const _ReactionChip({
-    required this.reaction,
-    required this.isSender,
-    required this.isMine,
-    this.onTap,
-    this.extras,
-  });
-
-  final UiReaction reaction;
-  final bool isSender;
-  final bool isMine;
-  final int? extras;
-  final VoidCallback? onTap;
-
-  static TextStyle textStyle({Color? color}) =>
-      typeScale.body.regular.style(color: color);
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
-    final count = reaction.users.length;
-    final chipHeight = reactionChipHeightOf(context);
-
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          height: chipHeight,
-          // Horizontal padding only because forcing `height: 1.0` shifts
-          // emoji glyphs on iOS, which then makes it taller than the inner
-          // box.
-          padding: const EdgeInsets.symmetric(
-            horizontal: reactionChipHorizontalPadding,
-          ),
-          decoration: BoxDecoration(
-            color: isMine
-                ? palette.message.selfBackground
-                : palette.message.otherBackground,
-            borderRadius: BorderRadius.circular(chipHeight / 2),
-            border: Border.all(
-              color: palette.backgroundBase.primary,
-              width: reactionChipBorderWidth,
-            ),
-          ),
-          alignment: Alignment.center,
-          child: Row(
-            mainAxisSize: .min,
-            crossAxisAlignment: .center,
-            children: [
-              // Ink-centered instead of a raw Text: on iOS the emoji glyph
-              // is not centered within its own text line box, see
-              // [CenteredEmoji].
-              CenteredEmoji(emoji: reaction.emoji, style: textStyle()),
-              if (count >= 2) ...[
-                const SizedBox(width: S.s4),
-                Text(
-                  '$count',
-                  style: textStyle(color: palette.text.tertiary),
-                  textHeightBehavior: const TextHeightBehavior(
-                    leadingDistribution: .even,
-                  ),
-                ),
-              ],
-            ],
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// A "+N" chip standing in for reactions that didn't fit a narrow bubble.
-/// Tapping it opens the who-reacted view on the "All" tab.
-class _OverflowChip extends StatelessWidget {
-  const _OverflowChip({
-    required this.count,
-    required this.isSender,
-    required this.onTap,
-  });
-
-  final int count;
-
-  final bool isSender;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
-    final chipHeight = reactionChipHeightOf(context);
-    return MouseRegion(
-      cursor: SystemMouseCursors.click,
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          height: chipHeight,
-          // Horizontal padding only: see _ReactionChip.
-          padding: const EdgeInsets.symmetric(
-            horizontal: reactionChipHorizontalPadding,
-          ),
-          decoration: BoxDecoration(
-            color: isSender
-                ? palette.message.selfBackground
-                : palette.message.otherBackground,
-            borderRadius: BorderRadius.circular(chipHeight / 2),
-            border: Border.all(color: palette.backgroundBase.primary),
-          ),
-          alignment: Alignment.center,
-          child: Text(
-            '+$count',
-            textAlign: TextAlign.center,
-            style: _ReactionChip.textStyle(color: palette.text.tertiary),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-/// Shows the "who reacted" view: a tabbed list (All + per emoji) of the users
-/// who reacted to a message, with a "Remove" action on the current user's own
-/// reactions.
+/// Shows the "who reacted" viewer: a tabbed list (All + one tab per emoji) of
+/// the users who reacted to a message, with a "Remove" action on the current
+/// user's own reactions.
 Future<void> showWhoReactedSheet({
   required BuildContext context,
   required List<UiReaction> reactions,
@@ -841,30 +368,42 @@ Future<void> showWhoReactedSheet({
   String? initialEmoji,
   required void Function(String emoji) onRemove,
 }) {
+  final loc = AppLocalizations.of(context);
   final platform = Theme.of(context).platform;
   final isMobile =
       platform == TargetPlatform.android || platform == TargetPlatform.iOS;
-  final usersCubit = context.read<UsersCubit>();
-  final profiles = <UiUserId, UiUserProfile>{};
-  for (final reaction in reactions) {
-    for (final user in reaction.users) {
-      profiles[user] ??= usersCubit.state.profile(userId: user);
-    }
-  }
-  final barrierColor = SemanticPalette.of(context).function.neutral.scrim;
-  final sheet = WhoReactedSheet(
+  final tokens = ReactionDetailsTokens.of(context);
+  final entries = _reactorEntries(
+    context,
     reactions: reactions,
-    profiles: profiles,
     ownUserId: ownUserId,
-    initialEmoji: initialEmoji,
-    onRemove: onRemove,
+    avatarSize: tokens.avatarSize,
+    youLabel: loc.messageList_reactions_you,
   );
+
+  final barrierColor = SemanticPalette.of(context).function.neutral.scrim;
+
+  Widget viewer(BuildContext viewerContext) => ReactionDetails(
+    tokens: tokens,
+    entries: entries,
+    allLabel: loc.messageList_reactions_all(entries.length),
+    removeLabel: loc.messageList_reactions_remove,
+    initialEmoji: initialEmoji,
+    onRemove: (emoji) {
+      AppHaptics.selection();
+      onRemove(emoji);
+      Navigator.of(viewerContext).maybePop();
+    },
+  );
+
   if (isMobile) {
-    return showBottomSheetModal<void>(
+    return showAdaptiveModal<void>(
       context: context,
       barrierColor: barrierColor,
-      builder: (context) =>
-          SizedBox(height: whoReactedPanelSize.height, child: sheet),
+      builder: (modalContext) => SizedBox(
+        height: _reactorPanelSize.height,
+        child: viewer(modalContext),
+      ),
     );
   }
   return showGeneralDialog<void>(
@@ -883,15 +422,15 @@ Future<void> showWhoReactedSheet({
           child: Material(
             type: MaterialType.transparency,
             child: Container(
-              width: whoReactedPanelSize.width,
-              height: whoReactedPanelSize.height,
-              padding: const EdgeInsets.all(S.s16),
+              width: _reactorPanelSize.width,
+              height: _reactorPanelSize.height,
+              padding: const EdgeInsets.symmetric(vertical: S.s16),
               decoration: BoxDecoration(
                 color: palette.backgroundElevated.primary,
                 borderRadius: BorderRadius.circular(CornerRadius.px20),
                 boxShadow: Effect.elevation(Elevation.small),
               ),
-              child: sheet,
+              child: viewer(dialogContext),
             ),
           ),
         ),
@@ -900,189 +439,40 @@ Future<void> showWhoReactedSheet({
   );
 }
 
-/// List all user profiles and their reactions in a "All" and single
-/// tab per reaction.
-class WhoReactedSheet extends HookWidget {
-  const WhoReactedSheet({
-    super.key,
-    required this.reactions,
-    required this.profiles,
-    required this.ownUserId,
-    this.initialEmoji,
-    required this.onRemove,
-  });
+/// One entry per (emoji, reactor), with the profile resolved and the picture
+/// decoded to the size the viewer paints it at.
+List<ReactionDetailEntry> _reactorEntries(
+  BuildContext context, {
+  required List<UiReaction> reactions,
+  required UiUserId ownUserId,
+  required double avatarSize,
+  required String youLabel,
+}) {
+  final usersCubit = context.read<UsersCubit>();
+  final pixels = (avatarSize * MediaQuery.devicePixelRatioOf(context)).round();
 
-  final List<UiReaction> reactions;
-  final Map<UiUserId, UiUserProfile> profiles;
-  final UiUserId ownUserId;
-  final String? initialEmoji;
-  final void Function(String emoji) onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-    final selected = useState(initialEmoji);
-
-    final total = reactions.fold<int>(
-      0,
-      (sum, reaction) => sum + reaction.users.length,
-    );
-
-    final rows = <({UiUserId user, String emoji})>[];
-    for (final reaction in reactions) {
-      if (selected.value != null && reaction.emoji != selected.value) {
-        continue;
-      }
-      for (final user in reaction.users) {
-        rows.add((user: user, emoji: reaction.emoji));
-      }
+  final entries = <ReactionDetailEntry>[];
+  for (final reaction in reactions) {
+    for (final user in reaction.users) {
+      final profile = usersCubit.state.profile(userId: user);
+      final picture = profile.profilePicture;
+      final mine = user == ownUserId;
+      entries.add(
+        ReactionDetailEntry(
+          displayName: mine ? youLabel : profile.displayName,
+          emoji: reaction.emoji,
+          image: picture != null
+              ? CachedMemoryImage.fromImageData(
+                  picture,
+                  targetWidth: pixels,
+                  targetHeight: pixels,
+                )
+              : null,
+          gradientSeed: profile.userId.uuid.uuid,
+          mine: mine,
+        ),
+      );
     }
-
-    void remove(String emoji) {
-      AppHaptics.selection();
-      onRemove(emoji);
-      Navigator.of(context).maybePop();
-    }
-
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        SizedBox(
-          height: reactionTabHeight,
-          child: ListView(
-            scrollDirection: Axis.horizontal,
-            children: [
-              _ReactionTab(
-                label: loc.messageList_reactions_all(total),
-                selected: selected.value == null,
-                onTap: () => selected.value = null,
-              ),
-              for (final reaction in reactions)
-                _ReactionTab(
-                  label: '${reaction.emoji} ${reaction.users.length}',
-                  selected: selected.value == reaction.emoji,
-                  onTap: () => selected.value = reaction.emoji,
-                ),
-            ],
-          ),
-        ),
-        const SizedBox(height: S.s12),
-        Expanded(
-          child: ListView.builder(
-            padding: EdgeInsets.zero,
-            itemCount: rows.length,
-            itemBuilder: (context, index) {
-              final row = rows[index];
-              final isMe = row.user == ownUserId;
-              final profile = profiles[row.user];
-              return _ReactorRow(
-                profile: profile,
-                name: isMe
-                    ? loc.messageList_reactions_you
-                    : (profile?.displayName ?? ''),
-                emoji: row.emoji,
-                onRemove: isMe ? () => remove(row.emoji) : null,
-              );
-            },
-          ),
-        ),
-      ],
-    );
   }
-}
-
-class _ReactionTab extends StatelessWidget {
-  const _ReactionTab({
-    required this.label,
-    required this.selected,
-    required this.onTap,
-  });
-
-  final String label;
-  final bool selected;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
-    return Padding(
-      padding: const EdgeInsets.only(right: S.s4),
-      child: GestureDetector(
-        behavior: HitTestBehavior.opaque,
-        onTap: onTap,
-        child: Container(
-          alignment: Alignment.center,
-          padding: const EdgeInsets.symmetric(horizontal: S.s12),
-          decoration: BoxDecoration(
-            color: selected
-                ? palette.backgroundBase.secondary
-                : Colors.transparent,
-            borderRadius: BorderRadius.circular(reactionTabHeight / 2),
-          ),
-          child: Text(
-            label,
-            style: typeScale.body.m.style(
-              color: selected ? palette.text.primary : palette.text.secondary,
-            ),
-          ),
-        ),
-      ),
-    );
-  }
-}
-
-class _ReactorRow extends StatelessWidget {
-  const _ReactorRow({
-    required this.profile,
-    required this.name,
-    required this.emoji,
-    this.onRemove,
-  });
-
-  final UiUserProfile? profile;
-  final String name;
-  final String emoji;
-  final VoidCallback? onRemove;
-
-  @override
-  Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
-    final loc = AppLocalizations.of(context);
-    return SizedBox(
-      height: reactorRowHeight,
-      child: Row(
-        children: [
-          if (profile != null)
-            UserAvatar(profile: profile!, size: reactorAvatarSize)
-          else
-            const SizedBox(width: reactorAvatarSize, height: reactorAvatarSize),
-          const SizedBox(width: S.s12),
-          Expanded(
-            child: Text(
-              name,
-              overflow: TextOverflow.ellipsis,
-              style: typeScale.body.regular.style(color: palette.text.primary),
-            ),
-          ),
-          if (onRemove != null) ...[
-            MouseRegion(
-              cursor: SystemMouseCursors.click,
-              child: GestureDetector(
-                behavior: HitTestBehavior.opaque,
-                onTap: onRemove,
-                child: Text(
-                  loc.messageList_reactions_remove,
-                  style: typeScale.body.regular.style(
-                    color: palette.function.danger,
-                  ),
-                ),
-              ),
-            ),
-            const SizedBox(width: S.s12),
-          ],
-          Text(emoji, style: typeScale.body.m.style()),
-        ],
-      ),
-    );
-  }
+  return entries;
 }

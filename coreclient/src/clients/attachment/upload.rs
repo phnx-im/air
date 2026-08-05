@@ -14,7 +14,7 @@ use airapiclient::{
     ds_api::{DsAttachmentTarget, ProvisionAttachmentResponse},
 };
 use aircommon::{
-    credentials::keys::ClientSigningKey,
+    credentials::keys::UserSigningKey,
     crypto::aead::{AeadCiphertext, AeadEncryptable, keys::AttachmentEarKey},
     identifiers::{RemoteAttachmentId, UserId},
 };
@@ -527,7 +527,7 @@ struct ProvisionedAttachment {
 
 async fn encrypt_and_provision(
     api_client: &ApiClient,
-    signing_key: &ClientSigningKey,
+    signing_key: &UserSigningKey,
     target: AttachmentTarget<'_>,
     object_type: StorageObjectType,
     content: &AttachmentBytes,

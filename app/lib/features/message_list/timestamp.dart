@@ -2,86 +2,54 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'dart:async';
-
-import 'package:flutter/material.dart';
-import 'package:air/l10n/app_localizations.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/l10n/app_localizations.dart';
+import 'package:air/util/time/app_clock.dart';
+import 'package:air/util/time/time_labels.dart';
+import 'package:flutter/material.dart';
 
-class Timestamp extends StatefulWidget {
+/// Keeps a message's stamp current: the elapsed minutes for the first hour, the
+/// clock time after that. See [messageStampLabel].
+class MessageTimestamp extends StatelessWidget {
+  const MessageTimestamp({
+    super.key,
+    required this.timestamp,
+    required this.builder,
+  });
+
+  final DateTime timestamp;
+
+  /// Takes the formatted, localized stamp.
+  final Widget Function(BuildContext context, String label) builder;
+
+  @override
+  Widget build(BuildContext context) => LiveTime(
+    format: (context, now) => messageStampLabel(
+      timestamp,
+      now: now,
+      formats: TimeFormats.of(context),
+      loc: AppLocalizations.of(context),
+    ),
+    builder: builder,
+  );
+}
+
+/// A message's time, on its own.
+class Timestamp extends StatelessWidget {
   const Timestamp(this.timestamp, {super.key});
 
   final DateTime timestamp;
 
   @override
-  State<Timestamp> createState() => TimestampState();
-}
-
-class TimestampState extends State<Timestamp> {
-  String _displayTimestamp = '';
-  Timer? _timer;
-
-  @override
-  void initState() {
-    super.initState();
-    _displayTimestamp = _calcTimeString(widget.timestamp);
-    _timer = Timer.periodic(const Duration(seconds: 5), (timer) {
-      final newDisplayTimestamp = _calcTimeString(widget.timestamp);
-      if (newDisplayTimestamp != _displayTimestamp) {
-        setState(() {
-          _displayTimestamp = _calcTimeString(widget.timestamp);
-        });
-      }
-    });
-  }
-
-  @override
-  void didUpdateWidget(covariant Timestamp oldWidget) {
-    super.didUpdateWidget(oldWidget);
-    if (oldWidget.timestamp != widget.timestamp) {
-      setState(() {
-        _displayTimestamp = _calcTimeString(widget.timestamp);
-      });
-    }
-  }
-
-  @override
-  void dispose() {
-    _timer?.cancel();
-    super.dispose();
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final localizedTimestamp = _localizedTimeString(_displayTimestamp, context);
-    return SelectionContainer.disabled(
+  Widget build(BuildContext context) => MessageTimestamp(
+    timestamp: timestamp,
+    builder: (context, label) => SelectionContainer.disabled(
       child: Text(
-        localizedTimestamp,
+        label,
         style: typeScale.body.xs.style(
           color: SemanticPalette.of(context).text.tertiary,
         ),
       ),
-    );
-  }
-
-  String _calcTimeString(DateTime t) {
-    // If the elapsed time is less than 60 seconds, show "now"
-    if (DateTime.now().difference(t).inSeconds < 60) {
-      return "now";
-    }
-    // If the elapsed time is less than 60 minutes, show the elapsed minutes
-    if (DateTime.now().difference(t).inMinutes < 60) {
-      return '${DateTime.now().difference(t).inMinutes}m';
-    }
-    // Otherwise show the time
-    return '${t.hour}:${t.minute.toString().padLeft(2, '0')}';
-  }
-
-  String _localizedTimeString(String time, BuildContext context) {
-    if (time == "now") {
-      return AppLocalizations.of(context).timestamp_now;
-    } else {
-      return time;
-    }
-  }
+    ),
+  );
 }

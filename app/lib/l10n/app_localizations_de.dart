@@ -61,9 +61,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get userSettingsScreen_usernamesSection => 'Benutzernamen';
 
   @override
-  String get userSettingsScreen_settingsSection => 'Einstellungen';
-
-  @override
   String get userSettingsScreen_helpSection => 'Hilfe';
 
   @override
@@ -74,6 +71,15 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get userSettingsScreen_devices => 'Geräte';
+
+  @override
+  String get youSection_profile => 'Profil';
+
+  @override
+  String get youSection_preferences => 'Einstellungen';
+
+  @override
+  String get youSection_developer => 'Entwickler';
 
   @override
   String get settingsScreen_copiedToClipboard => 'In Zwischenablage kopiert';
@@ -102,10 +108,13 @@ class AppLocalizationsDe extends AppLocalizations {
       'ein aktiver Chat ist erforderlich';
 
   @override
+  String get contactDetailsScreen_title => 'Profil';
+
+  @override
   String get contactDetailsScreen_chat => 'Chat';
 
   @override
-  String get contactDetailsScreen_viewSafetyCode => 'Sicherheitscode anzeigen';
+  String get contactDetailsScreen_viewSafetyCode => 'Sicherheitscode';
 
   @override
   String get contactDetailsScreen_mute => 'Stummschalten';
@@ -507,9 +516,6 @@ class AppLocalizationsDe extends AppLocalizations {
   String get linkingDevicesScreen_error_dismiss => 'Erneut versuchen';
 
   @override
-  String get linkedDevicesScreen_title => 'Geräte';
-
-  @override
   String get linkedDevicesScreen_thisDevice => 'Dieses Gerät';
 
   @override
@@ -528,14 +534,39 @@ class AppLocalizationsDe extends AppLocalizations {
   String get linkedDevicesScreen_linkDevice => 'Gerät verknüpfen';
 
   @override
-  String linkedDevicesScreen_deviceCount(int count, int remaining) {
+  String get linkedDevicesScreen_unknownDevice => 'Unbekanntes Gerät';
+
+  @override
+  String get linkedDevicesScreen_renameError_title =>
+      'Umbenennen fehlgeschlagen.';
+
+  @override
+  String linkedDevicesScreen_renameError(String deviceName) {
+    return 'Das Gerät $deviceName konnte nicht umbenannt werden. Überprüfe deine Netzwerkverbindung und versuche es erneut.';
+  }
+
+  @override
+  String get linkedDevicesScreen_unlinkError_title =>
+      'Aufheben der Verknüpfung fehlgeschlagen.';
+
+  @override
+  String linkedDevicesScreen_unlinkError(String deviceName) {
+    return 'Die Verknüpfung des Geräts $deviceName konnte nicht aufgehoben werden. Überprüfe deine Netzwerkverbindung und versuche es erneut.';
+  }
+
+  @override
+  String get linkedDevicesScreen_errorDialog_confirm => 'Okay';
+
+  @override
+  String linkedDevicesScreen_deviceCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
       other: '$count Geräte verknüpft.',
       one: '$count Gerät verknüpft.',
+      zero: 'Keine Geräte verknüpft.',
     );
-    return '$_temp0 Du kannst bis zu $remaining weitere verknüpfen.';
+    return '$_temp0';
   }
 
   @override
@@ -602,7 +633,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_unlinkDialog_content =>
-      'Das Gerät kann dann keine Nachrichten mehr senden oder empfangen. Alle Daten deines Kontos werden vom Gerät gelöscht.';
+      'Das Gerät kann dann keine Nachrichten mehr senden oder empfangen. Alle Daten deines Kontos werden gelöscht, sobald das Gerät wieder online ist.';
 
   @override
   String get linkedDevicesScreen_unlinkDialog_cancel => 'Abbrechen';
@@ -784,7 +815,7 @@ class AppLocalizationsDe extends AppLocalizations {
 
   @override
   String get systemMessage_onboarded =>
-      'This client has been onboarded into the group after linking.';
+      'Dieser Client wurde nach dem Verknüpfen in die Gruppe aufgenommen.';
 
   @override
   String get timestamp_now => 'Jetzt';
@@ -1123,6 +1154,9 @@ class AppLocalizationsDe extends AppLocalizations {
       'Logs konnten nicht hochgeladen werden';
 
   @override
+  String get groupDetails_title => 'Gruppendetails';
+
+  @override
   String get groupDetails_leaveChat => 'Verlassen';
 
   @override
@@ -1144,9 +1178,6 @@ class AppLocalizationsDe extends AppLocalizations {
     );
     return '$_temp0';
   }
-
-  @override
-  String get groupDetails_groupDescription => 'Gruppe';
 
   @override
   String get groupMembersScreen_title => 'Gruppenmitglieder';
@@ -1329,4 +1360,13 @@ class AppLocalizationsDe extends AppLocalizations {
   String messageList_reactions_all(Object total) {
     return 'Alle · $total';
   }
+
+  @override
+  String get emojiPicker_searchHint => 'Emoji suchen';
+
+  @override
+  String get emojiPicker_empty => 'Keine Emojis gefunden';
+
+  @override
+  String get emojiPicker_skinToneHelp => 'Legt deinen Standard-Hautton fest';
 }

@@ -9,6 +9,7 @@ mod jobs;
 mod message;
 mod multi_device;
 mod process;
+mod self_group;
 mod server;
 mod user;
 

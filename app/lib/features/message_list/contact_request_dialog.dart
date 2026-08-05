@@ -5,13 +5,12 @@ import 'package:air/features/chat/chat_details_cubit.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/ds/components/button/button.dart';
-import 'package:air/ds/patterns/dialog/app_dialog.dart';
+import 'package:air/ds/patterns/contact_request_card/contact_request_card.dart';
+import 'package:air/ds/patterns/contact_request_card/contact_request_card_tokens.dart';
 import 'package:air/features/user/users_cubit.dart';
+import 'package:air/util/cached_memory_image.dart';
 import 'package:air/util/scaffold_messenger.dart';
-import 'package:air/features/user/avatar.dart' show UserAvatar;
-import 'package:flutter/material.dart';
+import 'package:flutter/widgets.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
@@ -55,12 +54,12 @@ class ContactRequestDialog extends HookWidget {
       (UsersCubit c) => c.state.profile(userId: sender),
     );
 
-    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
+    final tokens = ContactRequestCardTokens.of(context);
 
-    final showImage = useState(false);
+    final isAccepting = useState(false);
 
-    final message = switch (source) {
+    final subtitle = switch (source) {
       _TargetedMessageContactRequest(:final originChatTitle) =>
         loc.systemMessage_receivedDirectConnectionRequest(
           senderProfile.displayName,
@@ -73,86 +72,39 @@ class ContactRequestDialog extends HookWidget {
         ),
     };
 
-    return AppDialogContainer(
-      backgroundColor: palette.backgroundBase.secondary,
-      maxWidth: 360,
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            loc.contactRequestDialog_title,
-            style: typeScale.header.regular.style(weight: Weight.emphasized),
-          ),
-
-          const SizedBox(height: S.s32),
-
-          InkWell(
-            onTap: () {
-              showImage.value = !showImage.value;
-            },
-            child: UserAvatar(
-              profile: senderProfile,
-              size: 96,
-              showInitials: senderProfile.profilePicture == null,
-              showImage: showImage.value,
-            ),
-          ),
-
-          if (senderProfile.profilePicture != null) ...[
-            const SizedBox(height: S.s8),
-            Text(
-              loc.contactRequestDialog_avatarHint,
-              style: typeScale.body.xs.style(color: palette.text.tertiary),
-            ),
-          ],
-
-          const SizedBox(height: S.s32),
-
-          Text(
-            message,
-            style: typeScale.body.regular.style(color: palette.text.secondary),
-            textAlign: .center,
-          ),
-
-          const SizedBox(height: S.s32),
-
-          Row(
-            children: [
-              Expanded(
-                child: AppButton(
-                  onPressed: () {
-                    context.read<NavigationCubit>().closeChat();
-                  },
-                  type: .secondary,
-                  label: loc.contactRequestDialog_cancel,
-                ),
-              ),
-              const SizedBox(width: S.s12),
-              const Expanded(child: _AcceptButton()),
-            ],
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _AcceptButton extends HookWidget {
-  const _AcceptButton();
-
-  @override
-  Widget build(BuildContext context) {
-    final isAccepting = useState(false);
-    final loc = AppLocalizations.of(context);
-    return AppButton(
-      onPressed: () => _onPressed(context, isAccepting),
-      type: .primary,
-      state: isAccepting.value ? AppButtonState.pending : AppButtonState.active,
-      label: loc.contactRequestDialog_confirm,
+    return ContactRequestCard(
+      tokens: tokens,
+      title: loc.contactRequestDialog_title,
+      subtitle: subtitle,
+      displayName: senderProfile.displayName,
+      gradientSeed: senderProfile.userId.uuid.uuid,
+      image: _picture(context, senderProfile.profilePicture, tokens.avatarSize),
+      pictureRevealLabel: loc.contactRequestDialog_avatarHint,
+      acceptLabel: loc.contactRequestDialog_confirm,
+      dismissLabel: loc.contactRequestDialog_cancel,
+      onAccept: () => _accept(context, isAccepting),
+      onDismiss: () => context.read<NavigationCubit>().closeChat(),
+      isAccepting: isAccepting.value,
     );
   }
 
-  void _onPressed(BuildContext context, ValueNotifier<bool> isAccepting) async {
+  ImageProvider? _picture(
+    BuildContext context,
+    ImageData? picture,
+    double size,
+  ) {
+    if (picture == null) return null;
+    // Decode straight to the circle's pixel size: profile pictures arrive far
+    // larger than any avatar renders them.
+    final targetSize = (size * MediaQuery.devicePixelRatioOf(context)).round();
+    return CachedMemoryImage.fromImageData(
+      picture,
+      targetWidth: targetSize,
+      targetHeight: targetSize,
+    );
+  }
+
+  void _accept(BuildContext context, ValueNotifier<bool> isAccepting) async {
     isAccepting.value = true;
 
     final chatDetailsCubit = context.read<ChatDetailsCubit>();

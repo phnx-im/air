@@ -3,11 +3,14 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::keys::ClientSigningKey,
+    credentials::keys::{LeafSigningKey, SelfGroupSigningKey, UserSigningKey},
     identifiers::{QsClientId, QsUserId, UserId},
 };
+use anyhow::Context;
 use openmls::group::GroupId;
 use uuid::Uuid;
+
+use crate::db::access::ReadConnection;
 
 mod persistence;
 
@@ -22,5 +25,27 @@ pub(crate) struct OwnClientInfo {
     /// is unique per client: each linked device mints its own.
     pub(crate) client_id: Uuid,
     pub(crate) self_group_id: Option<GroupId>,
-    pub(crate) self_group_signing_key: Option<ClientSigningKey>,
+    pub(crate) self_group_signing_key: Option<SelfGroupSigningKey>,
+}
+
+impl OwnClientInfo {
+    /// The signing key for the local client's leaf in `group_id`.
+    ///
+    /// The self-group leaf is signed with the per-device self-group key. All other groups use the
+    /// shared user-level signing key.
+    pub(crate) async fn signer_for_group(
+        connection: impl ReadConnection,
+        group_id: &GroupId,
+        user_signer: &UserSigningKey,
+    ) -> anyhow::Result<LeafSigningKey> {
+        let info = Self::load(connection).await?;
+        if info.self_group_id.as_ref() == Some(group_id) {
+            let signing_key = info
+                .self_group_signing_key
+                .context("self-group signer was not initialized")?;
+            Ok(LeafSigningKey::SelfGroup(signing_key))
+        } else {
+            Ok(LeafSigningKey::User(user_signer.clone()))
+        }
+    }
 }

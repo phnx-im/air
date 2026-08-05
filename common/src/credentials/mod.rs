@@ -17,7 +17,7 @@ use tls_codec::{
 use keys::{
     AsIntermediateKeyType, AsIntermediateSignature, AsIntermediateVerifyingKey, AsKeyType,
     AsSignature, AsSigningKey, AsVerifyingKey, PreliminaryAsIntermediateSigningKey,
-    PreliminaryClientSigningKey,
+    PreliminaryUserSigningKey,
 };
 
 use crate::{
@@ -46,7 +46,7 @@ pub mod keys;
 mod leaf;
 mod self_group;
 
-pub use leaf::{LeafCredential, LeafCredentialError};
+pub use leaf::{LeafCredential, LeafCredentialError, RoomPolicyIdentity};
 pub use self_group::{SELF_GROUP_CREDENTIAL_TYPE, SelfGroupCredential, SelfGroupCredentialError};
 
 use self::keys::ClientVerifyingKey;
@@ -406,9 +406,9 @@ impl UserCredentialCsr {
     pub fn new(
         user_id: UserId,
         signature_scheme: SignatureScheme,
-    ) -> Result<(Self, PreliminaryClientSigningKey), KeyGenerationError> {
+    ) -> Result<(Self, PreliminaryUserSigningKey), KeyGenerationError> {
         let version = AirProtocolVersion::default();
-        let prelim_signing_key = PreliminaryClientSigningKey::generate()?;
+        let prelim_signing_key = PreliminaryUserSigningKey::generate()?;
         let credential = Self {
             version,
             signature_scheme,
@@ -717,13 +717,11 @@ pub mod persistence {
 #[cfg(feature = "test_utils")]
 pub mod test_utils {
     use super::{
-        keys::{AsIntermediateSigningKey, ClientSigningKey},
+        keys::{AsIntermediateSigningKey, UserSigningKey},
         *,
     };
 
-    pub fn create_test_credentials(
-        user_id: UserId,
-    ) -> (AsIntermediateSigningKey, ClientSigningKey) {
+    pub fn create_test_credentials(user_id: UserId) -> (AsIntermediateSigningKey, UserSigningKey) {
         let (credential_csr, signing_key) =
             UserCredentialCsr::new(user_id.clone(), SignatureScheme::ED25519).unwrap();
         let domain = user_id.domain().clone();
@@ -738,7 +736,7 @@ pub mod test_utils {
             UserCredentialPayload::new(credential_csr, None, *aic_sk.credential().fingerprint())
                 .sign(&aic_sk)
                 .unwrap();
-        let client_sk = ClientSigningKey::from_prelim_key(signing_key, user_credential).unwrap();
+        let client_sk = UserSigningKey::from_prelim_key(signing_key, user_credential).unwrap();
         (aic_sk, client_sk)
     }
 }

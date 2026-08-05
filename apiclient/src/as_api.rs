@@ -10,7 +10,7 @@ use aircommon::{
     LibraryError,
     credentials::{
         UserCredentialPayload,
-        keys::{ClientSigningKey, UsernameSigningKey},
+        keys::{UserSigningKey, UsernameSigningKey},
     },
     crypto::{indexed_aead::keys::UserProfileKeyIndex, signatures::signable::Signable},
     identifiers::{UserId, Username, UsernameHash},
@@ -239,7 +239,7 @@ impl ApiClient {
     pub async fn as_stage_user_profile(
         &self,
         user_id: UserId,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
         encrypted_user_profile: EncryptedUserProfile,
     ) -> Result<(), AsRequestError> {
         let payload = StageUserProfilePayload {
@@ -255,7 +255,7 @@ impl ApiClient {
     pub async fn as_merge_user_profile(
         &self,
         user_id: UserId,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
     ) -> Result<(), AsRequestError> {
         let payload = MergeUserProfilePayload {
             client_metadata: Some(self.metadata().clone()),
@@ -269,7 +269,7 @@ impl ApiClient {
     pub async fn as_delete_user(
         &self,
         user_id: UserId,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
     ) -> Result<(), AsRequestError> {
         let payload = DeleteUserPayload {
             client_metadata: Some(self.metadata().clone()),
@@ -302,7 +302,7 @@ impl ApiClient {
         &self,
         reporter_id: UserId,
         spammer_id: UserId,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
     ) -> Result<(), AsRequestError> {
         let payload = ReportSpamPayload {
             client_metadata: Some(self.metadata().clone()),
@@ -594,7 +594,7 @@ impl ApiClient {
         &self,
         operation_type: OperationType,
         user_id: UserId,
-        signing_key: &ClientSigningKey,
+        signing_key: &UserSigningKey,
         token_request: SerializedTokenRequest,
     ) -> Result<SerializedTokenResponse, AsRequestError> {
         let payload = IssueTokensPayload {

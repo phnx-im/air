@@ -1,24 +1,28 @@
 // SPDX-FileCopyrightText: 2025 Phoenix R&D GmbH <hello@phnx.im>
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
+import 'package:air/ds/components/button/button_tokens.dart';
+import 'package:air/ds/components/state_layer/state_layer.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:flutter/material.dart';
+import 'package:flutter/material.dart' show CircularProgressIndicator;
+import 'package:flutter/widgets.dart';
 
-enum AppButtonSize { small, large }
+export 'package:air/ds/components/button/button_tokens.dart';
 
-enum AppButtonType { primary, secondary }
-
-enum AppButtonTone { normal, danger }
-
-enum AppButtonState { active, inactive, pending }
-
-class AppButton extends StatelessWidget {
-  const AppButton({
+/// Pill button with a label and an optional leading glyph. Its look follows
+/// [type] / [tone] / [state] and its geometry follows [size]. Hover, press,
+/// and focus ride on the shared [StateLayer], shaped by the platform -- touch
+/// dips, a pointer lifts.
+///
+/// The pill takes the width it's given, with [alignment] placing the content
+/// inside it.
+class Button extends StatelessWidget {
+  const Button({
     super.key,
-    this.size = AppButtonSize.large,
-    this.type = AppButtonType.primary,
-    this.tone = AppButtonTone.normal,
-    this.state = AppButtonState.active,
+    this.size = ButtonSize.large,
+    this.type = ButtonType.primary,
+    this.tone = ButtonTone.normal,
+    this.state = ButtonState.active,
     required this.onPressed,
     this.onLongPress,
     this.icon,
@@ -26,128 +30,128 @@ class AppButton extends StatelessWidget {
     this.alignment = MainAxisAlignment.center,
   });
 
-  final AppButtonSize size;
-  final AppButtonType type;
-  final AppButtonTone tone;
-  final AppButtonState state;
+  final ButtonSize size;
+  final ButtonType type;
+  final ButtonTone tone;
+  final ButtonState state;
 
   final VoidCallback onPressed;
   final VoidCallback? onLongPress;
 
+  /// Builds the leading glyph at the footprint and color the button picks for
+  /// it. Absent in [ButtonState.pending], where the spinner takes the slot.
   final Function(Size size, Color color)? icon;
   final String label;
   final MainAxisAlignment alignment;
 
   @override
   Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
+    final tokens = ButtonTokens.of(size);
+    final colors = _colors(SemanticPalette.of(context));
+    final active = state == ButtonState.active;
+    final phone = DeviceType.isPhone;
 
-    final foregroundColor = switch ((type, state, tone)) {
-      (.primary, .inactive, .danger) =>
-        palette.function.neutral.white.withValues(alpha: Alpha.a50),
-      (.primary, .inactive, .normal) =>
-        palette.function.neutral.toggleWhite.withValues(alpha: Alpha.a50),
-      (.primary, _, .danger) => palette.function.neutral.white,
-      (.primary, _, .normal) => palette.function.neutral.toggleWhite,
-      (.secondary, .inactive, .danger) => palette.function.danger.withValues(
-        alpha: Alpha.a50,
+    final Widget pill = StateLayer(
+      borderRadius: tokens.radius,
+      surface: colors.fill,
+      enabled: active,
+      onTap: onPressed,
+      onLongPress: onLongPress,
+      hover: !phone,
+      pressScale: phone,
+      hoverScale: !phone,
+      background: DecoratedBox(
+        decoration: BoxDecoration(
+          color: colors.fill,
+          borderRadius: BorderRadius.circular(tokens.radius),
+        ),
       ),
-      (.secondary, .inactive, _) =>
-        palette.function.neutral.toggleBlack.withValues(alpha: Alpha.a50),
-      (.secondary, _, .danger) => palette.function.danger,
-      (.secondary, _, _) => palette.function.neutral.toggleBlack,
-    };
+      child: Container(
+        height: tokens.height,
+        padding: tokens.padding,
+        child: Row(
+          mainAxisAlignment: alignment,
+          children: [
+            if (state == ButtonState.pending)
+              SizedBox.square(
+                dimension: tokens.iconSize,
+                child: CircularProgressIndicator(
+                  color: colors.label,
+                  strokeWidth: tokens.spinnerWidth,
+                ),
+              )
+            else ...[
+              if (icon != null) ...[
+                icon!(Size.square(tokens.iconSize), colors.glyph),
+                SizedBox(width: tokens.iconLabelGap),
+              ],
+              Text(
+                label,
+                style: size.labelToken
+                    .style(color: colors.label)
+                    .copyWith(height: 1.0),
+              ),
+            ],
+          ],
+        ),
+      ),
+    );
 
-    final backgroundColor = switch ((type, tone)) {
+    if (!phone || tokens.height >= ButtonTokens.minTouchHeight) {
+      return pill;
+    }
+
+    // The pill is shorter than a finger needs, so a transparent ring around it
+    // carries the tap too. The pill keeps the interaction states, and nested
+    // detectors resolve innermost-first, so a tap on it fires the handler once.
+    //
+    // Padding rather than a sized box: it grows the footprint without touching
+    // the width the pill would otherwise take, so a button in an unbounded row
+    // still sizes to its label.
+    return GestureDetector(
+      behavior: HitTestBehavior.opaque,
+      onTap: active ? onPressed : null,
+      onLongPress: active ? onLongPress : null,
+      child: Padding(
+        padding: EdgeInsets.symmetric(
+          vertical: (ButtonTokens.minTouchHeight - tokens.height) / 2,
+        ),
+        child: pill,
+      ),
+    );
+  }
+
+  /// The three colors the button paints with. An inactive button fades its
+  /// content and keeps its fill, so the pill stays a pill.
+  ({Color fill, Color label, Color glyph}) _colors(SemanticPalette palette) {
+    final fill = switch ((type, tone)) {
       (.primary, .danger) => palette.function.danger,
       (.primary, .normal) => palette.accentBrand.primary,
       (.secondary, _) => palette.accentBrand.tertiary,
     };
 
-    const Border? border = null;
-
-    final iconColor = switch ((type, state)) {
-      (.secondary, _) => palette.text.primary,
-      _ => foregroundColor,
+    final label = switch ((type, tone)) {
+      (.primary, .danger) => palette.function.neutral.white,
+      (.primary, .normal) => palette.function.neutral.toggleWhite,
+      (.secondary, .danger) => palette.function.danger,
+      (.secondary, .normal) => palette.function.neutral.toggleBlack,
     };
 
-    final verticalPadding = switch (size) {
-      AppButtonSize.small => S.s8,
-      AppButtonSize.large => S.s12,
+    // A secondary button carries a tinted fill rather than a solid one, so its
+    // glyph takes the text color instead of the label's tone color.
+    final glyph = switch (type) {
+      ButtonType.secondary => palette.text.primary,
+      ButtonType.primary => label,
     };
 
-    final iconSize = switch (size) {
-      AppButtonSize.small => const Size.square(S.s16),
-      AppButtonSize.large => const Size.square(S.s24),
-    };
+    final fade = state == ButtonState.inactive
+        ? ButtonTokens.inactiveOpacity
+        : Alpha.a100;
 
-    final labelToken = switch (size) {
-      AppButtonSize.small => typeScale.body.xs,
-      AppButtonSize.large => typeScale.body.regular,
-    };
-
-    final borderRadius = switch (size) {
-      AppButtonSize.small => CornerRadius.px8,
-      AppButtonSize.large => CornerRadius.px12,
-    };
-
-    return OutlinedButton(
-      onPressed: state == .active ? onPressed : null,
-      onLongPress: state == .active ? onLongPress : null,
-      style: ButtonStyle(
-        visualDensity: .compact,
-        padding: const WidgetStatePropertyAll(EdgeInsets.zero),
-        backgroundColor: WidgetStatePropertyAll(backgroundColor),
-        overlayColor: WidgetStatePropertyAll(backgroundColor),
-        shape: WidgetStatePropertyAll(
-          RoundedRectangleBorder(
-            borderRadius: BorderRadius.circular(borderRadius),
-            side: border != null
-                ? BorderSide(color: border.top.color)
-                : BorderSide.none,
-          ),
-        ),
-        side: border != null
-            ? WidgetStatePropertyAll(BorderSide(color: border.top.color))
-            : null,
-      ),
-      child: Padding(
-        padding: EdgeInsets.symmetric(
-          vertical: verticalPadding,
-          horizontal: 12,
-        ),
-        child: Row(
-          mainAxisAlignment: alignment,
-          crossAxisAlignment: .center,
-          children: [
-            if (state == .pending)
-              SizedBox(
-                width: iconSize.width,
-                height: iconSize.height,
-                child: CircularProgressIndicator(
-                  color: foregroundColor,
-                  strokeWidth: StrokeWidth.px2,
-                ),
-              ),
-
-            if (state != .pending && icon != null) ...[
-              icon?.call(iconSize, iconColor),
-              const SizedBox(width: 8),
-            ],
-
-            if (state != .pending)
-              SizedBox(
-                height: iconSize.height,
-                child: Center(
-                  child: Text(
-                    label,
-                    style: labelToken.style(color: foregroundColor),
-                  ),
-                ),
-              ),
-          ],
-        ),
-      ),
+    return (
+      fill: fill,
+      label: label.withValues(alpha: label.a * fade),
+      glyph: glyph.withValues(alpha: glyph.a * fade),
     );
   }
 }

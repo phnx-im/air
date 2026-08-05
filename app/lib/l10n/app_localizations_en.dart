@@ -61,9 +61,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get userSettingsScreen_usernamesSection => 'Usernames';
 
   @override
-  String get userSettingsScreen_settingsSection => 'Settings';
-
-  @override
   String get userSettingsScreen_helpSection => 'Help';
 
   @override
@@ -74,6 +71,15 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get userSettingsScreen_devices => 'Devices';
+
+  @override
+  String get youSection_profile => 'Profile';
+
+  @override
+  String get youSection_preferences => 'Preferences';
+
+  @override
+  String get youSection_developer => 'Developer';
 
   @override
   String get settingsScreen_copiedToClipboard => 'Copied to clipboard';
@@ -102,10 +108,13 @@ class AppLocalizationsEn extends AppLocalizations {
       'an active chat is obligatory';
 
   @override
+  String get contactDetailsScreen_title => 'Profile';
+
+  @override
   String get contactDetailsScreen_chat => 'Chat';
 
   @override
-  String get contactDetailsScreen_viewSafetyCode => 'View Safety Code';
+  String get contactDetailsScreen_viewSafetyCode => 'Safety code';
 
   @override
   String get contactDetailsScreen_mute => 'Mute';
@@ -495,9 +504,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get linkingDevicesScreen_error_dismiss => 'Try again';
 
   @override
-  String get linkedDevicesScreen_title => 'Devices';
-
-  @override
   String get linkedDevicesScreen_thisDevice => 'This device';
 
   @override
@@ -516,14 +522,37 @@ class AppLocalizationsEn extends AppLocalizations {
   String get linkedDevicesScreen_linkDevice => 'Link a device';
 
   @override
-  String linkedDevicesScreen_deviceCount(int count, int remaining) {
+  String get linkedDevicesScreen_unknownDevice => 'Unknown device';
+
+  @override
+  String get linkedDevicesScreen_renameError_title => 'Renaming failed.';
+
+  @override
+  String linkedDevicesScreen_renameError(String deviceName) {
+    return 'Couldn\'t rename the device $deviceName. Check your network connection and try again.';
+  }
+
+  @override
+  String get linkedDevicesScreen_unlinkError_title => 'Unlinking failed.';
+
+  @override
+  String linkedDevicesScreen_unlinkError(String deviceName) {
+    return 'Unlinking the device $deviceName failed. Check your network connection and try again.';
+  }
+
+  @override
+  String get linkedDevicesScreen_errorDialog_confirm => 'Okay';
+
+  @override
+  String linkedDevicesScreen_deviceCount(int count) {
     String _temp0 = intl.Intl.pluralLogic(
       count,
       locale: localeName,
       other: '$count devices linked.',
       one: '$count device linked.',
+      zero: 'No devices linked.',
     );
-    return '$_temp0 You can link up to $remaining more.';
+    return '$_temp0';
   }
 
   @override
@@ -589,7 +618,7 @@ class AppLocalizationsEn extends AppLocalizations {
 
   @override
   String get linkedDevicesScreen_unlinkDialog_content =>
-      'The device will no longer be able to send or receive messages. All of your account\'s data will be deleted from the device.';
+      'The device will no longer be able to send or receive messages. All of your account\'s data will be deleted from the device the next time it comes online.';
 
   @override
   String get linkedDevicesScreen_unlinkDialog_cancel => 'Cancel';
@@ -1102,6 +1131,9 @@ class AppLocalizationsEn extends AppLocalizations {
   String get contactUsScreen_errorUploadingLogs => 'Couldn\'t upload logs';
 
   @override
+  String get groupDetails_title => 'Group details';
+
+  @override
   String get groupDetails_leaveChat => 'Leave';
 
   @override
@@ -1123,9 +1155,6 @@ class AppLocalizationsEn extends AppLocalizations {
     );
     return '$_temp0';
   }
-
-  @override
-  String get groupDetails_groupDescription => 'Group';
 
   @override
   String get groupMembersScreen_title => 'Group members';
@@ -1307,4 +1336,13 @@ class AppLocalizationsEn extends AppLocalizations {
   String messageList_reactions_all(Object total) {
     return 'All · $total';
   }
+
+  @override
+  String get emojiPicker_searchHint => 'Search emoji';
+
+  @override
+  String get emojiPicker_empty => 'No emoji found';
+
+  @override
+  String get emojiPicker_skinToneHelp => 'Sets your default skin tone';
 }

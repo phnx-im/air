@@ -206,7 +206,7 @@ impl OutboundServiceContext {
         let api_client = self.api_clients.get(&chat.owner_domain())?;
 
         // load group and create MLS message
-        let (group_state_ear_key, params) = self
+        let (group_state_ear_key, params, signer) = self
             .new_mls_message(&chat, content.content().clone(), None)
             .await?;
         let epoch = params.epoch;
@@ -215,7 +215,7 @@ impl OutboundServiceContext {
 
         // send MLS message to DS
         let ds_timestamp = match api_client
-            .ds_send_message(params, self.signing_key(), &group_state_ear_key)
+            .ds_send_message(params, &signer, &group_state_ear_key)
             .await
         {
             Ok(ts) => ts,

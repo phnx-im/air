@@ -22,6 +22,7 @@ import 'package:air/features/onboarding/sign_up_screen.dart';
 import 'package:air/features/onboarding/username_onboarding_screen.dart';
 import 'package:air/features/onboarding/multi_device_provision_screen.dart';
 import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/modal/modal_page.dart';
 import 'package:air/features/you/you_screen.dart';
 import 'package:air/core/core.dart';
 
@@ -84,7 +85,7 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
     final breakpoint = context.breakpoint;
 
     // routing
-    final List<MaterialPage> pages = switch (navigationState) {
+    final List<Page> pages = switch (navigationState) {
       NavigationState_Intro(:final screens) => [
         // The first screen is always the intro screen
         const MaterialPage(
@@ -121,7 +122,7 @@ class AppRouterDelegate extends RouterDelegate<EmptyConfig> {
           if (!route.didPop(result)) {
             return false;
           }
-          if (route.settings case MaterialPage _) {
+          if (route.settings case Page _) {
             return context.read<NavigationCubit>().pop();
           }
           return false;
@@ -212,7 +213,7 @@ extension on IntroScreenType {
 extension on HomeNavigationState {
   ChatId? get openChatId => chatOpen ? chatId : null;
 
-  List<MaterialPage> pages(Breakpoint breakpoint) {
+  List<Page> pages(Breakpoint breakpoint) {
     const homeScreenPage = NoAnimationPage(
       key: ValueKey("home-screen"),
       canPop: false,
@@ -225,33 +226,37 @@ extension on HomeNavigationState {
           key: ValueKey("create-group-screen"),
           child: CreateGroupScreen(),
         ),
-      // At the small breakpoint the profile is rendered inline inside
-      // HomeScreen. Wider layouts still push it as a route until the desktop
-      // layout is reworked.
-      if (activeTab == HomeTab.profile && !breakpoint.isSmall)
-        const MaterialPage(
-          key: ValueKey("user-profile-screen"),
-          child: YouScreen(),
+      // The profile is rendered inline inside HomeScreen on both layouts: as
+      // the tab's own screen at the small breakpoint, and as the two panes of
+      // the desktop layout above it. Only the phone pushes a section, which
+      // the two-pane layout shows beside its list instead.
+      if ((activeTab, youSection) case (
+        HomeTab.profile,
+        final section?,
+      ) when breakpoint.isSmall)
+        MaterialPage(
+          key: ValueKey("you-section-screen-$section"),
+          child: YouSectionScreen(section: section),
         ),
       if (openChatId != null && breakpoint.isSmall)
         const MaterialPage(key: ValueKey("chat-screen"), child: ChatScreen()),
       if (openChatId != null && chatDetailsOpen)
-        const MaterialPage(
+        const ModalPage(
           key: ValueKey("chat-details-screen"),
           child: ChatDetailsScreen(),
         ),
       if (openChatId != null && chatDetailsOpen && groupMembersOpen)
-        const MaterialPage(
+        const ModalPage(
           key: ValueKey("chat-group-members-screen"),
           child: GroupMembersScreen(),
         ),
       if ((openChatId, memberDetails) case (final chatId?, final memberId?))
-        MaterialPage(
+        ModalPage(
           key: const ValueKey("chat-member-details-screen"),
           child: MemberDetailsScreen(chatId: chatId, memberId: memberId),
         ),
       if (openChatId != null && chatDetailsOpen && addMembersOpen)
-        const MaterialPage(
+        const ModalPage(
           key: ValueKey("add-members-screen"),
           child: AddMembersScreen(),
         ),

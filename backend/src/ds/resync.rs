@@ -21,7 +21,7 @@ use tracing::error;
 
 use crate::errors::ResyncClientError;
 
-use super::group_state::{DsGroupState, RoomPolicyIdentity};
+use super::group_state::{DsGroupState, leaf_credential_matches_flag};
 use super::process::USER_EXPIRATION_DAYS;
 
 /// Outcome of a resync: the message to distribute, plus the queue of the leaf the
@@ -40,15 +40,13 @@ impl DsGroupState {
         sender: &LeafCredential,
         removed_indices: &[LeafNodeIndex],
     ) -> Result<(), ResyncClientError> {
-        let sender_identity =
-            RoomPolicyIdentity::from_credential(sender).ok_or(ResyncClientError::InvalidMessage)?;
+        let sender_identity = sender.room_policy_identity();
         for &removed_index in removed_indices {
             let removed = self
                 .leaf_credential(removed_index)
                 .ok_or(ResyncClientError::InvalidMessage)?;
-            let removed_identity = RoomPolicyIdentity::from_credential(&removed)
-                .ok_or(ResyncClientError::InvalidMessage)?;
-            self.room_state_change_role(&sender_identity, removed_identity, RoleIndex::Outsider)
+            let removed_identity = removed.room_policy_identity();
+            self.room_state_change_role(&sender_identity, &removed_identity, RoleIndex::Outsider)
                 .ok_or_else(|| {
                     error!(%removed_index, "Failed to change role of removed client");
                     ResyncClientError::InvalidMessage
@@ -110,6 +108,20 @@ impl DsGroupState {
 
         // Check if it's an external commit.
         if !matches!(processed_message.sender(), Sender::NewMemberCommit) {
+            return Err(ResyncClientError::InvalidMessage);
+        }
+
+        // The resyncing sender rejoins with a fresh leaf. Its credential must match the group kind.
+        let new_leaf = staged_commit_message
+            .update_path_leaf_node()
+            .ok_or(ResyncClientError::InvalidMessage)?;
+        let new_credential =
+            LeafCredential::from_credential(new_leaf.credential()).map_err(|error| {
+                error!(%error, "Resync leaf credential is invalid");
+                ResyncClientError::InvalidMessage
+            })?;
+        if !leaf_credential_matches_flag(&new_credential, self.is_self_group()) {
+            error!("Resync leaf credential does not match group kind");
             return Err(ResyncClientError::InvalidMessage);
         }
 
@@ -251,6 +263,22 @@ impl DsGroupState {
             .signature_key();
         if t_new_leaf_key != pq_new_leaf_key {
             error!("T and PQ update path signature keys do not match");
+            return Err(ResyncClientError::InvalidMessage);
+        }
+
+        // The resyncing sender's fresh T leaf must match the group kind. The PQ leaf is bound to it
+        // by the shared signature key above.
+        let t_new_credential = t_staged_commit
+            .update_path_leaf_node()
+            .ok_or(ResyncClientError::InvalidMessage)
+            .and_then(|leaf| {
+                LeafCredential::from_credential(leaf.credential()).map_err(|error| {
+                    error!(%error, "Resync leaf credential is invalid");
+                    ResyncClientError::InvalidMessage
+                })
+            })?;
+        if !leaf_credential_matches_flag(&t_new_credential, t_group_state.is_self_group()) {
+            error!("Resync leaf credential does not match group kind");
             return Err(ResyncClientError::InvalidMessage);
         }
 

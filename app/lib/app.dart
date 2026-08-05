@@ -15,11 +15,12 @@ import 'package:air/features/onboarding/registration_cubit.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/material/theme_data.dart';
 import 'package:air/features/user/loadable_user_cubit.dart';
+import 'package:air/features/user/unlinked_device_listener.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/interface_scale.dart';
-import 'package:air/ds/patterns/context_menu/context_menu.dart';
+import 'package:air/util/time/app_clock.dart';
 import 'package:air/platform/notifications.dart';
 import 'package:air/platform/method_channel.dart';
 import 'package:flutter/material.dart';
@@ -27,6 +28,7 @@ import 'package:flutter_bloc/flutter_bloc.dart';
 import 'package:logging/logging.dart';
 import 'package:provider/provider.dart';
 import 'package:system_date_time_format/system_date_time_format.dart';
+import 'package:uuid/uuid.dart';
 import 'package:air/features/onboarding/update_required_screen.dart';
 
 final _appRouter = AppRouter();
@@ -34,7 +36,11 @@ final _appRouter = AppRouter();
 final scaffoldMessengerKey = GlobalKey<ScaffoldMessengerState>();
 
 class App extends StatefulWidget {
-  const App({super.key});
+  const App({super.key, this.clientRecordId});
+
+  /// When set, this client record is opened at startup instead of the default
+  /// one.
+  final UuidValue? clientRecordId;
 
   @override
   State<App> createState() => _AppState();
@@ -63,7 +69,6 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     _openedNotificationSubscription = _openedNotificationController.stream
         .listen((chatId) {
           // Dismiss any active overlays before navigating to the chat
-          ContextMenu.closeActiveMenu();
           _appRouter.dismissOverlays();
           _navigationCubit.openChat(chatId);
         });
@@ -127,6 +132,22 @@ class _AppState extends State<App> with WidgetsBindingObserver {
     }
   }
 
+  /// Loads the client record given on the command line, or the default user.
+  void _loadInitialUser() {
+    final clientRecordId = widget.clientRecordId;
+    if (clientRecordId == null) {
+      _coreClient.loadDefaultUser();
+      return;
+    }
+    _log.info("Loading client record from the command line: $clientRecordId");
+    _coreClient.loadUser(clientRecordId: clientRecordId).onError((
+      error,
+      stackTrace,
+    ) {
+      _log.severe("Error loading client record $clientRecordId: $error");
+    });
+  }
+
   Future<void> _prepareForBackground() async {
     if (!Platform.isIOS) return;
 
@@ -169,8 +190,10 @@ class _AppState extends State<App> with WidgetsBindingObserver {
         ),
         BlocProvider<LoadableUserCubit>(
           // loads the user on startup
-          create: (context) =>
-              LoadableUserCubit((_coreClient..loadDefaultUser()).userStream),
+          create: (context) {
+            _loadInitialUser();
+            return LoadableUserCubit(_coreClient.userStream);
+          },
           lazy: false, // immediately try to load the user
         ),
         BlocProvider<UserSettingsCubit>(
@@ -181,40 +204,44 @@ class _AppState extends State<App> with WidgetsBindingObserver {
       child: InterfaceScale(
         // SDTFScope exposes date & time formatting system preferences
         child: SDTFScope(
-          child: Builder(
-            builder: (context) {
-              final userLocaleCode = context.select(
-                (UserSettingsCubit cubit) => cubit.state.locale,
-              );
-              final appLocale = context.select(
-                (AppLocaleCubit cubit) => cubit.state,
-              );
-              // Prefer persisted user locale; fall back to in-memory selection.
-              final locale = userLocaleCode != null
-                  ? Locale(userLocaleCode)
-                  : appLocale;
+          // One clock for every live timestamp in the app.
+          child: AppClock(
+            child: Builder(
+              builder: (context) {
+                final userLocaleCode = context.select(
+                  (UserSettingsCubit cubit) => cubit.state.locale,
+                );
+                final appLocale = context.select(
+                  (AppLocaleCubit cubit) => cubit.state,
+                );
+                // Prefer persisted user locale; fall back to in-memory selection.
+                final locale = userLocaleCode != null
+                    ? Locale(userLocaleCode)
+                    : appLocale;
 
-              return MaterialApp.router(
-                scrollBehavior: const AppScrollBehavior(),
-                scaffoldMessengerKey: scaffoldMessengerKey,
-                onGenerateTitle: (context) =>
-                    AppLocalizations.of(context).appTitle,
-                localizationsDelegates: AppLocalizations.localizationsDelegates,
-                supportedLocales: supportedLocalesWithFallback(
-                  AppLocalizations.supportedLocales,
-                  const Locale('en', 'US'),
-                ),
-                locale: locale,
-                debugShowCheckedModeBanner: false,
-                theme: lightTheme,
-                darkTheme: darkTheme,
-                routerConfig: _appRouter,
-                builder: (context, router) => LoadableUserCubitProvider(
-                  appStateController: _appStateController,
-                  child: router!,
-                ),
-              );
-            },
+                return MaterialApp.router(
+                  scrollBehavior: const AppScrollBehavior(),
+                  scaffoldMessengerKey: scaffoldMessengerKey,
+                  onGenerateTitle: (context) =>
+                      AppLocalizations.of(context).appTitle,
+                  localizationsDelegates:
+                      AppLocalizations.localizationsDelegates,
+                  supportedLocales: supportedLocalesWithFallback(
+                    AppLocalizations.supportedLocales,
+                    const Locale('en', 'US'),
+                  ),
+                  locale: locale,
+                  debugShowCheckedModeBanner: false,
+                  theme: lightTheme,
+                  darkTheme: darkTheme,
+                  routerConfig: _appRouter,
+                  builder: (context, router) => LoadableUserCubitProvider(
+                    appStateController: _appStateController,
+                    child: router!,
+                  ),
+                );
+              },
+            ),
           ),
         ),
       ),
@@ -306,7 +333,7 @@ class LoadableUserCubitProvider extends StatelessWidget {
           LoadingUser() || UnloadedUser() => child,
           LoadedUser() when !settingsAttached => child,
           LoadedUser(:final user) || UnloadingUser(:final user) => KeyedSubtree(
-            key: ValueKey(user.userId),
+            key: ValueKey(user.clientRecordId),
             child: MultiBlocProvider(
               providers: [
                 // Logged-in user and contacts are accessible everywhere inside
@@ -340,7 +367,9 @@ class LoadableUserCubitProvider extends StatelessWidget {
                     lazy: false,
                   ),
                 ],
-                child: UpdateRequiredScreen(child: child),
+                child: UnlinkedDeviceHandler(
+                  child: UpdateRequiredScreen(child: child),
+                ),
               ),
             ),
           ),
