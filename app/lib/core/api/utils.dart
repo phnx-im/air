@@ -14,14 +14,11 @@ import 'package:uuid/uuid.dart';
 Future<void> deleteDatabases({required String dbPath}) =>
     RustLib.instance.api.crateApiUtilsDeleteDatabases(dbPath: dbPath);
 
-/// Tears down a device that another device unlinked: stops the background work
-/// that writes to the database, then deletes it.
+/// Delete the database of the specified client.
 Future<void> deleteClientDatabase({
-  required User user,
   required String dbPath,
   required UuidValue clientRecordId,
 }) => RustLib.instance.api.crateApiUtilsDeleteClientDatabase(
-  user: user,
   dbPath: dbPath,
   clientRecordId: clientRecordId,
 );

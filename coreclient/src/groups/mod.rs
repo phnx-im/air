@@ -32,7 +32,7 @@ use aircommon::{
     credentials::{
         GroupStorageWitness, LeafCredential, LeafCredentialError, RoomPolicyIdentity,
         UserCredential, VerifiableUserCredential,
-        keys::{ClientKeyType, ClientSigningKey, LeafSigningKey, SelfGroupSigningKey},
+        keys::{ClientKeyType, LeafSigningKey, SelfGroupSigningKey, UserSigningKey},
     },
     crypto::{
         aead::{
@@ -195,9 +195,9 @@ impl From<(UserCredential, UserProfileKey)> for ProfileInfo {
 /// Candidate signing keys for the DS `welcome_info` lookups when joining a
 /// group. The right key is the one matching the joiner's leaf credential.
 pub(super) struct JoinSigners<'a> {
-    /// The shared client signing key. Key packages derived from a sibling's
-    /// upload always carry the shared client credential.
-    pub(super) client: &'a ClientSigningKey,
+    /// The shared user signing key. Key packages derived from a sibling's
+    /// upload always carry the shared user credential.
+    pub(super) client: &'a UserSigningKey,
     /// The self-group signing key, if provisioned. A freshly linked device
     /// joins the self-group with it.
     pub(super) self_group: Option<&'a SelfGroupSigningKey>,
@@ -505,7 +505,7 @@ impl Group {
     /// Create a group.
     pub(super) fn create_group(
         mut connection: impl WriteConnection,
-        signer: &ClientSigningKey,
+        signer: &UserSigningKey,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         group_id: GroupId,
         group_data_bytes: GroupDataBytes,
@@ -581,7 +581,7 @@ impl Group {
         welcome_attribution_info_ear_key: &WelcomeAttributionInfoEarKey,
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
-        signer: &ClientSigningKey,
+        signer: &UserSigningKey,
     ) -> Result<(Self, UserId, DecryptedProfileInfos)> {
         let serialized_welcome = welcome_bundle.welcome.tls_serialize_detached()?;
 
@@ -1069,7 +1069,7 @@ impl Group {
         txn: &mut WriteDbTransaction<'_>,
         api_clients: &ApiClients,
         external_commit_info: ExternalCommitInfoIn,
-        signer: &ClientSigningKey,
+        signer: &UserSigningKey,
         group_state_ear_key: GroupStateEarKey,
         identity_link_wrapper_key: IdentityLinkWrapperKey,
         aad: AadMessage,
@@ -1399,7 +1399,7 @@ impl Group {
     pub(super) async fn stage_invite(
         &mut self,
         mut connection: impl WriteConnection,
-        signer: &ClientSigningKey,
+        signer: &UserSigningKey,
         invitees: Vec<PreparedInvitee>,
     ) -> anyhow::Result<Result<GroupOperationParamsOut, LeafNodeValidationError>> {
         debug_assert!(!self.is_apq(), "APQ group in non-APQ stage_invite");
@@ -1524,7 +1524,7 @@ impl Group {
         &mut self,
         mut connection: impl WriteConnection,
         signer: &impl ApqSigner,
-        wai_signer: &ClientSigningKey,
+        wai_signer: &UserSigningKey,
         invitees: Vec<PreparedInvitee>,
         app_ephemeral: Option<Proposal>,
     ) -> anyhow::Result<Result<ApqGroupOperationParamsOut, LeafNodeValidationError>> {
@@ -1631,7 +1631,7 @@ impl Group {
     pub(super) async fn stage_remove(
         &mut self,
         mut connection: impl WriteConnection,
-        signer: &ClientSigningKey,
+        signer: &UserSigningKey,
         mut members: Vec<UserId>,
     ) -> Result<GroupOperationParamsOut> {
         // Note: The order of `remove_indices` is not the same as the order of `members`.
@@ -1766,7 +1766,7 @@ impl Group {
     pub(super) async fn stage_apq_remove(
         &mut self,
         mut connection: impl WriteConnection,
-        signer: &ClientSigningKey,
+        signer: &UserSigningKey,
         mut members: Vec<UserId>,
     ) -> anyhow::Result<ApqGroupOperationParamsOut> {
         // Note: The order of `remove_indices` is not the same as the order of `members`.
@@ -1819,7 +1819,7 @@ impl Group {
     pub(super) async fn stage_delete(
         &mut self,
         mut connection: impl WriteConnection,
-        signer: &ClientSigningKey,
+        signer: &UserSigningKey,
     ) -> anyhow::Result<DeleteGroupParamsOut> {
         let vc_epoch_id = self.resolve_vc_emulation_epoch(&mut connection).await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
@@ -1864,7 +1864,7 @@ impl Group {
     pub(super) async fn stage_apq_delete(
         &mut self,
         mut connection: impl WriteConnection,
-        signer: &ClientSigningKey,
+        signer: &UserSigningKey,
     ) -> anyhow::Result<ApqCommitMessageBundle> {
         let vc_epoch_id = self.resolve_vc_emulation_epoch(&mut connection).await?;
         let provider = AirOpenMlsProvider::new(connection.as_mut());
@@ -2119,7 +2119,7 @@ impl Group {
     pub(super) fn create_targeted_application_message(
         &mut self,
         provider: &AirOpenMlsProvider<'_>,
-        signer: &ClientSigningKey,
+        signer: &UserSigningKey,
         recipient: UserId,
         content: TargetedMessageContent,
     ) -> Result<TargetedMessageParamsOut, GroupOperationError> {
@@ -3095,9 +3095,8 @@ mod member_credential_validation_tests {
 
     fn user_credential() -> Credential {
         let user_id = UserId::random("example.com".parse().unwrap());
-        let (_as_signing_key, client_signing_key) = create_test_credentials(user_id);
-        Credential::try_from(client_signing_key.credential())
-            .expect("serializing a user credential")
+        let (_as_signing_key, user_signing_key) = create_test_credentials(user_id);
+        Credential::try_from(user_signing_key.credential()).expect("serializing a user credential")
     }
 
     fn signature_key() -> SignaturePublicKey {
@@ -3218,14 +3217,14 @@ mod handle_group_not_found_tests {
 
         let own_user_id = UserId::random("example.com".parse().unwrap());
         let blocked_user_id = UserId::random("example.com".parse().unwrap());
-        let (_as_signing_key, client_signing_key) = create_test_credentials(own_user_id);
+        let (_as_signing_key, user_signing_key) = create_test_credentials(own_user_id);
 
         let qgid = QualifiedGroupId::new(Uuid::new_v4(), "example.com".parse().unwrap());
         let group_id = GroupId::from(qgid);
 
         let (group, _) = Group::create_group(
             &mut connection,
-            &client_signing_key,
+            &user_signing_key,
             IdentityLinkWrapperKey::random()?,
             group_id.clone(),
             GroupDataBytes::from(b"test-group-data".to_vec()),
@@ -3236,7 +3235,7 @@ mod handle_group_not_found_tests {
         OwnClientInfo {
             qs_user_id: QsUserId::random(),
             qs_client_id: QsClientId::random(&mut rand::rng()),
-            user_id: client_signing_key.credential().user_id().clone(),
+            user_id: user_signing_key.credential().user_id().clone(),
             client_id: Uuid::new_v4(),
             self_group_id: None,
             self_group_signing_key: None,

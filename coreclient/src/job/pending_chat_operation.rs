@@ -6,7 +6,7 @@ use airapiclient::ds_api::DsRequestError;
 use aircommon::{
     credentials::{
         RoomPolicyIdentity, UserCredential,
-        keys::{ClientSigningKey, SelfGroupSigningKey},
+        keys::{SelfGroupSigningKey, UserSigningKey},
     },
     crypto::indexed_aead::keys::UserProfileKey,
     identifiers::{QualifiedGroupId, UserId},
@@ -685,7 +685,7 @@ impl PendingChatOperation {
     /// Creates and stores a PendingChatOperation for removing users.
     pub(super) async fn create_remove(
         txn: &mut WriteDbTransaction<'_>,
-        signer: &ClientSigningKey,
+        signer: &UserSigningKey,
         chat_id: ChatId,
         target_users: Vec<UserId>,
     ) -> anyhow::Result<Self> {
@@ -725,7 +725,7 @@ impl PendingChatOperation {
 
     pub(super) async fn create_leave(
         txn: &mut WriteDbTransaction<'_>,
-        signer: &ClientSigningKey,
+        signer: &UserSigningKey,
         chat_id: ChatId,
     ) -> anyhow::Result<Self> {
         let chat = Chat::load(&mut *txn, &chat_id)
@@ -747,7 +747,7 @@ impl PendingChatOperation {
 
     pub(super) async fn create_update(
         txn: &mut WriteDbTransaction<'_>,
-        signer: &ClientSigningKey,
+        signer: &UserSigningKey,
         chat_id: ChatId,
         new_group_data: Option<GroupData>,
         new_chat_picture: Option<Vec<u8>>,
@@ -765,7 +765,7 @@ impl PendingChatOperation {
 
     pub(crate) async fn create_apq_self_update(
         txn: &mut WriteDbTransaction<'_>,
-        signer: &ClientSigningKey,
+        signer: &UserSigningKey,
         chat_id: ChatId,
     ) -> anyhow::Result<Self> {
         let mut group = Group::load_with_chat_id_clean_verified(&mut *txn, chat_id)
@@ -851,7 +851,7 @@ impl PendingChatOperation {
 
     pub(crate) async fn create_update_with_raw_group_data(
         txn: &mut WriteDbTransaction<'_>,
-        signer: &ClientSigningKey,
+        signer: &UserSigningKey,
         chat_id: ChatId,
         group_data_bytes: Option<GroupDataBytes>,
         new_chat_picture: Option<Vec<u8>>,
@@ -880,7 +880,7 @@ impl PendingChatOperation {
     /// directly set to inactive instead.
     pub(super) async fn create_delete(
         txn: &mut WriteDbTransaction<'_>,
-        signer: &ClientSigningKey,
+        signer: &UserSigningKey,
         chat_id: ChatId,
     ) -> anyhow::Result<Option<Self>> {
         let mut chat = Chat::load(&mut *txn, &chat_id)
@@ -920,7 +920,7 @@ impl PendingChatOperation {
     pub(crate) async fn create_add(
         mut connection: impl WriteConnection,
         api_clients: &ApiClients,
-        signer: &ClientSigningKey,
+        signer: &UserSigningKey,
         chat_id: ChatId,
         new_members: Vec<UserId>,
     ) -> Result<Self, JobError<ChatOperationError>> {
@@ -1521,7 +1521,7 @@ pub mod test_utils {
         /// flags.
         pub(crate) async fn create_update_with_air_component(
             txn: &mut WriteDbTransaction<'_>,
-            signer: &ClientSigningKey,
+            signer: &UserSigningKey,
             chat_id: ChatId,
             air_component: AirComponent,
         ) -> anyhow::Result<Self> {
@@ -1595,7 +1595,7 @@ mod tests {
     use aircommon::{
         assert_matches,
         credentials::{
-            keys::{ClientSigningKey, LeafSigningKey, SelfGroupSigningKey},
+            keys::{LeafSigningKey, SelfGroupSigningKey, UserSigningKey},
             test_utils::create_test_credentials,
         },
         crypto::aead::keys::IdentityLinkWrapperKey,
@@ -1782,7 +1782,7 @@ mod tests {
 
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let user_id = UserId::random("example.com".parse()?);
-        let (_as_key, client_signing_key) = create_test_credentials(user_id.clone());
+        let (_as_key, user_signing_key) = create_test_credentials(user_id.clone());
         let self_group_signing_key = SelfGroupSigningKey::generate(Uuid::new_v4())?;
         let leaf_signer = LeafSigningKey::SelfGroup(self_group_signing_key.clone());
 
@@ -1823,12 +1823,9 @@ mod tests {
                     Chat::new_group_chat(t_group_id, ChatAttributes::new("Notes".to_owned(), None));
                 chat.store(&mut *txn).await?;
 
-                let job = PendingChatOperation::create_apq_self_update(
-                    txn,
-                    &client_signing_key,
-                    chat.id(),
-                )
-                .await?;
+                let job =
+                    PendingChatOperation::create_apq_self_update(txn, &user_signing_key, chat.id())
+                        .await?;
 
                 let staged = job
                     .group
@@ -1857,7 +1854,7 @@ mod tests {
     }
 
     async fn setup_group_and_chat()
-    -> anyhow::Result<(DbAccess, VerifiedGroup, ChatId, ClientSigningKey)> {
+    -> anyhow::Result<(DbAccess, VerifiedGroup, ChatId, UserSigningKey)> {
         let pool = DbAccess::for_tests(open_db_in_memory().await?);
         let mut connection = pool.write().await?;
 

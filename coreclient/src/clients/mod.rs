@@ -15,9 +15,7 @@ use airapiclient::{
     qs_api::{QsListenResponder, QsRequestError},
 };
 use aircommon::{
-    credentials::{
-        UserCredential, UserCredentialCsr, UserCredentialPayload, keys::ClientSigningKey,
-    },
+    credentials::{UserCredential, UserCredentialCsr, UserCredentialPayload, keys::UserSigningKey},
     crypto::{
         RatchetDecryptionKey,
         aead::keys::WelcomeAttributionInfoEarKey,
@@ -342,7 +340,7 @@ impl CoreUser {
         self.inner.client_record_id
     }
 
-    pub(crate) fn signing_key(&self) -> &ClientSigningKey {
+    pub(crate) fn signing_key(&self) -> &UserSigningKey {
         &self.inner.key_store.signing_key
     }
 
