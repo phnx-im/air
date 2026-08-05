@@ -3,7 +3,7 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 use aircommon::{
-    credentials::UserCredential,
+    credentials::{LeafCredential, UserCredential},
     crypto::aead::keys::{EncryptedUserProfileKey, GroupStateEarKey},
     identifiers::{QsReference, QualifiedGroupId},
 };
@@ -26,7 +26,7 @@ use crate::{
     auth_service::AsConnector,
     ds::{
         GrpcDs,
-        group_state::DsGroupState,
+        group_state::{DsGroupState, leaf_credential_matches_flag},
         grpc::{WithGroupStateEarKey, WithQualifiedGroupId},
         process::Provider,
     },
@@ -83,9 +83,10 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
 
     /// Return the credential that authenticates the creation of `group`.
     ///
-    /// A credential provided with the request is only acceptable for
-    /// self-groups, whose leaves carry no user credential. For all other
-    /// groups the credential is taken from the creator's leaf.
+    /// The creator's leaf credential must match the group kind: a self-group leaf carries a
+    /// self-group credential, a regular-group leaf a user credential. A self-group's leaves carry
+    /// no user credential, so the creator's user credential is provided out of band. A regular
+    /// group takes it from the creator's leaf and must not provide one.
     pub(super) fn creator_credential(
         group: &Group,
         provided: Option<&UserCredentialProto>,
@@ -97,30 +98,34 @@ impl<Qep: QsConnector, As: AsConnector> GrpcDs<Qep, As> {
                 "group must have exactly one member",
             ));
         };
-        match provided {
-            Some(credential) => {
-                Self::require_self_group_context(group)?;
+
+        let leaf_credential = LeafCredential::from_credential(&member.credential)
+            .map_err(|_| Status::invalid_argument("invalid credential"))?;
+        let is_self_group =
+            AirComponent::is_self_group_context(group.group_info().group_context().extensions());
+        if !leaf_credential_matches_flag(&leaf_credential, is_self_group) {
+            return Err(Status::invalid_argument(
+                "creator leaf credential does not match group kind",
+            ));
+        }
+
+        match (provided, is_self_group) {
+            (Some(credential), true) => {
                 let credential = credential
                     .try_ref_into()
                     .invalid_tls("creator_user_credential")?;
                 Ok(credential)
             }
-            None => {
+            (None, false) => {
                 UserCredential::tls_deserialize_exact_bytes(member.credential.serialized_content())
                     .map_err(|_| Status::invalid_argument("invalid credential"))
             }
-        }
-    }
-
-    /// Ensure the group context's self-group flag is set.
-    pub(super) fn require_self_group_context(group: &Group) -> Result<(), Status> {
-        let extensions = group.group_info().group_context().extensions();
-        if AirComponent::is_self_group_context(extensions) {
-            Ok(())
-        } else {
-            Err(Status::invalid_argument(
+            (Some(_), false) => Err(Status::invalid_argument(
                 "creator user credential requires a self-group",
-            ))
+            )),
+            (None, true) => Err(Status::invalid_argument(
+                "self-group requires a creator user credential",
+            )),
         }
     }
 
