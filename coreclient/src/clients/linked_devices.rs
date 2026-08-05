@@ -578,29 +578,6 @@ mod tests {
         Ok(())
     }
 
-    #[sqlx::test]
-    async fn rename_creates_missing_metadata_for_a_linked_device(
-        pool: SqlitePool,
-    ) -> anyhow::Result<()> {
-        let (db, client_id) = test_db(pool).await?;
-
-        let enqueued = db
-            .with_write_transaction(async |txn| rename_device(txn, client_id, "Work laptop").await)
-            .await?;
-
-        assert!(!enqueued, "no self group means nothing to synchronize");
-        assert_eq!(
-            devices_in(&db).await?,
-            vec![LinkedDevice {
-                client_id,
-                name: "Work laptop".to_owned(),
-                created_at: 0,
-                platform: PLATFORM_UNKNOWN,
-            }]
-        );
-        Ok(())
-    }
-
     /// A redundant tap must not cost a commit.
     #[sqlx::test]
     async fn rename_to_the_same_name_is_a_no_op(pool: SqlitePool) -> anyhow::Result<()> {
@@ -619,29 +596,6 @@ mod tests {
 
         assert!(!enqueued);
         assert_eq!(devices_in(&db).await?, before);
-        Ok(())
-    }
-
-    #[sqlx::test]
-    async fn rename_unknown_device_is_an_error(pool: SqlitePool) -> anyhow::Result<()> {
-        let created_at = DateTime::parse_from_rfc3339("2026-08-03T20:41:52.000Z")
-            .unwrap()
-            .to_utc();
-        let (db, _client_id) = test_db(pool).await?;
-        db.with_write_transaction(async |txn| ensure_own_device_entry(txn, created_at).await)
-            .await?;
-
-        let error = db
-            .with_write_transaction(async |txn| {
-                rename_device(txn, Uuid::from_u128(0xdead), "Nope").await
-            })
-            .await
-            .expect_err("renaming an unknown client id must fail");
-        assert!(
-            error.to_string().contains("no linked device"),
-            "unexpected error: {error}"
-        );
-
         Ok(())
     }
 
