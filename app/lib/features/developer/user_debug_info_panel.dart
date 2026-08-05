@@ -3,6 +3,8 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
+import 'package:air/ds/components/button_icon/button_icon.dart';
+import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:flutter/material.dart';
@@ -278,13 +280,19 @@ class _TriggerButton extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final palette = SemanticPalette.of(context);
-    return IconButton(
-      onPressed: onPressed,
-      visualDensity: VisualDensity.compact,
-      padding: EdgeInsets.zero,
-      constraints: const BoxConstraints(),
-      tooltip: 'Run now',
-      icon: Icon(Icons.play_arrow, size: 20, color: palette.text.primary),
+    return Tooltip(
+      message: 'Run now',
+      child: ButtonIcon(
+        variant: ButtonIconVariant.plain,
+        size: ButtonIconSize.s32,
+        hitTargetSize: S.s40,
+        iconWidget: Icon(
+          Icons.play_arrow,
+          size: 20,
+          color: palette.text.primary,
+        ),
+        onPressed: onPressed,
+      ),
     );
   }
 }

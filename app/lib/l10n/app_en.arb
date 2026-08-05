@@ -16,13 +16,16 @@
   "userSettingsScreen_displayNameLabel": "Display name",
 
   "userSettingsScreen_usernamesSection": "Usernames",
-  "userSettingsScreen_settingsSection": "Settings",
   "userSettingsScreen_helpSection": "Help",
   "userSettingsScreen_accountSection": "Account",
 
   "userSettingsScreen_inviteCodes": "Invite codes",
 
   "userSettingsScreen_devices": "Devices",
+
+  "youSection_profile": "Profile",
+  "youSection_preferences": "Preferences",
+  "youSection_developer": "Developer",
 
   "settingsScreen_copiedToClipboard": "Copied to clipboard",
 
@@ -35,8 +38,9 @@
   "addMembersScreen_addMembers": "Add member(s)",
   "addMembersScreen_error_noActiveChat": "an active chat is obligatory",
 
+  "contactDetailsScreen_title": "Profile",
   "contactDetailsScreen_chat": "Chat",
-  "contactDetailsScreen_viewSafetyCode": "View Safety Code",
+  "contactDetailsScreen_viewSafetyCode": "Safety code",
   "contactDetailsScreen_mute": "Mute",
   "contactDetailsScreen_unmute": "Unmute",
 
@@ -173,7 +177,6 @@
   "linkingDevicesScreen_error_sessionNotFound": "The code you provided is incorrect.",
   "linkingDevicesScreen_error_dismiss": "Try again",
 
-  "linkedDevicesScreen_title": "Devices",
   "linkedDevicesScreen_thisDevice": "This device",
   "linkedDevicesScreen_linkedDevices": "Linked devices",
   "linkedDevicesScreen_linkedOn": "Linked on {date}",
@@ -425,6 +428,7 @@
   "contactUsScreen_errorLaunchingEmail": "Couldn't launch email client",
   "contactUsScreen_errorUploadingLogs": "Couldn't upload logs",
 
+  "groupDetails_title": "Group details",
   "groupDetails_leaveChat": "Leave",
   "groupDetails_deleteChat": "Delete",
   "groupDetails_addPeople": "Add people",
@@ -437,7 +441,6 @@
       }
     }
   },
-  "groupDetails_groupDescription": "Group",
   "groupMembersScreen_title": "Group members",
   "groupMembersScreen_searchHint": "Search",
   "groupCreationScreen_title": "Add members",
@@ -510,5 +513,9 @@
   "messageList_reactions_react": "React",
   "messageList_reactions_remove": "Remove",
   "messageList_reactions_you": "You",
-  "messageList_reactions_all": "All · {total}"
+  "messageList_reactions_all": "All · {total}",
+
+  "emojiPicker_searchHint": "Search emoji",
+  "emojiPicker_empty": "No emoji found",
+  "emojiPicker_skinToneHelp": "Sets your default skin tone"
 }

@@ -3,14 +3,15 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/core/core.dart';
+import 'package:air/ds/components/scroll/app_scrollbar.dart';
+import 'package:air/ds/foundations/foundations.dart';
+import 'package:air/ds/patterns/modal/modal.dart';
+import 'package:air/ds/patterns/modal/modal_tokens.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
-import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
-import 'package:air/features/navigation/app_bar_back_button.dart';
-import 'package:air/ds/components/button_icon/app_bar_plus_button.dart';
 import 'package:collection/collection.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -89,7 +90,6 @@ class GroupMembersView extends HookWidget {
     final query = useState("");
 
     final loc = AppLocalizations.of(context);
-    final palette = SemanticPalette.of(context);
 
     final sortedMembers = useMemoized(() {
       final youValue = loc.chatList_you.toLowerCase();
@@ -104,58 +104,90 @@ class GroupMembersView extends HookWidget {
       );
     }, [members, profiles, query, ownUserId]);
 
-    return Scaffold(
-      appBar: AppBar(
-        elevation: 0,
-        scrolledUnderElevation: 0,
-        clipBehavior: Clip.none,
-        leading: const AppBarBackButton(),
-        title: Text(loc.groupMembersScreen_title),
-        actions: [
-          AppBarPlusButton(
-            onPressed: () => context.read<NavigationCubit>().openAddMembers(),
+    return ModalScaffold(
+      title: loc.groupMembersScreen_title,
+      onLeading: () => context.read<NavigationCubit>().pop(),
+      trailing: const _AddMembersAction(),
+      // The list below the search field scrolls on its own.
+      scrollable: false,
+      child: Column(
+        children: [
+          MemberSearchField(
+            controller: controller,
+            hintText: loc.groupMembersScreen_searchHint,
+            onChanged: (value) => query.value = value.toLowerCase().trim(),
+          ),
+          Expanded(
+            child: AppScrollbar(
+              child: ScrollConfiguration(
+                behavior: ScrollConfiguration.of(
+                  context,
+                ).copyWith(scrollbars: false),
+                child: _MemberList(
+                  chatId: chatId,
+                  members: sortedMembers,
+                  ownUserId: ownUserId,
+                  roomState: roomState,
+                ),
+              ),
+            ),
           ),
         ],
       ),
-      body: SafeArea(
-        child: Align(
-          alignment: Alignment.topCenter,
-          child: Container(
-            constraints: DeviceType.isDesktop
-                ? const BoxConstraints(maxWidth: 800)
-                : null,
-            child: Column(
-              children: [
-                MemberSearchField(
-                  controller: controller,
-                  hintText: loc.groupMembersScreen_searchHint,
-                  onChanged: (value) =>
-                      query.value = value.toLowerCase().trim(),
-                ),
-                Expanded(
-                  child: ListView.separated(
-                    padding: const EdgeInsets.symmetric(
-                      horizontal: S.s16,
-                      vertical: S.s12,
-                    ),
-                    itemCount: sortedMembers.length,
-                    separatorBuilder: (context, index) => Divider(
-                      height: 1,
-                      thickness: StrokeWidth.px1,
-                      color: palette.backgroundBase.primary,
-                    ),
-                    itemBuilder: (context, index) => _GroupMemberTile(
-                      chatId: chatId,
-                      memberId: sortedMembers[index],
-                      ownUserId: ownUserId,
-                      roomState: roomState,
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        ),
+    );
+  }
+}
+
+class _AddMembersAction extends StatelessWidget {
+  const _AddMembersAction();
+
+  @override
+  Widget build(BuildContext context) {
+    return DialogHeaderAction(
+      tokens: DialogHeaderTokens.of(context),
+      icon: AppIconType.plus,
+      onPressed: () => context.read<NavigationCubit>().openAddMembers(),
+    );
+  }
+}
+
+class _MemberList extends StatelessWidget {
+  const _MemberList({
+    required this.chatId,
+    required this.members,
+    required this.ownUserId,
+    required this.roomState,
+  });
+
+  final ChatId chatId;
+  final List<UiUserId> members;
+  final UiUserId ownUserId;
+  final UiRoomState? roomState;
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = SemanticPalette.of(context);
+
+    return ListView.separated(
+      // The modal surface runs to the bottom of the screen, so the last row
+      // clears the home indicator on its own rather than through a SafeArea.
+      padding: EdgeInsets.fromLTRB(
+        S.s16,
+        S.s12,
+        S.s16,
+        S.s12 + MediaQuery.viewPaddingOf(context).bottom,
+      ),
+      itemCount: members.length,
+      separatorBuilder: (context, index) => Divider(
+        height: 1,
+        thickness: StrokeWidth.px1,
+        color: palette.backgroundBase.primary,
+      ),
+      itemBuilder: (context, index) => _GroupMemberTile(
+        chatId: chatId,
+        memberId: members[index],
+        ownUserId: ownUserId,
+        roomState: roomState,
       ),
     );
   }

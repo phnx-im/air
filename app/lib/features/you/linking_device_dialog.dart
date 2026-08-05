@@ -3,7 +3,12 @@
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
 import 'package:air/ds/components/button/button.dart';
-import 'package:air/ds/components/button_icon/glass_circle_button.dart';
+import 'package:air/ds/components/button_icon/button_icon.dart';
+import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
+import 'package:air/ds/components/checkbox/checkbox.dart';
+import 'package:air/ds/components/checkbox/checkbox_tokens.dart';
+import 'package:air/ds/components/text_input/text_input.dart';
+import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/ds/foundations/foundations.dart';
@@ -110,9 +115,10 @@ class _LinkModalHeader extends StatelessWidget {
         if (onBack != null)
           Align(
             alignment: Alignment.centerLeft,
-            child: GlassCircleButton(
-              icon: AppIcon.arrowLeft(size: 20, color: palette.text.primary),
-              color: palette.accentBrand.quaternary,
+            child: ButtonIcon(
+              variant: ButtonIconVariant.elevated,
+              icon: AppIconType.arrowLeft,
+              fill: palette.accentBrand.quaternary,
               onPressed: onBack,
             ),
           ),
@@ -160,7 +166,7 @@ class _LinkChooserPage extends StatelessWidget {
         const SizedBox(height: S.s16),
         Text(loc.linkedDevicesScreen_linkDialog_openApp, style: labelStyle),
         const SizedBox(height: S.s24),
-        AppButton(
+        Button(
           type: .secondary,
           label: _isQrCodeScannerSupported
               ? loc.linkedDevicesScreen_linkDialog_scanQrCode
@@ -171,7 +177,7 @@ class _LinkChooserPage extends StatelessWidget {
           onPressed: onScanQrCode,
         ),
         const SizedBox(height: S.s12),
-        AppButton(
+        Button(
           type: .secondary,
           label: loc.linkedDevicesScreen_linkDialog_enterNumericCode,
           icon: (size, color) => AppIcon.tag(size: size.width, color: color),
@@ -401,6 +407,9 @@ class _NumericCodePage extends HookWidget {
     final loc = AppLocalizations.of(context);
     final controller = useTextEditingController();
 
+    // The code is read off the other device and typed back, so the field is a
+    // display: tabular figures keep the digits from shifting as they land, and
+    // the tracking keeps the two groups apart.
     final codeStyle = typeScale.header.xl
         .style(weight: Weight.emphasized, color: palette.text.primary)
         .copyWith(
@@ -427,30 +436,23 @@ class _NumericCodePage extends HookWidget {
           style: typeScale.body.s.style(color: palette.text.secondary),
         ),
         const SizedBox(height: S.s16),
-        TextField(
+        AppTextInput(
+          tokens: AppTextInputTokens.of(context),
           controller: controller,
           autofocus: true,
-          onEditingComplete: onEditingComplete,
           keyboardType: TextInputType.number,
-          textAlign: TextAlign.center,
           inputFormatters: [_GroupedDigitsFormatter(groupSize: 4)],
-          buildCounter:
-              (_, {required currentLength, required isFocused, maxLength}) =>
-                  null,
+          hintText: "0000 0000",
           style: codeStyle,
-          decoration: appDialogInputDecoration.copyWith(
-            filled: true,
-            fillColor: palette.backgroundBase.secondary,
-            contentPadding: const EdgeInsets.symmetric(
-              vertical: S.s24,
-              horizontal: S.s8,
-            ),
-            hintText: "0000 0000",
-            hintStyle: codeStyle.copyWith(color: palette.text.quaternary),
+          textAlign: TextAlign.center,
+          fieldPadding: const EdgeInsets.symmetric(
+            vertical: S.s24,
+            horizontal: S.s8,
           ),
+          onSubmitted: (_) => onEditingComplete(),
         ),
         const SizedBox(height: S.s24),
-        AppButton(
+        Button(
           type: .primary,
           label: loc.linkedDevicesScreen_linkDialog_link,
           onPressed: onEditingComplete,
@@ -616,7 +618,7 @@ class _LinkErrorView extends StatelessWidget {
           style: typeScale.body.xs.style(color: palette.text.primary),
         ),
         const SizedBox(height: S.s24),
-        AppButton(
+        Button(
           label: loc.linkingDevicesScreen_error_dismiss,
           onPressed: onBack,
         ),
@@ -634,45 +636,12 @@ class _LinkDeviceName extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final loc = AppLocalizations.of(context);
-    final palette = SemanticPalette.of(context);
 
-    return Column(
-      spacing: S.s8,
-      crossAxisAlignment: .start,
-      children: [
-        Container(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(CornerRadius.px16),
-            color: palette.backgroundBase.secondary,
-          ),
-          padding: const EdgeInsets.only(left: S.s12, right: S.s12),
-          child: Row(
-            mainAxisAlignment: .start,
-            crossAxisAlignment: .center,
-            spacing: S.s8,
-            children: [
-              const AppIcon.laptop(),
-              Expanded(
-                child: TextField(
-                  controller: textEditingController,
-                  maxLength: 30,
-                  buildCounter:
-                      (
-                        _, {
-                        required currentLength,
-                        required isFocused,
-                        maxLength,
-                      }) => null,
-                ),
-              ),
-            ],
-          ),
-        ),
-        Text(
-          loc.linkingDeviceScreen_linking_confirm_edit_subtitle,
-          style: typeScale.body.xs.style(color: palette.text.tertiary),
-        ),
-      ],
+    return AppTextInput(
+      tokens: AppTextInputTokens.of(context),
+      controller: textEditingController,
+      maxLength: 30,
+      helperText: loc.linkingDeviceScreen_linking_confirm_edit_subtitle,
     );
   }
 }
@@ -716,10 +685,12 @@ class _LinkConfirmView extends HookWidget {
           onTap: () => checked.value = !checked.value,
           borderRadius: BorderRadius.circular(CornerRadius.px8),
           child: Row(
+            spacing: S.s12,
             children: [
-              Checkbox(
+              AppCheckbox(
+                tokens: CheckboxTokens.standard,
                 value: checked.value,
-                onChanged: (value) => checked.value = value ?? false,
+                onChanged: (value) => checked.value = value,
               ),
               Expanded(
                 child: Text(
@@ -731,12 +702,10 @@ class _LinkConfirmView extends HookWidget {
           ),
         ),
         const SizedBox(height: S.s24),
-        AppButton(
+        Button(
           type: .primary,
           label: loc.linkingDeviceScreen_linking_confirm_button,
-          state: checked.value
-              ? AppButtonState.active
-              : AppButtonState.inactive,
+          state: checked.value ? ButtonState.active : ButtonState.inactive,
           onPressed: () => onConfirm(deviceName.text),
         ),
       ],

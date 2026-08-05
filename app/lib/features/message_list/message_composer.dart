@@ -4,18 +4,21 @@
 
 import 'dart:async';
 import 'dart:io';
-import 'dart:ui';
-import 'package:air/features/attachments/attachment_category_picker.dart';
 import 'package:air/features/attachments/attachment_upload_view.dart';
 import 'package:air/features/emoji/emoji_data.dart';
 import 'package:air/l10n/app_localizations_extension.dart';
 import 'package:air/features/emoji/emoji_autocomplete.dart';
-import 'package:air/ds/components/button_icon/glass_circle_button.dart';
-import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
+import 'package:air/ds/components/button_icon/button_icon.dart';
+import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
+import 'package:air/ds/components/menu/menu.dart';
+import 'package:air/ds/patterns/message_input/message_input.dart';
+import 'package:air/ds/patterns/popup_menu/popup_menu.dart';
+import 'package:air/ds/patterns/message_input/message_input_tokens.dart';
+import 'package:air/ds/patterns/reply_block/reply_block.dart';
+import 'package:air/ds/patterns/reply_block/reply_block_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/features/message_list/scroll_to_bottom_controller.dart';
 import 'package:air/features/user/user_settings_cubit.dart';
-import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/debouncer.dart';
 import 'package:air/features/message_list/widgets/text_autocomplete.dart';
 import 'package:air/util/scaffold_messenger.dart';
@@ -34,13 +37,11 @@ import 'package:air/platform/method_channel.dart'
     show ClipboardImage, getClipboardFilePaths, getClipboardImage;
 
 import 'package:air/features/message_list/message_renderer.dart';
-import 'package:air/features/message_list/text_message_tile.dart'
-    show messageHorizontalPadding;
 
 final _log = Logger("MessageComposer");
-const double _inputVerticalPadding = S.s12;
-final double _composerButtonSize =
-    typeScale.body.regular.lineHeightPx + 2 * _inputVerticalPadding;
+
+/// Where an attachment comes from. Camera is a phone-only source.
+enum _AttachmentCategory { gallery, camera, file }
 
 class MessageComposer extends StatefulWidget {
   const MessageComposer({
@@ -71,9 +72,9 @@ class _MessageComposerState extends State<MessageComposer>
   final GlobalKey _inputFieldKey = GlobalKey();
   late final TextAutocompleteController<Emoji> _emojiAutocomplete;
 
-  static final double _buttonSize = _composerButtonSize;
-  static final double _inputBorderRadius = _buttonSize / 2;
-  static const double _iconSize = 16;
+  /// Merged once rather than per build: a fresh merge on every rebuild makes
+  /// [ListenableBuilder] drop and re-add its listeners each frame.
+  late final Listenable _scrollBackState;
 
   @override
   void initState() {
@@ -93,6 +94,10 @@ class _MessageComposerState extends State<MessageComposer>
     _focusNode.addListener(_emojiAutocomplete.handleFocusChange);
     _focusNode.onKeyEvent = _onKeyEvent;
     _inputController.addListener(_onTextChanged);
+
+    _scrollBackState = Listenable.merge([
+      widget.scrollToBottomController?.showButton,
+    ]);
 
     _chatDetailsCubit = context.read<ChatDetailsCubit>();
 
@@ -176,172 +181,74 @@ class _MessageComposerState extends State<MessageComposer>
 
   @override
   Widget build(BuildContext context) {
-    final (chatTitle, editingId, inReplyToId, isConfirmedChat) = context.select(
-      (ChatDetailsCubit cubit) {
-        final chat = cubit.state.chat;
-        return (
-          chat?.title,
-          chat?.draft?.editingId,
-          chat?.draft?.inReplyTo?.$1,
-          chat?.isConfirmed ?? false,
-        );
-      },
-    );
+    // The dot on the scroll-back button tracks the chat's live unread count.
+    // Mark-as-read runs up to the newest visible message, so whatever is still
+    // unread sits below the fold.
+    final (
+      chatTitle,
+      editingId,
+      inReplyToId,
+      isConfirmedChat,
+      hasUnread,
+    ) = context.select((ChatDetailsCubit cubit) {
+      final chat = cubit.state.chat;
+      return (
+        chat?.title,
+        chat?.draft?.editingId,
+        chat?.draft?.inReplyTo?.$1,
+        chat?.isConfirmed ?? false,
+        (chat?.unreadMessages ?? 0) > 0,
+      );
+    });
 
     if (chatTitle == null) {
       return const SizedBox.shrink();
     }
 
-    final palette = SemanticPalette.of(context);
-    final materialColor = palette.backgroundMaterial.tertiary;
+    final isEditing = editingId != null;
+    final controller = widget.scrollToBottomController;
 
-    Widget composerButton({required Widget icon, VoidCallback? onPressed}) {
-      return GlassCircleButton(
-        icon: icon,
-        size: _buttonSize,
-        color: materialColor,
-        enableBackdropBlur: false,
-        shadows: const [],
-        onPressed: onPressed,
-      );
-    }
-
-    final plusButton = composerButton(
-      icon: const AppIcon.plus(size: _iconSize),
-      onPressed: isConfirmedChat
-          ? () => _uploadAttachment(context, chatTitle: chatTitle)
-          : null,
-    );
-
-    final inputField = Expanded(
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(_inputBorderRadius),
-        child: Container(
-          constraints: BoxConstraints(minHeight: _buttonSize),
-          decoration: BoxDecoration(
-            color: materialColor,
-            borderRadius: BorderRadius.circular(_inputBorderRadius),
-          ),
-          padding: const EdgeInsets.symmetric(horizontal: S.s16),
-          child: _MessageInput(
-            focusNode: _focusNode,
-            controller: _inputController,
-            chatTitle: chatTitle,
-            isEditing: editingId != null,
-            isReplying: inReplyToId != null,
-            layerLink: _inputFieldLink,
-            inputKey: _inputFieldKey,
-            onSubmitMessage: () =>
-                _submitMessage(context.read<ChatDetailsCubit>()),
-            onImagePasted: _handleImagePaste,
-            onFilePasted: _handleFilePaste,
-            onContentInserted: _handleContentInserted,
-          ),
+    return ListenableBuilder(
+      listenable: _scrollBackState,
+      builder: (context, _) => MessageInput(
+        tokens: MessageInputTokens.of(context),
+        // Cancel the edit when editing, attach otherwise.
+        leadingIcon: isEditing ? AppIconType.x : AppIconType.plus,
+        onLeading: isEditing
+            ? (_) {
+                context.read<ChatDetailsCubit>().resetDraft();
+                _inputController.clear();
+              }
+            : isConfirmedChat
+            ? (buttonContext) =>
+                  _openAttachMenu(buttonContext, chatTitle: chatTitle)
+            : null,
+        sendIcon: isEditing ? AppIconType.check : AppIconType.arrowUp,
+        // An edit keeps its confirm button whatever the field holds, so the way
+        // out of an edit is in the same place the way in was. Send is never
+        // shown disabled: the slot simply stays closed until there is something
+        // to send.
+        showSend: (isEditing || !_inputIsEmpty) && isConfirmedChat,
+        onSend: () => _submitMessage(context.read()),
+        showScrollBack: controller?.showButton.value ?? false,
+        scrollBackUnread: hasUnread,
+        onScrollBack: () => controller?.scrollToBottom(),
+        aboveField: [
+          if (isEditing) const _EditBanner(),
+          if (inReplyToId != null) const _ReplyPreview(),
+        ],
+        field: _ComposerField(
+          focusNode: _focusNode,
+          controller: _inputController,
+          chatTitle: chatTitle,
+          layerLink: _inputFieldLink,
+          inputKey: _inputFieldKey,
+          onSubmitMessage: () =>
+              _submitMessage(context.read<ChatDetailsCubit>()),
+          onImagePasted: _handleImagePaste,
+          onFilePasted: _handleFilePaste,
+          onContentInserted: _handleContentInserted,
         ),
-      ),
-    );
-
-    return Padding(
-      padding: const EdgeInsets.only(
-        left: messageHorizontalPadding,
-        right: messageHorizontalPadding,
-        bottom: S.s12,
-      ),
-      child: ValueListenableBuilder<bool>(
-        valueListenable:
-            widget.scrollToBottomController?.showButton ??
-            ValueNotifier<bool>(false),
-        builder: (context, showScrollToBottom, _) {
-          final isEditing = editingId != null;
-
-          // Left: cancel (✕) when editing, attach (+) otherwise
-          final leftButton = isEditing
-              ? composerButton(
-                  icon: const AppIcon.x(size: _iconSize),
-                  onPressed: () {
-                    context.read<ChatDetailsCubit>().resetDraft();
-                    _inputController.clear();
-                  },
-                )
-              : plusButton;
-
-          // Right: confirm (✓) when editing, send (↑) when has text,
-          // scroll-down when scrolled back, none otherwise
-          final Widget? rightButton;
-          if (isEditing) {
-            rightButton = composerButton(
-              icon: const AppIcon.check(size: _iconSize),
-              onPressed: !_inputIsEmpty && isConfirmedChat
-                  ? () => _submitMessage(context.read())
-                  : null,
-            );
-          } else if (!_inputIsEmpty) {
-            rightButton = composerButton(
-              icon: const AppIcon.arrowUp(size: _iconSize),
-              onPressed: isConfirmedChat
-                  ? () => _submitMessage(context.read())
-                  : null,
-            );
-          } else if (showScrollToBottom) {
-            rightButton = composerButton(
-              icon: const AppIcon.chevronsDown(size: _iconSize),
-              onPressed: () {
-                widget.scrollToBottomController?.scrollToBottom();
-              },
-            );
-          } else {
-            rightButton = null;
-          }
-
-          final trailingButtonCount = rightButton != null ? 1 : 0;
-
-          final clipper = _ComposerClipper(
-            buttonSize: _buttonSize,
-            spacing: S.s8,
-            inputBorderRadius: _inputBorderRadius,
-            trailingButtonCount: trailingButtonCount,
-          );
-
-          return Stack(
-            children: [
-              Positioned.fill(
-                child: LayoutBuilder(
-                  builder: (context, constraints) {
-                    final clipBounds = clipper
-                        .getClip(constraints.smallest)
-                        .getBounds();
-                    return ClipPath(
-                      clipper: clipper,
-                      child: BackdropFilter(
-                        filter: ImageFilter.blur(
-                          sigmaX: Effect.blur(BlurLevel.medium),
-                          sigmaY: Effect.blur(BlurLevel.medium),
-                          bounds: clipBounds,
-                        ),
-                        child: const SizedBox.expand(),
-                      ),
-                    );
-                  },
-                ),
-              ),
-              Positioned.fill(
-                child: CustomPaint(
-                  painter: _ComposerShadowPainter(
-                    buttonSize: _buttonSize,
-                    spacing: S.s8,
-                    inputBorderRadius: _inputBorderRadius,
-                    trailingButtonCount: trailingButtonCount,
-                  ),
-                ),
-              ),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.end,
-                spacing: S.s8,
-                children: [leftButton, inputField, ?rightButton],
-              ),
-            ],
-          );
-        },
       ),
     );
   }
@@ -482,28 +389,59 @@ class _MessageComposerState extends State<MessageComposer>
     return false;
   }
 
-  void _uploadAttachment(
-    BuildContext context, {
+  /// Opens the attach options as a floating menu growing out of the + button.
+  void _openAttachMenu(
+    BuildContext buttonContext, {
     required String chatTitle,
-  }) async {
-    AttachmentCategory? selectedCategory;
-    await showBottomSheetModal(
-      context: context,
-      builder: (_) => AttachmentCategoryPicker(
-        onCategorySelected: (category) {
-          selectedCategory = category;
-          Navigator.of(context).pop(true);
-        },
-      ),
+  }) {
+    final render = buttonContext.findRenderObject();
+    if (render is! RenderBox || !render.hasSize) return;
+    final loc = AppLocalizations.of(buttonContext);
+
+    void pick(_AttachmentCategory category) => unawaited(
+      _pickAttachment(buttonContext, category, chatTitle: chatTitle),
     );
 
+    unawaited(
+      showOverlayMenu(
+        context: buttonContext,
+        anchor: render.localToGlobal(Offset.zero) & render.size,
+        // The button sits at the bottom of the screen, so the menu opens
+        // upward out of its leading edge.
+        corner: MenuCorner.bottomLeft,
+        items: [
+          MenuItem(
+            label: loc.attachment_gallery,
+            leading: const AppIcon.image(size: 16),
+            onPressed: () => pick(_AttachmentCategory.gallery),
+          ),
+          if (DeviceType.isPhone)
+            MenuItem(
+              label: loc.attachment_camera,
+              leading: const AppIcon.camera(size: 16),
+              onPressed: () => pick(_AttachmentCategory.camera),
+            ),
+          MenuItem(
+            label: loc.attachment_file,
+            leading: const AppIcon.paperclip(size: 16),
+            onPressed: () => pick(_AttachmentCategory.file),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickAttachment(
+    BuildContext context,
+    _AttachmentCategory category, {
+    required String chatTitle,
+  }) async {
     // Note: using imageQuality triggers re-encoding, which loses animation
     // properties from GIFs or other animated formats.
-    final XFile? file = switch (selectedCategory) {
+    final XFile? file = switch (category) {
       .gallery => await ImagePicker().pickImage(source: .gallery),
       .camera => await ImagePicker().pickImage(source: .camera),
       .file => await openFile(),
-      null => null,
     };
 
     if (file == null) {
@@ -640,13 +578,86 @@ class _MessageComposerState extends State<MessageComposer>
   }
 }
 
-class _MessageInput extends StatelessWidget {
-  const _MessageInput({
-    required this._focusNode,
-    required this._controller,
+/// The "Edit message" banner, shown above the field while an edit is staged.
+class _EditBanner extends StatelessWidget {
+  const _EditBanner();
+
+  @override
+  Widget build(BuildContext context) {
+    final loc = AppLocalizations.of(context);
+    final palette = SemanticPalette.of(context);
+    return Padding(
+      padding: const EdgeInsets.only(top: S.s12, left: S.s8, right: S.s8),
+      child: Row(
+        children: [
+          AppIcon.pencil(size: 20, color: palette.text.tertiary),
+          const SizedBox(width: S.s8),
+          Text(
+            loc.composer_editMessage,
+            style: typeScale.body.s.style(color: palette.text.tertiary),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The quoted message, shown above the field while a reply is staged.
+class _ReplyPreview extends StatelessWidget {
+  const _ReplyPreview();
+
+  @override
+  Widget build(BuildContext context) {
+    final palette = SemanticPalette.of(context);
+    final inReplyTo = context.select(
+      (ChatDetailsCubit cubit) => cubit.state.chat?.draft?.inReplyTo,
+    );
+    if (inReplyTo == null) return const SizedBox.shrink();
+    const tokens = ReplyBlockTokens.standard;
+    final quote = quotedMessage(context, inReplyTo.$2);
+
+    return Padding(
+      padding: const EdgeInsets.only(top: S.s12),
+      child: Stack(
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: S.s4, right: S.s4),
+            child: ReplyBlock(
+              preview: quote.preview,
+              senderName: quote.senderName,
+              fill: palette.fill.secondary,
+              stretch: true,
+              thumbnail: quotedThumbnail(context, inReplyTo.$2, tokens),
+            ),
+          ),
+          Positioned(
+            top: 0,
+            right: 0,
+            child: ButtonIcon(
+              variant: ButtonIconVariant.solid,
+              icon: AppIconType.x,
+              size: S.s20,
+              iconSize: S.s12,
+              fill: palette.backgroundElevated.primary,
+              hitTargetSize: S.s32,
+              onPressed: () {
+                context.read<ChatDetailsCubit>().resetDraftReply();
+              },
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// The composer's text field. Carries no decoration and no content padding:
+/// [MessageInput] owns the chrome and insets it.
+class _ComposerField extends StatelessWidget {
+  const _ComposerField({
+    required this.focusNode,
+    required this.controller,
     required this.chatTitle,
-    required this.isEditing,
-    required this.isReplying,
     required this.layerLink,
     required this.inputKey,
     required this.onSubmitMessage,
@@ -655,11 +666,9 @@ class _MessageInput extends StatelessWidget {
     required this.onContentInserted,
   });
 
-  final FocusNode _focusNode;
-  final TextEditingController _controller;
+  final FocusNode focusNode;
+  final TextEditingController controller;
   final String? chatTitle;
-  final bool isEditing;
-  final bool isReplying;
   final LayerLink layerLink;
   final GlobalKey inputKey;
   final VoidCallback onSubmitMessage;
@@ -677,122 +686,50 @@ class _MessageInput extends StatelessWidget {
       (ChatDetailsCubit cubit) => cubit.state.chat?.isConfirmed ?? false,
     );
 
-    final (isEditing, inReplyTo) = context.select(
-      (ChatDetailsCubit cubit) => (
-        cubit.state.chat?.draft?.editingId != null,
-        cubit.state.chat?.draft?.inReplyTo,
-      ),
-    );
-
     final loc = AppLocalizations.of(context);
     final palette = SemanticPalette.of(context);
 
-    return Column(
-      mainAxisAlignment: MainAxisAlignment.center,
-      crossAxisAlignment: CrossAxisAlignment.stretch,
-      children: [
-        if (isEditing)
-          Padding(
-            padding: const EdgeInsets.only(top: S.s12, left: S.s8, right: S.s8),
-            child: Row(
-              children: [
-                AppIcon.pencil(
-                  size: 20,
-                  color: SemanticPalette.of(context).text.tertiary,
-                ),
-                const SizedBox(width: S.s8),
-                Text(
-                  loc.composer_editMessage,
-                  style: typeScale.body.s.style(color: palette.text.tertiary),
-                ),
-              ],
-            ),
+    return CompositedTransformTarget(
+      key: inputKey,
+      link: layerLink,
+      child: TextField(
+        focusNode: focusNode,
+        controller: controller,
+        style: typeScale.body.regular
+            .style(color: palette.text.primary)
+            .copyWith(leadingDistribution: TextLeadingDistribution.even),
+        minLines: 1,
+        maxLines: 10,
+        enabled: isConfirmedChat,
+        decoration: InputDecoration(
+          isCollapsed: true,
+          contentPadding: EdgeInsets.zero,
+          hintText: loc.composer_inputHint(chatTitle ?? ""),
+          hintMaxLines: 1,
+          hintStyle: TextStyle(
+            color: palette.text.tertiary,
+            overflow: TextOverflow.ellipsis,
           ),
-
-        if (inReplyTo case (_, final inReplyToMessage))
-          Padding(
-            padding: const EdgeInsets.only(top: S.s12),
-            child: Stack(
-              children: [
-                Padding(
-                  padding: const EdgeInsets.only(top: S.s4, right: S.s4),
-                  child: InReplyToBubble(
-                    inReplyTo: inReplyToMessage,
-                    backgroundColor: palette.fill.secondary,
-                    stretch: true,
-                  ),
-                ),
-                Positioned(
-                  top: 0,
-                  right: 0,
-                  child: Container(
-                    decoration: BoxDecoration(
-                      color: palette.backgroundElevated.primary,
-                      shape: BoxShape.circle,
-                    ),
-                    constraints: BoxConstraints.tight(const Size.square(20)),
-                    child: IconButton(
-                      icon: const AppIcon.x(size: 12),
-                      constraints: const BoxConstraints(
-                        minHeight: S.s8,
-                        minWidth: S.s8,
-                      ),
-                      padding: EdgeInsets.zero,
-                      onPressed: () {
-                        context.read<ChatDetailsCubit>().resetDraftReply();
-                      },
-                    ),
-                  ),
-                ),
-              ],
-            ),
-          ),
-        CompositedTransformTarget(
-          key: inputKey,
-          link: layerLink,
-          child: TextField(
-            focusNode: _focusNode,
-            controller: _controller,
-            style: typeScale.body.regular
-                .style(color: palette.text.primary)
-                .copyWith(leadingDistribution: TextLeadingDistribution.even),
-            minLines: 1,
-            maxLines: 10,
-            textAlignVertical: TextAlignVertical.center,
-            enabled: isConfirmedChat,
-            decoration: InputDecoration(
-              isCollapsed: true,
-              contentPadding: const EdgeInsets.symmetric(
-                vertical: _inputVerticalPadding,
-              ),
-              hintText: loc.composer_inputHint(chatTitle ?? ""),
-              hintMaxLines: 1,
-              hintStyle: TextStyle(
-                color: palette.text.tertiary,
-                overflow: TextOverflow.ellipsis,
-              ),
-            ).copyWith(filled: false),
-            contextMenuBuilder: _contextMenuBuilder,
-            textInputAction: sendOnEnter
-                ? TextInputAction.send
-                : TextInputAction.newline,
-            onEditingComplete: sendOnEnter
-                ? onSubmitMessage
-                : () => _focusNode.requestFocus(),
-            keyboardType: TextInputType.multiline,
-            textCapitalization: TextCapitalization.sentences,
-            contentInsertionConfiguration: ContentInsertionConfiguration(
-              allowedMimeTypes: const [
-                'image/gif',
-                'image/webp',
-                'image/png',
-                'image/jpeg',
-              ],
-              onContentInserted: onContentInserted,
-            ),
-          ),
+        ).copyWith(filled: false),
+        contextMenuBuilder: _contextMenuBuilder,
+        textInputAction: sendOnEnter
+            ? TextInputAction.send
+            : TextInputAction.newline,
+        onEditingComplete: sendOnEnter
+            ? onSubmitMessage
+            : () => focusNode.requestFocus(),
+        keyboardType: TextInputType.multiline,
+        textCapitalization: TextCapitalization.sentences,
+        contentInsertionConfiguration: ContentInsertionConfiguration(
+          allowedMimeTypes: const [
+            'image/gif',
+            'image/webp',
+            'image/png',
+            'image/jpeg',
+          ],
+          onContentInserted: onContentInserted,
         ),
-      ],
+      ),
     );
   }
 
@@ -860,268 +797,6 @@ class _MessageInput extends StatelessWidget {
     return AdaptiveTextSelectionToolbar.buttonItems(
       anchors: editableTextState.contextMenuAnchors,
       buttonItems: items,
-    );
-  }
-}
-
-/// Builds the path for the composer element shapes (circles for buttons,
-/// rounded rect for the input field), optionally inflated and offset for
-/// shadow rendering.
-Path _buildComposerPath(
-  Size size, {
-  required double buttonSize,
-  required double spacing,
-  required double inputBorderRadius,
-  required int trailingButtonCount,
-  double inflate = 0,
-  Offset offset = Offset.zero,
-}) {
-  final path = Path();
-  double x = 0;
-  final bottom = size.height;
-  final buttonTop = bottom - buttonSize;
-
-  // Leading button (action) — circle aligned to bottom.
-  path.addOval(
-    Rect.fromLTWH(
-      x,
-      buttonTop,
-      buttonSize,
-      buttonSize,
-    ).inflate(inflate).shift(offset),
-  );
-  x += buttonSize + spacing;
-
-  // Input field — takes remaining width.
-  final trailingWidth = trailingButtonCount * (spacing + buttonSize);
-  final inputWidth = size.width - x - trailingWidth;
-  path.addRRect(
-    RRect.fromRectAndRadius(
-      Rect.fromLTWH(
-        x,
-        0,
-        inputWidth,
-        size.height,
-      ).inflate(inflate).shift(offset),
-      Radius.circular(inputBorderRadius + inflate),
-    ),
-  );
-  x += inputWidth;
-
-  // Trailing buttons — circles aligned to bottom.
-  for (int i = 0; i < trailingButtonCount; i++) {
-    x += spacing;
-    path.addOval(
-      Rect.fromLTWH(
-        x,
-        buttonTop,
-        buttonSize,
-        buttonSize,
-      ).inflate(inflate).shift(offset),
-    );
-    x += buttonSize;
-  }
-
-  return path;
-}
-
-/// Clips to the union of the composer's element shapes so a single
-/// [BackdropFilter] can blur only behind those elements.
-class _ComposerClipper extends CustomClipper<Path> {
-  const _ComposerClipper({
-    required this.buttonSize,
-    required this.spacing,
-    required this.inputBorderRadius,
-    required this.trailingButtonCount,
-  });
-
-  final double buttonSize;
-  final double spacing;
-  final double inputBorderRadius;
-  final int trailingButtonCount;
-
-  @override
-  Path getClip(Size size) {
-    return _buildComposerPath(
-      size,
-      buttonSize: buttonSize,
-      spacing: spacing,
-      inputBorderRadius: inputBorderRadius,
-      trailingButtonCount: trailingButtonCount,
-    );
-  }
-
-  @override
-  bool shouldReclip(covariant _ComposerClipper old) {
-    return buttonSize != old.buttonSize ||
-        spacing != old.spacing ||
-        inputBorderRadius != old.inputBorderRadius ||
-        trailingButtonCount != old.trailingButtonCount;
-  }
-}
-
-/// Paints the composer element shadows, clipped to the exterior of the
-/// element shapes so shadow doesn't bleed through the semi-transparent fills.
-class _ComposerShadowPainter extends CustomPainter {
-  const _ComposerShadowPainter({
-    required this.buttonSize,
-    required this.spacing,
-    required this.inputBorderRadius,
-    required this.trailingButtonCount,
-  });
-
-  final double buttonSize;
-  final double spacing;
-  final double inputBorderRadius;
-  final int trailingButtonCount;
-
-  @override
-  void paint(Canvas canvas, Size size) {
-    final interiorPath = _buildComposerPath(
-      size,
-      buttonSize: buttonSize,
-      spacing: spacing,
-      inputBorderRadius: inputBorderRadius,
-      trailingButtonCount: trailingButtonCount,
-    );
-
-    final outerPath = Path()..addRect((Offset.zero & size).inflate(100));
-    canvas.save();
-    canvas.clipPath(
-      Path.combine(PathOperation.difference, outerPath, interiorPath),
-    );
-
-    for (final shadow in Effect.elevation(Elevation.large)) {
-      canvas.drawPath(
-        _buildComposerPath(
-          size,
-          buttonSize: buttonSize,
-          spacing: spacing,
-          inputBorderRadius: inputBorderRadius,
-          trailingButtonCount: trailingButtonCount,
-          inflate: shadow.spreadRadius,
-          offset: shadow.offset,
-        ),
-        shadow.toPaint(),
-      );
-    }
-
-    canvas.restore();
-  }
-
-  @override
-  bool shouldRepaint(covariant _ComposerShadowPainter old) {
-    return buttonSize != old.buttonSize ||
-        spacing != old.spacing ||
-        inputBorderRadius != old.inputBorderRadius ||
-        trailingButtonCount != old.trailingButtonCount;
-  }
-}
-
-enum Direction { right, left }
-
-class InReplyToBubble extends StatelessWidget {
-  const InReplyToBubble({
-    super.key,
-    required this.inReplyTo,
-    this.backgroundColor,
-    this.stretch = false,
-  });
-
-  final UiInReplyToMessage inReplyTo;
-  final Color? backgroundColor;
-  final bool stretch;
-
-  @override
-  Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-    final palette = SemanticPalette.of(context);
-
-    // there are a few reasons why a message can't be resolved, for example:
-    // a message was deleted locally (only for me) or you joined a group
-    // and later somebody sent a message referencing a message you don't have
-    // access to. Unfortunately those two cases can't be differentiated.
-    final (senderDisplayName, contentPreview) = switch (inReplyTo) {
-      UiInReplyToMessage_NotFound() => (
-        loc.composer_reply_noaccess_message_user,
-        loc.composer_reply_noaccess_message_placeholder,
-      ),
-      UiInReplyToMessage_Resolved(:final sender, :final mimiContent) => (
-        mimiContent.isDeleted
-            ? null
-            : context.select(
-                (UsersCubit cubit) => cubit.state.displayName(userId: sender),
-              ),
-        mimiContent.isDeleted
-            ? loc.composer_reply_deleted_message_placeholder
-            : mimiContent.plaintextPreview(loc) ??
-                  loc.composer_reply_noaccess_message_placeholder,
-      ),
-    };
-    // Show the jump arrow only in message bubbles when the original message
-    // exists and hasn't been deleted. Don't show the arrow in the compose
-    // preview.
-    final showJumpIcon =
-        !stretch &&
-        inReplyTo is UiInReplyToMessage_Resolved &&
-        !(inReplyTo as UiInReplyToMessage_Resolved).mimiContent.isDeleted;
-
-    final innerContent = Container(
-      decoration: BoxDecoration(
-        border: Border(
-          left: BorderSide(
-            color: palette.separator.primary,
-            width: StrokeWidth.px1,
-          ),
-        ),
-      ),
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: S.s8),
-        child: Column(
-          crossAxisAlignment: stretch ? .stretch : .start,
-          children: [
-            if (senderDisplayName != null)
-              Text(
-                senderDisplayName,
-                style: typeScale.body.s.style(
-                  weight: Weight.emphasized,
-                  color: palette.text.primary,
-                ),
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            Text(
-              contentPreview,
-              style: typeScale.body.s.style(color: palette.text.secondary),
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-            ),
-          ],
-        ),
-      ),
-    );
-
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: S.s12, vertical: S.s8),
-      decoration: BoxDecoration(
-        borderRadius: const BorderRadius.all(Radius.circular(CornerRadius.px8)),
-        color: backgroundColor,
-      ),
-      child: showJumpIcon
-          ? Stack(
-              children: [
-                innerContent,
-                PositionedDirectional(
-                  top: 0,
-                  end: 0,
-                  child: AppIcon.arrowUp(
-                    size: 12,
-                    color: palette.text.tertiary,
-                  ),
-                ),
-              ],
-            )
-          : innerContent,
     );
   }
 }

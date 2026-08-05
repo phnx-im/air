@@ -624,6 +624,16 @@ impl CoreUser {
             key_package,
             device,
         } = request;
+
+        // Sibling commits (e.g. the key-package upload cycle) may have advanced
+        // the self group. Catch up on queued messages, so that the add commit
+        // is built at the current epoch.
+        let messages = self.qs_fetch_messages().await?;
+        let processed = self.fully_process_qs_messages(messages).await;
+        if let Some(error) = processed.errors.first() {
+            warn!(%error, "failed to process queued messages before self-group add");
+        }
+
         let api_client = self.api_client()?;
         let self_group_signature_key = self.self_group_signature_key().await?;
         let user_id = self.user_id().clone();

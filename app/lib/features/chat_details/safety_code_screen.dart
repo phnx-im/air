@@ -5,9 +5,7 @@
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/ds/components/scaffold/app_scaffold.dart';
 import 'package:air/features/user/user_cubit.dart';
-import 'package:air/features/user/users_cubit.dart';
 import 'package:air/util/scaffold_messenger.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:collection/collection.dart';
@@ -15,24 +13,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:provider/provider.dart';
-
-class SafetyCodeScreen extends HookWidget {
-  const SafetyCodeScreen({super.key, required this.userId});
-
-  final UiUserId userId;
-
-  @override
-  Widget build(BuildContext context) {
-    final loc = AppLocalizations.of(context);
-    final profile = context.select(
-      (UsersCubit cubit) => cubit.state.profile(userId: userId),
-    );
-    return AppScaffold(
-      title: loc.safetyCodeScreen_title,
-      child: SafetyCodeView(profile: profile),
-    );
-  }
-}
 
 class SafetyCodeView extends StatelessWidget {
   const SafetyCodeView({super.key, required this.profile});

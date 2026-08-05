@@ -13,13 +13,16 @@
   "userSettingsScreen_readReceiptsDescription": "Wenn aktiviert, sehen andere, ob du ihre Nachrichten gelesen hast, und du siehst, ob sie deine gelesen haben.",
   "userSettingsScreen_displayNameLabel": "Anzeigename",
   "userSettingsScreen_usernamesSection": "Benutzernamen",
-  "userSettingsScreen_settingsSection": "Einstellungen",
   "userSettingsScreen_helpSection": "Hilfe",
   "userSettingsScreen_accountSection": "Konto",
   "userSettingsScreen_usernamePlaceholder": "Benutzername",
   "userSettingsScreen_inviteCodes": "Einladungscodes",
 
   "userSettingsScreen_devices": "Geräte",
+
+  "youSection_profile": "Profil",
+  "youSection_preferences": "Einstellungen",
+  "youSection_developer": "Entwickler",
   "settingsScreen_copiedToClipboard": "In Zwischenablage kopiert",
   "removeUsernameDialog_title": "Benutzername entfernen",
   "removeUsernameDialog_content": "Wenn du fortfährst, wird dein Benutzername entfernt und kann von jemand anderem beansprucht werden. Du wirst über ihn nicht mehr erreichbar sein.",
@@ -27,8 +30,9 @@
   "removeUsernameDialog_remove": "Entfernen",
   "addMembersScreen_addMembers": "Mitglieder hinzufügen",
   "addMembersScreen_error_noActiveChat": "ein aktiver Chat ist erforderlich",
+  "contactDetailsScreen_title": "Profil",
   "contactDetailsScreen_chat": "Chat",
-  "contactDetailsScreen_viewSafetyCode": "Sicherheitscode anzeigen",
+  "contactDetailsScreen_viewSafetyCode": "Sicherheitscode",
   "contactDetailsScreen_mute": "Stummschalten",
   "contactDetailsScreen_unmute": "Stummschaltung aufheben",
   "safetyCodeScreen_title": "Sicherheitscode",
@@ -151,7 +155,6 @@
   "linkingDevicesScreen_error_sessionNotFound": "Der eingegebene Code ist ungültig.",
   "linkingDevicesScreen_error_dismiss": "Erneut versuchen",
 
-  "linkedDevicesScreen_title": "Geräte",
   "linkedDevicesScreen_thisDevice": "Dieses Gerät",
   "linkedDevicesScreen_linkedDevices": "Verknüpfte Geräte",
   "linkedDevicesScreen_linkedOn": "Verknüpft am {date}",
@@ -364,6 +367,7 @@
   "contactUsScreen_body_logsUrl": "Hier sind einige Logs, die dir bei der Fehlersuche helfen: {url}",
   "contactUsScreen_errorLaunchingEmail": "E-Mail-Client konnte nicht geöffnet werden",
   "contactUsScreen_errorUploadingLogs": "Logs konnten nicht hochgeladen werden",
+  "groupDetails_title": "Gruppendetails",
   "groupDetails_leaveChat": "Verlassen",
   "groupDetails_deleteChat": "Löschen",
   "groupDetails_addPeople": "Hinzufügen",
@@ -376,7 +380,6 @@
       }
     }
   },
-  "groupDetails_groupDescription": "Gruppe",
   "groupMembersScreen_title": "Gruppenmitglieder",
   "groupMembersScreen_searchHint": "Suchen",
   "groupCreationScreen_title": "Mitglieder hinzufügen",
@@ -429,5 +432,8 @@
   "messageList_reactions_react": "Reagieren",
   "messageList_reactions_remove": "Entfernen",
   "messageList_reactions_you": "Du",
-  "messageList_reactions_all": "Alle · {total}"
+  "messageList_reactions_all": "Alle · {total}",
+  "emojiPicker_searchHint": "Emoji suchen",
+  "emojiPicker_empty": "Keine Emojis gefunden",
+  "emojiPicker_skinToneHelp": "Legt deinen Standard-Hautton fest"
 }

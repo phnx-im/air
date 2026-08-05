@@ -4,6 +4,7 @@
 
 import 'dart:math' show min;
 
+import 'package:air/features/message_list/time_reveal.dart';
 import 'package:air/platform/haptics.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/physics.dart';
@@ -33,6 +34,10 @@ const double _springDamping = 28.0;
 /// descendant reads the animation state to render the icon and translation.
 ///
 /// Swiping from left to right beyond [_triggerThreshold] fires [onReply].
+/// Swiping the other way pulls out the shared timestamp column, where a
+/// [TimeRevealScope] offers one: the first movement decides which of the two the
+/// whole gesture is, so neither can be triggered by accident on the way to the
+/// other.
 class SwipeToReplyScope extends StatefulWidget {
   const SwipeToReplyScope({
     super.key,
@@ -50,6 +55,9 @@ class SwipeToReplyScope extends StatefulWidget {
   State<SwipeToReplyScope> createState() => _SwipeToReplyScopeState();
 }
 
+/// What the drag in progress turned out to be.
+enum _DragIntent { undecided, reply, revealTime }
+
 class _SwipeToReplyScopeState extends State<SwipeToReplyScope>
     with SingleTickerProviderStateMixin {
   late final AnimationController _controller;
@@ -63,6 +71,9 @@ class _SwipeToReplyScopeState extends State<SwipeToReplyScope>
   /// Whether a drag gesture is in progress.
   bool isDragging = false;
 
+  _DragIntent _intent = _DragIntent.undecided;
+  TimeRevealController? _timeReveal;
+
   @override
   void initState() {
     super.initState();
@@ -71,6 +82,12 @@ class _SwipeToReplyScopeState extends State<SwipeToReplyScope>
       '_maxOffset must exceed _triggerThreshold',
     );
     _controller = AnimationController.unbounded(vsync: this);
+  }
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    _timeReveal = TimeRevealScope.maybeOf(context);
   }
 
   @override
@@ -93,11 +110,22 @@ class _SwipeToReplyScopeState extends State<SwipeToReplyScope>
     isDragging = true;
     thresholdCrossed = false;
     _rawDragOffset = 0.0;
+    _intent = _DragIntent.undecided;
     _controller.stop();
   }
 
   void _onDragUpdate(DragUpdateDetails details) {
     if (!isDragging) return;
+    final reveal = _timeReveal;
+    if (_intent == _DragIntent.undecided && details.delta.dx != 0) {
+      _intent = (details.delta.dx < 0 && reveal != null)
+          ? _DragIntent.revealTime
+          : _DragIntent.reply;
+    }
+    if (_intent == _DragIntent.revealTime) {
+      reveal?.drag(-details.delta.dx);
+      return;
+    }
     _rawDragOffset = (_rawDragOffset + details.delta.dx).clamp(
       0.0,
       double.infinity,
@@ -117,6 +145,7 @@ class _SwipeToReplyScopeState extends State<SwipeToReplyScope>
   void _onDragEnd(DragEndDetails details) {
     if (!isDragging) return;
     isDragging = false;
+    if (_release()) return;
     if (thresholdCrossed) {
       widget.onReply();
     }
@@ -126,7 +155,17 @@ class _SwipeToReplyScopeState extends State<SwipeToReplyScope>
   void _onDragCancel() {
     if (!isDragging) return;
     isDragging = false;
+    if (_release()) return;
     _springBack();
+  }
+
+  /// Hands a finished reveal drag back to the column, which slides away. True
+  /// when the gesture was one, and the reply half has nothing to undo.
+  bool _release() {
+    if (_intent != _DragIntent.revealTime) return false;
+    _intent = _DragIntent.undecided;
+    _timeReveal?.release();
+    return true;
   }
 
   void _springBack() {

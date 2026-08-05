@@ -864,6 +864,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  YouSection dco_decode_box_autoadd_you_section(dynamic raw);
+
+  @protected
   UiContentMessage dco_decode_box_ui_content_message(dynamic raw);
 
   @protected
@@ -1252,6 +1255,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  YouSection? dco_decode_opt_box_autoadd_you_section(dynamic raw);
+
+  @protected
   List<String>? dco_decode_opt_list_String(dynamic raw);
 
   @protected
@@ -1411,6 +1417,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt dco_decode_usize(dynamic raw);
+
+  @protected
+  YouSection dco_decode_you_section(dynamic raw);
 
   @protected
   AnyhowException sse_decode_AnyhowException(SseDeserializer deserializer);
@@ -2197,6 +2206,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  YouSection sse_decode_box_autoadd_you_section(SseDeserializer deserializer);
+
+  @protected
   UiContentMessage sse_decode_box_ui_content_message(
     SseDeserializer deserializer,
   );
@@ -2691,6 +2703,11 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  YouSection? sse_decode_opt_box_autoadd_you_section(
+    SseDeserializer deserializer,
+  );
+
+  @protected
   List<String>? sse_decode_opt_list_String(SseDeserializer deserializer);
 
   @protected
@@ -2870,6 +2887,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   BigInt sse_decode_usize(SseDeserializer deserializer);
+
+  @protected
+  YouSection sse_decode_you_section(SseDeserializer deserializer);
 
   @protected
   void sse_encode_AnyhowException(
@@ -3830,6 +3850,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_box_autoadd_you_section(
+    YouSection self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_box_ui_content_message(
     UiContentMessage self,
     SseSerializer serializer,
@@ -4448,6 +4474,12 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
   );
 
   @protected
+  void sse_encode_opt_box_autoadd_you_section(
+    YouSection? self,
+    SseSerializer serializer,
+  );
+
+  @protected
   void sse_encode_opt_list_String(List<String>? self, SseSerializer serializer);
 
   @protected
@@ -4686,6 +4718,9 @@ abstract class RustLibApiImplPlatform extends BaseApiImpl<RustLibWire> {
 
   @protected
   void sse_encode_usize(BigInt self, SseSerializer serializer);
+
+  @protected
+  void sse_encode_you_section(YouSection self, SseSerializer serializer);
 }
 
 // Section: wire_class

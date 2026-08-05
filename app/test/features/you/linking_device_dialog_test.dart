@@ -5,6 +5,7 @@
 import 'dart:async';
 
 import 'package:air/core/core.dart';
+import 'package:air/ds/components/checkbox/checkbox.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/you/linking_device_dialog.dart';
 import 'package:flutter/material.dart';
@@ -101,7 +102,7 @@ void main() {
       await tester.pump();
 
       // Tick the checkbox to enable the confirm button, then confirm.
-      await tester.tap(find.byType(Checkbox));
+      await tester.tap(find.byType(AppCheckbox));
       await tester.pump();
       await tester.tap(find.text('Confirm'));
       await tester.pump();

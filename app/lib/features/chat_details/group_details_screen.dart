@@ -2,21 +2,24 @@
 //
 // SPDX-License-Identifier: AGPL-3.0-or-later
 
-import 'package:air/features/chat_details/member_list_item.dart';
 import 'package:air/features/chat_details/mute_button.dart';
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
 import 'package:air/features/navigation/navigation_cubit.dart';
 import 'package:air/ds/foundations/foundations.dart';
-import 'package:air/ds/components/scaffold/app_scaffold.dart';
-import 'package:air/ds/components/button/button.dart'
-    show AppButton, AppButtonTone;
-import 'package:air/ds/components/constrained_width/constrained_width.dart';
-import 'package:air/ds/patterns/bottom_sheet/bottom_sheet.dart';
+import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/components/button_icon/button_icon.dart';
+import 'package:air/ds/components/button_icon/button_icon_tokens.dart';
+import 'package:air/ds/components/list_group/list_group.dart';
+import 'package:air/ds/components/list_group/list_group_tokens.dart';
+import 'package:air/ds/components/list_row/list_row.dart';
+import 'package:air/ds/components/list_row/list_row_tokens.dart';
+import 'package:air/ds/patterns/adaptive_modal/adaptive_modal.dart';
+import 'package:air/ds/patterns/modal/modal_tokens.dart';
 import 'package:air/features/user/user_cubit.dart';
 import 'package:air/features/user/users_cubit.dart';
 import 'package:air/platform/haptics.dart';
-import 'package:air/ds/patterns/dialog/show_confirmation_dialog.dart';
+import 'package:air/ds/patterns/confirm_dialog/confirm_dialog.dart';
 import 'package:air/features/user/avatar.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_bloc/flutter_bloc.dart';
@@ -24,10 +27,15 @@ import 'package:flutter_hooks/flutter_hooks.dart';
 import 'package:image_picker/image_picker.dart';
 
 import 'package:air/features/chat_details/change_group_title_dialog.dart';
-import 'package:air/features/developer/chat_debug_info_view.dart';
+import 'package:air/features/developer/chat_debug_info_view.dart'
+    show showChatDebugInfo;
 import 'package:air/features/chat/chat_details_cubit.dart';
 
-/// Details of a group chat
+/// Body of the group details modal.
+///
+/// Content only: the card, the header, and the scrolling are the modal's, so
+/// this contributes the horizontal inset and the space the last button needs
+/// to clear the bottom of the screen.
 class GroupDetailsScreen extends StatelessWidget {
   const GroupDetailsScreen({super.key});
 
@@ -42,93 +50,43 @@ class GroupDetailsScreen extends StatelessWidget {
       return const SizedBox.shrink();
     }
 
-    final loc = AppLocalizations.of(context);
-    final palette = SemanticPalette.of(context);
+    final tokens = ModalShellTokens.of(context);
 
-    return AppScaffold(
-      title: chat.title,
-      onTitleLongPress: () {
-        final chatDetailsCubit = context.read<ChatDetailsCubit>();
-        final userCubit = context.read<UserCubit>();
-        Navigator.of(context).push(
-          MaterialPageRoute(
-            builder: (context) => ChatDebugInfoView(
-              title: chat.title,
-              loadDebugInfo: () => chatDetailsCubit.chatDebugInfo(),
-              onUpdateGroup: () => chatDetailsCubit.updateKey(),
-              onUpdateApqGroup: () => chatDetailsCubit.updateApqKey(),
-              onRequestResync: () => chatDetailsCubit.requestResync(),
-              onEraseLocalChat: () => userCubit.devEraseChat(chat.id),
+    return Padding(
+      padding: EdgeInsets.only(
+        left: tokens.contentPaddingLeft,
+        right: tokens.contentPaddingRight,
+        // A full-screen modal ends above the home indicator, a card ends at its
+        // own edge.
+        bottom: context.breakpoint.isSmall ? S.s64 : S.s24,
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Center(
+            child: ChatAvatar(
+              chatId: chat.id,
+              size: 192,
+              onPressed: () => _selectAvatar(context, chat.id),
             ),
           ),
-        );
-      },
-      child: Align(
-        alignment: Alignment.topCenter,
-        child: ConstrainedWidth(
-          child: Column(
-            children: [
-              Expanded(
-                child: SingleChildScrollView(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.center,
-                    children: [
-                      const SizedBox(height: S.s16),
-                      ChatAvatar(
-                        chatId: chat.id,
-                        size: 192,
-                        onPressed: () => _selectAvatar(context, chat.id),
-                      ),
-                      const SizedBox(height: S.s16),
-                      InkWell(
-                        onTap: () => _changeGroupTitle(context, chat.title),
-                        child: Text(
-                          chat.title,
-                          textAlign: TextAlign.center,
-                          style: typeScale.header.xl.style(
-                            weight: Weight.emphasized,
-                          ),
-                        ),
-                      ),
-                      const SizedBox(height: S.s8),
-                      Text(
-                        loc.groupDetails_groupDescription,
-                        textAlign: TextAlign.center,
-                        style: typeScale.body.regular.style(
-                          color: palette.text.secondary,
-                        ),
-                      ),
-                      const SizedBox(height: S.s8),
-                      const MuteButton(),
-                      const SizedBox(height: S.s32),
-                      _PeoplePreview(memberIds: members),
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(height: S.s16),
-              Row(
-                children: [
-                  Expanded(
-                    child: AppButton(
-                      onPressed: () => _leave(context, chat),
-                      type: .secondary,
-                      label: loc.groupDetails_leaveChat,
-                    ),
-                  ),
-                  const SizedBox(width: S.s12),
-                  Expanded(
-                    child: AppButton(
-                      onPressed: () => _delete(context, chat),
-                      tone: .danger,
-                      label: loc.groupDetails_deleteChat,
-                    ),
-                  ),
-                ],
-              ),
-            ],
-          ),
-        ),
+
+          const SizedBox(height: S.s16),
+
+          _GroupTitle(chat: chat),
+
+          const SizedBox(height: S.s16),
+
+          const MuteButton(shape: MuteButtonShape.row),
+
+          const SizedBox(height: S.s20),
+
+          _PeopleSection(memberIds: members),
+
+          const SizedBox(height: S.s24),
+
+          _GroupActions(chat: chat),
+        ],
       ),
     );
   }
@@ -147,62 +105,41 @@ class GroupDetailsScreen extends StatelessWidget {
     final bytes = await image.readAsBytes();
     chatDetailsCubit.setChatPicture(bytes: bytes);
   }
+}
 
-  void _leave(BuildContext context, UiChatDetails chatDetails) async {
-    final userCubit = context.read<UserCubit>();
-    final navigationCubit = context.read<NavigationCubit>();
-    final loc = AppLocalizations.of(context);
-    if (await showConfirmationDialog(
-      context,
-      title: loc.leaveChatDialog_title,
-      message: loc.leaveChatDialog_content(chatDetails.title),
-      positiveButtonText: loc.leaveChatDialog_leave,
-      negativeButtonText: loc.leaveChatDialog_cancel,
-    )) {
-      userCubit.leaveChat(chatDetails.id);
-      navigationCubit.closeChat();
-    }
+class _GroupTitle extends StatelessWidget {
+  const _GroupTitle({required this.chat});
+
+  final UiChatDetails chat;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => _changeGroupTitle(context),
+      onLongPress: () => showChatDebugInfo(context, chat),
+      child: Text(
+        chat.title,
+        textAlign: TextAlign.center,
+        style: typeScale.header.xl.style(weight: Weight.emphasized),
+      ),
+    );
   }
 
-  void _delete(BuildContext context, UiChatDetails chat) async {
-    final userCubit = context.read<UserCubit>();
-    final navigationCubit = context.read<NavigationCubit>();
-    final loc = AppLocalizations.of(context);
-
-    final confirmed =
-        await showBottomSheetModal<bool>(
-          context: context,
-          builder: (sheetContext) {
-            return BottomSheetDialogContent(
-              title: loc.deleteChatDialog_title,
-              description: loc.deleteChatDialog_content,
-              primaryActionText: loc.deleteChatDialog_delete,
-              primaryTone: AppButtonTone.danger,
-            );
-          },
-        ) ??
-        false;
-    if (!confirmed) return;
-    AppHaptics.destructive();
-    userCubit.deleteChat(chat.id);
-    if (!context.mounted) return;
-    navigationCubit.closeChat();
-  }
-
-  void _changeGroupTitle(BuildContext context, String chatTitle) {
+  void _changeGroupTitle(BuildContext context) {
     final chatDetailsCubit = context.read<ChatDetailsCubit>();
     showDialog(
       context: context,
       builder: (context) => BlocProvider<ChatDetailsCubit>.value(
         value: chatDetailsCubit,
-        child: ChangeGroupTitleDialog(groupTitle: chatTitle),
+        child: ChangeGroupTitleDialog(groupTitle: chat.title),
       ),
     );
   }
 }
 
-class _PeoplePreview extends HookWidget {
-  const _PeoplePreview({required this.memberIds});
+/// The member count, a way into the full list, and the first few members.
+class _PeopleSection extends HookWidget {
+  const _PeopleSection({required this.memberIds});
 
   final List<UiUserId> memberIds;
 
@@ -225,39 +162,38 @@ class _PeoplePreview extends HookWidget {
 
     final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
+    final rowTokens = ListRowTokens.of(context);
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        Padding(
-          padding: const EdgeInsets.all(S.s12),
-          child: Text(
-            loc.groupDetails_memberCount(memberIds.length),
-            style: typeScale.body.regular.style(weight: Weight.emphasized),
+        ListRow(
+          tokens: rowTokens,
+          label: loc.groupDetails_memberCount(memberIds.length),
+          labelStyle: typeScale.body.regular.style(weight: Weight.emphasized),
+          separator: false,
+          trailing: ButtonIcon(
+            variant: ButtonIconVariant.solid,
+            size: ButtonIconSize.s32,
+            icon: AppIconType.arrowRight,
+            fill: palette.backgroundBase.secondary,
+            iconColor: palette.text.secondary,
+            onPressed: () => context.read<NavigationCubit>().openGroupMembers(),
           ),
         ),
-        Column(
-          crossAxisAlignment: CrossAxisAlignment.stretch,
+
+        ListGroup(
+          tokens: ListGroupTokens.of(context),
+          color: ListGroup.noFill,
+          radius: CornerRadius.px12,
           children: [
-            for (var i = 0; i < previewIds.length; i++) ...[
-              _PeoplePreviewEntry(
-                memberId: previewIds[i],
-                position: i == 0
-                    ? _PeopleEntryPosition.first
-                    : _PeopleEntryPosition.middle,
-              ),
-              if (i < previewIds.length)
-                Divider(
-                  height: 1,
-                  thickness: StrokeWidth.px1,
-                  color: palette.backgroundBase.primary,
-                ),
+            _AddPeopleRow(tokens: rowTokens),
+            for (final memberId in previewIds) ...[
+              // The group carries no fill of its own, so a hairline gap lets
+              // the surface behind separate the rows.
+              const SizedBox(height: StrokeWidth.px1),
+              _MemberRow(tokens: rowTokens, memberId: memberId),
             ],
-            _ActionsRow(
-              position: previewIds.isEmpty
-                  ? _PeopleEntryPosition.single
-                  : _PeopleEntryPosition.last,
-            ),
           ],
         ),
       ],
@@ -265,13 +201,40 @@ class _PeoplePreview extends HookWidget {
   }
 }
 
-enum _PeopleEntryPosition { single, first, middle, last }
+class _AddPeopleRow extends StatelessWidget {
+  const _AddPeopleRow({required this.tokens});
 
-class _PeoplePreviewEntry extends StatelessWidget {
-  const _PeoplePreviewEntry({required this.memberId, required this.position});
+  final ListRowTokens tokens;
 
+  @override
+  Widget build(BuildContext context) {
+    final palette = SemanticPalette.of(context);
+    final loc = AppLocalizations.of(context);
+    void openAddMembers() => context.read<NavigationCubit>().openAddMembers();
+
+    return ListRow(
+      tokens: tokens,
+      fill: palette.backgroundBase.secondary,
+      radius: CornerRadius.px0,
+      label: loc.groupDetails_addPeople,
+      leading: ButtonIcon(
+        variant: ButtonIconVariant.solid,
+        size: ButtonIconSize.s32,
+        icon: AppIconType.plus,
+        fill: palette.function.neutral.toggleWhite,
+        iconColor: palette.text.primary,
+        onPressed: openAddMembers,
+      ),
+      onTap: openAddMembers,
+    );
+  }
+}
+
+class _MemberRow extends StatelessWidget {
+  const _MemberRow({required this.tokens, required this.memberId});
+
+  final ListRowTokens tokens;
   final UiUserId memberId;
-  final _PeopleEntryPosition position;
 
   @override
   Widget build(BuildContext context) {
@@ -282,141 +245,94 @@ class _PeoplePreviewEntry extends StatelessWidget {
 
     final isSelf = memberId == ownUserId;
     final loc = AppLocalizations.of(context);
-    final displayName = isSelf ? loc.chatList_you : profile.displayName;
-
     final palette = SemanticPalette.of(context);
 
-    final borderRadius = switch (position) {
-      _PeopleEntryPosition.single => BorderRadius.circular(CornerRadius.px16),
-      _PeopleEntryPosition.first => const BorderRadius.vertical(
-        top: Radius.circular(CornerRadius.px16),
-      ),
-      _PeopleEntryPosition.middle => BorderRadius.zero,
-      _PeopleEntryPosition.last => BorderRadius.zero,
-    };
-
-    return Material(
-      color: palette.backgroundBase.secondary,
-      borderRadius: borderRadius,
-      child: Padding(
-        padding: const EdgeInsets.symmetric(horizontal: S.s16),
-        child: MemberListItem(
-          profile: profile,
-          displayNameOverride: displayName,
-          enabled: !isSelf,
-          onTap: isSelf
-              ? null
-              : () =>
-                    context.read<NavigationCubit>().openMemberDetails(memberId),
-        ),
-      ),
+    return ListRow(
+      tokens: tokens,
+      fill: palette.backgroundBase.secondary,
+      radius: CornerRadius.px0,
+      label: isSelf ? loc.chatList_you : profile.displayName,
+      leading: UserAvatar(profile: profile, size: S.s32),
+      onTap: isSelf
+          ? null
+          : () => context.read<NavigationCubit>().openMemberDetails(memberId),
     );
   }
 }
 
-class _ActionsRow extends StatelessWidget {
-  const _ActionsRow({required this.position});
+/// Leaving and deleting, the two ways out of a group.
+class _GroupActions extends StatelessWidget {
+  const _GroupActions({required this.chat});
 
-  final _PeopleEntryPosition position;
+  final UiChatDetails chat;
 
   @override
   Widget build(BuildContext context) {
-    final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
-    final borderRadius = switch (position) {
-      _PeopleEntryPosition.single => BorderRadius.circular(CornerRadius.px16),
-      _PeopleEntryPosition.first => const BorderRadius.vertical(
-        top: Radius.circular(CornerRadius.px16),
-      ),
-      _PeopleEntryPosition.last => const BorderRadius.vertical(
-        bottom: Radius.circular(CornerRadius.px16),
-      ),
-      _PeopleEntryPosition.middle => BorderRadius.zero,
-    };
+    final size = ButtonSize.of(context);
 
-    return Material(
-      color: palette.backgroundBase.secondary,
-      borderRadius: borderRadius,
-      child: Row(
-        children: [
-          Expanded(
-            child: InkWell(
-              onTap: () {
-                context.read<NavigationCubit>().openAddMembers();
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: S.s16,
-                  vertical: S.s12,
-                ),
-                child: Row(
-                  children: [
-                    Container(
-                      height: 32,
-                      width: 32,
-                      decoration: BoxDecoration(
-                        color: palette.backgroundElevated.primary,
-                        borderRadius: BorderRadius.circular(CornerRadius.px16),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(S.s8),
-                        child: AppIcon.plus(
-                          size: 16,
-                          color: palette.function.neutral.toggleBlack,
-                        ),
-                      ),
-                    ),
-                    const SizedBox(width: S.s16),
-                    Text(
-                      loc.groupDetails_addPeople,
-                      style: typeScale.body.regular.style(),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+    return Row(
+      children: [
+        Expanded(
+          child: Button(
+            onPressed: () => _leave(context),
+            size: size,
+            type: ButtonType.secondary,
+            label: loc.groupDetails_leaveChat,
           ),
-          Expanded(
-            child: InkWell(
-              onTap: () {
-                context.read<NavigationCubit>().openGroupMembers();
-              },
-              child: Padding(
-                padding: const EdgeInsets.symmetric(
-                  horizontal: S.s16,
-                  vertical: S.s12,
-                ),
-                child: Row(
-                  mainAxisAlignment: .end,
-                  children: [
-                    Text(
-                      loc.groupDetails_seeAll,
-                      style: typeScale.body.regular.style(),
-                    ),
-                    const SizedBox(width: S.s12),
-                    Container(
-                      height: 32,
-                      width: 32,
-                      decoration: BoxDecoration(
-                        color: palette.backgroundElevated.primary,
-                        borderRadius: BorderRadius.circular(CornerRadius.px16),
-                      ),
-                      child: Padding(
-                        padding: const EdgeInsets.all(S.s8),
-                        child: AppIcon.arrowRight(
-                          size: 16,
-                          color: palette.function.neutral.toggleBlack,
-                        ),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            ),
+        ),
+
+        const SizedBox(width: S.s12),
+
+        Expanded(
+          child: Button(
+            onPressed: () => _delete(context),
+            size: size,
+            type: ButtonType.secondary,
+            tone: ButtonTone.danger,
+            label: loc.groupDetails_deleteChat,
           ),
-        ],
+        ),
+      ],
+    );
+  }
+
+  void _leave(BuildContext context) async {
+    final userCubit = context.read<UserCubit>();
+    final navigationCubit = context.read<NavigationCubit>();
+    final loc = AppLocalizations.of(context);
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (_) => ConfirmDialog(
+        title: loc.leaveChatDialog_title,
+        message: loc.leaveChatDialog_content(chat.title),
+        cancel: loc.leaveChatDialog_cancel,
+        confirm: loc.leaveChatDialog_leave,
       ),
     );
+    if (confirmed ?? false) {
+      userCubit.leaveChat(chat.id);
+      navigationCubit.closeChat();
+    }
+  }
+
+  void _delete(BuildContext context) async {
+    final userCubit = context.read<UserCubit>();
+    final navigationCubit = context.read<NavigationCubit>();
+    final loc = AppLocalizations.of(context);
+
+    final confirmed = await showAdaptiveConfirm(
+      context: context,
+      title: loc.deleteChatDialog_title,
+      description: loc.deleteChatDialog_content,
+      primaryActionText: loc.deleteChatDialog_delete,
+      primaryTone: ButtonTone.danger,
+    );
+    if (!confirmed) return;
+    AppHaptics.destructive();
+    userCubit.deleteChat(chat.id);
+    if (!context.mounted) return;
+    navigationCubit.closeChat();
   }
 }
 

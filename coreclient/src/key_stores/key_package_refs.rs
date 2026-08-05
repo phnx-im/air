@@ -40,8 +40,8 @@ async fn mark_key_packages_as_live_impl(
     .execute(txn.as_mut())
     .await?;
 
-    // Their refs are dead weight now; delete them explicitly instead of
-    // relying on the foreign key cascade.
+    // Their refs are dead weight now. Delete them explicitly (there is no foreign key
+    // cascade).
     sqlx::query(AssertSqlSafe(format!(
         "DELETE FROM {refs_table} WHERE is_live = 0"
     )))

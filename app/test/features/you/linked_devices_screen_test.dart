@@ -80,7 +80,6 @@ void main() {
       LinkedDevicesState? state,
     }) async {
       when(() => cubit.state).thenReturn(state ?? _singleDevice());
-
       tester.view.physicalSize = _testSize;
       tester.view.devicePixelRatio = 1.0;
       addTearDown(() {

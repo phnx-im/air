@@ -4,6 +4,9 @@
 
 import 'package:air/core/core.dart';
 import 'package:air/l10n/l10n.dart';
+import 'package:air/ds/components/button/button.dart';
+import 'package:air/ds/components/text_input/text_input.dart';
+import 'package:air/ds/components/text_input/text_input_tokens.dart';
 import 'package:air/ds/foundations/foundations.dart';
 import 'package:air/ds/patterns/dialog/app_dialog.dart';
 import 'package:air/util/username_input_formatter.dart';
@@ -20,10 +23,9 @@ class AddUsernameDialog extends HookWidget {
 
   @override
   Widget build(BuildContext context) {
-    final formKey = useMemoized(() => GlobalKey<FormState>());
-
     final usernameExists = useState(false);
-    final isSubmitting = useState(false);
+    final isSubmitting = useState(inProgress ?? false);
+    final errorText = useState<String?>(null);
 
     final controller = useTextEditingController();
     final focusNode = useFocusNode();
@@ -31,153 +33,127 @@ class AddUsernameDialog extends HookWidget {
     final palette = SemanticPalette.of(context);
     final loc = AppLocalizations.of(context);
 
+    // The field carries no validator of its own, so the message is host state,
+    // recomputed whenever the value or the taken-name state moves.
+    bool validate() {
+      final error = _validate(loc, usernameExists.value, controller.text);
+      errorText.value = error;
+      return error == null;
+    }
+
+    void submit() => _submit(
+      context: context,
+      controller: controller,
+      usernameExists: usernameExists,
+      setSubmitting: (value) => isSubmitting.value = value,
+      validate: validate,
+    );
+
     return AppDialog(
-      child: Form(
-        key: formKey,
-        child: Column(
-          mainAxisSize: MainAxisSize.min,
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Center(
-              child: Text(
-                loc.usernameScreen_title,
-                style: typeScale.header.regular.style(
-                  weight: Weight.emphasized,
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Center(
+            child: Text(
+              loc.usernameScreen_title,
+              style: typeScale.header.regular.style(weight: Weight.emphasized),
+            ),
+          ),
+          const SizedBox(height: S.s24),
+
+          AppTextInput(
+            tokens: AppTextInputTokens.of(context),
+            autocorrect: false,
+            autofocus: true,
+            controller: controller,
+            focusNode: focusNode,
+            inputFormatters: const [UsernameInputFormatter()],
+            hintText: loc.usernameScreen_inputHint,
+            errorText: errorText.value,
+            onChanged: (_) {
+              if (usernameExists.value) {
+                usernameExists.value = false;
+                validate();
+              }
+            },
+            onSubmitted: (_) {
+              focusNode.requestFocus();
+              submit();
+            },
+          ),
+
+          const SizedBox(height: S.s12),
+
+          Padding(
+            padding: const EdgeInsets.symmetric(horizontal: S.s8),
+            child: Text(
+              loc.usernameScreen_description,
+              style: typeScale.body.xs.style(color: palette.text.tertiary),
+            ),
+          ),
+
+          const SizedBox(height: S.s24),
+
+          Row(
+            children: [
+              Expanded(
+                child: Button(
+                  onPressed: () => Navigator.of(context).pop(false),
+                  label: loc.usernameScreen_cancel,
+                  type: ButtonType.secondary,
                 ),
               ),
-            ),
-            const SizedBox(height: S.s24),
-
-            TextFormField(
-              autocorrect: false,
-              autofocus: true,
-              controller: controller,
-              focusNode: focusNode,
-              inputFormatters: const [UsernameInputFormatter()],
-              validator: (value) => _validate(loc, usernameExists, value),
-              onChanged: (_) {
-                if (usernameExists.value) {
-                  usernameExists.value = false;
-                  formKey.currentState!.validate();
-                }
-              },
-              decoration: appDialogInputDecoration.copyWith(
-                hintText: loc.usernameScreen_inputHint,
-                filled: true,
-                fillColor: palette.backgroundBase.secondary,
-              ),
-              onFieldSubmitted: (_) {
-                focusNode.requestFocus();
-                _submit(
-                  context,
-                  formKey,
-                  controller,
-                  usernameExists,
-                  isSubmitting,
-                );
-              },
-            ),
-
-            const SizedBox(height: S.s12),
-
-            Padding(
-              padding: const EdgeInsets.symmetric(horizontal: S.s8),
-              child: Text(
-                loc.usernameScreen_description,
-                style: typeScale.body.xs.style(color: palette.text.tertiary),
-              ),
-            ),
-
-            const SizedBox(height: S.s24),
-
-            Row(
-              children: [
-                Expanded(
-                  child: OutlinedButton(
-                    onPressed: () {
-                      Navigator.of(context).pop(false);
-                    },
-                    child: Text(loc.usernameScreen_cancel),
-                  ),
+              const SizedBox(width: S.s12),
+              Expanded(
+                child: Button(
+                  onPressed: submit,
+                  label: loc.usernameScreen_confirm,
+                  state: isSubmitting.value
+                      ? ButtonState.pending
+                      : ButtonState.active,
                 ),
-                const SizedBox(width: S.s12),
-                Expanded(
-                  child: AppDialogProgressButton(
-                    onPressed: (isSubmitting) => _submit(
-                      context,
-                      formKey,
-                      controller,
-                      usernameExists,
-                      isSubmitting,
-                    ),
-                    style: ButtonStyle(
-                      backgroundColor: WidgetStatePropertyAll(
-                        palette.accentBrand.primary,
-                      ),
-                      overlayColor: WidgetStatePropertyAll(
-                        palette.accentBrand.primary,
-                      ),
-                      foregroundColor: WidgetStatePropertyAll(
-                        palette.function.neutral.toggleWhite,
-                      ),
-                    ),
-                    progressColor: palette.function.neutral.toggleWhite,
-                    inProgress: inProgress,
-                    child: Text(loc.usernameScreen_confirm),
-                  ),
-                ),
-              ],
-            ),
-          ],
-        ),
+              ),
+            ],
+          ),
+        ],
       ),
     );
   }
 
-  void _submit(
-    BuildContext context,
-    GlobalKey<FormState> formKey,
-    TextEditingController controller,
-    ValueNotifier<bool> alreadyExists,
-    ValueNotifier<bool> isSubmitting,
-  ) async {
-    if (!formKey.currentState!.validate()) {
+  Future<void> _submit({
+    required BuildContext context,
+    required TextEditingController controller,
+    required ValueNotifier<bool> usernameExists,
+    required void Function(bool) setSubmitting,
+    required bool Function() validate,
+  }) async {
+    if (!validate()) {
       return;
     }
     final normalized = UsernameInputFormatter.normalize(controller.text);
     final username = UiUsername(plaintext: normalized);
     final userCubit = context.read<UserCubit>();
 
-    // Clear already exists if any
-    if (alreadyExists.value) {
-      alreadyExists.value = false;
-      formKey.currentState!.validate();
-    }
-
-    isSubmitting.value = true;
+    setSubmitting(true);
     if (!await userCubit.addUsername(username)) {
-      alreadyExists.value = true;
-      isSubmitting.value = false;
-      formKey.currentState!.validate();
+      usernameExists.value = true;
+      setSubmitting(false);
+      validate();
       return;
     }
     if (!context.mounted) return;
     Navigator.of(context).pop();
   }
 
-  String? _validate(
-    AppLocalizations loc,
-    ValueNotifier<bool> usernameExists,
-    String? value,
-  ) {
-    if (usernameExists.value) {
+  String? _validate(AppLocalizations loc, bool usernameExists, String value) {
+    if (usernameExists) {
       return loc.usernameScreen_error_alreadyExists;
     }
-    if (value == null || value.trim().isEmpty) {
+    if (value.trim().isEmpty) {
       return loc.usernameScreen_error_emptyUsername;
     }
-    final safeValue = value;
-    final normalized = UsernameInputFormatter.normalize(safeValue);
+    final normalized = UsernameInputFormatter.normalize(value);
     if (normalized.isEmpty) {
       return loc.usernameScreen_error_emptyUsername;
     }

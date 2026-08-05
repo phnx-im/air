@@ -7,8 +7,9 @@ mod connection;
 mod group;
 mod jobs;
 mod message;
-mod multi_device;
+pub(crate) mod multi_device;
 mod process;
+mod self_group;
 mod server;
 mod user;
 

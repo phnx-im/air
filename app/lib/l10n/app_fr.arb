@@ -13,13 +13,16 @@
   "userSettingsScreen_readReceiptsDescription": "Si activés, les autres verront si vous avez lu leurs messages et vous verrez s'ils ont lu les vôtres.",
   "userSettingsScreen_displayNameLabel": "Nom d'affichage",
   "userSettingsScreen_usernamesSection": "Noms d'utilisateur",
-  "userSettingsScreen_settingsSection": "Paramètres",
   "userSettingsScreen_helpSection": "Aide",
   "userSettingsScreen_accountSection": "Compte",
   "userSettingsScreen_usernamePlaceholder": "Nom d'utilisateur",
   "userSettingsScreen_inviteCodes": "Codes d'invitation",
 
   "userSettingsScreen_devices": "Appareils",
+
+  "youSection_profile": "Profil",
+  "youSection_preferences": "Paramètres",
+  "youSection_developer": "Développeur",
   "settingsScreen_copiedToClipboard": "Copié dans le presse-papiers",
   "removeUsernameDialog_title": "Supprimer le nom d'utilisateur",
   "removeUsernameDialog_content": "Si vous continuez, votre nom d'utilisateur sera supprimé et pourra être réclamé par quelqu'un d'autre. Vous ne serez plus accessible par son intermédiaire.",
@@ -27,8 +30,9 @@
   "removeUsernameDialog_remove": "Supprimer",
   "addMembersScreen_addMembers": "Ajouter des membres",
   "addMembersScreen_error_noActiveChat": "une discussion active est obligatoire",
+  "contactDetailsScreen_title": "Profil",
   "contactDetailsScreen_chat": "Discussion",
-  "contactDetailsScreen_viewSafetyCode": "Voir le code de sécurité",
+  "contactDetailsScreen_viewSafetyCode": "Code de sécurité",
   "contactDetailsScreen_mute": "Mettre en sourdine",
   "contactDetailsScreen_unmute": "Désactiver la sourdine",
   "safetyCodeScreen_title": "Code de sécurité",
@@ -151,7 +155,6 @@
   "linkingDevicesScreen_error_sessionNotFound": "Le code que vous avez fourni est incorrect.",
   "linkingDevicesScreen_error_dismiss": "Réessayer",
 
-  "linkedDevicesScreen_title": "Appareils",
   "linkedDevicesScreen_thisDevice": "Cet appareil",
   "linkedDevicesScreen_linkedDevices": "Appareils associés",
   "linkedDevicesScreen_linkedOn": "Associé le {date}",
@@ -363,6 +366,7 @@
   "contactUsScreen_body_logsUrl": "Voici des journaux pour vous aider à déboguer mon problème : {url}",
   "contactUsScreen_errorLaunchingEmail": "Impossible de lancer le client de messagerie",
   "contactUsScreen_errorUploadingLogs": "Impossible de téléverser les journaux",
+  "groupDetails_title": "Détails du groupe",
   "groupDetails_leaveChat": "Quitter",
   "groupDetails_deleteChat": "Supprimer",
   "groupDetails_addPeople": "Ajouter",
@@ -375,7 +379,6 @@
       }
     }
   },
-  "groupDetails_groupDescription": "Groupe",
   "groupMembersScreen_title": "Membres du groupe",
   "groupMembersScreen_searchHint": "Chercher",
   "groupCreationScreen_title": "Ajouter des membres",
@@ -428,5 +431,8 @@
   "messageList_reactions_react": "Réagir",
   "messageList_reactions_remove": "Supprimer",
   "messageList_reactions_you": "Vous",
-  "messageList_reactions_all": "Toutes · {total}"
+  "messageList_reactions_all": "Toutes · {total}",
+  "emojiPicker_searchHint": "Rechercher un emoji",
+  "emojiPicker_empty": "Aucun emoji trouvé",
+  "emojiPicker_skinToneHelp": "Définit votre teinte de peau par défaut"
 }
